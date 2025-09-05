@@ -257,20 +257,19 @@ class Parser:
                 continue
             alt = (img.get("alt") or img.get("title") or "").strip()
             cls = " ".join(img.get("class", [])).lower()
-            parents = " ".join(" ".join(p.get("class", [])) for p in img.parents if hasattr(p, "get")).lower()
+            # parents = " ".join(" ".join(p.get("class", [])) for p in img.parents if hasattr(p, "get")).lower()
             is_chart = any([
                 CHART_HINT_RE.search(src),
                 CHART_HINT_RE.search(alt),
                 CHART_HINT_RE.search(cls),
-                CHART_HINT_RE.search(parents),
+                # CHART_HINT_RE.search(parents),
             ])
             info = ImageInfo(src=src, alt=alt, is_chart=is_chart)
-            # if img.get(is_chart):
-            #     if len(charts if is_chart else imgs) < 3:
-            #         (charts if is_chart else imgs).append(info)
-            bucket = charts if is_chart else imgs
-            if len(bucket) < 3:
-                bucket.append(info)
+
+            if info.is_chart:
+                bucket = charts if is_chart else imgs
+                if len(bucket) < 3:
+                    bucket.append(info)
         return imgs, charts
 
 
@@ -786,15 +785,6 @@ class CategoryPolicy:
 
 
 class URLClassifier:
-    """
-    규칙:
-      - 마지막 세그먼트가 category_slugs 중 하나면 '카테고리'(= 기사 아님, 더 탐색)
-      - 마지막 세그먼트가 슬래시-only(= 루트)도 '메인/카테고리' 취급
-      - 기사 양의 신호가 있으면 기사 후보
-      - 카테고리 음의 신호가 있으면 카테고리 후보
-      - 충돌 시: (카테고리 신호 > 기사 신호) 우선
-    """
-
     def __init__(self, policy: Optional[CategoryPolicy] = None) -> None:
         self.policy = policy or CategoryPolicy()
 
@@ -817,16 +807,19 @@ class URLClassifier:
         return segs[-1].lower() if segs else ""
 
     @staticmethod
+    # First Filter
     def _has_three_or_more_hyphens(slug: str) -> bool:
         return slug.count("-") >= 3
 
     @staticmethod
+    # Second Filter
     def _is_numeric_id(slug: str) -> bool:
         # “글 번호로만 존재하는 건도 본문으로 간주”
-        # e.g., 407068000, 1234567 등 길이 6+를 기사 양(+) 신호로
+        # e.g., 407068000, 1234567 등 길이 6 이상인 건을 기사로 인식
         return bool(re.fullmatch(r"\d{6,}", slug))
 
     @staticmethod
+    # Third Filter
     def _has_letters_and_numbers(slug: str) -> bool:
         # 영문/숫자 둘 다 포함
         return bool(re.search(r"[A-Za-z]", slug) and re.search(r"\d", slug))
@@ -905,12 +898,9 @@ class URLClassifier:
         return True
 
     def classify(self, url: str) -> str:
-        """
-        returns: 'category' | 'article' | 'unknown'
-        """
         if self.like_category(url):
             return "category"
-        if self.like_article(url):
+        elif self.like_article(url):
             return "article"
         return "unknown"
 
@@ -941,7 +931,6 @@ def run_cli() -> None:
         log.info("No sites found in %s", args.sites_config)
         return
 
-    # 도메인별 allow/deny 통합
     allows: List[str] = []
     denies: List[str] = []
     for s in sites:
