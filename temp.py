@@ -288,26 +288,29 @@ class ArticleHeuristics:
         return tuple(out)
 
     def looks_like_article(self, url: str, html: Optional[str]) -> bool:
-        for d in self.deny:
-            if d.search(url):
-                return False
-        for a in self.allow:
-            if a.search(url):
-                return True
-        # fallback: URL 깊이 기반 휴리스틱
         path = urlparse(url).path
-        depth = sum(1 for seg in path.split("/") if seg)
-        if depth >= 2 and not path.endswith("/"):
+        segs = [s for s in path.split("/") if s]
+
+        if not segs:
+            return False
+
+        last = segs[-1]
+
+        if last.count("-") >= 3:
             return True
-        # 메타 검사
+        if len(last) > 10 and re.search(r"[a-zA-Z]", last) and re.search(r"\d", last):
+            return True
+        if last.isdigit():
+            return True
         if html:
             try:
-                soup = BeautifulSoup(html, DEFAULT_PARSER)
+                soup = BeautifulSoup(html, "lxml")
                 mt = soup.find("meta", {"property": "og:type"})
                 if mt and (mt.get("content") or "").lower().strip() == "article":
                     return True
             except Exception:
                 pass
+
         return False
 
 
@@ -531,7 +534,9 @@ class Crawler:
         fr = Frontier()
         for s in norm:
             fr.push(s, 0, None)
+
         per_domain_fetch: Dict[str, int] = {}
+        yielded: Set[str] = set()
 
         while len(fr) > 0 and sum(per_domain_fetch.values()) < self.cfg.max_total:
             item = fr.pop()
@@ -539,24 +544,34 @@ class Crawler:
                 break
             url, depth, referer = item
             dom = URLHelper.domain(url)
+
+            # 도메인별 cap
+            if per_domain_fetch.get(dom, 0) >= self.cfg.max_pages_per_domain:
+                continue
+
             html = self.http.get_html(url, referer=referer, timeout=self.cfg.timeout_get)
+            if self.cfg.sleep_between_requests:
+                try:
+                    import time
+                    time.sleep(self.cfg.sleep_between_requests)
+                except Exception:
+                    pass
             if not html:
                 continue
 
+            is_article = False
             if self.cfg.include_html_pages and self.heur.looks_like_article(url, html):
-                yield url
+                is_article = True
+            elif self.cls.classify(url) == "article":
+                is_article = True
+
+            if is_article and url not in yielded:
+                yielded.add(url)
                 per_domain_fetch[dom] = per_domain_fetch.get(dom, 0) + 1
+                yield url
 
             if depth >= self.cfg.max_depth:
                 continue
-
-            log.info(url)
-            label = self.cls.classify(url)
-            if label == "article":
-                log.info("is Article %s", url)
-                yield url
-                if depth >= self.max_depth:
-                    continue
 
             soup = BeautifulSoup(html, DEFAULT_PARSER)
             for a in soup.find_all("a", href=True):
@@ -568,7 +583,7 @@ class Crawler:
                     continue
                 if self.cfg.same_domain_only and URLHelper.domain(child) != dom:
                     continue
-                fr.push(child, depth+1, url)
+                fr.push(child, depth + 1, url)
 
 
 class MarketDataHub:
@@ -738,8 +753,10 @@ class CategoryPolicy:
         "world","news","business","markets","technology","tech","sports","sport",
         "entertainment","politics","economy","finance","opinion","culture",
         "science","health","life","lifestyle","travel","autos",
-        # 지역/판 구분도 카테고리처럼 취급
-        "us","uk","asia","europe","china","india","korea","japan","africa","middleeast",
+        "international", "europe", "video", "tech", "market", "nightcap", "health",
+        "work-transformed", "innovative-cities", "mission-ahead"
+        # 지역
+        "australia", "asia", "americas", "us","uk","asia","europe","china","india","korea","japan","africa","middleeast",
     })
     # 무시할 세그먼트(언어/국가/로케일 같은 prefix)
     ignore_slugs: Set[str] = field(default_factory=lambda: {"en","ko","kr","us","gb","intl"})
@@ -790,11 +807,17 @@ class URLClassifier:
         if self.is_home(url):
             return True
         segs = self._segments(p.path)
-        # ignore 슬러그 제거
-        segs = [s for s in segs if s not in self.policy.ignore_slugs]
-        if not segs:
-            return True
+
+        for s in segs:
+            if s not in self.policy.ignore_slugs:
+                return True
+        # ignore 슬러그 제거 >> 제거가 아닌 여부 확인
+        # segs = [s for s in segs if s not in self.policy.ignore_slugs]
+        # if not segs:
+        #     return True
+
         last = segs[-1]
+        log.info("last tag : %s ", last)
         # 마지막 세그먼트가 명시된 카테고리면 카테고리 취급
         if self.is_category_slug(last):
             return True
@@ -804,7 +827,6 @@ class URLClassifier:
                 return True
         # 디렉터리로 끝나는 경로(= 마지막이 빈 세그먼트)도 카테고리 성향
         if p.path.endswith("/"):
-            # 예: /business/ 처럼 깊이 1~2 디렉토리인 경우는 카테고리 가능성↑
             depth = len(segs)
             if depth <= 3:
                 return True
@@ -849,7 +871,7 @@ def run_cli() -> None:
     ap = argparse.ArgumentParser(description="News Multiseed Extractor")
     ap.add_argument("--sites-config", default=_CONST_SITES_CFG)
     ap.add_argument("--max-total", type=int, default=40)
-    ap.add_argument("--max-depth", type=int, default=2)
+    ap.add_argument("--max-depth", type=int, default=3)
     ap.add_argument("--sleep", type=float, default=1)
     ap.add_argument("--topk", type=int, default=3)
     ap.add_argument("--summary-sents", type=int, default=3)
