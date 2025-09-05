@@ -1,0 +1,1889 @@
+{
+  "seed_count": 21,
+  "results": [
+    {
+      "url": "https://www.bbc.com/news/war-in-ukraine",
+      "title": "Ukraine War | Latest News & Updates| BBC News",
+      "published_at": null,
+      "summary": "3 days ago 4 days ago Putin says he reached 'understandings' with Trump over end of Ukraine war The Russian president also defended his decision to invade Ukraine, once again blaming the war on the West. 16 hrs ago 1 day ago It's 4,000 miles from Ukraine - but even this Asian city is part of Russia's war In Vladivostok, a city on China's and North Korea's border, Russia's war on Ukraine looms large. 7 days ago Europe It's 4,000 miles from Ukraine - but even this Asian city is part of Russia's war In Vladivostok, a city on China's and North Korea's border, Russia's war on Ukraine looms large.",
+      "top_words": [
+        [
+          "ukraine",
+          34
+        ],
+        [
+          "ago",
+          27
+        ],
+        [
+          "days",
+          17
+        ]
+      ],
+      "percents": [],
+      "sentiment": "neutral",
+      "images": [],
+      "charts": [],
+      "mapped": {
+        "companies": [],
+        "commodities": [
+          {
+            "name": "crude oil",
+            "aliases": [
+              "oil",
+              "wti",
+              "브렌트",
+              "원유"
+            ],
+            "symbol": "CL=F"
+          }
+        ],
+        "macro": []
+      },
+      "related_data_plan": {
+        "window": {
+          "start": "2025-08-29T00:48:37.621301+00:00",
+          "end": "2025-09-12T00:48:37.621301+00:00"
+        },
+        "targets": [
+          {
+            "type": "commodity",
+            "symbol": "CL=F"
+          }
+        ],
+        "recommend": []
+      },
+      "fetched_series": {
+        "equity": {},
+        "commodity": {
+          "CL=F": [
+            {
+              "t": "Ticker\n   2025-08-29\nName: 0, dtype: datetime64[ns]",
+              "o": 64.26000213623047,
+              "h": 64.55000305175781,
+              "l": 63.880001068115234,
+              "c": 64.01000213623047,
+              "v": 0.0
+            },
+            {
+              "t": "Ticker\n   2025-09-02\nName: 1, dtype: datetime64[ns]",
+              "o": 63.95000076293945,
+              "h": 66.02999877929688,
+              "l": 63.65999984741211,
+              "c": 65.58999633789062,
+              "v": 320218.0
+            },
+            {
+              "t": "Ticker\n   2025-09-03\nName: 2, dtype: datetime64[ns]",
+              "o": 65.62000274658203,
+              "h": 65.72000122070312,
+              "l": 63.720001220703125,
+              "c": 63.970001220703125,
+              "v": 320218.0
+            },
+            {
+              "t": "Ticker\n   2025-09-04\nName: 3, dtype: datetime64[ns]",
+              "o": 63.33000183105469,
+              "h": 63.380001068115234,
+              "l": 63.220001220703125,
+              "c": 63.31999969482422,
+              "v": 1456.0
+            }
+          ]
+        },
+        "macro": {},
+        "tv": {}
+      },
+      "depth": 2
+    },
+    {
+      "url": "https://www.bbc.com/news/us-canada",
+      "title": "US & Canada | Latest News & Updates | BBC News",
+      "published_at": null,
+      "summary": "Ladapo announced this week that Florida would seek to end all mandates, including those for schoolchildren 6 hrs ago 6 hrs ago Trump's Fed pick says he will keep White House job Democrats say the arrangement indicates Stephen Miran would be Trump's \"puppet\" at the central bank. Ladapo announced this week that Florida would seek to end all mandates, including those for schoolchildren 6 hrs ago US & Canada Trump's Fed pick says he will keep White House job Democrats say the arrangement indicates Stephen Miran would be Trump's \"puppet\" at the central bank. 3 hrs ago 3 hrs ago Teen killed and seven injured in mass stabbing in Canada Investigators said the 18-year-old killed was the sister of the suspect, who was known to police.",
+      "top_words": [
+        [
+          "ago",
+          27
+        ],
+        [
+          "hrs",
+          22
+        ],
+        [
+          "trump",
+          19
+        ]
+      ],
+      "percents": [],
+      "sentiment": "good",
+      "images": [],
+      "charts": [],
+      "mapped": {
+        "companies": [],
+        "commodities": [
+          {
+            "name": "gold",
+            "aliases": [
+              "gold",
+              "xau",
+              "금"
+            ],
+            "symbol": "GC=F"
+          }
+        ],
+        "macro": []
+      },
+      "related_data_plan": {
+        "window": {
+          "start": "2025-08-29T00:48:39.589793+00:00",
+          "end": "2025-09-12T00:48:39.589793+00:00"
+        },
+        "targets": [
+          {
+            "type": "commodity",
+            "symbol": "GC=F"
+          }
+        ],
+        "recommend": []
+      },
+      "fetched_series": {
+        "equity": {},
+        "commodity": {
+          "GC=F": [
+            {
+              "t": "Ticker\n   2025-08-29\nName: 0, dtype: datetime64[ns]",
+              "o": 3432.5,
+              "h": 3475.60009765625,
+              "l": 3426.60009765625,
+              "c": 3473.699951171875,
+              "v": 0.0
+            },
+            {
+              "t": "Ticker\n   2025-09-02\nName: 1, dtype: datetime64[ns]",
+              "o": 3485.699951171875,
+              "h": 3559.199951171875,
+              "l": 3485.699951171875,
+              "c": 3549.39990234375,
+              "v": 658.0
+            },
+            {
+              "t": "Ticker\n   2025-09-03\nName: 2, dtype: datetime64[ns]",
+              "o": 3554.800048828125,
+              "h": 3593.699951171875,
+              "l": 3553.199951171875,
+              "c": 3593.199951171875,
+              "v": 658.0
+            },
+            {
+              "t": "Ticker\n   2025-09-04\nName: 3, dtype: datetime64[ns]",
+              "o": 3602.0,
+              "h": 3613.5,
+              "l": 3595.39990234375,
+              "c": 3610.5,
+              "v": 9727.0
+            }
+          ]
+        },
+        "macro": {},
+        "tv": {}
+      },
+      "depth": 2
+    },
+    {
+      "url": "https://www.bbc.com/news/world/australia",
+      "title": "Australia | Latest News & Updates | BBC News",
+      "published_at": null,
+      "summary": "4 days ago 4 days ago Enforcing Australia's social media ban on kids is possible but contains risks, report says The impending ban is popular with many parents, but experts have raised concerns over privacy and age verification technology. 3 days ago 4 days ago Fugitive wanted over Australia police killings being helped, police say Dezi Freeman vanished into thick bushland after killing two police officers and hasn't been seen since. 3 days ago 3 days ago Australian man arrested over A$250,000 Lego and toy heist South Australian police say the haul was so large it took three truck loads to remove.",
+      "top_words": [
+        [
+          "ago",
+          26
+        ],
+        [
+          "australia",
+          17
+        ],
+        [
+          "days",
+          16
+        ]
+      ],
+      "percents": [],
+      "sentiment": "good",
+      "images": [],
+      "charts": [],
+      "mapped": {
+        "companies": [],
+        "commodities": [],
+        "macro": []
+      },
+      "related_data_plan": {
+        "window": {
+          "start": "2025-08-29T00:48:45.547027+00:00",
+          "end": "2025-09-12T00:48:45.547027+00:00"
+        },
+        "targets": [],
+        "recommend": []
+      },
+      "fetched_series": {
+        "equity": {},
+        "commodity": {},
+        "macro": {},
+        "tv": {}
+      },
+      "depth": 2
+    },
+    {
+      "url": "https://www.bbc.com/news/world/latin_america",
+      "title": "Latin America | Latest News & Updates | BBC News",
+      "published_at": null,
+      "summary": "12 hrs ago 18 hrs ago Guyana President Irfaan Ali claims victory in general election The incumbent president claimed victory in an election dominated by how to manage the country's vast oil reserves. 1 day ago 1 day ago Charges against Brazil's Bolsonaro are political, says lawyer The former Brazilian president denies conspiring to overturn his 2022 election loss to his left-wing rival, Luiz Inácio Lula da Silva. 11 hrs ago Latin America Guyana President Irfaan Ali claims victory in general election The incumbent president claimed victory in an election dominated by how to manage the country's vast oil reserves.",
+      "top_words": [
+        [
+          "ago",
+          27
+        ],
+        [
+          "president",
+          14
+        ],
+        [
+          "day",
+          13
+        ]
+      ],
+      "percents": [],
+      "sentiment": "good",
+      "images": [],
+      "charts": [],
+      "mapped": {
+        "companies": [],
+        "commodities": [
+          {
+            "name": "crude oil",
+            "aliases": [
+              "oil",
+              "wti",
+              "브렌트",
+              "원유"
+            ],
+            "symbol": "CL=F"
+          }
+        ],
+        "macro": []
+      },
+      "related_data_plan": {
+        "window": {
+          "start": "2025-08-29T00:48:48.309107+00:00",
+          "end": "2025-09-12T00:48:48.309107+00:00"
+        },
+        "targets": [
+          {
+            "type": "commodity",
+            "symbol": "CL=F"
+          }
+        ],
+        "recommend": []
+      },
+      "fetched_series": {
+        "equity": {},
+        "commodity": {
+          "CL=F": [
+            {
+              "t": "Ticker\n   2025-08-29\nName: 0, dtype: datetime64[ns]",
+              "o": 64.26000213623047,
+              "h": 64.55000305175781,
+              "l": 63.880001068115234,
+              "c": 64.01000213623047,
+              "v": 0.0
+            },
+            {
+              "t": "Ticker\n   2025-09-02\nName: 1, dtype: datetime64[ns]",
+              "o": 63.95000076293945,
+              "h": 66.02999877929688,
+              "l": 63.65999984741211,
+              "c": 65.58999633789062,
+              "v": 320218.0
+            },
+            {
+              "t": "Ticker\n   2025-09-03\nName: 2, dtype: datetime64[ns]",
+              "o": 65.62000274658203,
+              "h": 65.72000122070312,
+              "l": 63.720001220703125,
+              "c": 63.970001220703125,
+              "v": 320218.0
+            },
+            {
+              "t": "Ticker\n   2025-09-04\nName: 3, dtype: datetime64[ns]",
+              "o": 63.33000183105469,
+              "h": 63.380001068115234,
+              "l": 63.220001220703125,
+              "c": 63.31999969482422,
+              "v": 1456.0
+            }
+          ]
+        },
+        "macro": {},
+        "tv": {}
+      },
+      "depth": 2
+    },
+    {
+      "url": "https://www.bbc.com/news/world/middle_east",
+      "title": "Middle East | Latest News & Updates | BBC News",
+      "published_at": null,
+      "summary": "4 days ago 4 days ago Hamas spokesman Abu Obeida killed in Gaza, Israel says The military spokesman was killed in strikes on Saturday, Israel says - Hamas has not confirmed the death. 3 days ago 3 days ago Israel committing genocide in Gaza, world's leading experts say The world's leading association of genocide scholars cited several actions by Israel, including attacks on the healthcare sector and the killing of children. Latest updates 9 hrs ago Israel dismisses 'spin' after Hamas says it is ready for comprehensive Gaza deal Prime Minister Netanyahu says Hamas \"has nothing new\" and that war can end only on terms that Israel has set.",
+      "top_words": [
+        [
+          "ago",
+          27
+        ],
+        [
+          "israel",
+          23
+        ],
+        [
+          "gaza",
+          23
+        ]
+      ],
+      "percents": [],
+      "sentiment": "good",
+      "images": [],
+      "charts": [],
+      "mapped": {
+        "companies": [],
+        "commodities": [],
+        "macro": []
+      },
+      "related_data_plan": {
+        "window": {
+          "start": "2025-08-29T00:48:51.048581+00:00",
+          "end": "2025-09-12T00:48:51.048581+00:00"
+        },
+        "targets": [],
+        "recommend": []
+      },
+      "fetched_series": {
+        "equity": {},
+        "commodity": {},
+        "macro": {},
+        "tv": {}
+      },
+      "depth": 2
+    },
+    {
+      "url": "https://www.bbc.com/news/in_pictures",
+      "title": "In Pictures | Latest News & Updates | BBC News",
+      "published_at": null,
+      "summary": "We set the theme, you take the pictures Each week, we ask you to send in your pictures on a set theme and a selection of these are then published each Thursday on our In pictures page Your pictures on the theme of 'glass' Images on the theme of \"glass\" sent in by our readers. Your pictures Your pictures on the theme of 'my best photo' Images from our readers on the theme of \"my best photo\". 20 Apr 2025 23 Mar 2025 Your pictures on the theme of 'my best photo' Images from our readers on the theme of \"my best photo\".",
+      "top_words": [
+        [
+          "theme",
+          16
+        ],
+        [
+          "pictures",
+          13
+        ],
+        [
+          "images",
+          11
+        ]
+      ],
+      "percents": [],
+      "sentiment": "neutral",
+      "images": [],
+      "charts": [],
+      "mapped": {
+        "companies": [],
+        "commodities": [],
+        "macro": []
+      },
+      "related_data_plan": {
+        "window": {
+          "start": "2025-08-29T00:48:52.561805+00:00",
+          "end": "2025-09-12T00:48:52.561805+00:00"
+        },
+        "targets": [],
+        "recommend": []
+      },
+      "fetched_series": {
+        "equity": {},
+        "commodity": {},
+        "macro": {},
+        "tv": {}
+      },
+      "depth": 2
+    },
+    {
+      "url": "https://www.bbc.com/news/bbcindepth",
+      "title": "BBC InDepth - In depth and expert analysis from BBC News",
+      "published_at": null,
+      "summary": "All of this caused short-term disruption - but the impact concealed a deeper problem for the UK automotive industry What it means to be 'culturally' Irish in 2025 is complicated - as Ed Sheeran has shown Ed Sheeran grew up in England but described himself as 'culturally Irish,' prompting debate about what that really means Carol Kirkwood: Why weather forecasters (like me) often appear to get it wrong The accuracy of forecasting has improved enormously - and AI promises further advances. 5 days ago BBC InDepth The race for the two miles-a-second super weapons that Putin says turn targets to dust Russia and China are leading the global race in hypersonic missiles - how worried should we be that the US is playing catch up and the UK has none? 24 Aug 2025 BBC InDepth The race for the two miles-a-second super weapons that Putin says turn targets to dust Russia and China are leading the global race in hypersonic missiles - how worried should we be that the US is playing catch up and the UK has none?",
+      "top_words": [
+        [
+          "bbc",
+          10
+        ],
+        [
+          "indepth",
+          10
+        ],
+        [
+          "but",
+          10
+        ]
+      ],
+      "percents": [],
+      "sentiment": "good",
+      "images": [],
+      "charts": [],
+      "mapped": {
+        "companies": [],
+        "commodities": [],
+        "macro": []
+      },
+      "related_data_plan": {
+        "window": {
+          "start": "2025-08-29T00:48:54.154695+00:00",
+          "end": "2025-09-12T00:48:54.154695+00:00"
+        },
+        "targets": [],
+        "recommend": []
+      },
+      "fetched_series": {
+        "equity": {},
+        "commodity": {},
+        "macro": {},
+        "tv": {}
+      },
+      "depth": 2
+    },
+    {
+      "url": "https://www.bbc.com/news/bbcverify",
+      "title": "BBC Verify | Latest News & Updates | BBC News",
+      "published_at": null,
+      "summary": "BBC Verify examines key areas which the government has promised to make improvements 21 Aug 2025 31 Jul 2025 Number of new homes in England falls in Labour's first year - but applications rise Find out how many new homes were registered where you live during Labour’s first year in government 31 Jul 2025 28 Jul 2025 The US-EU trade deal in numbers - how it compares to UK deal Donald Trump has struck an agreement with the European Union to reduce tariffs - what will that mean for the UK? BBC Verify: Earthquake video proven fake gets millions of views BBC Verify: Earthquake video proven fake gets millions of views BBC Verify: Viral Donald Trump Jr audio highly likely AI fake A clip of Donald Trump Jr allegedly saying on his podcast that the US should have sent arms to Russia rather than Ukraine was very likely generated with AI, experts say. 25 Jun 2025 12 Jun 2025 What video and flight data tell us about Air India crash Using footage and flight data, BBC Verify has pieced together what we know so far about the Air India crash in Ahmedabad.",
+      "top_words": [
+        [
+          "bbc",
+          27
+        ],
+        [
+          "verify",
+          20
+        ],
+        [
+          "has",
+          18
+        ]
+      ],
+      "percents": [],
+      "sentiment": "good",
+      "images": [],
+      "charts": [],
+      "mapped": {
+        "companies": [],
+        "commodities": [],
+        "macro": []
+      },
+      "related_data_plan": {
+        "window": {
+          "start": "2025-08-29T00:48:55.764319+00:00",
+          "end": "2025-09-12T00:48:55.764319+00:00"
+        },
+        "targets": [],
+        "recommend": []
+      },
+      "fetched_series": {
+        "equity": {},
+        "commodity": {},
+        "macro": {},
+        "tv": {}
+      },
+      "depth": 2
+    },
+    {
+      "url": "https://www.bbc.com/news/england",
+      "title": "England | Latest News & Updates | BBC News",
+      "published_at": null,
+      "summary": "6 hrs ago 6 hrs ago Moment man tasered after high speed car chase Bryan Smith, 47, from Easton, reached 70mph as officers pursued him through residential streets. 10 hrs ago 10 hrs ago Dad seeing me captain England 'means everything' - Matthews England number eight Alex Matthews says captaining the Red Roses in the Women's Rugby World Cup on Saturday in front of her father - who has terminal cancer - \"means everything\". 10 hrs ago 10 hrs ago 'I think I punched him!' - Matthews shocked to be given captaincy Alex Matthews says she was \"taken aback\" to be given the England captaincy for their final Rugby World Cup pool match against Australia on Saturday.",
+      "top_words": [
+        [
+          "hrs",
+          27
+        ],
+        [
+          "ago",
+          27
+        ],
+        [
+          "after",
+          9
+        ]
+      ],
+      "percents": [],
+      "sentiment": "good",
+      "images": [],
+      "charts": [],
+      "mapped": {
+        "companies": [],
+        "commodities": [],
+        "macro": []
+      },
+      "related_data_plan": {
+        "window": {
+          "start": "2025-08-29T00:48:59.690850+00:00",
+          "end": "2025-09-12T00:48:59.690850+00:00"
+        },
+        "targets": [],
+        "recommend": []
+      },
+      "fetched_series": {
+        "equity": {},
+        "commodity": {},
+        "macro": {},
+        "tv": {}
+      },
+      "depth": 2
+    },
+    {
+      "url": "https://www.bbc.com/news/northern_ireland",
+      "title": "Northern Ireland | Latest News & Updates | BBC News",
+      "published_at": null,
+      "summary": "11 hrs ago 12 hrs ago Man jailed for six months after £95k limited edition Banksy theft Adil Hajjaj, 50, will spend six further months on supervised licence after his release for the theft at Charles Gilmore Fine Art gallery. 11 hrs ago Northern Ireland Politics Northern Ireland beat Luxembourg in World Cup opener Northern Ireland begin their 2026 World Cup qualifying campaign with a 3-1 win over Luxembourg at the Stade de Luxembourg. 9 hrs ago 11 hrs ago Child sex abuser was 'hidden in plain sight' - victim Patrick Lavery, 40, sexually abused six children as young as six years old from 1999 to 2009.",
+      "top_words": [
+        [
+          "hrs",
+          27
+        ],
+        [
+          "ago",
+          27
+        ],
+        [
+          "ireland",
+          18
+        ]
+      ],
+      "percents": [
+        {
+          "value": 18.0,
+          "context": "ond family' to tackle loneliness Almost 18% of people in Northern Ireland reported "
+        }
+      ],
+      "sentiment": "good",
+      "images": [],
+      "charts": [],
+      "mapped": {
+        "companies": [],
+        "commodities": [],
+        "macro": []
+      },
+      "related_data_plan": {
+        "window": {
+          "start": "2025-08-29T00:49:01.278546+00:00",
+          "end": "2025-09-12T00:49:01.278546+00:00"
+        },
+        "targets": [],
+        "recommend": []
+      },
+      "fetched_series": {
+        "equity": {},
+        "commodity": {},
+        "macro": {},
+        "tv": {}
+      },
+      "depth": 2
+    },
+    {
+      "url": "https://www.bbc.com/news/northern_ireland/northern_ireland_politics",
+      "title": "Northern Ireland Politics | Latest News & Updates | BBC News",
+      "published_at": null,
+      "summary": "2 days ago Northern Ireland Politics 'Real progress' on waiting lists, says minister, but 'awful lot to be done' Northern Ireland is \"showing real progress\" in tackling waiting lists, the health minister has said. 15 hrs ago Northern Ireland Politics Post-Brexit review fails to offer solutions, says DUP leader Gavin Robinson says an independent review \"has not challenged the reality\" of Northern Ireland being subject to EU laws. 15 hrs ago Northern Ireland Politics London and Dublin 'close' to new Troubles agreement NI Secretary Hilary Benn calls the Irish government's involvement in a new agreement a significant step.",
+      "top_words": [
+        [
+          "ireland",
+          12
+        ],
+        [
+          "northern",
+          11
+        ],
+        [
+          "ago",
+          9
+        ]
+      ],
+      "percents": [],
+      "sentiment": "good",
+      "images": [],
+      "charts": [],
+      "mapped": {
+        "companies": [],
+        "commodities": [],
+        "macro": []
+      },
+      "related_data_plan": {
+        "window": {
+          "start": "2025-08-29T00:49:02.426826+00:00",
+          "end": "2025-09-12T00:49:02.426826+00:00"
+        },
+        "targets": [],
+        "recommend": []
+      },
+      "fetched_series": {
+        "equity": {},
+        "commodity": {},
+        "macro": {},
+        "tv": {}
+      },
+      "depth": 2
+    },
+    {
+      "url": "https://www.bbc.com/news/scotland",
+      "title": "Scotland | Latest News & Updates | BBC News",
+      "published_at": null,
+      "summary": "Latest updates 6 hrs ago National library in U-turn over gender-critical book ban 'The Women Who Wouldn't Wheesht' is a collection of essays on women's rights campaigning in Scotland 6 hrs ago 8 hrs ago Council suspends flag removals after workers threatened Saltires have been put up across Scotland in recent weeks following similar scenes in England. 3 hrs ago Scotland Politics National library in U-turn over gender-critical book ban 'The Women Who Wouldn't Wheesht' is a collection of essays on women's rights campaigning in Scotland 6 hrs ago Scotland Cyclist, 72, in Inverness road death named by Police David MacKenzie was taken to Raigmore Hospital in Inverness where he died a short time later. 8 hrs ago Scotland National library in U-turn over gender-critical book ban 'The Women Who Wouldn't Wheesht' is a collection of essays on women's rights campaigning in Scotland 6 hrs ago Scotland Plan unveiled for £25m Glasgow bus depot Operator McGill's said the proposal for the Tradeston area could create up to 850 jobs.",
+      "top_words": [
+        [
+          "scotland",
+          33
+        ],
+        [
+          "ago",
+          27
+        ],
+        [
+          "hrs",
+          25
+        ]
+      ],
+      "percents": [],
+      "sentiment": "good",
+      "images": [],
+      "charts": [],
+      "mapped": {
+        "companies": [],
+        "commodities": [],
+        "macro": []
+      },
+      "related_data_plan": {
+        "window": {
+          "start": "2025-08-29T00:49:03.632701+00:00",
+          "end": "2025-09-12T00:49:03.632701+00:00"
+        },
+        "targets": [],
+        "recommend": []
+      },
+      "fetched_series": {
+        "equity": {},
+        "commodity": {},
+        "macro": {},
+        "tv": {}
+      },
+      "depth": 2
+    },
+    {
+      "url": "https://www.bbc.com/news/scotland/scotland_politics",
+      "title": "Scotland Politics | Latest News & Updates | BBC News",
+      "published_at": null,
+      "summary": "3 hrs ago Scotland Politics Swinney sets out latest plan for an independence referendum The first minister says a majority of SNP MSPs at Holyrood should be the trigger for a new vote. 10 hrs ago Scotland Politics UK budget date will delay Scottish spending plans The Scottish budget, normally published in December, is \"unlikely\" to be published  until January. 10 hrs ago Scotland Politics Starmer on independence, immigration and shipyard jobs The prime minister has said the SNP's latest plans for an independence are a distraction tactic from the success of new work for Scottish shipyards.",
+      "top_words": [
+        [
+          "scotland",
+          15
+        ],
+        [
+          "scottish",
+          10
+        ],
+        [
+          "politics",
+          9
+        ]
+      ],
+      "percents": [
+        {
+          "value": 11.0,
+          "context": "s owe a combined £19.2bn to lenders, up 11% on last year. Sir George Reid obituary:"
+        }
+      ],
+      "sentiment": "bad",
+      "images": [],
+      "charts": [],
+      "mapped": {
+        "companies": [],
+        "commodities": [
+          {
+            "name": "crude oil",
+            "aliases": [
+              "oil",
+              "wti",
+              "브렌트",
+              "원유"
+            ],
+            "symbol": "CL=F"
+          }
+        ],
+        "macro": []
+      },
+      "related_data_plan": {
+        "window": {
+          "start": "2025-08-29T00:49:04.773662+00:00",
+          "end": "2025-09-12T00:49:04.773662+00:00"
+        },
+        "targets": [
+          {
+            "type": "commodity",
+            "symbol": "CL=F"
+          }
+        ],
+        "recommend": [
+          "Defensives",
+          "Utilities",
+          "Gold"
+        ]
+      },
+      "fetched_series": {
+        "equity": {},
+        "commodity": {
+          "CL=F": [
+            {
+              "t": "Ticker\n   2025-08-29\nName: 0, dtype: datetime64[ns]",
+              "o": 64.26000213623047,
+              "h": 64.55000305175781,
+              "l": 63.880001068115234,
+              "c": 64.01000213623047,
+              "v": 0.0
+            },
+            {
+              "t": "Ticker\n   2025-09-02\nName: 1, dtype: datetime64[ns]",
+              "o": 63.95000076293945,
+              "h": 66.02999877929688,
+              "l": 63.65999984741211,
+              "c": 65.58999633789062,
+              "v": 320218.0
+            },
+            {
+              "t": "Ticker\n   2025-09-03\nName: 2, dtype: datetime64[ns]",
+              "o": 65.62000274658203,
+              "h": 65.72000122070312,
+              "l": 63.720001220703125,
+              "c": 63.970001220703125,
+              "v": 320218.0
+            },
+            {
+              "t": "Ticker\n   2025-09-04\nName: 3, dtype: datetime64[ns]",
+              "o": 63.33000183105469,
+              "h": 63.380001068115234,
+              "l": 63.220001220703125,
+              "c": 63.31999969482422,
+              "v": 1456.0
+            }
+          ]
+        },
+        "macro": {},
+        "tv": {}
+      },
+      "depth": 2
+    },
+    {
+      "url": "https://www.bbc.com/news/wales",
+      "title": "Wales | Latest News & Updates | BBC News",
+      "published_at": null,
+      "summary": "10 hrs ago 11 hrs ago Wales co-captains return as Wales target Fiji win Wales welcome back co-captains Alex Callender and Kate Williams for their final match of the Rugby World Cup against Fiji. 3 hrs ago Wales Bellamy thrilled to navigate frantic Kazakhstan build-up Head coach Craig Bellamy feels Wales' World Cup qualifying group remains wide open after his side overcame \"crazy\" preparation to beat Kazakhstan 1-0 in Astana to move to the summit of Group J. 8 hrs ago Wales Bellamy thrilled to navigate frantic Kazakhstan build-up Head coach Craig Bellamy feels Wales' World Cup qualifying group remains wide open after his side overcame \"crazy\" preparation to beat Kazakhstan 1-0 in Astana to move to the summit of Group J.",
+      "top_words": [
+        [
+          "wales",
+          30
+        ],
+        [
+          "hrs",
+          27
+        ],
+        [
+          "ago",
+          27
+        ]
+      ],
+      "percents": [],
+      "sentiment": "good",
+      "images": [],
+      "charts": [],
+      "mapped": {
+        "companies": [],
+        "commodities": [],
+        "macro": []
+      },
+      "related_data_plan": {
+        "window": {
+          "start": "2025-08-29T00:49:08.184395+00:00",
+          "end": "2025-09-12T00:49:08.184395+00:00"
+        },
+        "targets": [],
+        "recommend": []
+      },
+      "fetched_series": {
+        "equity": {},
+        "commodity": {},
+        "macro": {},
+        "tv": {}
+      },
+      "depth": 2
+    },
+    {
+      "url": "https://www.bbc.com/news/wales/wales_politics",
+      "title": "Wales Politics | Latest News & Updates | BBC News",
+      "published_at": null,
+      "summary": "1 day ago Wales The danger for Labour in the election no one wanted By-election triggered by the death of Hefin David poses danger for Labour, our political editor writes. 20 hrs ago Wales Ban on junk food ads to go ahead, says council There will be a ban on unhealthy food adverts being advertised in certain public spaces and the council website. 8 hrs ago Wales The danger for Labour in the election no one wanted By-election triggered by the death of Hefin David poses danger for Labour, our political editor writes.",
+      "top_words": [
+        [
+          "wales",
+          11
+        ],
+        [
+          "ago",
+          9
+        ],
+        [
+          "day",
+          7
+        ]
+      ],
+      "percents": [],
+      "sentiment": "neutral",
+      "images": [],
+      "charts": [],
+      "mapped": {
+        "companies": [],
+        "commodities": [],
+        "macro": []
+      },
+      "related_data_plan": {
+        "window": {
+          "start": "2025-08-29T00:49:09.324495+00:00",
+          "end": "2025-09-12T00:49:09.324495+00:00"
+        },
+        "targets": [],
+        "recommend": []
+      },
+      "fetched_series": {
+        "equity": {},
+        "commodity": {},
+        "macro": {},
+        "tv": {}
+      },
+      "depth": 2
+    },
+    {
+      "url": "https://www.bbc.com/business/executive-lounge",
+      "title": "BBC",
+      "published_at": null,
+      "summary": "21 Mar 2024 18 Mar 2024 Bumble CEO: AI and dating are the perfect couple Lidiane Jones, chief executive officer of Bumble, enters the BBC's Executive Lounge to talk about a decade of dating tech, and navigating the responsibilities of AI. 3 Apr 2024 21 Mar 2024 EY exec: Neurodiverse talent benefits everyone Karyn Twaronite, EY's global vice chair of DEI, enters the BBC's Executive Lounge to talk about how the untapped pool of neurodiverse workers can lift businesses and employees alike. 16 Apr 2024 3 Apr 2024 Honest Co: 'We don't tell ourselves fairy tales' Carla Vernón, CEO of The Honest Company, enters the BBC's Executive Lounge to talk about why companies shouldn't tell themselves corporate \"fairy tales\" if they want to succeed.",
+      "top_words": [
+        [
+          "executive",
+          15
+        ],
+        [
+          "lounge",
+          12
+        ],
+        [
+          "bbc",
+          10
+        ]
+      ],
+      "percents": [],
+      "sentiment": "neutral",
+      "images": [],
+      "charts": [],
+      "mapped": {
+        "companies": [],
+        "commodities": [],
+        "macro": []
+      },
+      "related_data_plan": {
+        "window": {
+          "start": "2025-08-29T00:49:14.296340+00:00",
+          "end": "2025-09-12T00:49:14.296340+00:00"
+        },
+        "targets": [],
+        "recommend": []
+      },
+      "fetched_series": {
+        "equity": {},
+        "commodity": {},
+        "macro": {},
+        "tv": {}
+      },
+      "depth": 2
+    },
+    {
+      "url": "https://www.bbc.com/business/technology-of-business",
+      "title": "Technology of Business | Latest News & Updates | BBC News",
+      "published_at": null,
+      "summary": "14 Aug 2025 How to get AI to work in 22 languages India tackles the problem of making AI translate between its many languages and dialects 11 Aug 2025 Asia Thirsty data centres boom in drought-hit Mexico Activists in Querétaro criticise state government for prioritising the data processing needs for US tech firms over their own citizens 7 days ago Latin America How to stop AI agents going rogue Agentic AI is taking decisions and acting on behalf of users, but how to stop that going wrong? 3 days ago 7 days ago Thirsty data centres boom in drought-hit Mexico Activists in Querétaro criticise state government for prioritising the data processing needs for US tech firms over their own citizens 7 days ago 26 Aug 2025 How to stop AI agents going rogue Agentic AI is taking decisions and acting on behalf of users, but how to stop that going wrong? 14 Aug 2025 11 Aug 2025 How to get AI to work in 22 languages India tackles the problem of making AI translate between its many languages and dialects 11 Aug 2025 7 Aug 2025 Why firms are merging HR and IT departments The emergence of AI is spurring some firms to make their HR and IT departments work closer together.",
+      "top_words": [
+        [
+          "aug",
+          18
+        ],
+        [
+          "firms",
+          16
+        ],
+        [
+          "ai",
+          14
+        ]
+      ],
+      "percents": [],
+      "sentiment": "good",
+      "images": [],
+      "charts": [],
+      "mapped": {
+        "companies": [],
+        "commodities": [],
+        "macro": []
+      },
+      "related_data_plan": {
+        "window": {
+          "start": "2025-08-29T00:49:16.007283+00:00",
+          "end": "2025-09-12T00:49:16.007283+00:00"
+        },
+        "targets": [],
+        "recommend": []
+      },
+      "fetched_series": {
+        "equity": {},
+        "commodity": {},
+        "macro": {},
+        "tv": {}
+      },
+      "depth": 2
+    },
+    {
+      "url": "https://www.bbc.com/business/future-of-business",
+      "title": "BBC Business | Future of Business",
+      "published_at": null,
+      "summary": "2 days ago 2 days ago UK government unable to calculate Afghan data breach cost, watchdog says The National Audit Office says it has not been given enough information to have \"confidence\" a relocation scheme cost £850m. 9 Apr 2025 Business Starmer says UK will keep 'cool head' after tariff announcement The prime minister told the UK's biggest business leaders a trade war with the US is not in the UK's national interest. 23 Apr 2024 Business BBC World News business headlines The latest international business headlines from BBC World News.",
+      "top_words": [
+        [
+          "business",
+          34
+        ],
+        [
+          "days",
+          20
+        ],
+        [
+          "ago",
+          18
+        ]
+      ],
+      "percents": [
+        {
+          "value": 9.5,
+          "context": " tariffs pause The S&P 500 index soared 9.5% in the biggest one-day rally since 2008"
+        }
+      ],
+      "sentiment": "good",
+      "images": [],
+      "charts": [],
+      "mapped": {
+        "companies": [
+          {
+            "name": "tsmc",
+            "aliases": [
+              "tsmc",
+              "taiwan semiconductor",
+              "대만반도체"
+            ],
+            "ticker": "TSM",
+            "sector": "Semiconductors"
+          }
+        ],
+        "commodities": [
+          {
+            "name": "crude oil",
+            "aliases": [
+              "oil",
+              "wti",
+              "브렌트",
+              "원유"
+            ],
+            "symbol": "CL=F"
+          }
+        ],
+        "macro": []
+      },
+      "related_data_plan": {
+        "window": {
+          "start": "2025-08-29T00:49:17.767530+00:00",
+          "end": "2025-09-12T00:49:17.767530+00:00"
+        },
+        "targets": [
+          {
+            "type": "equity",
+            "ticker": "TSM",
+            "sector": "Semiconductors"
+          },
+          {
+            "type": "commodity",
+            "symbol": "CL=F"
+          }
+        ],
+        "recommend": [
+          "Semiconductors"
+        ]
+      },
+      "fetched_series": {
+        "equity": {
+          "TSM": [
+            {
+              "t": "Ticker\n   2025-08-29\nName: 0, dtype: datetime64[ns]",
+              "o": 235.83999633789062,
+              "h": 235.9499969482422,
+              "l": 230.5800018310547,
+              "c": 230.8699951171875,
+              "v": 15526000.0
+            },
+            {
+              "t": "Ticker\n   2025-09-02\nName: 1, dtype: datetime64[ns]",
+              "o": 226.14999389648438,
+              "h": 229.33999633789062,
+              "l": 225.6300048828125,
+              "c": 228.38999938964844,
+              "v": 13974900.0
+            },
+            {
+              "t": "Ticker\n   2025-09-03\nName: 2, dtype: datetime64[ns]",
+              "o": 231.52000427246094,
+              "h": 232.4499969482422,
+              "l": 228.60000610351562,
+              "c": 231.38999938964844,
+              "v": 7198500.0
+            },
+            {
+              "t": "Ticker\n   2025-09-04\nName: 3, dtype: datetime64[ns]",
+              "o": 231.35000610351562,
+              "h": 235.30999755859375,
+              "l": 230.3000030517578,
+              "c": 235.2100067138672,
+              "v": 6221800.0
+            }
+          ]
+        },
+        "commodity": {
+          "CL=F": [
+            {
+              "t": "Ticker\n   2025-08-29\nName: 0, dtype: datetime64[ns]",
+              "o": 64.26000213623047,
+              "h": 64.55000305175781,
+              "l": 63.880001068115234,
+              "c": 64.01000213623047,
+              "v": 0.0
+            },
+            {
+              "t": "Ticker\n   2025-09-02\nName: 1, dtype: datetime64[ns]",
+              "o": 63.95000076293945,
+              "h": 66.02999877929688,
+              "l": 63.65999984741211,
+              "c": 65.58999633789062,
+              "v": 320218.0
+            },
+            {
+              "t": "Ticker\n   2025-09-03\nName: 2, dtype: datetime64[ns]",
+              "o": 65.62000274658203,
+              "h": 65.72000122070312,
+              "l": 63.720001220703125,
+              "c": 63.970001220703125,
+              "v": 320218.0
+            },
+            {
+              "t": "Ticker\n   2025-09-04\nName: 3, dtype: datetime64[ns]",
+              "o": 63.33000183105469,
+              "h": 63.380001068115234,
+              "l": 63.220001220703125,
+              "c": 63.31999969482422,
+              "v": 1456.0
+            }
+          ]
+        },
+        "macro": {},
+        "tv": {}
+      },
+      "depth": 2
+    },
+    {
+      "url": "https://www.bbc.com/innovation/artificial-intelligence",
+      "title": "BBC Innovation | Artificial Intelligence",
+      "published_at": null,
+      "summary": "8 days ago 8 days ago How Tokyo is using AI video to prepare for a Mt Fuji eruption Tokyo authorities say they released the AI-generated video to raise awareness and help people prepare for disaster - but how likely is Mt Fuji to actually erupt? AI v the Mind How AI helped my back pain (sort of...) Back pain is one of the leading causes of disability in the world, but an AI-powered app is being used to help patients in the UK to manage their symptoms. 9 Nov 2023 Artificial Intelligence More artificial intelligence 5 days ago AI stethoscope could detect major heart conditions in seconds The new technology could be a \"game-changer\", resulting in patients in the UK being treated sooner, experts say.",
+      "top_words": [
+        [
+          "ai",
+          47
+        ],
+        [
+          "artificial",
+          16
+        ],
+        [
+          "intelligence",
+          16
+        ]
+      ],
+      "percents": [],
+      "sentiment": "good",
+      "images": [],
+      "charts": [],
+      "mapped": {
+        "companies": [
+          {
+            "name": "nvidia",
+            "aliases": [
+              "nvda",
+              "엔비디아",
+              "nvidia"
+            ],
+            "ticker": "NVDA",
+            "sector": "Semiconductors"
+          }
+        ],
+        "commodities": [],
+        "macro": []
+      },
+      "related_data_plan": {
+        "window": {
+          "start": "2025-08-29T00:49:23.720088+00:00",
+          "end": "2025-09-12T00:49:23.720088+00:00"
+        },
+        "targets": [
+          {
+            "type": "equity",
+            "ticker": "NVDA",
+            "sector": "Semiconductors"
+          }
+        ],
+        "recommend": [
+          "Semiconductors"
+        ]
+      },
+      "fetched_series": {
+        "equity": {
+          "NVDA": [
+            {
+              "t": "Ticker\n   2025-08-29\nName: 0, dtype: datetime64[ns]",
+              "o": 178.11000061035156,
+              "h": 178.14999389648438,
+              "l": 173.14999389648438,
+              "c": 174.17999267578125,
+              "v": 243257900.0
+            },
+            {
+              "t": "Ticker\n   2025-09-02\nName: 1, dtype: datetime64[ns]",
+              "o": 170.0,
+              "h": 172.3800048828125,
+              "l": 167.22000122070312,
+              "c": 170.77999877929688,
+              "v": 231164900.0
+            },
+            {
+              "t": "Ticker\n   2025-09-03\nName: 2, dtype: datetime64[ns]",
+              "o": 171.05999755859375,
+              "h": 172.41000366210938,
+              "l": 168.8800048828125,
+              "c": 170.6199951171875,
+              "v": 164424900.0
+            },
+            {
+              "t": "Ticker\n   2025-09-04\nName: 3, dtype: datetime64[ns]",
+              "o": 170.57000732421875,
+              "h": 171.86000061035156,
+              "l": 169.41000366210938,
+              "c": 171.66000366210938,
+              "v": 141195000.0
+            }
+          ]
+        },
+        "commodity": {},
+        "macro": {},
+        "tv": {}
+      },
+      "depth": 2
+    },
+    {
+      "url": "https://www.bbc.com/innovation/ai-v-the-mind",
+      "title": "BBC",
+      "published_at": null,
+      "summary": "See more How AI helped my back pain (sort of...) Back pain is one of the leading causes of disability in the world, but an AI-powered app is being used to help patients in the UK to manage their symptoms. 18 Oct 2024 23 Sep 2024 When robots can't riddle AI runs unfathomable operations on billions of lines of text, handling problems that humans can't dream of solving – but you can probably still trounce it at brain teasers. AI v the Mind Meet the world's first recipient of an AI-powered bionic arm Sarah De Lagarde lost an arm and a leg after being hit by two trains in London.",
+      "top_words": [
+        [
+          "ai",
+          18
+        ],
+        [
+          "can",
+          10
+        ],
+        [
+          "human",
+          8
+        ]
+      ],
+      "percents": [],
+      "sentiment": "good",
+      "images": [],
+      "charts": [],
+      "mapped": {
+        "companies": [],
+        "commodities": [],
+        "macro": []
+      },
+      "related_data_plan": {
+        "window": {
+          "start": "2025-08-29T00:49:25.478271+00:00",
+          "end": "2025-09-12T00:49:25.478271+00:00"
+        },
+        "targets": [],
+        "recommend": []
+      },
+      "fetched_series": {
+        "equity": {},
+        "commodity": {},
+        "macro": {},
+        "tv": {}
+      },
+      "depth": 2
+    },
+    {
+      "url": "https://www.bbc.com/culture/film-tv",
+      "title": "BBC Culture | Film & TV",
+      "published_at": null,
+      "summary": "See more Latest headlines New faces join Channel 4's Gogglebox line-up Graham Linehan 'relentlessly' harassed trans activist, court told 'Erotic' Wuthering Heights revealed in film's first trailer Film about Gaza child's killing gets record ovation at Venice World's largest sports piracy site shut down by police The Watch List 14 of the best films to watch this September Here are the films to see this month, including Leonardo DiCaprio's new comedy-action-thriller, a sequel to classic music mockumentary Spinal Tap and the last ever Downton Abbey. 4 Feb 2025 Film & TV More film and TV 10 hrs ago Stacey and Joe are ready for more romance Stacey Solomon recounts how Joe Swash compares their relationship to their home, Pickle Cottage. 2 Jul 2025 Film & TV Tom Cruise explains how he managed his epic stunt For his latest Mission: Impossible film, the actor prepared for a daunting stunt by resting on a plane wing.",
+      "top_words": [
+        [
+          "film",
+          34
+        ],
+        [
+          "tv",
+          24
+        ],
+        [
+          "his",
+          18
+        ]
+      ],
+      "percents": [],
+      "sentiment": "good",
+      "images": [],
+      "charts": [],
+      "mapped": {
+        "companies": [],
+        "commodities": [],
+        "macro": []
+      },
+      "related_data_plan": {
+        "window": {
+          "start": "2025-08-29T00:49:26.662061+00:00",
+          "end": "2025-09-12T00:49:26.662061+00:00"
+        },
+        "targets": [],
+        "recommend": []
+      },
+      "fetched_series": {
+        "equity": {},
+        "commodity": {},
+        "macro": {},
+        "tv": {}
+      },
+      "depth": 2
+    },
+    {
+      "url": "https://www.bbc.com/culture/music",
+      "title": "BBC Culture | Music",
+      "published_at": null,
+      "summary": "23 Feb 2022 Music More Music 2 days ago Band to charge £1 a ticket for gig at legendary venue Only the Poets charged £1 for its first gig seven years ago and they will do the same next year. 29 Oct 2024 Music Frisson: Why music can give you chills or goosebumps Why certain music can trigger a surprisingly physiological reaction. 25 Oct 2022 Music How music affects our mental health As we grow, how do we connect to music and can it help us to heal?",
+      "top_words": [
+        [
+          "music",
+          42
+        ],
+        [
+          "ago",
+          20
+        ],
+        [
+          "days",
+          18
+        ]
+      ],
+      "percents": [],
+      "sentiment": "neutral",
+      "images": [],
+      "charts": [],
+      "mapped": {
+        "companies": [],
+        "commodities": [],
+        "macro": []
+      },
+      "related_data_plan": {
+        "window": {
+          "start": "2025-08-29T00:49:29.066272+00:00",
+          "end": "2025-09-12T00:49:29.066272+00:00"
+        },
+        "targets": [],
+        "recommend": []
+      },
+      "fetched_series": {
+        "equity": {},
+        "commodity": {},
+        "macro": {},
+        "tv": {}
+      },
+      "depth": 2
+    },
+    {
+      "url": "https://www.bbc.com/culture/art",
+      "title": "BBC Culture | Art & Design",
+      "published_at": null,
+      "summary": "19 Dec 2023 Art & Design Blue Quran: A rare 1,000-year-old masterpiece Art critic Alastair Sooke learns about a masterpiece of the Islamic world at Doha's Museum of Islamic Art. 19 Dec 2023 Art & Design The Doha Hind: The charming 10th-Century garden ornament Art critic Alastair Sooke learns about a decorative 10th-Century treasure at Doha's Museum of Islamic Art. 12 Jul 2024 Art & Design The Lebanese artist championing vegan silk Art critic Alastair Sooke learns about a modern designer's take on Doha's Museum of Islamic Art's collection.",
+      "top_words": [
+        [
+          "art",
+          38
+        ],
+        [
+          "design",
+          18
+        ],
+        [
+          "days",
+          18
+        ]
+      ],
+      "percents": [],
+      "sentiment": "good",
+      "images": [],
+      "charts": [],
+      "mapped": {
+        "companies": [],
+        "commodities": [],
+        "macro": []
+      },
+      "related_data_plan": {
+        "window": {
+          "start": "2025-08-29T00:49:31.806844+00:00",
+          "end": "2025-09-12T00:49:31.806844+00:00"
+        },
+        "targets": [],
+        "recommend": []
+      },
+      "fetched_series": {
+        "equity": {},
+        "commodity": {},
+        "macro": {},
+        "tv": {}
+      },
+      "depth": 2
+    },
+    {
+      "url": "https://www.bbc.com/culture/style",
+      "title": "BBC Culture | Style",
+      "published_at": null,
+      "summary": "See more More stories 'He doesn't follow trends': How celebrities described Armani over the years Legendary Italian designer Giorgio Armani dies How the 'prairie homemaker' lifestyle took hold American Eagle shares soar as Sydney Sweeney ads seen driving sales Topshop will return to High Street in 2026 More Style 2 days ago Chloe Malle to become top editor at American Vogue The 39-year-old's appointment marks a new era for one of the most influential and glamorous fashion publications. 6 days ago 7 days ago 'Working at fashion week was glamorous but hectic' Elise Tladi is hoping to head back to London Fashion Week next month. 7 days ago 7 days ago Your fast fashion could end up as this beach trash Ghana has been described as the fashion industry’s dumping ground.",
+      "top_words": [
+        [
+          "fashion",
+          12
+        ],
+        [
+          "days",
+          10
+        ],
+        [
+          "ago",
+          10
+        ]
+      ],
+      "percents": [],
+      "sentiment": "bad",
+      "images": [],
+      "charts": [],
+      "mapped": {
+        "companies": [],
+        "commodities": [],
+        "macro": []
+      },
+      "related_data_plan": {
+        "window": {
+          "start": "2025-08-29T00:49:33.397440+00:00",
+          "end": "2025-09-12T00:49:33.397440+00:00"
+        },
+        "targets": [],
+        "recommend": [
+          "Defensives",
+          "Utilities",
+          "Gold"
+        ]
+      },
+      "fetched_series": {
+        "equity": {},
+        "commodity": {},
+        "macro": {},
+        "tv": {}
+      },
+      "depth": 2
+    },
+    {
+      "url": "https://www.bbc.com/culture/books",
+      "title": "BBC Culture | Books",
+      "published_at": null,
+      "summary": "5 days ago 6 days ago 'You're never too old to learn a new language' A new generation of slam poets are being inspired by the Irish language 6 days ago 27 Aug 2025 Jacqueline Wilson on the 'easiest and hardest book I've ever written' Picture Imperfect follows two sisters who struggle to cope with their mentally ill mother. 23 Feb 2022 Books More Books 9 hrs ago Graham Linehan 'relentlessly' harassed trans activist, court told The Father Ted creator is on trial at Westminster Magistrates' Court days after a separate arrest at Heathrow. 23 Feb 2022 Books Preserving the ancient art of handcrafting books In the digital age, the beautiful and ancient art of hand-binding books is under threat.",
+      "top_words": [
+        [
+          "books",
+          24
+        ],
+        [
+          "feb",
+          12
+        ],
+        [
+          "new",
+          10
+        ]
+      ],
+      "percents": [],
+      "sentiment": "neutral",
+      "images": [],
+      "charts": [],
+      "mapped": {
+        "companies": [],
+        "commodities": [],
+        "macro": []
+      },
+      "related_data_plan": {
+        "window": {
+          "start": "2025-08-29T00:49:34.536558+00:00",
+          "end": "2025-09-12T00:49:34.536558+00:00"
+        },
+        "targets": [],
+        "recommend": []
+      },
+      "fetched_series": {
+        "equity": {},
+        "commodity": {},
+        "macro": {},
+        "tv": {}
+      },
+      "depth": 2
+    },
+    {
+      "url": "https://www.bbc.com/culture/entertainment-news",
+      "title": "Entertainment & Arts | Latest News & Updates | BBC News",
+      "published_at": null,
+      "summary": "9 hrs ago 9 hrs ago 'He doesn't follow trends': How celebrities described Armani over the years The Italian fashion designer and billionaire brand owner Giorgio Armani has died at the age of 91. 10 hrs ago 10 hrs ago Legendary Italian designer Giorgio Armani dies The fashion designer was the archetype of Italian style and elegance, reimagining men's and women's suits. 4 hrs ago 9 hrs ago Graham Linehan 'relentlessly' harassed trans activist, court told The Father Ted creator is on trial at Westminster Magistrates' Court days after a separate arrest at Heathrow.",
+      "top_words": [
+        [
+          "ago",
+          27
+        ],
+        [
+          "hrs",
+          21
+        ],
+        [
+          "culture",
+          9
+        ]
+      ],
+      "percents": [],
+      "sentiment": "good",
+      "images": [],
+      "charts": [],
+      "mapped": {
+        "companies": [],
+        "commodities": [],
+        "macro": []
+      },
+      "related_data_plan": {
+        "window": {
+          "start": "2025-08-29T00:49:35.695113+00:00",
+          "end": "2025-09-12T00:49:35.695113+00:00"
+        },
+        "targets": [],
+        "recommend": []
+      },
+      "fetched_series": {
+        "equity": {},
+        "commodity": {},
+        "macro": {},
+        "tv": {}
+      },
+      "depth": 2
+    },
+    {
+      "url": "https://www.bbc.com/arts/arts-in-motion",
+      "title": "BBC",
+      "published_at": null,
+      "summary": "14 July 2025 Share Explore More Rolex and the arts: cultivating talent Advertisement Yannick Nézet-Séguin: Mozart reveals everything 30 Jun 2025 Arts in Motion A new golden era for opera begins at the Met 9 Jun 2025 Arts in Motion 'I can't believe anyone can dislike classical music' 2 Jun 2025 Arts in Motion 'Maybe Venice is the city that can save the world' 26 May 2025 Arts in Motion Brian Cox on the hard truth about acting 19 May 2025 Arts in Motion Sinfonía por el Perú: Changing lives through music 12 May 2025 Arts in Motion Steven Isserlis: 'I want to be a voice in their heads' 5 May 2025 Arts in Motion Yannick Nézet-Séguin: From child prodigy to modern maestro 21 Apr 2025 Arts in Motion 'Keep going, keep going, keep going' 7 Apr 2025 Arts in Motion Why Yinka Shonibare doesn't believe in tearing down statues 24 Mar 2025 Arts in Motion Teatro alla Scala: See the magic and mystery of opera 17 Mar 2025 Arts in Motion Step inside Hollywood's ultimate time capsule 10 Mar 2025 Arts in Motion Steven Isserlis on why you're more musical than you think 7 Mar 2025 Arts in Motion Nothing brings more freedom than filmmaking, Jia Zhang-Ke says 17 Feb 2025 Arts in Motion Hew Locke on why art is important in a fractious world 17 Feb 2025 Arts in Motion Benjamin Bernheim reveals the secret to captivating crowds 10 Feb 2025 Arts in Motion Inside the studio of Britain's most celebrated sculptor 20 Jan 2025 Arts in Motion Whitney White on how Shakespeare still resonates today 13 Jan 2025 Arts in Motion Antony Gormley on how play can unleash your creativity 6 Jan 2025 Arts in Motion Brian Cox on why you should keep your inner child alive 30 Dec 2024 Arts in Motion See behind the scenes of artist Alvaro Barrington's studio 16 Dec 2024 Arts in Motion Inside one of the world's biggest classical music festivals 23 Dec 2024 Arts in Motion ‘I really do not want to practice’ 9 Dec 2024 Arts in Motion A look behind the scenes at London's Royal Drawing School 2 Dec 2024 Arts in Motion Explore Anoushka Shankar's genre-defying style 25 Nov 2024 Arts in Motion An acting masterclass with Succession's Brian Cox 16 Sep 2024 Arts in Motion A legend of contemporary art reveals his inspiration 21 Oct 2024 Arts in Motion Experience artist Es Devlin's powerful new work 14 Oct 2024 Arts in Motion Vienna Philharmonic: See the magic of the great orchestra 30 Sep 2024 Arts in Motion Behind the scenes at London's Royal Ballet and Opera 16 Sep 2024 Arts in Motion Novelist Elif Shafak on what inspires her to write 16 Sep 2024 Arts in Motion Watch a sensational performance of Nessun Dorma 16 Sep 2024 Arts in Motion Architecture 'Maybe Venice is the city that can save the world' The 2025 Venice Architecture Biennale, led by curator Carlo Ratti, explores design as a tool for survival. 21 August 2025 Share Explore More A masterclass with the prestigious Vienna Philharmonic 20 Aug 2025 Arts in Motion A masterclass with legendary actor Brian Cox 20 Aug 2025 Arts in Motion A masterclass with renowned sculptor Antony Gormley 21 Aug 2025 Arts in Motion A masterclass with French tenor Benjamin Bernheim 21 Aug 2025 Arts in Motion A masterclass with acclaimed cellist Steven Isserlis 21 Aug 2025 Arts in Motion Theatre, Film & TV Brian Cox on the hard truth about acting \"It's difficult stuff - acting - and I find it hard after 60 years,\" says Succession's Brian Cox. Arts in Motion In a pioneering new collaboration, the BBC – in partnership with Rolex – will use its unparalleled reach to bring the best arts and culture to audiences worldwide.",
+      "top_words": [
+        [
+          "arts",
+          44
+        ],
+        [
+          "motion",
+          40
+        ],
+        [
+          "why",
+          9
+        ]
+      ],
+      "percents": [],
+      "sentiment": "bad",
+      "images": [],
+      "charts": [],
+      "mapped": {
+        "companies": [],
+        "commodities": [],
+        "macro": []
+      },
+      "related_data_plan": {
+        "window": {
+          "start": "2025-08-29T00:49:38.552889+00:00",
+          "end": "2025-09-12T00:49:38.552889+00:00"
+        },
+        "targets": [],
+        "recommend": [
+          "Defensives",
+          "Utilities",
+          "Gold"
+        ]
+      },
+      "fetched_series": {
+        "equity": {},
+        "commodity": {},
+        "macro": {},
+        "tv": {}
+      },
+      "depth": 2
+    },
+    {
+      "url": "https://www.bbc.com/travel/destinations",
+      "title": "BBC Travel | Destinations",
+      "published_at": null,
+      "summary": "Australia's X-rated underwater show Each year, the small South Australian town of Whyalla becomes home to one of the most spectacular underwater events: the spawning of the giant Australian cuttlefish. London's newest hip area isn't where you think A few miles from East London's perennially hip neighbourhoods, an explosion of art and culture is transforming a once-neglected stretch into one of the city's hottest destinations. The secret keepers of Japan's cherry blossoms For 16 generations, master gardeners in this one family have dedicated their lives to preserving one of the nation's most cherished – and highly sought-out – symbols.",
+      "top_words": [
+        [
+          "one",
+          6
+        ],
+        [
+          "most",
+          5
+        ],
+        [
+          "south",
+          3
+        ]
+      ],
+      "percents": [],
+      "sentiment": "neutral",
+      "images": [],
+      "charts": [],
+      "mapped": {
+        "companies": [],
+        "commodities": [],
+        "macro": []
+      },
+      "related_data_plan": {
+        "window": {
+          "start": "2025-08-29T00:49:41.134688+00:00",
+          "end": "2025-09-12T00:49:41.134688+00:00"
+        },
+        "targets": [],
+        "recommend": []
+      },
+      "fetched_series": {
+        "equity": {},
+        "commodity": {},
+        "macro": {},
+        "tv": {}
+      },
+      "depth": 2
+    },
+    {
+      "url": "https://www.bbc.com/travel/destinations/antarctica",
+      "title": "BBC Travel | Destinations | Antarctica",
+      "published_at": null,
+      "summary": "20 Mar 2023 Travel The Antarctic ghost town left in ruins Not only is Deception Island littered with lore and history, it's also one of the only places on the planet where ships can sail directly into the centre of a submerged caldera. 20 Mar 2023 Travel The Antarctic ghost town left in ruins Not only is Deception Island littered with lore and history, it's also one of the only places on the planet where ships can sail directly into the centre of a submerged caldera. Why scientists hope seabed mud could reveal Antarctic Ocean secrets How long tubes of mud - drilled out of the Antarctic seafloor - could reveal how the frozen continent is changing.",
+      "top_words": [
+        [
+          "antarctic",
+          12
+        ],
+        [
+          "travel",
+          9
+        ],
+        [
+          "antarctica",
+          7
+        ]
+      ],
+      "percents": [],
+      "sentiment": "good",
+      "images": [],
+      "charts": [],
+      "mapped": {
+        "companies": [],
+        "commodities": [],
+        "macro": []
+      },
+      "related_data_plan": {
+        "window": {
+          "start": "2025-08-29T00:49:46.123144+00:00",
+          "end": "2025-09-12T00:49:46.123144+00:00"
+        },
+        "targets": [],
+        "recommend": []
+      },
+      "fetched_series": {
+        "equity": {},
+        "commodity": {},
+        "macro": {},
+        "tv": {}
+      },
+      "depth": 2
+    },
+    {
+      "url": "https://www.bbc.com/travel/destinations/australia-and-pacific",
+      "title": "BBC Travel | Destinations | Australia and Pacific",
+      "published_at": null,
+      "summary": "21 Dec 2021 Travel The nation that's banishing light The Pacific nation's audacious bid to become the world's first dark sky nation might provide a blueprint for the rest of the world. 21 Dec 2021 Travel The nation that's banishing light The Pacific nation's audacious bid to become the world's first dark sky nation might provide a blueprint for the rest of the world. 25 Oct 2021 Travel More Australia & Pacific Five of the world's safest countries for 2025 In a year marked by conflict, five nations continue to rank among the world's most peaceful.",
+      "top_words": [
+        [
+          "world",
+          14
+        ],
+        [
+          "travel",
+          14
+        ],
+        [
+          "australia",
+          8
+        ]
+      ],
+      "percents": [],
+      "sentiment": "neutral",
+      "images": [],
+      "charts": [],
+      "mapped": {
+        "companies": [],
+        "commodities": [],
+        "macro": []
+      },
+      "related_data_plan": {
+        "window": {
+          "start": "2025-08-29T00:49:49.277943+00:00",
+          "end": "2025-09-12T00:49:49.277943+00:00"
+        },
+        "targets": [],
+        "recommend": []
+      },
+      "fetched_series": {
+        "equity": {},
+        "commodity": {},
+        "macro": {},
+        "tv": {}
+      },
+      "depth": 2
+    },
+    {
+      "url": "https://www.bbc.com/travel/destinations/caribbean",
+      "title": "BBC Travel | Destinations | Caribbean & Bermuda",
+      "published_at": null,
+      "summary": "16 Jun 2023 Travel A Caribbean secret to happiness The word \"dushi\" is part of the national identity in Curacao – and there is much we all can learn from this Caribbean island's sweet philosophy. 16 Jun 2023 Travel A Caribbean secret to happiness The word \"dushi\" is part of the national identity in Curacao – and there is much we all can learn from this Caribbean island's sweet philosophy. 4 Jul 2022 Travel The Caribbean's rare crowds-free isle The British overseas territory of Montserrat is joining the trend of island states pushing to attract remote workers to come and stay a while.",
+      "top_words": [
+        [
+          "caribbean",
+          14
+        ],
+        [
+          "travel",
+          10
+        ],
+        [
+          "island",
+          8
+        ]
+      ],
+      "percents": [],
+      "sentiment": "neutral",
+      "images": [],
+      "charts": [],
+      "mapped": {
+        "companies": [],
+        "commodities": [],
+        "macro": []
+      },
+      "related_data_plan": {
+        "window": {
+          "start": "2025-08-29T00:49:50.803146+00:00",
+          "end": "2025-09-12T00:49:50.803146+00:00"
+        },
+        "targets": [],
+        "recommend": []
+      },
+      "fetched_series": {
+        "equity": {},
+        "commodity": {},
+        "macro": {},
+        "tv": {}
+      },
+      "depth": 2
+    },
+    {
+      "url": "https://www.bbc.com/travel/destinations/central-america",
+      "title": "BBC Travel | Destinations | Central America",
+      "published_at": null,
+      "summary": "The simple Costa Rican secrets to longevity Costa Rica is home to one of the five Blue Zones – regions of the world with populations that regularly live into healthy old age Costa Rica's uniquely positive outlook on life Costa Rica's national saying \"pura vida\", which is associated with a sense of wellbeing, positivity and gratitude, is far more than just a simple catchphrase. 14 Aug 2018 Travel More Central America travel Costa Rica's nine-course meal in the sky In Monteverde's misty cloud forest, a restaurant suspended in the canopy is offering one of Costa Rica's most immersive dining experiences. 7 Jun 2022 Travel Gallo pinto: Costa Rica rice and beans Deeply rooted in Costa Rican and Nicaraguan culture, this staple of rice and beans with a side of eggs gets a spicy kick from Salsa Lizano (a sauce similar to Worcestershire).",
+      "top_words": [
+        [
+          "travel",
+          14
+        ],
+        [
+          "costa",
+          12
+        ],
+        [
+          "rica",
+          9
+        ]
+      ],
+      "percents": [],
+      "sentiment": "neutral",
+      "images": [],
+      "charts": [],
+      "mapped": {
+        "companies": [],
+        "commodities": [],
+        "macro": []
+      },
+      "related_data_plan": {
+        "window": {
+          "start": "2025-08-29T00:49:53.401166+00:00",
+          "end": "2025-09-12T00:49:53.401166+00:00"
+        },
+        "targets": [],
+        "recommend": []
+      },
+      "fetched_series": {
+        "equity": {},
+        "commodity": {},
+        "macro": {},
+        "tv": {}
+      },
+      "depth": 2
+    },
+    {
+      "url": "https://www.bbc.com/travel/destinations/middle-east",
+      "title": "BBC Travel | Destinations | Middle East",
+      "published_at": null,
+      "summary": "25 May 2023 Travel Iraq's answer to the pyramids Egypt may have the Pyramids of Giza, but Iraq has the Ziggurat of Ur – an incredibly well-preserved engineering achievement that towers over the ruins of an important ancient city. 16 Dec 2017 Travel Five countries that are safer for women Despite the growing trend in solo travel, women still encounter challenges when they travel abroad alone. 16 Dec 2017 Travel Five countries that are safer for women Despite the growing trend in solo travel, women still encounter challenges when they travel abroad alone.",
+      "top_words": [
+        [
+          "travel",
+          16
+        ],
+        [
+          "city",
+          8
+        ],
+        [
+          "may",
+          7
+        ]
+      ],
+      "percents": [],
+      "sentiment": "neutral",
+      "images": [],
+      "charts": [],
+      "mapped": {
+        "companies": [],
+        "commodities": [],
+        "macro": []
+      },
+      "related_data_plan": {
+        "window": {
+          "start": "2025-08-29T00:49:56.430313+00:00",
+          "end": "2025-09-12T00:49:56.430313+00:00"
+        },
+        "targets": [],
+        "recommend": []
+      },
+      "fetched_series": {
+        "equity": {},
+        "commodity": {},
+        "macro": {},
+        "tv": {}
+      },
+      "depth": 2
+    },
+    {
+      "url": "https://www.bbc.com/travel/destinations/north-america",
+      "title": "BBC Travel | Destinations | North America",
+      "published_at": null,
+      "summary": "13 Jun 2023 Travel The street that epitomises New York Travellers may go to Central Park or Times Square to see New York City, but there's no better place to feel the city's DNA and understand how it started than here. 13 Jun 2023 Travel The street that epitomises New York Travellers may go to Central Park or Times Square to see New York City, but there's no better place to feel the city's DNA and understand how it started than here. 29 May 2023 Travel The first autism-friendly US city Holidays can be stressful for neurodiverse people, but Mesa, Arizona, is becoming more inclusive so that everyone can enjoy the benefits of travel – not just the neurotypical.",
+      "top_words": [
+        [
+          "us",
+          16
+        ],
+        [
+          "travel",
+          11
+        ],
+        [
+          "jul",
+          10
+        ]
+      ],
+      "percents": [],
+      "sentiment": "neutral",
+      "images": [],
+      "charts": [],
+      "mapped": {
+        "companies": [],
+        "commodities": [],
+        "macro": []
+      },
+      "related_data_plan": {
+        "window": {
+          "start": "2025-08-29T00:49:57.876674+00:00",
+          "end": "2025-09-12T00:49:57.876674+00:00"
+        },
+        "targets": [],
+        "recommend": []
+      },
+      "fetched_series": {
+        "equity": {},
+        "commodity": {},
+        "macro": {},
+        "tv": {}
+      },
+      "depth": 2
+    }
+  ]
+}
