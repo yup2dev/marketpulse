@@ -22,7 +22,7 @@ if not log.handlers:
 log.setLevel(logging.INFO)
 
 try:
-    import yfinance as yf
+    import yfinance as yf  # noqa: F401
 except Exception:
     yf = None
     log.info("yahoo finance is not installed")
@@ -34,9 +34,10 @@ except Exception:
     Interval = None
 
 try:
-    from constants import SITES_CONFIG_PATH as _CONST_SITES_CFG  # type: ignore
+    from constant import SITES_CONFIG_PATH as _CONST_SITES_CFG  # type: ignore
 except Exception:
     _CONST_SITES_CFG = os.environ.get("SITES_CONFIG_PATH", "./sites.yaml")
+
 
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -59,11 +60,9 @@ TOKEN_RE: Pattern[str] = re.compile(r"[A-Za-z가-힣]+")
 
 STOPWORDS = {
     # en
-    "the", "a", "an", "of", "and", "to", "in", "for", "on", "at", "by", "with", "from", "that", "this", "is", "are",
-    "be", "as", "it", "its", "was", "were", "or", "if", "not", "we", "you", "they", "their", "our", "i",
+    "the","a","an","of","and","to","in","for","on","at","by","with","from","that","this","is","are","be","as","it","its","was","were","or","if","not","we","you","they","their","our","i",
     # ko
-    "그리고", "또한", "하지만", "그러나", "이는", "이에", "에서", "으로", "에게", "하고", "하며", "및", "등", "대한", "것", "수", "등의", "있다", "없는",
-    "됐다", "했다", "된다", "하는", "부터", "더", "가장",
+    "그리고","또한","하지만","그러나","이는","이에","에서","으로","에게","하고","하며","및","등","대한","것","수","등의","있다","없는","됐다","했다","된다","하는","부터","더","가장",
 }
 
 LIST_LIKE_RE = re.compile(
@@ -85,14 +84,14 @@ class ArticleResult:
     title: str
     published_at: Optional[str]
     summary: str
-    top_words: List[Tuple[str, int]]
-    # percents: List[Dict[str, Any]]
-    # sentiment: str
+    top_words: List[Tuple[str,int]]
+    percents: List[Dict[str, Any]]
+    sentiment: str
     images: List[ImageInfo]
     charts: List[ImageInfo]
-    # mapped: Dict[str, Any]
-    # related_data_plan: Dict[str, Any]
-    # fetched_series: Dict[str, Any]
+    mapped: Dict[str, Any]
+    related_data_plan: Dict[str, Any]
+    fetched_series: Dict[str, Any]
 
 
 @dataclass
@@ -156,6 +155,7 @@ def _canon(u: str) -> str:
 
 
 def is_homepage(url: str, base_url: Optional[str]) -> bool:
+    """해당 사이트의 홈(메인)인지 판별: 루트(/) 또는 base_url 과 동일."""
     if not base_url:
         p = urlparse(url)
         return (p.path == "" or p.path == "/") and not p.query
@@ -205,10 +205,10 @@ class Parser:
 
     def extract_published_time(self) -> Optional[datetime]:
         cands = [
-            ("meta", {"property": "article:published_time"}, "content"),
-            ("meta", {"name": "pubdate"}, "content"),
-            ("meta", {"name": "date"}, "content"),
-            ("meta", {"itemprop": "datePublished"}, "content"),
+            ("meta", {"property":"article:published_time"}, "content"),
+            ("meta", {"name":"pubdate"}, "content"),
+            ("meta", {"name":"date"}, "content"),
+            ("meta", {"itemprop":"datePublished"}, "content"),
             ("time", {"datetime": True}, "datetime"),
         ]
         for tag, attrs, attr_name in cands:
@@ -239,7 +239,7 @@ class Parser:
         return None
 
     def extract_main_text(self) -> str:
-        for sel in ("nav", "header", "footer", "aside", "script", "style", "noscript"):
+        for sel in ("nav","header","footer","aside","script","style","noscript"):
             for el in self.soup.select(sel):
                 el.decompose()
         container = self.soup.find("article") or self.soup.find("main") or self.soup.body or self.soup
@@ -265,12 +265,10 @@ class Parser:
                 CHART_HINT_RE.search(parents),
             ])
             info = ImageInfo(src=src, alt=alt, is_chart=is_chart)
-            # if img.get(is_chart):
-            #     if len(charts if is_chart else imgs) < 3:
-            #         (charts if is_chart else imgs).append(info)
-            bucket = charts if is_chart else imgs
-            if len(bucket) < 3:
-                bucket.append(info)
+            if img.get(is_chart):
+                # 차트 내 이미지는 3개 이하로
+                if len(charts if is_chart else imgs) < 3:
+                    (charts if is_chart else imgs).append(info)
         return imgs, charts
 
 
@@ -289,40 +287,31 @@ class ArticleHeuristics:
                 log.warning("Bad regex '%s': %s", p, e)
         return tuple(out)
 
-    @staticmethod
-    def _is_article_slug(slug: str) -> bool:
-        if not slug:
-            return False
-        if re.fullmatch(r"\d{6,}", slug):
-            return True
-
-        if slug.count("-") >= 3:
-            return True
-
-        if re.search(r"[A-Za-z]", slug) and re.search(r"\d", slug) and len(slug) > 10:
-            return True
-        return False
-
     def looks_like_article(self, url: str, html: Optional[str]) -> bool:
-        for d in self.deny:
-            if d.search(url):
-                return False
+        path = urlparse(url).path
+        segs = [s for s in path.split("/") if s]
 
-        for a in self.allow:
-            if a.search(url):
-                return True
+        if not segs:
+            return False
 
-        last = (urlparse(url).path.rstrip("/").split("/") or [""])[-1].lower()
+        last = segs[-1]
+
+        if last.count("-") >= 3:
+            return True
+        if len(last) > 10 and re.search(r"[a-zA-Z]", last) and re.search(r"\d", last):
+            return True
+        if last.isdigit():
+            return True
         if html:
             try:
-                soup = BeautifulSoup(html, DEFAULT_PARSER)
+                soup = BeautifulSoup(html, "lxml")
                 mt = soup.find("meta", {"property": "og:type"})
-                if mt and (mt.get("content") or "").strip().lower() == "article":
-                    return self._is_article_slug(last)
+                if mt and (mt.get("content") or "").lower().strip() == "article":
+                    return True
             except Exception:
                 pass
 
-        return self._is_article_slug(last)
+        return False
 
 
 class NLPAnalyzer:
@@ -334,8 +323,9 @@ class NLPAnalyzer:
         toks = [t.lower() for t in TOKEN_RE.findall(text)]
         return [t for t in toks if t not in STOPWORDS and len(t) > 1]
 
-    def top_words(self, tokens: List[str]) -> List[Tuple[str, int]]:
+    def top_words(self, tokens: List[str]) -> List[Tuple[str,int]]:
         cnt = Counter(tokens)
+        # 상위 top_k_words 내에서 빈도 self.acfg.min_word_freq 미만은 제외
         return [(w, c) for (w, c) in cnt.most_common(self.acfg.top_k_words) if c >= self.acfg.min_word_freq]
 
     def summarize(self, text: str) -> str:
@@ -358,22 +348,20 @@ class NLPAnalyzer:
         for m in PERCENT_RE.finditer(text):
             val = float(m.group("value"))
             start, end = m.span()
-            ctx = text[max(0, start - 40): min(len(text), end + 40)]
+            ctx = text[max(0, start-40): min(len(text), end+40)]
             out.append({"value": val, "context": ctx})
         return out
 
     @staticmethod
     def simple_sentiment(text: str) -> str:
-        pos = {"positive", "good", "improve", "growth", "rally", "up", "increase", "beat", "strong", "expand", "record",
-               "surge", "bull", "호재", "상승", "개선", "강세", "확대", "증가"}
-        neg = {"negative", "bad", "decline", "drop", "down", "miss", "weak", "recession", "fall", "risk", "bear", "악재",
-               "하락", "둔화", "약세", "축소", "감소"}
+        pos = {"positive","good","improve","growth","rally","up","increase","beat","strong","expand","record","surge","bull","호재","상승","개선","강세","확대","증가"}
+        neg = {"negative","bad","decline","drop","down","miss","weak","recession","fall","risk","bear","악재","하락","둔화","약세","축소","감소"}
         tl = NLPAnalyzer.tokenize(text)
         p = sum(1 for t in tl if t in pos)
         n = sum(1 for t in tl if t in neg)
-        if p > n * 1.2 and p >= 2:
+        if p > n*1.2 and p >= 2:
             return "good"
-        if n > p * 1.2 and n >= 2:
+        if n > p*1.2 and n >= 2:
             return "bad"
         return "neutral"
 
@@ -381,21 +369,20 @@ class NLPAnalyzer:
 class EntityMapper:
     ENTITY_DB = {
         "companies": {
-            "nvidia": {"aliases": ["nvda", "엔비디아", "nvidia"], "ticker": "NVDA", "sector": "Semiconductors"},
-            "tsmc": {"aliases": ["tsmc", "taiwan semiconductor", "대만반도체"], "ticker": "TSM", "sector": "Semiconductors"},
-            "samsung electronics": {"aliases": ["samsung", "삼성전자", "005930"], "ticker": "005930.KS",
-                                    "sector": "Semiconductors"},
-            "intel": {"aliases": ["intel", "인텔"], "ticker": "INTC", "sector": "Semiconductors"},
-            "amd": {"aliases": ["amd", "어드밴스트 마이크로 디바이시스"], "ticker": "AMD", "sector": "Semiconductors"},
+            "nvidia": {"aliases": ["nvda","엔비디아","nvidia"], "ticker": "NVDA", "sector": "Semiconductors"},
+            "tsmc": {"aliases": ["tsmc","taiwan semiconductor","대만반도체"], "ticker": "TSM", "sector": "Semiconductors"},
+            "samsung electronics": {"aliases": ["samsung","삼성전자","005930"], "ticker": "005930.KS", "sector": "Semiconductors"},
+            "intel": {"aliases": ["intel","인텔"], "ticker": "INTC", "sector": "Semiconductors"},
+            "amd": {"aliases": ["amd","어드밴스트 마이크로 디바이시스"], "ticker": "AMD", "sector": "Semiconductors"},
         },
         "commodities": {
-            "crude oil": {"aliases": ["oil", "wti", "브렌트", "원유"], "symbol": "CL=F"},
-            "gold": {"aliases": ["gold", "xau", "금"], "symbol": "GC=F"},
-            "copper": {"aliases": ["copper", "구리"], "symbol": "HG=F"},
+            "crude oil": {"aliases": ["oil","wti","브렌트","원유"], "symbol": "CL=F"},
+            "gold": {"aliases": ["gold","xau","금"], "symbol": "GC=F"},
+            "copper": {"aliases": ["copper","구리"], "symbol": "HG=F"},
         },
         "macro": {
-            "us cpi": {"aliases": ["cpi", "inflation", "물가"], "fred": "CPIAUCSL"},
-            "10y treasury": {"aliases": ["10y", "tnx", "미국10년물"], "ticker": "^TNX"},
+            "us cpi": {"aliases": ["cpi","inflation","물가"], "fred": "CPIAUCSL"},
+            "10y treasury": {"aliases": ["10y","tnx","미국10년물"], "ticker": "^TNX"},
         },
     }
 
@@ -437,14 +424,12 @@ class RelatedDataPlanner:
 
 
 class YahooProvider:
-    def fetch(self, ticker: str, start: datetime, end: datetime, interval: str = "1d") -> Optional[
-        List[Dict[str, Any]]]:
+    def fetch(self, ticker: str, start: datetime, end: datetime, interval: str = "1d") -> Optional[List[Dict[str, Any]]]:
         if yf is None:
             log.info("yfinance not available; skipping %s", ticker)
             return None
         try:
-            df = yf.download(ticker, start=start.date(), end=end.date() + timedelta(days=1), interval=interval,
-                             progress=False)
+            df = yf.download(ticker, start=start.date(), end=end.date() + timedelta(days=1), interval=interval, progress=False)
             if df is None or df.empty:
                 return []
             out: List[Dict[str, Any]] = []
@@ -479,8 +464,7 @@ class TradingViewProvider:
                     self.client = None
                     self.enabled = False
 
-    def fetch(self, symbol: str, exchange: Optional[str], start: datetime, end: datetime, interval: str = "1D") -> \
-            Optional[List[Dict[str, Any]]]:
+    def fetch(self, symbol: str, exchange: Optional[str], start: datetime, end: datetime, interval: str = "1D") -> Optional[List[Dict[str, Any]]]:
         if not self.enabled or self.client is None:
             log.info("TradingView provider not enabled; skipping %s", symbol)
             return None
@@ -538,8 +522,7 @@ class Frontier:
 
 
 class Crawler:
-    def __init__(self, ccfg: CrawlConfig, heur: ArticleHeuristics, classifier: URLClassifier,
-                 max_depth: int = 2) -> None:
+    def __init__(self, ccfg: CrawlConfig, heur: ArticleHeuristics, classifier: URLClassifier, max_depth: int = 2) -> None:
         self.cfg = ccfg
         self.http = HttpClient(ccfg.user_agent)
         self.heur = heur
@@ -562,6 +545,7 @@ class Crawler:
             url, depth, referer = item
             dom = URLHelper.domain(url)
 
+            # 도메인별 cap
             if per_domain_fetch.get(dom, 0) >= self.cfg.max_pages_per_domain:
                 continue
 
@@ -577,8 +561,7 @@ class Crawler:
 
             is_article = False
             if self.cfg.include_html_pages and self.heur.looks_like_article(url, html):
-                if self.cls.classify(url) != "category":
-                    is_article = True
+                is_article = True
             elif self.cls.classify(url) == "article":
                 is_article = True
 
@@ -663,24 +646,24 @@ class Pipeline:
         tokens = self.nlp.tokenize(text)
         summary = self.nlp.summarize(text)
         topw = self.nlp.top_words(tokens)
-        # percents = self.nlp.percent_mentions(text) if len(charts) == 0 else []
+        percents = self.nlp.percent_mentions(text) if len(charts) == 0 else []
         sentiment = self.nlp.simple_sentiment(text)
         mapped = self.mapper.map_tokens(tokens)
-        # plan = self.planner.build(mapped, published, sentiment)
-        # series = self.market.fetch_series(plan)
+        plan = self.planner.build(mapped, published, sentiment)
+        series = self.market.fetch_series(plan)
         return ArticleResult(
             url=url,
             title=title,
             published_at=(published.isoformat() if published else None),
             summary=summary,
             top_words=topw,
-            # percents=percents,
-            # sentiment=sentiment,
+            percents=percents,
+            sentiment=sentiment,
             images=imgs,
             charts=charts,
-            # mapped=mapped,
-            # related_data_plan=plan,
-            # fetched_series=series,
+            mapped=mapped,
+            related_data_plan=plan,
+            fetched_series=series,
         )
 
     def run(self, sites: List[SiteConfig]) -> Dict[str, Any]:
@@ -701,12 +684,15 @@ class Pipeline:
 
         # --------- 크롤링 & 필터링 ----------
         for url in self.crawler.discover(seed_list):
+            # (a) 시드/베이스 제외
             if _canon(url) in exclude_urls:
                 continue
+            # (b) 메인 페이지(홈) 제외
             dom = URLHelper.domain(url)
             base_for_domain = base_by_domain.get(dom)
             if is_homepage(url, base_for_domain):
                 continue
+            # (c) 리스트/카테고리/태그/페이징 제외(선택)
             if looks_like_list_page(url):
                 continue
 
@@ -761,21 +747,24 @@ class ConfigLoader:
 
 @dataclass
 class CategoryPolicy:
+    """도메인 전역 또는 사이트별 정책."""
+    # 카테고리로 취급할 마지막 세그먼트 화이트리스트(= 발견되면 카테고리로 간주)
     category_slugs: Set[str] = field(default_factory=lambda: {
-        "world", "news", "business", "markets", "technology", "tech", "sports", "sport",
-        "entertainment", "politics", "economy", "finance", "opinion", "culture",
-        "science", "health", "life", "lifestyle", "travel", "autos", "international",
-        "europe", "video", "market", "nightcap", "work-transformed", "innovative-cities", "mission-ahead",
-        "us-canada", "war-in-ukraine", "uk", "africa",
-        "australia", "asia", "americas", "us", "uk", "asia", "europe", "china",
-        "india", "korea", "japan", "africa", "middleeast",
+        "world","news","business","markets","technology","tech","sports","sport",
+        "entertainment","politics","economy","finance","opinion","culture",
+        "science","health","life","lifestyle","travel","autos",
+        "international", "europe", "video", "tech", "market", "nightcap", "health",
+        "work-transformed", "innovative-cities", "mission-ahead"
+        # 지역
+        "australia", "asia", "americas", "us","uk","asia","europe","china","india","korea","japan","africa","middleeast",
     })
-
-    ignore_slugs: Set[str] = field(default_factory=lambda: {"en", "ko", "kr", "us", "gb", "intl"})
+    # 무시할 세그먼트(언어/국가/로케일 같은 prefix)
+    ignore_slugs: Set[str] = field(default_factory=lambda: {"en","ko","kr","us","gb","intl"})
+    # 기사 신호(있으면 기사 가능성 증가) – optional
     article_positive_patterns: Iterable[re.Pattern] = field(default_factory=lambda: (
-        re.compile(r"/\d{4}/\d{2}/\d{2}/"),  # /YYYY/MM/DD/
-        re.compile(r"/\d{6,}/"),  # 숫자 ID
-        re.compile(r"-\d{6,}$"),  # 끝에 숫자 ID가 붙은 slug
+        re.compile(r"/\d{4}/\d{2}/\d{2}/"),    # /YYYY/MM/DD/
+        re.compile(r"/\d{6,}/"),               # 숫자 ID
+        re.compile(r"-\d{6,}$"),               # 끝에 숫자 ID가 붙은 slug
     ))
     # 카테고리 신호(있으면 카테고리 가능성 증가)
     category_negative_patterns: Iterable[re.Pattern] = field(default_factory=lambda: (
@@ -794,7 +783,6 @@ class URLClassifier:
       - 카테고리 음의 신호가 있으면 카테고리 후보
       - 충돌 시: (카테고리 신호 > 기사 신호) 우선
     """
-
     def __init__(self, policy: Optional[CategoryPolicy] = None) -> None:
         self.policy = policy or CategoryPolicy()
 
@@ -807,34 +795,6 @@ class URLClassifier:
     def _segments(path: str):
         return [s.lower() for s in path.split("/") if s]
 
-    @staticmethod
-    def _path(url: str) -> str:
-        return urlparse(url).path or ""
-
-    @staticmethod
-    def _last_slug(url: str) -> str:
-        segs = [s for s in urlparse(url).path.split("/") if s]
-        return segs[-1].lower() if segs else ""
-
-    @staticmethod
-    def _has_three_or_more_hyphens(slug: str) -> bool:
-        return slug.count("-") >= 3
-
-    @staticmethod
-    def _is_numeric_id(slug: str) -> bool:
-        # “글 번호로만 존재하는 건도 본문으로 간주”
-        # e.g., 407068000, 1234567 등 길이 6+를 기사 양(+) 신호로
-        return bool(re.fullmatch(r"\d{6,}", slug))
-
-    @staticmethod
-    def _has_letters_and_numbers(slug: str) -> bool:
-        # 영문/숫자 둘 다 포함
-        return bool(re.search(r"[A-Za-z]", slug) and re.search(r"\d", slug))
-
-    @staticmethod
-    def _len_over_10(slug: str) -> bool:
-        return len(slug) > 10
-
     def is_home(self, url: str) -> bool:
         p = urlparse(url)
         return (p.path == "" or p.path == "/") and not p.query
@@ -846,63 +806,47 @@ class URLClassifier:
         p = urlparse(url)
         if self.is_home(url):
             return True
-
         segs = self._segments(p.path)
 
-        segs = [s for s in segs if s not in self.policy.ignore_slugs]
-
+        for s in segs:
+            if s not in self.policy.ignore_slugs:
+                return True
+        # ignore 슬러그 제거 >> 제거가 아닌 여부 확인
+        segs = [s for s in segs]
         if not segs:
             return True
 
         last = segs[-1]
-
+        log.info("last tag : %s ", last)
+        # 마지막 세그먼트가 명시된 카테고리면 카테고리 취급
         if self.is_category_slug(last):
             return True
-
+        # 명시적 카테고리 패턴(페이지네이션/태그/섹션 등)
         for pat in self.policy.category_negative_patterns:
             if pat.search(p.path) or pat.search(p.query or ""):
                 return True
-
+        # 디렉터리로 끝나는 경로(= 마지막이 빈 세그먼트)도 카테고리 성향
         if p.path.endswith("/"):
-            if len(segs) <= 3:
+            depth = len(segs)
+            if depth <= 3:
                 return True
-
         return False
 
     def like_article(self, url: str) -> bool:
+        p = urlparse(url)
         if self.is_home(url):
             return False
-
+        path = p.path
+        # 먼저 카테고리 신호가 있으면 기사 아님
         if self.like_category(url):
             return False
-
-        path = self._path(url)
-        segs = self._segments(path)
-        if not segs:
-            return False
-
-        last = segs[-1]
-
+        # 기사 양의 신호(날짜/숫자ID 등)
         for pat in self.policy.article_positive_patterns:
             if pat.search(path):
-                break
-        else:
-            positive = False
-            if self._has_three_or_more_hyphens(last):
-                positive = True
-            elif self._is_numeric_id(last):
-                positive = True
-            elif (len(segs) >= 2) and (not path.endswith("/")):
-                positive = True
-
-            if not positive:
-                return False
-
-        if not self._is_numeric_id(last):
-            if not (self._has_letters_and_numbers(last) and self._len_over_10(last)):
-                return False
-
-        return True
+                return True
+        # fallback: 깊이가 충분하고 파일형(슬래시로 끝나지 않음)
+        segs = self._segments(path)
+        return (len(segs) >= 2) and (not path.endswith("/"))
 
     def classify(self, url: str) -> str:
         """
@@ -950,13 +894,7 @@ def run_cli() -> None:
 
     heur = ArticleHeuristics(
         allow=ArticleHeuristics.compile(allows or [r"/news/|/article/|/story|/research|/report"]),
-        deny=ArticleHeuristics.compile(
-            denies or [
-                r"/login|/signin|/account|/m/|/video|/photo|/gallery",
-                r"/tags?(/|$)|/section(/|$)|/topic(s)?(/|$)|/category(/|$)",
-                r"/page/\d+(/|$)", r"[?&](page|p)=\d+\b",
-            ]
-        ),
+        deny=ArticleHeuristics.compile(denies or [r"/login|/signin|/account|/m/|/video|/photo|/gallery"]),
     )
 
     ccfg = CrawlConfig(
@@ -978,3 +916,53 @@ def run_cli() -> None:
     result = pipe.run(sites)
     JSONWriter.save(result, args.out)
     print(f"Saved: {args.out}")
+
+
+if __name__ == "__main__":
+    run_cli()
+
+class ArticleHeuristics:
+    # ... 기존 ...
+    @staticmethod
+    def _is_probable_article_slug(slug: str) -> bool:
+        if not slug:
+            return False
+        if re.fullmatch(r"\d{6,}", slug):
+            return True
+
+        if slug.count("-") >= 3:
+            return True
+
+        if re.search(r"[A-Za-z]", slug) and re.search(r"\d", slug) and len(slug) > 10:
+            return True
+        return False
+
+    def looks_like_article(self, url: str, html: Optional[str]) -> bool:
+        for d in self.deny:
+            if d.search(url):
+                return False
+
+        for a in self.allow:
+            if a.search(url):
+                return True
+
+        last = (urlparse(url).path.rstrip("/").split("/") or [""])[-1].lower()
+        if html:
+            try:
+                soup = BeautifulSoup(html, DEFAULT_PARSER)
+                mt = soup.find("meta", {"property": "og:type"})
+                if mt and (mt.get("content") or "").strip().lower() == "article":
+                    return self._is_probable_article_slug(last)
+            except Exception:
+                pass
+
+        return self._is_probable_article_slug(last)
+
+
+"""
+config load
+Heuristics Valid Article
+URL Valid (cls)
+
+1. crawling (cfg, heur, cls, max_depth)
+"""
