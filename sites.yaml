@@ -3,20 +3,21 @@
 #  seed_urls:
 #    - "https://finance.naver.com/"
 #
-#naverResearch:
-#  base_url: "https://finance.naver.com/research/"
-#  seed_urls:
-#    - "https://finance.naver.com/research/invest_read.naver?nid=36050&page=1"
-#
+
+naverResearch:
+  base_url: "https://finance.naver.com/research/"
+  seed_urls:
+    - "https://finance.naver.com/research/invest_read.naver?nid=36050&page=1"
+
 #rollcall:
 #  base_url: "https://rollcall.com"
 #  seed_urls:
 #    - "https://rollcall.com/factbase/trump/search/"
 
-bbc:
-  base_url: "https://www.bbc.com"
-  seed_urls:
-    - "https://www.bbc.com/news"
+#bbc:
+#  base_url: "https://www.bbc.com"
+#  seed_urls:
+#    - "https://www.bbc.com/news"
 
 cnn:
   base_url: "https://edition.cnn.com"
