@@ -1,0 +1,48 @@
+# Core dependencies
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+lxml>=5.0.0
+pyyaml>=6.0.0
+
+# Market data
+yfinance>=0.2.32
+tvdatafeed>=2.1.0
+
+# Data processing
+pandas>=2.1.0
+numpy>=1.26.0
+
+# Image processing (Phase 1)
+Pillow>=10.0.0
+pytesseract>=0.3.10
+opencv-python>=4.8.0
+
+# Statistical analysis (Phase 2)
+scipy>=1.11.0
+statsmodels>=0.14.0
+
+# Database & Storage (Phase 3)
+sqlalchemy>=2.0.0
+alembic>=1.12.0
+
+# Async & Performance (Phase 5)
+httpx>=0.25.0
+aiofiles>=23.2.0
+
+# API Server (Phase 5)
+fastapi>=0.104.0
+uvicorn>=0.24.0
+pydantic>=2.5.0
+python-multipart>=0.0.6
+
+# Report generation
+matplotlib>=3.8.0
+plotly>=5.17.0
+reportlab>=4.0.0
+weasyprint>=60.0
+
+# Development
+pytest>=7.4.0
+pytest-cov>=4.1.0
+black>=23.10.0
+mypy>=1.6.0
