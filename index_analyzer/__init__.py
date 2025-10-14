@@ -1,3 +1,5 @@
-from .cli import run_cli
+"""
+Multi-Thread News Crawler
+"""
 
-__all__ = ["run_cli"] 
+__version__ = "1.0.0"

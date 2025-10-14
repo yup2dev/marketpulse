@@ -14,17 +14,10 @@ class ImageInfo:
 class ArticleResult:
     url: str
     title: str
-    published_at: Optional[str]
-    summary: str
-    top_words: List[Tuple[str, int]]
-    percents: List[Dict[str, Any]]
-    sentiment: str
-    images: List[ImageInfo]
-    charts: List[ImageInfo]
-    mapped: Dict[str, Any]
-    related_data_plan: Dict[str, Any]
-    fetched_series: Dict[str, Any]
-    depth: int
+    published_time: Optional[str] = None
+    text: str = ""
+    charts: List[str] = field(default_factory=list)
+    depth: int = 0
 
 
 @dataclass
@@ -52,9 +45,3 @@ class CrawlConfig:
     timeout_get: float = 15.0
 
 
-@dataclass
-class AnalysisConfig:
-    top_k_words: int = 20
-    summary_sentences: int = 3
-    data_window_days: int = 7
-    min_word_freq: int = 3

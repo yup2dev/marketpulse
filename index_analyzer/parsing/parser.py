@@ -9,7 +9,16 @@ from ..crawling.url_classifier import URLHelper
 DEFAULT_PARSER = "lxml"
 CHART_HINT_RE = re.compile(
     r"(chart|graph|figure|plot|trend|diagram|index|price|candlestick|heatmap|tradingview|highcharts|echarts|"
-    r"차트|그래프|도표|캔들)", re.I
+    r"stock|market|trading|technical|indicator|oscillator|moving.?average|"
+    r"차트|그래프|도표|캔들|주가|증시|매매|지표)", re.I
+)
+
+# 불필요한 이미지 패턴 (광고, 로고, 아이콘 등)
+EXCLUDE_IMAGE_RE = re.compile(
+    r"(logo|icon|avatar|banner|ad|advertisement|sponsor|thumbnail|"
+    r"social|share|profile|user|author|writer|reporter|"
+    r"btn_|button|arrow|bullet|divider|spacer|pixel|tracking|"
+    r"로고|아이콘|광고|배너|프로필|버튼)", re.I
 )
 
 
@@ -72,24 +81,45 @@ class Parser:
     def extract_images(self) -> Tuple[List[ImageInfo], List[ImageInfo]]:
         imgs: List[ImageInfo] = []
         charts: List[ImageInfo] = []
+
         for img in self.soup.find_all("img"):
             src = img.get("src") or img.get("data-src") or img.get("data-original")
             if not src:
                 continue
+
+            # Skip data URIs (base64 encoded images, often icons/placeholders)
+            if src.startswith("data:"):
+                continue
+
             src = URLHelper.abs(self.base_url, src)
             if not src:
                 continue
+
             alt = (img.get("alt") or img.get("title") or "").strip()
             cls = " ".join(img.get("class", [])).lower()
             parents = " ".join(" ".join(p.get("class", [])) for p in img.parents if hasattr(p, "get")).lower()
+
+            # 불필요한 이미지 제외 (광고, 로고, 아이콘 등)
+            if any([
+                EXCLUDE_IMAGE_RE.search(src),
+                EXCLUDE_IMAGE_RE.search(alt),
+                EXCLUDE_IMAGE_RE.search(cls),
+                EXCLUDE_IMAGE_RE.search(parents),
+            ]):
+                continue
+
+            # 차트 여부 판단
             is_chart = any([
                 CHART_HINT_RE.search(src),
                 CHART_HINT_RE.search(alt),
                 CHART_HINT_RE.search(cls),
                 CHART_HINT_RE.search(parents),
             ])
+
             info = ImageInfo(src=src, alt=alt, is_chart=is_chart)
-            # 차트/이미지 각각 3개 이하로 제한
-            if len(charts if is_chart else imgs) < 3:
-                (charts if is_chart else imgs).append(info)
+
+            # 차트만 수집 (일반 이미지 제외)
+            if is_chart and len(charts) < 5:
+                charts.append(info)
+
         return imgs, charts

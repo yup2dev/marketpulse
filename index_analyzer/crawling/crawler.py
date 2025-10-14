@@ -65,20 +65,18 @@ class Crawler:
             if not html:
                 continue
 
-            if self.cfg.include_html_pages and self.heur.looks_like_article(url, html):
-                yield (url, depth)
-                per_domain_fetch[dom] = per_domain_fetch.get(dom, 0) + 1
-
-            if depth >= self.cfg.max_depth:
-                continue
-
             log.info(url)
             label = self.cls.classify(url)
+
+            # 'article'로 명확히 분류된 것만 수집
             if label == "article":
                 log.info("is Article %s", url)
                 yield (url, depth)
-                if depth >= self.max_depth:
-                    continue
+                per_domain_fetch[dom] = per_domain_fetch.get(dom, 0) + 1
+
+            # max_depth 체크: 링크 탐색 전에만 체크
+            if depth >= self.cfg.max_depth:
+                continue
 
             soup = BeautifulSoup(html, DEFAULT_PARSER)
             for a in soup.find_all("a", href=True):
