@@ -123,9 +123,7 @@ class ImageAnalyzer:
         values = []
         for match in matches:
             try:
-                # 쉼표 제거 후 float 변환
                 val = float(match.replace(',', ''))
-                # 너무 작거나 큰 값 제외 (연도 등)
                 if 0.001 < val < 1_000_000_000:
                     values.append(val)
             except ValueError:
