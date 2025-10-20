@@ -157,3 +157,9 @@ cython_debug/
 # Python temp file
 tmp.py
 temp.py
+
+# Claude
+.claude/
+
+# Test file
+test*.py
