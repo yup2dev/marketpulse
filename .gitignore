@@ -164,3 +164,9 @@ temp.py
 
 # Test file
 test*.py
+*test.py
+/test*
+*test/
+
+# Saved Data
+/data
