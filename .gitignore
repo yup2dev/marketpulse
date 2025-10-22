@@ -160,6 +160,7 @@ temp.py
 
 # Claude
 .claude/
+/.claude/
 
 # Test file
 test*.py

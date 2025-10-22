@@ -1,14 +1,22 @@
 """
 크롤러 실행 스크립트
 """
+import io
+import sys
 import logging
 import json
 from datetime import datetime
+
+# Fix Windows encoding for Korean characters
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
 from index_analyzer.crawling.crawler import Crawler
 from index_analyzer.crawling.url_classifier import URLClassifier
 from index_analyzer.parsing.heuristics import ArticleHeuristics
 from index_analyzer.parsing.parser import Parser
-from index_analyzer.models.schemas import CrawlConfig
+from index_analyzer.models.schemas import CrawlConfig, ImageInfo
+from index_analyzer.media.image_downloader import ImageDownloader
 
 logging.basicConfig(
     level=logging.INFO,
@@ -33,6 +41,9 @@ def main():
         classifier=classifier,
         max_depth=config.max_depth,
     )
+
+    # 이미지 다운로더 초기화
+    image_downloader = ImageDownloader(storage_path="./data/images", max_workers=5)
 
     # sites.yaml에서 seed URL 로드
     from index_analyzer.config.loader import ConfigLoader
@@ -71,12 +82,23 @@ def main():
             text = parser.extract_main_text()
             _, charts = parser.extract_images()
 
+            # 차트 이미지 다운로드
+            article_id = f"article_{len(articles)+1:04d}"
+            downloaded_chart_paths = []
+
+            if charts:
+                print(f"\n차트 이미지 다운로드 중... ({len(charts)}개)")
+                chart_paths = image_downloader.download_batch(charts, article_id)
+                # None이 아닌 경로만 저장 (다운로드 성공한 것만)
+                downloaded_chart_paths = [str(p) for p in chart_paths if p is not None]
+
             article = {
                 "url": url,
                 "title": title,
                 "published_time": str(published_time) if published_time else None,
                 "text_preview": text[:300] if text else "",
-                "charts": [c.src for c in charts],
+                "chart_urls": [c.src for c in charts],  # 원본 URL
+                "chart_images": downloaded_chart_paths,  # 다운로드된 이미지 경로
                 "depth": depth,
             }
             articles.append(article)
@@ -84,10 +106,12 @@ def main():
             print(f"\n[{len(articles)}] {title[:80]}")
             print(f"    URL: {url}")
             print(f"    발행일: {published_time or 'N/A'}")
-            print(f"    차트: {len(charts)}개")
+            print(f"    차트 URL: {len(charts)}개")
+            print(f"    다운로드된 차트: {len(downloaded_chart_paths)}개")
             if charts:
-                for chart in charts:
-                    print(f"      - {chart.src}")
+                for i, chart in enumerate(charts):
+                    status = "✓" if i < len(downloaded_chart_paths) else "✗"
+                    print(f"      {status} {chart.src}")
 
         except Exception as e:
             log.error(f"파싱 실패 {url}: {e}")
@@ -103,11 +127,14 @@ def main():
     print("=" * 80)
 
     # 통계
-    total_charts = sum(len(a["charts"]) for a in articles)
+    total_chart_urls = sum(len(a["chart_urls"]) for a in articles)
+    total_chart_images = sum(len(a["chart_images"]) for a in articles)
     print(f"\n통계:")
     print(f"  - 총 기사: {len(articles)}개")
-    print(f"  - 총 차트: {total_charts}개")
-    print(f"  - 평균 차트/기사: {total_charts/len(articles):.1f}개" if articles else "")
+    print(f"  - 총 차트 URL: {total_chart_urls}개")
+    print(f"  - 다운로드된 차트 이미지: {total_chart_images}개")
+    print(f"  - 다운로드 성공률: {(total_chart_images/total_chart_urls*100):.1f}%" if total_chart_urls > 0 else "")
+    print(f"  - 평균 차트/기사: {total_chart_images/len(articles):.1f}개" if articles else "")
 
 if __name__ == "__main__":
     main()

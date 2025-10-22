@@ -99,22 +99,23 @@ class Parser:
             cls = " ".join(img.get("class", [])).lower()
             parents = " ".join(" ".join(p.get("class", [])) for p in img.parents if hasattr(p, "get")).lower()
 
-            # 불필요한 이미지 제외 (광고, 로고, 아이콘 등)
-            if any([
-                EXCLUDE_IMAGE_RE.search(src),
-                EXCLUDE_IMAGE_RE.search(alt),
-                EXCLUDE_IMAGE_RE.search(cls),
-                EXCLUDE_IMAGE_RE.search(parents),
-            ]):
-                continue
-
-            # 차트 여부 판단
+            # 차트 여부 판단 (먼저 확인)
             is_chart = any([
                 CHART_HINT_RE.search(src),
                 CHART_HINT_RE.search(alt),
                 CHART_HINT_RE.search(cls),
                 CHART_HINT_RE.search(parents),
             ])
+
+            # 불필요한 이미지 제외 (단, 차트는 제외하지 않음)
+            # Only check src and cls for exclusion, not parents (too broad)
+            # And skip exclusion if it's a chart
+            if not is_chart and any([
+                EXCLUDE_IMAGE_RE.search(src),
+                EXCLUDE_IMAGE_RE.search(alt),
+                EXCLUDE_IMAGE_RE.search(cls),
+            ]):
+                continue
 
             info = ImageInfo(src=src, alt=alt, is_chart=is_chart)
 
