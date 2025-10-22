@@ -17,7 +17,7 @@ import logging
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
-from app.models.database import Database, NewsArticle, Ticker, NewsTicker, get_sqlite_db
+from app.models.database import Database, NewsArticle, Ticker, NewsTicker, TickerPrice, get_sqlite_db
 from app.services.ticker_extractor import TickerExtractor
 from app.services.sentiment_analyzer import SentimentAnalyzer
 
@@ -78,12 +78,20 @@ async def root():
     return {
         "name": "MarketPulse API",
         "version": "1.0.0",
-        "description": "금융 뉴스 크롤링 및 티커 추출 API",
+        "description": "금융 뉴스 크롤링 및 티커 추출 API + 가격 데이터 조회",
         "endpoints": {
-            "news": "/api/news",
-            "ticker_news": "/api/tickers/{symbol}/news",
-            "trending": "/api/trending",
-            "tickers": "/api/tickers",
+            "news": {
+                "get_news": "/api/news",
+                "ticker_news": "/api/tickers/{symbol}/news",
+                "trending": "/api/trending"
+            },
+            "tickers": {
+                "list": "/api/tickers",
+                "prices": "/api/tickers/{symbol}/prices",
+                "latest_price": "/api/tickers/{symbol}/price/latest",
+                "prices_by_date": "/api/prices/by-date"
+            },
+            "stats": "/api/stats",
             "docs": "/docs"
         }
     }
@@ -280,6 +288,170 @@ async def get_tickers(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/tickers/{symbol}/prices")
+async def get_ticker_prices(
+    symbol: str,
+    days: int = Query(30, ge=1, le=365, description="조회 기간 (일수)"),
+    db: Session = Depends(get_db)
+):
+    """
+    특정 종목의 가격 이력 조회
+
+    - **symbol**: 종목 코드 (예: AAPL, GC=F)
+    - **days**: 최근 N일 데이터
+    """
+    try:
+        symbol = symbol.upper()
+
+        # 티커 존재 확인
+        ticker = db.query(Ticker).filter(Ticker.symbol == symbol).first()
+        if not ticker:
+            raise HTTPException(status_code=404, detail=f"Ticker {symbol} not found")
+
+        # 가격 데이터 조회
+        start_date = datetime.utcnow().date() - timedelta(days=days)
+
+        prices = db.query(TickerPrice).filter(
+            and_(
+                TickerPrice.symbol == symbol,
+                TickerPrice.base_ymd >= start_date
+            )
+        ).order_by(desc(TickerPrice.base_ymd)).all()
+
+        if not prices:
+            return {
+                "symbol": symbol,
+                "name": ticker.name,
+                "message": "No price data available",
+                "prices": []
+            }
+
+        return {
+            "symbol": symbol,
+            "name": ticker.name,
+            "exchange": ticker.exchange,
+            "asset_type": ticker.asset_type,
+            "count": len(prices),
+            "prices": [p.to_dict() for p in prices]
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"Error in get_ticker_prices: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/tickers/{symbol}/price/latest")
+async def get_ticker_latest_price(
+    symbol: str,
+    db: Session = Depends(get_db)
+):
+    """
+    특정 종목의 최신 가격 조회 (base_ymd 기준)
+
+    - **symbol**: 종목 코드 (예: AAPL, GC=F)
+    """
+    try:
+        symbol = symbol.upper()
+
+        # 티커 존재 확인
+        ticker = db.query(Ticker).filter(Ticker.symbol == symbol).first()
+        if not ticker:
+            raise HTTPException(status_code=404, detail=f"Ticker {symbol} not found")
+
+        # 최신 가격 데이터 조회
+        latest_price = db.query(TickerPrice).filter(
+            TickerPrice.symbol == symbol
+        ).order_by(desc(TickerPrice.base_ymd)).first()
+
+        if not latest_price:
+            return {
+                "symbol": symbol,
+                "name": ticker.name,
+                "message": "No price data available",
+                "price": None
+            }
+
+        return {
+            "symbol": symbol,
+            "name": ticker.name,
+            "exchange": ticker.exchange,
+            "asset_type": ticker.asset_type,
+            "price": latest_price.to_dict()
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"Error in get_ticker_latest_price: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/prices/by-date")
+async def get_prices_by_date(
+    date: str = Query(..., description="조회 날짜 (YYYY-MM-DD 형식)"),
+    db: Session = Depends(get_db)
+):
+    """
+    특정 날짜(base_ymd)의 모든 종목 가격 조회
+
+    - **date**: 조회 날짜 (ISO 형식, 예: 2024-01-15)
+    """
+    try:
+        from datetime import datetime as dt
+
+        # 날짜 파싱
+        try:
+            target_date = dt.strptime(date, "%Y-%m-%d").date()
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid date format. Use YYYY-MM-DD"
+            )
+
+        # 해당 날짜의 모든 가격 데이터 조회
+        prices = db.query(TickerPrice).filter(
+            TickerPrice.base_ymd == target_date
+        ).all()
+
+        if not prices:
+            return {
+                "date": date,
+                "message": "No price data available for this date",
+                "count": 0,
+                "prices": []
+            }
+
+        # 자산 유형별 분류
+        by_type = {}
+        for price in prices:
+            ticker = db.query(Ticker).filter(Ticker.symbol == price.symbol).first()
+            asset_type = ticker.asset_type if ticker else "unknown"
+
+            if asset_type not in by_type:
+                by_type[asset_type] = []
+
+            by_type[asset_type].append({
+                "symbol": price.symbol,
+                "name": ticker.name if ticker else price.symbol,
+                **price.to_dict()
+            })
+
+        return {
+            "date": date,
+            "count": len(prices),
+            "by_asset_type": by_type,
+            "summary": {asset_type: len(prices_list) for asset_type, prices_list in by_type.items()}
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"Error in get_prices_by_date: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/stats")
 async def get_statistics(db: Session = Depends(get_db)):
     """전체 통계"""
@@ -288,6 +460,7 @@ async def get_statistics(db: Session = Depends(get_db)):
 
         total_news = db.query(func.count(NewsArticle.id)).scalar()
         total_tickers = db.query(func.count(Ticker.symbol)).scalar()
+        total_prices = db.query(func.count(TickerPrice.id)).scalar()
 
         # 24시간 통계
         last_24h = datetime.utcnow() - timedelta(hours=24)
@@ -301,11 +474,22 @@ async def get_statistics(db: Session = Depends(get_db)):
             func.count(NewsArticle.id)
         ).group_by(NewsArticle.sentiment_label).all()
 
+        # 가격 데이터 범위
+        price_date_range = db.query(
+            func.min(TickerPrice.base_ymd).label('earliest'),
+            func.max(TickerPrice.base_ymd).label('latest')
+        ).first()
+
         return {
             'total_news': total_news,
             'total_tickers': total_tickers,
+            'total_price_records': total_prices,
             'news_last_24h': news_24h,
-            'sentiment_distribution': {label: count for label, count in sentiment_dist if label}
+            'sentiment_distribution': {label: count for label, count in sentiment_dist if label},
+            'price_data_range': {
+                'earliest': price_date_range.earliest.isoformat() if price_date_range.earliest else None,
+                'latest': price_date_range.latest.isoformat() if price_date_range.latest else None
+            }
         }
 
     except Exception as e:
