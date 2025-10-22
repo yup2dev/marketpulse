@@ -9,7 +9,6 @@ from datetime import datetime
 
 # Fix Windows encoding for Korean characters
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 from index_analyzer.crawling.crawler import Crawler
 from index_analyzer.crawling.url_classifier import URLClassifier

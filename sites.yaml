@@ -1,7 +1,19 @@
+# Primary financial news source (most reliable for crawling)
 yahoo:
   base_url: "https://finance.yahoo.com/"
   seed_urls:
     - "https://finance.yahoo.com/news"
+
+# Bloomberg often blocks automated crawlers
+#bloomberg:
+#  base_url: "https://www.bloomberg.com"
+#  seed_urls:
+#    - "https://www.bloomberg.com/world"
+
+reuters:
+  base_url: "https://www.reuters.com"
+  seed_urls:
+    - "https://www.reuters.com/world/"
 
 #https://naver.com/:
 #  base_url: "https://www.naver.com/"
@@ -33,11 +45,6 @@ yahoo:
 #  seed_urls:
 #    - "https://www.nytimes.com/section/world"
 
-reuters:
-  base_url: "https://www.reuters.com"
-  seed_urls:
-    - "https://www.reuters.com/world/"
-
 #foxnews:
 #  base_url: "https://www.foxnews.com"
 #  seed_urls:
@@ -63,11 +70,7 @@ reuters:
 #  seed_urls:
 #    - "https://www.cbsnews.com/world/"
 #
-bloomberg:
-  base_url: "https://www.bloomberg.com"
-  seed_urls:
-    - "https://www.bloomberg.com/world"
-#
+
 #abcnews:
 #  base_url: "https://abcnews.go.com"
 #  seed_urls:

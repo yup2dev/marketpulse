@@ -1,0 +1,20 @@
+# MarketPulse - Minimal Requirements
+# NLP 라이브러리 없이 기본 기능만 사용
+
+# Core
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+requests>=2.31.0
+pyyaml>=6.0.1
+
+# Database
+sqlalchemy>=2.0.23
+psycopg2-binary>=2.9.9
+
+# API
+fastapi>=0.104.0
+uvicorn>=0.24.0
+pydantic>=2.5.0
+
+# Utils
+python-dotenv>=1.0.0
