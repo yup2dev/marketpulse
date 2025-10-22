@@ -1,3 +1,8 @@
+yahoo:
+  base_url: "https://finance.yahoo.com/"
+  seed_urls:
+    - "https://finance.yahoo.com/news"
+
 bbc:
   base_url: "https://www.bbc.com"
   seed_urls:
@@ -7,11 +12,6 @@ cnn:
   base_url: "https://edition.cnn.com"
   SEED_URLS:
     - "https://edition.cnn.com/world"
-
-yahoo:
-  base_url: "https://finance.yahoo.com/"
-  seed_urls:
-    - "https://finance.yahoo.com/news"
 
 # Bloomberg often blocks automated crawlers
 #bloomberg:
