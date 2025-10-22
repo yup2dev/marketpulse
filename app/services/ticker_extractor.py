@@ -1,11 +1,12 @@
 """
-Ticker Extractor - 뉴스에서 종목 티커 자동 추출
+Ticker Extractor - 뉴스에서 종목 티커 자동 추출 (DB 연동)
+데이터베이스의 실제 S&P 500 종목 정보를 사용하여 티커 추출
 """
 import re
 import logging
 from typing import List, Dict, Set, Optional
 from pathlib import Path
-import json
+from sqlalchemy.orm import Session
 
 log = logging.getLogger(__name__)
 
@@ -13,33 +14,33 @@ log = logging.getLogger(__name__)
 BLACKLIST_WORDS = {
     'USA', 'UK', 'EU', 'CEO', 'CFO', 'CTO', 'COO', 'CIO',
     'SEC', 'FDA', 'FBI', 'CIA', 'IPO', 'ETF', 'API', 'GDP',
-    'NYC', 'LA', 'SF', 'DC', 'AI', 'IT', 'PR', 'HR', 'UN'
+    'NYC', 'LA', 'SF', 'DC', 'AI', 'IT', 'PR', 'HR', 'UN',
+    'TV', 'US', 'RE', 'ARE', 'ALL', 'ON', 'SO', 'NOW', 'LOW',
+    'BIG', 'HOT', 'KEY', 'VIA', 'GO', 'NO', 'TWO', 'ONE'
 }
 
 
 class TickerExtractor:
     """
-    텍스트에서 주식 티커 추출
-    - 명시적 티커 패턴 ($AAPL, (TSLA), NASDAQ:NVDA)
-    - 회사명 → 티커 매핑
-    - NER 기반 회사명 인식 (선택사항)
+    데이터베이스 기반 티커 추출기
+    - DB에서 실제 S&P 500 종목 정보 로드
+    - 회사명, 섹터 정보 활용
+    - 명시적 패턴 ($AAPL) 및 회사명 매핑
     """
 
-    def __init__(self, ticker_db_path: Optional[str] = None):
+    def __init__(self, db_session: Optional[Session] = None):
         """
         Args:
-            ticker_db_path: 티커 데이터베이스 JSON 파일 경로
+            db_session: SQLAlchemy session (None이면 자동 생성)
         """
-        self.ticker_db = {}
-        self.company_to_ticker = {}
+        self.ticker_db = {}  # symbol -> info
+        self.company_to_ticker = {}  # company name -> symbol
+        self.sector_keywords = {}  # sector -> list of companies
 
-        if ticker_db_path:
-            self._load_ticker_database(ticker_db_path)
-        else:
-            # 기본 주요 티커 매핑
-            self._init_default_tickers()
+        # DB에서 티커 정보 로드
+        self._load_from_database(db_session)
 
-        # NLP 모델 (선택사항 - spacy 설치 필요)
+        # NLP 모델 (선택사항)
         self.nlp = None
         try:
             import spacy
@@ -48,240 +49,286 @@ class TickerExtractor:
         except Exception as e:
             log.warning(f"Spacy not available: {e}. Using regex-only extraction.")
 
-    def _init_default_tickers(self):
-        """기본 주요 종목 매핑 초기화"""
-        default_mapping = {
-            # Tech Giants (FAANG+)
-            'Apple': 'AAPL', 'apple inc': 'AAPL', 'apple inc.': 'AAPL',
-            'Microsoft': 'MSFT', 'microsoft corp': 'MSFT', 'microsoft corporation': 'MSFT',
-            'Google': 'GOOGL', 'alphabet': 'GOOGL', 'alphabet inc': 'GOOGL',
-            'Amazon': 'AMZN', 'amazon.com': 'AMZN', 'amazon inc': 'AMZN',
-            'Meta': 'META', 'facebook': 'META', 'meta platforms': 'META',
-            'Netflix': 'NFLX', 'netflix inc': 'NFLX',
-            'Tesla': 'TSLA', 'tesla inc': 'TSLA', 'tesla motors': 'TSLA',
-            'NVIDIA': 'NVDA', 'nvidia corp': 'NVDA', 'nvidia corporation': 'NVDA',
+    def _load_from_database(self, db_session: Optional[Session] = None):
+        """데이터베이스에서 티커 정보 로드"""
+        try:
+            # DB 세션 생성
+            if db_session is None:
+                from app.models.database import get_sqlite_db
+                from pathlib import Path
+                DB_PATH = Path(__file__).parent.parent.parent / "data" / "marketpulse.db"
+                db = get_sqlite_db(str(DB_PATH))
+                session = db.get_session()
+                close_session = True
+            else:
+                session = db_session
+                close_session = False
 
-            # Finance
-            'JPMorgan': 'JPM', 'jp morgan': 'JPM', 'jpmorgan chase': 'JPM',
-            'Goldman Sachs': 'GS', 'goldman': 'GS',
-            'Bank of America': 'BAC', 'bofa': 'BAC',
-            'Wells Fargo': 'WFC',
-            'Morgan Stanley': 'MS',
+            # Ticker 테이블에서 모든 종목 로드
+            from app.models.database import Ticker
+            tickers = session.query(Ticker).all()
 
-            # Retail
-            'Walmart': 'WMT', 'wal-mart': 'WMT',
-            'Target': 'TGT', 'target corp': 'TGT',
-            'Costco': 'COST', 'costco wholesale': 'COST',
+            log.info(f"Loading {len(tickers)} tickers from database...")
 
-            # Energy
-            'ExxonMobil': 'XOM', 'exxon mobil': 'XOM', 'exxon': 'XOM',
-            'Chevron': 'CVX', 'chevron corp': 'CVX',
+            for ticker in tickers:
+                symbol = ticker.symbol
 
-            # Healthcare
-            'Johnson & Johnson': 'JNJ', 'j&j': 'JNJ',
-            'Pfizer': 'PFE', 'pfizer inc': 'PFE',
-            'UnitedHealth': 'UNH', 'unitedhealth group': 'UNH',
-
-            # Crypto-related
-            'Coinbase': 'COIN', 'coinbase global': 'COIN',
-            'MicroStrategy': 'MSTR',
-        }
-
-        for company, ticker in default_mapping.items():
-            self.company_to_ticker[company.lower()] = ticker
-            if ticker not in self.ticker_db:
-                self.ticker_db[ticker] = {
-                    'symbol': ticker,
-                    'name': company,
-                    'exchange': 'NASDAQ' if ticker in ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'NFLX', 'TSLA', 'NVDA'] else 'NYSE'
+                # 티커 정보 저장
+                self.ticker_db[symbol] = {
+                    'name': ticker.name,
+                    'exchange': ticker.exchange or 'UNKNOWN',
+                    'sector': ticker.sector or 'Unknown',
+                    'industry': ticker.industry or 'Unknown'
                 }
 
-    def _load_ticker_database(self, db_path: str):
-        """티커 데이터베이스 로드"""
-        try:
-            with open(db_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                self.ticker_db = data.get('tickers', {})
-                self.company_to_ticker = data.get('company_map', {})
-            log.info(f"Loaded {len(self.ticker_db)} tickers from {db_path}")
+                # 회사명 → 티커 매핑 생성
+                if ticker.name:
+                    # 전체 이름 (구두점 제거)
+                    company_name = ticker.name.lower()
+                    # 쉼표, 괄호 등 제거
+                    clean_name = re.sub(r'[,\(\)\[\]{}]', '', company_name).strip()
+                    self.company_to_ticker[clean_name] = symbol
+
+                    # 일반적인 변형들
+                    # "Apple Inc." -> "apple", "apple inc"
+                    base_name = clean_name
+                    for suffix in [' inc.', ' inc', ' corporation', ' corp.', ' corp', ' ltd.', ' ltd', ' llc', ' co.', ' co', ' plc', ' group', ' company']:
+                        base_name = base_name.replace(suffix, '')
+                    base_name = base_name.strip()
+
+                    if base_name and base_name != clean_name:
+                        self.company_to_ticker[base_name] = symbol
+
+                    # 단일 단어 이름 처리 (예: "Tesla", "Apple", "Amazon")
+                    words = base_name.split()
+                    if len(words) == 1 and len(base_name) > 3:
+                        # 단일 단어 회사명만 추가 (예: Tesla, Apple)
+                        self.company_to_ticker[base_name] = symbol
+                    elif len(words) > 1:
+                        # 여러 단어인 경우, 첫 단어가 충분히 독특하면 추가
+                        first_word = words[0]
+                        if len(first_word) > 5 and first_word not in {'morgan', 'stanley', 'american', 'general', 'global', 'international', 'national', 'financial', 'capital'}:
+                            self.company_to_ticker[first_word] = symbol
+
+                # 섹터별 분류
+                if ticker.sector:
+                    if ticker.sector not in self.sector_keywords:
+                        self.sector_keywords[ticker.sector] = []
+                    self.sector_keywords[ticker.sector].append({
+                        'symbol': symbol,
+                        'name': ticker.name,
+                        'keywords': self._generate_keywords(ticker.name)
+                    })
+
+            if close_session:
+                session.close()
+
+            log.info(f"✓ Loaded {len(self.ticker_db)} tickers from database")
+            log.info(f"✓ Created {len(self.company_to_ticker)} company name mappings")
+            log.info(f"✓ Indexed {len(self.sector_keywords)} sectors")
+
         except Exception as e:
-            log.error(f"Failed to load ticker database: {e}")
-            self._init_default_tickers()
+            log.error(f"Error loading from database: {e}")
+            log.warning("Falling back to minimal ticker set...")
+            self._init_minimal_tickers()
+
+    def _generate_keywords(self, company_name: str) -> List[str]:
+        """회사명에서 검색 키워드 생성"""
+        if not company_name:
+            return []
+
+        keywords = []
+        name_lower = company_name.lower()
+
+        # 전체 이름
+        keywords.append(name_lower)
+
+        # 법인 형태 제거
+        for suffix in [' inc.', ' inc', ' corporation', ' corp.', ' corp', ' ltd.', ' ltd', ' llc', ' co.', ' co', ' plc', ' group']:
+            name_lower = name_lower.replace(suffix, '')
+
+        keywords.append(name_lower.strip())
+
+        # 단어별 분리
+        words = name_lower.strip().split()
+        for word in words:
+            if len(word) > 3 and word not in {'the', 'and', 'for', 'of'}:
+                keywords.append(word)
+
+        return list(set(keywords))
+
+    def _init_minimal_tickers(self):
+        """DB 로드 실패 시 최소한의 주요 종목"""
+        minimal_mapping = {
+            'AAPL': {'name': 'Apple Inc.', 'exchange': 'NASDAQ'},
+            'MSFT': {'name': 'Microsoft Corporation', 'exchange': 'NASDAQ'},
+            'GOOGL': {'name': 'Alphabet Inc.', 'exchange': 'NASDAQ'},
+            'AMZN': {'name': 'Amazon.com Inc.', 'exchange': 'NASDAQ'},
+            'TSLA': {'name': 'Tesla Inc.', 'exchange': 'NASDAQ'},
+            'META': {'name': 'Meta Platforms Inc.', 'exchange': 'NASDAQ'},
+            'NVDA': {'name': 'NVIDIA Corporation', 'exchange': 'NASDAQ'},
+        }
+
+        self.ticker_db = minimal_mapping
+        for symbol, info in minimal_mapping.items():
+            name_lower = info['name'].lower()
+            self.company_to_ticker[name_lower] = symbol
+            base_name = name_lower.split()[0]
+            self.company_to_ticker[base_name] = symbol
 
     def extract(self, text: str, title: str = "") -> List[Dict]:
         """
         텍스트에서 티커 추출
 
         Args:
-            text: 기사 본문
-            title: 기사 제목 (가중치 부여용)
+            text: 분석할 텍스트
+            title: 제목 (선택사항, 더 높은 가중치)
 
         Returns:
-            추출된 티커 정보 리스트
+            List of dicts: [{'symbol': 'AAPL', 'name': 'Apple Inc.', 'confidence': 0.95, ...}]
         """
-        tickers = {}
+        found_tickers = {}
+        full_text = f"{title} {text}".lower()
 
-        # 전체 텍스트 (제목 + 본문)
-        full_text = f"{title} {text}"
-
-        # 1. 명시적 티커 패턴 추출
+        # 1. 명시적 티커 패턴 추출 ($AAPL, (TSLA), NASDAQ:NVDA)
         explicit_tickers = self._extract_explicit_tickers(full_text)
-        for ticker in explicit_tickers:
-            tickers[ticker] = {
-                'symbol': ticker,
-                'confidence': 0.95,
-                'mention_count': full_text.upper().count(ticker),
-                'source': 'explicit_pattern'
-            }
-
-        # 2. 회사명 매핑
-        company_tickers = self._extract_from_companies(full_text)
-        for ticker, count in company_tickers.items():
-            if ticker in tickers:
-                tickers[ticker]['mention_count'] += count
-            else:
-                tickers[ticker] = {
-                    'symbol': ticker,
-                    'confidence': 0.85,
-                    'mention_count': count,
-                    'source': 'company_name'
+        for symbol, mentions in explicit_tickers.items():
+            if symbol in self.ticker_db:
+                found_tickers[symbol] = {
+                    'symbol': symbol,
+                    'name': self.ticker_db[symbol]['name'],
+                    'exchange': self.ticker_db[symbol].get('exchange', 'UNKNOWN'),
+                    'sector': self.ticker_db[symbol].get('sector', 'Unknown'),
+                    'confidence': 0.95,  # 명시적 패턴은 높은 신뢰도
+                    'mentions': mentions,
+                    'in_title': symbol.lower() in title.lower()
                 }
 
-        # 3. NER 기반 회사명 추출 (spacy 사용 가능시)
+        # 2. 회사명 매핑 추출
+        company_tickers = self._extract_from_companies(full_text, title)
+        for symbol, info in company_tickers.items():
+            if symbol not in found_tickers:
+                found_tickers[symbol] = info
+            else:
+                # 기존 티커 정보 업데이트 (언급 횟수 추가)
+                found_tickers[symbol]['mentions'] += info['mentions']
+                found_tickers[symbol]['confidence'] = max(found_tickers[symbol]['confidence'], info['confidence'])
+
+        # 3. NER 기반 추출 (spacy 사용)
         if self.nlp:
-            ner_tickers = self._extract_from_ner(full_text)
-            for ticker, count in ner_tickers.items():
-                if ticker in tickers:
-                    tickers[ticker]['mention_count'] += count
-                    tickers[ticker]['confidence'] = max(tickers[ticker]['confidence'], 0.75)
-                else:
-                    tickers[ticker] = {
-                        'symbol': ticker,
-                        'confidence': 0.75,
-                        'mention_count': count,
-                        'source': 'ner'
-                    }
+            ner_tickers = self._extract_from_ner(text)
+            for symbol, info in ner_tickers.items():
+                if symbol not in found_tickers:
+                    found_tickers[symbol] = info
 
-        # 4. 티커 정보 보강
-        result = []
-        for ticker, data in tickers.items():
-            info = self.ticker_db.get(ticker, {})
-            enriched = {
-                'symbol': ticker,
-                'name': info.get('name', ''),
-                'exchange': info.get('exchange', ''),
-                'confidence': data['confidence'],
-                'mention_count': data['mention_count'],
-                'source': data['source']
-            }
-
-            # 제목에 포함된 티커는 신뢰도 상승
-            if ticker in title.upper():
-                enriched['confidence'] = min(enriched['confidence'] + 0.1, 1.0)
-
-            result.append(enriched)
-
-        # 신뢰도 순으로 정렬
-        result.sort(key=lambda x: (x['confidence'], x['mention_count']), reverse=True)
+        # 결과 정렬 (신뢰도 및 언급 횟수 기준)
+        result = sorted(
+            found_tickers.values(),
+            key=lambda x: (x['confidence'], x['mentions']),
+            reverse=True
+        )
 
         return result
 
-    def _extract_explicit_tickers(self, text: str) -> Set[str]:
-        """명시적 티커 패턴 추출"""
-        patterns = [
-            r'\$([A-Z]{1,5})\b',  # $AAPL
-            r'\(([A-Z]{2,5})\)',   # (AAPL)
-            r'(?:NYSE|NASDAQ|AMEX):([A-Z]{1,5})\b',  # NASDAQ:AAPL
-            r'\b([A-Z]{2,5})\s+(?:stock|shares|shares)\b',  # AAPL stock
-        ]
+    def _extract_explicit_tickers(self, text: str) -> Dict[str, int]:
+        """명시적 티커 패턴 추출: $AAPL, (TSLA), NASDAQ:NVDA"""
+        tickers = {}
 
-        tickers = set()
-        for pattern in patterns:
-            matches = re.findall(pattern, text, re.IGNORECASE)
-            for match in matches:
-                ticker = match.upper()
-                # 블랙리스트 필터링
-                if ticker not in BLACKLIST_WORDS and len(ticker) >= 2:
-                    tickers.add(ticker)
+        # Pattern 1: $SYMBOL
+        for match in re.finditer(r'\$([A-Z]{1,5})\b', text.upper()):
+            symbol = match.group(1)
+            if symbol not in BLACKLIST_WORDS and symbol in self.ticker_db:
+                tickers[symbol] = tickers.get(symbol, 0) + 1
+
+        # Pattern 2: (SYMBOL)
+        for match in re.finditer(r'\(([A-Z]{1,5})\)', text.upper()):
+            symbol = match.group(1)
+            if symbol not in BLACKLIST_WORDS and symbol in self.ticker_db:
+                tickers[symbol] = tickers.get(symbol, 0) + 1
+
+        # Pattern 3: EXCHANGE:SYMBOL
+        for match in re.finditer(r'\b(NYSE|NASDAQ|AMEX):([A-Z]{1,5})\b', text.upper()):
+            symbol = match.group(2)
+            if symbol not in BLACKLIST_WORDS and symbol in self.ticker_db:
+                tickers[symbol] = tickers.get(symbol, 0) + 1
 
         return tickers
 
-    def _extract_from_companies(self, text: str) -> Dict[str, int]:
-        """회사명에서 티커 추출"""
-        ticker_counts = {}
+    def _extract_from_companies(self, text: str, title: str = "") -> Dict[str, Dict]:
+        """회사명 기반 티커 추출 (대소문자 구분 없이)"""
+        found = {}
+        text_lower = text.lower()
+        title_lower = title.lower()
 
-        # 회사명 매핑을 통한 추출
-        for company, ticker in self.company_to_ticker.items():
-            # 대소문자 무시하고 검색
-            pattern = re.compile(r'\b' + re.escape(company) + r'\b', re.IGNORECASE)
-            matches = pattern.findall(text)
+        for company_name, symbol in self.company_to_ticker.items():
+            if len(company_name) < 3:  # 너무 짧은 이름 제외
+                continue
 
-            if matches:
-                ticker_counts[ticker] = ticker_counts.get(ticker, 0) + len(matches)
+            # 회사명 검색 (대소문자 구분 없이, 단어 경계 고려)
+            # re.IGNORECASE 플래그 사용
+            pattern = r'\b' + re.escape(company_name) + r'\b'
 
-        return ticker_counts
+            # text와 title에서 패턴 검색 (대소문자 무시)
+            matches_text = len(re.findall(pattern, text_lower, re.IGNORECASE))
+            matches_title = len(re.findall(pattern, title_lower, re.IGNORECASE))
 
-    def _extract_from_ner(self, text: str) -> Dict[str, int]:
-        """NER을 이용한 회사명 추출"""
+            total_mentions = matches_text + matches_title
+
+            if total_mentions > 0:
+                # 제목에 있으면 신뢰도 상승
+                confidence = 0.75 if matches_title > 0 else 0.65
+                # 여러 번 언급되면 신뢰도 상승
+                confidence += min(total_mentions * 0.05, 0.15)
+
+                if symbol in self.ticker_db:
+                    found[symbol] = {
+                        'symbol': symbol,
+                        'name': self.ticker_db[symbol]['name'],
+                        'exchange': self.ticker_db[symbol].get('exchange', 'UNKNOWN'),
+                        'sector': self.ticker_db[symbol].get('sector', 'Unknown'),
+                        'confidence': min(confidence, 0.95),
+                        'mentions': total_mentions,
+                        'in_title': matches_title > 0
+                    }
+
+        return found
+
+    def _extract_from_ner(self, text: str) -> Dict[str, Dict]:
+        """NER (Named Entity Recognition) 기반 회사명 추출"""
         if not self.nlp:
             return {}
 
-        ticker_counts = {}
+        found = {}
+        doc = self.nlp(text[:10000])  # 성능을 위해 앞부분만
 
-        try:
-            # 텍스트가 너무 길면 잘라서 처리
-            max_length = 1000000  # spacy 기본 제한
-            if len(text) > max_length:
-                text = text[:max_length]
+        for ent in doc.ents:
+            if ent.label_ in ['ORG', 'PRODUCT']:
+                entity_text = ent.text.lower()
 
-            doc = self.nlp(text)
+                # 추출된 개체가 알려진 회사명과 매칭되는지 확인
+                for company_name, symbol in self.company_to_ticker.items():
+                    if company_name in entity_text or entity_text in company_name:
+                        if symbol in self.ticker_db and symbol not in found:
+                            found[symbol] = {
+                                'symbol': symbol,
+                                'name': self.ticker_db[symbol]['name'],
+                                'exchange': self.ticker_db[symbol].get('exchange', 'UNKNOWN'),
+                                'sector': self.ticker_db[symbol].get('sector', 'Unknown'),
+                                'confidence': 0.70,  # NER 기반은 중간 신뢰도
+                                'mentions': 1,
+                                'in_title': False
+                            }
 
-            # ORG 엔티티 추출
-            for ent in doc.ents:
-                if ent.label_ == "ORG":
-                    company = ent.text
-                    # 회사명 → 티커 매핑
-                    ticker = self.company_to_ticker.get(company.lower())
-                    if ticker:
-                        ticker_counts[ticker] = ticker_counts.get(ticker, 0) + 1
+        return found
 
-        except Exception as e:
-            log.warning(f"NER extraction failed: {e}")
+    def get_ticker_info(self, symbol: str) -> Optional[Dict]:
+        """특정 티커의 상세 정보 조회"""
+        return self.ticker_db.get(symbol)
 
-        return ticker_counts
+    def search_by_sector(self, sector: str) -> List[Dict]:
+        """섹터로 종목 검색"""
+        return self.sector_keywords.get(sector, [])
 
-    def validate_ticker(self, symbol: str) -> bool:
-        """티커 유효성 검증"""
-        # 기본 형식 검증
-        if not symbol or len(symbol) < 1 or len(symbol) > 5:
-            return False
-
-        if not symbol.isalpha() or not symbol.isupper():
-            return False
-
-        if symbol in BLACKLIST_WORDS:
-            return False
-
-        # 데이터베이스에 있는지 확인
-        if symbol in self.ticker_db:
-            return True
-
-        # yfinance로 실시간 검증 (선택사항)
-        # try:
-        #     import yfinance as yf
-        #     ticker = yf.Ticker(symbol)
-        #     info = ticker.info
-        #     return 'symbol' in info
-        # except:
-        #     return False
-
-        return True
-
-    def add_ticker(self, symbol: str, name: str, exchange: str = ""):
-        """티커 데이터베이스에 추가"""
-        self.ticker_db[symbol] = {
-            'symbol': symbol,
-            'name': name,
-            'exchange': exchange
-        }
-        self.company_to_ticker[name.lower()] = symbol
+    def get_all_sectors(self) -> List[str]:
+        """모든 섹터 목록"""
+        return list(self.sector_keywords.keys())

@@ -12,20 +12,26 @@ pip install -r requirements_minimal.txt
 ### Step 2: 데이터베이스 초기화 (30초)
 
 ```bash
-# SQLite 데이터베이스 생성
-python scripts/init_db.py
+# SQLite 데이터베이스 생성 및 마켓 데이터 로드
+python scripts/load_market_data.py
 ```
 
 **출력:**
 ```
-INFO:__main__:Initializing sqlite database...
-INFO:__main__:Creating tables...
-INFO:__main__:✓ Tables created successfully
-INFO:__main__:Loading sample ticker data...
-INFO:__main__:✓ Loaded 30 sample tickers
-INFO:__main__:Total tickers in database: 30
-INFO:__main__:✓ Database initialization complete!
+INFO:__main__:Initializing database...
+INFO:__main__:Loading S&P 500 stocks...
+INFO:__main__:✓ Loaded 87 S&P 500 stocks
+INFO:__main__:Loading commodity futures...
+INFO:__main__:✓ Loaded 30 commodity futures
+INFO:__main__:Loading major ETFs...
+INFO:__main__:✓ Loaded 14 ETFs
+INFO:__main__:Total tickers in database: 132
 ```
+
+**포함된 데이터:**
+- S&P 500 주요 종목 87개 (AAPL, MSFT, GOOGL, TSLA 등)
+- 원자재 선물 30개 (원유, 금, 은, 농산물 등)
+- 주요 ETF 14개 (SPY, QQQ, GLD 등)
 
 ### Step 3: 시스템 검증 (30초)
 
