@@ -54,7 +54,7 @@ def main():
 
     # 3. 크롤러 설정
     config = CrawlConfig(
-        max_total=5,  # 테스트용 적은 개수
+        max_total=50,  # 테스트용 적은 개수
         max_depth=1,
         same_domain_only=True,
     )
@@ -204,7 +204,6 @@ def main():
     print(f"Database saved: {DB_PATH}")
     print(f"Start API server: python -m app.main")
     print("=" * 80)
-
 
 if __name__ == "__main__":
     main()

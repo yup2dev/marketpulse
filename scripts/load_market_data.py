@@ -1,14 +1,12 @@
 """
-Load S&P 500 and Major Commodities Data from Real Sources
+Load Market Data - 외부 API 기반 동적 데이터 로드
 실제 데이터 소스에서 S&P 500 종목 및 주요 원자재 선물 데이터 동적으로 로드
+하드코딩 제거 - 모든 데이터는 외부 API 또는 DB에서 관리
 """
 import sys
 import io
 import logging
 from pathlib import Path
-import pandas as pd
-import requests
-from bs4 import BeautifulSoup
 
 # Fix Windows encoding
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
@@ -18,132 +16,20 @@ sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='repla
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.models.database import get_sqlite_db, Ticker
+from app.services.market_data_sync import MarketDataSync
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 
-def get_sp500_tickers():
+def load_market_data(db_path="data/marketpulse.db", enrich=True):
     """
-    Wikipedia에서 실제 S&P 500 편입 종목 목록을 가져옴
-    Returns: List of dicts with ticker info
+    외부 API로부터 마켓 데이터 로드
+
+    Args:
+        db_path: SQLite 데이터베이스 경로
+        enrich: yfinance API로 데이터 보강 여부
     """
-    log.info("Fetching S&P 500 constituents from Wikipedia...")
-
-    try:
-        # Wikipedia S&P 500 페이지에서 데이터 가져오기
-        url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
-
-        # Set user agent to avoid 403 errors
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
-
-        # Read HTML tables with custom headers
-        tables = pd.read_html(url, storage_options=headers)
-        sp500_table = tables[0]
-
-        log.info(f"✓ Found {len(sp500_table)} S&P 500 companies")
-
-        tickers = []
-        for _, row in sp500_table.iterrows():
-            ticker_info = {
-                'symbol': row['Symbol'].replace('.', '-'),  # Yahoo Finance format
-                'name': row['Security'],
-                'sector': row['GICS Sector'],
-                'industry': row['GICS Sub-Industry'],
-                'exchange': 'NYSE' if 'NYSE' in str(row.get('Exchange', 'NYSE')) else 'NASDAQ'
-            }
-            tickers.append(ticker_info)
-
-        return tickers
-
-    except Exception as e:
-        log.error(f"Error fetching S&P 500 data: {e}")
-        log.warning("Falling back to cached S&P 500 list...")
-        return get_fallback_sp500()
-
-
-def get_fallback_sp500():
-    """
-    API 실패 시 사용할 최소한의 주요 종목 목록
-    """
-    return [
-        {'symbol': 'AAPL', 'name': 'Apple Inc.', 'sector': 'Information Technology', 'industry': 'Technology Hardware, Storage & Peripherals', 'exchange': 'NASDAQ'},
-        {'symbol': 'MSFT', 'name': 'Microsoft Corporation', 'sector': 'Information Technology', 'industry': 'Software', 'exchange': 'NASDAQ'},
-        {'symbol': 'GOOGL', 'name': 'Alphabet Inc. Class A', 'sector': 'Communication Services', 'industry': 'Interactive Media & Services', 'exchange': 'NASDAQ'},
-        {'symbol': 'AMZN', 'name': 'Amazon.com Inc.', 'sector': 'Consumer Discretionary', 'industry': 'Internet & Direct Marketing Retail', 'exchange': 'NASDAQ'},
-        {'symbol': 'NVDA', 'name': 'NVIDIA Corporation', 'sector': 'Information Technology', 'industry': 'Semiconductors', 'exchange': 'NASDAQ'},
-        {'symbol': 'META', 'name': 'Meta Platforms Inc.', 'sector': 'Communication Services', 'industry': 'Interactive Media & Services', 'exchange': 'NASDAQ'},
-        {'symbol': 'TSLA', 'name': 'Tesla Inc.', 'sector': 'Consumer Discretionary', 'industry': 'Automobiles', 'exchange': 'NASDAQ'},
-        {'symbol': 'BRK-B', 'name': 'Berkshire Hathaway Inc. Class B', 'sector': 'Financials', 'industry': 'Multi-Sector Holdings', 'exchange': 'NYSE'},
-        {'symbol': 'JPM', 'name': 'JPMorgan Chase & Co.', 'sector': 'Financials', 'industry': 'Banks', 'exchange': 'NYSE'},
-        {'symbol': 'V', 'name': 'Visa Inc.', 'sector': 'Financials', 'industry': 'Financial Services', 'exchange': 'NYSE'},
-    ]
-
-
-def get_commodity_futures():
-    """
-    주요 원자재 선물 티커 목록
-    (선물은 표준화된 심볼이므로 정적 리스트 사용)
-    """
-    return [
-        # Energy Futures
-        {'symbol': 'CL', 'name': 'Crude Oil WTI Futures', 'exchange': 'NYMEX', 'sector': 'Energy', 'industry': 'Crude Oil'},
-        {'symbol': 'BZ', 'name': 'Brent Crude Oil Futures', 'exchange': 'ICE', 'sector': 'Energy', 'industry': 'Crude Oil'},
-        {'symbol': 'NG', 'name': 'Natural Gas Futures', 'exchange': 'NYMEX', 'sector': 'Energy', 'industry': 'Natural Gas'},
-        {'symbol': 'HO', 'name': 'Heating Oil Futures', 'exchange': 'NYMEX', 'sector': 'Energy', 'industry': 'Heating Oil'},
-        {'symbol': 'RB', 'name': 'RBOB Gasoline Futures', 'exchange': 'NYMEX', 'sector': 'Energy', 'industry': 'Gasoline'},
-
-        # Precious Metals
-        {'symbol': 'GC', 'name': 'Gold Futures', 'exchange': 'COMEX', 'sector': 'Metals', 'industry': 'Precious Metals'},
-        {'symbol': 'SI', 'name': 'Silver Futures', 'exchange': 'COMEX', 'sector': 'Metals', 'industry': 'Precious Metals'},
-        {'symbol': 'PL', 'name': 'Platinum Futures', 'exchange': 'NYMEX', 'sector': 'Metals', 'industry': 'Precious Metals'},
-        {'symbol': 'PA', 'name': 'Palladium Futures', 'exchange': 'NYMEX', 'sector': 'Metals', 'industry': 'Precious Metals'},
-
-        # Industrial Metals
-        {'symbol': 'HG', 'name': 'Copper Futures', 'exchange': 'COMEX', 'sector': 'Metals', 'industry': 'Industrial Metals'},
-
-        # Agricultural
-        {'symbol': 'ZC', 'name': 'Corn Futures', 'exchange': 'CBOT', 'sector': 'Agriculture', 'industry': 'Grains'},
-        {'symbol': 'ZW', 'name': 'Wheat Futures', 'exchange': 'CBOT', 'sector': 'Agriculture', 'industry': 'Grains'},
-        {'symbol': 'ZS', 'name': 'Soybean Futures', 'exchange': 'CBOT', 'sector': 'Agriculture', 'industry': 'Grains'},
-        {'symbol': 'KC', 'name': 'Coffee Futures', 'exchange': 'ICE', 'sector': 'Agriculture', 'industry': 'Softs'},
-        {'symbol': 'SB', 'name': 'Sugar Futures', 'exchange': 'ICE', 'sector': 'Agriculture', 'industry': 'Softs'},
-        {'symbol': 'CT', 'name': 'Cotton Futures', 'exchange': 'ICE', 'sector': 'Agriculture', 'industry': 'Softs'},
-        {'symbol': 'CC', 'name': 'Cocoa Futures', 'exchange': 'ICE', 'sector': 'Agriculture', 'industry': 'Softs'},
-
-        # Livestock
-        {'symbol': 'LE', 'name': 'Live Cattle Futures', 'exchange': 'CME', 'sector': 'Agriculture', 'industry': 'Livestock'},
-        {'symbol': 'HE', 'name': 'Lean Hogs Futures', 'exchange': 'CME', 'sector': 'Agriculture', 'industry': 'Livestock'},
-
-        # Index Futures
-        {'symbol': 'ES', 'name': 'E-mini S&P 500 Futures', 'exchange': 'CME', 'sector': 'Index', 'industry': 'Equity Index'},
-        {'symbol': 'NQ', 'name': 'E-mini NASDAQ-100 Futures', 'exchange': 'CME', 'sector': 'Index', 'industry': 'Equity Index'},
-        {'symbol': 'YM', 'name': 'E-mini Dow Futures', 'exchange': 'CBOT', 'sector': 'Index', 'industry': 'Equity Index'},
-    ]
-
-
-def get_major_etfs():
-    """
-    주요 ETF 목록
-    """
-    return [
-        {'symbol': 'SPY', 'name': 'SPDR S&P 500 ETF Trust', 'exchange': 'NYSE', 'sector': 'ETF', 'industry': 'Large Cap'},
-        {'symbol': 'QQQ', 'name': 'Invesco QQQ Trust', 'exchange': 'NASDAQ', 'sector': 'ETF', 'industry': 'Technology'},
-        {'symbol': 'DIA', 'name': 'SPDR Dow Jones Industrial Average ETF', 'exchange': 'NYSE', 'sector': 'ETF', 'industry': 'Large Cap'},
-        {'symbol': 'IWM', 'name': 'iShares Russell 2000 ETF', 'exchange': 'NYSE', 'sector': 'ETF', 'industry': 'Small Cap'},
-        {'symbol': 'VTI', 'name': 'Vanguard Total Stock Market ETF', 'exchange': 'NYSE', 'sector': 'ETF', 'industry': 'Total Market'},
-        {'symbol': 'GLD', 'name': 'SPDR Gold Shares', 'exchange': 'NYSE', 'sector': 'ETF', 'industry': 'Commodities'},
-        {'symbol': 'SLV', 'name': 'iShares Silver Trust', 'exchange': 'NYSE', 'sector': 'ETF', 'industry': 'Commodities'},
-        {'symbol': 'USO', 'name': 'United States Oil Fund', 'exchange': 'NYSE', 'sector': 'ETF', 'industry': 'Energy'},
-        {'symbol': 'TLT', 'name': 'iShares 20+ Year Treasury Bond ETF', 'exchange': 'NASDAQ', 'sector': 'ETF', 'industry': 'Bonds'},
-        {'symbol': 'EEM', 'name': 'iShares MSCI Emerging Markets ETF', 'exchange': 'NYSE', 'sector': 'ETF', 'industry': 'International'},
-    ]
-
-
-def load_market_data(db_path="data/marketpulse.db"):
-    """실제 소스에서 마켓 데이터 로드"""
 
     log.info("Initializing database...")
     # Use absolute path
@@ -155,88 +41,42 @@ def load_market_data(db_path="data/marketpulse.db"):
     session = db.get_session()
 
     try:
-        # 1. S&P 500 종목 로드 (실제 데이터)
-        sp500_tickers = get_sp500_tickers()
-        log.info(f"Loading {len(sp500_tickers)} S&P 500 stocks...")
+        # MarketDataSync 서비스 초기화
+        sync_service = MarketDataSync(session)
 
-        sp500_count = 0
-        for ticker_info in sp500_tickers:
-            existing = session.query(Ticker).filter_by(symbol=ticker_info['symbol']).first()
-            if not existing:
-                ticker = Ticker(
-                    symbol=ticker_info['symbol'],
-                    name=ticker_info['name'],
-                    exchange=ticker_info['exchange'],
-                    sector=ticker_info['sector'],
-                    industry=ticker_info['industry']
-                )
-                session.add(ticker)
-                sp500_count += 1
+        # 모든 마켓 데이터 동기화
+        results = sync_service.sync_all(enrich=enrich)
 
-        session.commit()
-        log.info(f"✓ Loaded {sp500_count} new S&P 500 stocks")
-
-        # 2. 원자재 선물 로드
-        commodity_futures = get_commodity_futures()
-        log.info(f"Loading {len(commodity_futures)} commodity futures...")
-
-        commodity_count = 0
-        for ticker_info in commodity_futures:
-            existing = session.query(Ticker).filter_by(symbol=ticker_info['symbol']).first()
-            if not existing:
-                ticker = Ticker(
-                    symbol=ticker_info['symbol'],
-                    name=ticker_info['name'],
-                    exchange=ticker_info['exchange'],
-                    sector=ticker_info['sector'],
-                    industry=ticker_info['industry']
-                )
-                session.add(ticker)
-                commodity_count += 1
-
-        session.commit()
-        log.info(f"✓ Loaded {commodity_count} new commodity futures")
-
-        # 3. ETF 로드
-        major_etfs = get_major_etfs()
-        log.info(f"Loading {len(major_etfs)} major ETFs...")
-
-        etf_count = 0
-        for ticker_info in major_etfs:
-            existing = session.query(Ticker).filter_by(symbol=ticker_info['symbol']).first()
-            if not existing:
-                ticker = Ticker(
-                    symbol=ticker_info['symbol'],
-                    name=ticker_info['name'],
-                    exchange=ticker_info['exchange'],
-                    sector=ticker_info['sector'],
-                    industry=ticker_info['industry']
-                )
-                session.add(ticker)
-                etf_count += 1
-
-        session.commit()
-        log.info(f"✓ Loaded {etf_count} new ETFs")
-
-        # 통계
-        total_tickers = session.query(Ticker).count()
+        # 통계 출력
+        log.info(f"\n{'='*60}")
+        log.info(f"Data Load Summary:")
+        log.info(f"  S&P 500 stocks:      {results['sp500']:4d}")
+        log.info(f"  Commodity futures:   {results['commodities']:4d}")
+        log.info(f"  ETFs:                {results['etfs']:4d}")
+        log.info(f"  Total synced:        {results['total']:4d}")
 
         # 섹터별 통계
         from sqlalchemy import func
         sector_stats = session.query(
+            Ticker.asset_type,
             Ticker.sector,
             func.count(Ticker.symbol)
-        ).group_by(Ticker.sector).all()
+        ).filter(
+            Ticker.is_active == True
+        ).group_by(
+            Ticker.asset_type,
+            Ticker.sector
+        ).all()
 
-        log.info(f"\n{'='*60}")
-        log.info(f"Data Load Summary:")
-        log.info(f"  S&P 500 stocks: {sp500_count} new (total: {len(sp500_tickers)})")
-        log.info(f"  Commodity futures: {commodity_count} new")
-        log.info(f"  ETFs: {etf_count} new")
-        log.info(f"  Total tickers in database: {total_tickers}")
-        log.info(f"\nSector Distribution:")
-        for sector, count in sorted(sector_stats, key=lambda x: -x[1]):
-            log.info(f"  {sector or 'N/A':30s} {count:4d} tickers")
+        log.info(f"\nAsset Type & Sector Distribution:")
+        log.info(f"{'Asset Type':<15} {'Sector':<30} {'Count':>5}")
+        log.info(f"{'-'*50}")
+        for asset_type, sector, count in sorted(sector_stats, key=lambda x: (-x[2], x[0], x[1])):
+            log.info(f"{asset_type or 'N/A':<15} {sector or 'N/A':<30} {count:>5}")
+
+        total_active = session.query(Ticker).filter(Ticker.is_active == True).count()
+        log.info(f"{'-'*50}")
+        log.info(f"Total active tickers in database: {total_active}")
         log.info(f"{'='*60}")
 
     except Exception as e:
@@ -251,10 +91,169 @@ def load_market_data(db_path="data/marketpulse.db"):
     return db
 
 
+def add_custom_ticker(symbol: str, asset_type: str = 'stock', db_path="data/marketpulse.db"):
+    """
+    커스텀 티커 추가
+
+    Args:
+        symbol: 티커 심볼 (예: TSLA, BTC-USD)
+        asset_type: 자산 유형 (stock, commodity, etf, crypto, index)
+        db_path: 데이터베이스 경로
+    """
+    DB_PATH = Path(__file__).parent.parent / "data" / "marketpulse.db"
+    db = get_sqlite_db(str(DB_PATH))
+    session = db.get_session()
+
+    try:
+        sync_service = MarketDataSync(session)
+        success = sync_service.add_custom_ticker(symbol, asset_type, enrich=True)
+
+        if success:
+            log.info(f"✓ Successfully added {symbol} ({asset_type})")
+        else:
+            log.error(f"✗ Failed to add {symbol}")
+
+        return success
+    finally:
+        session.close()
+
+
+def remove_ticker(symbol: str, db_path="data/marketpulse.db"):
+    """
+    티커 비활성화
+
+    Args:
+        symbol: 티커 심볼
+        db_path: 데이터베이스 경로
+    """
+    DB_PATH = Path(__file__).parent.parent / "data" / "marketpulse.db"
+    db = get_sqlite_db(str(DB_PATH))
+    session = db.get_session()
+
+    try:
+        sync_service = MarketDataSync(session)
+        success = sync_service.remove_ticker(symbol)
+
+        if success:
+            log.info(f"✓ Successfully deactivated {symbol}")
+        else:
+            log.error(f"✗ Failed to deactivate {symbol}")
+
+        return success
+    finally:
+        session.close()
+
+
+def list_tickers(asset_type: str = None, db_path="data/marketpulse.db"):
+    """
+    현재 DB에 있는 티커 목록 조회
+
+    Args:
+        asset_type: 필터링할 자산 유형 (None이면 전체)
+        db_path: 데이터베이스 경로
+    """
+    DB_PATH = Path(__file__).parent.parent / "data" / "marketpulse.db"
+    db = get_sqlite_db(str(DB_PATH))
+    session = db.get_session()
+
+    try:
+        query = session.query(Ticker).filter(Ticker.is_active == True)
+
+        if asset_type:
+            query = query.filter(Ticker.asset_type == asset_type)
+
+        tickers = query.order_by(Ticker.asset_type, Ticker.sector, Ticker.symbol).all()
+
+        log.info(f"\n{'='*80}")
+        log.info(f"Active Tickers in Database")
+        if asset_type:
+            log.info(f"Filtered by asset_type: {asset_type}")
+        log.info(f"{'='*80}")
+        log.info(f"{'Symbol':<10} {'Name':<35} {'Type':<12} {'Sector':<20}")
+        log.info(f"{'-'*80}")
+
+        for ticker in tickers:
+            log.info(
+                f"{ticker.symbol:<10} "
+                f"{ticker.name[:34]:<35} "
+                f"{ticker.asset_type or 'N/A':<12} "
+                f"{ticker.sector or 'N/A':<20}"
+            )
+
+        log.info(f"{'-'*80}")
+        log.info(f"Total: {len(tickers)} tickers")
+        log.info(f"{'='*80}\n")
+
+        return tickers
+    finally:
+        session.close()
+
+
+def load_price_history(
+    symbols: list = None,
+    period: str = '1d', # 전체 기간
+    interval: str = '1d',
+    db_path="data/marketpulse.db"
+):
+    """
+    ティcker 가격 이력 로드
+
+    Args:
+        symbols: 로드할 심볼 리스트 (None이면 모든 활성 티커)
+        period: 기간 ('1d', '5d', '1mo', '3mo', '6mo', '1y', '2y', '5y', '10y', 'max')
+        interval: 간격 ('1m', '5m', '15m', '30m', '60m', '1d')
+        db_path: 데이터베이스 경로
+    """
+    DB_PATH = Path(__file__).parent.parent / "data" / "marketpulse.db"
+    db = get_sqlite_db(str(DB_PATH))
+    session = db.get_session()
+
+    try:
+        sync_service = MarketDataSync(session)
+        results = sync_service.sync_all_price_history(
+            symbols=symbols,
+            period=period,
+            interval=interval
+        )
+
+        log.info(f"\nPrice History Load Summary:")
+        log.info(f"  Total tickers:  {results['total']}")
+        log.info(f"  Success:        {results['success']}")
+        log.info(f"  Failed:         {results['failed']}")
+
+        # 상세 결과 출력
+        if results['details']:
+            log.info(f"\nDetailed Results:")
+            for symbol, detail in sorted(results['details'].items()):
+                if detail['status'] == 'success':
+                    log.info(f"  ✓ {symbol:<10} {detail['records']:>5} records")
+                else:
+                    log.info(f"  ✗ {symbol:<10} Error: {detail.get('error', 'Unknown')}")
+
+        return results
+
+    finally:
+        session.close()
+
+
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description='Load S&P 500 and commodity futures data')
+    parser = argparse.ArgumentParser(
+        description='Load market data from external APIs (Wikipedia, yfinance)',
+        epilog='Examples:\n'
+               '  python scripts/load_market_data.py                      # Load all ticker metadata\n'
+               '  python scripts/load_market_data.py --reset              # Reset and reload\n'
+               '  python scripts/load_market_data.py --prices             # Load price history for all tickers\n'
+               '  python scripts/load_market_data.py --prices --symbols AAPL TSLA GC=F  # Load price for specific tickers\n'
+               '  python scripts/load_market_data.py --prices --period 6mo # Load last 6 months\n'
+               '  python scripts/load_market_data.py --add TSLA stock     # Add custom ticker\n'
+               '  python scripts/load_market_data.py --remove TSLA        # Remove ticker\n'
+               '  python scripts/load_market_data.py --list               # List all tickers\n'
+               '  python scripts/load_market_data.py --list --type etf    # List ETFs only\n',
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+
     parser.add_argument(
         '--path',
         default='data/marketpulse.db',
@@ -265,14 +264,64 @@ if __name__ == "__main__":
         action='store_true',
         help='Reset ticker data before loading'
     )
+    parser.add_argument(
+        '--no-enrich',
+        action='store_true',
+        help='Skip yfinance enrichment (faster but less data)'
+    )
+    parser.add_argument(
+        '--prices',
+        action='store_true',
+        help='Load price history data'
+    )
+    parser.add_argument(
+        '--symbols',
+        nargs='+',
+        metavar='SYMBOL',
+        help='Specific symbols to load prices for (use with --prices)'
+    )
+    parser.add_argument(
+        '--period',
+        default='1d', # 전체기간
+        choices=['1d', '5d', '1mo', '3mo', '6mo', '1y', '2y', '5y', '10y', 'max'],
+        help='Historical period (use with --prices)'
+    )
+    parser.add_argument(
+        '--interval',
+        default='1d',
+        choices=['1m', '5m', '15m', '30m', '60m', '1d'],
+        help='Data interval (use with --prices)'
+    )
+    parser.add_argument(
+        '--add',
+        nargs=2,
+        metavar=('SYMBOL', 'TYPE'),
+        help='Add custom ticker (e.g., --add TSLA stock)'
+    )
+    parser.add_argument(
+        '--remove',
+        metavar='SYMBOL',
+        help='Remove/deactivate ticker'
+    )
+    parser.add_argument(
+        '--list',
+        action='store_true',
+        help='List all active tickers'
+    )
+    parser.add_argument(
+        '--type',
+        choices=['stock', 'commodity', 'etf', 'crypto', 'index'],
+        help='Filter by asset type (use with --list)'
+    )
 
     args = parser.parse_args()
 
     log.info("="*60)
     log.info("MarketPulse Market Data Loader")
-    log.info("Loading Real-Time S&P 500, Commodities, and ETF data")
+    log.info("Dynamic data loading from external APIs")
     log.info("="*60)
 
+    # Reset 처리
     if args.reset:
         log.warning("Resetting ticker data...")
         DB_PATH = Path(__file__).parent.parent / "data" / "marketpulse.db"
@@ -283,9 +332,44 @@ if __name__ == "__main__":
         session.close()
         log.info("✓ Ticker data reset complete")
 
-    db = load_market_data(args.path)
+    # 커스텀 티커 추가
+    if args.add:
+        symbol, asset_type = args.add
+        add_custom_ticker(symbol, asset_type, args.path)
+        sys.exit(0)
+
+    # 티커 제거
+    if args.remove:
+        remove_ticker(args.remove, args.path)
+        sys.exit(0)
+
+    # 티커 목록 조회
+    if args.list:
+        list_tickers(args.type, args.path)
+        sys.exit(0)
+
+    # 가격 데이터 로드
+    if args.prices:
+        log.info("Loading price history data...")
+        results = load_price_history(
+            symbols=args.symbols,
+            period=args.period,
+            interval=args.interval,
+            db_path=args.path
+        )
+        print("\n✓ Price history loaded successfully!")
+        print(f"Database: {Path(__file__).parent.parent / 'data' / 'marketpulse.db'}")
+        sys.exit(0)
+
+    # 기본 동작: 전체 데이터 로드
+    enrich = not args.no_enrich
+    db = load_market_data(args.path, enrich=enrich)
 
     print("\n✓ Market data loaded successfully!")
     print(f"Database: {Path(__file__).parent.parent / 'data' / 'marketpulse.db'}")
-    print("\nRun crawler: python run_integrated_crawler.py")
-    print("Start API: python -m app.main")
+    print("\nNext steps:")
+    print("  - Load prices:  python scripts/load_market_data.py --prices")
+    print("  - List tickers: python scripts/load_market_data.py --list")
+    print("  - Add ticker:   python scripts/load_market_data.py --add TSLA stock")
+    print("  - Run crawler:  python run_integrated_crawler.py")
+    print("  - Start API:    python -m app.main")
