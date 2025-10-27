@@ -49,10 +49,15 @@
 - 실시간 트렌딩 종목 감지
 
 ### 🚀 API 제공
-- RESTful API (FastAPI)
+- **Python Daemon**: APScheduler로 주기적 백그라운드 크롤링
+- **Spring Boot API**: RESTful API (FastAPI 대신 선택 가능)
 - 종목별/시간별 필터링
 - 페이지네이션 지원
 - Swagger UI 자동 생성
+
+### 🔄 두 가지 실행 모드
+1. **일회성 크롤링** (`run_integrated_crawler.py`)
+2. **Daemon 모드** (`daemon.py` + APScheduler) - 추천!
 
 ---
 
@@ -91,17 +96,37 @@ Asset Type & Sector Distribution:
 python scripts/verify_system.py
 ```
 
-### 4. 뉴스 크롤링
+### 4-A. **Daemon 모드** (추천 - 백그라운드 주기적 크롤링)
+```bash
+# 테스트 (한 번만 실행)
+python daemon.py --test
+
+# Daemon 실행 (계속 실행되며 주기적으로 크롤링)
+python daemon.py
+
+# PostgreSQL 사용
+python daemon.py --db-url postgresql://user:pass@localhost:5432/marketpulse
+```
+
+### 4-B. **일회성 크롤링**
 ```bash
 python run_integrated_crawler.py
 ```
 
-### 5. API 서버 시작
+### 5-A. **FastAPI 서버** (Python)
 ```bash
 python -m app.main
 ```
-
 브라우저에서 http://localhost:8000/docs 접속
+
+### 5-B. **Spring Boot API** (Java) - 추천!
+```bash
+cd spring-boot-example
+mvn spring-boot:run
+```
+브라우저에서 http://localhost:8080/api/news 접속
+
+> **💡 추천 구성**: Python Daemon (크롤러) + Spring Boot (API)
 
 ---
 
@@ -123,7 +148,7 @@ python -m app.main
 ┌─────────────────┐
 │ Ticker Extractor│◄──── External APIs (Wikipedia, yfinance)
 │  (DB-based)     │      - Dynamic data loading
-└────────┬────────┘      - No hardcoding
+└────────┬────────┘
          │
          ▼
 ┌─────────────────┐
@@ -184,6 +209,56 @@ python scripts/verify_system.py
 
 ## 💻 사용 방법
 
+### 0. Daemon 모드 (추천)
+
+#### Linux/Mac - systemd 서비스로 실행
+```bash
+# 서비스 파일 설치
+sudo cp marketpulse-daemon.service /etc/systemd/system/
+sudo systemctl daemon-reload
+
+# 서비스 시작
+sudo systemctl start marketpulse-daemon
+
+# 부팅 시 자동 시작
+sudo systemctl enable marketpulse-daemon
+
+# 상태 확인
+sudo systemctl status marketpulse-daemon
+
+# 로그 확인
+sudo journalctl -u marketpulse-daemon -f
+```
+
+#### Windows - NSSM으로 서비스 실행
+```powershell
+# NSSM 다운로드: https://nssm.cc/download
+nssm install MarketPulseDaemon
+# Path: C:\Python\python.exe
+# Arguments: daemon.py
+# Startup directory: C:\marketpulse
+
+nssm start MarketPulseDaemon
+```
+
+#### 수동 실행 (테스트용)
+```bash
+# 한 번만 실행
+python daemon.py --test
+
+# Daemon 모드
+python daemon.py
+```
+
+**스케줄 설정** (`daemon.py` 수정):
+- 매 1시간마다 크롤링
+- 특정 시간 (9AM, 3PM, 9PM)
+- 매일 자정 정리 작업
+
+자세한 내용: [DAEMON_SETUP.md](DAEMON_SETUP.md)
+
+---
+
 ### 1. 마켓 데이터 관리
 
 #### 전체 데이터 로드 (S&P 500 + 원자재 + ETF)
@@ -230,7 +305,7 @@ python run_integrated_crawler.py
 python run_crawler.py
 ```
 
-### 3. API 서버
+### 3-A. FastAPI 서버 (Python)
 
 ```bash
 # 개발 모드
@@ -242,6 +317,33 @@ uvicorn app.main:app --port 8080
 # 프로덕션 모드 (Gunicorn)
 gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker
 ```
+
+### 3-B. Spring Boot API (Java) - 추천
+
+```bash
+# Maven으로 실행
+cd spring-boot-example
+mvn spring-boot:run
+
+# JAR 빌드 후 실행
+mvn clean package
+java -jar target/marketpulse-api-1.0.0.jar
+```
+
+**application.yml 설정:**
+```yaml
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/marketpulse
+    username: marketpulse
+    password: your_password
+```
+
+**주요 API 엔드포인트:**
+- `GET /api/news` - 최신 뉴스 조회
+- `GET /api/news/ticker/{symbol}` - 특정 티커 뉴스
+- `GET /api/news/stats` - 통계
+- `GET /api/news/{id}` - 뉴스 상세
 
 ### 4. Python 라이브러리로 사용
 
@@ -385,26 +487,38 @@ GET /api/stats
 
 ```
 marketpulse/
-├── app/
+├── app/                         # Python 서비스
 │   ├── models/
-│   │   └── database.py          # ORM 모델 (개선된 스키마)
+│   │   └── database.py          # ORM 모델
 │   ├── services/
-│   │   ├── market_data_sync.py  # 외부 API 통합 서비스 (NEW)
+│   │   ├── market_data_sync.py  # 외부 API 통합
 │   │   ├── ticker_extractor.py  # DB 기반 티커 추출
 │   │   ├── sentiment_analyzer.py
 │   │   └── news_processor.py
 │   ├── api/
-│   └── main.py                  # FastAPI 애플리케이션
+│   └── main.py                  # FastAPI (선택사항)
 ├── scripts/
-│   ├── load_market_data.py      # 마켓 데이터 로더 (리팩토링)
+│   ├── load_market_data.py      # 마켓 데이터 로더
 │   ├── init_db.py
 │   └── verify_system.py
 ├── index_analyzer/              # 크롤링 엔진
 │   ├── crawling/
 │   ├── parsing/
 │   └── media/
+├── spring-boot-example/         # Spring Boot API (NEW)
+│   ├── src/main/java/com/marketpulse/
+│   │   ├── entity/              # JPA Entity
+│   │   ├── repository/          # JPA Repository
+│   │   ├── controller/          # REST Controller
+│   │   └── MarketPulseApplication.java
+│   ├── src/main/resources/
+│   │   └── application.yml
+│   └── pom.xml
 ├── data/
-│   └── marketpulse.db           # SQLite 데이터베이스
+│   └── marketpulse.db           # SQLite (개발용)
+├── daemon.py                    # Python Daemon (NEW)
+├── marketpulse-daemon.service   # systemd 서비스 (NEW)
+├── DAEMON_SETUP.md              # Daemon 설정 가이드 (NEW)
 ├── requirements.txt
 ├── sites.yaml                   # 크롤링 설정
 └── README.md
@@ -608,9 +722,9 @@ MIT License
 
 ---
 
-## 🎯 주요 개선사항 (v2.0)
+## 🎯 주요 개선사항
 
-### ✅ 완료
+### ✅ v2.0 완료
 - [x] 하드코딩 제거 (외부 API 기반 동적 로딩)
 - [x] DB 스키마 개선 (메타데이터 추가)
 - [x] yfinance API 통합
@@ -618,11 +732,20 @@ MIT License
 - [x] 동기화 상태 추적
 - [x] README 통합 (단일 문서)
 
+### ✅ v3.0 완료 (NEW)
+- [x] **Python Daemon 모드** (APScheduler)
+- [x] **Spring Boot API 통합**
+- [x] systemd 서비스 지원 (Linux)
+- [x] NSSM 서비스 지원 (Windows)
+- [x] PostgreSQL 프로덕션 지원
+- [x] 완전한 백엔드 분리 (Python 크롤러 + Spring API)
+
 ### 🔮 향후 계획
 - [ ] Redis 캐싱
 - [ ] WebSocket 실시간 스트리밍
-- [ ] Celery 백그라운드 작업
-- [ ] 다국어 지원
+- [ ] Elasticsearch 전문 검색
+- [ ] Grafana 모니터링 대시보드
+- [ ] Docker Compose 배포
 - [ ] GraphQL API
 
 ---

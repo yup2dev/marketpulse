@@ -1,22 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python:*)",
-      "Bash(pip install:*)",
-      "Bash(cat:*)",
-      "Bash(dir:*)",
-      "Bash(rm:*)",
-      "Bash(timeout 30 python:*)",
-      "Bash(timeout 60 python:*)",
-      "Bash(findstr:*)",
-      "Bash(timeout 120 python run_crawler.py)",
-      "Bash(timeout 10 python:*)",
-      "Bash(timeout 120 python:*)",
-      "Bash(timeout 45 python:*)",
-      "Bash(timeout 20 python:*)",
-      "Bash(timeout 5 python:*)",
-      "Bash(python3:*)",
-      "Bash(where:*)"
+      "Bash(tree:*)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []
