@@ -15,14 +15,16 @@ class SentimentAnalyzer:
     - 티커별 컨텍스트 감성 분석
     """
 
-    def __init__(self, model_name: str = "ProsusAI/finbert", use_transformers: bool = True):
+    def __init__(self, model_name: str = "ProsusAI/finbert", use_transformers: bool = True, db_session=None):
         """
         Args:
             model_name: Hugging Face 모델 이름
             use_transformers: transformers 라이브러리 사용 여부
+            db_session: SQLAlchemy session (ticker 매핑용)
         """
         self.model_name = model_name
         self.model = None
+        self.ticker_to_names = {}  # ticker → [name variants]
 
         if use_transformers:
             try:
@@ -43,6 +45,9 @@ class SentimentAnalyzer:
             log.info("Using rule-based sentiment analysis")
             self._init_lexicon()
 
+        # DB에서 ticker → name 매핑 로드
+        self._load_ticker_mappings(db_session)
+
     def _init_lexicon(self):
         """간단한 감성 사전 초기화 (Fallback용)"""
         self.positive_words = {
@@ -62,6 +67,66 @@ class SentimentAnalyzer:
             'downgrade', 'downgraded', 'low', 'lower', 'worst', 'risk', 'risks',
             'concern', 'concerns', 'worry', 'worries', 'fear', 'fears'
         }
+
+    def _load_ticker_mappings(self, db_session=None):
+        """DB에서 ticker → name 매핑 로드"""
+        try:
+            # DB 세션 생성
+            if db_session is None:
+                from app.models.database import get_sqlite_db
+                from pathlib import Path
+                DB_PATH = Path(__file__).parent.parent.parent / "data" / "marketpulse.db"
+                db = get_sqlite_db(str(DB_PATH))
+                session = db.get_session()
+                close_session = True
+            else:
+                session = db_session
+                close_session = False
+
+            # Ticker 테이블에서 로드
+            from app.models.database import Ticker
+            tickers = session.query(Ticker).filter_by(is_active=True).all()
+
+            for ticker in tickers:
+                symbol = ticker.symbol
+                if not ticker.name:
+                    continue
+
+                # 회사명 변형 생성
+                name_variants = set()
+                company_name = ticker.name.lower()
+
+                # 원본 이름
+                name_variants.add(company_name)
+
+                # 구두점 제거
+                clean_name = re.sub(r'[,\(\)\[\]{}.]', '', company_name).strip()
+                name_variants.add(clean_name)
+
+                # 일반적인 접미사 제거
+                base_name = clean_name
+                for suffix in [' inc', ' incorporated', ' corporation', ' corp', ' ltd', ' limited', ' llc', ' co', ' plc', ' group', ' company']:
+                    base_name = base_name.replace(suffix, '')
+                base_name = base_name.strip()
+
+                if base_name:
+                    name_variants.add(base_name)
+
+                # 단일 단어 회사명 (예: "apple", "tesla")
+                words = base_name.split()
+                if len(words) == 1 and len(base_name) > 3:
+                    name_variants.add(base_name)
+
+                self.ticker_to_names[symbol.upper()] = list(name_variants)
+
+            if close_session:
+                session.close()
+
+            log.info(f"✓ Loaded {len(self.ticker_to_names)} ticker name mappings from database")
+
+        except Exception as e:
+            log.warning(f"Failed to load ticker mappings from database: {e}")
+            self.ticker_to_names = {}
 
     def analyze(self, text: str) -> Dict:
         """
@@ -187,14 +252,31 @@ class SentimentAnalyzer:
         return result
 
     def _extract_ticker_sentences(self, text: str, ticker: str) -> list:
-        """티커가 언급된 문장 추출"""
+        """티커가 언급된 문장 추출 (ticker symbol + company name)"""
         sentences = re.split(r'[.!?]+', text)
         ticker_sentences = []
+        ticker_upper = ticker.upper()
+
+        # 검색할 단어들: ticker symbol + company name variants
+        search_terms = [ticker_upper]
+        if ticker_upper in self.ticker_to_names:
+            search_terms.extend(self.ticker_to_names[ticker_upper])
 
         for sentence in sentences:
-            # 티커 심볼 또는 회사명이 포함된 문장
-            if ticker.upper() in sentence.upper():
+            sentence_lower = sentence.lower()
+            sentence_upper = sentence.upper()
+
+            # 티커 심볼로 검색
+            if ticker_upper in sentence_upper:
                 ticker_sentences.append(sentence.strip())
+                continue
+
+            # 회사명으로 검색
+            for name_variant in self.ticker_to_names.get(ticker_upper, []):
+                # 단어 경계 고려 (부분 매칭 방지)
+                if re.search(r'\b' + re.escape(name_variant) + r'\b', sentence_lower):
+                    ticker_sentences.append(sentence.strip())
+                    break
 
         return ticker_sentences
 
