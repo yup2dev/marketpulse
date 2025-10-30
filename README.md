@@ -1,485 +1,445 @@
-# MarketPulse - Financial News Crawler & Analyzer
+# MarketPulse - AI-Powered Financial Intelligence Platform
 
-실시간 금융 뉴스를 수집하고 관련 종목(Ticker)을 자동 추출하는 확장 가능한 크롤러 시스템
+실시간 금융 뉴스 분석과 포트폴리오 최적화를 제공하는 마이크로서비스 플랫폼
 
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.2-green.svg)](https://spring.io/projects/spring-boot)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)](https://fastapi.tiangolo.com/)
-[![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-2.0+-red.svg)](https://www.sqlalchemy.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-blue.svg)](https://www.postgresql.org/)
+[![Redis](https://img.shields.io/badge/Redis-7-red.svg)](https://redis.io/)
 
 ---
 
 ## 📋 목차
 
+- [시스템 아키텍처](#-시스템-아키텍처)
 - [주요 기능](#-주요-기능)
+- [기술 스택](#-기술-스택)
 - [빠른 시작](#-빠른-시작)
-- [시스템 아키텍처](#️-시스템-아키텍처)
-- [설치 방법](#-설치-방법)
-- [사용 방법](#-사용-방법)
-- [마켓 데이터](#-마켓-데이터)
-- [API 문서](#-api-문서)
 - [프로젝트 구조](#-프로젝트-구조)
-- [배포](#-배포)
-
----
-
-## ✨ 주요 기능
-
-### 🎯 확장 가능한 데이터 관리
-- **외부 API 기반 동적 데이터 로드** (하드코딩 제거)
-  - Wikipedia API로 S&P 500 전체 종목 자동 로드
-  - yfinance API로 실시간 티커 정보 보강
-  - 커스텀 티커 추가/제거 지원
-- **자동 동기화**: 오래된 데이터 자동 재동기화
-
-### 📰 뉴스 크롤링
-- 다중 소스 지원 (BBC, Reuters, Bloomberg 등)
-- RSS 피드 및 HTML 파싱
-- 중복 제거 및 데이터 정규화
-
-### 🏷️ 티커 추출 (DB 기반)
-- 명시적 티커 인식 (`$AAPL`, `(TSLA)`, `NASDAQ:NVDA`)
-- 회사명 → 티커 자동 매핑 (대소문자 구분 없음)
-- NER 기반 회사명 추출 (선택사항)
-- 컨텍스트 기반 관련도 점수
-
-### 📊 데이터 분석
-- 감성 분석 (긍정/부정/중립)
-- 뉴스 중요도 평가
-- 종목 멘션 빈도 추적
-- 실시간 트렌딩 종목 감지
-
-### 🚀 API 제공
-- **Python Daemon**: APScheduler로 주기적 백그라운드 크롤링
-- **Spring Boot API**: RESTful API (FastAPI 대신 선택 가능)
-- 종목별/시간별 필터링
-- 페이지네이션 지원
-- Swagger UI 자동 생성
-
-### 🔄 두 가지 실행 모드
-1. **일회성 크롤링** (`run_integrated_crawler.py`)
-2. **Daemon 모드** (`daemon.py` + APScheduler) - 추천!
-
----
-
-## 🚀 빠른 시작
-
-### 1. 의존성 설치
-```bash
-pip install -r requirements.txt
-```
-
-### 2. 데이터베이스 초기화 및 마켓 데이터 로드
-```bash
-# 외부 API에서 S&P 500 + 원자재 + ETF 데이터 로드
-python scripts/load_market_data.py
-```
-
-**출력:**
-```
-INFO: Fetching S&P 500 constituents from Wikipedia...
-INFO: ✓ Found 503 S&P 500 companies from Wikipedia
-INFO: ✓ Synced 503 S&P 500 stocks
-INFO: ✓ Synced 22 commodity futures
-INFO: ✓ Synced 10 ETFs
-INFO: Total synced: 535
-
-Asset Type & Sector Distribution:
-  stock           Information Technology        76
-  stock           Financials                    66
-  stock           Health Care                   63
-  commodity       Energy                         5
-  etf             ETF                           10
-```
-
-### 3. 시스템 검증
-```bash
-python scripts/verify_system.py
-```
-
-### 4-A. **Daemon 모드** (추천 - 백그라운드 주기적 크롤링)
-```bash
-# 테스트 (한 번만 실행)
-python daemon.py --test
-
-# Daemon 실행 (계속 실행되며 주기적으로 크롤링)
-python daemon.py
-
-# PostgreSQL 사용
-python daemon.py --db-url postgresql://user:pass@localhost:5432/marketpulse
-```
-
-### 4-B. **일회성 크롤링**
-```bash
-python run_integrated_crawler.py
-```
-
-### 5-A. **FastAPI 서버** (Python)
-```bash
-python -m app.main
-```
-브라우저에서 http://localhost:8000/docs 접속
-
-### 5-B. **Spring Boot API** (Java) - 추천!
-```bash
-cd spring-boot-example
-mvn spring-boot:run
-```
-브라우저에서 http://localhost:8080/api/news 접속
-
-> **💡 추천 구성**: Python Daemon (크롤러) + Spring Boot (API)
+- [API 문서](#-api-문서)
+- [배포 가이드](#-배포-가이드)
+- [개발 로드맵](#-개발-로드맵)
 
 ---
 
 ## 🏗️ 시스템 아키텍처
 
+### Phase 1: MVP - 마이크로서비스 구조
+
 ```
-┌─────────────────┐
-│  News Sources   │
-│ (RSS/Web/API)   │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  News Crawler   │
-│  (BeautifulSoup)│
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Ticker Extractor│◄──── External APIs (Wikipedia, yfinance)
-│  (DB-based)     │      - Dynamic data loading
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Sentiment       │
-│ Analyzer        │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│   Database      │
-│  (SQLite/PG)    │
-│  + Metadata     │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│   REST API      │
-│  (FastAPI)      │
-└─────────────────┘
+┌──────────────────────────────────────────────┐
+│           Nginx (Reverse Proxy)              │
+│           Port 80/443                        │
+└──────────────────────────────────────────────┘
+                    │
+        ┌───────────┴────────────┐
+        │                        │
+┌───────▼────────┐    ┌─────────▼──────────┐
+│  Spring Boot   │    │  Python FastAPI    │
+│  Main API      │    │  (Optional)        │
+│  Port 8080     │    │  Port 8000         │
+│                │    │                    │
+│ • REST API     │◄───┤ • 헬스체크         │
+│ • 포트폴리오    │    │ • 내부 API         │
+│ • 인증/권한     │    └────────────────────┘
+│ • 비즈니스 로직 │              │
+└────────┬───────┘              │
+         │                      │
+         │    ┌─────────────────┘
+         │    │
+    ┌────▼────▼──────────────────────┐
+    │   PostgreSQL 15                │
+    │   - 사용자 데이터               │
+    │   - 포트폴리오                  │
+    │   - 뉴스 데이터 (읽기)          │
+    │   - ML 결과 (읽기)              │
+    └────────┬───────────────────────┘
+             │
+    ┌────────▼────────────────────────┐
+    │   Redis 7                       │
+    │   - Spring 캐시                 │
+    │   - 세션 관리                   │
+    │   - Celery 브로커 (Python용)    │
+    └─────────────────────────────────┘
 ```
 
-### 핵심 개선사항
-- ✅ **하드코딩 제거**: 모든 티커/원자재 데이터는 외부 API 또는 DB에서 관리
-- ✅ **확장 가능한 스키마**: `asset_type`, `currency`, `country` 등 메타데이터 추가
-- ✅ **동기화 추적**: `last_synced_at`, `sync_status`, `is_active` 필드로 데이터 신선도 관리
-- ✅ **유연한 추가/제거**: CLI 명령으로 커스텀 티커 관리
+### Python 데이터 파이프라인 (백그라운드)
+
+```
+┌────────────────────────────────────────────┐
+│  Python Microservice (백그라운드 워커)      │
+├────────────────────────────────────────────┤
+│                                             │
+│  [Celery Beat] 스케줄러                     │
+│       │                                     │
+│       ├──► [Celery Worker 1] 뉴스 크롤러   │
+│       │         │                           │
+│       │         └──► PostgreSQL 저장        │
+│       │                                     │
+│       ├──► [Celery Worker 2] 감성분석      │
+│       │         │                           │
+│       │         └──► ML 결과 저장           │
+│       │                                     │
+│       └──► [Celery Worker 3] 피처 추출     │
+│                 │                           │
+│                 └──► Vector DB 저장         │
+└────────────────────────────────────────────┘
+         │
+         └──► Redis (Celery Broker)
+```
+
+### 데이터 플로우
+
+```
+1. 데이터 수집 (Python)
+   외부 API → Celery 크롤러 → PostgreSQL
+
+2. 데이터 처리 (Python)
+   PostgreSQL → Celery ML Worker → 감성분석 → PostgreSQL
+
+3. API 제공 (Spring Boot)
+   Frontend → Spring API → Redis Cache → PostgreSQL
+
+4. 포트폴리오 관리 (Spring Boot)
+   User 요청 → Spring Service → 계산 → PostgreSQL
+```
 
 ---
 
-## 📦 설치 방법
+## ✨ 주요 기능
+
+### ☕ Spring Boot (메인 API 서버)
+
+#### 1. REST API
+- **사용자 관리**: 회원가입, 로그인, 프로필
+- **포트폴리오 API**: CRUD, 성과 조회, 리밸런싱
+- **뉴스 API**: 뉴스 조회, 필터링, 검색
+- **알림 API**: WebSocket 실시간 알림
+
+#### 2. 포트폴리오 관리
+- **자산 배분**: 현대 포트폴리오 이론 (MPT)
+- **리스크 분석**: VaR, Sharpe Ratio, Beta 계산
+- **백테스팅**: 전략 시뮬레이션
+- **리밸런싱**: 자동/수동 비율 조정
+
+#### 3. 인증/권한
+- **JWT 토큰**: Access/Refresh 토큰
+- **Spring Security**: 역할 기반 접근 제어 (RBAC)
+- **OAuth2**: 소셜 로그인 (Google, GitHub)
+
+#### 4. 캐싱 전략
+- **Redis**: API 응답, 뉴스 데이터, 가격 데이터
+- **캐시 무효화**: 실시간 데이터 업데이트 시
+
+### 🐍 Python (데이터 파이프라인)
+
+#### 1. 데이터 수집
+- **뉴스 크롤러**: Bloomberg, Reuters, BBC, CNBC
+- **가격 데이터**: Yahoo Finance, Alpha Vantage
+- **소셜 데이터**: Twitter API (선택)
+- **스케줄링**: Celery Beat (매 1시간)
+
+#### 2. ML/NLP 분석
+- **감성 분석**: FinBERT (transformers)
+- **키워드 추출**: TF-IDF, RAKE
+- **엔티티 인식**: spaCy NER
+- **토픽 모델링**: LDA
+
+#### 3. 기술적 지표
+- **트렌드**: SMA, EMA, MACD
+- **모멘텀**: RSI, Stochastic
+- **변동성**: Bollinger Bands, ATR
+
+#### 4. Vector DB (Phase 2)
+- **임베딩**: Sentence-BERT
+- **유사도 검색**: Qdrant
+- **RAG**: 뉴스 기반 질의응답
+
+---
+
+## 🛠️ 기술 스택
+
+### Backend
+
+| 서비스 | 기술 | 버전 | 역할 |
+|--------|------|------|------|
+| **Main API** | Spring Boot | 3.2+ | REST API, 비즈니스 로직 |
+| **Web Framework** | Spring WebFlux | 6.1+ | 리액티브 웹 |
+| **Security** | Spring Security | 6.2+ | 인증/권한, JWT |
+| **Data Access** | Spring Data JPA | 3.2+ | ORM, Repository |
+| **Cache** | Spring Cache + Redis | 3.2+ | 캐싱 추상화 |
+| **Validation** | Bean Validation | 3.0+ | 입력 검증 |
+| **Monitoring** | Spring Actuator | 3.2+ | 헬스체크, 메트릭 |
+| | | | |
+| **Data Pipeline** | Python | 3.9+ | 크롤링, ML |
+| **Web Framework** | FastAPI | 0.104+ | 내부 API (선택) |
+| **Task Queue** | Celery | 5.3+ | 비동기 작업 |
+| **ML/NLP** | transformers | 4.35+ | FinBERT |
+| **Data Science** | pandas, numpy | latest | 데이터 처리 |
+| | | | |
+| **Database** | PostgreSQL | 15+ | 메인 데이터 저장소 |
+| **Cache/Queue** | Redis | 7+ | 캐시 + Celery 브로커 |
+| **Reverse Proxy** | Nginx | 1.24+ | SSL, 로드밸런싱 |
+| **Container** | Docker | 24+ | 서비스 격리 |
+
+### Phase 2 추가 예정
+- **Message Queue**: Kafka (이벤트 스트리밍)
+- **Vector DB**: Qdrant (유사도 검색)
+- **Search**: Elasticsearch (전문 검색)
+- **Monitoring**: Prometheus + Grafana
+
+---
+
+## 🚀 빠른 시작
 
 ### 요구사항
-- Python 3.9+
-- SQLite (기본) 또는 PostgreSQL (프로덕션)
 
-### 설치 단계
+- Docker 24+
+- Docker Compose 2.20+
+- Java 17+ (로컬 개발용)
+- Python 3.9+ (로컬 개발용)
+- 8GB RAM 이상
+
+### 1. 저장소 클론
 
 ```bash
-# 1. 저장소 클론
 git clone https://github.com/yourusername/marketpulse.git
 cd marketpulse
-
-# 2. 가상환경 생성
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-# 3. 의존성 설치
-pip install -r requirements.txt
-
-# 4. 마켓 데이터 로드 (외부 API 기반)
-python scripts/load_market_data.py
-
-# 5. 시스템 검증
-python scripts/verify_system.py
 ```
 
----
+### 2. 환경 변수 설정
 
-## 💻 사용 방법
-
-### 0. Daemon 모드 (추천)
-
-#### Linux/Mac - systemd 서비스로 실행
 ```bash
-# 서비스 파일 설치
-sudo cp marketpulse-daemon.service /etc/systemd/system/
-sudo systemctl daemon-reload
+cp .env.example .env
+```
 
-# 서비스 시작
-sudo systemctl start marketpulse-daemon
+**`.env` 파일:**
 
-# 부팅 시 자동 시작
-sudo systemctl enable marketpulse-daemon
+```bash
+# PostgreSQL
+POSTGRES_DB=marketpulse
+POSTGRES_USER=marketpulse
+POSTGRES_PASSWORD=your_strong_password
 
-# 상태 확인
-sudo systemctl status marketpulse-daemon
+# Redis
+REDIS_PASSWORD=your_redis_password
+
+# Spring Boot
+JWT_SECRET=your_jwt_secret_key_minimum_32_characters
+JWT_EXPIRATION=3600000
+
+# Python API Keys
+YAHOO_FINANCE_API_KEY=your_key
+ALPHA_VANTAGE_API_KEY=your_key
+OPENAI_API_KEY=your_key
+```
+
+### 3. Docker Compose로 전체 시스템 실행
+
+```bash
+# 모든 서비스 빌드 및 시작
+docker-compose up -d --build
 
 # 로그 확인
-sudo journalctl -u marketpulse-daemon -f
+docker-compose logs -f spring-boot
+
+# 특정 서비스만 재시작
+docker-compose restart python-worker
 ```
 
-#### Windows - NSSM으로 서비스 실행
-```powershell
-# NSSM 다운로드: https://nssm.cc/download
-nssm install MarketPulseDaemon
-# Path: C:\Python\python.exe
-# Arguments: daemon.py
-# Startup directory: C:\marketpulse
+### 4. 데이터베이스 초기화
 
-nssm start MarketPulseDaemon
-```
-
-#### 수동 실행 (테스트용)
 ```bash
-# 한 번만 실행
-python daemon.py --test
+# Spring Boot가 자동으로 스키마 생성 (Hibernate)
+# 마켓 데이터 로드 (Python)
+docker-compose exec python-worker python scripts/load_market_data.py
 
-# Daemon 모드
-python daemon.py
+# 초기 관리자 계정 생성
+curl -X POST http://localhost:8080/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin@marketpulse.io",
+    "password": "admin123",
+    "name": "Admin"
+  }'
 ```
 
-**스케줄 설정** (`daemon.py` 수정):
-- 매 1시간마다 크롤링
-- 특정 시간 (9AM, 3PM, 9PM)
-- 매일 자정 정리 작업
+### 5. 시스템 검증
 
-자세한 내용: [DAEMON_SETUP.md](DAEMON_SETUP.md)
+```bash
+# Spring Boot 헬스 체크
+curl http://localhost:8080/actuator/health
+
+# Python 워커 상태 확인
+docker-compose exec python-worker celery -A app.celery_worker inspect active
+
+# Redis 연결 확인
+docker-compose exec redis redis-cli -a your_redis_password ping
+```
+
+### 6. API 문서 확인
+
+- **Spring Boot Swagger**: http://localhost:8080/swagger-ui.html
+- **Python FastAPI** (선택): http://localhost:8000/docs
 
 ---
 
-### 1. 마켓 데이터 관리
+## 🐳 Docker Compose 구성
 
-#### 전체 데이터 로드 (S&P 500 + 원자재 + ETF)
-```bash
-python scripts/load_market_data.py
-```
+**`docker-compose.yml`:**
 
-#### 티커 목록 조회
-```bash
-# 전체 티커
-python scripts/load_market_data.py --list
-
-# 특정 자산 유형만
-python scripts/load_market_data.py --list --type etf
-python scripts/load_market_data.py --list --type commodity
-```
-
-#### 커스텀 티커 추가
-```bash
-# 단일 주식 추가
-python scripts/load_market_data.py --add TSLA stock
-
-# 암호화폐 추가
-python scripts/load_market_data.py --add BTC-USD crypto
-```
-
-#### 티커 제거 (비활성화)
-```bash
-python scripts/load_market_data.py --remove TSLA
-```
-
-#### 데이터 리셋
-```bash
-python scripts/load_market_data.py --reset
-```
-
-### 2. 뉴스 크롤링
-
-```bash
-# 전체 크롤러 실행
-python run_integrated_crawler.py
-
-# 특정 소스만 크롤링 (sites.yaml 수정)
-python run_crawler.py
-```
-
-### 3-A. FastAPI 서버 (Python)
-
-```bash
-# 개발 모드
-python -m app.main
-
-# 특정 포트
-uvicorn app.main:app --port 8080
-
-# 프로덕션 모드 (Gunicorn)
-gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker
-```
-
-### 3-B. Spring Boot API (Java) - 추천
-
-```bash
-# Maven으로 실행
-cd spring-boot-example
-mvn spring-boot:run
-
-# JAR 빌드 후 실행
-mvn clean package
-java -jar target/marketpulse-api-1.0.0.jar
-```
-
-**application.yml 설정:**
 ```yaml
-spring:
-  datasource:
-    url: jdbc:postgresql://localhost:5432/marketpulse
-    username: marketpulse
-    password: your_password
+version: '3.8'
+
+services:
+  # ==================== Infrastructure ====================
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: marketpulse-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: marketpulse-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ==================== Main API ====================
+
+  spring-boot:
+    build:
+      context: ./spring-boot
+      dockerfile: Dockerfile
+    container_name: marketpulse-api
+    ports:
+      - "8080:8080"
+    environment:
+      # Database
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+
+      # Redis
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD}
+
+      # JWT
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION: ${JWT_EXPIRATION}
+
+      # JVM Options
+      JAVA_OPTS: -Xmx2g -Xms512m
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    mem_limit: 2g
+    restart: unless-stopped
+
+  # ==================== Python Data Pipeline ====================
+
+  python-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.python
+    container_name: marketpulse-python-worker
+    command: celery -A app.celery_worker worker -l info -c 2
+    environment:
+      # Database
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+
+      # Redis
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+
+      # Celery
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD}@redis:6379/0
+
+      # API Keys
+      YAHOO_FINANCE_API_KEY: ${YAHOO_FINANCE_API_KEY}
+      ALPHA_VANTAGE_API_KEY: ${ALPHA_VANTAGE_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    mem_limit: 3g
+    restart: unless-stopped
+
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile.python
+    container_name: marketpulse-celery-beat
+    command: celery -A app.celery_worker beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+    depends_on:
+      - redis
+      - postgres
+    mem_limit: 512m
+    restart: unless-stopped
+
+  # ==================== Reverse Proxy ====================
+
+  nginx:
+    image: nginx:alpine
+    container_name: marketpulse-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - spring-boot
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  default:
+    name: marketpulse-network
 ```
-
-**주요 API 엔드포인트:**
-- `GET /api/news` - 최신 뉴스 조회
-- `GET /api/news/ticker/{symbol}` - 특정 티커 뉴스
-- `GET /api/news/stats` - 통계
-- `GET /api/news/{id}` - 뉴스 상세
-
-### 4. Python 라이브러리로 사용
-
-```python
-from app.models.database import get_sqlite_db
-from app.services.market_data_sync import MarketDataSync
-
-# DB 연결
-db = get_sqlite_db("data/marketpulse.db")
-session = db.get_session()
-
-# 마켓 데이터 동기화
-sync = MarketDataSync(session)
-results = sync.sync_all(enrich=True)
-
-# 커스텀 티커 추가
-sync.add_custom_ticker("BTC-USD", asset_type="crypto")
-
-# 오래된 티커 확인 (7일 이상)
-outdated = sync.get_outdated_tickers(days=7)
-```
-
----
-
-## 📊 마켓 데이터
-
-### 지원 자산 유형
-- **stock**: 주식 (S&P 500 등)
-- **commodity**: 원자재 선물
-- **etf**: 상장지수펀드
-- **index**: 지수 선물
-- **crypto**: 암호화폐 (커스텀 추가)
-
-### 기본 포함 데이터
-
-| 자산 유형 | 출처 | 개수 | 동적 로드 |
-|----------|------|------|----------|
-| S&P 500 주식 | Wikipedia API | 503개 | ✅ |
-| 원자재 선물 | yfinance | 22개 | ✅ |
-| 주요 ETF | yfinance | 10개 | ✅ |
-| **총계** | - | **535개** | **✅** |
-
-### 데이터 특징
-- ✅ **하드코딩 제거**: 모든 데이터는 외부 API에서 동적으로 로드
-- ✅ **자동 업데이트**: Wikipedia S&P 500 편입 변경 시 자동 반영
-- ✅ **yfinance 보강**: 시가총액, 섹터, 산업 정보 자동 추가
-- ✅ **확장 가능**: 커스텀 티커 추가/제거 지원
-
-### 티커 추출 예시
-```python
-from app.services.ticker_extractor import TickerExtractor
-
-extractor = TickerExtractor()  # DB에서 535개 티커 자동 로드
-
-# 대소문자 구분 없음
-text = "Apple, TESLA, and goldman sachs report earnings"
-tickers = extractor.extract(text)
-# 결과: [AAPL, TSLA, GS]
-
-# 원자재
-text = "Gold and Silver prices surge"
-tickers = extractor.extract(text)
-# 결과: [GC=F (Gold Futures), SI=F (Silver Futures)]
-```
-
----
-
-## 📡 API 문서
-
-### 주요 엔드포인트
-
-#### 1. 최신 뉴스 조회
-```http
-GET /api/news?tickers=AAPL,MSFT&hours=24&limit=50&sentiment=positive
-```
-
-**응답:**
-```json
-[
-  {
-    "id": "uuid",
-    "title": "Apple Reports Strong Earnings",
-    "url": "https://...",
-    "published_at": "2025-10-22T10:30:00Z",
-    "sentiment": {
-      "score": 0.75,
-      "label": "positive",
-      "confidence": 0.88
-    },
-    "tickers": [
-      {
-        "symbol": "AAPL",
-        "name": "Apple Inc.",
-        "confidence": 0.95,
-        "mention_count": 5
-      }
-    ],
-    "importance_score": 8.5
-  }
-]
-```
-
-#### 2. 특정 종목 뉴스
-```http
-GET /api/tickers/AAPL/news?hours=24
-```
-
-#### 3. 트렌딩 종목
-```http
-GET /api/trending?hours=24&limit=10
-```
-
-**응답:**
-```json
-{
-  "period_hours": 24,
-  "trending": [
-    {
-      "symbol": "AAPL",
-      "name": "Apple Inc.",
-      "news_count": 15,
-      "total_mentions": 45,
-      "avg_sentiment": 0.65
-    }
-  ]
-}
-```
-
-#### 4. 통계
-```http
-GET /api/stats
-```
-
-### API 문서 자동 생성
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
 
 ---
 
@@ -487,143 +447,416 @@ GET /api/stats
 
 ```
 marketpulse/
-├── app/                         # Python 서비스
+├── spring-boot/                    # Spring Boot 메인 API
+│   ├── src/main/java/com/marketpulse/
+│   │   ├── MarketPulseApplication.java
+│   │   ├── config/                 # 설정
+│   │   │   ├── SecurityConfig.java
+│   │   │   ├── RedisConfig.java
+│   │   │   └── WebConfig.java
+│   │   ├── entity/                 # JPA Entity
+│   │   │   ├── User.java
+│   │   │   ├── Portfolio.java
+│   │   │   ├── Position.java
+│   │   │   ├── News.java
+│   │   │   └── Ticker.java
+│   │   ├── repository/             # JPA Repository
+│   │   │   ├── UserRepository.java
+│   │   │   ├── PortfolioRepository.java
+│   │   │   └── NewsRepository.java
+│   │   ├── service/                # 비즈니스 로직
+│   │   │   ├── AuthService.java
+│   │   │   ├── PortfolioService.java
+│   │   │   ├── NewsService.java
+│   │   │   └── CacheService.java
+│   │   ├── controller/             # REST Controller
+│   │   │   ├── AuthController.java
+│   │   │   ├── PortfolioController.java
+│   │   │   └── NewsController.java
+│   │   ├── dto/                    # DTO
+│   │   │   ├── request/
+│   │   │   └── response/
+│   │   ├── security/               # Security
+│   │   │   ├── JwtTokenProvider.java
+│   │   │   ├── JwtAuthFilter.java
+│   │   │   └── UserDetailsServiceImpl.java
+│   │   └── exception/              # 예외 처리
+│   │       ├── GlobalExceptionHandler.java
+│   │       └── CustomException.java
+│   ├── src/main/resources/
+│   │   ├── application.yml
+│   │   ├── application-dev.yml
+│   │   └── application-prod.yml
+│   ├── src/test/java/              # 테스트
+│   ├── Dockerfile
+│   └── pom.xml
+│
+├── app/                            # Python 데이터 파이프라인
+│   ├── __init__.py
+│   ├── celery_worker.py            # Celery 설정
+│   ├── core/
+│   │   ├── config.py               # 설정
+│   │   └── database.py             # DB 연결
 │   ├── models/
-│   │   └── database.py          # ORM 모델
+│   │   └── database.py             # SQLAlchemy 모델
 │   ├── services/
-│   │   ├── market_data_sync.py  # 외부 API 통합
-│   │   ├── ticker_extractor.py  # DB 기반 티커 추출
-│   │   ├── sentiment_analyzer.py
-│   │   └── news_processor.py
-│   ├── api/
-│   └── main.py                  # FastAPI (선택사항)
-├── scripts/
-│   ├── load_market_data.py      # 마켓 데이터 로더
-│   ├── init_db.py
-│   └── verify_system.py
-├── index_analyzer/              # 크롤링 엔진
+│   │   ├── crawler_service.py      # 크롤러
+│   │   ├── sentiment_analyzer.py   # 감성분석
+│   │   ├── feature_extractor.py    # 피처 추출
+│   │   └── market_data_sync.py     # 마켓 데이터 동기화
+│   ├── tasks/                      # Celery 태스크
+│   │   ├── crawl_news.py
+│   │   ├── analyze_sentiment.py
+│   │   └── extract_features.py
+│   └── main.py                     # FastAPI (선택)
+│
+├── index_analyzer/                 # 크롤러 엔진 (기존)
 │   ├── crawling/
 │   ├── parsing/
 │   └── media/
-├── spring-boot-example/         # Spring Boot API (NEW)
-│   ├── src/main/java/com/marketpulse/
-│   │   ├── entity/              # JPA Entity
-│   │   ├── repository/          # JPA Repository
-│   │   ├── controller/          # REST Controller
-│   │   └── MarketPulseApplication.java
-│   ├── src/main/resources/
-│   │   └── application.yml
-│   └── pom.xml
-├── data/
-│   └── marketpulse.db           # SQLite (개발용)
-├── daemon.py                    # Python Daemon (NEW)
-├── marketpulse-daemon.service   # systemd 서비스 (NEW)
-├── DAEMON_SETUP.md              # Daemon 설정 가이드 (NEW)
-├── requirements.txt
-├── sites.yaml                   # 크롤링 설정
+│
+├── scripts/                        # 유틸리티 스크립트
+│   ├── load_market_data.py
+│   ├── init_db.py
+│   └── verify_system.py
+│
+├── nginx/                          # Nginx 설정
+│   ├── nginx.conf
+│   └── ssl/
+│
+├── data/                           # 로컬 데이터
+├── logs/                           # 로그
+├── tests/                          # 테스트
+│   ├── unit/
+│   └── integration/
+│
+├── docker-compose.yml
+├── docker-compose.prod.yml
+├── Dockerfile.python
+├── .env.example
+├── .gitignore
+├── requirements.txt                # Python 의존성
+├── sites.yaml                      # 크롤링 설정
 └── README.md
 ```
 
-### 핵심 파일 설명
+---
 
-#### `app/models/database.py`
-- 개선된 Ticker 모델:
-  - `asset_type`: stock/commodity/etf/crypto/index
-  - `currency`, `country`: 메타데이터
-  - `data_source`, `last_synced_at`, `sync_status`: 동기화 정보
-  - `is_active`: 활성/비활성 상태
+## 📡 API 문서
 
-#### `app/services/market_data_sync.py` (NEW)
-- `MarketDataSync` 클래스:
-  - `sync_sp500_from_wikipedia()`: Wikipedia에서 S&P 500 로드
-  - `enrich_with_yfinance()`: yfinance로 데이터 보강
-  - `sync_all()`: 전체 동기화
-  - `add_custom_ticker()`: 커스텀 티커 추가
-  - `remove_ticker()`: 티커 비활성화
+### 1. 인증 API
 
-#### `scripts/load_market_data.py` (리팩토링)
-- 하드코딩 제거
-- CLI 인터페이스:
-  - `--list`: 티커 목록
-  - `--add SYMBOL TYPE`: 티커 추가
-  - `--remove SYMBOL`: 티커 제거
-  - `--reset`: 데이터 리셋
+#### 회원가입
+```http
+POST /api/auth/register
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "password": "Password123!",
+  "name": "John Doe"
+}
+```
+
+**Response:**
+```json
+{
+  "id": "uuid",
+  "email": "user@example.com",
+  "name": "John Doe",
+  "createdAt": "2025-10-30T10:00:00Z"
+}
+```
+
+#### 로그인
+```http
+POST /api/auth/login
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "password": "Password123!"
+}
+```
+
+**Response:**
+```json
+{
+  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "tokenType": "Bearer",
+  "expiresIn": 3600
+}
+```
 
 ---
 
-## 🚀 배포
+### 2. 포트폴리오 API
 
-### PostgreSQL 설정 (프로덕션)
-
-```python
-# app/models/database.py
-from app.models.database import get_postgresql_db
-
-db = get_postgresql_db(
-    host="localhost",
-    port=5432,
-    database="marketpulse",
-    user="postgres",
-    password="your_password"
-)
+#### 포트폴리오 조회
+```http
+GET /api/portfolio
+Authorization: Bearer {accessToken}
 ```
 
-### Nginx + Gunicorn
-
-```bash
-# Gunicorn 실행
-gunicorn app.main:app \
-  -w 4 \
-  -k uvicorn.workers.UvicornWorker \
-  --bind 127.0.0.1:8000
+**Response:**
+```json
+{
+  "id": "uuid",
+  "userId": "uuid",
+  "totalValue": 50000.00,
+  "cash": 10000.00,
+  "investedValue": 40000.00,
+  "totalReturn": 5000.00,
+  "totalReturnPercent": 12.5,
+  "positions": [
+    {
+      "id": "uuid",
+      "ticker": "AAPL",
+      "companyName": "Apple Inc.",
+      "shares": 100,
+      "avgCost": 150.00,
+      "currentPrice": 175.00,
+      "marketValue": 17500.00,
+      "unrealizedPnl": 2500.00,
+      "unrealizedPnlPercent": 16.67,
+      "weight": 43.75
+    }
+  ],
+  "performance": {
+    "dayReturn": 250.00,
+    "dayReturnPercent": 0.5,
+    "weekReturn": 1200.00,
+    "monthReturn": 3500.00,
+    "sharpeRatio": 1.35,
+    "maxDrawdown": -8.2
+  }
+}
 ```
 
-### Systemd 서비스
+#### 포지션 추가
+```http
+POST /api/portfolio/positions
+Authorization: Bearer {accessToken}
+Content-Type: application/json
 
-```ini
-# /etc/systemd/system/marketpulse.service
-[Unit]
-Description=MarketPulse API Server
-After=network.target
-
-[Service]
-User=www-data
-Group=www-data
-WorkingDirectory=/opt/marketpulse
-Environment="PATH=/opt/marketpulse/venv/bin"
-ExecStart=/opt/marketpulse/venv/bin/gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 127.0.0.1:8000
-
-[Install]
-WantedBy=multi-user.target
+{
+  "ticker": "TSLA",
+  "shares": 50,
+  "price": 250.00
+}
 ```
 
-### Docker
+#### 리밸런싱
+```http
+POST /api/portfolio/rebalance
+Authorization: Bearer {accessToken}
+Content-Type: application/json
 
-```dockerfile
-FROM python:3.9-slim
+{
+  "targetAllocation": {
+    "AAPL": 30,
+    "MSFT": 30,
+    "GOOGL": 20,
+    "TSLA": 20
+  },
+  "threshold": 5.0
+}
+```
 
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install -r requirements.txt
+**Response:**
+```json
+{
+  "recommendations": [
+    {
+      "ticker": "AAPL",
+      "action": "SELL",
+      "shares": 10,
+      "reason": "Over-allocated by 7.5%"
+    },
+    {
+      "ticker": "MSFT",
+      "action": "BUY",
+      "shares": 15,
+      "reason": "Under-allocated by 5.2%"
+    }
+  ],
+  "estimatedCost": 500.00
+}
+```
 
-COPY . .
+---
 
-# 마켓 데이터 로드
-RUN python scripts/load_market_data.py
+### 3. 뉴스 API
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+#### 뉴스 조회
+```http
+GET /api/news?tickers=AAPL,TSLA&hours=24&sentiment=positive&limit=50&page=0
+Authorization: Bearer {accessToken}
+```
+
+**Response:**
+```json
+{
+  "content": [
+    {
+      "id": "uuid",
+      "title": "Apple Reports Strong Q4 Earnings",
+      "summary": "Apple exceeded expectations...",
+      "url": "https://bloomberg.com/...",
+      "source": "Bloomberg",
+      "publishedAt": "2025-10-30T10:00:00Z",
+      "sentiment": {
+        "score": 0.85,
+        "label": "POSITIVE",
+        "confidence": 0.92
+      },
+      "tickers": ["AAPL"],
+      "importanceScore": 8.7
+    }
+  ],
+  "totalElements": 150,
+  "totalPages": 3,
+  "currentPage": 0,
+  "pageSize": 50
+}
+```
+
+#### 트렌딩 종목
+```http
+GET /api/news/trending?hours=24&limit=10
+Authorization: Bearer {accessToken}
+```
+
+**Response:**
+```json
+{
+  "periodHours": 24,
+  "trending": [
+    {
+      "ticker": "AAPL",
+      "companyName": "Apple Inc.",
+      "newsCount": 15,
+      "totalMentions": 45,
+      "avgSentiment": 0.65,
+      "sentimentChange": 0.12,
+      "priceChange": 2.5
+    }
+  ]
+}
+```
+
+---
+
+## 🔧 Spring Boot 설정
+
+### `application.yml`
+
+```yaml
+spring:
+  application:
+    name: marketpulse-api
+
+  # Database
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+
+  # Redis
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST}
+      port: ${SPRING_DATA_REDIS_PORT}
+      password: ${SPRING_DATA_REDIS_PASSWORD}
+      timeout: 60000
+
+  cache:
+    type: redis
+    redis:
+      time-to-live: 600000  # 10분
+      cache-null-values: false
+
+  # Security
+  security:
+    jwt:
+      secret: ${JWT_SECRET}
+      expiration: ${JWT_EXPIRATION}
+
+# Server
+server:
+  port: 8080
+  compression:
+    enabled: true
+
+# Actuator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,prometheus,info
+  endpoint:
+    health:
+      show-details: when-authorized
+
+# Logging
+logging:
+  level:
+    com.marketpulse: INFO
+    org.springframework.web: INFO
+    org.hibernate.SQL: DEBUG
+  file:
+    name: logs/spring-boot.log
 ```
 
 ---
 
 ## 🧪 테스트
 
+### Spring Boot 테스트
+
 ```bash
-# 단위 테스트
-pytest tests/unit/
+cd spring-boot
+
+# 전체 테스트
+mvn test
+
+# 특정 테스트
+mvn test -Dtest=PortfolioServiceTest
 
 # 통합 테스트
-pytest tests/integration/
+mvn verify
+
+# 커버리지
+mvn test jacoco:report
+```
+
+### Python 테스트
+
+```bash
+# 단위 테스트
+pytest tests/unit/ -v
+
+# 통합 테스트
+pytest tests/integration/ -v
 
 # 커버리지
 pytest --cov=app tests/
@@ -631,72 +864,147 @@ pytest --cov=app tests/
 
 ---
 
-## 🔧 설정
+## 📦 배포 가이드
 
-### sites.yaml (크롤링 소스)
-```yaml
-bbc:
-  base_url: "https://www.bbc.com"
-  seed_urls:
-    - "https://www.bbc.com/news/business"
+### 프로덕션 배포 (Hetzner Cloud)
 
-reuters:
-  base_url: "https://www.reuters.com"
-  seed_urls:
-    - "https://www.reuters.com/business"
+#### 1. 서버 생성 및 초기 설정
+
+```bash
+# SSH 접속
+ssh root@your-server-ip
+
+# 시스템 업데이트
+apt update && apt upgrade -y
+
+# Docker 설치
+curl -fsSL https://get.docker.com -o get-docker.sh
+sh get-docker.sh
+
+# Docker Compose 설치
+apt install docker-compose-plugin -y
+
+# 방화벽 설정
+ufw allow 22/tcp
+ufw allow 80/tcp
+ufw allow 443/tcp
+ufw enable
 ```
 
-### 환경 변수 (.env)
+#### 2. 프로젝트 배포
+
 ```bash
-# 데이터베이스
-DATABASE_URL=sqlite:///data/marketpulse.db
+# Git 클론
+git clone https://github.com/yourusername/marketpulse.git
+cd marketpulse
 
-# API 설정
-API_HOST=0.0.0.0
-API_PORT=8000
+# 환경 변수 설정
+cp .env.example .env
+nano .env  # 프로덕션 값으로 수정
 
-# 크롤링 설정
-CRAWL_INTERVAL=300
-MAX_ARTICLES=50
+# SSL 인증서 발급
+apt install certbot -y
+certbot certonly --standalone -d yourdomain.com
+
+# 인증서 복사
+mkdir -p nginx/ssl
+cp /etc/letsencrypt/live/yourdomain.com/fullchain.pem nginx/ssl/
+cp /etc/letsencrypt/live/yourdomain.com/privkey.pem nginx/ssl/
+
+# 프로덕션 실행
+docker-compose -f docker-compose.prod.yml up -d --build
+```
+
+#### 3. 모니터링
+
+```bash
+# 로그 확인
+docker-compose logs -f spring-boot
+
+# 리소스 사용량
+docker stats
+
+# 헬스 체크
+curl http://localhost:8080/actuator/health
 ```
 
 ---
 
-## 📈 성능 최적화
+## 💰 비용 추정
 
-### 1. yfinance 캐싱
-```python
-# 빠른 로드를 위해 --no-enrich 옵션 사용
-python scripts/load_market_data.py --no-enrich
-```
+### Phase 1: MVP (100명 사용자)
 
-### 2. 데이터베이스 인덱싱
-- `asset_type`, `is_active`, `sector` 컬럼에 인덱스 자동 생성
-- 복합 인덱스: `(asset_type, is_active)`, `(sector, is_active)`
+| 항목 | 스펙 | 월 비용 (USD) |
+|------|------|---------------|
+| **Hetzner VPS** | CPX41 (8 vCPU, 16GB RAM) | $28 |
+| **백업** | Backblaze B2 (100GB) | $0.5 |
+| **CDN** | Cloudflare (Free) | $0 |
+| **도메인** | .com | $1 |
+| **총계** | | **~$30/월** |
 
-### 3. 정기 동기화
-```bash
-# Cron 작업 (매주 일요일 자정)
-0 0 * * 0 cd /path/to/marketpulse && python scripts/load_market_data.py
-```
+**연간: ~$360**
 
 ---
 
-## ❓ 문제 해결
+## 🗺️ 개발 로드맵
 
-### "모듈을 찾을 수 없습니다"
-```bash
-pip install -r requirements.txt
-```
+### ✅ 완료
+- [x] Python 크롤러 엔진
+- [x] 티커 추출 시스템
+- [x] PostgreSQL 스키마 설계
+- [x] 아키텍처 설계
 
-### "데이터베이스 연결 오류"
-```bash
-python scripts/load_market_data.py --reset
-```
+### 🔄 Month 1-2: 기반 구축
+- [ ] **Spring Boot 설정**
+  - [ ] 프로젝트 초기화
+  - [ ] JPA Entity 설계
+  - [ ] Repository 구현
+  - [ ] Redis 캐싱 설정
+- [ ] **Python Celery 구현**
+  - [ ] 크롤링 태스크
+  - [ ] 스케줄링 설정
+- [ ] **Docker Compose 통합**
 
-### "Wikipedia 로드 실패"
-- 네트워크 연결 확인
-- Fallback 데이터가 자동으로 사용됨
+### 🔄 Month 3-4: 핵심 기능
+- [ ] **인증/권한 시스템**
+  - [ ] JWT 구현
+  - [ ] Spring Security 설정
+  - [ ] OAuth2 통합
+- [ ] **포트폴리오 관리**
+  - [ ] CRUD API
+  - [ ] 성과 계산
+  - [ ] 리밸런싱 로직
+- [ ] **감성분석**
+  - [ ] FinBERT 통합
+  - [ ] 배치 처리
+
+### 🔄 Month 5-6: 최적화
+- [ ] **성능 튜닝**
+  - [ ] DB 인덱스 최적화
+  - [ ] Redis 캐시 전략
+  - [ ] API 응답 최적화
+- [ ] **프론트엔드**
+  - [ ] React 기본 구조
+  - [ ] 대시보드
+  - [ ] 차트 통합
+- [ ] **프로덕션 배포**
+- [ ] **모니터링** (Prometheus + Grafana)
+
+### 🌟 Phase 2 (성장기)
+- [ ] Kafka 이벤트 스트리밍
+- [ ] Vector DB (Qdrant)
+- [ ] WebSocket 실시간 알림
+- [ ] 백테스팅 엔진
+
+---
+
+## 🤝 기여하기
+
+1. Fork the repository
+2. Create feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit changes (`git commit -m 'Add AmazingFeature'`)
+4. Push to branch (`git push origin feature/AmazingFeature`)
+5. Open Pull Request
 
 ---
 
@@ -706,48 +1014,32 @@ MIT License
 
 ---
 
-## 🤝 기여하기
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
----
-
 ## 📧 문의
 
-문제가 발생하면 Issues 탭에 등록해주세요.
+- Issues: https://github.com/yourusername/marketpulse/issues
+- Email: contact@marketpulse.io
 
 ---
 
-## 🎯 주요 개선사항
+## 🎯 현재 상태
 
-### ✅ v2.0 완료
-- [x] 하드코딩 제거 (외부 API 기반 동적 로딩)
-- [x] DB 스키마 개선 (메타데이터 추가)
-- [x] yfinance API 통합
-- [x] 커스텀 티커 추가/제거 CLI
-- [x] 동기화 상태 추적
-- [x] README 통합 (단일 문서)
+```
+진행률: ████████░░░░░░░░░░░░ 40%
 
-### ✅ v3.0 완료 (NEW)
-- [x] **Python Daemon 모드** (APScheduler)
-- [x] **Spring Boot API 통합**
-- [x] systemd 서비스 지원 (Linux)
-- [x] NSSM 서비스 지원 (Windows)
-- [x] PostgreSQL 프로덕션 지원
-- [x] 완전한 백엔드 분리 (Python 크롤러 + Spring API)
+완료:
+✅ 아키텍처 설계
+✅ Python 크롤러 엔진
+✅ 데이터베이스 스키마
+✅ 티커 추출 시스템
 
-### 🔮 향후 계획
-- [ ] Redis 캐싱
-- [ ] WebSocket 실시간 스트리밍
-- [ ] Elasticsearch 전문 검색
-- [ ] Grafana 모니터링 대시보드
-- [ ] Docker Compose 배포
-- [ ] GraphQL API
+다음 단계:
+⏳ Spring Boot API 구현
+⏳ Celery 작업 큐
+⏳ JWT 인증 시스템
+⏳ 포트폴리오 관리
+```
 
 ---
 
-**MarketPulse** - 확장 가능하고 유지보수가 쉬운 금융 뉴스 크롤러
+**MarketPulse** - AI-Powered Financial Intelligence Platform
+**Architecture**: Spring Boot (Main API) + Python (Data Pipeline) Microservices
