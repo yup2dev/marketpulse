@@ -28,6 +28,7 @@ class CategoryPolicy:
         re.compile(r"/(category|section|topics?|tags?)(/|$)", re.I),
         re.compile(r"/page/\d+(/|$)", re.I),
         re.compile(r"[?&](page|p)=\d+\b", re.I),
+        re.compile(r"/(invest_list|company_list|market_info_list|item_list)\.naver", re.I),  # 네이버 목록 페이지
     ))
 
 

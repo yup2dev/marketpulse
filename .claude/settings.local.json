@@ -3,7 +3,9 @@
     "allow": [
       "Bash(python:*)",
       "Bash(pip install:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(echo:*)",
+      "Bash(findstr:*)"
     ],
     "deny": [],
     "ask": []

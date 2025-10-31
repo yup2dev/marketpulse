@@ -23,6 +23,7 @@ try:
     HAS_CV2 = True
 except ImportError:
     HAS_CV2 = False
+    np = None
     log.warning("opencv-python not installed. Image processing functionality disabled.")
 
 
@@ -218,7 +219,7 @@ class ImageAnalyzer:
         return None
 
     @staticmethod
-    def _rgb_to_hex(rgb: np.ndarray) -> str:
+    def _rgb_to_hex(rgb) -> str:
         """RGB를 HEX로 변환"""
         return "#{:02x}{:02x}{:02x}".format(int(rgb[0]), int(rgb[1]), int(rgb[2]))
 
