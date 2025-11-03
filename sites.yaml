@@ -1,8 +1,33 @@
+yahoo:
+  base_url: "https://finance.yahoo.com/"
+  seed_urls:
+    - "https://finance.yahoo.com/news"
+
+bbc:
+  base_url: "https://www.bbc.com"
+  seed_urls:
+    - "https://www.bbc.com/news"
+
+cnn:
+  base_url: "https://edition.cnn.com"
+  SEED_URLS:
+    - "https://edition.cnn.com/world"
+
+# Bloomberg often blocks automated crawlers
+#bloomberg:
+#  base_url: "https://www.bloomberg.com"
+#  seed_urls:
+#    - "https://www.bloomberg.com/world"
+
+reuters:
+  base_url: "https://www.reuters.com"
+  seed_urls:
+    - "https://www.reuters.com/world/"
+
 #https://naver.com/:
 #  base_url: "https://www.naver.com/"
 #  seed_urls:
 #    - "https://finance.naver.com/"
-#
 
 #naverResearch:
 #  base_url: "https://finance.naver.com/research/"
@@ -14,107 +39,83 @@
 #  seed_urls:
 #    - "https://rollcall.com/factbase/trump/search/"
 
-bbc:
-  base_url: "https://www.bbc.com"
-  seed_urls:
-    - "https://www.bbc.com/news"
-
-#cnn:
-#  base_url: "https://edition.cnn.com"
+#nytimes:
+#  base_url: "https://www.nytimes.com"
 #  seed_urls:
-#    - "https://edition.cnn.com/world"
+#    - "https://www.nytimes.com/section/world"
 
-nytimes:
-  base_url: "https://www.nytimes.com"
-  seed_urls:
-    - "https://www.nytimes.com/section/world"
+#foxnews:
+#  base_url: "https://www.foxnews.com"
+#  seed_urls:
+#    - "https://www.foxnews.com/world"
+#
+#nbcnews:
+#  base_url: "https://www.nbcnews.com"
+#  seed_urls:
+#    - "https://www.nbcnews.com/world"
+#
+#guardian:
+#  base_url: "https://www.theguardian.com"
+#  seed_urls:
+#    - "https://www.theguardian.com/world"
+#
+#washingtonpost:
+#  base_url: "https://www.washingtonpost.com"
+#  seed_urls:
+#    - "https://www.washingtonpost.com/world/"
+#
+#cbsnews:
+#  base_url: "https://www.cbsnews.com"
+#  seed_urls:
+#    - "https://www.cbsnews.com/world/"
+#
 
-reuters:
-  base_url: "https://www.reuters.com"
-  seed_urls:
-    - "https://www.reuters.com/world/"
-
-foxnews:
-  base_url: "https://www.foxnews.com"
-  seed_urls:
-    - "https://www.foxnews.com/world"
-
-nbcnews:
-  base_url: "https://www.nbcnews.com"
-  seed_urls:
-    - "https://www.nbcnews.com/world"
-
-guardian:
-  base_url: "https://www.theguardian.com"
-  seed_urls:
-    - "https://www.theguardian.com/world"
-
-washingtonpost:
-  base_url: "https://www.washingtonpost.com"
-  seed_urls:
-    - "https://www.washingtonpost.com/world/"
-
-cbsnews:
-  base_url: "https://www.cbsnews.com"
-  seed_urls:
-    - "https://www.cbsnews.com/world/"
-
-bloomberg:
-  base_url: "https://www.bloomberg.com"
-  seed_urls:
-    - "https://www.bloomberg.com/world"
-
-abcnews:
-  base_url: "https://abcnews.go.com"
-  seed_urls:
-    - "https://abcnews.go.com/international"
-
-time:
-  base_url: "https://time.com"
-  seed_urls:
-    - "https://time.com/section/world/"
-
-politico:
-  base_url: "https://www.politico.com"
-  seed_urls:
-    - "https://www.politico.com/world"
-
-axios:
-  base_url: "https://www.axios.com"
-  seed_urls:
-    - "https://www.axios.com/world"
-
-forbes:
-  base_url: "https://www.forbes.com"
-  seed_urls:
-    - "https://www.forbes.com/world-news/"
-
-usatoday:
-  base_url: "https://www.usatoday.com"
-  seed_urls:
-    - "https://www.usatoday.com/news/world/"
-
-npr:
-  base_url: "https://www.npr.org"
-  seed_urls:
-    - "https://www.npr.org/sections/world/"
-
-huffpost:
-  base_url: "https://www.huffpost.com"
-  seed_urls:
-    - "https://www.huffpost.com/news/world-news"
-
-msnbc:
-  base_url: "https://www.msnbc.com"
-  seed_urls:
-    - "https://www.msnbc.com/world"
-
-aljazeera:
-  base_url: "https://www.aljazeera.com"
-  seed_urls:
-    - "https://www.aljazeera.com/news/"
-
-yahoo:
-  base_url: "https://finance.yahoo.com/"
-  seed_urls:
-    - "https://finance.yahoo.com/news"
+#abcnews:
+#  base_url: "https://abcnews.go.com"
+#  seed_urls:
+#    - "https://abcnews.go.com/international"
+#
+#time:
+#  base_url: "https://time.com"
+#  seed_urls:
+#    - "https://time.com/section/world/"
+#
+#politico:
+#  base_url: "https://www.politico.com"
+#  seed_urls:
+#    - "https://www.politico.com/world"
+#
+#axios:
+#  base_url: "https://www.axios.com"
+#  seed_urls:
+#    - "https://www.axios.com/world"
+#
+#forbes:
+#  base_url: "https://www.forbes.com"
+#  seed_urls:
+#    - "https://www.forbes.com/world-news/"
+#
+#usatoday:
+#  base_url: "https://www.usatoday.com"
+#  seed_urls:
+#    - "https://www.usatoday.com/news/world/"
+#
+#npr:
+#  base_url: "https://www.npr.org"
+#  seed_urls:
+#    - "https://www.npr.org/sections/world/"
+#
+#huffpost:
+#  base_url: "https://www.huffpost.com"
+#  seed_urls:
+#    - "https://www.huffpost.com/news/world-news"
+#
+#msnbc:
+#  base_url: "https://www.msnbc.com"
+#  seed_urls:
+#    - "https://www.msnbc.com/world"
+#
+#aljazeera:
+#  base_url: "https://www.aljazeera.com"
+#  seed_urls:
+#    - "https://www.aljazeera.com/news/"

@@ -160,6 +160,22 @@ temp.py
 
 # Claude
 .claude/
+/.claude/
 
 # Test file
 test*.py
+*test.py
+/test*
+*test/
+spring-boot*/
+/spring-boot*
+
+# Saved Data
+/data
+
+# Temporary/Accidental files
+nul
+test_crawler_manual.py
+test_scheduler.py
+START_SERVER.md
+.claude

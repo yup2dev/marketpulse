@@ -2,7 +2,7 @@ import hashlib
 import logging
 import requests
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Union
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from ..models.schemas import ImageInfo
@@ -13,8 +13,9 @@ log = logging.getLogger("multiseed-extractor")
 class ImageDownloader:
     """이미지 다운로더 (병렬 처리 지원)"""
 
-    def __init__(self, storage_path: Path = Path("./data/images"), max_workers: int = 5, timeout: float = 15.0):
-        self.storage = storage_path
+    def __init__(self, storage_path: Union[str, Path] = "./data/images", max_workers: int = 5, timeout: float = 15.0):
+        # Convert string to Path if needed
+        self.storage = Path(storage_path) if isinstance(storage_path, str) else storage_path
         self.storage.mkdir(parents=True, exist_ok=True)
         self.max_workers = max_workers
         self.timeout = timeout

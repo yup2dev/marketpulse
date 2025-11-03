@@ -47,6 +47,7 @@ class Crawler:
         self.heur = heur
         self.cls = classifier
         self.max_depth = max_depth
+        self.seed_path_prefixes = []  # seed URL 경로 프리픽스 저장
 
     def discover(self, seeds: List[str]) -> Iterator[Tuple[str, int]]:
         norm = [URLHelper.canonical(s) for s in seeds if URLHelper.canonical(s)]
@@ -54,6 +55,11 @@ class Crawler:
         for s in norm:
             fr.push(s, 0, None)
         per_domain_fetch: Dict[str, int] = {}
+
+        # seed URL들의 경로 프리픽스 추출
+        from urllib.parse import urlparse
+        self.seed_path_prefixes = [urlparse(s).path.rstrip('/') for s in norm]
+        log.info(f"Seed path prefixes: {self.seed_path_prefixes}")
 
         while len(fr) > 0 and sum(per_domain_fetch.values()) < self.cfg.max_total:
             item = fr.pop()
@@ -71,7 +77,7 @@ class Crawler:
             # 'article'로 명확히 분류된 것만 수집
             if label == "article":
                 log.info("is Article %s", url)
-                yield (url, depth)
+                yield url, depth
                 per_domain_fetch[dom] = per_domain_fetch.get(dom, 0) + 1
 
             # max_depth 체크: 링크 탐색 전에만 체크
@@ -88,4 +94,32 @@ class Crawler:
                     continue
                 if self.cfg.same_domain_only and URLHelper.domain(child) != dom:
                     continue
+
+                # seed URL 경로 프리픽스 체크
+                if not self._is_within_seed_path(child):
+                    continue
+
                 fr.push(child, depth+1, url)
+
+    def _is_within_seed_path(self, url: str) -> bool:
+        """
+        URL이 seed URL 경로 내에 있는지 체크
+
+        예: seed = https://finance.yahoo.com/news
+            OK: https://finance.yahoo.com/news/article-123
+            NG: https://finance.yahoo.com/stocks/...
+        """
+        from urllib.parse import urlparse
+
+        # seed_path_prefixes가 비어있으면 모든 URL 허용
+        if not self.seed_path_prefixes:
+            return True
+
+        url_path = urlparse(url).path.rstrip('/')
+
+        # 어느 하나의 seed 경로라도 프리픽스로 포함하면 OK
+        for seed_prefix in self.seed_path_prefixes:
+            if url_path.startswith(seed_prefix):
+                return True
+
+        return False
