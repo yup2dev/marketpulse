@@ -178,3 +178,4 @@ nul
 test_crawler_manual.py
 test_scheduler.py
 START_SERVER.md
+.claude
