@@ -20,6 +20,8 @@ sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='repla
 from app.models.database import Database, NewsArticle, Ticker, NewsTicker, TickerPrice, get_sqlite_db
 from app.services.ticker_extractor import TickerExtractor
 from app.services.sentiment_analyzer import SentimentAnalyzer
+from app.core.config import settings
+from app.scheduler import start_scheduler, stop_scheduler, get_scheduler_status, trigger_job_now
 
 # Logging 설정
 logging.basicConfig(
@@ -48,14 +50,14 @@ app.add_middleware(
 
 # 데이터베이스 초기화 (SQLite - 개발용)
 # Use absolute path to avoid "unable to open database file" errors
-DB_PATH = Path(__file__).parent.parent / "data" / "marketpulse.db"
+DB_PATH = Path(settings.SQLITE_PATH)
 DB_PATH.parent.mkdir(exist_ok=True)
 db = get_sqlite_db(str(DB_PATH))
 db.create_tables()
 
 # 서비스 초기화
 ticker_extractor = TickerExtractor()
-sentiment_analyzer = SentimentAnalyzer(use_transformers=False)  # 규칙 기반 사용
+sentiment_analyzer = SentimentAnalyzer(use_transformers=settings.USE_TRANSFORMERS)
 
 
 # Dependency: DB Session
@@ -66,6 +68,41 @@ def get_db():
         yield session
     finally:
         session.close()
+
+
+# ==============================================================================
+# Lifecycle Events
+# ==============================================================================
+
+@app.on_event("startup")
+async def startup_event():
+    """앱 시작 시 실행"""
+    log.info("=" * 80)
+    log.info("MarketPulse API Starting...")
+    log.info(f"Database: {DB_PATH}")
+    log.info(f"Scheduler Enabled: {settings.SCHEDULER_ENABLED}")
+    log.info("=" * 80)
+
+    # 스케줄러 시작
+    if settings.SCHEDULER_ENABLED:
+        try:
+            start_scheduler()
+        except Exception as e:
+            log.error(f"Failed to start scheduler: {e}", exc_info=True)
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """앱 종료 시 실행"""
+    log.info("=" * 80)
+    log.info("MarketPulse API Shutting down...")
+    log.info("=" * 80)
+
+    # 스케줄러 중지
+    try:
+        stop_scheduler()
+    except Exception as e:
+        log.error(f"Failed to stop scheduler: {e}", exc_info=True)
 
 
 # ==============================================================================
@@ -90,6 +127,10 @@ async def root():
                 "prices": "/api/tickers/{symbol}/prices",
                 "latest_price": "/api/tickers/{symbol}/price/latest",
                 "prices_by_date": "/api/prices/by-date"
+            },
+            "scheduler": {
+                "status": "/api/scheduler/status",
+                "trigger_job": "/api/scheduler/trigger/{job_id}"
             },
             "stats": "/api/stats",
             "docs": "/docs"
@@ -494,6 +535,59 @@ async def get_statistics(db: Session = Depends(get_db)):
 
     except Exception as e:
         log.error(f"Error in get_statistics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/scheduler/status")
+async def get_scheduler_status_endpoint():
+    """
+    스케줄러 상태 조회
+
+    Returns:
+        - running: 스케줄러 실행 중 여부
+        - job_count: 등록된 작업 수
+        - jobs: 작업 목록 (ID, 이름, 다음 실행 시간)
+    """
+    try:
+        status = get_scheduler_status()
+        return status
+    except Exception as e:
+        log.error(f"Error getting scheduler status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/scheduler/trigger/{job_id}")
+async def trigger_job_endpoint(job_id: str):
+    """
+    특정 작업 즉시 실행
+
+    Args:
+        job_id: 작업 ID
+            - crawl_news: 뉴스 크롤링
+            - analyze_sentiment: 감성 분석
+            - sync_market_data: 마켓 데이터 동기화
+            - daily_cleanup: 일일 정리
+
+    Returns:
+        작업 트리거 성공 여부
+    """
+    try:
+        success = trigger_job_now(job_id)
+        if success:
+            return {
+                "success": True,
+                "message": f"Job {job_id} triggered successfully",
+                "job_id": job_id
+            }
+        else:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Job {job_id} not found"
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"Error triggering job {job_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

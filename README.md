@@ -1,4 +1,4 @@
-# MarketPulse - AI-Powered Financial Intelligence Platform
+    # MarketPulse - AI-Powered Financial Intelligence Platform
 
 실시간 금융 뉴스 분석과 포트폴리오 최적화를 제공하는 마이크로서비스 플랫폼
 

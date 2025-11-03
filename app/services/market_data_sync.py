@@ -561,3 +561,40 @@ class MarketDataSync:
         log.info("="*60)
 
         return results
+
+
+# ===== 스케줄러에서 호출할 전역 함수 =====
+
+def sync_market_data():
+    """
+    마켓 데이터 동기화 (스케줄러 작업)
+
+    APScheduler에서 호출:
+        scheduler.add_job(sync_market_data, 'interval', hours=6)
+    """
+    try:
+        log.info("⏰ Scheduled task: sync_market_data started")
+
+        from app.models.database import get_sqlite_db
+        from app.core.config import settings
+
+        # 데이터베이스 세션 생성
+        db = get_sqlite_db(settings.SQLITE_PATH)
+        session = db.get_session()
+
+        # MarketDataSync 인스턴스 생성
+        sync_service = MarketDataSync(session)
+
+        # 티커 동기화 (enrichment 비활성화로 빠르게)
+        log.info("Syncing ticker data...")
+        results = sync_service.sync_all(enrich=False)
+
+        session.close()
+
+        log.info(f"✅ Scheduled task: sync_market_data completed")
+        log.info(f"   Tickers synced: {results.get('total_synced', 0)}")
+        return results
+
+    except Exception as e:
+        log.error(f"❌ Scheduled task: sync_market_data failed - {e}", exc_info=True)
+        return {"error": str(e)}
