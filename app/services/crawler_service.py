@@ -347,16 +347,16 @@ def crawl_all_news():
         scheduler.add_job(crawl_all_news, 'interval', hours=1)
     """
     try:
-        log.info("⏰ Scheduled task: crawl_all_news started")
+        log.info("Scheduled task: crawl_all_news started")
         service = get_crawler_service()
         results = service.crawl_all_sites(
             max_articles_per_site=settings.CRAWLER_MAX_WORKERS * 2,
             max_depth=2
         )
-        log.info(f"✅ Scheduled task: crawl_all_news completed - {sum(results.values())} articles")
+        log.info(f"Scheduled task: crawl_all_news completed - {sum(results.values())} articles")
         return results
     except Exception as e:
-        log.error(f"❌ Scheduled task: crawl_all_news failed - {e}", exc_info=True)
+        log.error(f"Scheduled task: crawl_all_news failed - {e}", exc_info=True)
         return {}
 
 
@@ -367,7 +367,7 @@ def analyze_recent_news_sentiment():
     처리되지 않은 뉴스나 감성 점수가 없는 뉴스 재분석
     """
     try:
-        log.info("⏰ Scheduled task: analyze_recent_news_sentiment started")
+        log.info("Scheduled task: analyze_recent_news_sentiment started")
         service = get_crawler_service()
         session = service.db.get_session()
 
@@ -392,9 +392,9 @@ def analyze_recent_news_sentiment():
         session.commit()
         session.close()
 
-        log.info(f"✅ Scheduled task: analyze_recent_news_sentiment completed - {updated_count} articles updated")
+        log.info(f"Scheduled task: analyze_recent_news_sentiment completed - {updated_count} articles updated")
         return updated_count
 
     except Exception as e:
-        log.error(f"❌ Scheduled task: analyze_recent_news_sentiment failed - {e}", exc_info=True)
+        log.error(f"Scheduled task: analyze_recent_news_sentiment failed - {e}", exc_info=True)
         return 0

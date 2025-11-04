@@ -39,7 +39,7 @@ class MarketDataSync:
             tables = pd.read_html(url, storage_options=headers)
             sp500_table = tables[0]
 
-            log.info(f"✓ Found {len(sp500_table)} S&P 500 companies from Wikipedia")
+            log.info(f"Found {len(sp500_table)} S&P 500 companies from Wikipedia")
 
             tickers = []
             for _, row in sp500_table.iterrows():
@@ -143,10 +143,10 @@ class MarketDataSync:
                 if not ticker_info.get('industry'):
                     ticker_info['industry'] = info.get('industry', 'Unknown')
 
-                log.debug(f"✓ Enriched {symbol} with yfinance data")
+                log.debug(f"Enriched {symbol} with yfinance data")
                 return ticker_info
             else:
-                log.warning(f"⚠ No yfinance data for {symbol}")
+                log.warning(f"No yfinance data for {symbol}")
                 return None
 
         except Exception as e:
@@ -212,7 +212,7 @@ class MarketDataSync:
         # 커밋
         try:
             self.session.commit()
-            log.info(f"✓ Saved {saved_count} tickers to database")
+            log.info(f"Saved {saved_count} tickers to database")
         except Exception as e:
             log.error(f"Error committing to database: {e}")
             self.session.rollback()
@@ -247,7 +247,7 @@ class MarketDataSync:
         if sp500_tickers:
             count = self.sync_tickers_to_db(sp500_tickers, enrich=enrich)
             results['sp500'] = count
-            log.info(f"✓ Synced {count} S&P 500 stocks")
+            log.info(f"Synced {count} S&P 500 stocks")
 
         # 2. Commodity Futures 동기화
         log.info("\n[2/3] Syncing commodity futures...")
@@ -255,7 +255,7 @@ class MarketDataSync:
         if commodity_tickers:
             count = self.sync_tickers_to_db(commodity_tickers, enrich=enrich)
             results['commodities'] = count
-            log.info(f"✓ Synced {count} commodity futures")
+            log.info(f"Synced {count} commodity futures")
 
         # 3. ETFs 동기화
         log.info("\n[3/3] Syncing ETFs...")
@@ -263,7 +263,7 @@ class MarketDataSync:
         if etf_tickers:
             count = self.sync_tickers_to_db(etf_tickers, enrich=enrich)
             results['etfs'] = count
-            log.info(f"✓ Synced {count} ETFs")
+            log.info(f"Synced {count} ETFs")
 
         results['total'] = results['sp500'] + results['commodities'] + results['etfs']
 
@@ -326,7 +326,7 @@ class MarketDataSync:
                 ticker.is_active = False
                 ticker.updated_at = datetime.utcnow()
                 self.session.commit()
-                log.info(f"✓ Deactivated ticker: {symbol}")
+                log.info(f"Deactivated ticker: {symbol}")
                 return True
             else:
                 log.warning(f"Ticker not found: {symbol}")
@@ -457,7 +457,7 @@ class MarketDataSync:
 
             # 커밋
             self.session.commit()
-            log.info(f"✓ Saved {saved_count} price records for {symbol}")
+            log.info(f"Saved {saved_count} price records for {symbol}")
 
             return saved_count
 
@@ -500,7 +500,7 @@ class MarketDataSync:
                 price.updated_at = datetime.utcnow()
 
             self.session.commit()
-            log.debug(f"✓ Calculated price changes for {symbol} ({len(prices)} records)")
+            log.debug(f"Calculated price changes for {symbol} ({len(prices)} records)")
 
         except Exception as e:
             log.error(f"Error calculating price changes for {symbol}: {e}")
@@ -573,7 +573,7 @@ def sync_market_data():
         scheduler.add_job(sync_market_data, 'interval', hours=6)
     """
     try:
-        log.info("⏰ Scheduled task: sync_market_data started")
+        log.info("Scheduled task: sync_market_data started")
 
         from app.models.database import get_sqlite_db
         from app.core.config import settings
@@ -591,10 +591,10 @@ def sync_market_data():
 
         session.close()
 
-        log.info(f"✅ Scheduled task: sync_market_data completed")
+        log.info("Scheduled task: sync_market_data completed")
         log.info(f"   Tickers synced: {results.get('total_synced', 0)}")
         return results
 
     except Exception as e:
-        log.error(f"❌ Scheduled task: sync_market_data failed - {e}", exc_info=True)
+        log.error(f"Scheduled task: sync_market_data failed - {e}", exc_info=True)
         return {"error": str(e)}

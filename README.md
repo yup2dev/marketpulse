@@ -5,7 +5,7 @@
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.2-green.svg)](https://spring.io/projects/spring-boot)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-blue.svg)](https://www.postgresql.org/)
-[![Redis](https://img.shields.io/badge/Redis-7-red.svg)](https://redis.io/)
+[![APScheduler](https://img.shields.io/badge/APScheduler-3.10-orange.svg)](https://apscheduler.readthedocs.io/)
 
 ---
 
@@ -24,83 +24,30 @@
 
 ## 🏗️ 시스템 아키텍처
 
-### Phase 1: MVP - 마이크로서비스 구조
+### Python 데이터 파이프라인 (하이브리드 모드)
 
-```
-┌──────────────────────────────────────────────┐
-│           Nginx (Reverse Proxy)              │
-│           Port 80/443                        │
-└──────────────────────────────────────────────┘
-                    │
-        ┌───────────┴────────────┐
-        │                        │
-┌───────▼────────┐    ┌─────────▼──────────┐
-│  Spring Boot   │    │  Python FastAPI    │
-│  Main API      │    │  (Optional)        │
-│  Port 8080     │    │  Port 8000         │
-│                │    │                    │
-│ • REST API     │◄───┤ • 헬스체크         │
-│ • 포트폴리오    │    │ • 내부 API         │
-│ • 인증/권한     │    └────────────────────┘
-│ • 비즈니스 로직 │              │
-└────────┬───────┘              │
-         │                      │
-         │    ┌─────────────────┘
-         │    │
-    ┌────▼────▼──────────────────────┐
-    │   PostgreSQL 15                │
-    │   - 사용자 데이터               │
-    │   - 포트폴리오                  │
-    │   - 뉴스 데이터 (읽기)          │
-    │   - ML 결과 (읽기)              │
-    └────────┬───────────────────────┘
-             │
-    ┌────────▼────────────────────────┐
-    │   Redis 7                       │
-    │   - Spring 캐시                 │
-    │   - 세션 관리                   │
-    │   - Celery 브로커 (Python용)    │
-    └─────────────────────────────────┘
-```
 
-### Python 데이터 파이프라인 (백그라운드)
+<img src="/systemFlow.png" width="500" height="600">
 
-```
-┌────────────────────────────────────────────┐
-│  Python Microservice (백그라운드 워커)      │
-├────────────────────────────────────────────┤
-│                                             │
-│  [Celery Beat] 스케줄러                     │
-│       │                                     │
-│       ├──► [Celery Worker 1] 뉴스 크롤러   │
-│       │         │                           │
-│       │         └──► PostgreSQL 저장        │
-│       │                                     │
-│       ├──► [Celery Worker 2] 감성분석      │
-│       │         │                           │
-│       │         └──► ML 결과 저장           │
-│       │                                     │
-│       └──► [Celery Worker 3] 피처 추출     │
-│                 │                           │
-│                 └──► Vector DB 저장         │
-└────────────────────────────────────────────┘
-         │
-         └──► Redis (Celery Broker)
-```
 
 ### 데이터 플로우
 
 ```
-1. 데이터 수집 (Python)
-   외부 API → Celery 크롤러 → PostgreSQL
+1. 자동 데이터 수집 (Python APScheduler)
+   외부 API → APScheduler 크롤러 → PostgreSQL
+   (매 1시간 자동 실행)
 
-2. 데이터 처리 (Python)
-   PostgreSQL → Celery ML Worker → 감성분석 → PostgreSQL
+2. 수동 데이터 수집 (Spring Boot 트리거)
+   사용자 요청 → Spring Boot → Redis Queue → Python Worker → PostgreSQL
+   ("지금 크롤링" 버튼 클릭 시)
 
-3. API 제공 (Spring Boot)
-   Frontend → Spring API → Redis Cache → PostgreSQL
+3. 데이터 처리 (Python)
+   PostgreSQL → 감성분석/티커추출 → PostgreSQL
 
-4. 포트폴리오 관리 (Spring Boot)
+4. API 제공 (Spring Boot - 추후 구현)
+   Frontend → Spring API → PostgreSQL → JSON 응답
+
+5. 포트폴리오 관리 (Spring Boot - 추후 구현)
    User 요청 → Spring Service → 계산 → PostgreSQL
 ```
 
@@ -128,7 +75,7 @@
 - **OAuth2**: 소셜 로그인 (Google, GitHub)
 
 #### 4. 캐싱 전략
-- **Redis**: API 응답, 뉴스 데이터, 가격 데이터
+- **Spring Boot API** (추후 구현): API 응답, 뉴스 데이터, 가격 데이터
 - **캐시 무효화**: 실시간 데이터 업데이트 시
 
 ### 🐍 Python (데이터 파이프라인)
@@ -137,7 +84,7 @@
 - **뉴스 크롤러**: Bloomberg, Reuters, BBC, CNBC
 - **가격 데이터**: Yahoo Finance, Alpha Vantage
 - **소셜 데이터**: Twitter API (선택)
-- **스케줄링**: Celery Beat (매 1시간)
+- **스케줄링**: APScheduler (자동) + Redis Queue (수동 트리거)
 
 #### 2. ML/NLP 분석
 - **감성 분석**: FinBERT (transformers)
@@ -163,24 +110,23 @@
 
 | 서비스 | 기술 | 버전 | 역할 |
 |--------|------|------|------|
-| **Main API** | Spring Boot | 3.2+ | REST API, 비즈니스 로직 |
-| **Web Framework** | Spring WebFlux | 6.1+ | 리액티브 웹 |
-| **Security** | Spring Security | 6.2+ | 인증/권한, JWT |
-| **Data Access** | Spring Data JPA | 3.2+ | ORM, Repository |
-| **Cache** | Spring Cache + Redis | 3.2+ | 캐싱 추상화 |
-| **Validation** | Bean Validation | 3.0+ | 입력 검증 |
-| **Monitoring** | Spring Actuator | 3.2+ | 헬스체크, 메트릭 |
+| **Main API** | Spring Boot | 3.2+ | REST API, 비즈니스 로직 (추후 구현) |
+| **Web Framework** | Spring WebFlux | 6.1+ | 리액티브 웹 (추후 구현) |
+| **Security** | Spring Security | 6.2+ | 인증/권한, JWT (추후 구현) |
+| **Data Access** | Spring Data JPA | 3.2+ | ORM, Repository (추후 구현) |
+| **Validation** | Bean Validation | 3.0+ | 입력 검증 (추후 구현) |
+| **Monitoring** | Spring Actuator | 3.2+ | 헬스체크, 메트릭 (추후 구현) |
 | | | | |
 | **Data Pipeline** | Python | 3.9+ | 크롤링, ML |
-| **Web Framework** | FastAPI | 0.104+ | 내부 API (선택) |
-| **Task Queue** | Celery | 5.3+ | 비동기 작업 |
+| **Scheduler** | APScheduler | 3.10+ | 자동 스케줄링 |
+| **Message Queue** | Redis | 7+ | Spring ↔ Python 통신 |
 | **ML/NLP** | transformers | 4.35+ | FinBERT |
 | **Data Science** | pandas, numpy | latest | 데이터 처리 |
 | | | | |
 | **Database** | PostgreSQL | 15+ | 메인 데이터 저장소 |
-| **Cache/Queue** | Redis | 7+ | 캐시 + Celery 브로커 |
-| **Reverse Proxy** | Nginx | 1.24+ | SSL, 로드밸런싱 |
-| **Container** | Docker | 24+ | 서비스 격리 |
+| **DB (Dev)** | SQLite | 3+ | 개발용 로컬 DB |
+| **Reverse Proxy** | Nginx | 1.24+ | SSL, 로드밸런싱 (추후) |
+| **Container** | Docker | 24+ | 서비스 격리 (추후) |
 
 ### Phase 2 추가 예정
 - **Message Queue**: Kafka (이벤트 스트리밍)
@@ -221,12 +167,21 @@ POSTGRES_DB=marketpulse
 POSTGRES_USER=marketpulse
 POSTGRES_PASSWORD=your_strong_password
 
-# Redis
-REDIS_PASSWORD=your_redis_password
+# Redis (Message Queue)
+REDIS_URL=redis://localhost:6379/0
+# 비밀번호 있는 경우
+# REDIS_URL=redis://:your_password@localhost:6379/0
 
 # Spring Boot
 JWT_SECRET=your_jwt_secret_key_minimum_32_characters
 JWT_EXPIRATION=3600000
+
+# Python Worker
+QUEUE_ENABLED=true
+REDIS_QUEUE_NAME=marketpulse:tasks
+SCHEDULER_ENABLED=true
+CRAWL_INTERVAL_HOURS=1
+SENTIMENT_INTERVAL_HOURS=2
 
 # Python API Keys
 YAHOO_FINANCE_API_KEY=your_key
@@ -234,53 +189,136 @@ ALPHA_VANTAGE_API_KEY=your_key
 OPENAI_API_KEY=your_key
 ```
 
-### 3. Docker Compose로 전체 시스템 실행
+### 3. 개발 환경 실행 (현재 단계)
+
+#### Option A: APScheduler Only (Redis 없이)
+
+```bash
+# .env 설정
+SCHEDULER_ENABLED=true
+QUEUE_ENABLED=false
+
+# Worker 실행
+python -m app.main
+```
+
+**동작:**
+- APScheduler만 실행 (자동 스케줄링)
+- 뉴스 크롤링 즉시 1회 실행 후 매 1시간마다 자동 실행
+- Redis 불필요
+
+#### Option B: Hybrid Mode (Redis 포함, 권장)
+
+```bash
+# Redis 시작
+docker run -d -p 6379:6379 redis:7-alpine
+# 또는
+redis-server
+
+# .env 설정
+SCHEDULER_ENABLED=true
+QUEUE_ENABLED=true
+REDIS_URL=redis://localhost:6379/0
+
+# Worker 실행
+python -m app.main
+```
+
+**동작:**
+- APScheduler: 자동 스케줄링 (매 1시간, 2시간, 6시간)
+- Redis Queue Consumer: Spring Boot 트리거 대기
+- 양쪽 모두 동시 실행
+
+**로그 예시:**
+```
+MarketPulse Background Worker Starting (Hybrid Mode)
+APScheduler: Enabled
+Redis Queue: Enabled
+================================================================================
+Starting Redis Queue Consumer in background thread...
+Redis connected: redis://localhost:6379/0
+Background Worker is running...
+  - APScheduler: Auto-scheduling tasks
+  - Redis Queue: Listening for Spring Boot triggers
+```
+
+#### 수동 실행 (CLI)
+
+```bash
+# 개별 작업 실행
+python -m app.cli crawl          # 뉴스 크롤링만 실행
+python -m app.cli sentiment      # 감성 분석만 실행
+python -m app.cli sync-market    # 마켓 데이터 동기화만 실행
+python -m app.cli cleanup        # 오래된 데이터 정리만 실행
+
+# 모든 작업 순차 실행
+python -m app.cli all
+
+# 도움말
+python -m app.cli help
+```
+
+#### Spring Boot에서 트리거 (Redis CLI 테스트)
+
+```bash
+# Redis CLI로 메시지 발행
+redis-cli RPUSH marketpulse:tasks '{"task_type": "crawl_news", "params": {}}'
+
+# Python Worker가 즉시 실행
+# 로그: Received task: crawl_news with params: {}
+# 로그: Executing: News Crawling
+# 로그: Task crawl_news completed: {...}
+```
+
+**중지:**
+- `Ctrl+C` 또는 `SIGTERM` 시그널
+
+---
+
+### 4. 프로덕션 환경 (Docker Compose - 추후)
 
 ```bash
 # 모든 서비스 빌드 및 시작
 docker-compose up -d --build
 
 # 로그 확인
-docker-compose logs -f spring-boot
+docker-compose logs -f python-worker
 
 # 특정 서비스만 재시작
 docker-compose restart python-worker
 ```
 
-### 4. 데이터베이스 초기화
+### 5. 데이터베이스 초기화
+
+데이터베이스는 자동으로 생성됩니다:
+- SQLite: `./data/marketpulse.db` (개발용, 자동 생성)
+- PostgreSQL: `.env`에서 `DATABASE_URL` 설정 시 사용
 
 ```bash
-# Spring Boot가 자동으로 스키마 생성 (Hibernate)
-# 마켓 데이터 로드 (Python)
-docker-compose exec python-worker python scripts/load_market_data.py
-
-# 초기 관리자 계정 생성
-curl -X POST http://localhost:8080/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "admin@marketpulse.io",
-    "password": "admin123",
-    "name": "Admin"
-  }'
+# 마켓 데이터 로드 (선택)
+python scripts/load_market_data.py
 ```
 
-### 5. 시스템 검증
+### 6. 시스템 검증
 
 ```bash
-# Spring Boot 헬스 체크
-curl http://localhost:8080/actuator/health
+# 데이터베이스 확인
+ls -lh data/marketpulse.db
 
-# Python 워커 상태 확인
-docker-compose exec python-worker celery -A app.celery_worker inspect active
+# 로그 확인
+tail -f logs/app.log
 
-# Redis 연결 확인
-docker-compose exec redis redis-cli -a your_redis_password ping
+# 뉴스 수집 확인 (SQLite)
+sqlite3 data/marketpulse.db "SELECT COUNT(*) FROM news_articles;"
 ```
 
-### 6. API 문서 확인
+### 7. API 문서 (추후 Spring Boot 구현)
 
+현재는 백그라운드 워커만 실행되며 API는 제공되지 않습니다.
+
+**추후 제공 예정:**
 - **Spring Boot Swagger**: http://localhost:8080/swagger-ui.html
-- **Python FastAPI** (선택): http://localhost:8000/docs
+- **Spring Boot API**: http://localhost:8080/api/*
 
 ---
 
@@ -318,11 +356,11 @@ services:
     container_name: marketpulse-redis
     ports:
       - "6379:6379"
-    command: redis-server --requirepass ${REDIS_PASSWORD}
+    command: redis-server
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -343,11 +381,6 @@ services:
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
 
-      # Redis
-      SPRING_DATA_REDIS_HOST: redis
-      SPRING_DATA_REDIS_PORT: 6379
-      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD}
-
       # JWT
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRATION: ${JWT_EXPIRATION}
@@ -356,8 +389,6 @@ services:
       JAVA_OPTS: -Xmx2g -Xms512m
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
@@ -374,17 +405,21 @@ services:
       context: .
       dockerfile: Dockerfile.python
     container_name: marketpulse-python-worker
-    command: celery -A app.celery_worker worker -l info -c 2
+    command: python -m app.main
     environment:
       # Database
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
 
-      # Redis
-      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      # Redis & Message Queue
+      REDIS_URL: redis://redis:6379/0
+      QUEUE_ENABLED: "true"
+      REDIS_QUEUE_NAME: marketpulse:tasks
 
-      # Celery
-      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
-      CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD}@redis:6379/0
+      # Scheduler Settings
+      SCHEDULER_ENABLED: "true"
+      CRAWL_INTERVAL_HOURS: 1
+      SENTIMENT_INTERVAL_HOURS: 2
+      MARKET_DATA_INTERVAL_HOURS: 6
 
       # API Keys
       YAHOO_FINANCE_API_KEY: ${YAHOO_FINANCE_API_KEY}
@@ -398,23 +433,7 @@ services:
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
-    mem_limit: 3g
-    restart: unless-stopped
-
-  celery-beat:
-    build:
-      context: .
-      dockerfile: Dockerfile.python
-    container_name: marketpulse-celery-beat
-    command: celery -A app.celery_worker beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
-    environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
-      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
-    depends_on:
-      - redis
-      - postgres
-    mem_limit: 512m
+    mem_limit: 2g
     restart: unless-stopped
 
   # ==================== Reverse Proxy ====================
@@ -452,7 +471,7 @@ marketpulse/
 │   │   ├── MarketPulseApplication.java
 │   │   ├── config/                 # 설정
 │   │   │   ├── SecurityConfig.java
-│   │   │   ├── RedisConfig.java
+│   │   │   ├── CacheConfig.java        # 캐시 설정 (추후)
 │   │   │   └── WebConfig.java
 │   │   ├── entity/                 # JPA Entity
 │   │   │   ├── User.java
@@ -493,22 +512,21 @@ marketpulse/
 │
 ├── app/                            # Python 데이터 파이프라인
 │   ├── __init__.py
-│   ├── celery_worker.py            # Celery 설정
+│   ├── main.py                     # 진입점 (worker 호출)
+│   ├── worker.py                   # 백그라운드 워커
+│   ├── scheduler.py                # APScheduler 설정
+│   ├── cli.py                      # CLI 도구 (수동 실행)
 │   ├── core/
 │   │   ├── config.py               # 설정
-│   │   └── database.py             # DB 연결
+│   │   └── database.py             # DB 연결 (미사용)
 │   ├── models/
 │   │   └── database.py             # SQLAlchemy 모델
 │   ├── services/
 │   │   ├── crawler_service.py      # 크롤러
 │   │   ├── sentiment_analyzer.py   # 감성분석
-│   │   ├── feature_extractor.py    # 피처 추출
+│   │   ├── ticker_extractor.py     # 티커 추출
 │   │   └── market_data_sync.py     # 마켓 데이터 동기화
-│   ├── tasks/                      # Celery 태스크
-│   │   ├── crawl_news.py
-│   │   ├── analyze_sentiment.py
-│   │   └── extract_features.py
-│   └── main.py                     # FastAPI (선택)
+│   └── main.py.fastapi_backup      # FastAPI 백업 (참고용)
 │
 ├── index_analyzer/                 # 크롤러 엔진 (기존)
 │   ├── crawling/
@@ -781,19 +799,19 @@ spring:
         order_inserts: true
         order_updates: true
 
-  # Redis
-  data:
-    redis:
-      host: ${SPRING_DATA_REDIS_HOST}
-      port: ${SPRING_DATA_REDIS_PORT}
-      password: ${SPRING_DATA_REDIS_PASSWORD}
-      timeout: 60000
+  # Redis (추후 구현)
+  # data:
+  #   redis:
+  #     host: ${SPRING_DATA_REDIS_HOST}
+  #     port: ${SPRING_DATA_REDIS_PORT}
+  #     password: ${SPRING_DATA_REDIS_PASSWORD}
+  #     timeout: 60000
 
-  cache:
-    type: redis
-    redis:
-      time-to-live: 600000  # 10분
-      cache-null-values: false
+  # cache:
+  #   type: redis
+  #   redis:
+  #     time-to-live: 600000  # 10분
+  #     cache-null-values: false
 
   # Security
   security:
@@ -959,10 +977,15 @@ curl http://localhost:8080/actuator/health
   - [ ] 프로젝트 초기화
   - [ ] JPA Entity 설계
   - [ ] Repository 구현
-  - [ ] Redis 캐싱 설정
-- [ ] **Python Celery 구현**
-  - [ ] 크롤링 태스크
-  - [ ] 스케줄링 설정
+  - [ ] 캐싱 설정 (추후 Spring Boot에서)
+- [x] **Python APScheduler 구현**
+  - [x] 크롤링 자동 실행
+  - [x] 스케줄링 설정
+  - [x] CLI 수동 실행 도구
+- [x] **Redis Message Queue 구현**
+  - [x] Redis Queue Consumer
+  - [x] 하이브리드 모드 (APScheduler + Queue)
+  - [x] Spring Boot 메시지 포맷 정의
 - [ ] **Docker Compose 통합**
 
 ### 🔄 Month 3-4: 핵심 기능
@@ -981,7 +1004,7 @@ curl http://localhost:8080/actuator/health
 ### 🔄 Month 5-6: 최적화
 - [ ] **성능 튜닝**
   - [ ] DB 인덱스 최적화
-  - [ ] Redis 캐시 전략
+  - [ ] 캐시 전략 (Spring Boot)
   - [ ] API 응답 최적화
 - [ ] **프론트엔드**
   - [ ] React 기본 구조
@@ -1024,20 +1047,47 @@ MIT License
 ## 🎯 현재 상태
 
 ```
-진행률: ████████░░░░░░░░░░░░ 40%
+진행률: ████████████░░░░░░░░ 60%
 
 완료:
 ✅ 아키텍처 설계
-✅ Python 크롤러 엔진
-✅ 데이터베이스 스키마
-✅ 티커 추출 시스템
+✅ Python 크롤러 엔진 (뉴스 수집)
+✅ 데이터베이스 스키마 (SQLite/PostgreSQL)
+✅ 티커 추출 시스템 (S&P 500)
+✅ 감성 분석 (규칙 기반)
+✅ APScheduler 자동 스케줄링
+✅ Redis Message Queue (Spring ↔ Python 통신)
+✅ 하이브리드 워커 (자동 + 수동 트리거)
+✅ CLI 도구 (수동 실행)
+✅ 마켓 데이터 동기화
 
 다음 단계:
-⏳ Spring Boot API 구현
-⏳ Celery 작업 큐
+⏳ Spring Boot API 구현 (REST API)
 ⏳ JWT 인증 시스템
 ⏳ 포트폴리오 관리
+⏳ FinBERT 고급 감성 분석
 ```
+
+**현재 실행 가능:**
+
+1. **APScheduler Only 모드** (Redis 없이)
+   ```bash
+   python -m app.main
+   ```
+   - 매 1시간마다 자동 뉴스 수집
+   - 매 2시간마다 감성 분석
+
+2. **Hybrid 모드** (Redis 포함, 권장)
+   ```bash
+   redis-server &
+   python -m app.main
+   ```
+   - 자동 스케줄링 + Spring Boot 트리거 대기
+
+3. **CLI 수동 실행**
+   ```bash
+   python -m app.cli crawl        # 즉시 크롤링
+   ```
 
 ---
 

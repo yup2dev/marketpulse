@@ -7,7 +7,10 @@
       "Bash(test:*)",
       "Bash(pip install:*)",
       "Bash(python test_scheduler.py:*)",
-      "Bash(timeout 30 python:*)"
+      "Bash(timeout 30 python:*)",
+      "Bash(timeout 15 python:*)",
+      "Bash(python test_worker.py:*)",
+      "Bash(python:*)"
     ],
     "deny": [],
     "ask": []

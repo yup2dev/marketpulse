@@ -68,7 +68,7 @@ def register_jobs(scheduler: BackgroundScheduler):
             replace_existing=True,
             next_run_time=datetime.utcnow()  # 즉시 한 번 실행
         )
-        log.info(f"✓ Registered: News Crawler (every {settings.CRAWL_INTERVAL_HOURS}h)")
+        log.info(f"Registered: News Crawler (every {settings.CRAWL_INTERVAL_HOURS}h)")
 
     # ===== 2. 감성 분석 =====
     if settings.SENTIMENT_INTERVAL_HOURS > 0:
@@ -81,7 +81,7 @@ def register_jobs(scheduler: BackgroundScheduler):
             name='Analyze News Sentiment',
             replace_existing=True
         )
-        log.info(f"✓ Registered: Sentiment Analyzer (every {settings.SENTIMENT_INTERVAL_HOURS}h)")
+        log.info(f"Registered: Sentiment Analyzer (every {settings.SENTIMENT_INTERVAL_HOURS}h)")
 
     # ===== 3. 마켓 데이터 동기화 =====
     if settings.MARKET_DATA_INTERVAL_HOURS > 0:
@@ -94,7 +94,7 @@ def register_jobs(scheduler: BackgroundScheduler):
             name='Sync Market Data',
             replace_existing=True
         )
-        log.info(f"✓ Registered: Market Data Sync (every {settings.MARKET_DATA_INTERVAL_HOURS}h)")
+        log.info(f"Registered: Market Data Sync (every {settings.MARKET_DATA_INTERVAL_HOURS}h)")
 
     # ===== 4. 일일 클린업 (선택) =====
     # 오래된 뉴스 삭제, 통계 집계 등
@@ -105,7 +105,7 @@ def register_jobs(scheduler: BackgroundScheduler):
         name='Daily Cleanup Task',
         replace_existing=True
     )
-    log.info("✓ Registered: Daily Cleanup (00:00 UTC)")
+    log.info("Registered: Daily Cleanup (00:00 UTC)")
 
     log.info(f"All jobs registered. Total: {len(scheduler.get_jobs())} jobs")
 

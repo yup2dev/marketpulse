@@ -122,7 +122,7 @@ class SentimentAnalyzer:
             if close_session:
                 session.close()
 
-            log.info(f"✓ Loaded {len(self.ticker_to_names)} ticker name mappings from database")
+            log.info(f"Loaded {len(self.ticker_to_names)} ticker name mappings from database")
 
         except Exception as e:
             log.warning(f"Failed to load ticker mappings from database: {e}")
