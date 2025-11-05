@@ -122,15 +122,7 @@ def main():
 
     try:
         # ===================================================================
-        # 1. APScheduler 시작 (자동 스케줄링)
-        # ===================================================================
-        if settings.SCHEDULER_ENABLED:
-            start_scheduler()
-        else:
-            log.warning("APScheduler is disabled")
-
-        # ===================================================================
-        # 2. Redis Event Bus 초기화
+        # 1. Redis Event Bus 초기화 (먼저 시작)
         # ===================================================================
         if settings.REDIS_URL:
             event_bus = create_redis_event_bus(settings.REDIS_URL)
@@ -144,27 +136,11 @@ def main():
             log.info("=" * 80)
 
             # ===================================================================
-            # 3. Command Listener 시작 (Thread 1)
-            # D3: Redis Listener (Spring → Python 명령)
-            # ===================================================================
-            if settings.QUEUE_ENABLED:
-                log.info("\n[Thread 1] Starting Command Listener...")
-                command_thread = threading.Thread(
-                    target=start_command_listener,
-                    args=(event_bus,),
-                    daemon=True,
-                    name="CommandListener"
-                )
-                command_thread.start()
-                log.info("[Thread 1] Command Listener started")
-            else:
-                log.info("Command Listener disabled in settings")
-
-            # ===================================================================
-            # 4. Analyzer Consumer 시작 (Thread 2)
+            # 2. Analyzer Consumer 시작 (Thread 1 - 먼저 시작!)
             # D5: Analyzer Module (Stream 구독)
+            # Crawler가 발행한 메시지를 즉시 처리할 준비
             # ===================================================================
-            log.info("\n[Thread 2] Starting Analyzer Consumer...")
+            log.info("\n[Thread 1] Starting Analyzer Consumer...")
             analyzer_thread = threading.Thread(
                 target=start_analyzer_consumer,
                 args=(event_bus,),
@@ -172,10 +148,36 @@ def main():
                 name="AnalyzerConsumer"
             )
             analyzer_thread.start()
-            log.info("[Thread 2] Analyzer Consumer started")
+            log.info("[Thread 1] Analyzer Consumer started")
+
+            # ===================================================================
+            # 3. Command Listener 시작 (Thread 2)
+            # D3: Redis Listener (Spring → Python 명령)
+            # ===================================================================
+            if settings.QUEUE_ENABLED:
+                log.info("\n[Thread 2] Starting Command Listener...")
+                command_thread = threading.Thread(
+                    target=start_command_listener,
+                    args=(event_bus,),
+                    daemon=True,
+                    name="CommandListener"
+                )
+                command_thread.start()
+                log.info("[Thread 2] Command Listener started")
+            else:
+                log.info("Command Listener disabled in settings")
 
         else:
             log.warning("Redis URL not configured. Redis-based features disabled.")
+
+        # ===================================================================
+        # 4. APScheduler 시작 (자동 스케줄링) - 마지막에 시작
+        # Analyzer Consumer가 준비된 후에 Crawler 실행
+        # ===================================================================
+        if settings.SCHEDULER_ENABLED:
+            start_scheduler(event_bus=event_bus)
+        else:
+            log.warning("APScheduler is disabled")
 
         # ===================================================================
         # Status Summary
