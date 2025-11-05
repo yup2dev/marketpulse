@@ -176,6 +176,7 @@ spring-boot*/
 # Temporary/Accidental files
 nul
 /.claude
+/.idea
 CLEANUP_PLAN.md
 
 # Backup files
