@@ -1,6 +1,13 @@
 """
-Recommendation Generator - CALC → RCMD 변환
+RCMD Module - CALC → RCMD 변환 (독립 모듈)
 추천 결과 생성 (NEWS / STOCK / PORTFOLIO)
+
+역할:
+- MBS_CALC_METRIC 읽기
+- 투자 추천 생성
+- MBS_RCMD_RESULT 저장
+
+파이프라인: IN → PROC → CALC → RCMD (Generator)
 """
 import logging
 from typing import Dict, List, Optional, Tuple
@@ -25,12 +32,12 @@ log = logging.getLogger(__name__)
 
 class RcmdGenerator:
     """
-    CALC → RCMD 변환 프로세서
+    RCMD 모듈: CALC → RCMD 변환 (독립적으로 동작)
 
     추천 타입:
-    - NEWS: 주목할 뉴스 추천
-    - STOCK: 매수/매도 종목 추천
-    - PORTFOLIO: 포트폴리오 추천
+    - NEWS: 주목할 뉴스 추천 (sentiment + risk 기반)
+    - STOCK: 매수/매도/보유 종목 추천
+    - PORTFOLIO: 포트폴리오 추천 (다중 종목 조합)
     """
 
     def __init__(self):

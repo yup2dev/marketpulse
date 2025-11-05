@@ -49,9 +49,8 @@ def register_jobs(scheduler: BackgroundScheduler, event_bus=None):
     """
     스케줄 작업 등록
 
-    MBS 파이프라인 작업:
-    0. IN 입수 - 뉴스 크롤링 (매 1시간) ⭐ Redis 있으면 Stream, 없으면 직접 DB
-    0.5. IN → PROC 배치 변환 (매 1시간) ⭐ Redis 없을 때 사용, 있을 때는 Analyzer가 처리
+    MBS 파이프라인 작업 (IN → PROC → CALC → RCMD):
+    0. IN 입수 - 뉴스 크롤링 (매 1시간) → Stream으로 발행 → AnalyzerConsumer가 PROC 처리
     1. PROC → CALC 변환 (매 1시간)
     2. CALC → RCMD 생성 (매 2시간)
     3. 마켓 데이터 동기화 (매 6시간)
@@ -59,89 +58,25 @@ def register_jobs(scheduler: BackgroundScheduler, event_bus=None):
     """
     log.info("Registering scheduled jobs...")
 
-    # ===== 0. IN 입수 - 뉴스 크롤링 (Stream 또는 직접 DB) =====
+    # ===== 0. IN 입수 - 뉴스 크롤링 (Stream 발행) =====
     def scheduled_crawl_news():
         """
-        스케줄된 크롤링 작업
-        - event_bus 있으면: Stream으로 발행 (Analyzer가 처리)
-        - event_bus 없으면: 직접 DB 저장
+        스케줄된 크롤링 작업 (IN 모듈)
+        - 뉴스 크롤링 → MBS_IN_ARTICLE 저장 → Stream 발행
+        - AnalyzerConsumer가 Stream 구독하여 PROC 처리
         """
         try:
-            log.info("[Scheduled Job] crawl_news started")
-            from app.services.crawler_service import crawl_with_stream, get_crawler_service
+            log.info("[Scheduled Job] crawl_news (IN Module) started")
+            from app.services.crawler_service import crawl_with_stream
 
-            if event_bus:
-                # Stream 기반 크롤링 (Analyzer가 IN→PROC 변환)
-                article_count = crawl_with_stream(event_bus)
-                log.info(f"[Scheduled Job] crawl_news completed: {article_count} articles published to stream")
-                return article_count
-            else:
-                # 직접 크롤링 (Redis 없을 때)
-                log.info("[Scheduled Job] crawl_news: Redis not available, crawling directly to DB")
-                crawler = get_crawler_service()
-                sites = crawler.load_sites_config()
+            if not event_bus:
+                log.error("[Scheduled Job] Redis Event Bus not available - cannot publish to stream")
+                return 0
 
-                if not sites:
-                    log.warning("[Scheduled Job] No sites to crawl")
-                    return 0
-
-                article_count = 0
-                for site_name, seed_urls in sites.items():
-                    try:
-                        from index_analyzer.models.schemas import CrawlConfig
-                        from index_analyzer.crawling.crawler import Crawler
-                        from index_analyzer.crawling.url_classifier import URLClassifier
-                        from index_analyzer.parsing.heuristics import ArticleHeuristics
-                        from index_analyzer.parsing.parser import Parser
-
-                        log.info(f"[Scheduled Job] Crawling {site_name}...")
-
-                        crawl_cfg = CrawlConfig(
-                            max_total=10,
-                            max_depth=2,
-                            timeout_get=30,
-                            same_domain_only=True,
-                            user_agent="Mozilla/5.0 (MarketPulse Bot)"
-                        )
-
-                        heuristics = ArticleHeuristics(allow=(), deny=())
-                        classifier = URLClassifier()
-                        crawl_obj = Crawler(crawl_cfg, heuristics, classifier, max_depth=2)
-
-                        for url, depth in crawl_obj.discover(seed_urls):
-                            try:
-                                html = crawl_obj.http.get_html(url, timeout=30)
-                                if not html:
-                                    continue
-
-                                parser = Parser(url, html)
-                                title = parser.extract_title()
-
-                                if not title:
-                                    continue
-
-                                news_id = crawler._save_to_mbs_in_article(
-                                    site_name,
-                                    url,
-                                    title,
-                                    parser.extract_main_text(),
-                                    parser.extract_published_time()
-                                )
-
-                                if news_id:
-                                    article_count += 1
-                                    log.debug(f"[Scheduled Job] Saved: {title[:60]}...")
-
-                            except Exception as e:
-                                log.debug(f"[Scheduled Job] Error processing {url}: {e}")
-                                continue
-
-                    except Exception as e:
-                        log.error(f"[Scheduled Job] Error crawling {site_name}: {e}")
-                        continue
-
-                log.info(f"[Scheduled Job] crawl_news completed: {article_count} articles saved to DB")
-                return article_count
+            # Stream 기반 크롤링 (IN → Stream → PROC 파이프라인)
+            article_count = crawl_with_stream(event_bus)
+            log.info(f"[Scheduled Job] crawl_news completed: {article_count} articles published to stream")
+            return article_count
 
         except Exception as e:
             log.error(f"[Scheduled Job] crawl_news failed: {e}", exc_info=True)
@@ -156,22 +91,6 @@ def register_jobs(scheduler: BackgroundScheduler, event_bus=None):
         next_run_time=datetime.utcnow()  # 즉시 한 번 실행
     )
     log.info("Registered: IN → News Crawling (every 1h)")
-
-    # ===== 0.5. IN → PROC 배치 변환 (Redis 없을 때 사용) =====
-    try:
-        from app.services.article_processor import scheduled_process_articles
-
-        scheduler.add_job(
-            func=scheduled_process_articles,
-            trigger=IntervalTrigger(hours=1),
-            id='process_articles',
-            name='IN to PROC Batch Processing',
-            replace_existing=True,
-            next_run_time=datetime.utcnow()  # 즉시 한 번 실행
-        )
-        log.info("Registered: IN → PROC Batch Processing (every 1h)")
-    except ImportError:
-        log.warning("Article processor not available")
 
     # ===== 1. PROC → CALC 변환 =====
     from app.services.calc_processor import scheduled_calc_processing

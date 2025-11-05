@@ -76,9 +76,6 @@ class CommandHandler:
         elif task_type == "generate_recommendations":
             return self._execute_generate_recommendations(params)
 
-        elif task_type == "analyze_sentiment":
-            return self._execute_sentiment_analysis(params)
-
         elif task_type == "sync_market_data":
             return self._execute_market_sync(params)
 
@@ -135,16 +132,6 @@ class CommandHandler:
             "news": results.get('news', 0),
             "stock": results.get('stock', 0),
             "portfolio": results.get('portfolio', 0)
-        }
-
-    def _execute_sentiment_analysis(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """감성 분석 실행 (레거시)"""
-        log.info("[Task] Executing: Sentiment Analysis (legacy - use Analyzer Consumer instead)")
-
-        return {
-            "task": "analyze_sentiment",
-            "message": "Use Analyzer Consumer for MBS pipeline",
-            "updated_count": 0
         }
 
     def _execute_market_sync(self, params: Dict[str, Any]) -> Dict[str, Any]:

@@ -1,6 +1,13 @@
 """
-Crawler Service - 뉴스 크롤링 통합 서비스
-스케줄러에서 호출할 수 있는 고수준 크롤링 함수 제공
+IN Module - 뉴스 입수 (독립 모듈)
+뉴스 크롤링 및 Stream 발행
+
+역할:
+- 뉴스 사이트 크롤링
+- MBS_IN_ARTICLE 저장
+- Redis Stream 'stream:new_articles' 발행
+
+파이프라인: IN (Crawler) → Stream → PROC → CALC → RCMD
 """
 import logging
 import yaml
@@ -28,7 +35,12 @@ log = logging.getLogger(__name__)
 
 
 class CrawlerService:
-    """뉴스 크롤링 서비스"""
+    """
+    IN 모듈: 뉴스 입수 (독립적으로 동작)
+    - sites.yaml에서 사이트 목록 로드
+    - 뉴스 크롤링 및 파싱
+    - MBS_IN_ARTICLE 테이블에 저장
+    """
 
     def __init__(self):
         """초기화"""

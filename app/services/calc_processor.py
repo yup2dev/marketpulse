@@ -1,6 +1,13 @@
 """
-Calculation Processor - PROC → CALC 변환
-메트릭 계산 (RISK, DELTA, VEGA 등)
+CALC Module - PROC → CALC 변환 (독립 모듈)
+메트릭 계산 (RISK, VOLATILITY, SENTIMENT, PRICE_IMPACT)
+
+역할:
+- MBS_PROC_ARTICLE 읽기
+- 정량적 메트릭 계산
+- MBS_CALC_METRIC 저장
+
+파이프라인: IN → PROC → CALC (Processor) → RCMD
 """
 import logging
 from typing import Dict, List, Optional
@@ -23,13 +30,13 @@ log = logging.getLogger(__name__)
 
 class CalcProcessor:
     """
-    PROC → CALC 변환 프로세서
+    CALC 모듈: PROC → CALC 변환 (독립적으로 동작)
 
     메트릭 계산:
-    - SENTIMENT_SCORE: 감성 점수 (-1 ~ 1)
+    - SENTIMENT: 감성 점수 복사 (-1 ~ 1)
     - PRICE_IMPACT: 가격 영향도 예측
-    - RISK: 리스크 지표
-    - VOLATILITY: 변동성 지표
+    - RISK: 리스크 지표 (sentiment + impact 기반)
+    - VOLATILITY: 변동성 지표 (과거 5일 가격 변동)
     """
 
     def __init__(self):

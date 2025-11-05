@@ -1,12 +1,21 @@
 """
-Python Background Worker - Stream-based Architecture
+Python Background Worker - Independent Module Pipeline
 D1: Systemd / Docker Daemon (항상 실행 유지)
-D2: Orchestrator (APScheduler + Listener)
+D2: Orchestrator (APScheduler + Stream Consumer)
+
+파이프라인: IN → PROC → CALC → RCMD (각 모듈 독립적으로 동작)
 
 구조:
 - Main Thread: APScheduler (자동 스케줄링)
-- Thread 1: Command Listener (Spring → Python 명령 수신)
-- Thread 2: Analyzer Consumer (Crawler → Analyzer 파이프라인)
+  - IN: Crawler (매 1시간) → MBS_IN_ARTICLE + Stream 발행
+  - CALC: CalcProcessor (매 1시간) → MBS_PROC_ARTICLE → MBS_CALC_METRIC
+  - RCMD: RcmdGenerator (매 2시간) → MBS_CALC_METRIC → MBS_RCMD_RESULT
+
+- Thread 1: PROC Consumer (실시간 처리)
+  - AnalyzerConsumer: Stream 구독 → MBS_IN_ARTICLE → MBS_PROC_ARTICLE
+
+- Thread 2: Command Listener
+  - Spring → Python 명령 수신 및 처리
 """
 import logging
 import signal
@@ -183,15 +192,24 @@ def main():
         # Status Summary
         # ===================================================================
         log.info("\n" + "=" * 80)
-        log.info("Background Worker is running...")
+        log.info("Background Worker is running (Independent Module Pipeline)")
+        log.info("")
+        log.info("Pipeline Modules:")
+        log.info("  - IN (Crawler): Scheduled every 1h")
+        log.info("  - PROC (Analyzer): Real-time via stream:new_articles")
+        log.info("  - CALC (Processor): Scheduled every 1h")
+        log.info("  - RCMD (Generator): Scheduled every 2h")
+        log.info("")
+        log.info("Active Threads:")
         log.info("  - APScheduler: Auto-scheduling tasks")
 
         if command_thread and command_thread.is_alive():
             log.info(f"  - Command Listener: Listening on '{settings.REDIS_QUEUE_NAME}'")
 
         if analyzer_thread and analyzer_thread.is_alive():
-            log.info("  - Analyzer Consumer: Consuming 'stream:new_articles'")
+            log.info("  - PROC Consumer: Consuming 'stream:new_articles'")
 
+        log.info("")
         log.info("Press Ctrl+C to stop")
         log.info("=" * 80 + "\n")
 

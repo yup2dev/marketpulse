@@ -1,7 +1,15 @@
 """
-Analyzer Consumer - Redis Stream 구독 및 분석 처리
+PROC Module - IN → PROC 변환 (실시간 Stream 처리)
 D5: Analyzer Module (분석 수행)
 D6: DB Writer (결과 저장)
+
+역할:
+- Redis Stream 'stream:new_articles' 구독
+- MBS_IN_ARTICLE 읽기
+- 감성 분석 + 티커 추출
+- MBS_PROC_ARTICLE 저장
+
+파이프라인: IN (Crawler) → Stream → PROC (Analyzer) → CALC → RCMD
 """
 import logging
 from typing import Dict
@@ -22,14 +30,14 @@ log = logging.getLogger(__name__)
 
 class AnalyzerConsumer:
     """
-    Stream 기반 분석 Consumer
+    PROC 모듈: IN → PROC 변환 (실시간 Stream 기반)
 
     흐름:
-    1. Redis Stream에서 article_id 수신
-    2. DB에서 article 조회
-    3. 감성 분석 & 티커 추출
-    4. DB 업데이트 (D6: DB Writer)
-    5. 상태 발행 (옵션)
+    1. Redis Stream 'stream:new_articles'에서 news_id 수신
+    2. MBS_IN_ARTICLE에서 기사 조회
+    3. 감성 분석 (SentimentAnalyzer)
+    4. 티커 추출 (TickerExtractor)
+    5. MBS_PROC_ARTICLE에 저장
     """
 
     def __init__(self, event_bus: RedisEventBus):
