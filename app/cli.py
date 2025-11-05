@@ -28,7 +28,7 @@ def sync_market_data():
     log.info("Manual Task: Market Data Sync")
     log.info("=" * 60)
 
-    from app.services.market_data_sync import sync_market_data
+    from app.services.market_data_sync import
 
     start_time = datetime.now()
     results = sync_market_data()

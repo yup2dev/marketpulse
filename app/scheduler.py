@@ -84,8 +84,6 @@ def register_jobs(scheduler: BackgroundScheduler, event_bus=None):
         log.info("Registered: IN → News Crawling (every 1h, Stream-based)")
     else:
         log.warning("Event bus not provided, skipping crawl_news job registration")
-        
-        ## 진행중
 
     # ===== 1. PROC → CALC 변환 =====
     from app.services.calc_processor import scheduled_calc_processing

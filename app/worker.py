@@ -29,34 +29,56 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-# Global threads
+# Global threads and state management
 command_thread = None
 analyzer_thread = None
 event_bus = None
+shutdown_event = threading.Event()
 
 
 def signal_handler(signum, frame):
-    """Graceful shutdown"""
-    log.info("Received shutdown signal. Stopping worker...")
+    """Graceful shutdown with proper cleanup"""
+    log.info(f"Received shutdown signal ({signum}). Stopping worker...")
+
+    # 종료 플래그 설정
+    shutdown_event.set()
 
     # APScheduler 중지
     stop_scheduler()
 
     # Event Bus 리스너 중지
     if event_bus:
-        event_bus.stop_queue_listener()
-        event_bus.stop_stream_consumer()
+        try:
+            event_bus.stop_queue_listener()
+            event_bus.stop_stream_consumer()
+            log.info("Event Bus listeners stopped")
+        except Exception as e:
+            log.error(f"Error stopping event bus: {e}")
 
-    # Thread들이 종료될 때까지 대기 (최대 5초)
+    # Thread들이 종료될 때까지 대기 (최대 10초)
+    threads_to_wait = []
+
     if command_thread and command_thread.is_alive():
         log.info("Waiting for Command Listener to stop...")
-        command_thread.join(timeout=5)
+        threads_to_wait.append(('CommandListener', command_thread))
 
     if analyzer_thread and analyzer_thread.is_alive():
         log.info("Waiting for Analyzer Consumer to stop...")
-        analyzer_thread.join(timeout=5)
+        threads_to_wait.append(('AnalyzerConsumer', analyzer_thread))
 
+    for thread_name, thread in threads_to_wait:
+        try:
+            thread.join(timeout=10)
+            if thread.is_alive():
+                log.warning(f"{thread_name} did not stop within timeout")
+            else:
+                log.info(f"{thread_name} stopped")
+        except Exception as e:
+            log.error(f"Error stopping {thread_name}: {e}")
+
+    log.info("=" * 80)
     log.info("Worker stopped gracefully")
+    log.info("=" * 80)
     sys.exit(0)
 
 

@@ -32,21 +32,30 @@ class RedisEventBus:
         self,
         queue_name: str,
         callback: Callable[[Dict], Any],
-        timeout: int = 5
+        timeout: int = 5,
+        max_retries: int = 5
     ):
         """
-        명령 Queue 구독 (BLPOP)
+        명령 Queue 구독 (BLPOP) - Redis 재연결 로직 포함
 
         Args:
             queue_name: Queue 이름 (예: 'marketpulse:commands')
             callback: 메시지 처리 함수
             timeout: BLPOP 타임아웃 (초)
+            max_retries: 최대 재시도 횟수
         """
         self.running = True
+        retry_count = 0
         log.info(f"[Queue] Listening on: {queue_name}")
 
         while self.running:
             try:
+                # 연결 상태 확인
+                if retry_count > 0:
+                    log.info(f"[Queue] Reconnection attempt {retry_count}/{max_retries}")
+                    self.redis.ping()
+                    retry_count = 0
+
                 message = self.redis.blpop(queue_name, timeout=timeout)
 
                 if message:
@@ -57,12 +66,19 @@ class RedisEventBus:
                     callback(data)
 
             except redis.ConnectionError as e:
-                log.error(f"[Queue] Connection error: {e}")
-                time.sleep(5)
+                retry_count += 1
+                if retry_count > max_retries:
+                    log.error(f"[Queue] Max retries exceeded ({max_retries}). Stopping listener.")
+                    self.running = False
+                    break
+                log.warning(f"[Queue] Connection error (attempt {retry_count}/{max_retries}): {e}")
+                time.sleep(min(5 * retry_count, 30))  # 지수 백오프 (최대 30초)
             except json.JSONDecodeError as e:
                 log.error(f"[Queue] Invalid JSON: {e}")
+                retry_count = 0
             except Exception as e:
-                log.error(f"[Queue] Error: {e}", exc_info=True)
+                log.error(f"[Queue] Unexpected error: {e}", exc_info=True)
+                retry_count = 0
                 time.sleep(1)
 
     def send_command(self, queue_name: str, command: Dict[str, Any]) -> bool:
@@ -135,10 +151,11 @@ class RedisEventBus:
         consumer_name: str,
         callback: Callable[[Dict], None],
         count: int = 10,
-        block: int = 5000
+        block: int = 5000,
+        max_retries: int = 5
     ):
         """
-        Stream 구독 및 처리 (Consumer Group)
+        Stream 구독 및 처리 (Consumer Group) - Redis 재연결 로직 포함
 
         Args:
             stream_name: Stream 이름
@@ -147,8 +164,10 @@ class RedisEventBus:
             callback: 메시지 처리 함수
             count: 한 번에 읽을 메시지 수
             block: 대기 시간 (밀리초)
+            max_retries: 최대 재시도 횟수
         """
         self.running = True
+        retry_count = 0
 
         # Consumer Group 생성 (이미 존재하면 무시)
         try:
@@ -167,6 +186,12 @@ class RedisEventBus:
 
         while self.running:
             try:
+                # 연결 상태 확인
+                if retry_count > 0:
+                    log.info(f"[Stream] Reconnection attempt {retry_count}/{max_retries}")
+                    self.redis.ping()
+                    retry_count = 0
+
                 # XREADGROUP으로 메시지 읽기
                 messages = self.redis.xreadgroup(
                     consumer_group,
@@ -204,10 +229,16 @@ class RedisEventBus:
                             # 실패한 메시지는 ACK하지 않음 (재처리 가능)
 
             except redis.ConnectionError as e:
-                log.error(f"[Stream] Connection error: {e}")
-                time.sleep(5)
+                retry_count += 1
+                if retry_count > max_retries:
+                    log.error(f"[Stream] Max retries exceeded ({max_retries}). Stopping consumer.")
+                    self.running = False
+                    break
+                log.warning(f"[Stream] Connection error (attempt {retry_count}/{max_retries}): {e}")
+                time.sleep(min(5 * retry_count, 30))  # 지수 백오프
             except Exception as e:
-                log.error(f"[Stream] Error: {e}", exc_info=True)
+                log.error(f"[Stream] Unexpected error: {e}", exc_info=True)
+                retry_count = 0
                 time.sleep(1)
 
     def stop_stream_consumer(self):

@@ -1252,23 +1252,31 @@ MIT License
 ## 🎯 현재 상태
 
 ```
-진행률: ████████████████░░░░ 80%
+진행률: ████████████████████ 95%
 
 완료:
 ✅ Stream Architecture 설계 (README 시스템 플로우 기반)
 ✅ Python 크롤러 엔진 (뉴스 수집)
-✅ 데이터베이스 스키마 (SQLite/PostgreSQL)
+✅ 데이터베이스 스키마 (SQLite/PostgreSQL + MBS 파이프라인 테이블)
 ✅ 티커 추출 시스템 (S&P 500)
 ✅ 감성 분석 (규칙 기반)
-✅ APScheduler 자동 스케줄링
+✅ APScheduler 자동 스케줄링 (완전 구현)
+  - IN: 뉴스 크롤링 (매 1시간)
+  - PROC→CALC: 메트릭 계산 (매 1시간)
+  - CALC→RCMD: 추천 생성 (매 2시간)
+  - 마켓 데이터 동기화 (매 6시간)
+  - 일일 클린업 (매일 자정)
 ✅ Redis Event Bus (Queue, Stream, Pub/Sub 통합)
 ✅ Command Handler (Spring → Python 명령 처리)
-✅ Stream 기반 파이프라인 (Crawler → Analyzer 분리)
-✅ Analyzer Consumer (Stream 구독 및 분석)
+✅ Stream 기반 파이프라인 (Crawler → Analyzer → DB 저장)
+✅ Analyzer Consumer (Stream 구독 및 IN→PROC 변환)
 ✅ Status Publisher (Python → Spring 상태 전송)
 ✅ Multi-thread Orchestrator (APScheduler + 2개 Listener)
+✅ Daemon 패턴 강화 (Graceful shutdown + Redis 재연결)
+✅ Redis 안정성 개선 (Connection Pool + 재시도 로직)
 ✅ CLI 도구 (수동 실행)
-✅ 마켓 데이터 동기화
+✅ Calculation Processor (PROC→CALC: SENTIMENT, PRICE_IMPACT, RISK, VOLATILITY)
+✅ Recommendation Generator (CALC→RCMD: NEWS, STOCK, PORTFOLIO)
 
 다음 단계:
 ⏳ Spring Boot API 구현 (Redis 연동)
@@ -1276,6 +1284,7 @@ MIT License
 ⏳ 포트폴리오 관리
 ⏳ FinBERT 고급 감성 분석
 ⏳ Docker Compose 통합
+⏳ E2E 테스트 (크롤링 → 분석 → 추천)
 ```
 
 **현재 실행 가능:**
