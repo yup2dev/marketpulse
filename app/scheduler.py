@@ -51,6 +51,7 @@ def register_jobs(scheduler: BackgroundScheduler, event_bus=None):
 
     MBS 파이프라인 작업:
     0. IN 입수 - 뉴스 크롤링 (매 1시간) ⭐ Redis 있으면 Stream, 없으면 직접 DB
+    0.5. IN → PROC 배치 변환 (매 1시간) ⭐ Redis 없을 때 사용, 있을 때는 Analyzer가 처리
     1. PROC → CALC 변환 (매 1시간)
     2. CALC → RCMD 생성 (매 2시간)
     3. 마켓 데이터 동기화 (매 6시간)
@@ -155,6 +156,22 @@ def register_jobs(scheduler: BackgroundScheduler, event_bus=None):
         next_run_time=datetime.utcnow()  # 즉시 한 번 실행
     )
     log.info("Registered: IN → News Crawling (every 1h)")
+
+    # ===== 0.5. IN → PROC 배치 변환 (Redis 없을 때 사용) =====
+    try:
+        from app.services.article_processor import scheduled_process_articles
+
+        scheduler.add_job(
+            func=scheduled_process_articles,
+            trigger=IntervalTrigger(hours=1),
+            id='process_articles',
+            name='IN to PROC Batch Processing',
+            replace_existing=True,
+            next_run_time=datetime.utcnow()  # 즉시 한 번 실행
+        )
+        log.info("Registered: IN → PROC Batch Processing (every 1h)")
+    except ImportError:
+        log.warning("Article processor not available")
 
     # ===== 1. PROC → CALC 변환 =====
     from app.services.calc_processor import scheduled_calc_processing
