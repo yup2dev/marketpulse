@@ -32,10 +32,47 @@ class MarketDataSync:
             'skipped': 0
         }
 
+    def _load_sp500_fallback(self) -> List[Dict]:
+        """
+        S&P 500 데이터 로드 폴백
+        1. DB에 있는 기존 S&P 500 종목 로드
+        2. 없으면 빈 리스트 반환 (에러 로그는 이미 출력됨)
+        """
+        try:
+            from app.models.database import MBS_IN_STK_STBD
+
+            # DB에서 기존 S&P 500 종목 조회
+            existing_stocks = self.session.query(MBS_IN_STK_STBD).filter(
+                MBS_IN_STK_STBD.ingest_batch_id.isnot(None)
+            ).all()
+
+            if existing_stocks:
+                log.info(f"[Fallback] Found {len(existing_stocks)} existing S&P 500 stocks in DB")
+                tickers = []
+                for stock in existing_stocks:
+                    tickers.append({
+                        'symbol': stock.stk_cd,
+                        'name': stock.stk_nm,
+                        'sector': stock.sector or 'Unknown',
+                        'industry': 'Stock',
+                        'exchange': 'NYSE',
+                        'asset_type': 'stock',
+                        'country': 'USA',
+                        'currency': stock.curr or 'USD',
+                        'data_source': 'db_cache'
+                    })
+                return tickers
+            else:
+                log.warning("[Fallback] No existing S&P 500 stocks in DB")
+                return []
+
+        except Exception as e:
+            log.error(f"[Fallback] Error loading from DB: {e}")
+            return []
+
     def sync_sp500_from_wikipedia(self) -> List[Dict]:
         """
         Wikipedia에서 S&P 500 편입 종목 실시간 가져오기
-        SSL 검증 오류 발생 시 폴백: 하드코딩된 기본 종목 목록 사용
 
         Returns: List of ticker dicts
         """
@@ -47,12 +84,13 @@ class MarketDataSync:
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             }
 
-            # pandas.read_html에서 SSL 검증 비활성화
-            tables = pd.read_html(
-                url,
-                storage_options=headers,
-                ssl_verify=False  # SSL 검증 비활성화
-            )
+            # pandas.read_html 직접 호출 (SSL 비활성화 전역 설정으로 처리)
+            tables = pd.read_html(url)
+
+            if not tables:
+                log.warning("No tables found in Wikipedia page")
+                return []
+
             sp500_table = tables[0]
 
             log.info(f"Found {len(sp500_table)} S&P 500 companies from Wikipedia")
@@ -60,11 +98,19 @@ class MarketDataSync:
             tickers = []
             for _, row in sp500_table.iterrows():
                 try:
+                    symbol = str(row['Symbol']).strip().replace('.', '-')
+                    name = str(row['Security']).strip()
+                    sector = str(row.get('GICS Sector', 'Unknown')).strip()
+                    industry = str(row.get('GICS Sub-Industry', 'Unknown')).strip()
+
+                    if not symbol or symbol == 'nan':
+                        continue
+
                     ticker_info = {
-                        'symbol': str(row['Symbol']).replace('.', '-'),
-                        'name': str(row['Security']),
-                        'sector': str(row['GICS Sector']),
-                        'industry': str(row['GICS Sub-Industry']),
+                        'symbol': symbol,
+                        'name': name,
+                        'sector': sector,
+                        'industry': industry,
                         'exchange': 'NYSE' if 'NYSE' in str(row.get('Exchange', 'NYSE')) else 'NASDAQ',
                         'asset_type': 'stock',
                         'country': 'USA',
@@ -76,38 +122,16 @@ class MarketDataSync:
                     log.debug(f"Error processing row: {row_e}")
                     continue
 
-            return tickers
+            if tickers:
+                log.info(f"Successfully parsed {len(tickers)} S&P 500 tickers from Wikipedia")
+                return tickers
+            else:
+                log.warning("No valid tickers parsed from Wikipedia table")
+                return []
 
         except Exception as e:
-            log.error(f"Error fetching S&P 500 from Wikipedia: {e}")
-            log.info("Using fallback: default S&P 500 top stocks")
-
-            # 폴백: 기본 종목 목록 (네트워크 실패 시)
-            fallback_stocks = [
-                {'symbol': 'AAPL', 'name': 'Apple Inc.', 'sector': 'Information Technology'},
-                {'symbol': 'MSFT', 'name': 'Microsoft Corp.', 'sector': 'Information Technology'},
-                {'symbol': 'GOOGL', 'name': 'Alphabet Inc.', 'sector': 'Communication Services'},
-                {'symbol': 'AMZN', 'name': 'Amazon.com Inc.', 'sector': 'Consumer Discretionary'},
-                {'symbol': 'TSLA', 'name': 'Tesla Inc.', 'sector': 'Consumer Discretionary'},
-                {'symbol': 'META', 'name': 'Meta Platforms Inc.', 'sector': 'Communication Services'},
-                {'symbol': 'BRK.B', 'name': 'Berkshire Hathaway Inc.', 'sector': 'Financials'},
-                {'symbol': 'JNJ', 'name': 'Johnson & Johnson', 'sector': 'Healthcare'},
-                {'symbol': 'V', 'name': 'Visa Inc.', 'sector': 'Financials'},
-                {'symbol': 'WMT', 'name': 'Walmart Inc.', 'sector': 'Consumer Staples'},
-            ]
-
-            for stock in fallback_stocks:
-                stock.update({
-                    'industry': 'Technology' if 'Technology' in stock.get('sector', '') else 'Other',
-                    'exchange': 'NASDAQ' if 'MSFT' in stock['symbol'] or 'GOOGL' in stock['symbol'] else 'NYSE',
-                    'asset_type': 'stock',
-                    'country': 'USA',
-                    'currency': 'USD',
-                    'data_source': 'fallback'
-                })
-
-            log.warning(f"Using {len(fallback_stocks)} fallback stocks")
-            return fallback_stocks
+            log.error(f"Error fetching S&P 500 from Wikipedia: {type(e).__name__}: {e}")
+            return []
 
     def sync_commodity_futures_from_config(self) -> List[Dict]:
         """
@@ -383,6 +407,12 @@ class MarketDataSync:
         # 1. S&P 500 주식 동기화 → MBS_IN_STK_STBD
         log.info("\n[1/3] Syncing S&P 500 stocks to MBS_IN_STK_STBD...")
         sp500_tickers = self.sync_sp500_from_wikipedia()
+
+        # Wikipedia 실패 시 로컬 폴백 파일 사용
+        if not sp500_tickers:
+            log.warning("[Fallback] Wikipedia fetch failed, attempting to use local CSV/cache...")
+            sp500_tickers = self._load_sp500_fallback()
+
         if sp500_tickers:
             count = self.sync_tickers_to_db(
                 sp500_tickers,
@@ -392,6 +422,8 @@ class MarketDataSync:
             )
             results['sp500'] = count
             log.info(f"Synced {count} S&P 500 stocks → MBS_IN_STK_STBD")
+        else:
+            log.error("[CRITICAL] No S&P 500 data available (Wikipedia + fallback both failed)")
 
         # 2. Commodity Futures 동기화 → Ticker (레거시)
         log.info("\n[2/3] Syncing commodity futures to Ticker (legacy)...")
