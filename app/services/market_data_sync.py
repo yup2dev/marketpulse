@@ -153,20 +153,28 @@ class MarketDataSync:
             log.error(f"Error enriching {symbol}: {e}")
             return None
 
-    def sync_tickers_to_db(self, tickers: List[Dict], enrich: bool = True) -> int:
+    def sync_tickers_to_db(self, tickers: List[Dict], asset_type: str = 'stock',
+                           batch_id: Optional[str] = None, enrich: bool = True) -> int:
         """
         티커 목록을 DB에 동기화
+        - 주식(stock): MBS_IN_STK_STBD에 저장
+        - ETF(etf): MBS_IN_ETF_STBD에 저장
+        - 기타: Ticker 테이블에 저장 (레거시)
 
         Args:
             tickers: 티커 정보 리스트
+            asset_type: 자산 유형 ('stock', 'etf', 'commodity', 'index')
+            batch_id: 입수 배치 ID
             enrich: yfinance로 정보 보강 여부
 
         Returns:
             저장된 티커 수
         """
-        from app.models.database import Ticker
+        from app.models.database import Ticker, MBS_IN_STK_STBD, MBS_IN_ETF_STBD
+        from datetime import date
 
         saved_count = 0
+        today = date.today()
 
         for ticker_info in tickers:
             symbol = ticker_info['symbol']
@@ -185,24 +193,90 @@ class MarketDataSync:
                         'is_active': True
                     })
 
-                # DB에서 기존 티커 확인
-                existing = self.session.query(Ticker).filter_by(symbol=symbol).first()
+                # ===== MBS 테이블에 저장 (새로운 방식) =====
+                if asset_type == 'stock':
+                    # MBS_IN_STK_STBD에 저장
+                    existing = self.session.query(MBS_IN_STK_STBD).filter_by(
+                        stk_cd=symbol,
+                        base_ymd=today
+                    ).first()
 
-                if existing:
-                    # 업데이트
-                    for key, value in ticker_info.items():
-                        if hasattr(existing, key):
-                            setattr(existing, key, value)
-                    existing.updated_at = datetime.utcnow()
-                    log.debug(f"Updated {symbol}")
+                    if existing:
+                        # 업데이트
+                        existing.stk_nm = ticker_info.get('name', symbol)
+                        existing.sector = ticker_info.get('sector', 'Unknown')
+                        existing.curr = ticker_info.get('currency', 'USD')
+                        existing.updated_at = datetime.utcnow()
+                        log.debug(f"Updated stock: {symbol}")
+                    else:
+                        # 신규 추가
+                        stock_record = MBS_IN_STK_STBD(
+                            stk_cd=symbol,
+                            stk_nm=ticker_info.get('name', symbol),
+                            sector=ticker_info.get('sector', 'Unknown'),
+                            curr=ticker_info.get('currency', 'USD'),
+                            close_price=None,  # 가격은 별도로 동기화
+                            change_rate=None,
+                            base_ymd=today,
+                            ingest_batch_id=batch_id
+                        )
+                        self.session.add(stock_record)
+                        log.debug(f"Added stock: {symbol}")
+
+                    saved_count += 1
+                    self.sync_results['success'] += 1
+
+                elif asset_type == 'etf':
+                    # MBS_IN_ETF_STBD에 저장
+                    existing = self.session.query(MBS_IN_ETF_STBD).filter_by(
+                        etf_cd=symbol,
+                        base_ymd=today
+                    ).first()
+
+                    if existing:
+                        # 업데이트
+                        existing.etf_nm = ticker_info.get('name', symbol)
+                        existing.sector = ticker_info.get('sector', 'ETF')
+                        existing.curr = ticker_info.get('currency', 'USD')
+                        existing.updated_at = datetime.utcnow()
+                        log.debug(f"Updated ETF: {symbol}")
+                    else:
+                        # 신규 추가
+                        etf_record = MBS_IN_ETF_STBD(
+                            etf_cd=symbol,
+                            etf_nm=ticker_info.get('name', symbol),
+                            sector=ticker_info.get('sector', 'ETF'),
+                            curr=ticker_info.get('currency', 'USD'),
+                            close_price=None,  # 가격은 별도로 동기화
+                            change_rate=None,
+                            base_ymd=today,
+                            ingest_batch_id=batch_id
+                        )
+                        self.session.add(etf_record)
+                        log.debug(f"Added ETF: {symbol}")
+
+                    saved_count += 1
+                    self.sync_results['success'] += 1
+
                 else:
-                    # 신규 추가
-                    new_ticker = Ticker(**ticker_info)
-                    self.session.add(new_ticker)
-                    log.debug(f"Added {symbol}")
+                    # 기타 자산 유형: 레거시 Ticker 테이블에 저장
+                    existing = self.session.query(Ticker).filter_by(symbol=symbol).first()
 
-                saved_count += 1
-                self.sync_results['success'] += 1
+                    if existing:
+                        # 업데이트
+                        for key, value in ticker_info.items():
+                            if hasattr(existing, key):
+                                setattr(existing, key, value)
+                        existing.updated_at = datetime.utcnow()
+                        log.debug(f"Updated ticker (legacy): {symbol}")
+                    else:
+                        # 신규 추가
+                        new_ticker = Ticker(**ticker_info)
+                        self.session.add(new_ticker)
+                        log.debug(f"Added ticker (legacy): {symbol}")
+
+                    saved_count += 1
+                    self.sync_results['success'] += 1
 
             except Exception as e:
                 log.error(f"Error saving {symbol}: {e}")
@@ -212,7 +286,7 @@ class MarketDataSync:
         # 커밋
         try:
             self.session.commit()
-            log.info(f"Saved {saved_count} tickers to database")
+            log.info(f"Saved {saved_count} {asset_type} records to database")
         except Exception as e:
             log.error(f"Error committing to database: {e}")
             self.session.rollback()
@@ -223,6 +297,9 @@ class MarketDataSync:
     def sync_all(self, enrich: bool = True) -> Dict:
         """
         모든 마켓 데이터 동기화
+        - S&P 500 주식 → MBS_IN_STK_STBD
+        - Commodity → Ticker (레거시)
+        - ETF → MBS_IN_ETF_STBD
 
         Args:
             enrich: yfinance로 정보 보강 여부
@@ -230,9 +307,14 @@ class MarketDataSync:
         Returns:
             동기화 결과 딕셔너리
         """
+        from app.models.database import generate_batch_id
+
         log.info("="*60)
         log.info("Starting market data synchronization...")
         log.info("="*60)
+
+        batch_id = generate_batch_id()
+        log.info(f"Batch ID: {batch_id}")
 
         results = {
             'sp500': 0,
@@ -241,41 +323,57 @@ class MarketDataSync:
             'total': 0
         }
 
-        # 1. S&P 500 동기화
-        log.info("\n[1/3] Syncing S&P 500 stocks...")
+        # 1. S&P 500 주식 동기화 → MBS_IN_STK_STBD
+        log.info("\n[1/3] Syncing S&P 500 stocks to MBS_IN_STK_STBD...")
         sp500_tickers = self.sync_sp500_from_wikipedia()
         if sp500_tickers:
-            count = self.sync_tickers_to_db(sp500_tickers, enrich=enrich)
+            count = self.sync_tickers_to_db(
+                sp500_tickers,
+                asset_type='stock',
+                batch_id=batch_id,
+                enrich=enrich
+            )
             results['sp500'] = count
-            log.info(f"Synced {count} S&P 500 stocks")
+            log.info(f"Synced {count} S&P 500 stocks → MBS_IN_STK_STBD")
 
-        # 2. Commodity Futures 동기화
-        log.info("\n[2/3] Syncing commodity futures...")
+        # 2. Commodity Futures 동기화 → Ticker (레거시)
+        log.info("\n[2/3] Syncing commodity futures to Ticker (legacy)...")
         commodity_tickers = self.sync_commodity_futures_from_config()
         if commodity_tickers:
-            count = self.sync_tickers_to_db(commodity_tickers, enrich=enrich)
+            count = self.sync_tickers_to_db(
+                commodity_tickers,
+                asset_type='commodity',  # 레거시 Ticker로 저장
+                batch_id=batch_id,
+                enrich=enrich
+            )
             results['commodities'] = count
-            log.info(f"Synced {count} commodity futures")
+            log.info(f"Synced {count} commodity futures → Ticker")
 
-        # 3. ETFs 동기화
-        log.info("\n[3/3] Syncing ETFs...")
+        # 3. ETF 동기화 → MBS_IN_ETF_STBD
+        log.info("\n[3/3] Syncing ETFs to MBS_IN_ETF_STBD...")
         etf_tickers = self.sync_etfs_from_config()
         if etf_tickers:
-            count = self.sync_tickers_to_db(etf_tickers, enrich=enrich)
+            count = self.sync_tickers_to_db(
+                etf_tickers,
+                asset_type='etf',
+                batch_id=batch_id,
+                enrich=enrich
+            )
             results['etfs'] = count
-            log.info(f"Synced {count} ETFs")
+            log.info(f"Synced {count} ETFs → MBS_IN_ETF_STBD")
 
         results['total'] = results['sp500'] + results['commodities'] + results['etfs']
 
         log.info("\n" + "="*60)
         log.info("Synchronization Summary:")
-        log.info(f"  S&P 500 stocks:     {results['sp500']:4d}")
-        log.info(f"  Commodity futures:  {results['commodities']:4d}")
-        log.info(f"  ETFs:               {results['etfs']:4d}")
-        log.info(f"  Total synced:       {results['total']:4d}")
+        log.info(f"  S&P 500 stocks (MBS_IN_STK_STBD):  {results['sp500']:4d}")
+        log.info(f"  Commodity futures (Ticker):        {results['commodities']:4d}")
+        log.info(f"  ETFs (MBS_IN_ETF_STBD):            {results['etfs']:4d}")
+        log.info(f"  Total synced:                      {results['total']:4d}")
         log.info(f"\n  Success: {self.sync_results['success']}")
         log.info(f"  Errors:  {self.sync_results['errors']}")
         log.info(f"  Skipped: {self.sync_results['skipped']}")
+        log.info(f"\n  Batch ID: {batch_id}")
         log.info("="*60)
 
         return results
@@ -283,15 +381,20 @@ class MarketDataSync:
     def add_custom_ticker(self, symbol: str, asset_type: str = 'stock', enrich: bool = True) -> bool:
         """
         커스텀 티커 추가
+        - stock: MBS_IN_STK_STBD에 저장
+        - etf: MBS_IN_ETF_STBD에 저장
+        - 기타: Ticker (레거시)에 저장
 
         Args:
             symbol: 티커 심볼
-            asset_type: 자산 유형
+            asset_type: 자산 유형 ('stock', 'etf', 'commodity', 'index')
             enrich: yfinance로 정보 가져오기
 
         Returns:
             성공 여부
         """
+        from app.models.database import generate_batch_id
+
         ticker_info = {
             'symbol': symbol,
             'name': symbol,
@@ -305,7 +408,13 @@ class MarketDataSync:
                 return False
             ticker_info = enriched
 
-        count = self.sync_tickers_to_db([ticker_info], enrich=False)
+        batch_id = generate_batch_id()
+        count = self.sync_tickers_to_db(
+            [ticker_info],
+            asset_type=asset_type,
+            batch_id=batch_id,
+            enrich=False
+        )
         return count > 0
 
     def remove_ticker(self, symbol: str) -> bool:
