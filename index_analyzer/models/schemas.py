@@ -32,7 +32,7 @@ class SiteConfig:
 @dataclass
 class CrawlConfig:
     max_total: int = 200
-    max_depth: int = 2
+    max_depth: int = 3
     max_pages_per_domain: int = 50
     same_domain_only: bool = True
     sleep_between_requests: float = 0.0

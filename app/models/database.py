@@ -1,12 +1,18 @@
 """
-Database Models - SQLAlchemy ORM
-완전히 재설계된 스키마 (base_ymd 기준, 전일 종가 포함)
+Database Models - MBS Schema (README ERD 기준)
+데이터 흐름: IN (입수) → PROC (가공) → CALC (계산) → RCMD (추천)
+
+명명 규칙:
+- MBS_IN_{}   : 입수 (크롤러)
+- MBS_PROC_{} : 가공 (ML/요약)
+- MBS_CALC_{} : 계산 (메트릭)
+- MBS_RCMD_{} : 추천 (결과)
 """
 from datetime import datetime, date
 from typing import List, Optional
 from sqlalchemy import (
     Column, String, Text, Integer, Float, DateTime, Date, Boolean,
-    ForeignKey, Index, UniqueConstraint, create_engine
+    ForeignKey, Index, UniqueConstraint, create_engine, DECIMAL
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
@@ -17,37 +23,294 @@ Base = declarative_base()
 
 
 # =============================================================================
-# 1. Ticker Master Table (종목 마스터)
+# IN Layer: 입수 (크롤러가 넣는 원본 데이터)
 # =============================================================================
-class Ticker(Base):
-    """종목 마스터 테이블 - 외부 API 데이터 캐싱"""
-    __tablename__ = 'tickers'
 
-    symbol = Column(String(20), primary_key=True)  # AAPL, GC=F, BTC-USD
-    name = Column(Text, nullable=False)
-    exchange = Column(String(20), index=True)  # NASDAQ, NYSE, NYMEX, etc.
+class MBS_IN_ARTICLE(Base):
+    """
+    입수 - 뉴스 기사 원본
+    크롤러가 수집한 raw 데이터
+    """
+    __tablename__ = 'mbs_in_article'
 
-    # 분류
-    asset_type = Column(String(20), index=True, nullable=False)  # stock, commodity, etf, crypto, index
-    sector = Column(String(100), index=True)
-    industry = Column(String(100))
-
-    # 메타데이터
-    currency = Column(String(10), default='USD')  # USD, EUR, etc.
-    country = Column(String(50))
-
-    # 동기화 정보
-    data_source = Column(String(50))  # yfinance, wikipedia, manual
-    is_active = Column(Boolean, default=True, index=True)
+    news_id = Column(String(50), primary_key=True)
+    base_ymd = Column(Date, nullable=False, index=True)
+    source_cd = Column(String(50), nullable=False, index=True)  # 출판사/뉴스 출처
+    title = Column(Text, nullable=False)
+    content = Column(Text)
+    publish_dt = Column(DateTime, index=True)
+    ingest_batch_id = Column(String(50), index=True)  # 동일 입수 배치 식별자
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    price_history = relationship("TickerPrice", back_populates="ticker", cascade="all, delete-orphan")
-    news_associations = relationship("NewsTicker", back_populates="ticker")
+    processed_articles = relationship("MBS_PROC_ARTICLE", back_populates="source_article")
 
-    # Indexes
+    __table_args__ = (
+        Index('idx_in_article_base_ymd', 'base_ymd'),
+        Index('idx_in_article_source', 'source_cd', 'base_ymd'),
+        Index('idx_in_article_batch', 'ingest_batch_id'),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            'news_id': self.news_id,
+            'base_ymd': self.base_ymd.isoformat() if self.base_ymd else None,
+            'source_cd': self.source_cd,
+            'title': self.title,
+            'content': self.content,
+            'publish_dt': self.publish_dt.isoformat() if self.publish_dt else None,
+            'ingest_batch_id': self.ingest_batch_id
+        }
+
+
+class MBS_IN_STK_STBD(Base):
+    """
+    입수 - 주식 상태판
+    크롤러가 수집한 주식 가격 데이터
+    """
+    __tablename__ = 'mbs_in_stk_stbd'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    stk_cd = Column(String(20), nullable=False, index=True)
+    stk_nm = Column(String(100))
+    sector = Column(String(100), index=True)
+    curr = Column(String(10), default='USD')
+    close_price = Column(DECIMAL(20, 4))
+    change_rate = Column(DECIMAL(10, 4))
+    base_ymd = Column(Date, nullable=False, index=True)
+    ingest_batch_id = Column(String(50), index=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint('stk_cd', 'base_ymd', name='uq_stk_date'),
+        Index('idx_in_stk_base_ymd', 'base_ymd'),
+        Index('idx_in_stk_cd_date', 'stk_cd', 'base_ymd'),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            'stk_cd': self.stk_cd,
+            'stk_nm': self.stk_nm,
+            'sector': self.sector,
+            'curr': self.curr,
+            'close_price': float(self.close_price) if self.close_price else None,
+            'change_rate': float(self.change_rate) if self.change_rate else None,
+            'base_ymd': self.base_ymd.isoformat() if self.base_ymd else None
+        }
+
+
+class MBS_IN_ETF_STBD(Base):
+    """
+    입수 - ETF 상태판
+    크롤러가 수집한 ETF 가격 데이터
+    """
+    __tablename__ = 'mbs_in_etf_stbd'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    etf_cd = Column(String(20), nullable=False, index=True)
+    etf_nm = Column(String(100))
+    sector = Column(String(100), index=True)
+    curr = Column(String(10), default='USD')
+    close_price = Column(DECIMAL(20, 4))
+    change_rate = Column(DECIMAL(10, 4))
+    base_ymd = Column(Date, nullable=False, index=True)
+    ingest_batch_id = Column(String(50), index=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint('etf_cd', 'base_ymd', name='uq_etf_date'),
+        Index('idx_in_etf_base_ymd', 'base_ymd'),
+        Index('idx_in_etf_cd_date', 'etf_cd', 'base_ymd'),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            'etf_cd': self.etf_cd,
+            'etf_nm': self.etf_nm,
+            'sector': self.sector,
+            'curr': self.curr,
+            'close_price': float(self.close_price) if self.close_price else None,
+            'change_rate': float(self.change_rate) if self.change_rate else None,
+            'base_ymd': self.base_ymd.isoformat() if self.base_ymd else None
+        }
+
+
+# =============================================================================
+# PROC Layer: 가공 (ML/요약 처리)
+# =============================================================================
+
+class MBS_PROC_ARTICLE(Base):
+    """
+    가공 - 기사 분석 결과
+    ML을 통한 요약, 감성분석, 종목 매칭 결과
+    """
+    __tablename__ = 'mbs_proc_article'
+
+    proc_id = Column(String(50), primary_key=True)
+    news_id = Column(String(50), ForeignKey('mbs_in_article.news_id'), nullable=False, index=True)
+    stk_cd = Column(String(20), index=True)  # 매칭된 종목 코드
+
+    summary_text = Column(Text)  # ML 요약
+    match_score = Column(DECIMAL(10, 4))  # 기사-종목 연관도 (0-1)
+    price_impact = Column(DECIMAL(10, 4))  # 기사에 따른 가격 영향도
+    sentiment_score = Column(DECIMAL(10, 4))  # 감성 점수 (-1 ~ 1)
+    price = Column(DECIMAL(20, 4))  # 기사 시점 가격
+
+    base_ymd = Column(Date, nullable=False, index=True)
+    source_batch_id = Column(String(50), index=True)  # MBS_IN의 INGEST_BATCH_ID 참조
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    source_article = relationship("MBS_IN_ARTICLE", back_populates="processed_articles")
+    calc_metrics = relationship("MBS_CALC_METRIC", back_populates="source_proc")
+
+    __table_args__ = (
+        Index('idx_proc_base_ymd', 'base_ymd'),
+        Index('idx_proc_news_id', 'news_id'),
+        Index('idx_proc_stk_cd', 'stk_cd', 'base_ymd'),
+        Index('idx_proc_sentiment', 'sentiment_score', 'base_ymd'),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            'proc_id': self.proc_id,
+            'news_id': self.news_id,
+            'stk_cd': self.stk_cd,
+            'summary_text': self.summary_text,
+            'match_score': float(self.match_score) if self.match_score else None,
+            'price_impact': float(self.price_impact) if self.price_impact else None,
+            'sentiment_score': float(self.sentiment_score) if self.sentiment_score else None,
+            'price': float(self.price) if self.price else None,
+            'base_ymd': self.base_ymd.isoformat() if self.base_ymd else None
+        }
+
+
+# =============================================================================
+# CALC Layer: 계산 (메트릭 계산)
+# =============================================================================
+
+class MBS_CALC_METRIC(Base):
+    """
+    계산 - 메트릭 계산 결과
+    RISK, DELTA, VEGA 등의 계산된 메트릭
+    """
+    __tablename__ = 'mbs_calc_metric'
+
+    calc_id = Column(String(50), primary_key=True)
+    stk_cd = Column(String(20), nullable=False, index=True)
+    base_ymd = Column(Date, nullable=False, index=True)
+
+    metric_type = Column(String(20), nullable=False, index=True)  # RISK / DELTA / VEGA / IV / BETA
+    metric_val = Column(DECIMAL(20, 8))  # 메트릭 값
+
+    source_proc_id = Column(String(50), ForeignKey('mbs_proc_article.proc_id'), index=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    source_proc = relationship("MBS_PROC_ARTICLE", back_populates="calc_metrics")
+    recommendations = relationship("MBS_RCMD_RESULT", back_populates="source_calc")
+
+    __table_args__ = (
+        Index('idx_calc_base_ymd', 'base_ymd'),
+        Index('idx_calc_stk_cd', 'stk_cd', 'base_ymd'),
+        Index('idx_calc_metric_type', 'metric_type', 'base_ymd'),
+        Index('idx_calc_source_proc', 'source_proc_id'),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            'calc_id': self.calc_id,
+            'stk_cd': self.stk_cd,
+            'base_ymd': self.base_ymd.isoformat() if self.base_ymd else None,
+            'metric_type': self.metric_type,
+            'metric_val': float(self.metric_val) if self.metric_val else None,
+            'source_proc_id': self.source_proc_id
+        }
+
+
+# =============================================================================
+# RCMD Layer: 추천 / 결과 (Spring에서 사용)
+# =============================================================================
+
+class MBS_RCMD_RESULT(Base):
+    """
+    추천 - 추천 결과
+    NEWS / STOCK / PORTFOLIO 추천 결과
+    """
+    __tablename__ = 'mbs_rcmd_result'
+
+    rcmd_id = Column(String(50), primary_key=True)
+
+    # 참조 (nullable, 추천 타입에 따라 다름)
+    ref_news_id = Column(String(50), ForeignKey('mbs_in_article.news_id'), index=True)
+    ref_stk_cd = Column(String(20), index=True)
+    ref_calc_id = Column(String(50), ForeignKey('mbs_calc_metric.calc_id'), index=True)
+
+    rcmd_type = Column(String(20), nullable=False, index=True)  # NEWS / STOCK / PORTFOLIO
+    score = Column(DECIMAL(10, 4))  # 추천 점수
+    reason = Column(Text)  # 추천 이유
+
+    base_ymd = Column(Date, nullable=False, index=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    source_calc = relationship("MBS_CALC_METRIC", back_populates="recommendations", foreign_keys=[ref_calc_id])
+
+    __table_args__ = (
+        Index('idx_rcmd_base_ymd', 'base_ymd'),
+        Index('idx_rcmd_type', 'rcmd_type', 'base_ymd'),
+        Index('idx_rcmd_stk_cd', 'ref_stk_cd', 'base_ymd'),
+        Index('idx_rcmd_score', 'score', 'base_ymd'),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            'rcmd_id': self.rcmd_id,
+            'ref_news_id': self.ref_news_id,
+            'ref_stk_cd': self.ref_stk_cd,
+            'rcmd_type': self.rcmd_type,
+            'score': float(self.score) if self.score else None,
+            'reason': self.reason,
+            'base_ymd': self.base_ymd.isoformat() if self.base_ymd else None
+        }
+
+
+# =============================================================================
+# Legacy Tables (기존 테이블 - 호환성 유지, 향후 마이그레이션 예정)
+# =============================================================================
+
+class Ticker(Base):
+    """종목 마스터 테이블 - 외부 API 데이터 캐싱"""
+    __tablename__ = 'tickers'
+
+    symbol = Column(String(20), primary_key=True)
+    name = Column(Text, nullable=False)
+    exchange = Column(String(20), index=True)
+    asset_type = Column(String(20), index=True, nullable=False)
+    sector = Column(String(100), index=True)
+    industry = Column(String(100))
+    currency = Column(String(10), default='USD')
+    country = Column(String(50))
+    data_source = Column(String(50))
+    is_active = Column(Boolean, default=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    price_history = relationship("TickerPrice", back_populates="ticker", cascade="all, delete-orphan")
+
     __table_args__ = (
         Index('idx_asset_active', 'asset_type', 'is_active'),
         Index('idx_sector_active', 'sector', 'is_active'),
@@ -67,43 +330,27 @@ class Ticker(Base):
         }
 
 
-# =============================================================================
-# 2. Ticker Price History (일별 가격 데이터)
-# =============================================================================
 class TickerPrice(Base):
-    """
-    일별 종목 가격 데이터
-    base_ymd 기준으로 전일 종가(prev_close) 포함
-    """
+    """일별 종목 가격 데이터"""
     __tablename__ = 'ticker_prices'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     symbol = Column(String(20), ForeignKey('tickers.symbol', ondelete='CASCADE'), nullable=False)
-    base_ymd = Column(Date, nullable=False, index=True)  # 기준 날짜 (YYYY-MM-DD)
-
-    # 가격 데이터
+    base_ymd = Column(Date, nullable=False, index=True)
     open = Column(Float)
     high = Column(Float)
     low = Column(Float)
     close = Column(Float)
-    prev_close = Column(Float)  # 전일 종가 (중요!)
-
-    # 거래량
+    prev_close = Column(Float)
     volume = Column(Float)
-
-    # 변동률 (자동 계산)
-    change = Column(Float)  # close - prev_close
-    change_pct = Column(Float)  # (close - prev_close) / prev_close * 100
-
-    # 메타데이터
+    change = Column(Float)
+    change_pct = Column(Float)
     data_source = Column(String(50), default='yfinance')
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # Relationships
     ticker = relationship("Ticker", back_populates="price_history")
 
-    # Constraints
     __table_args__ = (
         UniqueConstraint('symbol', 'base_ymd', name='uq_ticker_date'),
         Index('idx_symbol_date', 'symbol', 'base_ymd'),
@@ -125,185 +372,16 @@ class TickerPrice(Base):
             'data_source': self.data_source
         }
 
-    def calculate_change(self):
-        """변동률 자동 계산"""
-        if self.close is not None and self.prev_close is not None and self.prev_close != 0:
-            self.change = self.close - self.prev_close
-            self.change_pct = (self.change / self.prev_close) * 100
-        else:
-            self.change = None
-            self.change_pct = None
 
 
 # =============================================================================
-# 3. News Articles (뉴스 기사)
+# Removed Legacy Tables
 # =============================================================================
-class NewsArticle(Base):
-    """뉴스 기사 테이블"""
-    __tablename__ = 'news_articles'
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    url = Column(Text, unique=True, nullable=False, index=True)
-    title = Column(Text, nullable=False)
-    summary = Column(Text)
-    content = Column(Text)
-    source = Column(String(50), index=True)
-    author = Column(String(255))
-
-    # 날짜
-    base_ymd = Column(Date, index=True)  # 기준 날짜 (published_at 기준)
-    published_at = Column(DateTime, index=True)
-    crawled_at = Column(DateTime, default=datetime.utcnow, index=True)
-
-    # 감성 분석
-    sentiment_score = Column(Float)  # -1.0 ~ 1.0
-    sentiment_label = Column(String(20), index=True)  # positive/negative/neutral
-    sentiment_confidence = Column(Float)
-
-    # 메타데이터
-    importance_score = Column(Float, index=True)  # 0.0 ~ 10.0
-    category = Column(String(50), index=True)
-    keywords = Column(Text)  # JSON array as string
-
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    # Relationships
-    tickers = relationship("NewsTicker", back_populates="article", cascade="all, delete-orphan")
-
-    # Indexes
-    __table_args__ = (
-        Index('idx_base_ymd_sentiment', 'base_ymd', 'sentiment_score'),
-        Index('idx_source_date', 'source', 'base_ymd'),
-        Index('idx_published', 'published_at'),
-    )
-
-    def to_dict(self) -> dict:
-        return {
-            'id': str(self.id),
-            'url': self.url,
-            'title': self.title,
-            'summary': self.summary,
-            'content': self.content,
-            'source': self.source,
-            'author': self.author,
-            'base_ymd': self.base_ymd.isoformat() if self.base_ymd else None,
-            'published_at': self.published_at.isoformat() if self.published_at else None,
-            'crawled_at': self.crawled_at.isoformat() if self.crawled_at else None,
-            'sentiment': {
-                'score': self.sentiment_score,
-                'label': self.sentiment_label,
-                'confidence': self.sentiment_confidence
-            },
-            'importance_score': self.importance_score,
-            'category': self.category,
-            'tickers': [t.to_dict() for t in self.tickers],
-            'created_at': self.created_at.isoformat() if self.created_at else None
-        }
-
-
+# The following Legacy tables have been removed (replaced by MBS pipeline):
+# - NewsArticle → MBS_IN_ARTICLE + MBS_PROC_ARTICLE
+# - NewsTicker → MBS_PROC_ARTICLE (stk_cd field)
+# - MarketSummary → Not used
 # =============================================================================
-# 4. News-Ticker Association (뉴스-종목 관계)
-# =============================================================================
-class NewsTicker(Base):
-    """뉴스-티커 관계 테이블"""
-    __tablename__ = 'news_tickers'
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    news_id = Column(UUID(as_uuid=True), ForeignKey('news_articles.id', ondelete='CASCADE'), nullable=False)
-    ticker_symbol = Column(String(20), ForeignKey('tickers.symbol', ondelete='CASCADE'), nullable=False)
-
-    # 추출 정보
-    confidence = Column(Float)  # 0.0 ~ 1.0
-    mention_count = Column(Integer)  # 기사 내 언급 횟수
-    context_sentiment = Column(Float)  # 해당 티커에 대한 감성
-
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-    # Relationships
-    article = relationship("NewsArticle", back_populates="tickers")
-    ticker = relationship("Ticker", back_populates="news_associations")
-
-    # Constraints
-    __table_args__ = (
-        UniqueConstraint('news_id', 'ticker_symbol', name='uq_news_ticker'),
-        Index('idx_ticker_created', 'ticker_symbol', 'created_at'),
-        Index('idx_news_created', 'news_id', 'created_at'),
-    )
-
-    def to_dict(self) -> dict:
-        return {
-            'symbol': self.ticker_symbol,
-            'name': self.ticker.name if self.ticker else '',
-            'exchange': self.ticker.exchange if self.ticker else '',
-            'confidence': self.confidence,
-            'mention_count': self.mention_count,
-            'context_sentiment': self.context_sentiment
-        }
-
-
-# =============================================================================
-# 5. Market Summary (시장 요약 - 일별)
-# =============================================================================
-class MarketSummary(Base):
-    """
-    일별 시장 요약 통계
-    base_ymd 기준으로 주요 지표 집계
-    """
-    __tablename__ = 'market_summary'
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    base_ymd = Column(Date, unique=True, nullable=False, index=True)
-
-    # 뉴스 통계
-    news_count = Column(Integer, default=0)
-    positive_news_count = Column(Integer, default=0)
-    negative_news_count = Column(Integer, default=0)
-    neutral_news_count = Column(Integer, default=0)
-    avg_sentiment = Column(Float)
-
-    # 종목 통계
-    active_tickers_count = Column(Integer, default=0)
-    trending_ticker_symbol = Column(String(20))  # 가장 많이 언급된 종목
-    trending_ticker_mentions = Column(Integer, default=0)
-
-    # 시장 지표 (S&P 500, NASDAQ 등)
-    sp500_close = Column(Float)
-    sp500_change_pct = Column(Float)
-    nasdaq_close = Column(Float)
-    nasdaq_change_pct = Column(Float)
-
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    def to_dict(self) -> dict:
-        return {
-            'base_ymd': self.base_ymd.isoformat() if self.base_ymd else None,
-            'news_stats': {
-                'total': self.news_count,
-                'positive': self.positive_news_count,
-                'negative': self.negative_news_count,
-                'neutral': self.neutral_news_count,
-                'avg_sentiment': self.avg_sentiment
-            },
-            'ticker_stats': {
-                'active_count': self.active_tickers_count,
-                'trending': {
-                    'symbol': self.trending_ticker_symbol,
-                    'mentions': self.trending_ticker_mentions
-                }
-            },
-            'market_indices': {
-                'sp500': {
-                    'close': self.sp500_close,
-                    'change_pct': self.sp500_change_pct
-                },
-                'nasdaq': {
-                    'close': self.nasdaq_close,
-                    'change_pct': self.nasdaq_change_pct
-                }
-            }
-        }
 
 
 # =============================================================================
@@ -364,3 +442,21 @@ def get_postgresql_db(
     """PostgreSQL 데이터베이스 생성"""
     url = f"postgresql://{user}:{password}@{host}:{port}/{database}"
     return Database(url)
+
+
+# =============================================================================
+# Helper Functions
+# =============================================================================
+
+def generate_id(prefix: str = '') -> str:
+    """ID 생성 헬퍼 함수"""
+    return f"{prefix}{uuid.uuid4().hex[:16]}"
+
+
+def generate_batch_id() -> str:
+    """배치 ID 생성 (YYYYMMDD-HHMMSS-UUID)"""
+    from datetime import datetime
+    now = datetime.now()
+    timestamp = now.strftime('%Y%m%d-%H%M%S')
+    short_uuid = uuid.uuid4().hex[:8]
+    return f"{timestamp}-{short_uuid}"

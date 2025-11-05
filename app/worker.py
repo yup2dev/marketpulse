@@ -47,7 +47,16 @@ def signal_handler(signum, frame):
         event_bus.stop_queue_listener()
         event_bus.stop_stream_consumer()
 
-    log.info("Worker stopped")
+    # Thread들이 종료될 때까지 대기 (최대 5초)
+    if command_thread and command_thread.is_alive():
+        log.info("Waiting for Command Listener to stop...")
+        command_thread.join(timeout=5)
+
+    if analyzer_thread and analyzer_thread.is_alive():
+        log.info("Waiting for Analyzer Consumer to stop...")
+        analyzer_thread.join(timeout=5)
+
+    log.info("Worker stopped gracefully")
     sys.exit(0)
 
 
@@ -80,7 +89,7 @@ def main():
 
     log.info("=" * 80)
     log.info("MarketPulse Background Worker Starting (Stream Architecture)")
-    log.info(f"Database: {settings.db_url}")
+    log.info(f"Database: {settings.DATABASE_URL or settings.SQLITE_PATH}")
     log.info(f"APScheduler: {'Enabled' if settings.SCHEDULER_ENABLED else 'Disabled'}")
     log.info(f"Redis Queue: {'Enabled' if settings.QUEUE_ENABLED and settings.REDIS_URL else 'Disabled'}")
     log.info("=" * 80)
@@ -171,7 +180,12 @@ def main():
             # Windows에서는 signal.pause()가 없음
             import time
             while True:
-                time.sleep(1)
+                time.sleep(60)  # CPU 사용률 감소를 위해 1초 → 60초로 변경
+                # Thread 상태 체크 (선택적 디버깅용)
+                if not (command_thread and command_thread.is_alive()) and \
+                   not (analyzer_thread and analyzer_thread.is_alive()):
+                    log.warning("All threads stopped. Exiting...")
+                    break
 
     except KeyboardInterrupt:
         signal_handler(None, None)

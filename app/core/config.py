@@ -55,13 +55,9 @@ class Settings(BaseSettings):
 
     # ===== Scheduler Settings =====
     SCHEDULER_ENABLED: bool = Field(default=True, description="스케줄러 활성화 여부")
-    CRAWL_INTERVAL_HOURS: int = Field(default=1, description="뉴스 크롤링 주기 (시간)")
-    SENTIMENT_INTERVAL_HOURS: int = Field(default=2, description="감성 분석 주기 (시간)")
     MARKET_DATA_INTERVAL_HOURS: int = Field(default=6, description="시장 데이터 동기화 주기 (시간)")
 
     # ===== API Keys =====
-    YAHOO_FINANCE_API_KEY: Optional[str] = Field(default=None, description="Yahoo Finance API 키")
-    ALPHA_VANTAGE_API_KEY: Optional[str] = Field(default=None, description="Alpha Vantage API 키")
     OPENAI_API_KEY: Optional[str] = Field(default=None, description="OpenAI API 키")
 
     # ===== Crawler Settings =====

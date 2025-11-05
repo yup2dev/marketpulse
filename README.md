@@ -89,6 +89,86 @@ flowchart LR
    User 요청 → Spring Service → 계산 → PostgreSQL
 ```
 
+### 테이블 명명 규칙
+```
+MBS_IN_{} : 입수
+MBS_PROC_{} : 가공
+MBS_CLAC_{} : 계산 
+MBS_RCMD_{} : 추천 / 결과
+MBS_RSLT_{} : 추천 / 결과
+```
+
+### ERD
+```
+MBS_IN_ARTICLE {
+    STRING NEWS_ID PK
+    DATE BASE_YMD
+    STRING SOURCE_CD          -- 출판사/뉴스 출처
+    STRING TITLE
+    TEXT CONTENT
+    DATE PUBLISH_DT
+    STRING INGEST_BATCH_ID    -- 동일 입수 배치 식별자
+}
+
+MBS_IN_STK_STBD {
+    STRING STK_CD PK
+    STRING STK_NM
+    STRING SECTOR
+    STRING CURR               -- 통화
+    DECIMAL CLOSE_PRICE
+    DECIMAL CHANGE_RATE
+    DATE BASE_YMD
+    STRING INGEST_BATCH_ID
+}
+
+MBS_IN_ETF_STBD {
+    STRING ETF_CD PK
+    STRING ETF_NM
+    STRING SECTOR
+    STRING CURR
+    DECIMAL CLOSE_PRICE
+    DECIMAL CHANGE_RATE
+    DATE BASE_YMD
+    STRING INGEST_BATCH_ID
+}
+
+MBS_PROC_ARTICLE {
+    STRING PROC_ID PK
+    STRING NEWS_ID FK
+    STRING STK_CD FK
+    TEXT SUMMARY_TEXT
+    DECIMAL MATCH_SCORE       -- 기사-종목 연관도
+    DECIMAL PRICE_IMPACT      -- 기사에 따른 가격 영향도
+    DECIMAL SENTIMENT_SCORE
+    DECIMAL PRICE             -- 기사 시점 가격
+    DATE BASE_YMD
+    STRING SOURCE_BATCH_ID    -- MBS_IN의 INGEST_BATCH_ID 참조
+}
+
+MBS_CALC_METRIC {
+    STRING CALC_ID PK
+    STRING STK_CD FK
+    DATE BASE_YMD
+    STRING METRIC_TYPE        -- RISK / DELTA / VEGA
+    DECIMAL METRIC_VAL
+    STRING SOURCE_PROC_ID     -- MBS_PROC_ARTICLE.PROC_ID 참조
+}
+
+MBS_RCMD_RESULT {
+    STRING RCMD_ID PK
+    STRING REF_NEWS_ID FK      -- 원 기사 참조
+    STRING REF_STK_CD FK       -- 관련 종목 참조
+    STRING REF_CALC_ID FK      -- 계산 결과 참조
+    STRING RCMD_TYPE           -- NEWS / STOCK / PORTFOLIO
+    DECIMAL SCORE
+    TEXT REASON
+    DATE BASE_YMD
+    STRING SOURCE_CALC_ID      -- MBS_CALC_METRIC.CALC_ID 참조
+}
+
+    
+```
+
 ---
 
 ## ✨ 주요 기능

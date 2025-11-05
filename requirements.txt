@@ -1,3 +1,4 @@
+transformers
 # MarketPulse - Financial News Crawler & Analyzer
 # 금융 뉴스 크롤러 + 티커 추출 + 감성 분석 + API
 

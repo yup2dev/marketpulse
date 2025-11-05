@@ -70,6 +70,12 @@ class CommandHandler:
         if task_type == "crawl_news":
             return self._execute_crawl_news(params)
 
+        elif task_type == "process_to_calc":
+            return self._execute_process_to_calc(params)
+
+        elif task_type == "generate_recommendations":
+            return self._execute_generate_recommendations(params)
+
         elif task_type == "analyze_sentiment":
             return self._execute_sentiment_analysis(params)
 
@@ -100,16 +106,45 @@ class CommandHandler:
             "stream": "stream:new_articles"
         }
 
-    def _execute_sentiment_analysis(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """감성 분석 실행 (기존 방식 유지)"""
-        from app.services.crawler_service import analyze_recent_news_sentiment
+    def _execute_process_to_calc(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        PROC → CALC 변환 실행
+        """
+        from app.services.calc_processor import scheduled_calc_processing
 
-        log.info("[Task] Executing: Sentiment Analysis")
-        count = analyze_recent_news_sentiment()
+        log.info("[Task] Executing: PROC to CALC Processing")
+        results = scheduled_calc_processing()
+
+        return {
+            "task": "process_to_calc",
+            "processed": results.get('processed', 0),
+            "metrics_created": results.get('metrics_created', 0)
+        }
+
+    def _execute_generate_recommendations(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        CALC → RCMD 추천 생성 실행
+        """
+        from app.services.rcmd_generator import scheduled_rcmd_generation
+
+        log.info("[Task] Executing: Recommendation Generation")
+        results = scheduled_rcmd_generation()
+
+        return {
+            "task": "generate_recommendations",
+            "news": results.get('news', 0),
+            "stock": results.get('stock', 0),
+            "portfolio": results.get('portfolio', 0)
+        }
+
+    def _execute_sentiment_analysis(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """감성 분석 실행 (레거시)"""
+        log.info("[Task] Executing: Sentiment Analysis (legacy - use Analyzer Consumer instead)")
 
         return {
             "task": "analyze_sentiment",
-            "updated_count": count
+            "message": "Use Analyzer Consumer for MBS pipeline",
+            "updated_count": 0
         }
 
     def _execute_market_sync(self, params: Dict[str, Any]) -> Dict[str, Any]:

@@ -375,27 +375,41 @@ class RedisEventBus:
             return []
 
 
-def create_redis_event_bus(redis_url: str) -> Optional[RedisEventBus]:
+def create_redis_event_bus(redis_url: str, max_connections: int = 50) -> Optional[RedisEventBus]:
     """
-    RedisEventBus 인스턴스 생성
+    RedisEventBus 인스턴스 생성 (Connection Pooling 적용)
 
     Args:
         redis_url: Redis 연결 URL
+        max_connections: Connection Pool 최대 연결 수
 
     Returns:
         RedisEventBus 인스턴스
     """
     try:
-        redis_client = redis.from_url(
+        # Connection Pool 생성 (재사용 가능한 연결 관리)
+        pool = redis.ConnectionPool.from_url(
             redis_url,
-            decode_responses=False,  # bytes로 받기 (수동 디코딩)
+            max_connections=max_connections,
             socket_timeout=5,
-            socket_connect_timeout=5
+            socket_connect_timeout=5,
+            socket_keepalive=True,
+            socket_keepalive_options={
+                1: 1,  # TCP_KEEPIDLE (Linux)
+                2: 1,  # TCP_KEEPINTVL (Linux)
+                3: 3   # TCP_KEEPCNT (Linux)
+            },
+            decode_responses=False,  # bytes로 받기 (수동 디코딩)
+            retry_on_timeout=True,
+            health_check_interval=30  # 30초마다 연결 상태 체크
         )
+
+        # Redis 클라이언트 생성 (Pool 사용)
+        redis_client = redis.Redis(connection_pool=pool)
 
         # 연결 테스트
         redis_client.ping()
-        log.info(f"Redis Event Bus connected: {redis_url}")
+        log.info(f"Redis Event Bus connected with connection pool (max={max_connections}): {redis_url}")
 
         return RedisEventBus(redis_client)
 

@@ -6,8 +6,13 @@ D6: DB Writer (결과 저장)
 import logging
 from typing import Dict
 from pathlib import Path
+from decimal import Decimal
 from app.redis_bus import RedisEventBus
-from app.models.database import get_sqlite_db, NewsArticle, NewsTicker
+from app.models.database import (
+    get_sqlite_db,
+    MBS_IN_ARTICLE, MBS_PROC_ARTICLE,
+    generate_id
+)
 from app.services.ticker_extractor import TickerExtractor
 from app.services.sentiment_analyzer import SentimentAnalyzer
 from app.core.config import settings
@@ -60,111 +65,105 @@ class AnalyzerConsumer:
 
     def process_article(self, message: Dict):
         """
-        Stream 메시지 처리
+        Stream 메시지 처리 (IN → PROC 변환)
 
         Args:
             message: {
-                'article_id': str,
+                'news_id': str,
                 'url': str,
+                'source_cd': str,
                 'timestamp': str
             }
         """
-        article_id = message.get('article_id')
+        news_id = message.get('news_id')
         url = message.get('url', 'unknown')
 
-        log.info(f"[Analyzer] Processing article ID: {article_id}")
+        log.info(f"[Analyzer] Processing news_id: {news_id}")
 
         try:
-            # DB에서 article 조회
             session = self.db.get_session()
-            article = session.query(NewsArticle).filter_by(id=int(article_id)).first()
 
-            if not article:
-                log.warning(f"[Analyzer] Article not found: {article_id}")
+            # MBS_IN_ARTICLE에서 읽기
+            in_article = session.query(MBS_IN_ARTICLE).filter_by(news_id=news_id).first()
+
+            if not in_article:
+                log.warning(f"[Analyzer] Article not found in MBS_IN: {news_id}")
                 session.close()
                 return
 
             # 분석할 텍스트 준비
-            text = f"{article.title} {article.summary}"
+            text = f"{in_article.title} {in_article.content[:500]}"
 
             # 1. 감성 분석
             sentiment = self.sentiment_analyzer.analyze(text)
 
-            # 2. 티커 추출
-            tickers = self.ticker_extractor.extract(text, title=article.title)
+            # 2. 티커 추출 (가장 관련성 높은 티커 선택)
+            tickers = self.ticker_extractor.extract(text, title=in_article.title)
+            primary_ticker = tickers[0]['symbol'] if tickers else None
 
-            # 3. 중요도 계산
-            importance = self._calculate_importance(article, tickers, sentiment)
+            # 3. 요약 생성 (간단한 추출 요약)
+            summary_text = self._generate_summary(in_article.content)
 
-            # 4. DB 업데이트
-            article.sentiment_score = sentiment['score']
-            article.sentiment_label = sentiment['label']
-            article.importance_score = importance
+            # 4. MBS_PROC_ARTICLE 생성
+            proc_id = generate_id('PROC-')
 
-            # 5. 티커 연결 저장
-            for ticker_info in tickers:
-                news_ticker = NewsTicker(
-                    news_id=article.id,
-                    ticker_symbol=ticker_info['symbol'],
-                    mention_count=ticker_info.get('count', 1),
-                    confidence=ticker_info.get('confidence', 1.0)
-                )
-                session.add(news_ticker)
+            # DECIMAL 필드는 Decimal 타입으로 변환
+            match_score = Decimal(str(tickers[0].get('confidence', 0.5))) if tickers else Decimal('0.0')
+            sentiment_score = Decimal(str(sentiment['score']))
+            price_impact = Decimal('0.0')  # TODO: 가격 영향도 계산
 
-            session.commit()
-            session.close()
-
-            log.info(
-                f"[Analyzer] Completed: {article.title[:60]}... "
-                f"(Sentiment: {sentiment['label']}, Tickers: {len(tickers)})"
+            proc_article = MBS_PROC_ARTICLE(
+                proc_id=proc_id,
+                news_id=news_id,
+                stk_cd=primary_ticker,
+                summary_text=summary_text,
+                match_score=match_score,
+                price_impact=price_impact,
+                sentiment_score=sentiment_score,
+                price=None,  # TODO: 해당 시점 가격 조회
+                base_ymd=in_article.base_ymd,
+                source_batch_id=in_article.ingest_batch_id
             )
 
-        except Exception as e:
-            log.error(f"[Analyzer] Error processing article {article_id}: {e}", exc_info=True)
+            session.add(proc_article)
+            session.commit()
 
-    def _calculate_importance(
-        self,
-        article: NewsArticle,
-        tickers: list,
-        sentiment: dict
-    ) -> float:
+            log.info(
+                f"[Analyzer] IN → PROC: {in_article.title[:60]}... "
+                f"(Sentiment: {sentiment['score']:.2f}, Ticker: {primary_ticker})"
+            )
+
+            session.close()
+
+        except Exception as e:
+            log.error(f"[Analyzer] Error processing news_id {news_id}: {e}", exc_info=True)
+
+    def _generate_summary(self, content: str, max_length: int = 200) -> str:
         """
-        기사 중요도 계산 (0-10)
+        간단한 추출 요약 생성
 
         Args:
-            article: NewsArticle 객체
-            tickers: 추출된 티커 리스트
-            sentiment: 감성 분석 결과
+            content: 원본 텍스트
+            max_length: 최대 길이
 
         Returns:
-            중요도 점수 (0-10)
+            요약 텍스트
         """
-        score = 5.0  # 기본 점수
+        if not content:
+            return ""
 
-        # 티커 개수 (최대 +2점)
-        if tickers:
-            score += min(len(tickers) * 0.5, 2.0)
+        # 첫 N 문자 추출
+        summary = content[:max_length]
 
-        # 감성 강도 (최대 +2점)
-        sentiment_abs = abs(sentiment['score'])
-        if sentiment_abs > 0.7:
-            score += 2.0
-        elif sentiment_abs > 0.4:
-            score += 1.0
+        # 마지막 문장 끝까지 포함
+        if len(content) > max_length:
+            last_period = summary.rfind('.')
+            if last_period > 0:
+                summary = summary[:last_period + 1]
+            else:
+                summary += "..."
 
-        # 제목 길이 (최대 +1점)
-        if len(article.title) > 50:
-            score += 0.5
-        if len(article.title) > 100:
-            score += 0.5
-
-        # 본문 길이 (최대 +1점)
-        if article.content and len(article.content) > 500:
-            score += 0.5
-        if article.content and len(article.content) > 1000:
-            score += 0.5
-
-        return min(score, 10.0)
+        return summary
 
 
 def start_analyzer_consumer(event_bus: RedisEventBus):
