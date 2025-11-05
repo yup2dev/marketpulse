@@ -281,6 +281,72 @@ class CrawlerService:
 
         return min(score, 10.0)
 
+    def _save_article_without_sentiment(
+        self,
+        source: str,
+        url: str,
+        title: str,
+        content: str,
+        published_time: Optional[datetime]
+    ) -> Optional[int]:
+        """
+        기사 기본 정보만 저장 (Stream 방식용)
+        감성 분석과 티커 추출은 Analyzer Consumer가 처리
+
+        Args:
+            source: 출처 사이트
+            url: 기사 URL
+            title: 제목
+            content: 본문
+            published_time: 발행 시간
+
+        Returns:
+            저장된 article_id (중복이면 None)
+        """
+        session: Session = self.db.get_session()
+        try:
+            # 중복 체크
+            existing = session.query(NewsArticle).filter(NewsArticle.url == url).first()
+            if existing:
+                log.debug(f"Article already exists: {url}")
+                session.close()
+                return None
+
+            # 요약 생성
+            summary = content[:200] + "..." if len(content) > 200 else content
+
+            # 발행 시간 처리
+            published_at = published_time if published_time else datetime.utcnow()
+
+            # NewsArticle 생성 (감성/티커 제외)
+            article = NewsArticle(
+                title=title,
+                summary=summary,
+                content=content or "",
+                url=url,
+                source=source,
+                author=None,
+                published_at=published_at,
+                sentiment_score=0.0,  # Analyzer가 업데이트
+                sentiment_label='NEUTRAL',  # Analyzer가 업데이트
+                importance_score=5.0,  # Analyzer가 업데이트
+                crawled_at=datetime.utcnow()
+            )
+            session.add(article)
+            session.commit()
+
+            article_id = article.id
+            log.debug(f"Saved article (ID: {article_id}): {title[:60]}")
+
+            session.close()
+            return article_id
+
+        except Exception as e:
+            session.rollback()
+            log.error(f"Failed to save article {url}: {e}")
+            session.close()
+            return None
+
     def crawl_all_sites(
         self,
         max_articles_per_site: int = 10,
@@ -397,4 +463,108 @@ def analyze_recent_news_sentiment():
 
     except Exception as e:
         log.error(f"Scheduled task: analyze_recent_news_sentiment failed - {e}", exc_info=True)
+        return 0
+
+
+def crawl_with_stream(event_bus):
+    """
+    Stream 기반 뉴스 크롤링 (D4: Crawler Module)
+
+    흐름:
+    1. 뉴스 크롤링
+    2. 기본 정보만 DB 저장 (sentiment 제외)
+    3. Redis Stream에 article_id 발행 → Analyzer가 처리
+
+    Args:
+        event_bus: RedisEventBus 인스턴스
+
+    Returns:
+        Stream에 발행된 기사 수
+    """
+    try:
+        log.info("=" * 80)
+        log.info("[Stream Crawler] Starting news crawl")
+        log.info("=" * 80)
+
+        service = get_crawler_service()
+        sites = service.load_sites_config()
+
+        if not sites:
+            log.warning("[Stream Crawler] No sites to crawl")
+            return 0
+
+        published_count = 0
+
+        for site_name, seed_urls in sites.items():
+            log.info(f"[Stream Crawler] Crawling {site_name}...")
+
+            try:
+                # 크롤 설정
+                crawl_cfg = CrawlConfig(
+                    max_total=settings.CRAWLER_MAX_WORKERS * 2,
+                    max_depth=2,
+                    timeout_get=settings.CRAWLER_TIMEOUT,
+                    same_domain_only=True,
+                    user_agent="Mozilla/5.0 (MarketPulse Bot)"
+                )
+
+                # 크롤러 초기화
+                heuristics = ArticleHeuristics(allow=(), deny=())
+                classifier = URLClassifier()
+                crawler = Crawler(crawl_cfg, heuristics, classifier, max_depth=2)
+
+                # 크롤링 및 Stream 발행
+                for url, depth in crawler.discover(seed_urls):
+                    try:
+                        # HTML 파싱
+                        html = crawler.http.get_html(url, timeout=crawl_cfg.timeout_get)
+                        if not html:
+                            continue
+
+                        parser = Parser(url, html)
+                        title = parser.extract_title()
+
+                        if not title:
+                            continue
+
+                        # 기본 정보만 저장 (감성 분석 제외)
+                        article_id = service._save_article_without_sentiment(
+                            site_name,
+                            url,
+                            title,
+                            parser.extract_main_text(),
+                            parser.extract_published_time()
+                        )
+
+                        if article_id:
+                            # Redis Stream에 발행 (Analyzer가 처리)
+                            msg_id = event_bus.publish_to_stream(
+                                'stream:new_articles',
+                                {
+                                    'article_id': article_id,
+                                    'url': url,
+                                    'timestamp': datetime.utcnow().isoformat()
+                                }
+                            )
+
+                            if msg_id:
+                                published_count += 1
+                                log.info(f"[Stream Crawler] Published: {title[:60]}... (ID: {article_id})")
+
+                    except Exception as e:
+                        log.error(f"[Stream Crawler] Error processing {url}: {e}")
+                        continue
+
+            except Exception as e:
+                log.error(f"[Stream Crawler] Error crawling {site_name}: {e}")
+                continue
+
+        log.info("=" * 80)
+        log.info(f"[Stream Crawler] Completed: {published_count} articles published to stream")
+        log.info("=" * 80)
+
+        return published_count
+
+    except Exception as e:
+        log.error(f"[Stream Crawler] Failed: {e}", exc_info=True)
         return 0

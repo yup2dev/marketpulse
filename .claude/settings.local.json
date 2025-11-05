@@ -10,7 +10,8 @@
       "Bash(timeout 30 python:*)",
       "Bash(timeout 15 python:*)",
       "Bash(python test_worker.py:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(nul)"
     ],
     "deny": [],
     "ask": []

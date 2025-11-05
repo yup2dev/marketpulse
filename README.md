@@ -27,7 +27,45 @@
 ### Python 데이터 파이프라인 (하이브리드 모드)
 
 
-<img src="/systemFlow.png" width="500" height="600">
+``` 시스템 플로우
+flowchart LR
+ subgraph subGraph0["🧑‍💻 Spring API / Portal (Control Layer)"]
+        S1["사용자 요청<br>수동 트리거 or 상태조회"]
+        S2["REST Controller / Service"]
+        S3["Redis Publisher<br>(RPush / Pub)"]
+        S4["Redis Subscriber<br>(결과/상태 구독)"]
+  end
+ subgraph subGraph1["🐍 Python Service (Daemon Layer)"]
+        D1["Systemd / Docker Daemon<br>항상 실행 유지"]
+        D2["Orchestrator (APScheduler + Listener)"]
+        D3["Redis Listener<br>(명령 수신)"]
+        D4["Crawler Module<br>(신규 기사 감시)"]
+        D5["Analyzer Module<br>(분석 수행)"]
+        D6["DB Writer<br>(결과 저장)"]
+        D7["Redis Publisher<br>(상태/결과 전송)"]
+  end
+ subgraph subGraph2["🔁 Redis (Message / Event Bus)"]
+        R1["queue:manual_command<br>(Spring→Python)"]
+        R2["stream:new_task<br>(Crawler→Analyzer)"]
+        R3["pub:status_update<br>(Python→Spring)"]
+  end
+ subgraph subGraph3["🗄️ Database (Persistent Layer)"]
+        DB1[("Timescale / PostgreSQL")]
+  end
+    S1 --> S2
+    S2 --> S3
+    S4 --> S2
+    D1 --> D2
+    D2 --> D3 & D4
+    D4 -- 신규기사 감지 --> D5
+    D5 --> D6 & D7
+    S3 -- 명령 푸시 --> R1
+    D3 -- 명령 구독 --> R1
+    D4 -- 신규 기사 이벤트 --> R2
+    D5 -- 결과 저장 --> DB1
+    D7 -- 상태 발행 --> R3
+    R3 -- 구독 --> S4
+```
 
 
 ### 데이터 플로우
@@ -189,15 +227,42 @@ ALPHA_VANTAGE_API_KEY=your_key
 OPENAI_API_KEY=your_key
 ```
 
-### 3. 개발 환경 실행 (현재 단계)
-
-#### Option A: APScheduler Only (Redis 없이)
+### 3. 빠른 시작 테스트
 
 ```bash
-# .env 설정
-SCHEDULER_ENABLED=true
-QUEUE_ENABLED=false
+# 시스템 검증
+python scripts/quick_test.py
+```
 
+**예상 출력:**
+```
+================================================================================
+MarketPulse Quick System Test
+================================================================================
+
+1. Testing imports...
+✅ All modules imported successfully
+
+2. Checking configuration...
+✅ Configuration loaded
+
+3. Testing database...
+✅ Database ready: data\marketpulse.db
+
+4. Testing crawler service...
+✅ Crawler service ready (4 sites configured)
+
+5. Testing Redis (optional)...
+⚠️  Redis not configured (Worker will use APScheduler only)
+
+✅ System Check Complete!
+```
+
+### 4. 개발 환경 실행
+
+#### Option A: APScheduler Only (권장 - Redis 없이)
+
+```bash
 # Worker 실행
 python -m app.main
 ```
@@ -205,41 +270,66 @@ python -m app.main
 **동작:**
 - APScheduler만 실행 (자동 스케줄링)
 - 뉴스 크롤링 즉시 1회 실행 후 매 1시간마다 자동 실행
-- Redis 불필요
+- Redis 불필요 (가장 간단)
 
-#### Option B: Hybrid Mode (Redis 포함, 권장)
+**로그 예시:**
+```
+================================================================================
+MarketPulse Background Worker Starting (Stream Architecture)
+Database: sqlite:///./data/marketpulse.db
+APScheduler: Enabled
+Redis Queue: Disabled
+================================================================================
+
+Scheduler started successfully
+Active jobs: 4
+
+Background Worker is running...
+  - APScheduler: Auto-scheduling tasks
+Press Ctrl+C to stop
+```
+
+#### Option B: Stream Architecture (Redis 포함 - 완전한 기능)
 
 ```bash
-# Redis 시작
+# 1. Redis 시작
 docker run -d -p 6379:6379 redis:7-alpine
 # 또는
 redis-server
 
-# .env 설정
+# 2. .env 설정
+REDIS_URL=redis://localhost:6379/0
 SCHEDULER_ENABLED=true
 QUEUE_ENABLED=true
-REDIS_URL=redis://localhost:6379/0
 
-# Worker 실행
+# 3. Worker 실행
 python -m app.main
 ```
 
 **동작:**
-- APScheduler: 자동 스케줄링 (매 1시간, 2시간, 6시간)
-- Redis Queue Consumer: Spring Boot 트리거 대기
-- 양쪽 모두 동시 실행
+- Main Thread: APScheduler (자동 스케줄링)
+- Thread 1: Command Listener (Spring → Python 명령 수신)
+- Thread 2: Analyzer Consumer (Stream 기반 분석 파이프라인)
 
 **로그 예시:**
 ```
-MarketPulse Background Worker Starting (Hybrid Mode)
-APScheduler: Enabled
-Redis Queue: Enabled
 ================================================================================
-Starting Redis Queue Consumer in background thread...
-Redis connected: redis://localhost:6379/0
+MarketPulse Background Worker Starting (Stream Architecture)
+================================================================================
+
+Redis Event Bus initialized successfully
+
+[Thread 1] Starting Command Listener...
+[Thread 1] Command Listener started
+
+[Thread 2] Starting Analyzer Consumer...
+[Thread 2] Analyzer Consumer started
+
 Background Worker is running...
   - APScheduler: Auto-scheduling tasks
-  - Redis Queue: Listening for Spring Boot triggers
+  - Command Listener: Listening on 'marketpulse:commands'
+  - Analyzer Consumer: Consuming 'stream:new_articles'
+Press Ctrl+C to stop
 ```
 
 #### 수동 실행 (CLI)
@@ -258,16 +348,48 @@ python -m app.cli all
 python -m app.cli help
 ```
 
-#### Spring Boot에서 트리거 (Redis CLI 테스트)
+#### Spring Boot에서 트리거 (Redis 사용 시)
 
 ```bash
-# Redis CLI로 메시지 발행
-redis-cli RPUSH marketpulse:tasks '{"task_type": "crawl_news", "params": {}}'
+# Redis CLI로 명령 발행
+redis-cli RPUSH marketpulse:commands '{"task_type": "crawl_news", "params": {}}'
 
-# Python Worker가 즉시 실행
-# 로그: Received task: crawl_news with params: {}
-# 로그: Executing: News Crawling
-# 로그: Task crawl_news completed: {...}
+# Python Worker 로그:
+# [CommandHandler] Processing: crawl_news
+# [Pub/Sub] Published status 'started' to 0 subscribers
+# [Stream Crawler] Starting news crawl
+# [Pub/Sub] Published status 'completed'
+```
+
+**Spring Boot 연동 예시 (Java):**
+```java
+// 명령 발행
+@Service
+public class PythonCommandService {
+    @Autowired
+    private StringRedisTemplate redisTemplate;
+
+    public void triggerCrawl() {
+        Map<String, Object> command = Map.of(
+            "task_type", "crawl_news",
+            "params", Map.of()
+        );
+
+        redisTemplate.opsForList().rightPush(
+            "marketpulse:commands",
+            new ObjectMapper().writeValueAsString(command)
+        );
+    }
+}
+
+// 상태 구독
+@Service
+public class StatusSubscriber {
+    public void onMessage(String message) {
+        // Python에서 보낸 상태 메시지 처리
+        log.info("Received status: " + message);
+    }
+}
 ```
 
 **중지:**
@@ -513,20 +635,22 @@ marketpulse/
 ├── app/                            # Python 데이터 파이프라인
 │   ├── __init__.py
 │   ├── main.py                     # 진입점 (worker 호출)
-│   ├── worker.py                   # 백그라운드 워커
+│   ├── worker.py                   # D2: Orchestrator (APScheduler + Multi-thread)
 │   ├── scheduler.py                # APScheduler 설정
 │   ├── cli.py                      # CLI 도구 (수동 실행)
+│   ├── redis_bus.py                # Redis Event Bus (Queue, Stream, Pub/Sub)
+│   ├── command_handler.py          # D3: Command Listener (Spring 명령 처리)
+│   ├── analyzer_consumer.py        # D5: Analyzer Consumer (Stream 구독)
 │   ├── core/
 │   │   ├── config.py               # 설정
 │   │   └── database.py             # DB 연결 (미사용)
 │   ├── models/
 │   │   └── database.py             # SQLAlchemy 모델
 │   ├── services/
-│   │   ├── crawler_service.py      # 크롤러
+│   │   ├── crawler_service.py      # D4: Crawler Module (Stream 발행)
 │   │   ├── sentiment_analyzer.py   # 감성분석
 │   │   ├── ticker_extractor.py     # 티커 추출
 │   │   └── market_data_sync.py     # 마켓 데이터 동기화
-│   └── main.py.fastapi_backup      # FastAPI 백업 (참고용)
 │
 ├── index_analyzer/                 # 크롤러 엔진 (기존)
 │   ├── crawling/
@@ -534,9 +658,10 @@ marketpulse/
 │   └── media/
 │
 ├── scripts/                        # 유틸리티 스크립트
+│   ├── quick_test.py               # 빠른 시스템 검증
+│   ├── test_stream_architecture.py # Stream 아키텍처 테스트
 │   ├── load_market_data.py
-│   ├── init_db.py
-│   └── verify_system.py
+│   └── init_db.py
 │
 ├── nginx/                          # Nginx 설정
 │   ├── nginx.conf
@@ -1047,46 +1172,65 @@ MIT License
 ## 🎯 현재 상태
 
 ```
-진행률: ████████████░░░░░░░░ 60%
+진행률: ████████████████░░░░ 80%
 
 완료:
-✅ 아키텍처 설계
+✅ Stream Architecture 설계 (README 시스템 플로우 기반)
 ✅ Python 크롤러 엔진 (뉴스 수집)
 ✅ 데이터베이스 스키마 (SQLite/PostgreSQL)
 ✅ 티커 추출 시스템 (S&P 500)
 ✅ 감성 분석 (규칙 기반)
 ✅ APScheduler 자동 스케줄링
-✅ Redis Message Queue (Spring ↔ Python 통신)
-✅ 하이브리드 워커 (자동 + 수동 트리거)
+✅ Redis Event Bus (Queue, Stream, Pub/Sub 통합)
+✅ Command Handler (Spring → Python 명령 처리)
+✅ Stream 기반 파이프라인 (Crawler → Analyzer 분리)
+✅ Analyzer Consumer (Stream 구독 및 분석)
+✅ Status Publisher (Python → Spring 상태 전송)
+✅ Multi-thread Orchestrator (APScheduler + 2개 Listener)
 ✅ CLI 도구 (수동 실행)
 ✅ 마켓 데이터 동기화
 
 다음 단계:
-⏳ Spring Boot API 구현 (REST API)
+⏳ Spring Boot API 구현 (Redis 연동)
 ⏳ JWT 인증 시스템
 ⏳ 포트폴리오 관리
 ⏳ FinBERT 고급 감성 분석
+⏳ Docker Compose 통합
 ```
 
 **현재 실행 가능:**
 
-1. **APScheduler Only 모드** (Redis 없이)
+1. **빠른 시작 테스트**
+   ```bash
+   python scripts/quick_test.py
+   ```
+
+2. **APScheduler Only 모드** (권장 - Redis 없이)
    ```bash
    python -m app.main
    ```
    - 매 1시간마다 자동 뉴스 수집
    - 매 2시간마다 감성 분석
+   - Redis 불필요 (가장 간단)
 
-2. **Hybrid 모드** (Redis 포함, 권장)
+3. **Stream Architecture 모드** (Redis 포함)
    ```bash
-   redis-server &
+   docker run -d -p 6379:6379 redis:7-alpine
    python -m app.main
    ```
-   - 자동 스케줄링 + Spring Boot 트리거 대기
+   - APScheduler + Command Listener + Analyzer Consumer
+   - Spring → Python 명령 수신
+   - Crawler → Analyzer 파이프라인
+   - Python → Spring 상태 전송
 
-3. **CLI 수동 실행**
+4. **CLI 수동 실행**
    ```bash
    python -m app.cli crawl        # 즉시 크롤링
+   ```
+
+5. **Stream 테스트**
+   ```bash
+   python scripts/test_stream_architecture.py
    ```
 
 ---

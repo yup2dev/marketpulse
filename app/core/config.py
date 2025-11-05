@@ -47,7 +47,11 @@ class Settings(BaseSettings):
 
     # ===== Message Queue =====
     QUEUE_ENABLED: bool = Field(default=True, description="Redis Queue Consumer 활성화")
-    REDIS_QUEUE_NAME: str = Field(default="marketpulse:tasks", description="Redis Queue 이름")
+    REDIS_QUEUE_NAME: str = Field(default="marketpulse:commands", description="Redis Queue 이름 (Spring → Python)")
+
+    # ===== Redis Channels =====
+    REDIS_STATUS_CHANNEL: str = Field(default="marketpulse:status", description="상태 Pub/Sub 채널 (Python → Spring)")
+    REDIS_STREAM_ARTICLES: str = Field(default="stream:new_articles", description="신규 기사 Stream (Crawler → Analyzer)")
 
     # ===== Scheduler Settings =====
     SCHEDULER_ENABLED: bool = Field(default=True, description="스케줄러 활성화 여부")
