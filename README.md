@@ -172,7 +172,7 @@ CALC → RCMD 변환
 ### 1. 저장소 클론
 
 ```bash
-git clone https://github.com/yourusername/index_analyzer.git
+git clone https://github.com/yup2dev/index_analyzer.git
 cd index_analyzer
 ```
 

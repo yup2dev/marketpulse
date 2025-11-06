@@ -133,17 +133,122 @@ def register_jobs(scheduler: BackgroundScheduler, event_bus=None):
         except ImportError:
             log.warning("Market data sync not available")
 
-    # ===== 4. 일일 클린업 =====
+    # ===== 4. 매일 S&P 500 종목 업로드 =====
+    scheduler.add_job(
+        func=daily_sp500_sync,
+        trigger=CronTrigger(hour=0, minute=0),  # 매일 자정 UTC
+        id='daily_sp500_sync',
+        name='Daily S&P 500 Sync',
+        replace_existing=True
+    )
+    log.info("Registered: Daily S&P 500 Sync (00:00 UTC)")
+
+    # ===== 4-1. 매일 가격 데이터 수집 =====
+    scheduler.add_job(
+        func=daily_price_sync,
+        trigger=CronTrigger(hour=21, minute=30),  # 미국 시장 마감 후 (21:30 UTC = 16:30 EST)
+        id='daily_price_sync',
+        name='Daily Price Data Sync',
+        replace_existing=True
+    )
+    log.info("Registered: Daily Price Sync (21:30 UTC, after US market close)")
+
+    # ===== 5. 일일 클린업 =====
     scheduler.add_job(
         func=daily_cleanup,
-        trigger=CronTrigger(hour=0, minute=0),  # 매일 자정 UTC
+        trigger=CronTrigger(hour=0, minute=30),  # 매일 자정 30분 UTC (S&P 500 sync 후)
         id='daily_cleanup',
         name='Daily Cleanup Task',
         replace_existing=True
     )
-    log.info("Registered: Daily Cleanup (00:00 UTC)")
+    log.info("Registered: Daily Cleanup (00:30 UTC)")
 
     log.info(f"All jobs registered. Total: {len(scheduler.get_jobs())} jobs")
+
+
+def daily_sp500_sync():
+    """
+    매일 S&P 500 종목 동기화
+    - Wikipedia에서 최신 S&P 500 종목 리스트 가져오기
+    - MBS_IN_STBD_MST 마스터 테이블에 저장
+    """
+    try:
+        log.info("Daily S&P 500 sync task started")
+        from app.models.database import get_sqlite_db
+        from app.services.market_data_sync import MarketDataSync
+        from app.core.config import settings
+
+        db_path = settings.SQLITE_PATH
+        db = get_sqlite_db(db_path)
+        session = db.get_session()
+
+        try:
+            # MarketDataSync 서비스 초기화
+            sync_service = MarketDataSync(session)
+
+            # S&P 500 종목 동기화 (Wikipedia에서 가져오기)
+            log.info("Fetching S&P 500 constituents from Wikipedia...")
+            sp500_tickers = sync_service.sync_sp500_from_wikipedia()
+
+            if sp500_tickers:
+                from app.models.database import generate_batch_id
+                batch_id = generate_batch_id()
+
+                # MBS_IN_STBD_MST에 저장 (enrichment는 하지 않음 - 빠르게 처리)
+                count = sync_service.sync_tickers_to_db(
+                    sp500_tickers,
+                    asset_type='stock',
+                    batch_id=batch_id,
+                    enrich=False  # 매일 자정 작업이므로 빠르게 처리
+                )
+                log.info(f"Daily S&P 500 sync completed: {count} stocks synchronized")
+                return count
+            else:
+                log.warning("No S&P 500 data available from Wikipedia")
+                return 0
+
+        finally:
+            session.close()
+
+    except Exception as e:
+        log.error(f"Daily S&P 500 sync failed: {e}", exc_info=True)
+        return 0
+
+
+def daily_price_sync():
+    """
+    매일 가격 데이터 동기화
+    - MBS_IN_STBD_MST 마스터 테이블에서 활성 종목 조회
+    - Yahoo Finance API로 가격 데이터 수집
+    - 각 IN 테이블에 저장 (STK, ETF, BOND, CMDTY)
+    """
+    try:
+        log.info("Daily price sync task started")
+        from app.models.database import get_sqlite_db
+        from app.services.market_data_sync import MarketDataSync
+        from app.core.config import settings
+
+        db_path = settings.SQLITE_PATH
+        db = get_sqlite_db(db_path)
+        session = db.get_session()
+
+        try:
+            # MarketDataSync 서비스 초기화
+            sync_service = MarketDataSync(session)
+
+            # MST 테이블 기반 가격 수집
+            log.info("Syncing prices from MBS_IN_STBD_MST...")
+            results = sync_service.sync_prices_from_mst()
+
+            log.info(f"Daily price sync completed: {results['total']} prices synchronized")
+            return results
+
+        finally:
+            session.close()
+
+    except Exception as e:
+        log.error(f"Daily price sync failed: {e}", exc_info=True)
+        return {'total': 0}
 
 
 def daily_cleanup():

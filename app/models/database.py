@@ -26,6 +26,66 @@ Base = declarative_base()
 # IN Layer: 입수 (크롤러가 넣는 원본 데이터)
 # =============================================================================
 
+class MBS_IN_STBD_MST(Base):
+    """
+    입수 - 상태판 마스터
+    시스템에서 수집/추적할 종목 목록 관리
+    실제 가격 데이터는 MBS_IN_STK_STBD, MBS_IN_ETF_STBD, MBS_IN_BOND_STBD, MBS_IN_CMDTY_STBD에 저장
+    """
+    __tablename__ = 'mbs_in_stbd_mst'
+
+    ticker_cd = Column(String(20), primary_key=True)  # 종목 코드 (예: AAPL, SPY, GC=F, ^TNX)
+    ticker_nm = Column(String(200), nullable=False)  # 종목명
+    asset_type = Column(String(20), nullable=False, index=True)  # stock, etf, bond, commodity
+
+    # 추가 정보
+    sector = Column(String(100), index=True)  # 섹터 (Technology, Energy 등)
+    industry = Column(String(100))  # 산업 (Software, Oil & Gas 등)
+    exchange = Column(String(50))  # 거래소 (NYSE, NASDAQ, NYMEX 등)
+    country = Column(String(50))  # 국가
+    curr = Column(String(10), default='USD')  # 통화
+
+    # 채권 전용 필드
+    bond_type = Column(String(50))  # Treasury, Corporate, Municipal
+    maturity = Column(String(20))  # 만기 (10Y, 30Y)
+
+    # 관리 정보
+    data_source = Column(String(50))  # wikipedia, yfinance, manual
+    is_active = Column(Boolean, default=True, index=True)  # 활성 여부
+    start_date = Column(Date, index=True)  # 수집 시작일
+    end_date = Column(Date)  # 수집 종료일 (is_active=False인 경우)
+    remarks = Column(Text)  # 비고
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        Index('idx_stbd_mst_asset_type', 'asset_type'),
+        Index('idx_stbd_mst_sector', 'sector'),
+        Index('idx_stbd_mst_active', 'is_active'),
+        Index('idx_stbd_mst_start_date', 'start_date'),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            'ticker_cd': self.ticker_cd,
+            'ticker_nm': self.ticker_nm,
+            'asset_type': self.asset_type,
+            'sector': self.sector,
+            'industry': self.industry,
+            'exchange': self.exchange,
+            'country': self.country,
+            'curr': self.curr,
+            'bond_type': self.bond_type,
+            'maturity': self.maturity,
+            'data_source': self.data_source,
+            'is_active': self.is_active,
+            'start_date': self.start_date.isoformat() if self.start_date else None,
+            'end_date': self.end_date.isoformat() if self.end_date else None,
+            'remarks': self.remarks
+        }
+
+
 class MBS_IN_ARTICLE(Base):
     """
     입수 - 뉴스 기사 원본
@@ -134,6 +194,90 @@ class MBS_IN_ETF_STBD(Base):
             'etf_cd': self.etf_cd,
             'etf_nm': self.etf_nm,
             'sector': self.sector,
+            'curr': self.curr,
+            'close_price': float(self.close_price) if self.close_price else None,
+            'change_rate': float(self.change_rate) if self.change_rate else None,
+            'base_ymd': self.base_ymd.isoformat() if self.base_ymd else None
+        }
+
+
+class MBS_IN_BOND_STBD(Base):
+    """
+    입수 - 채권 상태판
+    크롤러가 수집한 채권 가격 데이터
+    """
+    __tablename__ = 'mbs_in_bond_stbd'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    bond_cd = Column(String(20), nullable=False, index=True)
+    bond_nm = Column(String(100))
+    bond_type = Column(String(50), index=True)  # Treasury, Corporate, Municipal 등
+    maturity = Column(String(20))  # 만기 (예: 10Y, 30Y)
+    curr = Column(String(10), default='USD')
+    close_price = Column(DECIMAL(20, 4))
+    yield_rate = Column(DECIMAL(10, 4))  # 수익률
+    change_rate = Column(DECIMAL(10, 4))
+    base_ymd = Column(Date, nullable=False, index=True)
+    ingest_batch_id = Column(String(50), index=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint('bond_cd', 'base_ymd', name='uq_bond_date'),
+        Index('idx_in_bond_base_ymd', 'base_ymd'),
+        Index('idx_in_bond_cd_date', 'bond_cd', 'base_ymd'),
+        Index('idx_in_bond_type', 'bond_type'),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            'bond_cd': self.bond_cd,
+            'bond_nm': self.bond_nm,
+            'bond_type': self.bond_type,
+            'maturity': self.maturity,
+            'curr': self.curr,
+            'close_price': float(self.close_price) if self.close_price else None,
+            'yield_rate': float(self.yield_rate) if self.yield_rate else None,
+            'change_rate': float(self.change_rate) if self.change_rate else None,
+            'base_ymd': self.base_ymd.isoformat() if self.base_ymd else None
+        }
+
+
+class MBS_IN_CMDTY_STBD(Base):
+    """
+    입수 - 원자재 상태판
+    크롤러가 수집한 원자재 선물 가격 데이터
+    """
+    __tablename__ = 'mbs_in_cmdty_stbd'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    cmdty_cd = Column(String(20), nullable=False, index=True)
+    cmdty_nm = Column(String(100))
+    sector = Column(String(100), index=True)  # Energy, Metals, Agriculture 등
+    exchange = Column(String(50))  # NYMEX, COMEX, CBOT 등
+    curr = Column(String(10), default='USD')
+    close_price = Column(DECIMAL(20, 4))
+    change_rate = Column(DECIMAL(10, 4))
+    base_ymd = Column(Date, nullable=False, index=True)
+    ingest_batch_id = Column(String(50), index=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint('cmdty_cd', 'base_ymd', name='uq_cmdty_date'),
+        Index('idx_in_cmdty_base_ymd', 'base_ymd'),
+        Index('idx_in_cmdty_cd_date', 'cmdty_cd', 'base_ymd'),
+        Index('idx_in_cmdty_sector', 'sector'),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            'cmdty_cd': self.cmdty_cd,
+            'cmdty_nm': self.cmdty_nm,
+            'sector': self.sector,
+            'exchange': self.exchange,
             'curr': self.curr,
             'close_price': float(self.close_price) if self.close_price else None,
             'change_rate': float(self.change_rate) if self.change_rate else None,
@@ -285,103 +429,6 @@ class MBS_RCMD_RESULT(Base):
             'reason': self.reason,
             'base_ymd': self.base_ymd.isoformat() if self.base_ymd else None
         }
-
-
-# =============================================================================
-# Legacy Tables (기존 테이블 - 호환성 유지, 향후 마이그레이션 예정)
-# =============================================================================
-
-class Ticker(Base):
-    """종목 마스터 테이블 - 외부 API 데이터 캐싱"""
-    __tablename__ = 'tickers'
-
-    symbol = Column(String(20), primary_key=True)
-    name = Column(Text, nullable=False)
-    exchange = Column(String(20), index=True)
-    asset_type = Column(String(20), index=True, nullable=False)
-    sector = Column(String(100), index=True)
-    industry = Column(String(100))
-    currency = Column(String(10), default='USD')
-    country = Column(String(50))
-    data_source = Column(String(50))
-    is_active = Column(Boolean, default=True, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    # Relationships
-    price_history = relationship("TickerPrice", back_populates="ticker", cascade="all, delete-orphan")
-
-    __table_args__ = (
-        Index('idx_asset_active', 'asset_type', 'is_active'),
-        Index('idx_sector_active', 'sector', 'is_active'),
-    )
-
-    def to_dict(self) -> dict:
-        return {
-            'symbol': self.symbol,
-            'name': self.name,
-            'exchange': self.exchange,
-            'asset_type': self.asset_type,
-            'sector': self.sector,
-            'industry': self.industry,
-            'currency': self.currency,
-            'country': self.country,
-            'is_active': self.is_active
-        }
-
-
-class TickerPrice(Base):
-    """일별 종목 가격 데이터"""
-    __tablename__ = 'ticker_prices'
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    symbol = Column(String(20), ForeignKey('tickers.symbol', ondelete='CASCADE'), nullable=False)
-    base_ymd = Column(Date, nullable=False, index=True)
-    open = Column(Float)
-    high = Column(Float)
-    low = Column(Float)
-    close = Column(Float)
-    prev_close = Column(Float)
-    volume = Column(Float)
-    change = Column(Float)
-    change_pct = Column(Float)
-    data_source = Column(String(50), default='yfinance')
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    ticker = relationship("Ticker", back_populates="price_history")
-
-    __table_args__ = (
-        UniqueConstraint('symbol', 'base_ymd', name='uq_ticker_date'),
-        Index('idx_symbol_date', 'symbol', 'base_ymd'),
-        Index('idx_date', 'base_ymd'),
-    )
-
-    def to_dict(self) -> dict:
-        return {
-            'symbol': self.symbol,
-            'base_ymd': self.base_ymd.isoformat() if self.base_ymd else None,
-            'open': self.open,
-            'high': self.high,
-            'low': self.low,
-            'close': self.close,
-            'prev_close': self.prev_close,
-            'volume': self.volume,
-            'change': self.change,
-            'change_pct': self.change_pct,
-            'data_source': self.data_source
-        }
-
-
-
-# =============================================================================
-# Removed Legacy Tables
-# =============================================================================
-# The following Legacy tables have been removed (replaced by MBS pipeline):
-# - NewsArticle → MBS_IN_ARTICLE + MBS_PROC_ARTICLE
-# - NewsTicker → MBS_PROC_ARTICLE (stk_cd field)
-# - MarketSummary → Not used
-# =============================================================================
 
 
 # =============================================================================
