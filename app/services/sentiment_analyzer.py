@@ -83,18 +83,18 @@ class SentimentAnalyzer:
                 session = db_session
                 close_session = False
 
-            # Ticker 테이블에서 로드
-            from app.models.database import Ticker
-            tickers = session.query(Ticker).filter_by(is_active=True).all()
+            # MBS_IN_STBD_MST 테이블에서 로드
+            from app.models.database import MBS_IN_STBD_MST
+            tickers = session.query(MBS_IN_STBD_MST).filter_by(is_active=True).all()
 
             for ticker in tickers:
-                symbol = ticker.symbol
-                if not ticker.name:
+                symbol = ticker.ticker_cd
+                if not ticker.ticker_nm:
                     continue
 
                 # 회사명 변형 생성
                 name_variants = set()
-                company_name = ticker.name.lower()
+                company_name = ticker.ticker_nm.lower()
 
                 # 원본 이름
                 name_variants.add(company_name)

@@ -34,6 +34,7 @@ from app.redis_bus import create_redis_event_bus, RedisEventBus
 from app.command_handler import CommandHandler
 from app.analyzer_consumer import start_analyzer_consumer
 from app.services.crawler_service import crawl_with_stream
+from app.services.market_data_sync import MarketDataSync
 from app.core.config import settings
 
 # 로깅 설정 (Windows cp949 인코딩 문제 해결)
@@ -135,6 +136,62 @@ def start_command_listener(event_bus: RedisEventBus):
     )
 
 
+def initialize_market_data():
+    """
+    시장 데이터 초기화
+
+    1. MBS_IN_STBD_MST에 ticker 메타데이터 적재
+    2. 각 asset_type별 테이블(STK, ETF, BOND, CMDTY)에 가격 데이터 적재
+
+    Returns:
+        초기화 성공 여부
+    """
+    try:
+        log.info("\n" + "=" * 80)
+        log.info("INITIALIZING MARKET DATA")
+        log.info("=" * 80)
+
+        from app.models.database import get_sqlite_db, MBS_IN_STBD_MST
+
+        # 데이터베이스 세션 생성
+        db = get_sqlite_db(settings.SQLITE_PATH)
+        session = db.get_session()
+
+        # MarketDataSync 서비스 생성
+        sync_service = MarketDataSync(session)
+
+        # 1. MBS_IN_STBD_MST에 ticker 메타데이터가 있는지 확인
+        ticker_count = session.query(MBS_IN_STBD_MST).filter(
+            MBS_IN_STBD_MST.is_active == True
+        ).count()
+
+        log.info(f"Current active tickers in MBS_IN_STBD_MST: {ticker_count}")
+
+        # ticker가 없거나 적으면 초기 로드
+        if ticker_count < 10:
+            log.info("\n[1/2] Loading ticker metadata to MBS_IN_STBD_MST...")
+            results = sync_service.sync_all(enrich=False)  # enrichment 비활성화로 빠르게
+            log.info(f"Loaded {results.get('total', 0)} tickers to MBS_IN_STBD_MST")
+        else:
+            log.info("\n[1/2] Ticker metadata already exists in MBS_IN_STBD_MST (skipping)")
+
+        # 2. MBS_IN_STBD_MST 데이터를 기반으로 가격 데이터 적재
+        log.info("\n[2/2] Loading price data from MBS_IN_STBD_MST to asset tables...")
+        price_results = sync_service.sync_prices_from_mst()
+
+        session.close()
+
+        log.info("\n" + "=" * 80)
+        log.info("MARKET DATA INITIALIZATION COMPLETED")
+        log.info("=" * 80 + "\n")
+
+        return True
+
+    except Exception as e:
+        log.error(f"Failed to initialize market data: {e}", exc_info=True)
+        return False
+
+
 def run_crawler(event_bus: RedisEventBus = None):
     """
     크롤러 수동 실행
@@ -192,7 +249,13 @@ def main():
 
     try:
         # ===================================================================
-        # 1. Redis Event Bus 초기화 (먼저 시작)
+        # 1. 시장 데이터 초기화 (제일 먼저 실행)
+        # MBS_IN_STBD_MST → STK, ETF, BOND, CMDTY 테이블 적재
+        # ===================================================================
+        initialize_market_data()
+
+        # ===================================================================
+        # 2. Redis Event Bus 초기화
         # ===================================================================
         if settings.REDIS_URL:
             event_bus = create_redis_event_bus(settings.REDIS_URL)
@@ -206,7 +269,7 @@ def main():
             log.info("=" * 80)
 
             # ===================================================================
-            # 2. Analyzer Consumer 시작 (Thread 1 - 먼저 시작!)
+            # 3. Analyzer Consumer 시작 (Thread 1 - 먼저 시작!)
             # D5: Analyzer Module (Stream 구독)
             # Crawler가 발행한 메시지를 즉시 처리할 준비
             # ===================================================================
@@ -221,7 +284,7 @@ def main():
             log.info("[Thread 1] Analyzer Consumer started")
 
             # ===================================================================
-            # 3. Command Listener 시작 (Thread 2)
+            # 4. Command Listener 시작 (Thread 2)
             # D3: Redis Listener (Spring → Python 명령)
             # ===================================================================
             if settings.QUEUE_ENABLED:
@@ -241,7 +304,7 @@ def main():
             log.warning("Redis URL not configured. Redis-based features disabled.")
 
         # ===================================================================
-        # 4. APScheduler 시작 (자동 스케줄링) - 마지막에 시작
+        # 5. APScheduler 시작 (자동 스케줄링) - 마지막에 시작
         # Analyzer Consumer가 준비된 후에 Crawler 실행
         # ===================================================================
         if settings.SCHEDULER_ENABLED:

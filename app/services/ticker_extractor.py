@@ -64,27 +64,27 @@ class TickerExtractor:
                 session = db_session
                 close_session = False
 
-            # Ticker 테이블에서 모든 종목 로드
-            from app.models.database import Ticker
-            tickers = session.query(Ticker).all()
+            # MBS_IN_STBD_MST 테이블에서 활성 종목 로드
+            from app.models.database import MBS_IN_STBD_MST
+            tickers = session.query(MBS_IN_STBD_MST).filter_by(is_active=True).all()
 
             log.info(f"Loading {len(tickers)} tickers from database...")
 
             for ticker in tickers:
-                symbol = ticker.symbol
+                symbol = ticker.ticker_cd
 
                 # 티커 정보 저장
                 self.ticker_db[symbol] = {
-                    'name': ticker.name,
+                    'name': ticker.ticker_nm,
                     'exchange': ticker.exchange or 'UNKNOWN',
                     'sector': ticker.sector or 'Unknown',
                     'industry': ticker.industry or 'Unknown'
                 }
 
                 # 회사명 → 티커 매핑 생성
-                if ticker.name:
+                if ticker.ticker_nm:
                     # 전체 이름 (구두점 제거)
-                    company_name = ticker.name.lower()
+                    company_name = ticker.ticker_nm.lower()
                     # 쉼표, 괄호 등 제거
                     clean_name = re.sub(r'[,\(\)\[\]{}]', '', company_name).strip()
                     self.company_to_ticker[clean_name] = symbol
@@ -116,8 +116,8 @@ class TickerExtractor:
                         self.sector_keywords[ticker.sector] = []
                     self.sector_keywords[ticker.sector].append({
                         'symbol': symbol,
-                        'name': ticker.name,
-                        'keywords': self._generate_keywords(ticker.name)
+                        'name': ticker.ticker_nm,
+                        'keywords': self._generate_keywords(ticker.ticker_nm)
                     })
 
             if close_session:

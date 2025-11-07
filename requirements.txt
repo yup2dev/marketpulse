@@ -53,7 +53,7 @@ apscheduler>=3.10.0
 # Basic sentiment analysis works without transformers
 # Uncomment below for advanced features:
 
-# spacy>=3.7.0
+spacy>=3.7.0
 # After install, download model: python -m spacy download en_core_web_sm
 
 # transformers>=4.30.0
@@ -93,3 +93,5 @@ httpx>=0.25.0
 black>=23.10.0
 flake8>=6.1.0
 mypy>=1.7.0
+
+pathlib~=1.0.1
