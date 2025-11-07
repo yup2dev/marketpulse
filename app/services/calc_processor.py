@@ -142,6 +142,13 @@ class CalcProcessor:
             )
 
             session.close()
+
+            # ===================================================================
+            # CALC 완료 후 자동으로 RCMD 실행 (파이프라인 체인)
+            # ===================================================================
+            if calc_ids and stk_cd:
+                self._trigger_rcmd_generation(stk_cd, proc_article.base_ymd)
+
             return calc_ids
 
         except Exception as e:
@@ -149,6 +156,32 @@ class CalcProcessor:
             log.error(f"[CalcProcessor] Error processing {proc_id}: {e}", exc_info=True)
             session.close()
             return []
+
+    def _trigger_rcmd_generation(self, stk_cd: str, base_ymd):
+        """
+        CALC 완료 후 RCMD 생성 트리거 (파이프라인 체인)
+
+        Args:
+            stk_cd: 종목 코드
+            base_ymd: 기준 날짜
+        """
+        try:
+            from app.services.rcmd_generator import get_rcmd_generator
+
+            log.info(f"[Pipeline] CALC → RCMD triggered for {stk_cd} on {base_ymd}")
+
+            generator = get_rcmd_generator()
+
+            # 해당 날짜의 모든 종목에 대해 추천 생성
+            results = generator.batch_generate(base_ymd=base_ymd)
+
+            log.info(
+                f"[Pipeline] CALC → RCMD completed: "
+                f"NEWS={results['news']}, STOCK={results['stock']}, PORTFOLIO={results['portfolio']}"
+            )
+
+        except Exception as e:
+            log.error(f"[Pipeline] Failed to trigger RCMD: {e}", exc_info=True)
 
     def _save_metric(
         self,

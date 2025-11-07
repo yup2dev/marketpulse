@@ -422,8 +422,8 @@ def create_redis_event_bus(redis_url: str, max_connections: int = 50) -> Optiona
         pool = redis.ConnectionPool.from_url(
             redis_url,
             max_connections=max_connections,
-            socket_timeout=5,
-            socket_connect_timeout=5,
+            socket_timeout=30,  # 5 -> 30초로 증가 (Windows 환경)
+            socket_connect_timeout=10,  # 5 -> 10초로 증가
             socket_keepalive=True,
             socket_keepalive_options={
                 1: 1,  # TCP_KEEPIDLE (Linux)

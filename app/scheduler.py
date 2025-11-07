@@ -91,31 +91,14 @@ def register_jobs(scheduler: BackgroundScheduler, event_bus=None):
         next_run_time=datetime.utcnow()  # 즉시 한 번 실행
     )
     log.info("Registered: IN → News Crawling (every 1h)")
+    log.info("  └─ Pipeline chain: Crawler → Stream → PROC → CALC → RCMD (automatic)")
 
-    # ===== 1. PROC → CALC 변환 =====
-    from app.services.calc_processor import scheduled_calc_processing
-
-    scheduler.add_job(
-        func=scheduled_calc_processing,
-        trigger=IntervalTrigger(hours=1),
-        id='calc_processing',
-        name='PROC to CALC Processing',
-        replace_existing=True,
-        next_run_time=datetime.utcnow()  # 즉시 한 번 실행
-    )
-    log.info("Registered: PROC → CALC Processing (every 1h)")
-
-    # ===== 2. CALC → RCMD 생성 =====
-    from app.services.rcmd_generator import scheduled_rcmd_generation
-
-    scheduler.add_job(
-        func=scheduled_rcmd_generation,
-        trigger=IntervalTrigger(hours=2),
-        id='rcmd_generation',
-        name='CALC to RCMD Generation',
-        replace_existing=True
-    )
-    log.info("Registered: CALC → RCMD Generation (every 2h)")
+    # ===== PROC, CALC, RCMD는 파이프라인 체인으로 자동 실행됨 =====
+    # - Crawler 완료 → Redis Stream 발행
+    # - AnalyzerConsumer(PROC) → 각 기사 분석 후 CALC 트리거
+    # - CalcProcessor(CALC) → 메트릭 계산 후 RCMD 트리거
+    # - RcmdGenerator(RCMD) → 추천 생성
+    # 별도 스케줄 등록 불필요!
 
     # ===== 3. 마켓 데이터 동기화 (옵션) =====
     if hasattr(settings, 'MARKET_DATA_INTERVAL_HOURS') and settings.MARKET_DATA_INTERVAL_HOURS > 0:

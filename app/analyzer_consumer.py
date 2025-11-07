@@ -143,8 +143,36 @@ class AnalyzerConsumer:
 
             session.close()
 
+            # ===================================================================
+            # PROC 완료 후 자동으로 CALC 실행 (파이프라인 체인)
+            # ===================================================================
+            self._trigger_calc_processing(proc_id)
+
         except Exception as e:
             log.error(f"[Analyzer] Error processing news_id {news_id}: {e}", exc_info=True)
+
+    def _trigger_calc_processing(self, proc_id: str):
+        """
+        PROC 완료 후 CALC 처리 트리거 (파이프라인 체인)
+
+        Args:
+            proc_id: 처리할 PROC ID
+        """
+        try:
+            from app.services.calc_processor import get_calc_processor
+
+            log.info(f"[Pipeline] PROC → CALC triggered for {proc_id}")
+
+            processor = get_calc_processor()
+            calc_ids = processor.process_proc_to_calc(proc_id)
+
+            if calc_ids:
+                log.info(f"[Pipeline] PROC → CALC completed: {len(calc_ids)} metrics created")
+            else:
+                log.warning(f"[Pipeline] PROC → CALC: No metrics created for {proc_id}")
+
+        except Exception as e:
+            log.error(f"[Pipeline] Failed to trigger CALC for {proc_id}: {e}", exc_info=True)
 
     def _generate_summary(self, content: str, max_length: int = 200) -> str:
         """

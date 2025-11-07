@@ -1,21 +1,29 @@
 """
-Python Background Worker - Independent Module Pipeline
+Python Background Worker - Automatic Pipeline Chain Architecture
 D1: Systemd / Docker Daemon (항상 실행 유지)
 D2: Orchestrator (APScheduler + Stream Consumer)
 
-파이프라인: IN → PROC → CALC → RCMD (각 모듈 독립적으로 동작)
+파이프라인: Crawler → Stream → PROC → CALC → RCMD (자동 체인 실행)
 
 구조:
-- Main Thread: APScheduler (자동 스케줄링)
-  - IN: Crawler (매 1시간) → MBS_IN_ARTICLE + Stream 발행
-  - CALC: CalcProcessor (매 1시간) → MBS_PROC_ARTICLE → MBS_CALC_METRIC
-  - RCMD: RcmdGenerator (매 2시간) → MBS_CALC_METRIC → MBS_RCMD_RESULT
+- Main Thread: APScheduler
+  - Crawler만 스케줄 실행 (매 1시간)
 
-- Thread 1: PROC Consumer (실시간 처리)
-  - AnalyzerConsumer: Stream 구독 → MBS_IN_ARTICLE → MBS_PROC_ARTICLE
+- Thread 1: PROC Consumer (실시간 파이프라인)
+  - AnalyzerConsumer: Stream 구독 → PROC 처리 → CALC 트리거 → RCMD 트리거
+  - 각 기사마다 IN → PROC → CALC → RCMD 순차 실행
 
 - Thread 2: Command Listener
   - Spring → Python 명령 수신 및 처리
+
+파이프라인 흐름:
+  Crawler(스케줄) → Redis Stream
+    ↓
+  AnalyzerConsumer → MBS_PROC_ARTICLE 저장
+    ↓
+  CalcProcessor → MBS_CALC_METRIC 저장
+    ↓
+  RcmdGenerator → MBS_RCMD_RESULT 저장
 """
 import logging
 import signal
@@ -25,6 +33,7 @@ from app.scheduler import start_scheduler, stop_scheduler
 from app.redis_bus import create_redis_event_bus, RedisEventBus
 from app.command_handler import CommandHandler
 from app.analyzer_consumer import start_analyzer_consumer
+from app.services.crawler_service import crawl_with_stream
 from app.core.config import settings
 
 # 로깅 설정
@@ -105,6 +114,39 @@ def start_command_listener(event_bus: RedisEventBus):
         callback=handler.handle_command,
         timeout=5
     )
+
+
+def run_crawler(event_bus: RedisEventBus = None):
+    """
+    크롤러 수동 실행
+
+    Args:
+        event_bus: RedisEventBus 인스턴스 (Stream 발행용)
+
+    Returns:
+        크롤링된 기사 수
+    """
+    try:
+        log.info("=" * 80)
+        log.info("Starting manual crawler execution...")
+        log.info("=" * 80)
+
+        if not event_bus:
+            log.error("Redis Event Bus not available - cannot publish to stream")
+            return 0
+
+        # 크롤러 실행
+        article_count = crawl_with_stream(event_bus)
+
+        log.info("=" * 80)
+        log.info(f"Manual crawler completed: {article_count} articles published")
+        log.info("=" * 80)
+
+        return article_count
+
+    except Exception as e:
+        log.error(f"Failed to run crawler: {e}", exc_info=True)
+        return 0
 
 
 def main():
@@ -192,22 +234,25 @@ def main():
         # Status Summary
         # ===================================================================
         log.info("\n" + "=" * 80)
-        log.info("Background Worker is running (Independent Module Pipeline)")
+        log.info("Background Worker is running (Automatic Pipeline Chain)")
         log.info("")
-        log.info("Pipeline Modules:")
-        log.info("  - IN (Crawler): Scheduled every 1h")
-        log.info("  - PROC (Analyzer): Real-time via stream:new_articles")
-        log.info("  - CALC (Processor): Scheduled every 1h")
-        log.info("  - RCMD (Generator): Scheduled every 2h")
+        log.info("Pipeline Architecture:")
+        log.info("  Crawler (scheduled every 1h)")
+        log.info("    ↓ Redis Stream")
+        log.info("  PROC (real-time, per article)")
+        log.info("    ↓ auto-trigger")
+        log.info("  CALC (immediate)")
+        log.info("    ↓ auto-trigger")
+        log.info("  RCMD (immediate)")
         log.info("")
         log.info("Active Threads:")
-        log.info("  - APScheduler: Auto-scheduling tasks")
+        log.info("  - APScheduler: Crawler scheduling")
 
         if command_thread and command_thread.is_alive():
-            log.info(f"  - Command Listener: Listening on '{settings.REDIS_QUEUE_NAME}'")
+            log.info(f"  - Command Listener: '{settings.REDIS_QUEUE_NAME}'")
 
         if analyzer_thread and analyzer_thread.is_alive():
-            log.info("  - PROC Consumer: Consuming 'stream:new_articles'")
+            log.info("  - Pipeline Consumer: 'stream:new_articles' → PROC → CALC → RCMD")
 
         log.info("")
         log.info("Press Ctrl+C to stop")
