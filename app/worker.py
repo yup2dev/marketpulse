@@ -36,15 +36,34 @@ from app.analyzer_consumer import start_analyzer_consumer
 from app.services.crawler_service import crawl_with_stream
 from app.core.config import settings
 
-# 로깅 설정
+# 로깅 설정 (Windows cp949 인코딩 문제 해결)
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler(settings.LOG_FILE),
+        logging.FileHandler(settings.LOG_FILE, encoding='utf-8'),
         logging.StreamHandler(sys.stdout)
     ]
 )
+
+# StreamHandler의 UTF-8 인코딩 강제 설정 (Windows 호환성)
+for handler in logging.getLogger().handlers:
+    if isinstance(handler, logging.StreamHandler) and handler.stream == sys.stdout:
+        # Windows 콘솔에서 UTF-8 문자를 안전하게 출력
+        handler.setFormatter(logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        ))
+        # 인코딩 에러 무시 설정
+        if hasattr(handler.stream, 'reconfigure'):
+            handler.stream.reconfigure(encoding='utf-8', errors='replace')
+        else:
+            import io
+            handler.stream = io.TextIOWrapper(
+                handler.stream.buffer,
+                encoding='utf-8',
+                errors='replace',
+                line_buffering=True
+            )
 log = logging.getLogger(__name__)
 
 # Global threads and state management

@@ -141,13 +141,16 @@ class CalcProcessor:
                 f"(Stock: {stk_cd})"
             )
 
+            # 세션 닫기 전에 필요한 값 저장 (DetachedInstanceError 방지)
+            base_ymd = proc_article.base_ymd
+
             session.close()
 
             # ===================================================================
             # CALC 완료 후 자동으로 RCMD 실행 (파이프라인 체인)
             # ===================================================================
             if calc_ids and stk_cd:
-                self._trigger_rcmd_generation(stk_cd, proc_article.base_ymd)
+                self._trigger_rcmd_generation(stk_cd, base_ymd)
 
             return calc_ids
 
