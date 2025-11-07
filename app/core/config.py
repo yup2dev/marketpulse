@@ -45,15 +45,21 @@ class Settings(BaseSettings):
     REDIS_PASSWORD: Optional[str] = Field(default=None, description="Redis 비밀번호")
     REDIS_DB: int = Field(default=0, description="Redis DB 번호")
 
+    # ===== Message Queue =====
+    QUEUE_ENABLED: bool = Field(default=True, description="Redis Queue Consumer 활성화")
+    REDIS_QUEUE_NAME: str = Field(default="marketpulse:commands", description="Redis Queue 이름 (Spring → Python)")
+
+    # ===== Redis Channels =====
+    REDIS_STATUS_CHANNEL: str = Field(default="marketpulse:status", description="상태 Pub/Sub 채널 (Python → Spring)")
+    REDIS_STREAM_ARTICLES: str = Field(default="stream:new_articles", description="신규 기사 Stream (Crawler → Analyzer)")
+
     # ===== Scheduler Settings =====
     SCHEDULER_ENABLED: bool = Field(default=True, description="스케줄러 활성화 여부")
-    CRAWL_INTERVAL_HOURS: int = Field(default=1, description="뉴스 크롤링 주기 (시간)")
-    SENTIMENT_INTERVAL_HOURS: int = Field(default=2, description="감성 분석 주기 (시간)")
     MARKET_DATA_INTERVAL_HOURS: int = Field(default=6, description="시장 데이터 동기화 주기 (시간)")
+    CRAWL_INTERVAL_HOURS: int = Field(default=1, description="크롤링 주기 (시간)")
+    SENTIMENT_INTERVAL_HOURS: int = Field(default=2, description="감성 분석 주기 (시간) - 레거시")
 
     # ===== API Keys =====
-    YAHOO_FINANCE_API_KEY: Optional[str] = Field(default=None, description="Yahoo Finance API 키")
-    ALPHA_VANTAGE_API_KEY: Optional[str] = Field(default=None, description="Alpha Vantage API 키")
     OPENAI_API_KEY: Optional[str] = Field(default=None, description="OpenAI API 키")
 
     # ===== Crawler Settings =====

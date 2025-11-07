@@ -175,7 +175,13 @@ spring-boot*/
 
 # Temporary/Accidental files
 nul
-test_crawler_manual.py
-test_scheduler.py
-START_SERVER.md
-.claude
+/.claude
+/.idea
+CLEANUP_PLAN.md
+
+# Backup files
+*.backup
+*.fastapi_backup
+
+# Root level test files (should be in tests/ folder)
+/test_*.py

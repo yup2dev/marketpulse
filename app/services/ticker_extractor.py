@@ -123,9 +123,9 @@ class TickerExtractor:
             if close_session:
                 session.close()
 
-            log.info(f"✓ Loaded {len(self.ticker_db)} tickers from database")
-            log.info(f"✓ Created {len(self.company_to_ticker)} company name mappings")
-            log.info(f"✓ Indexed {len(self.sector_keywords)} sectors")
+            log.info(f"Loaded {len(self.ticker_db)} tickers from database")
+            log.info(f"Created {len(self.company_to_ticker)} company name mappings")
+            log.info(f"Indexed {len(self.sector_keywords)} sectors")
 
         except Exception as e:
             log.error(f"Error loading from database: {e}")

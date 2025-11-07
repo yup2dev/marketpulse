@@ -13,16 +13,16 @@ cnn:
   SEED_URLS:
     - "https://edition.cnn.com/world"
 
+reuters:
+  base_url: "https://www.reuters.com"
+  seed_urls:
+    - "https://www.reuters.com/world/"
+
 # Bloomberg often blocks automated crawlers
 #bloomberg:
 #  base_url: "https://www.bloomberg.com"
 #  seed_urls:
 #    - "https://www.bloomberg.com/world"
-
-reuters:
-  base_url: "https://www.reuters.com"
-  seed_urls:
-    - "https://www.reuters.com/world/"
 
 #https://naver.com/:
 #  base_url: "https://www.naver.com/"

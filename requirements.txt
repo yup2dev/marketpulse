@@ -1,5 +1,4 @@
 # MarketPulse - Financial News Crawler & Analyzer
-# 금융 뉴스 크롤러 + 티커 추출 + 감성 분석 + API
 
 # ==============================================================================
 # Core Web Scraping & Crawling
@@ -49,17 +48,17 @@ pydantic-settings>=2.0.0
 apscheduler>=3.10.0
 
 # ==============================================================================
-# NLP & Text Analysis (Optional - 선택 설치)
+# NLP & Text Analysis (Optional)
 # ==============================================================================
-# 기본 감성 분석은 transformers 없이 작동합니다
-# 고급 기능을 위해 필요시 아래 주석을 제거하고 설치하세요:
+# Basic sentiment analysis works without transformers
+# Uncomment below for advanced features:
 
 # spacy>=3.7.0
-# 설치 후 모델 다운로드: python -m spacy download en_core_web_sm
+# After install, download model: python -m spacy download en_core_web_sm
 
 # transformers>=4.30.0
 # torch>=2.0.0
-# CPU only torch (더 가벼움):
+# For CPU only torch (lighter):
 # torch==2.0.0+cpu -f https://download.pytorch.org/whl/torch_stable.html
 
 # nltk>=3.8.1
@@ -75,10 +74,10 @@ Pillow>=10.0.0
 concurrent-futures>=3.1.1; python_version < '3.0'
 
 # ==============================================================================
-# Caching & Task Queue (Optional - 프로덕션 환경)
+# Message Queue & Caching
 # ==============================================================================
-# redis>=5.0.0
-# celery>=5.3.4
+redis>=5.0.0
+# celery>=5.3.4  # Optional: for future use
 
 # ==============================================================================
 # Testing
