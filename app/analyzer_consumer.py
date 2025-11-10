@@ -23,6 +23,7 @@ from app.models.database import (
 )
 from app.services.ticker_extractor import TickerExtractor
 from app.services.sentiment_analyzer import SentimentAnalyzer
+from app.services.summarization_service import get_summarization_service
 from app.core.config import settings
 
 log = logging.getLogger(__name__)
@@ -51,8 +52,10 @@ class AnalyzerConsumer:
         # 분석 도구 초기화
         self.ticker_extractor = TickerExtractor()
         self.sentiment_analyzer = SentimentAnalyzer(use_transformers=settings.USE_TRANSFORMERS)
+        self.summarization_service = get_summarization_service(use_transformers=settings.USE_TRANSFORMERS)
 
         log.info(f"[AnalyzerConsumer] Initialized with DB: {db_path}")
+        log.info(f"[AnalyzerConsumer] Summarization: {self.summarization_service.get_model_info()}")
 
     def start(self):
         """
@@ -176,11 +179,11 @@ class AnalyzerConsumer:
 
     def _generate_summary(self, content: str, max_length: int = 200) -> str:
         """
-        간단한 추출 요약 생성
+        Transformer 기반 요약 생성
 
         Args:
             content: 원본 텍스트
-            max_length: 최대 길이
+            max_length: 최대 길이 (문자 수)
 
         Returns:
             요약 텍스트
@@ -188,18 +191,31 @@ class AnalyzerConsumer:
         if not content:
             return ""
 
-        # 첫 N 문자 추출
-        summary = content[:max_length]
+        try:
+            # Transformer 요약 사용
+            result = self.summarization_service.summarize(content)
 
-        # 마지막 문장 끝까지 포함
-        if len(content) > max_length:
-            last_period = summary.rfind('.')
-            if last_period > 0:
-                summary = summary[:last_period + 1]
-            else:
-                summary += "..."
+            summary_text = result['summary']
+            method = result['method']
 
-        return summary
+            log.debug(
+                f"[Summary] Generated using {method}: "
+                f"{result['original_length']} chars → {result['summary_length']} chars"
+            )
+
+            return summary_text
+
+        except Exception as e:
+            log.error(f"[Summary] Summarization failed: {e}. Using fallback.")
+            # Fallback: 간단한 추출 요약
+            summary = content[:max_length]
+            if len(content) > max_length:
+                last_period = summary.rfind('.')
+                if last_period > 0:
+                    summary = summary[:last_period + 1]
+                else:
+                    summary += "..."
+            return summary
 
 
 def start_analyzer_consumer(event_bus: RedisEventBus):

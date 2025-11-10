@@ -151,12 +151,12 @@ class SentimentAnalyzer:
 
         # Transformers 모델 사용
         if self.model:
-            return self._analyze_with_model(text)
+            return self._sentiment_analyze(text)
 
         # Fallback: 규칙 기반
         return self._analyze_with_rules(text)
 
-    def _analyze_with_model(self, text: str) -> Dict:
+    def _sentiment_analyze(self, text: str) -> Dict:
         """FinBERT 모델로 감성 분석"""
         try:
             # 텍스트 길이 제한 (512 토큰)

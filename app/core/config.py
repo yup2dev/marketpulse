@@ -74,6 +74,14 @@ class Settings(BaseSettings):
         description="ML 모델 캐시 디렉토리"
     )
 
+    # ===== Summarization Settings =====
+    SUMMARIZATION_MODEL: str = Field(
+        default="sshleifer/distilbart-cnn-12-6",
+        description="요약 모델 (distilbart-cnn-12-6, facebook/bart-large-cnn, t5-small, eenzeenee/t5-base-korean-summarization)"
+    )
+    SUMMARY_MAX_LENGTH: int = Field(default=150, description="요약 최대 길이 (토큰)")
+    SUMMARY_MIN_LENGTH: int = Field(default=50, description="요약 최소 길이 (토큰)")
+
     # ===== Logging =====
     LOG_LEVEL: str = Field(default="INFO", description="로그 레벨")
     LOG_FILE: str = Field(
