@@ -135,6 +135,8 @@ class SummarizationService:
 
             summary_text = result['summary_text']
 
+            log.info(f"Summarization result: {summary_text}")
+
             return {
                 'summary': summary_text,
                 'method': 'abstractive',

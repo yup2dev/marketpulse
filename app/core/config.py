@@ -61,6 +61,7 @@ class Settings(BaseSettings):
 
     # ===== API Keys =====
     OPENAI_API_KEY: Optional[str] = Field(default=None, description="OpenAI API 키")
+    FRED_API_KEY: Optional[str] = Field(default=None, description="FRED (Federal Reserve Economic Data) API 키")
 
     # ===== Crawler Settings =====
     CRAWLER_MAX_WORKERS: int = Field(default=5, description="크롤러 최대 워커 수")
