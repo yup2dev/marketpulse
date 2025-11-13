@@ -23,7 +23,7 @@ response = requests.get(url, headers=headers)
 
 ### 3. FRED (신용등급별 집계)
 - **URL**: https://fred.stlouisfed.org/
-- **API**: ✅ 이미 구현됨
+- **API**: 
 - **데이터**: AAA, AA, A, BBB 등급별 스프레드
 - **시리즈**:
   - `BAMLC0A4CBBB`: BBB Corporate Bond Spread
@@ -35,38 +35,6 @@ response = requests.get(url, headers=headers)
 - **Moody's**: https://www.moodys.com/
 - **Fitch**: https://www.fitchratings.com/
 - **활용**: 신용등급 변화 모니터링
-
----
-
-## 유료 데이터 소스
-
-### 1. Bloomberg Terminal
-- **가격**: ~$24,000/년
-- **API**: Bloomberg Data License
-- **데이터**: CDS 스프레드, 채권 가격, 신용등급
-
-### 2. Refinitiv/LSEG
-- **API**: Refinitiv Data Platform
-- **데이터**: 실시간 CDS, 채권 데이터
-
-### 3. Intrinio (저렴한 옵션)
-- **가격**: $50-500/월
-- **URL**: https://intrinio.com/
-- **API**: ✅ 개발자 친화적
-
-```python
-import intrinio_sdk as intrinio
-intrinio.ApiClient().configuration.api_key['api_key'] = 'YOUR_KEY'
-security_api = intrinio.SecurityApi()
-bonds = security_api.get_security_data_point_text('ORCL', 'bonds')
-```
-
-### 4. Quandl/Nasdaq Data Link
-- **가격**: $50-300/월
-- **URL**: https://data.nasdaq.com/
-- **데이터**: 일부 채권/CDS 데이터
-
----
 
 ## 간접적 추정 방법 (추천)
 
@@ -132,19 +100,7 @@ sentiment_to_risk = {
 
 ---
 
-## 실용적 추천
-
-**개인 프로젝트/학습용:**
+**참고데이터**
 1. FRED (신용등급별)
 2. SEC EDGAR (재무제표)
 3. 뉴스 크롤링 (MarketPulse)
-
-**스타트업/SMB:**
-1. Intrinio API
-2. Quandl/Nasdaq Data Link
-3. FINRA TRACE 스크래핑
-
-**엔터프라이즈:**
-1. Bloomberg Terminal
-2. Refinitiv/LSEG
-3. S&P Capital IQ

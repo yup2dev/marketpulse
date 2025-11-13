@@ -30,3 +30,9 @@ class HttpClient:
             return r.text
         except Exception:
             return None
+
+    def get_ads(self, url: str, referer: Optional[str] = None) -> Optional[dict]:
+        try:
+            headers = {"User-Agent": USER_AGENT} if referer else None
+        except Exception:
+            return None
