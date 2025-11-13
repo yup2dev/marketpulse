@@ -285,6 +285,110 @@ class MBS_IN_CMDTY_STBD(Base):
         }
 
 
+class MBS_IN_FINANCIAL_METRICS(Base):
+    """
+    입수 - 기업 재무지표
+    yfinance로 수집한 재무제표 데이터
+    """
+    __tablename__ = 'mbs_in_financial_metrics'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    stk_cd = Column(String(20), nullable=False, index=True)
+    stk_nm = Column(String(100))
+
+    # 재무비율
+    debt_to_asset = Column(DECIMAL(10, 4))  # 부채비율 (총부채/총자산)
+    debt_to_equity = Column(DECIMAL(10, 4))  # 부채자본비율 (총부채/자본)
+    current_ratio = Column(DECIMAL(10, 4))  # 유동비율
+    quick_ratio = Column(DECIMAL(10, 4))  # 당좌비율
+
+    # 수익성 지표
+    roe = Column(DECIMAL(10, 4))  # ROE (자기자본이익률)
+    roa = Column(DECIMAL(10, 4))  # ROA (총자산이익률)
+    profit_margin = Column(DECIMAL(10, 4))  # 순이익률
+
+    # 밸류에이션
+    pe_ratio = Column(DECIMAL(10, 4))  # PER (주가수익비율)
+    pb_ratio = Column(DECIMAL(10, 4))  # PBR (주가순자산비율)
+    market_cap = Column(DECIMAL(20, 2))  # 시가총액
+
+    # 날짜
+    fiscal_period = Column(String(20))  # 회계기간 (예: 2024Q3, 2023FY)
+    base_ymd = Column(Date, nullable=False, index=True)
+    ingest_batch_id = Column(String(50), index=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint('stk_cd', 'base_ymd', 'fiscal_period', name='uq_financial_date'),
+        Index('idx_in_financial_base_ymd', 'base_ymd'),
+        Index('idx_in_financial_stk_cd', 'stk_cd', 'base_ymd'),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            'stk_cd': self.stk_cd,
+            'stk_nm': self.stk_nm,
+            'debt_to_asset': float(self.debt_to_asset) if self.debt_to_asset else None,
+            'debt_to_equity': float(self.debt_to_equity) if self.debt_to_equity else None,
+            'current_ratio': float(self.current_ratio) if self.current_ratio else None,
+            'quick_ratio': float(self.quick_ratio) if self.quick_ratio else None,
+            'roe': float(self.roe) if self.roe else None,
+            'roa': float(self.roa) if self.roa else None,
+            'profit_margin': float(self.profit_margin) if self.profit_margin else None,
+            'pe_ratio': float(self.pe_ratio) if self.pe_ratio else None,
+            'pb_ratio': float(self.pb_ratio) if self.pb_ratio else None,
+            'market_cap': float(self.market_cap) if self.market_cap else None,
+            'fiscal_period': self.fiscal_period,
+            'base_ymd': self.base_ymd.isoformat() if self.base_ymd else None
+        }
+
+
+class MBS_IN_BOND_ISSUANCE(Base):
+    """
+    입수 - 기업채권 발행량
+    FRED API나 기타 소스로 수집한 채권 발행 데이터
+    """
+    __tablename__ = 'mbs_in_bond_issuance'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    issuer_cd = Column(String(20), index=True)  # 발행사 코드
+    issuer_nm = Column(String(200))  # 발행사명
+
+    # 채권 정보
+    bond_type = Column(String(50), index=True)  # Corporate, High-Yield, Investment-Grade
+    issuance_amount = Column(DECIMAL(20, 2))  # 발행액 (USD)
+    maturity_date = Column(Date)  # 만기일
+    coupon_rate = Column(DECIMAL(10, 4))  # 쿠폰 이자율
+
+    # 날짜
+    issue_date = Column(Date, nullable=False, index=True)  # 발행일
+    base_ymd = Column(Date, nullable=False, index=True)  # 기준일
+    ingest_batch_id = Column(String(50), index=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        Index('idx_in_bond_issuance_issue_date', 'issue_date'),
+        Index('idx_in_bond_issuance_issuer', 'issuer_cd', 'issue_date'),
+        Index('idx_in_bond_issuance_type', 'bond_type', 'issue_date'),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            'issuer_cd': self.issuer_cd,
+            'issuer_nm': self.issuer_nm,
+            'bond_type': self.bond_type,
+            'issuance_amount': float(self.issuance_amount) if self.issuance_amount else None,
+            'maturity_date': self.maturity_date.isoformat() if self.maturity_date else None,
+            'coupon_rate': float(self.coupon_rate) if self.coupon_rate else None,
+            'issue_date': self.issue_date.isoformat() if self.issue_date else None,
+            'base_ymd': self.base_ymd.isoformat() if self.base_ymd else None
+        }
+
+
 # =============================================================================
 # PROC Layer: 가공 (ML/요약 처리)
 # =============================================================================
@@ -507,3 +611,22 @@ def generate_batch_id() -> str:
     timestamp = now.strftime('%Y%m%d-%H%M%S')
     short_uuid = uuid.uuid4().hex[:8]
     return f"{timestamp}-{short_uuid}"
+
+
+# =============================================================================
+# Default DB Instance (SQLite)
+# =============================================================================
+import os
+from pathlib import Path
+
+# 프로젝트 루트 디렉토리
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+DB_PATH = PROJECT_ROOT / "data" / "marketpulse.db"
+
+# 데이터 디렉토리 생성
+DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+# SQLite 기본 인스턴스
+default_db = get_sqlite_db(str(DB_PATH))
+engine = default_db.engine
+SessionLocal = default_db.SessionLocal
