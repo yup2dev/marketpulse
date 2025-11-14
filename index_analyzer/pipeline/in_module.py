@@ -14,6 +14,8 @@ import yaml
 from pathlib import Path
 from typing import List, Dict, Optional
 from datetime import datetime
+
+from sqlalchemy.dialects.mysql.mariadb import loader
 from sqlalchemy.orm import Session
 
 from index_analyzer.models.schemas import CrawlConfig
@@ -22,14 +24,15 @@ from index_analyzer.crawling.url_classifier import URLClassifier
 from index_analyzer.parsing.heuristics import ArticleHeuristics
 from index_analyzer.parsing.parser import Parser
 
-from models.database import (
+from index_analyzer.models.database import (
     get_sqlite_db,
     MBS_IN_ARTICLE, MBS_IN_STK_STBD, MBS_IN_ETF_STBD,
     generate_id, generate_batch_id
 )
-from services.ticker_extractor import TickerExtractor
-from app.services.sentiment_analyzer import SentimentAnalyzer
-from app.core.config import settings
+
+from marketpulse_app.core.config import settings
+from proc_module_ticker import TickerExtractor
+from proc_module_sentiment import SentimentAnalyzer
 
 log = logging.getLogger(__name__)
 
