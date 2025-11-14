@@ -1,8 +1,8 @@
 """Consumer Price Index (CPI) Standard Model"""
-from datetime import date as date_type
+from datetime import date as date_type, datetime, timedelta
 from typing import Optional
 from pydantic import Field
-from app.models.standard_models.base import BaseQueryParams, BaseData
+from data_fetcher.models.base import BaseQueryParams, BaseData
 
 
 class CPIQueryParams(BaseQueryParams):
@@ -13,12 +13,12 @@ class CPIQueryParams(BaseQueryParams):
         description="국가 코드"
     )
     start_date: Optional[date_type] = Field(
-        default=None,
-        description="시작일"
+        default_factory=lambda: (datetime.now().date() - timedelta(days=365)),
+        description="시작일 (기본값: 1년 전)"
     )
     end_date: Optional[date_type] = Field(
-        default=None,
-        description="종료일"
+        default_factory=lambda: datetime.now().date(),
+        description="종료일 (기본값: 오늘)"
     )
     frequency: str = Field(
         default="monthly",

@@ -1,8 +1,8 @@
 """Equity Quote Standard Model (주식 시세)"""
-from datetime import datetime
+from datetime import datetime, date as date_type, timedelta
 from typing import Optional
 from pydantic import Field
-from app.models.standard_models.base import BaseQueryParams, BaseData
+from data_fetcher.models.base import BaseQueryParams, BaseData
 
 
 class EquityQuoteQueryParams(BaseQueryParams):
@@ -10,6 +10,14 @@ class EquityQuoteQueryParams(BaseQueryParams):
 
     symbol: str = Field(
         description="종목 코드 (예: AAPL, MSFT)"
+    )
+    start_date: Optional[date_type] = Field(
+        default_factory=lambda: datetime.now().date() - timedelta(days=365),
+        description="시작일 (기본값: 1년 전)"
+    )
+    end_date: Optional[date_type] = Field(
+        default_factory=lambda: datetime.now().date(),
+        description="종료일 (기본값: 오늘)"
     )
 
 

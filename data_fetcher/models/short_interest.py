@@ -2,7 +2,7 @@
 from datetime import datetime, date
 from typing import Optional
 from pydantic import Field
-from app.models.standard_models.base import BaseQueryParams, BaseData
+from data_fetcher.models.base import BaseQueryParams, BaseData
 
 
 class ShortInterestQueryParams(BaseQueryParams):

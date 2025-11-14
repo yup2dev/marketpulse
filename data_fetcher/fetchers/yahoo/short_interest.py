@@ -4,8 +4,8 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 import yfinance as yf
 
-from app.fetchers.base import Fetcher
-from app.models.standard_models.short_interest import (
+from data_fetcher.fetchers.base import Fetcher
+from data_fetcher.models.short_interest import (
     ShortInterestQueryParams,
     ShortInterestData
 )
