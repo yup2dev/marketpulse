@@ -4,9 +4,36 @@ PROC Module - 뉴스 처리
 감정 분석, 티커 추출, 요약 등
 """
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 log = logging.getLogger(__name__)
+
+
+def process_article(news_id: str) -> Optional[dict]:
+    """
+    단일 기사 처리 (Stream-based)
+
+    Args:
+        news_id: 뉴스 ID
+
+    Returns:
+        처리 결과 또는 None
+    """
+    try:
+        log.info(f"[PROC] Processing article: {news_id}")
+
+        # TODO: 실제 처리 로직 구현
+        # 1. MBS_IN_ARTICLE에서 기사 조회
+        # 2. 감정 분석
+        # 3. 티커 추출
+        # 4. MBS_PROC_ARTICLE에 저장
+
+        log.info(f"[PROC] Completed: {news_id}")
+        return {'news_id': news_id, 'status': 'processed'}
+
+    except Exception as e:
+        log.error(f"[PROC] Failed to process {news_id}: {e}", exc_info=True)
+        return None
 
 
 class ProcModule:

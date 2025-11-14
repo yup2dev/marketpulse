@@ -30,9 +30,9 @@ from index_analyzer.models.database import (
     generate_id, generate_batch_id
 )
 
-from marketpulse_app.core.config import settings
-from proc_module_ticker import TickerExtractor
-from proc_module_sentiment import SentimentAnalyzer
+from index_analyzer.core.config import settings
+from index_analyzer.pipeline.proc_module_ticker import TickerExtractor
+from index_analyzer.pipeline.proc_module_sentiment import SentimentAnalyzer
 
 log = logging.getLogger(__name__)
 
@@ -135,8 +135,9 @@ class CrawlerService:
                 news_id=news_id,
                 base_ymd=base_ymd,
                 source_cd=source_cd,
+                url=url,  # URL 추가
                 title=title,
-                content=content or "",
+                content=content or "",  # summary가 저장됨
                 publish_dt=published_dt,
                 ingest_batch_id=self.current_batch_id
             )
@@ -214,7 +215,7 @@ def crawl_with_stream(event_bus):
                 classifier = URLClassifier()
                 crawler = Crawler(crawl_cfg, heuristics, classifier, max_depth=2)
 
-                # 크롤링 및 Stream 발행
+                # 크롤링 및 즉시 처리 (PROC → IN 저장)
                 for url, depth in crawler.discover(seed_urls):
                     try:
                         # HTML 파싱
@@ -224,37 +225,42 @@ def crawl_with_stream(event_bus):
 
                         parser = Parser(url, html)
                         title = parser.extract_title()
+                        content = parser.extract_main_text()
 
-                        if not title:
+                        if not title or not content:
                             continue
 
-                        # MBS_IN_ARTICLE에 저장 (크롤러 입수)
+                        log.info(f"[Crawl] Found: {title[:60]}...")
+
+                        # ===== PROC 즉시 실행 =====
+                        # 1. 감정 분석
+                        sentiment_result = service.sentiment_analyzer.analyze(content)
+                        sentiment_score = sentiment_result.get('sentiment_score', 0.0)
+                        sentiment_label = sentiment_result.get('sentiment_label', 'neutral')
+
+                        # 2. 티커 추출
+                        tickers = service.ticker_extractor.extract(content, title)
+
+                        # 3. 요약 생성
+                        summary = service.sentiment_analyzer.summarize(content) if hasattr(service.sentiment_analyzer, 'summarize') else content[:200]
+
+                        log.info(f"[PROC] Sentiment: {sentiment_label} ({sentiment_score:.2f}), Tickers: {tickers}, Summary length: {len(summary)}")
+
+                        # ===== IN 테이블에 저장 (content = summary) =====
                         news_id = service._save_to_mbs_in_article(
                             site_name,
                             url,
                             title,
-                            parser.extract_main_text(),
+                            summary,  # content에 summary 저장
                             parser.extract_published_time()
                         )
 
                         if news_id:
-                            # Redis Stream에 발행 (Analyzer가 IN → PROC 처리)
-                            msg_id = event_bus.publish_to_stream(
-                                'stream:new_articles',
-                                {
-                                    'news_id': news_id,
-                                    'url': url,
-                                    'source_cd': site_name,
-                                    'timestamp': datetime.utcnow().isoformat()
-                                }
-                            )
-
-                            if msg_id:
-                                published_count += 1
-                                log.info(f"[Stream Crawler] Published: {title[:60]}... (ID: {news_id})")
+                            published_count += 1
+                            log.info(f"[IN] Saved: {news_id} - {title[:60]}...")
 
                     except Exception as e:
-                        log.error(f"[Stream Crawler] Error processing {url}: {e}")
+                        log.error(f"[Crawl] Error processing {url}: {e}")
                         continue
 
             except Exception as e:

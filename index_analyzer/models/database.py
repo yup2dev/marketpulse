@@ -94,8 +94,9 @@ class MBS_IN_ARTICLE(Base):
     news_id = Column(String(50), primary_key=True)
     base_ymd = Column(Date, nullable=False, index=True)
     source_cd = Column(String(50), nullable=False, index=True)  # 출판사/뉴스 출처
+    url = Column(Text)  # 기사 URL
     title = Column(Text, nullable=False)
-    content = Column(Text)
+    content = Column(Text)  # 요약본 (summary)
     publish_dt = Column(DateTime, index=True)
     ingest_batch_id = Column(String(50), index=True)  # 동일 입수 배치 식별자
 

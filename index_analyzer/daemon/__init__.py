@@ -4,10 +4,7 @@ Daemon Module
 Redis Stream 기반 데몬 실행
 """
 
-from index_analyzer.daemon.worker import Worker
-from index_analyzer.daemon.redis_bus import RedisBus
+# Worker is now a module, not a class
+from index_analyzer.daemon import redis_bus
 
-__all__ = [
-    'Worker',
-    'RedisBus',
-]
+__all__ = ['redis_bus']

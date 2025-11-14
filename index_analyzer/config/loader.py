@@ -2,8 +2,6 @@ import os
 import logging
 from typing import List, Any
 
-# Fix for Python 3.10+ compatibility with older PyYAML versions
-import collections
 import collections.abc
 
 if not hasattr(collections, 'Hashable'):
