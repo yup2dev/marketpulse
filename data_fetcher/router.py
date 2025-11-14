@@ -9,22 +9,54 @@ from typing import Any, Dict, List, Optional
 from enum import Enum
 
 from data_fetcher.fetchers.yahoo.short_interest import YahooShortInterestFetcher
+from data_fetcher.fetchers.fred.gdp import FREDGDPFetcher
+from data_fetcher.fetchers.fred.cpi import FREDCPIFetcher
+from data_fetcher.fetchers.fred.unemployment import FREDUnemploymentFetcher
+from data_fetcher.fetchers.fred.interest_rate import FREDInterestRateFetcher
+from data_fetcher.fetchers.fred.employment import FREDEmploymentFetcher
+from data_fetcher.fetchers.fred.industrial_production import FREDIndustrialProductionFetcher
+from data_fetcher.fetchers.fred.consumer_sentiment import FREDConsumerSentimentFetcher
+from data_fetcher.fetchers.fred.housing_starts import FREDHousingStartsFetcher
+from data_fetcher.fetchers.fred.retail_sales import FREDRetailSalesFetcher
+from data_fetcher.fetchers.fred.nonfarm_payroll import FREDNonfarmPayrollFetcher
+from data_fetcher.fetchers.alphavantage.quote import AlphaVantageQuoteFetcher
+from data_fetcher.fetchers.alphavantage.timeseries import AlphaVantageTimeseriesFetcher
 from data_fetcher.models.short_interest import ShortInterestQueryParams, ShortInterestData
+from data_fetcher.models.gdp import GDPQueryParams, GDPData
+from data_fetcher.models.cpi import CPIQueryParams, CPIData
+from data_fetcher.models.unemployment import UnemploymentQueryParams, UnemploymentData
+from data_fetcher.models.interest_rate import InterestRateQueryParams, InterestRateData
+from data_fetcher.models.employment import EmploymentQueryParams, EmploymentData
+from data_fetcher.models.industrial_production import IndustrialProductionQueryParams, IndustrialProductionData
+from data_fetcher.models.consumer_sentiment import ConsumerSentimentQueryParams, ConsumerSentimentData
+from data_fetcher.models.housing_starts import HousingStartsQueryParams, HousingStartsData
+from data_fetcher.models.retail_sales import RetailSalesQueryParams, RetailSalesData
+from data_fetcher.models.nonfarm_payroll import NonfarmPayrollQueryParams, NonfarmPayrollData
+from data_fetcher.models.equity_quote import EquityQuoteQueryParams, EquityQuoteData
 
 log = logging.getLogger(__name__)
 
 
 class DataCategory(str, Enum):
     """데이터 카테고리"""
+    # Yahoo Finance
     SHORT_INTEREST = "short_interest"
-    FINANCIAL_RATIOS = "financial_ratios"
-    INCOME_STATEMENT = "income_statement"
-    BALANCE_SHEET = "balance_sheet"
-    CASH_FLOW = "cash_flow"
+
+    # Alpha Vantage
     EQUITY_QUOTE = "equity_quote"
+    EQUITY_QUOTE_TIMESERIES = "equity_quote_timeseries"
+
+    # FRED (경제 지표)
     GDP = "gdp"
     CPI = "cpi"
     UNEMPLOYMENT = "unemployment"
+    INTEREST_RATE = "interest_rate"
+    EMPLOYMENT = "employment"
+    INDUSTRIAL_PRODUCTION = "industrial_production"
+    CONSUMER_SENTIMENT = "consumer_sentiment"
+    HOUSING_STARTS = "housing_starts"
+    RETAIL_SALES = "retail_sales"
+    NONFARM_PAYROLL = "nonfarm_payroll"
 
 
 class DataRouter:
@@ -38,8 +70,24 @@ class DataRouter:
     def __init__(self):
         """DataRouter 초기화"""
         self.fetcher_map = {
+            # Yahoo Finance
             DataCategory.SHORT_INTEREST: YahooShortInterestFetcher,
-            # 추가 Fetcher는 여기에 등록
+
+            # Alpha Vantage
+            DataCategory.EQUITY_QUOTE: AlphaVantageQuoteFetcher,
+            DataCategory.EQUITY_QUOTE_TIMESERIES: AlphaVantageTimeseriesFetcher,
+
+            # FRED - 경제 지표
+            DataCategory.GDP: FREDGDPFetcher,
+            DataCategory.CPI: FREDCPIFetcher,
+            DataCategory.UNEMPLOYMENT: FREDUnemploymentFetcher,
+            DataCategory.INTEREST_RATE: FREDInterestRateFetcher,
+            DataCategory.EMPLOYMENT: FREDEmploymentFetcher,
+            DataCategory.INDUSTRIAL_PRODUCTION: FREDIndustrialProductionFetcher,
+            DataCategory.CONSUMER_SENTIMENT: FREDConsumerSentimentFetcher,
+            DataCategory.HOUSING_STARTS: FREDHousingStartsFetcher,
+            DataCategory.RETAIL_SALES: FREDRetailSalesFetcher,
+            DataCategory.NONFARM_PAYROLL: FREDNonfarmPayrollFetcher,
         }
 
     def fetch(
