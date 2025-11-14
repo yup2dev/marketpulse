@@ -186,5 +186,5 @@ CLEANUP_PLAN.md
 # Root level test files (should be in tests/ folder)
 /test_*.py
 
-# Develop Documents
+# Develope Documents
 /docs

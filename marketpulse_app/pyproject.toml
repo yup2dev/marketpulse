@@ -1,0 +1,25 @@
+[tool.poetry]
+name = "marketpulse-app"
+version = "0.1.0"
+description = "MarketPulse 메인 애플리케이션"
+authors = ["Your Name <your.email@example.com>"]
+readme = "README.md"
+packages = [{include = "marketpulse_app"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+data-fetcher = {path = "../data_fetcher", develop = true}
+matplotlib = "^3.8.0"
+plotext = "^5.0.0"
+sqlalchemy = "^2.0.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.0"
+black = "^23.0.0"
+
+[tool.poetry.scripts]
+marketpulse = "marketpulse_app.main:cli"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
