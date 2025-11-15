@@ -2,9 +2,9 @@
 import logging
 from datetime import datetime, date as date_type
 from typing import Any, Dict, List, Optional
-import requests
 
 from data_fetcher.fetchers.base import Fetcher
+from data_fetcher.fetchers.fred.series import FredSeriesFetcher
 from data_fetcher.models.unemployment import UnemploymentQueryParams, UnemploymentData
 from data_fetcher.utils.credentials import CredentialsError, get_api_key
 
@@ -31,9 +31,11 @@ AGE_GROUP_MAP = {
 
 
 class FREDUnemploymentFetcher(Fetcher[UnemploymentQueryParams, UnemploymentData]):
-    """FRED (Federal Reserve Economic Data) Unemployment Rate Fetcher"""
+    """
+    FRED (Federal Reserve Economic Data) Unemployment Rate Fetcher
 
-    FRED_API_URL = "https://api.stlouisfed.org/fred/series/observations"
+    Uses FredSeriesFetcher for common API logic.
+    """
 
     @staticmethod
     def transform_query(params: Dict[str, Any]) -> UnemploymentQueryParams:
@@ -83,42 +85,32 @@ class FREDUnemploymentFetcher(Fetcher[UnemploymentQueryParams, UnemploymentData]
         }
 
         try:
-            # 주요 데이터 조회
-            params = {
-                'series_id': series_id,
-                'api_key': api_key,
-                'file_type': 'json',
-                'limit': 400,
-            }
-
-            if query.start_date:
-                params['observation_start'] = query.start_date.isoformat()
-            if query.end_date:
-                params['observation_end'] = query.end_date.isoformat()
-
-            response = requests.get(FREDUnemploymentFetcher.FRED_API_URL, params=params, timeout=10)
-            response.raise_for_status()
-
-            main_data = response.json()
+            # FredSeriesFetcher를 사용하여 데이터 조회 (의존성 활용)
+            observations = FredSeriesFetcher.fetch_series(
+                series_id=series_id,
+                api_key=api_key,
+                start_date=query.start_date,
+                end_date=query.end_date,
+                limit=400
+            )
 
             # 보조 데이터 조회 (참가율)
             auxiliary_data = {}
             for data_type, sid in labor_series.items():
                 try:
-                    aux_params = params.copy()
-                    aux_params['series_id'] = sid
-                    aux_response = requests.get(
-                        FREDUnemploymentFetcher.FRED_API_URL,
-                        params=aux_params,
-                        timeout=10
+                    aux_observations = FredSeriesFetcher.fetch_series(
+                        series_id=sid,
+                        api_key=api_key,
+                        start_date=query.start_date,
+                        end_date=query.end_date,
+                        limit=400
                     )
-                    if aux_response.status_code == 200:
-                        auxiliary_data[data_type] = aux_response.json().get('observations', [])
+                    auxiliary_data[data_type] = aux_observations
                 except Exception as e:
                     log.warning(f"Error fetching auxiliary data {data_type}: {e}")
 
             return {
-                'observations': main_data.get('observations', []),
+                'observations': observations,
                 'participation_data': auxiliary_data.get('participation', []),
                 'employment_data': auxiliary_data.get('employment', []),
                 'series_id': series_id,

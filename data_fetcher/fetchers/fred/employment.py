@@ -2,9 +2,9 @@
 import logging
 from datetime import datetime, date as date_type
 from typing import Any, Dict, List, Optional
-import requests
 
 from data_fetcher.fetchers.base import Fetcher
+from data_fetcher.fetchers.fred.series import FredSeriesFetcher
 from data_fetcher.models.employment import EmploymentQueryParams, EmploymentData
 from data_fetcher.utils.credentials import CredentialsError, get_api_key
 
@@ -20,9 +20,11 @@ FRED_SERIES_MAP = {
 
 
 class FREDEmploymentFetcher(Fetcher[EmploymentQueryParams, EmploymentData]):
-    """FRED (Federal Reserve Economic Data) Employment Fetcher"""
+    """
+    FRED (Federal Reserve Economic Data) Employment Fetcher
 
-    FRED_API_URL = "https://api.stlouisfed.org/fred/series/observations"
+    Uses FredSeriesFetcher for common API logic.
+    """
 
     @staticmethod
     def transform_query(params: Dict[str, Any]) -> EmploymentQueryParams:
@@ -64,25 +66,17 @@ class FREDEmploymentFetcher(Fetcher[EmploymentQueryParams, EmploymentData]):
         series_id = FRED_SERIES_MAP[employment_type]
 
         try:
-            params = {
-                'series_id': series_id,
-                'api_key': api_key,
-                'file_type': 'json',
-                'limit': 400,
-            }
+            # FredSeriesFetcher를 사용하여 데이터 조회 (의존성 활용)
+            observations = FredSeriesFetcher.fetch_series(
+                series_id=series_id,
+                api_key=api_key,
+                start_date=query.start_date,
+                end_date=query.end_date,
+                limit=400
+            )
 
-            # 날짜 범위 설정
-            if query.start_date:
-                params['observation_start'] = query.start_date.isoformat()
-            if query.end_date:
-                params['observation_end'] = query.end_date.isoformat()
-
-            response = requests.get(FREDEmploymentFetcher.FRED_API_URL, params=params, timeout=10)
-            response.raise_for_status()
-
-            data = response.json()
             return {
-                'observations': data.get('observations', []),
+                'observations': observations,
                 'series_id': series_id,
                 'employment_type': employment_type,
                 'country': query.country,
