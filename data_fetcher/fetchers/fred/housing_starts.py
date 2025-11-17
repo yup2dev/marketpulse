@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 
 from data_fetcher.fetchers.base import Fetcher
 from data_fetcher.fetchers.fred.series import FredSeriesFetcher
-from data_fetcher.models.housing_starts import HousingStartsQueryParams, HousingStartsData
+from data_fetcher.models.fred.housing_starts import HousingStartsQueryParams, HousingStartsData
 from data_fetcher.utils.credentials import CredentialsError, get_api_key
 
 log = logging.getLogger(__name__)

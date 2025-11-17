@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 
 from data_fetcher.fetchers.base import Fetcher
 from data_fetcher.fetchers.fred.series import FredSeriesFetcher
-from data_fetcher.models.cpi import CPIQueryParams, CPIData, CoreCPIData
+from data_fetcher.models.fred.cpi import CPIQueryParams, CPIData, CoreCPIData
 from data_fetcher.utils.credentials import CredentialsError, get_api_key
 
 log = logging.getLogger(__name__)
