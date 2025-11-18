@@ -1,9 +1,31 @@
 """API Credentials Management Utility"""
 import os
 import logging
+from pathlib import Path
 from typing import Optional, Dict, Any
 
 log = logging.getLogger(__name__)
+
+# .env 파일 로드 (python-dotenv 사용)
+try:
+    from dotenv import load_dotenv
+
+    # 프로젝트 루트에서 .env 파일 찾기
+    # data_fetcher/utils/credentials.py -> index_analyzer/.env
+    current_file = Path(__file__)
+    project_root = current_file.parent.parent.parent  # utils -> data_fetcher -> index_analyzer
+    env_file = project_root / ".env"
+
+    if env_file.exists():
+        load_dotenv(dotenv_path=env_file)
+        log.debug(f"Loaded .env file from {env_file}")
+    else:
+        log.warning(f".env file not found at {env_file}")
+
+except ImportError:
+    log.warning("python-dotenv not installed. Environment variables must be set manually.")
+except Exception as e:
+    log.warning(f"Error loading .env file: {e}")
 
 
 class CredentialsError(Exception):
@@ -131,6 +153,9 @@ API_ENV_MAPPING = {
     },
     'YAHOO': {
         # Yahoo Finance는 API 키 불필요
+    },
+    'POLYGON': {
+        'api_key': 'POLYGON_API_KEY'
     },
 }
 

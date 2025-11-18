@@ -13,12 +13,12 @@ class GDPQueryParams(BaseQueryParams):
         description="국가 코드 (US, KR, CN 등)"
     )
     start_date: Optional[date_type] = Field(
-        default_factory=lambda: (datetime.now().date() - timedelta(days=365)),
-        description="시작일 (기본값: 1년 전)"
+        default=None,
+        description="시작일 (None이면 사용 가능한 모든 데이터)"
     )
     end_date: Optional[date_type] = Field(
-        default_factory=lambda: datetime.now().date(),
-        description="종료일 (기본값: 오늘)"
+        default=None,
+        description="종료일 (None이면 최신 데이터까지)"
     )
     frequency: str = Field(
         default="quarterly",

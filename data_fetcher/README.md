@@ -1,14 +1,35 @@
-# Data Fetcher
+# Data Fetcher - 통합 데이터 조회 시스템
 
-OpenBB 스타일 금융 API 데이터 수집 라이브러리
+OpenBB 플랫폼 패턴을 따르는 통합 데이터 조회 시스템
 
-## 특징
+## 주요 특징
 
-- **OpenBB 패턴**: 3단계 fetcher 패턴 (transform_query → extract_data → transform_data)
-- **표준화된 모델**: Pydantic 기반 데이터 모델로 타입 안정성 보장
-- **다중 데이터 소스**: Yahoo Finance, FRED (연방준비제도) API 통합
+### 🚀 OpenBB 패턴 적용
+- **Transform-Extract-Transform (TET)** 패턴
+- Abstract Fetcher 기반 구조
+- Provider Registry 시스템ㄹ
+- 자동 Fetcher 발견 및 등록
+
+### ⚡ 비동기 지원 (NEW!)
+- Async/Await 지원 (`fetch_data`, `aextract_data`)
+- 동기 API도 제공 (`fetch_data_sync`, `fetch_sync`)
+- 자동 coroutine 처리 (`_maybe_coroutine`)
+
+### 🔒 Type Safety (NEW!)
+- Generic typing (`Fetcher[QueryParamsT, DataT]`)
+- Type inspection (`query_params_type`, `data_type`)
+- Pydantic 모델 기반 validation
+
+### 🧪 테스트 자동화 (NEW!)
+- Built-in `test()` 메서드
+- TET 파이프라인 자동 검증
+- Type checking
+
+### 📦 기타 기능
+- **AnnotatedResult**: 메타데이터 포함 결과 반환
+- **표준화된 모델**: Pydantic 기반 데이터 모델
+- **다중 Provider**: FRED, Yahoo Finance, Alpha Vantage 지원
 - **자격증명 관리**: 환경 변수 기반 안전한 API 키 관리
-- **확장 가능 구조**: 새로운 Fetcher 추가 용이
 
 ## 설치
 
@@ -40,25 +61,72 @@ credentials = get_credentials_for_api('FRED')  # FRED_API_KEY 환경변수 자�
 credentials = {"api_key": "your_api_key"}
 ```
 
-## 사용법
+## 빠른 시작
 
-### 1. 경제 지표 데이터 (FRED API)
+### 기본 사용법 (비동기 - 권장)
 
 ```python
-from data_fetcher import get_data_router
-from data_fetcher.router import DataCategory
+import asyncio
+from data_fetcher.router import DataRouter
 
-router = get_data_router()
+async def main():
+    router = DataRouter()
 
-# GDP 데이터 조회
-gdp_data = router.fetch(
-    category=DataCategory.GDP,
-    params={'country': 'US', 'frequency': 'quarterly'},
-    credentials={'api_key': 'your_fred_api_key'}
+    # GDP 데이터 조회
+    gdp_data = await router.get_gdp(
+        country="US",
+        frequency="quarterly",
+        start_date="2020-01-01",
+        credentials={"api_key": "your_fred_api_key"}
+    )
+
+    for data in gdp_data:
+        print(f"{data.date}: {data.value} (성장률: {data.growth_rate}%)")
+
+asyncio.run(main())
+```
+
+### 동기 방식
+
+```python
+from data_fetcher.router import DataRouter
+
+router = DataRouter()
+
+# 동기 방식으로 조회
+gdp_data = router.fetch_sync(
+    category="gdp",
+    provider="fred",
+    params={
+        "country": "US",
+        "frequency": "quarterly",
+        "start_date": "2020-01-01"
+    },
+    credentials={"api_key": "your_fred_api_key"}
 )
+```
 
-for data in gdp_data:
-    print(f"{data.date}: {data.value} (성장률: {data.growth_rate}%)")
+## 사용 예제
+
+### 1. Router를 사용한 통합 조회 (권장)
+
+```python
+import asyncio
+from data_fetcher.router import DataRouter
+
+async def main():
+    router = DataRouter()
+
+    # GDP 데이터
+    gdp_data = await router.fetch(
+        category="gdp",
+        provider="fred",
+        params={"country": "US", "frequency": "quarterly"},
+        credentials={"api_key": "your_fred_api_key"}
+    )
+
+    for data in gdp_data:
+        print(f"{data.date}: {data.value} (성장률: {data.growth_rate}%)")
 
 # CPI 데이터 조회
 cpi_data = router.fetch(
@@ -215,45 +283,118 @@ except Exception as e:
 
 ```
 data_fetcher/
-├── models/                          # Standard Data Models (Pydantic)
+├── fetchers/
+│   ├── base.py                     # Abstract Fetcher 클래스 (NEW: Async, Type Safety, Test)
+│   ├── fred/                       # FRED Provider Fetchers
+│   ├── yahoo/                      # Yahoo Provider Fetchers
+│   └── alphavantage/              # AlphaVantage Provider Fetchers
+├── models/
 │   ├── base.py                     # BaseQueryParams, BaseData
-│   ├── gdp.py                      # GDP models
-│   ├── cpi.py                      # CPI models
-│   ├── unemployment.py             # Unemployment models
-│   ├── employment.py               # Employment models
-│   ├── interest_rate.py            # Interest Rate models
-│   ├── industrial_production.py    # Industrial Production Index
-│   ├── consumer_sentiment.py       # Consumer Sentiment Index
-│   ├── housing_starts.py           # Housing Starts models
-│   ├── retail_sales.py             # Retail Sales models
-│   ├── nonfarm_payroll.py          # Non-Farm Payroll models
-│   ├── equity_quote.py             # Stock Quote models
-│   ├── short_interest.py           # Short Interest models
-│   └── technical_indicators.py     # Technical Indicators models
-├── fetchers/                        # Data Fetchers (OpenBB 3-step pattern)
-│   ├── base.py                     # Abstract Fetcher class
-│   ├── fred/                       # FRED API Fetchers
-│   │   ├── gdp.py
-│   │   ├── cpi.py
-│   │   ├── unemployment.py
-│   │   ├── employment.py
-│   │   ├── interest_rate.py
-│   │   ├── industrial_production.py
-│   │   ├── consumer_sentiment.py
-│   │   ├── housing_starts.py
-│   │   ├── retail_sales.py
-│   │   └── nonfarm_payroll.py
-│   ├── alphavantage/               # Alpha Vantage Fetchers
-│   │   ├── quote.py
-│   │   └── timeseries.py
-│   └── yahoo/                      # Yahoo Finance Fetchers
-│       └── short_interest.py
-├── utils/
-│   └── credentials.py              # API Key Management (환경 변수)
-├── router.py                       # DataRouter (통합 라우터)
-├── examples.py                     # 사용 예제
-├── main.py                         # CLI 인터페이스
-└── test_fred_new_data.py          # 신규 FRED 데이터 테스트
+│   ├── fred/                       # FRED 데이터 모델
+│   ├── yahoo/                      # Yahoo 데이터 모델
+│   └── alphavantage/              # AlphaVantage 데이터 모델
+├── registry.py                     # FetcherRegistry (자동 등록) (NEW)
+├── provider.py                     # Provider 관리 (NEW)
+├── router.py                       # DataRouter (통합 인터페이스, NEW: Async)
+├── providers_init.py              # Provider 초기화
+├── standard_models/               # 표준 모델 정의
+├── utils/                         # 유틸리티 (credentials, http_client 등)
+└── examples/
+    └── unified_usage.py           # 통합 사용 예제 (NEW)
+```
+
+## 핵심 개념
+
+### 1. Fetcher 패턴
+
+모든 데이터 조회는 Transform-Extract-Transform (TET) 패턴을 따릅니다:
+
+```python
+from data_fetcher.fetchers.base import Fetcher
+from pydantic import BaseModel
+from typing import List, Dict, Any
+
+class MyQueryParams(BaseModel):
+    symbol: str
+    start_date: str
+
+class MyData(BaseModel):
+    date: str
+    value: float
+
+class MyFetcher(Fetcher[MyQueryParams, MyData]):
+    @staticmethod
+    def transform_query(params: Dict[str, Any]) -> MyQueryParams:
+        """1. 쿼리 파라미터 변환"""
+        return MyQueryParams(**params)
+
+    @staticmethod
+    def extract_data(query: MyQueryParams, credentials=None, **kwargs):
+        """2. 데이터 추출 (API 호출)"""
+        # API 호출 로직
+        return raw_data
+
+    @staticmethod
+    def transform_data(query: MyQueryParams, data: Any, **kwargs) -> List[MyData]:
+        """3. 데이터 변환 (표준 모델로)"""
+        return [MyData(...) for item in data]
+```
+
+### 2. 비동기 지원 (NEW!)
+
+```python
+# 비동기 방식 (권장)
+data = await MyFetcher.fetch_data(params, credentials)
+data = await router.fetch(category, params, provider, credentials)
+
+# 동기 방식 (편의성)
+data = MyFetcher.fetch_data_sync(params, credentials)
+data = router.fetch_sync(category, params, provider, credentials)
+
+# 비동기 extract 구현
+class MyAsyncFetcher(Fetcher[MyQueryParams, MyData]):
+    @staticmethod
+    async def aextract_data(query, credentials=None, **kwargs):
+        async with httpx.AsyncClient() as client:
+            response = await client.get("https://api.example.com/data")
+            return response.json()
+```
+
+### 3. Registry 시스템 (NEW!)
+
+Fetcher는 자동으로 등록되고 발견됩니다:
+
+```python
+from data_fetcher.registry import FetcherRegistry
+
+# 사용 가능한 카테고리
+categories = FetcherRegistry.list_categories()
+
+# 특정 카테고리의 Provider
+providers = FetcherRegistry.list_providers("gdp")
+
+# Fetcher 가져오기
+fetcher = FetcherRegistry.get("gdp", "fred")
+```
+
+### 4. 자동 테스트 (NEW!)
+
+```python
+from data_fetcher.fetchers.fred.gdp import FREDGDPFetcher
+
+# Fetcher 자동 테스트 (TET 파이프라인 검증)
+FREDGDPFetcher.test(
+    params={
+        "country": "US",
+        "frequency": "quarterly",
+        "start_date": "2023-01-01"
+    },
+    credentials={"api_key": "your_key"}
+)
+# ✓ FREDGDPFetcher test passed!
+#   - Query: GDPQueryParams(...)
+#   - Records fetched: 16
+#   - Sample data: GDPData(...)
 ```
 
 ## Fetcher 추가 방법

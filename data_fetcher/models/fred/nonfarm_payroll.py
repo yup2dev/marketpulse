@@ -17,8 +17,8 @@ class NonfarmPayrollQueryParams(BaseQueryParams):
         description="시작일 (기본값: 5년 전)"
     )
     end_date: Optional[date_type] = Field(
-        default_factory=lambda: datetime.now().date(),
-        description="종료일 (기본값: 오늘)"
+        default=None,
+        description="종료일 (None이면 최신 데이터까지)"
     )
     frequency: str = Field(
         default="monthly",

@@ -135,6 +135,12 @@ class FREDHousingStartsFetcher(Fetcher[HousingStartsQueryParams, HousingStartsDa
 
                 value = float(value_str)
                 obs_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                # 사용자 지정 기간 필터링
+                if query.start_date and obs_date < query.start_date:
+                    continue
+                if query.end_date and obs_date > query.end_date:
+                    continue
+
 
                 # 월간 변화율 계산
                 mom_change = None
@@ -160,4 +166,9 @@ class FREDHousingStartsFetcher(Fetcher[HousingStartsQueryParams, HousingStartsDa
                 log.warning(f"Error parsing housing starts observation {obs}: {e}")
                 continue
 
-        return hs_data_list
+
+
+        
+
+
+                return hs_data_list

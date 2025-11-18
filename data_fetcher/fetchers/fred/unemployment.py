@@ -165,6 +165,12 @@ class FREDUnemploymentFetcher(Fetcher[UnemploymentQueryParams, UnemploymentData]
 
                 value = float(value_str)
                 obs_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                # 사용자 지정 기간 필터링
+                if query.start_date and obs_date < query.start_date:
+                    continue
+                if query.end_date and obs_date > query.end_date:
+                    continue
+
 
                 # 보조 데이터 가져오기
                 participation_rate = participation_map.get(date_str)
@@ -192,5 +198,10 @@ class FREDUnemploymentFetcher(Fetcher[UnemploymentQueryParams, UnemploymentData]
                 log.warning(f"Error parsing unemployment observation {obs}: {e}")
                 continue
 
-        return unemployment_data_list
+
+
+        
+
+
+                return unemployment_data_list
 

@@ -17,12 +17,12 @@ class InflationRateQueryParams(BaseQueryParams):
         description="인플레이션 유형 (cpi, pce, ppi, core_cpi, core_pce)"
     )
     start_date: Optional[date_type] = Field(
-        default_factory=lambda: (datetime.now().date() - timedelta(days=365)),
-        description="시작일 (기본값: 1년 전)"
+        default=None,
+        description="시작일 (None이면 사용 가능한 모든 데이터)"
     )
     end_date: Optional[date_type] = Field(
-        default_factory=lambda: datetime.now().date(),
-        description="종료일 (기본값: 오늘)"
+        default=None,
+        description="종료일 (None이면 최신 데이터까지)"
     )
 
 

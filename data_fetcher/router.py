@@ -59,7 +59,7 @@ class DataRouter:
         except ImportError as e:
             log.warning(f"Failed to import providers_init: {e}")
 
-    def fetch(
+    async def fetch(
         self,
         category: str,
         params: Dict[str, Any],
@@ -68,7 +68,7 @@ class DataRouter:
         **kwargs: Any
     ) -> List[Any]:
         """
-        데이터 조회
+        데이터 조회 (비동기)
 
         Args:
             category: 데이터 카테고리 (예: "gdp", "cpi", "quote")
@@ -87,14 +87,14 @@ class DataRouter:
             ```python
             router = DataRouter()
 
-            # Default provider
-            data = router.fetch(
+            # Default provider (async)
+            data = await router.fetch(
                 category="gdp",
                 params={"country": "US"}
             )
 
             # Specific provider
-            data = router.fetch(
+            data = await router.fetch(
                 category="gdp",
                 provider="fred",
                 params={"country": "US"},
@@ -106,8 +106,12 @@ class DataRouter:
             # Get fetcher from registry
             fetcher_class = FetcherRegistry.get(category, provider)
 
-            # Fetch data
-            data = fetcher_class.fetch_data(params, credentials, **kwargs)
+            # Fetch data (async)
+            result = await fetcher_class.fetch_data(params, credentials, **kwargs)
+
+            # Handle AnnotatedResult
+            from data_fetcher.fetchers.base import AnnotatedResult
+            data = result.result if isinstance(result, AnnotatedResult) else result
 
             log.info(
                 f"Fetched {len(data)} records for category='{category}', "
@@ -119,6 +123,43 @@ class DataRouter:
         except Exception as e:
             log.error(f"Error fetching data: {e}")
             raise RouterError(f"Failed to fetch data for category '{category}': {e}")
+
+    def fetch_sync(
+        self,
+        category: str,
+        params: Dict[str, Any],
+        provider: Optional[str] = None,
+        credentials: Optional[Dict[str, str]] = None,
+        **kwargs: Any
+    ) -> List[Any]:
+        """
+        데이터 조회 (동기 - 편의 메서드)
+
+        내부적으로 fetch를 호출하고 결과를 기다림
+
+        Args:
+            category: 데이터 카테고리
+            params: 쿼리 파라미터
+            provider: Provider 이름
+            credentials: API 자격증명
+            **kwargs: 추가 파라미터
+
+        Returns:
+            표준 모델 데이터 리스트
+
+        Example:
+            ```python
+            router = DataRouter()
+
+            # Sync usage
+            data = router.fetch_sync(
+                category="gdp",
+                params={"country": "US"}
+            )
+            ```
+        """
+        import asyncio
+        return asyncio.run(self.fetch(category, params, provider, credentials, **kwargs))
 
     def list_categories(self) -> List[str]:
         """
@@ -215,7 +256,7 @@ class DataRouter:
 
     # ==================== Convenience Methods ====================
 
-    def get_gdp(
+    async def get_gdp(
         self,
         country: str = "US",
         frequency: str = "quarterly",
@@ -244,9 +285,9 @@ class DataRouter:
             'start_date': start_date,
             'end_date': end_date
         }
-        return self.fetch("gdp", params, provider, credentials)
+        return await self.fetch("gdp", params, provider, credentials)
 
-    def get_cpi(
+    async def get_cpi(
         self,
         country: str = "US",
         category: str = "all",
@@ -275,9 +316,9 @@ class DataRouter:
             'start_date': start_date,
             'end_date': end_date
         }
-        return self.fetch("cpi", params, provider, credentials)
+        return await self.fetch("cpi", params, provider, credentials)
 
-    def get_quote(
+    async def get_quote(
         self,
         symbol: str,
         provider: str = "alphavantage",
@@ -295,7 +336,7 @@ class DataRouter:
             Quote 데이터 리스트
         """
         params = {'symbol': symbol}
-        return self.fetch("quote", params, provider, credentials)
+        return await self.fetch("quote", params, provider, credentials)
 
 
 # ==================== Singleton ====================

@@ -123,6 +123,12 @@ class FREDInterestRateFetcher(Fetcher[InterestRateQueryParams, InterestRateData]
 
                 rate = float(value_str)
                 obs_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                # 사용자 지정 기간 필터링
+                if query.start_date and obs_date < query.start_date:
+                    continue
+                if query.end_date and obs_date > query.end_date:
+                    continue
+
 
                 # 변화 계산
                 change_day = None
@@ -158,4 +164,9 @@ class FREDInterestRateFetcher(Fetcher[InterestRateQueryParams, InterestRateData]
                 log.warning(f"Error parsing interest rate observation {obs}: {e}")
                 continue
 
-        return interest_data_list
+
+
+        
+
+
+                return interest_data_list

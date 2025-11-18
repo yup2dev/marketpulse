@@ -104,7 +104,7 @@ class FREDGDPFetcher(Fetcher[GDPQueryParams, GDPData]):
             **kwargs: 추가 파라미터
 
         Returns:
-            GDPData 리스트
+            GDPData 리스트 (사용자 지정 기간으로 필터링됨)
         """
         observations = data.get('observations', [])
         series_id = data.get('series_id')
@@ -124,6 +124,12 @@ class FREDGDPFetcher(Fetcher[GDPQueryParams, GDPData]):
 
                 value = float(value_str)
                 obs_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+
+                # 사용자 지정 기간 필터링
+                if query.start_date and obs_date < query.start_date:
+                    continue
+                if query.end_date and obs_date > query.end_date:
+                    continue
 
                 # 성장률 계산
                 growth_rate = None
@@ -157,6 +163,11 @@ class FREDGDPFetcher(Fetcher[GDPQueryParams, GDPData]):
             except (ValueError, KeyError) as e:
                 log.warning(f"Error parsing GDP observation {obs}: {e}")
                 continue
+
+        log.info(
+            f"Filtered GDP data: {len(gdp_data_list)} records "
+            f"(start: {query.start_date}, end: {query.end_date})"
+        )
 
         return gdp_data_list
 
