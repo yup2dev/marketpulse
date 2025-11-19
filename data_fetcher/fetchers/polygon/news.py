@@ -135,9 +135,21 @@ class PolygonNewsFetcher(
                         sentiment_data = insights[0].get("sentiment")
                         if sentiment_data:
                             sentiment = sentiment_data
-                        sentiment_score_data = insights[0].get("sentiment_reasoning", {}).get("score")
-                        if sentiment_score_data:
-                            sentiment_score = sentiment_score_data
+
+                        # sentiment_reasoning은 string 형태
+                        sentiment_reasoning = insights[0].get("sentiment_reasoning")
+                        if sentiment_reasoning and isinstance(sentiment_reasoning, str):
+                            # sentiment_reasoning에서 점수를 추출할 수 없으므로 None 유지
+                            pass
+
+                # Publisher 처리
+                publisher = None
+                publisher_data = item.get("publisher")
+                if publisher_data:
+                    if isinstance(publisher_data, dict):
+                        publisher = publisher_data.get("name")
+                    elif isinstance(publisher_data, str):
+                        publisher = publisher_data
 
                 news_data = NewsData(
                     id=item["id"],
@@ -145,7 +157,7 @@ class PolygonNewsFetcher(
                     description=item.get("description"),
                     article_url=item["article_url"],
                     author=item.get("author"),
-                    publisher=item.get("publisher", {}).get("name"),
+                    publisher=publisher,
                     published_utc=published_utc,
                     tickers=tickers,
                     image_url=item.get("image_url"),

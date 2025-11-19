@@ -1,5 +1,5 @@
 """Polygon.io Insider Trading Model"""
-from datetime import date
+from datetime import date as date_type
 from typing import Optional
 from pydantic import Field
 from data_fetcher.models.base import BaseQueryParams, BaseData
@@ -33,10 +33,10 @@ class InsiderTradingData(BaseData):
     )
 
     # === 거래 정보 ===
-    transaction_date: date = Field(
+    transaction_date: date_type = Field(
         description="거래 날짜"
     )
-    filing_date: Optional[date] = Field(
+    filing_date: Optional[date_type] = Field(
         default=None,
         description="SEC 신고 날짜"
     )

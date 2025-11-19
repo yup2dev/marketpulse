@@ -164,9 +164,4 @@ class FREDInterestRateFetcher(Fetcher[InterestRateQueryParams, InterestRateData]
                 log.warning(f"Error parsing interest rate observation {obs}: {e}")
                 continue
 
-
-
-        
-
-
-                return interest_data_list
+            return interest_data_list

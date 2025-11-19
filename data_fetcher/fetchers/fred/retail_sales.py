@@ -150,9 +150,4 @@ class FREDRetailSalesFetcher(Fetcher[RetailSalesQueryParams, RetailSalesData]):
                 log.warning(f"Error parsing retail sales observation {obs}: {e}")
                 continue
 
-
-
-        
-
-
-                return rs_data_list
+            return rs_data_list

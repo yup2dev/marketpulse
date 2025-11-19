@@ -1,5 +1,5 @@
 """AlphaVantage Forex Model (외환 데이터)"""
-from datetime import date, datetime
+from datetime import date as date_type, datetime
 from typing import Optional
 from pydantic import Field
 from data_fetcher.models.base import BaseQueryParams, BaseData
@@ -33,7 +33,7 @@ class ForexData(BaseData):
 
     from_currency: str = Field(description="기준 통화")
     to_currency: str = Field(description="대상 통화")
-    date: date = Field(description="날짜")
+    date: date_type = Field(description="날짜")
 
     # 환율 데이터
     open: float = Field(description="시가")

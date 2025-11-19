@@ -1,5 +1,5 @@
 """Yahoo Finance Dividends Model (배당 데이터)"""
-from datetime import date
+from datetime import date as date_type
 from typing import Optional
 from pydantic import Field
 from data_fetcher.models.base import BaseQueryParams, BaseData
@@ -25,7 +25,7 @@ class DividendData(BaseData):
     """배당 데이터"""
 
     symbol: str = Field(description="종목 코드")
-    date: date = Field(description="배당 지급일")
+    date: date_type = Field(description="배당 지급일")
     dividend: float = Field(description="주당 배당금 (USD)")
 
     # 계산 필드

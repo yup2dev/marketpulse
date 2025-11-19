@@ -1,5 +1,5 @@
 """Polygon.io Earnings Model"""
-from datetime import date, datetime
+from datetime import date as date_type, datetime
 from typing import Optional
 from pydantic import Field
 from data_fetcher.models.base import BaseQueryParams, BaseData
@@ -45,11 +45,11 @@ class EarningsData(BaseData):
     )
 
     # === 날짜 정보 ===
-    report_date: Optional[date] = Field(
+    report_date: Optional[date_type] = Field(
         default=None,
         description="실적 발표일"
     )
-    period_end_date: Optional[date] = Field(
+    period_end_date: Optional[date_type] = Field(
         default=None,
         description="회계기간 종료일"
     )

@@ -12,9 +12,6 @@ from data_fetcher.fetchers.base import Fetcher
 # FRED Common
 from data_fetcher.fetchers.fred.series import FredSeriesFetcher
 
-# Yahoo Finance
-from data_fetcher.fetchers.yahoo.short_interest import YahooShortInterestFetcher
-
 # AlphaVantage
 from data_fetcher.fetchers.alphavantage.quote import AlphaVantageQuoteFetcher
 from data_fetcher.fetchers.alphavantage.timeseries import AlphaVantageTimeseriesFetcher
@@ -35,9 +32,6 @@ __all__ = [
     # Base
     'Fetcher',
     'FredSeriesFetcher',
-
-    # Yahoo Finance
-    'YahooShortInterestFetcher',
 
     # AlphaVantage
     'AlphaVantageQuoteFetcher',

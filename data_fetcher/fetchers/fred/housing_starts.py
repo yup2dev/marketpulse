@@ -166,9 +166,4 @@ class FREDHousingStartsFetcher(Fetcher[HousingStartsQueryParams, HousingStartsDa
                 log.warning(f"Error parsing housing starts observation {obs}: {e}")
                 continue
 
-
-
-        
-
-
-                return hs_data_list
+            return hs_data_list

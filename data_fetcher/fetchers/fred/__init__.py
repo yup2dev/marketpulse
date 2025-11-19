@@ -10,6 +10,7 @@ from data_fetcher.fetchers.fred.housing_starts import FREDHousingStartsFetcher
 from data_fetcher.fetchers.fred.retail_sales import FREDRetailSalesFetcher
 from data_fetcher.fetchers.fred.nonfarm_payroll import FREDNonfarmPayrollFetcher
 
+
 __all__ = [
     'FREDGDPFetcher',
     'FREDCPIFetcher',

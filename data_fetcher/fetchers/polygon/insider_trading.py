@@ -52,11 +52,12 @@ class PolygonInsiderTradingFetcher(
             )
 
             # API 엔드포인트
-            url = f"{PolygonInsiderTradingFetcher.BASE_URL}/vX/reference/tickers/{query.ticker}/insider-transactions"
+            url = f"{PolygonInsiderTradingFetcher.BASE_URL}/v1/reference/insider-transactions"
 
             # 파라미터 설정
             params = {
                 "apiKey": api_key,
+                "ticker": query.ticker,
                 "limit": query.limit or 100
             }
 

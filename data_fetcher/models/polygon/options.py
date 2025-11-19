@@ -1,5 +1,5 @@
 """Polygon.io Options Data Model"""
-from datetime import date, datetime
+from datetime import date as date_type, datetime
 from typing import Optional
 from pydantic import Field
 from data_fetcher.models.base import BaseQueryParams, BaseData
@@ -62,7 +62,7 @@ class OptionsContractData(BaseData):
     strike_price: float = Field(
         description="행사가격"
     )
-    expiration_date: date = Field(
+    expiration_date: date_type = Field(
         description="만기일"
     )
 
@@ -139,7 +139,7 @@ class OptionsChainData(BaseData):
     underlying_ticker: str = Field(
         description="기초자산 티커"
     )
-    expiration_date: date = Field(
+    expiration_date: date_type = Field(
         description="만기일"
     )
     snapshot_date: datetime = Field(

@@ -1,5 +1,5 @@
 """Polygon.io Short Interest Model"""
-from datetime import date
+from datetime import date as date_type
 from typing import Optional
 from pydantic import Field
 from data_fetcher.models.base import BaseQueryParams, BaseData
@@ -31,7 +31,7 @@ class ShortInterestData(BaseData):
     ticker: str = Field(
         description="종목 티커"
     )
-    settlement_date: date = Field(
+    settlement_date: date_type = Field(
         description="결제일 (공매도 데이터 기준일)"
     )
 

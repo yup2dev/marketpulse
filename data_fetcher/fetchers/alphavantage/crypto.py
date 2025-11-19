@@ -127,15 +127,17 @@ class AlphaVantageCryptoFetcher(Fetcher[CryptoQueryParams, CryptoData]):
                 if end_date and crypto_date > end_date:
                     continue
 
-                # 시장별 가격 추출 (예: "1a. open (USD)")
-                market_suffix = f"({query.market.upper()})"
+                # 가격 데이터 추출
+                open_price = float(values.get('1. open', 0))
+                high_price = float(values.get('2. high', 0))
+                low_price = float(values.get('3. low', 0))
+                close_price = float(values.get('4. close', 0))
+                volume = float(values.get('5. volume', 0))
 
-                open_price = float(values[f'1a. open {market_suffix}'])
-                high_price = float(values[f'2a. high {market_suffix}'])
-                low_price = float(values[f'3a. low {market_suffix}'])
-                close_price = float(values[f'4a. close {market_suffix}'])
-                volume = float(values['5. volume'])
-                market_cap = float(values['6. market cap (USD)'])
+                # market_cap은 없을 수 있음
+                market_cap = None
+                if '6. market cap (USD)' in values:
+                    market_cap = float(values['6. market cap (USD)'])
 
                 # 계산 필드
                 price_change = close_price - open_price

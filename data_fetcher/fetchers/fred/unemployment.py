@@ -198,10 +198,5 @@ class FREDUnemploymentFetcher(Fetcher[UnemploymentQueryParams, UnemploymentData]
                 log.warning(f"Error parsing unemployment observation {obs}: {e}")
                 continue
 
-
-
-        
-
-
-                return unemployment_data_list
+            return unemployment_data_list
 

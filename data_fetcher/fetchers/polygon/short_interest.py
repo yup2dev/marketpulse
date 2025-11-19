@@ -51,19 +51,22 @@ class PolygonShortInterestFetcher(
                 env_var="POLYGON_API_KEY"
             )
 
-            # API 엔드포인트
-            url = f"{PolygonShortInterestFetcher.BASE_URL}/vX/reference/tickers/{query.ticker}/short-interest"
+            # API 엔드포인트 (Massive/Polygon.io)
+            url = f"{PolygonShortInterestFetcher.BASE_URL}/stocks/v1/short-interest"
 
             # 파라미터 설정
             params = {
                 "apiKey": api_key,
-                "limit": query.limit or 100
+                "ticker": query.ticker,
+                "limit": query.limit or 100,
+                "sort": "settlement_date.desc"  # 최신 데이터 먼저
             }
 
+            # 날짜 필터는 settlement_date로 적용
             if query.start_date:
-                params["start_date"] = query.start_date
+                params["settlement_date.gte"] = query.start_date
             if query.end_date:
-                params["end_date"] = query.end_date
+                params["settlement_date.lte"] = query.end_date
 
             # API 호출
             response = requests.get(url, params=params, timeout=30)

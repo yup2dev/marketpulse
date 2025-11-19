@@ -150,9 +150,4 @@ class FREDIndustrialProductionFetcher(Fetcher[IndustrialProductionQueryParams, I
                 log.warning(f"Error parsing industrial production observation {obs}: {e}")
                 continue
 
-
-
-        
-
-
-                return ip_data_list
+            return ip_data_list

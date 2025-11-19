@@ -55,9 +55,11 @@ class YahooDividendsFetcher(Fetcher[DividendsQueryParams, DividendData]):
 
             # 날짜 필터링
             if not dividends.empty:
+                # timezone 정보 제거 후 비교
+                dividends_index_naive = dividends.index.tz_localize(None)
                 dividends = dividends[
-                    (dividends.index >= start_date) &
-                    (dividends.index <= end_date)
+                    (dividends_index_naive >= start_date) &
+                    (dividends_index_naive <= end_date)
                 ]
 
             # 주가 데이터도 함께 조회 (배당 수익률 계산용)
@@ -107,13 +109,14 @@ class YahooDividendsFetcher(Fetcher[DividendsQueryParams, DividendData]):
                 # 해당 날짜의 주가 찾기
                 dividend_yield = None
                 if not history.empty:
-                    closest_price = history.iloc[
-                        (history.index - idx).abs().argsort()[:1]
-                    ]
-                    if not closest_price.empty:
-                        close_price = float(closest_price['Close'].iloc[0])
-                        if close_price > 0:
-                            dividend_yield = (float(dividend_amount) / close_price) * 100
+                    # 가장 가까운 날짜의 주가 찾기
+                    time_diff = abs(history.index - idx)
+                    closest_idx = time_diff.argmin()
+                    closest_price = history.iloc[closest_idx]
+
+                    close_price = float(closest_price['Close'])
+                    if close_price > 0:
+                        dividend_yield = (float(dividend_amount) / close_price) * 100
 
                 # 전년 대비 성장률
                 year = div_date.year

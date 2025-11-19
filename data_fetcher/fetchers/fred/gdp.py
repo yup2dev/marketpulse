@@ -147,7 +147,7 @@ class FREDGDPFetcher(Fetcher[GDPQueryParams, GDPData]):
                         unit='Billions of Chained 2012 Dollars',
                         growth_rate=growth_rate,
                         is_real=True,
-                        base_year=2012
+                        base_year=2016
                     )
                 else:
                     gdp_obj = GDPData(

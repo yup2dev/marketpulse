@@ -1,5 +1,5 @@
 """Polygon.io Technical Indicators Model"""
-from datetime import date
+from datetime import date as date_type
 from typing import Optional
 from pydantic import Field
 from data_fetcher.models.base import BaseQueryParams, BaseData
@@ -48,7 +48,7 @@ class SMAData(BaseData):
     """Simple Moving Average (단순이동평균)"""
 
     ticker: str = Field(description="종목 티커")
-    timestamp: date = Field(description="날짜")
+    timestamp: date_type = Field(description="날짜")
     value: float = Field(description="SMA 값")
     window: int = Field(description="이동평균 기간")
 
@@ -57,7 +57,7 @@ class EMAData(BaseData):
     """Exponential Moving Average (지수이동평균)"""
 
     ticker: str = Field(description="종목 티커")
-    timestamp: date = Field(description="날짜")
+    timestamp: date_type = Field(description="날짜")
     value: float = Field(description="EMA 값")
     window: int = Field(description="이동평균 기간")
 
@@ -66,7 +66,7 @@ class RSIData(BaseData):
     """Relative Strength Index (상대강도지수)"""
 
     ticker: str = Field(description="종목 티커")
-    timestamp: date = Field(description="날짜")
+    timestamp: date_type = Field(description="날짜")
     value: float = Field(description="RSI 값 (0-100)")
 
 
@@ -74,7 +74,7 @@ class MACDData(BaseData):
     """Moving Average Convergence Divergence (MACD)"""
 
     ticker: str = Field(description="종목 티커")
-    timestamp: date = Field(description="날짜")
+    timestamp: date_type = Field(description="날짜")
     macd: Optional[float] = Field(
         default=None,
         description="MACD 값"
@@ -93,7 +93,7 @@ class BollingerBandsData(BaseData):
     """Bollinger Bands (볼린저 밴드)"""
 
     ticker: str = Field(description="종목 티커")
-    timestamp: date = Field(description="날짜")
+    timestamp: date_type = Field(description="날짜")
     upper_band: Optional[float] = Field(
         default=None,
         description="상단 밴드"
@@ -112,7 +112,7 @@ class TechnicalIndicatorsData(BaseData):
     """통합 기술적 지표 데이터"""
 
     ticker: str = Field(description="종목 티커")
-    timestamp: date = Field(description="날짜")
+    timestamp: date_type = Field(description="날짜")
 
     # === 이동평균 ===
     sma_20: Optional[float] = Field(default=None, description="20일 단순이동평균")

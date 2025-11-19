@@ -1,5 +1,5 @@
 """Yahoo Finance Stock Price Model (주가 데이터)"""
-from datetime import date
+from datetime import date as date_type
 from typing import Optional
 from pydantic import Field
 from data_fetcher.models.base import BaseQueryParams, BaseData
@@ -29,7 +29,7 @@ class StockPriceData(BaseData):
     """주가 데이터"""
 
     symbol: str = Field(description="종목 코드")
-    date: date = Field(description="날짜")
+    date: date_type = Field(description="날짜")
 
     # OHLCV 데이터
     open: float = Field(description="시가")

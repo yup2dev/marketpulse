@@ -21,7 +21,9 @@ from data_fetcher.fetchers.fred.housing_starts import FREDHousingStartsFetcher
 from data_fetcher.fetchers.fred.retail_sales import FREDRetailSalesFetcher
 from data_fetcher.fetchers.fred.nonfarm_payroll import FREDNonfarmPayrollFetcher
 
-from data_fetcher.fetchers.yahoo.short_interest import YahooShortInterestFetcher
+from data_fetcher.fetchers.yahoo.stock_price import YahooStockPriceFetcher
+from data_fetcher.fetchers.yahoo.dividends import YahooDividendsFetcher
+from data_fetcher.fetchers.yahoo.company_info import YahooCompanyInfoFetcher
 
 from data_fetcher.fetchers.alphavantage.quote import AlphaVantageQuoteFetcher
 from data_fetcher.fetchers.alphavantage.timeseries import AlphaVantageTimeseriesFetcher
@@ -63,7 +65,9 @@ yahoo_provider = Provider(
     website="https://finance.yahoo.com",
     credentials=[],  # No API key required
     fetcher_dict={
-        "short_interest": YahooShortInterestFetcher,
+        "stock_price": YahooStockPriceFetcher,
+        "dividends": YahooDividendsFetcher,
+        "company_info": YahooCompanyInfoFetcher,
     },
     metadata={
         "rate_limit": "2000 requests/hour",

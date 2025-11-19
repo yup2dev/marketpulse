@@ -1,5 +1,5 @@
 """AlphaVantage Cryptocurrency Model (암호화폐 데이터)"""
-from datetime import date
+from datetime import date as date_type
 from typing import Optional
 from pydantic import Field
 from data_fetcher.models.base import BaseQueryParams, BaseData
@@ -34,7 +34,7 @@ class CryptoData(BaseData):
 
     symbol: str = Field(description="암호화폐 심볼")
     market: str = Field(description="거래 시장")
-    date: date = Field(description="날짜")
+    date: date_type = Field(description="날짜")
 
     # 가격 데이터
     open: float = Field(description="시가 (USD)")
