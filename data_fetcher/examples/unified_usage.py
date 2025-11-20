@@ -11,14 +11,12 @@ Features:
 - 테스트 자동화
 """
 import asyncio
-from datetime import datetime
-from typing import List
 
-from data_fetcher.router import DataRouter, get_data_router
-from data_fetcher.registry import FetcherRegistry
+from data_fetcher.utils.router import DataRouter
+from data_fetcher.utils.registry import FetcherRegistry
 from data_fetcher.provider import ProviderRegistry
 from data_fetcher.fetchers.fred.gdp import FREDGDPFetcher
-from data_fetcher.utils.credentials import get_credentials_for_api
+from data_fetcher.utils.api_keys import get_credentials_for_api
 
 
 # ==================== Example 1: Router를 사용한 통합 조회 ====================

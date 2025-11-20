@@ -157,6 +157,9 @@ API_ENV_MAPPING = {
     'POLYGON': {
         'api_key': 'POLYGON_API_KEY'
     },
+    'FMP': {
+        'api_key': 'FMP_API_KEY'
+    },
 }
 
 

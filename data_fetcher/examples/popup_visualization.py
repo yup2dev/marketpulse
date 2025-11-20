@@ -5,8 +5,8 @@ matplotlib, tkinter, PandasGUI 등을 사용한 순수 파이썬 팝업
 """
 import asyncio
 import pandas as pd
-from data_fetcher.router import DataRouter
-from data_fetcher.utils.credentials import get_credentials_for_api
+from data_fetcher.utils.router import DataRouter
+from data_fetcher.utils.api_keys import get_credentials_for_api
 
 
 # ==================== 방법 1: Matplotlib 팝업 (가장 간단) ====================
