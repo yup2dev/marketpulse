@@ -11,7 +11,7 @@ try:
     from dotenv import load_dotenv
 
     # 프로젝트 루트에서 .env 파일 찾기
-    # data_fetcher/utils/credentials.py -> index_analyzer/.env
+    # data_fetcher/utils/api_keys.py -> index_analyzer/.env
     current_file = Path(__file__)
     project_root = current_file.parent.parent.parent  # utils -> data_fetcher -> index_analyzer
     env_file = project_root / ".env"

@@ -9,7 +9,7 @@ from data_fetcher.models.polygon.insider_trading import (
     InsiderTradingQueryParams,
     InsiderTradingData
 )
-from data_fetcher.utils.credentials import get_api_key
+from data_fetcher.utils.api_keys import get_api_key
 
 log = logging.getLogger(__name__)
 

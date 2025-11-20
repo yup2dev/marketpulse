@@ -1,5 +1,5 @@
 """Utilities for data fetchers"""
-from data_fetcher.utils.credentials import (
+from data_fetcher.utils.api_keys import (
     CredentialsError,
     get_api_key,
     validate_credentials,

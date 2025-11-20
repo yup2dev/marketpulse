@@ -12,7 +12,7 @@ from data_fetcher.models.polygon.technical_indicators import (
     RSIData,
     MACDData
 )
-from data_fetcher.utils.credentials import get_api_key
+from data_fetcher.utils.api_keys import get_api_key
 
 log = logging.getLogger(__name__)
 

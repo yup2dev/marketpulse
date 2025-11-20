@@ -1,50 +1,63 @@
 """
-MarketPulse CLI
-
-메인 엔트리포인트
+MarketPulse Web Application
+FastAPI-based dashboard for financial data visualization
 """
 import sys
-import argparse
+from pathlib import Path
 
+# Add parent directory to path to import data_fetcher
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-def cli():
-    """CLI 엔트리포인트"""
-    parser = argparse.ArgumentParser(description='MarketPulse')
-    subparsers = parser.add_subparsers(dest='command', help='Commands')
+from fastapi import FastAPI, Request
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 
-    # view-data 명령
-    view_data_parser = subparsers.add_parser('view-data', help='데이터 조회')
-    view_data_parser.add_argument('symbol', help='종목 코드 (예: TSLA)')
+from marketpulse_app.api.routes import stock, economic, news, dashboard
 
-    # view-news 명령
-    view_news_parser = subparsers.add_parser('view-news', help='뉴스 조회')
-    view_news_parser.add_argument('--limit', type=int, default=10, help='조회 개수')
+app = FastAPI(
+    title="MarketPulse Dashboard",
+    description="Financial data visualization dashboard",
+    version="1.0.0"
+)
 
-    # chart 명령
-    chart_parser = subparsers.add_parser('chart', help='차트 생성')
-    chart_parser.add_argument('symbol', help='종목 코드')
-    chart_parser.add_argument('--period', default='1m', help='기간 (예: 1m, 3m, 1y)')
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-    args = parser.parse_args()
+# Get base directory
+BASE_DIR = Path(__file__).parent
 
-    if not args.command:
-        parser.print_help()
-        sys.exit(1)
+# Static files and templates
+app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
-    if args.command == 'view-data':
-        from marketpulse_app.presentation.cli.data_viewer import view_data
-        view_data(args.symbol)
+# Include routers
+app.include_router(stock.router, prefix="/api/stock", tags=["stock"])
+app.include_router(economic.router, prefix="/api/economic", tags=["economic"])
+app.include_router(news.router, prefix="/api/news", tags=["news"])
+app.include_router(dashboard.router, prefix="/api", tags=["dashboard"])
 
-    elif args.command == 'view-news':
-        print("뉴스 조회 (준비 중)")
+@app.get("/", response_class=HTMLResponse)
+async def root(request: Request):
+    """Main dashboard page"""
+    return templates.TemplateResponse("index.html", {"request": request})
 
-    elif args.command == 'chart':
-        print(f"{args.symbol} 차트 생성 (준비 중)")
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {
+        "status": "healthy",
+        "app": "MarketPulse Dashboard",
+        "version": "1.0.0"
+    }
 
-    else:
-        print(f"Unknown command: {args.command}")
-        sys.exit(1)
-
-
-if __name__ == '__main__':
-    cli()
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

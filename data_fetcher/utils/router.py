@@ -6,8 +6,8 @@ OpenBB-style router with automatic provider discovery and multi-provider support
 import logging
 from typing import Any, Dict, List, Optional
 
-from data_fetcher.registry import FetcherRegistry
-from data_fetcher.provider import ProviderRegistry, Provider
+from data_fetcher.utils.registry import FetcherRegistry
+from data_fetcher.provider import ProviderRegistry
 
 log = logging.getLogger(__name__)
 

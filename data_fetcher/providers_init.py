@@ -7,7 +7,7 @@ This file should be imported to activate all providers.
 import logging
 
 from data_fetcher.provider import Provider, ProviderRegistry
-from data_fetcher.registry import FetcherRegistry
+from data_fetcher.utils.registry import FetcherRegistry
 
 # Import all fetchers
 from data_fetcher.fetchers.fred.gdp import FREDGDPFetcher
@@ -27,6 +27,12 @@ from data_fetcher.fetchers.yahoo.company_info import YahooCompanyInfoFetcher
 
 from data_fetcher.fetchers.alphavantage.quote import AlphaVantageQuoteFetcher
 from data_fetcher.fetchers.alphavantage.timeseries import AlphaVantageTimeseriesFetcher
+
+from data_fetcher.fetchers.fmp.quote import FMPQuoteFetcher
+from data_fetcher.fetchers.fmp.company_profile import FMPCompanyProfileFetcher
+from data_fetcher.fetchers.fmp.income_statement import FMPIncomeStatementFetcher
+from data_fetcher.fetchers.fmp.analyst_estimates import FMPAnalystEstimatesFetcher
+from data_fetcher.fetchers.fmp.analyst_recommendations import FMPAnalystRecommendationsFetcher
 
 log = logging.getLogger(__name__)
 
@@ -94,6 +100,27 @@ alphavantage_provider = Provider(
 )
 
 
+# ==================== FMP Provider ====================
+
+fmp_provider = Provider(
+    name="fmp",
+    description="Financial Modeling Prep API",
+    website="https://financialmodelingprep.com",
+    credentials=["api_key"],
+    fetcher_dict={
+        "quote": FMPQuoteFetcher,
+        "company_profile": FMPCompanyProfileFetcher,
+        "income_statement": FMPIncomeStatementFetcher,
+        "analyst_estimates": FMPAnalystEstimatesFetcher,
+        "analyst_recommendations": FMPAnalystRecommendationsFetcher,
+    },
+    metadata={
+        "rate_limit": "250 requests/day (free tier), 750/min (premium)",
+        "data_coverage": "Global financial data, company fundamentals, analyst data",
+    }
+)
+
+
 # ==================== Provider Registration ====================
 
 def register_all_providers():
@@ -101,6 +128,7 @@ def register_all_providers():
     ProviderRegistry.register(fred_provider)
     ProviderRegistry.register(yahoo_provider)
     ProviderRegistry.register(alphavantage_provider)
+    ProviderRegistry.register(fmp_provider)
 
     log.info(f"Registered {len(ProviderRegistry.list())} providers")
 
@@ -130,6 +158,14 @@ def register_all_fetchers():
             category=category,
             provider="alphavantage",
             description=f"AlphaVantage {category.upper()} data"
+        )(fetcher)
+
+    # FMP fetchers
+    for category, fetcher in fmp_provider.fetcher_dict.items():
+        FetcherRegistry.register(
+            category=category,
+            provider="fmp",
+            description=f"FMP {category.upper()} data"
         )(fetcher)
 
     log.info(f"Registered {len(FetcherRegistry.list_categories())} fetcher categories")

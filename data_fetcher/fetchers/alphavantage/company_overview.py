@@ -8,7 +8,7 @@ from data_fetcher.models.alphavantage.company_overview import (
     CompanyOverviewQueryParams,
     CompanyOverviewData
 )
-from data_fetcher.utils.credentials import get_api_key
+from data_fetcher.utils.api_keys import get_api_key
 
 log = logging.getLogger(__name__)
 

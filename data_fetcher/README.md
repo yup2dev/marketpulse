@@ -67,7 +67,8 @@ credentials = {"api_key": "your_api_key"}
 
 ```python
 import asyncio
-from data_fetcher.router import DataRouter
+from data_fetcher.utils.router import DataRouter
+
 
 async def main():
     router = DataRouter()
@@ -83,13 +84,14 @@ async def main():
     for data in gdp_data:
         print(f"{data.date}: {data.value} (성장률: {data.growth_rate}%)")
 
+
 asyncio.run(main())
 ```
 
 ### 동기 방식
 
 ```python
-from data_fetcher.router import DataRouter
+from data_fetcher.utils.router import DataRouter
 
 router = DataRouter()
 
@@ -112,7 +114,8 @@ gdp_data = router.fetch_sync(
 
 ```python
 import asyncio
-from data_fetcher.router import DataRouter
+from data_fetcher.utils.router import DataRouter
+
 
 async def main():
     router = DataRouter()
@@ -127,6 +130,7 @@ async def main():
 
     for data in gdp_data:
         print(f"{data.date}: {data.value} (성장률: {data.growth_rate}%)")
+
 
 # CPI 데이터 조회
 cpi_data = router.fetch(
@@ -153,7 +157,7 @@ for data in unemployment_data:
 
 ```python
 from data_fetcher import get_data_router
-from data_fetcher.router import DataCategory
+from data_fetcher.utils.router import DataCategory
 
 router = get_data_router()
 
@@ -174,7 +178,7 @@ if short_data:
 
 ```python
 from data_fetcher import get_data_router
-from data_fetcher.router import DataCategory
+from data_fetcher.utils.router import DataCategory
 
 router = get_data_router()
 
@@ -222,7 +226,7 @@ for data in industrial_data:
 ```python
 from data_fetcher.utils import get_credentials_for_api
 from data_fetcher import get_data_router
-from data_fetcher.router import DataCategory
+from data_fetcher.utils.router import DataCategory
 
 # 환경 변수에서 자동으로 API 키 로드
 credentials = get_credentials_for_api('FRED')
@@ -365,7 +369,7 @@ class MyAsyncFetcher(Fetcher[MyQueryParams, MyData]):
 Fetcher는 자동으로 등록되고 발견됩니다:
 
 ```python
-from data_fetcher.registry import FetcherRegistry
+from data_fetcher.utils.registry import FetcherRegistry
 
 # 사용 가능한 카테고리
 categories = FetcherRegistry.list_categories()
@@ -416,7 +420,7 @@ FREDGDPFetcher.test(
 2. **Fetcher 구현** (`data_fetcher/fetchers/`):
    ```python
    from data_fetcher.fetchers.base import Fetcher
-   from data_fetcher.utils.credentials import get_api_key
+   from data_fetcher.utils.api_keys import get_api_key
 
    class MyFetcher(Fetcher[MyDataQueryParams, MyData]):
        @staticmethod

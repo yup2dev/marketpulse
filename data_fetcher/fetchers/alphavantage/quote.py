@@ -6,7 +6,7 @@ import requests
 
 from data_fetcher.fetchers.base import Fetcher
 from data_fetcher.models.alphavantage.equity_quote import EquityQuoteQueryParams, EquityQuoteData
-from data_fetcher.utils.credentials import CredentialsError, get_api_key
+from data_fetcher.utils.api_keys import CredentialsError, get_api_key
 
 log = logging.getLogger(__name__)
 
