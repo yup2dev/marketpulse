@@ -4,7 +4,7 @@
 
 class DashboardApp {
     constructor() {
-        this.currentSymbol = 'NVDA';
+        this.currentSymbol = 'TSMC';
         this.searchTimeout = null;
         this.init();
     }

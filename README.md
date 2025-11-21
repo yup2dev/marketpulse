@@ -1,113 +1,125 @@
 # MarketPulse
 
-금융 뉴스 분석 및 시장 데이터 플랫폼
+금융 데이터 시각화 대시보드 - Frontend와 Backend 분리 아키텍처
 
 ## 프로젝트 구조
 
 ```
 marketpulse/
+├── backend/             🔧 FastAPI 백엔드 서버
+├── frontend/            💻 React 프론트엔드
 ├── index_analyzer/      📰 뉴스 크롤러 (데몬)
 ├── data_fetcher/        📊 API 데이터 수집 (라이브러리)
-└── marketpulse_app/     🎯 메인 앱 (표시/분석)
+└── marketpulse_app/     🎯 레거시 앱 (표시/분석)
 ```
 
-### 1. index_analyzer (뉴스 크롤러)
+### 1. Backend (FastAPI 서버) ⭐ NEW
+
+FastAPI 기반 RESTful API 백엔드
+
+**특징:**
+- REST API 엔드포인트
+- CORS 설정 완료
+- 자동 API 문서화
+- 데이터 수집 통합
+
+**실행:**
+```bash
+cd backend
+python -m venv venv
+venv\Scripts\activate  # Windows
+pip install -r requirements.txt
+python run.py
+```
+
+API: http://localhost:8000
+문서: http://localhost:8000/docs
+
+### 2. Frontend (React 앱) ⭐ NEW
+
+React 기반 대시보드 UI
+
+**특징:**
+- 드래그 앤 드롭 위젯
+- 실시간 차트 시각화
+- 반응형 디자인
+- API 연동 완료
+
+**실행:**
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+앱: http://localhost:5173
+
+### 3. index_analyzer (뉴스 크롤러)
 
 뉴스 사이트 크롤링 및 분석 파이프라인
 
-**특징:**
-- 멀티스레드 크롤링
-- 감정 분석
-- 티커 추출
-- Redis Stream 기반 데몬
-
-**실행:**
-```bash
-cd index_analyzer
-poetry install
-poetry run crawler
-```
-
-### 2. data_fetcher (API 데이터 수집)
+### 4. data_fetcher (API 데이터 수집)
 
 재사용 가능한 API 데이터 수집 라이브러리
 
-**특징:**
-- Yahoo Finance, FRED, Alpha Vantage 지원
-- OpenBB 스타일 Fetcher 패턴
-- 표준화된 데이터 모델
+### 5. marketpulse_app (레거시 앱)
 
-**사용:**
-```python
-from data_fetcher import get_data_router
-
-router = get_data_router()
-data = router.get_short_interest('TSLA')
-```
-
-또는 CLI:
-```bash
-data-fetcher short-interest TSLA
-```
-
-### 3. marketpulse_app (메인 앱)
-
-데이터 표시 및 분석 애플리케이션
-
-**특징:**
-- 터미널 차트 생성
-- 데이터 조회 CLI
-- data_fetcher 라이브러리 사용
-
-**실행:**
-```bash
-cd marketpulse_app
-poetry install
-marketpulse view-data TSLA
-```
+기존 CLI 기반 데이터 표시 애플리케이션
 
 ---
 
-## 빠른 시작
+## 빠른 시작 (Frontend + Backend)
+
+### 1. Backend 실행
+
+터미널 1:
+```bash
+cd backend
+python -m venv venv
+venv\Scripts\activate  # Windows (Linux/Mac: source venv/bin/activate)
+pip install -r requirements.txt
+python run.py
+```
+
+### 2. Frontend 실행
+
+터미널 2:
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+### 3. 브라우저 접속
+
+- **Frontend**: http://localhost:5173
+- **Backend API**: http://localhost:8000
+- **API 문서**: http://localhost:8000/docs
+
+## 기존 모듈 실행
 
 ### Docker Compose로 전체 실행
 
 ```bash
-# 전체 서비스 시작
 docker-compose up -d
-
-# 로그 확인
 docker-compose logs -f
-
-# 메인 앱 접속
-docker exec -it marketpulse-app bash
-marketpulse view-data TSLA
-
-# 종료
 docker-compose down
 ```
 
 ### 개별 프로젝트 실행
 
-#### 1. 크롤러 데몬
+#### 크롤러 데몬
 ```bash
 cd index_analyzer
 poetry install
 poetry run crawler
 ```
 
-#### 2. Data Fetcher (Python 라이브러리)
+#### Data Fetcher
 ```bash
 cd data_fetcher
 poetry install
 python -m data_fetcher.main short-interest TSLA
-```
-
-#### 3. 메인 앱
-```bash
-cd marketpulse_app
-poetry install
-marketpulse view-data TSLA
 ```
 
 ---

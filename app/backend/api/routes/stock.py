@@ -3,7 +3,6 @@ Stock API Routes
 Endpoints for stock data, quotes, and historical prices
 """
 from fastapi import APIRouter, HTTPException
-from typing import Optional
 import sys
 from pathlib import Path
 
@@ -50,5 +49,17 @@ async def get_company_info(symbol: str):
         if not info:
             raise HTTPException(status_code=404, detail=f"Company info for {symbol} not found")
         return info
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/financials/{symbol}")
+async def get_financials(symbol: str):
+    """Get financial statements"""
+    try:
+        financials = await data_service.get_financials(symbol.upper())
+        if not financials:
+            raise HTTPException(status_code=404, detail=f"Financials for {symbol} not found")
+        return financials
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

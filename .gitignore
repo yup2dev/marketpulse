@@ -188,3 +188,6 @@ CLEANUP_PLAN.md
 
 # Develope Documents
 /docs
+
+*.png
+/app/frontend/node_modules*

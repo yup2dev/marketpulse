@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from data_fetcher.fetchers.yahoo.stock_price import YahooStockPriceFetcher
 from data_fetcher.fetchers.yahoo.company_info import YahooCompanyInfoFetcher
+from data_fetcher.fetchers.yahoo.financials import YahooFinancialsFetcher
 from data_fetcher.fetchers.fred.gdp import FREDGDPFetcher
 from data_fetcher.fetchers.fred.unemployment import FREDUnemploymentFetcher
 from data_fetcher.fetchers.fred.cpi import FREDCPIFetcher
@@ -182,6 +183,49 @@ class DataService:
             print(f"Error fetching news: {e}")
 
         return []
+
+    async def get_financials(self, symbol: str) -> Dict[str, Any]:
+        """Get financial statements for a company"""
+        try:
+            result = await YahooFinancialsFetcher.fetch_data({'symbol': symbol})
+
+            if result and len(result) > 0:
+                data = result[0]
+                return {
+                    'symbol': symbol,
+                    'income_statement': {
+                        'revenue': data.total_revenue,
+                        'cost_of_revenue': data.cost_of_revenue,
+                        'gross_profit': data.gross_profit,
+                        'operating_expenses': data.operating_expense,
+                        'operating_income': data.operating_income,
+                        'net_income': data.net_income,
+                        'ebitda': data.ebitda,
+                        'basic_eps': data.basic_eps,
+                        'diluted_eps': data.diluted_eps
+                    },
+                    'balance_sheet': {
+                        'total_assets': data.total_assets,
+                        'current_assets': data.current_assets,
+                        'cash': data.cash,
+                        'total_liabilities': data.total_liabilities_net_minority_interest,
+                        'current_liabilities': data.current_liabilities,
+                        'total_equity': data.stockholders_equity,
+                        'total_debt': data.total_debt
+                    },
+                    'cash_flow': {
+                        'operating_cash_flow': data.operating_cash_flow,
+                        'investing_cash_flow': data.investing_cash_flow,
+                        'financing_cash_flow': data.financing_cash_flow,
+                        'free_cash_flow': data.free_cash_flow,
+                        'capital_expenditure': data.capital_expenditure
+                    },
+                    'date': data.as_of_date.isoformat() if data.as_of_date else None
+                }
+        except Exception as e:
+            print(f"Error fetching financials: {e}")
+
+        return {}
 
 
 # Singleton instance
