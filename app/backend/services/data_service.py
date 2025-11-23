@@ -18,6 +18,7 @@ from data_fetcher.fetchers.fred.unemployment import FREDUnemploymentFetcher
 from data_fetcher.fetchers.fred.cpi import FREDCPIFetcher
 from data_fetcher.fetchers.fred.interest_rate import FREDInterestRateFetcher
 from data_fetcher.fetchers.polygon.news import PolygonNewsFetcher
+from data_fetcher.fetchers.fmp.search import FMPSearchFetcher
 
 
 class DataService:
@@ -54,6 +55,7 @@ class DataService:
         try:
             result = await YahooStockPriceFetcher.fetch_data({
                 'symbol': symbol,
+                'period': period,
                 'interval': '1d'
             })
 
@@ -157,6 +159,33 @@ class DataService:
 
         return indicators
 
+    async def get_indicator_history(self, indicator: str) -> List[Dict[str, Any]]:
+        """Get historical data for an economic indicator"""
+        try:
+            result = None
+
+            if indicator == 'GDP':
+                result = await FREDGDPFetcher.fetch_data({})
+            elif indicator == 'UNEMPLOYMENT':
+                result = await FREDUnemploymentFetcher.fetch_data({})
+            elif indicator == 'CPI':
+                result = await FREDCPIFetcher.fetch_data({})
+            elif indicator == 'INTEREST_RATE':
+                result = await FREDInterestRateFetcher.fetch_data({'rate_type': 'DFF'})
+
+            if result:
+                return [
+                    {
+                        'date': data.date.isoformat() if data.date else None,
+                        'value': data.value
+                    }
+                    for data in result
+                ]
+        except Exception as e:
+            print(f"Error fetching indicator history: {e}")
+
+        return []
+
     async def get_news(self, symbol: Optional[str] = None, limit: int = 10) -> List[Dict[str, Any]]:
         """Get market news"""
         try:
@@ -184,48 +213,99 @@ class DataService:
 
         return []
 
-    async def get_financials(self, symbol: str) -> Dict[str, Any]:
-        """Get financial statements for a company"""
+    async def get_financials(self, symbol: str, freq: str = 'quarterly', limit: int = 4) -> Dict[str, Any]:
+        """
+        Get financial statements for a company
+
+        Args:
+            symbol: Stock symbol
+            freq: Frequency - 'quarterly' or 'annual'
+            limit: Number of periods to return (default 4)
+        """
         try:
-            result = await YahooFinancialsFetcher.fetch_data({'symbol': symbol})
+            result = await YahooFinancialsFetcher.fetch_data({
+                'symbol': symbol,
+                'freq': freq
+            })
 
             if result and len(result) > 0:
-                data = result[0]
+                # Return multiple periods for comparison
+                periods = []
+                for data in result[:limit]:
+                    period = {
+                        'date': data.as_of_date.isoformat() if data.as_of_date else None,
+                        'period_type': freq,
+                        'income_statement': {
+                            'revenue': data.total_revenue,
+                            'cost_of_revenue': data.cost_of_revenue,
+                            'gross_profit': data.gross_profit,
+                            'operating_expenses': data.operating_expense,
+                            'operating_income': data.operating_income,
+                            'net_income': data.net_income,
+                            'ebitda': data.ebitda,
+                            'basic_eps': data.basic_eps,
+                            'diluted_eps': data.diluted_eps
+                        },
+                        'balance_sheet': {
+                            'total_assets': data.total_assets,
+                            'current_assets': data.current_assets,
+                            'cash': data.cash,
+                            'total_liabilities': data.total_liabilities_net_minority_interest,
+                            'current_liabilities': data.current_liabilities,
+                            'total_equity': data.stockholders_equity,
+                            'total_debt': data.total_debt
+                        },
+                        'cash_flow': {
+                            'operating_cash_flow': data.operating_cash_flow,
+                            'investing_cash_flow': data.investing_cash_flow,
+                            'financing_cash_flow': data.financing_cash_flow,
+                            'free_cash_flow': data.free_cash_flow,
+                            'capital_expenditure': data.capital_expenditure
+                        }
+                    }
+                    periods.append(period)
+
                 return {
                     'symbol': symbol,
-                    'income_statement': {
-                        'revenue': data.total_revenue,
-                        'cost_of_revenue': data.cost_of_revenue,
-                        'gross_profit': data.gross_profit,
-                        'operating_expenses': data.operating_expense,
-                        'operating_income': data.operating_income,
-                        'net_income': data.net_income,
-                        'ebitda': data.ebitda,
-                        'basic_eps': data.basic_eps,
-                        'diluted_eps': data.diluted_eps
-                    },
-                    'balance_sheet': {
-                        'total_assets': data.total_assets,
-                        'current_assets': data.current_assets,
-                        'cash': data.cash,
-                        'total_liabilities': data.total_liabilities_net_minority_interest,
-                        'current_liabilities': data.current_liabilities,
-                        'total_equity': data.stockholders_equity,
-                        'total_debt': data.total_debt
-                    },
-                    'cash_flow': {
-                        'operating_cash_flow': data.operating_cash_flow,
-                        'investing_cash_flow': data.investing_cash_flow,
-                        'financing_cash_flow': data.financing_cash_flow,
-                        'free_cash_flow': data.free_cash_flow,
-                        'capital_expenditure': data.capital_expenditure
-                    },
-                    'date': data.as_of_date.isoformat() if data.as_of_date else None
+                    'frequency': freq,
+                    'periods': periods
                 }
         except Exception as e:
             print(f"Error fetching financials: {e}")
 
         return {}
+
+    async def search_stocks(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
+        """
+        Search for stocks by symbol or company name
+
+        Args:
+            query: Search query (symbol or company name)
+            limit: Maximum number of results
+
+        Returns:
+            List of matching stocks with symbol and name
+        """
+        try:
+            result = await FMPSearchFetcher.fetch_data({
+                'query': query,
+                'limit': limit
+            })
+
+            if result:
+                return [
+                    {
+                        'symbol': stock.symbol,
+                        'name': stock.name,
+                        'exchange': stock.exchange_short_name or stock.stock_exchange,
+                        'currency': stock.currency
+                    }
+                    for stock in result
+                ]
+        except Exception as e:
+            print(f"Error searching stocks: {e}")
+
+        return []
 
 
 # Singleton instance

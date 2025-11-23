@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.routes import stock, economic, news, dashboard
+from app.backend.api.routes import stock, economic, news, dashboard
 
 app = FastAPI(
     title="MarketPulse Dashboard",

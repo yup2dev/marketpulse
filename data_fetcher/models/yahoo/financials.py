@@ -11,6 +11,10 @@ class FinancialsQueryParams(BaseQueryParams):
     symbol: str = Field(
         description="종목 코드 (예: AAPL, MSFT)"
     )
+    freq: str = Field(
+        default="annual",
+        description="보고 주기 ('quarterly' 또는 'annual')"
+    )
 
 
 class FinancialsData(BaseData):

@@ -40,15 +40,23 @@ class YahooFinancialsFetcher(Fetcher[FinancialsQueryParams, FinancialsData]):
         try:
             ticker = yf.Ticker(query.symbol)
 
-            # Get financial statements
-            income_stmt = ticker.income_stmt
-            balance_sheet = ticker.balance_sheet
-            cash_flow = ticker.cashflow
+            # Get financial statements based on frequency (quarterly or annual)
+            freq = getattr(query, 'freq', 'annual')  # Default to annual if not specified
+
+            if freq == 'quarterly':
+                income_stmt = ticker.quarterly_income_stmt
+                balance_sheet = ticker.quarterly_balance_sheet
+                cash_flow = ticker.quarterly_cashflow
+            else:  # annual
+                income_stmt = ticker.income_stmt
+                balance_sheet = ticker.balance_sheet
+                cash_flow = ticker.cashflow
 
             return {
                 'income_stmt': income_stmt,
                 'balance_sheet': balance_sheet,
-                'cash_flow': cash_flow
+                'cash_flow': cash_flow,
+                'freq': freq
             }
 
         except Exception as e:
@@ -78,54 +86,55 @@ class YahooFinancialsFetcher(Fetcher[FinancialsQueryParams, FinancialsData]):
 
             results = []
 
-            # Process most recent column
+            # Process all periods (columns)
             if income_stmt is not None and not income_stmt.empty:
-                latest_date = income_stmt.columns[0]
-
-                # Helper function to safely get values
-                def safe_get(df, key):
+                # Helper function to safely get values for a specific date
+                def safe_get(df, key, date_col):
                     try:
-                        if key in df.index:
-                            val = df.loc[key, latest_date]
+                        if df is not None and not df.empty and key in df.index:
+                            val = df.loc[key, date_col]
                             return None if (hasattr(val, '__iter__') and len(val) == 0) or str(val) == 'nan' else float(val)
                     except:
                         pass
                     return None
 
-                financials = FinancialsData(
-                    symbol=query.symbol,
-                    as_of_date=latest_date.to_pydatetime() if hasattr(latest_date, 'to_pydatetime') else datetime.now(),
+                # Iterate through all columns (periods) in the income statement
+                for date_col in income_stmt.columns:
+                    financials = FinancialsData(
+                        symbol=query.symbol,
+                        as_of_date=date_col.to_pydatetime() if hasattr(date_col, 'to_pydatetime') else datetime.now(),
 
-                    # Income Statement
-                    total_revenue=safe_get(income_stmt, 'Total Revenue'),
-                    cost_of_revenue=safe_get(income_stmt, 'Cost Of Revenue'),
-                    gross_profit=safe_get(income_stmt, 'Gross Profit'),
-                    operating_expense=safe_get(income_stmt, 'Operating Expense'),
-                    operating_income=safe_get(income_stmt, 'Operating Income'),
-                    net_income=safe_get(income_stmt, 'Net Income'),
-                    ebitda=safe_get(income_stmt, 'EBITDA'),
-                    basic_eps=safe_get(income_stmt, 'Basic EPS'),
-                    diluted_eps=safe_get(income_stmt, 'Diluted EPS'),
+                        # Income Statement
+                        total_revenue=safe_get(income_stmt, 'Total Revenue', date_col),
+                        cost_of_revenue=safe_get(income_stmt, 'Cost Of Revenue', date_col),
+                        gross_profit=safe_get(income_stmt, 'Gross Profit', date_col),
+                        operating_expense=safe_get(income_stmt, 'Operating Expense', date_col),
+                        operating_income=safe_get(income_stmt, 'Operating Income', date_col),
+                        net_income=safe_get(income_stmt, 'Net Income', date_col),
+                        ebitda=safe_get(income_stmt, 'EBITDA', date_col),
+                        basic_eps=safe_get(income_stmt, 'Basic EPS', date_col),
+                        diluted_eps=safe_get(income_stmt, 'Diluted EPS', date_col),
 
-                    # Balance Sheet
-                    total_assets=safe_get(balance_sheet, 'Total Assets') if balance_sheet is not None else None,
-                    current_assets=safe_get(balance_sheet, 'Current Assets') if balance_sheet is not None else None,
-                    cash=safe_get(balance_sheet, 'Cash And Cash Equivalents') if balance_sheet is not None else None,
-                    total_liabilities_net_minority_interest=safe_get(balance_sheet, 'Total Liabilities Net Minority Interest') if balance_sheet is not None else None,
-                    current_liabilities=safe_get(balance_sheet, 'Current Liabilities') if balance_sheet is not None else None,
-                    stockholders_equity=safe_get(balance_sheet, 'Stockholders Equity') if balance_sheet is not None else None,
-                    total_debt=safe_get(balance_sheet, 'Total Debt') if balance_sheet is not None else None,
+                        # Balance Sheet
+                        total_assets=safe_get(balance_sheet, 'Total Assets', date_col),
+                        current_assets=safe_get(balance_sheet, 'Current Assets', date_col),
+                        cash=safe_get(balance_sheet, 'Cash And Cash Equivalents', date_col),
+                        total_liabilities_net_minority_interest=safe_get(balance_sheet, 'Total Liabilities Net Minority Interest', date_col),
+                        current_liabilities=safe_get(balance_sheet, 'Current Liabilities', date_col),
+                        stockholders_equity=safe_get(balance_sheet, 'Stockholders Equity', date_col),
+                        total_debt=safe_get(balance_sheet, 'Total Debt', date_col),
 
-                    # Cash Flow
-                    operating_cash_flow=safe_get(cash_flow, 'Operating Cash Flow') if cash_flow is not None else None,
-                    investing_cash_flow=safe_get(cash_flow, 'Investing Cash Flow') if cash_flow is not None else None,
-                    financing_cash_flow=safe_get(cash_flow, 'Financing Cash Flow') if cash_flow is not None else None,
-                    free_cash_flow=safe_get(cash_flow, 'Free Cash Flow') if cash_flow is not None else None,
-                    capital_expenditure=safe_get(cash_flow, 'Capital Expenditure') if cash_flow is not None else None,
-                )
+                        # Cash Flow
+                        operating_cash_flow=safe_get(cash_flow, 'Operating Cash Flow', date_col),
+                        investing_cash_flow=safe_get(cash_flow, 'Investing Cash Flow', date_col),
+                        financing_cash_flow=safe_get(cash_flow, 'Financing Cash Flow', date_col),
+                        free_cash_flow=safe_get(cash_flow, 'Free Cash Flow', date_col),
+                        capital_expenditure=safe_get(cash_flow, 'Capital Expenditure', date_col),
+                    )
 
-                results.append(financials)
-                log.info(f"Fetched financials for {query.symbol}")
+                    results.append(financials)
+
+                log.info(f"Fetched {len(results)} periods of financials for {query.symbol}")
 
             return results
 

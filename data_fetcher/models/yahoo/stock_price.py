@@ -11,6 +11,10 @@ class StockPriceQueryParams(BaseQueryParams):
     symbol: str = Field(
         description="종목 코드 (예: AAPL, TSLA, MSFT)"
     )
+    period: Optional[str] = Field(
+        default=None,
+        description="조회 기간 (1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, max)"
+    )
     start_date: Optional[str] = Field(
         default=None,
         description="조회 시작일 (YYYY-MM-DD)"

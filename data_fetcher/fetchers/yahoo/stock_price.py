@@ -41,21 +41,28 @@ class YahooStockPriceFetcher(Fetcher[StockPriceQueryParams, StockPriceData]):
         try:
             ticker = yf.Ticker(query.symbol)
 
-            # 날짜 범위 설정
-            end_date = datetime.now()
-            start_date = end_date - timedelta(days=365)  # 기본 1년
+            # period가 지정된 경우 period 사용 (더 간단하고 정확)
+            if query.period:
+                hist = ticker.history(
+                    period=query.period,
+                    interval=query.interval
+                )
+            else:
+                # 날짜 범위 설정
+                end_date = datetime.now()
+                start_date = end_date - timedelta(days=365)  # 기본 1년
 
-            if query.start_date:
-                start_date = datetime.strptime(query.start_date, '%Y-%m-%d')
-            if query.end_date:
-                end_date = datetime.strptime(query.end_date, '%Y-%m-%d')
+                if query.start_date:
+                    start_date = datetime.strptime(query.start_date, '%Y-%m-%d')
+                if query.end_date:
+                    end_date = datetime.strptime(query.end_date, '%Y-%m-%d')
 
-            # 주가 데이터 조회
-            hist = ticker.history(
-                start=start_date,
-                end=end_date,
-                interval=query.interval
-            )
+                # 주가 데이터 조회
+                hist = ticker.history(
+                    start=start_date,
+                    end=end_date,
+                    interval=query.interval
+                )
 
             if hist.empty:
                 log.warning(f"No data found for {query.symbol}")

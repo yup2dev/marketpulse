@@ -71,6 +71,16 @@
   border: 2px dashed #00d9ff;
 }
 
+/* Drag Handle */
+.drag-handle {
+  cursor: move;
+  cursor: grab;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
 /* Scrollbar Styles */
 ::-webkit-scrollbar {
   width: 8px;

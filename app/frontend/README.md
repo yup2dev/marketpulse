@@ -39,7 +39,7 @@ VITE_API_URL=http://localhost:8000
 ### Development Mode
 
 ```bash
-npm run dev
+npm run devㅞㅡ
 ```
 
 The application will be available at http://localhost:5173
