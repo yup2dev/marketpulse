@@ -17,8 +17,15 @@ from data_fetcher.fetchers.fred.gdp import FREDGDPFetcher
 from data_fetcher.fetchers.fred.unemployment import FREDUnemploymentFetcher
 from data_fetcher.fetchers.fred.cpi import FREDCPIFetcher
 from data_fetcher.fetchers.fred.interest_rate import FREDInterestRateFetcher
+from data_fetcher.fetchers.fred.retail_sales import FREDRetailSalesFetcher
+from data_fetcher.fetchers.fred.consumer_sentiment import FREDConsumerSentimentFetcher
+from data_fetcher.fetchers.fred.nonfarm_payroll import FREDNonfarmPayrollFetcher
+from data_fetcher.fetchers.fred.employment import FREDEmploymentFetcher
+from data_fetcher.fetchers.fred.housing_starts import FREDHousingStartsFetcher
+from data_fetcher.fetchers.fred.industrial_production import FREDIndustrialProductionFetcher
 from data_fetcher.fetchers.polygon.news import PolygonNewsFetcher
 from data_fetcher.fetchers.fmp.search import FMPSearchFetcher
+from data_fetcher.utils.helpers import parse_period_to_dates
 
 
 class DataService:
@@ -159,25 +166,74 @@ class DataService:
 
         return indicators
 
-    async def get_indicator_history(self, indicator: str) -> List[Dict[str, Any]]:
-        """Get historical data for an economic indicator"""
+    async def get_indicator_history(self, indicator: str, period: str = "5y") -> List[Dict[str, Any]]:
+        """
+        Get historical data for an economic indicator
+
+        Args:
+            indicator: Indicator name (GDP, UNEMPLOYMENT, CPI, FED_FUNDS_RATE, RETAIL_SALES,
+                      CONSUMER_SENTIMENT, NONFARM_PAYROLL, HOUSING_STARTS, INDUSTRIAL_PRODUCTION)
+            period: Period string (1mo, 3mo, 6mo, 1y, 2y, 3y, 5y, 10y, max)
+        """
         try:
+            # period를 start_date, end_date로 변환
+            start_date, end_date = parse_period_to_dates(period)
+
             result = None
 
             if indicator == 'GDP':
-                result = await FREDGDPFetcher.fetch_data({})
+                result = await FREDGDPFetcher.fetch_data({
+                    'start_date': start_date,
+                    'end_date': end_date
+                })
             elif indicator == 'UNEMPLOYMENT':
-                result = await FREDUnemploymentFetcher.fetch_data({})
+                result = await FREDUnemploymentFetcher.fetch_data({
+                    'start_date': start_date,
+                    'end_date': end_date
+                })
             elif indicator == 'CPI':
-                result = await FREDCPIFetcher.fetch_data({})
-            elif indicator == 'INTEREST_RATE':
-                result = await FREDInterestRateFetcher.fetch_data({'rate_type': 'DFF'})
+                result = await FREDCPIFetcher.fetch_data({
+                    'start_date': start_date,
+                    'end_date': end_date
+                })
+            elif indicator == 'FED_FUNDS_RATE' or indicator == 'INTEREST_RATE':
+                result = await FREDInterestRateFetcher.fetch_data({
+                    'rate_type': 'federal_funds',
+                    'start_date': start_date,
+                    'end_date': end_date
+                })
+            elif indicator == 'RETAIL_SALES':
+                result = await FREDRetailSalesFetcher.fetch_data({
+                    'start_date': start_date,
+                    'end_date': end_date
+                })
+            elif indicator == 'CONSUMER_SENTIMENT':
+                result = await FREDConsumerSentimentFetcher.fetch_data({
+                    'start_date': start_date,
+                    'end_date': end_date
+                })
+            elif indicator == 'NONFARM_PAYROLL':
+                result = await FREDNonfarmPayrollFetcher.fetch_data({
+                    'start_date': start_date,
+                    'end_date': end_date
+                })
+            elif indicator == 'HOUSING_STARTS':
+                result = await FREDHousingStartsFetcher.fetch_data({
+                    'start_date': start_date,
+                    'end_date': end_date
+                })
+            elif indicator == 'INDUSTRIAL_PRODUCTION':
+                result = await FREDIndustrialProductionFetcher.fetch_data({
+                    'start_date': start_date,
+                    'end_date': end_date
+                })
 
             if result:
+                # rate 속성이 있으면 rate를, 없으면 value를 사용
                 return [
                     {
                         'date': data.date.isoformat() if data.date else None,
-                        'value': data.value
+                        'value': getattr(data, 'rate', None) or data.value
                     }
                     for data in result
                 ]

@@ -138,6 +138,50 @@ def parse_date(
     return None
 
 
+def parse_period_to_dates(period: str = "1y") -> tuple[date, date]:
+    """
+    period 문자열을 start_date, end_date로 변환
+
+    Args:
+        period: 기간 문자열 (1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 3y, 5y, 10y, max)
+
+    Returns:
+        (start_date, end_date) 튜플
+
+    Examples:
+        parse_period_to_dates("1y") -> (1 year ago, today)
+        parse_period_to_dates("3mo") -> (3 months ago, today)
+        parse_period_to_dates("max") -> (50 years ago, today)
+    """
+    end_date = date.today()
+
+    # period 파싱
+    period = period.lower().strip()
+
+    # 숫자와 단위 분리
+    if period == "max":
+        # max는 50년으로 설정
+        start_date = end_date - timedelta(days=365 * 50)
+    elif period.endswith("d"):
+        # 일 단위
+        days = int(period[:-1])
+        start_date = end_date - timedelta(days=days)
+    elif period.endswith("mo"):
+        # 월 단위 (30일 기준)
+        months = int(period[:-2])
+        start_date = end_date - timedelta(days=30 * months)
+    elif period.endswith("y"):
+        # 년 단위
+        years = int(period[:-1])
+        start_date = end_date - timedelta(days=365 * years)
+    else:
+        # 기본값 1년
+        log.warning(f"Unknown period format: {period}, using default 1 year")
+        start_date = end_date - timedelta(days=365)
+
+    return start_date, end_date
+
+
 def get_date_range(
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,

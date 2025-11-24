@@ -194,4 +194,7 @@ class FREDCPIFetcher(Fetcher[CPIQueryParams, CPIData]):
             f"(start: {query.start_date}, end: {query.end_date})"
         )
 
+        # 날짜순으로 정렬
+        cpi_data_list.sort(key=lambda x: x.date)
+
         return cpi_data_list

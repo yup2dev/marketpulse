@@ -146,4 +146,13 @@ class FREDConsumerSentimentFetcher(Fetcher[ConsumerSentimentQueryParams, Consume
             except (ValueError, KeyError) as e:
                 log.warning(f"Error parsing consumer sentiment observation {obs}: {e}")
                 continue
-            return cs_data_list
+
+        log.info(
+            f"Filtered consumer sentiment data: {len(cs_data_list)} records "
+            f"(start: {query.start_date}, end: {query.end_date})"
+        )
+
+        # 날짜순으로 정렬
+        cs_data_list.sort(key=lambda x: x.date)
+
+        return cs_data_list

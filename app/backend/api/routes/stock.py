@@ -88,15 +88,21 @@ async def search_stocks(query: str = ""):
 
 
 @router.get("/indicator/{indicator}")
-async def get_indicator_history(indicator: str):
+async def get_indicator_history(indicator: str, period: str = "5y"):
     """
     Get historical data for an economic indicator
 
-    Indicators: GDP, UNEMPLOYMENT, CPI, INTEREST_RATE
+    Indicators: GDP, UNEMPLOYMENT, CPI, FED_FUNDS_RATE, RETAIL_SALES,
+                CONSUMER_SENTIMENT, NONFARM_PAYROLL, HOUSING_STARTS, INDUSTRIAL_PRODUCTION
+    Periods: 1mo, 3mo, 6mo, 1y, 2y, 3y, 5y, 10y, max
     """
     try:
         indicator_upper = indicator.upper()
-        valid_indicators = ['GDP', 'UNEMPLOYMENT', 'CPI', 'INTEREST_RATE']
+        valid_indicators = [
+            'GDP', 'UNEMPLOYMENT', 'CPI', 'FED_FUNDS_RATE', 'INTEREST_RATE',
+            'RETAIL_SALES', 'CONSUMER_SENTIMENT', 'NONFARM_PAYROLL',
+            'HOUSING_STARTS', 'INDUSTRIAL_PRODUCTION'
+        ]
 
         if indicator_upper not in valid_indicators:
             raise HTTPException(
@@ -104,11 +110,11 @@ async def get_indicator_history(indicator: str):
                 detail=f"Invalid indicator. Valid indicators: {', '.join(valid_indicators)}"
             )
 
-        history = await data_service.get_indicator_history(indicator_upper)
+        history = await data_service.get_indicator_history(indicator_upper, period)
         if not history:
             raise HTTPException(status_code=404, detail=f"No data for indicator {indicator}")
 
-        return {"indicator": indicator_upper, "data": history}
+        return {"indicator": indicator_upper, "period": period, "data": history}
     except HTTPException:
         raise
     except Exception as e:

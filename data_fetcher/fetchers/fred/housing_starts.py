@@ -166,4 +166,12 @@ class FREDHousingStartsFetcher(Fetcher[HousingStartsQueryParams, HousingStartsDa
                 log.warning(f"Error parsing housing starts observation {obs}: {e}")
                 continue
 
-            return hs_data_list
+        log.info(
+            f"Filtered housing starts data: {len(hs_data_list)} records "
+            f"(start: {query.start_date}, end: {query.end_date})"
+        )
+
+        # 날짜순으로 정렬
+        hs_data_list.sort(key=lambda x: x.date)
+
+        return hs_data_list

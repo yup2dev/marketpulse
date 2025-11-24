@@ -491,4 +491,4 @@ const ChartWidget = ({ initialSymbols = ['NVDA'], onRemove }) => {
   );
 };
 
-export default ChartWidget;
+export default ChartWidget;gi
