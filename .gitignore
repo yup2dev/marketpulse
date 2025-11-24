@@ -185,3 +185,9 @@ CLEANUP_PLAN.md
 
 # Root level test files (should be in tests/ folder)
 /test_*.py
+
+# Develope Documents
+/docs
+
+*.png
+/app/frontend/node_modules*

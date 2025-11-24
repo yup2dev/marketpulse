@@ -1,0 +1,26 @@
+[tool.poetry]
+name = "data-fetcher"
+version = "0.1.0"
+description = "API 데이터 수집 라이브러리 (Yahoo Finance, FRED, Alpha Vantage)"
+authors = ["Your Name <your.email@example.com>"]
+readme = "README.md"
+packages = [{include = "data_fetcher"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+yfinance = "^0.2.0"
+requests = "^2.31.0"
+pydantic = "^2.0.0"
+pandas = "^2.0.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.0"
+black = "^23.0.0"
+mypy = "^1.5.0"
+
+[tool.poetry.scripts]
+data-fetcher = "data_fetcher.main:cli"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
