@@ -19,16 +19,47 @@ import {
   WIDGET_CONSTRAINTS,
 } from './common';
 
-const ChartWidget = ({ initialSymbols = ['NVDA'], onRemove }) => {
-  const [tickers, setTickers] = useState(initialSymbols.map(symbol => ({ symbol, color: CHART_COLORS[0], visible: true, type: 'stock' })));
+const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
+  const storageKey = widgetId ? `chart-widget-${widgetId}` : null;
+
+  // Load saved state or use initial values
+  const loadSavedState = () => {
+    if (!storageKey) return null;
+    try {
+      const saved = localStorage.getItem(storageKey);
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      console.error('Error loading widget state:', e);
+      return null;
+    }
+  };
+
+  const savedState = loadSavedState();
+
+  const [tickers, setTickers] = useState(
+    savedState?.tickers || initialSymbols.map(symbol => ({ symbol, color: CHART_COLORS[0], visible: true, type: 'stock' }))
+  );
   const [chartData, setChartData] = useState([]);
-  const [timeRange, setTimeRange] = useState('1yr');
+  const [timeRange, setTimeRange] = useState(savedState?.timeRange || '1yr');
   const [loading, setLoading] = useState(false);
-  const [normalized, setNormalized] = useState(false);
-  const [showVolume, setShowVolume] = useState(true);
+  const [normalized, setNormalized] = useState(savedState?.normalized || false);
+  const [showVolume, setShowVolume] = useState(savedState?.showVolume !== undefined ? savedState.showVolume : true);
   const [showStockSelector, setShowStockSelector] = useState(false);
   const [showIndicatorSelector, setShowIndicatorSelector] = useState(false);
   const [tickerStats, setTickerStats] = useState({});
+
+  // Save state to localStorage whenever key settings change
+  useEffect(() => {
+    if (storageKey) {
+      const stateToSave = {
+        tickers,
+        timeRange,
+        normalized,
+        showVolume
+      };
+      localStorage.setItem(storageKey, JSON.stringify(stateToSave));
+    }
+  }, [storageKey, tickers, timeRange, normalized, showVolume]);
 
   // Load data for all tickers and indicators
   const loadData = useCallback(async () => {
@@ -491,4 +522,4 @@ const ChartWidget = ({ initialSymbols = ['NVDA'], onRemove }) => {
   );
 };
 
-export default ChartWidget;gi
+export default ChartWidget;

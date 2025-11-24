@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.backend.api.routes import stock, economic, news, dashboard
+from app.backend.api.routes import stock, economic, news, dashboard, backtest
 
 app = FastAPI(
     title="MarketPulse Dashboard",
@@ -42,6 +42,7 @@ app.include_router(stock.router, prefix="/api/stock", tags=["stock"])
 app.include_router(economic.router, prefix="/api/economic", tags=["economic"])
 app.include_router(news.router, prefix="/api/news", tags=["news"])
 app.include_router(dashboard.router, prefix="/api", tags=["dashboard"])
+app.include_router(backtest.router, prefix="/api/backtest", tags=["backtest"])
 
 @app.get("/")
 async def root():
@@ -55,7 +56,8 @@ async def root():
             "stock": "/api/stock",
             "economic": "/api/economic",
             "news": "/api/news",
-            "dashboard": "/api/dashboard"
+            "dashboard": "/api/dashboard",
+            "backtest": "/api/backtest"
         }
     }
 

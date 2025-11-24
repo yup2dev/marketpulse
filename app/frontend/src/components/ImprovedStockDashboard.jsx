@@ -3,12 +3,14 @@ import GridLayout from 'react-grid-layout';
 import { LineChart, Line, BarChart, Bar, ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { TrendingUp, TrendingDown, Calendar, RefreshCw, Maximize2, Plus, BarChart3, Table2 } from 'lucide-react';
 import Layout from './Layout';
+import StockSelector from './StockSelector';
 import StockSelectorModal from './StockSelectorModal';
 import ResizableStockWidget from './ResizableStockWidget';
 import FinancialWidget from './widgets/FinancialWidget';
 import ChartWidget from './widgets/ChartWidget';
 import TickerInfoWidget from './widgets/TickerInfoWidget';
 import KeyMetricsWidget from './widgets/KeyMetricsWidget';
+import TechnicalAnalysis from './TechnicalAnalysis';
 import 'react-grid-layout/css/styles.css';
 
 const API_BASE = 'http://localhost:8000/api';
@@ -191,6 +193,7 @@ function ImprovedStockDashboard() {
       case 'advanced-chart':
         return (
           <ChartWidget
+            widgetId={widget.id}
             initialSymbols={[widget.symbol]}
             onRemove={() => handleRemoveWidget(widget.id)}
           />
@@ -600,8 +603,8 @@ function ImprovedStockDashboard() {
                       <tr className="border-b border-gray-800 hover:bg-gray-800/30">
                         <td className="py-2.5 px-4 text-white sticky left-0 bg-[#1a1a1a]">Capital Expenditure</td>
                         {financials.periods.map((period, idx) => (
-                          <td key={idx} className="text-right py-2.5 px-4 text-white">
-                            {formatCurrency(period.cash_flow?.capital_expenditure)}
+                          <td key={idx} className="text-right py-2.5 px-4 text-red-400">
+                            {formatCurrency(Math.abs(period.cash_flow?.capital_expenditure || 0))}
                           </td>
                         ))}
                       </tr>
@@ -708,7 +711,11 @@ function ImprovedStockDashboard() {
           </div>
         )}
 
-        {!['overview', 'financials'].includes(activeTab) && (
+        {activeTab === 'technical-analysis' && (
+          <TechnicalAnalysis symbol={symbol} />
+        )}
+
+        {!['overview', 'financials', 'technical-analysis'].includes(activeTab) && (
           <div className="bg-[#1a1a1a] rounded-lg p-12 text-center border border-gray-800">
             <div className="text-gray-400 text-lg">
               {activeTab.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())} - Coming Soon
