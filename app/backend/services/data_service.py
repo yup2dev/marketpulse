@@ -57,14 +57,37 @@ class DataService:
 
         return {}
 
-    async def get_stock_history(self, symbol: str, period: str = "1mo") -> List[Dict[str, Any]]:
+    async def get_stock_history(
+        self,
+        symbol: str,
+        period: str = None,
+        start_date: str = None,
+        end_date: str = None
+    ) -> List[Dict[str, Any]]:
         """Get historical stock prices"""
         try:
-            result = await YahooStockPriceFetcher.fetch_data({
+            params = {
                 'symbol': symbol,
-                'period': period,
                 'interval': '1d'
-            })
+            }
+
+            # Use custom date range if provided, otherwise use period
+            if start_date and end_date:
+                params['start_date'] = start_date
+                params['end_date'] = end_date
+                print(f"DATA_SERVICE - Using date range: {start_date} to {end_date}")
+                # Do NOT set period when using date range
+            elif period:
+                params['period'] = period
+                print(f"DATA_SERVICE - Using period: {period}")
+            else:
+                # Default to 1 month if nothing provided
+                params['period'] = '1mo'
+                print(f"DATA_SERVICE - Using default period: 1mo")
+
+            print(f"DATA_SERVICE - Final params: {params}")
+
+            result = await YahooStockPriceFetcher.fetch_data(params)
 
             if result:
                 return [
@@ -342,6 +365,7 @@ class DataService:
         Returns:
             List of matching stocks with symbol and name
         """
+        # Try FMP first
         try:
             result = await FMPSearchFetcher.fetch_data({
                 'query': query,
@@ -359,9 +383,85 @@ class DataService:
                     for stock in result
                 ]
         except Exception as e:
-            print(f"Error searching stocks: {e}")
+            print(f"Error searching stocks from FMP for '{query}': {e}")
 
-        return []
+        # Fallback: Use a popular stocks database and filter
+        popular_stocks = [
+            {'symbol': 'AAPL', 'name': 'Apple Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
+            {'symbol': 'MSFT', 'name': 'Microsoft Corporation', 'exchange': 'NASDAQ', 'currency': 'USD'},
+            {'symbol': 'GOOGL', 'name': 'Alphabet Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
+            {'symbol': 'AMZN', 'name': 'Amazon.com Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
+            {'symbol': 'NVDA', 'name': 'NVIDIA Corporation', 'exchange': 'NASDAQ', 'currency': 'USD'},
+            {'symbol': 'TSLA', 'name': 'Tesla Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
+            {'symbol': 'META', 'name': 'Meta Platforms Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
+            {'symbol': 'BRK.B', 'name': 'Berkshire Hathaway Inc.', 'exchange': 'NYSE', 'currency': 'USD'},
+            {'symbol': 'JPM', 'name': 'JPMorgan Chase & Co.', 'exchange': 'NYSE', 'currency': 'USD'},
+            {'symbol': 'JNJ', 'name': 'Johnson & Johnson', 'exchange': 'NYSE', 'currency': 'USD'},
+            {'symbol': 'V', 'name': 'Visa Inc.', 'exchange': 'NYSE', 'currency': 'USD'},
+            {'symbol': 'WMT', 'name': 'Walmart Inc.', 'exchange': 'NYSE', 'currency': 'USD'},
+            {'symbol': 'PG', 'name': 'Procter & Gamble Co.', 'exchange': 'NYSE', 'currency': 'USD'},
+            {'symbol': 'MA', 'name': 'Mastercard Inc.', 'exchange': 'NYSE', 'currency': 'USD'},
+            {'symbol': 'HD', 'name': 'The Home Depot Inc.', 'exchange': 'NYSE', 'currency': 'USD'},
+            {'symbol': 'CVX', 'name': 'Chevron Corporation', 'exchange': 'NYSE', 'currency': 'USD'},
+            {'symbol': 'ABBV', 'name': 'AbbVie Inc.', 'exchange': 'NYSE', 'currency': 'USD'},
+            {'symbol': 'LLY', 'name': 'Eli Lilly and Company', 'exchange': 'NYSE', 'currency': 'USD'},
+            {'symbol': 'MRK', 'name': 'Merck & Co. Inc.', 'exchange': 'NYSE', 'currency': 'USD'},
+            {'symbol': 'PEP', 'name': 'PepsiCo Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
+            {'symbol': 'KO', 'name': 'The Coca-Cola Company', 'exchange': 'NYSE', 'currency': 'USD'},
+            {'symbol': 'COST', 'name': 'Costco Wholesale Corporation', 'exchange': 'NASDAQ', 'currency': 'USD'},
+            {'symbol': 'AVGO', 'name': 'Broadcom Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
+            {'symbol': 'TMO', 'name': 'Thermo Fisher Scientific Inc.', 'exchange': 'NYSE', 'currency': 'USD'},
+            {'symbol': 'MCD', 'name': 'McDonald\'s Corporation', 'exchange': 'NYSE', 'currency': 'USD'},
+            {'symbol': 'CSCO', 'name': 'Cisco Systems Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
+            {'symbol': 'ACN', 'name': 'Accenture plc', 'exchange': 'NYSE', 'currency': 'USD'},
+            {'symbol': 'ABT', 'name': 'Abbott Laboratories', 'exchange': 'NYSE', 'currency': 'USD'},
+            {'symbol': 'NKE', 'name': 'NIKE Inc.', 'exchange': 'NYSE', 'currency': 'USD'},
+            {'symbol': 'DHR', 'name': 'Danaher Corporation', 'exchange': 'NYSE', 'currency': 'USD'},
+            {'symbol': 'TXN', 'name': 'Texas Instruments Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
+            {'symbol': 'VZ', 'name': 'Verizon Communications Inc.', 'exchange': 'NYSE', 'currency': 'USD'},
+            {'symbol': 'DIS', 'name': 'The Walt Disney Company', 'exchange': 'NYSE', 'currency': 'USD'},
+            {'symbol': 'ADBE', 'name': 'Adobe Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
+            {'symbol': 'CRM', 'name': 'Salesforce Inc.', 'exchange': 'NYSE', 'currency': 'USD'},
+            {'symbol': 'NFLX', 'name': 'Netflix Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
+            {'symbol': 'INTC', 'name': 'Intel Corporation', 'exchange': 'NASDAQ', 'currency': 'USD'},
+            {'symbol': 'AMD', 'name': 'Advanced Micro Devices Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
+            {'symbol': 'QCOM', 'name': 'QUALCOMM Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
+            {'symbol': 'INTU', 'name': 'Intuit Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
+            {'symbol': 'CMCSA', 'name': 'Comcast Corporation', 'exchange': 'NASDAQ', 'currency': 'USD'},
+            {'symbol': 'ORCL', 'name': 'Oracle Corporation', 'exchange': 'NYSE', 'currency': 'USD'},
+            {'symbol': 'IBM', 'name': 'International Business Machines Corporation', 'exchange': 'NYSE', 'currency': 'USD'},
+            {'symbol': 'BA', 'name': 'The Boeing Company', 'exchange': 'NYSE', 'currency': 'USD'},
+            {'symbol': 'CAT', 'name': 'Caterpillar Inc.', 'exchange': 'NYSE', 'currency': 'USD'},
+            {'symbol': 'GS', 'name': 'The Goldman Sachs Group Inc.', 'exchange': 'NYSE', 'currency': 'USD'},
+            {'symbol': 'AXP', 'name': 'American Express Company', 'exchange': 'NYSE', 'currency': 'USD'},
+            {'symbol': 'MMM', 'name': '3M Company', 'exchange': 'NYSE', 'currency': 'USD'},
+            {'symbol': 'HON', 'name': 'Honeywell International Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
+            {'symbol': 'AMGN', 'name': 'Amgen Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
+            {'symbol': 'UNH', 'name': 'UnitedHealth Group Inc.', 'exchange': 'NYSE', 'currency': 'USD'},
+            {'symbol': 'SBUX', 'name': 'Starbucks Corporation', 'exchange': 'NASDAQ', 'currency': 'USD'},
+            {'symbol': 'PYPL', 'name': 'PayPal Holdings Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
+            {'symbol': 'ASML', 'name': 'ASML Holding N.V.', 'exchange': 'NASDAQ', 'currency': 'USD'},
+            {'symbol': 'BKNG', 'name': 'Booking Holdings Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
+            {'symbol': 'GILD', 'name': 'Gilead Sciences Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
+            {'symbol': 'VRTX', 'name': 'Vertex Pharmaceuticals Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
+            {'symbol': 'ADP', 'name': 'Automatic Data Processing Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
+            {'symbol': 'MDLZ', 'name': 'Mondelez International Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
+            {'symbol': 'ISRG', 'name': 'Intuitive Surgical Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
+            {'symbol': 'REGN', 'name': 'Regeneron Pharmaceuticals Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
+            {'symbol': 'SPY', 'name': 'SPDR S&P 500 ETF Trust', 'exchange': 'NYSE', 'currency': 'USD'},
+            {'symbol': 'QQQ', 'name': 'Invesco QQQ Trust', 'exchange': 'NASDAQ', 'currency': 'USD'},
+            {'symbol': 'IWM', 'name': 'iShares Russell 2000 ETF', 'exchange': 'NYSE', 'currency': 'USD'},
+            {'symbol': 'DIA', 'name': 'SPDR Dow Jones Industrial Average ETF', 'exchange': 'NYSE', 'currency': 'USD'},
+            {'symbol': 'VTI', 'name': 'Vanguard Total Stock Market ETF', 'exchange': 'NYSE', 'currency': 'USD'},
+        ]
+
+        query_upper = query.upper()
+        results = [
+            stock for stock in popular_stocks
+            if query_upper in stock['symbol'].upper() or query_upper in stock['name'].upper()
+        ]
+
+        return results[:limit]
 
 
 # Singleton instance

@@ -181,7 +181,8 @@ CLEANUP_PLAN.md
 
 # Backup files
 *.backup
-*.fastapi_backup
+*.fastapi_
+up
 
 # Root level test files (should be in tests/ folder)
 /test_*.py

@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from services.data_service import data_service
+from app.backend.services.data_service import data_service
 
 router = APIRouter()
 

@@ -41,8 +41,12 @@ class YahooStockPriceFetcher(Fetcher[StockPriceQueryParams, StockPriceData]):
         try:
             ticker = yf.Ticker(query.symbol)
 
+            # Debug logging
+            log.info(f"Fetching {query.symbol}: period={query.period}, start={query.start_date}, end={query.end_date}")
+
             # period가 지정된 경우 period 사용 (더 간단하고 정확)
             if query.period:
+                log.info(f"Using period: {query.period}")
                 hist = ticker.history(
                     period=query.period,
                     interval=query.interval
@@ -56,6 +60,8 @@ class YahooStockPriceFetcher(Fetcher[StockPriceQueryParams, StockPriceData]):
                     start_date = datetime.strptime(query.start_date, '%Y-%m-%d')
                 if query.end_date:
                     end_date = datetime.strptime(query.end_date, '%Y-%m-%d')
+
+                log.info(f"Using date range: {start_date} to {end_date}")
 
                 # 주가 데이터 조회
                 hist = ticker.history(

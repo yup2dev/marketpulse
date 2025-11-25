@@ -93,33 +93,20 @@ class BacktestService:
             end = datetime.fromisoformat(end_date)
             days_diff = (end - start).days
 
-            # Fetch historical data for all symbols
+            # Fetch historical data for all symbols with date range
             stock_data = {}
             for symbol in symbols:
                 try:
                     result = await YahooStockPriceFetcher.fetch_data({
                         'symbol': symbol,
-                        'period': 'max',
+                        'start_date': start_date,
+                        'end_date': end_date,
                         'interval': '1d'
                     })
 
                     if result:
-                        # Filter by date range
-                        filtered = []
-                        for data in result:
-                            if data.date:
-                                # Convert date to datetime if needed
-                                if hasattr(data.date, 'tzinfo'):
-                                    # It's a datetime object
-                                    date_obj = data.date.replace(tzinfo=None) if data.date.tzinfo else data.date
-                                else:
-                                    # It's a date object, convert to datetime
-                                    from datetime import datetime as dt
-                                    date_obj = dt.combine(data.date, dt.min.time())
-
-                                if start <= date_obj <= end:
-                                    filtered.append(data)
-                        stock_data[symbol] = filtered
+                        # No need to filter - API returns data in the requested range
+                        stock_data[symbol] = result
                 except Exception as e:
                     print(f"Error fetching {symbol}: {e}")
 

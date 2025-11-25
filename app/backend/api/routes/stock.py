@@ -2,6 +2,7 @@
 Stock API Routes
 Endpoints for stock data, quotes, and historical prices
 """
+from typing import Optional
 from fastapi import APIRouter, HTTPException
 
 from app.backend.services.data_service import data_service
@@ -22,14 +23,27 @@ async def get_stock_quote(symbol: str):
 
 
 @router.get("/history/{symbol}")
-async def get_stock_history(symbol: str, period: str = "1mo"):
+async def get_stock_history(
+    symbol: str,
+    period: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None
+):
     """
     Get historical stock prices
 
     Periods: 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, max
+
+    Or use start_date and end_date (YYYY-MM-DD format) for custom range
     """
+    print(f"ROUTE PARAMS - symbol={symbol}, period={period}, start_date={start_date}, end_date={end_date}")
     try:
-        history = await data_service.get_stock_history(symbol.upper(), period)
+        history = await data_service.get_stock_history(
+            symbol.upper(),
+            period,
+            start_date=start_date,
+            end_date=end_date
+        )
         if not history:
             raise HTTPException(status_code=404, detail=f"No history for {symbol}")
         return {"symbol": symbol.upper(), "period": period, "data": history}
