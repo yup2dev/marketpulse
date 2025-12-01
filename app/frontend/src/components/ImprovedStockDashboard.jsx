@@ -11,11 +11,14 @@ import ChartWidget from './widgets/ChartWidget';
 import TickerInfoWidget from './widgets/TickerInfoWidget';
 import KeyMetricsWidget from './widgets/KeyMetricsWidget';
 import TechnicalAnalysis from './TechnicalAnalysis';
+import PortfolioSettings from './PortfolioSettings';
+import InstitutionalPortfolios from './InstitutionalPortfolios';
+import TradingStrategy from './TradingStrategy';
 import 'react-grid-layout/css/styles.css';
 
 const API_BASE = 'http://localhost:8000/api';
 
-const STOCK_TABS = ['Overview', 'Financials', 'Technical Analysis', 'Comparison Analysis', 'Ownership', 'Company Calendar', 'Estimates'];
+const STOCK_TABS = ['Overview', 'Financials', 'Technical Analysis', 'Institutional Holdings', 'Portfolio Settings', 'Trading Strategy', 'Comparison Analysis', 'Ownership', 'Company Calendar', 'Estimates'];
 
 function ImprovedStockDashboard() {
   const [symbol, setSymbol] = useState('NVDA');
@@ -715,7 +718,19 @@ function ImprovedStockDashboard() {
           <TechnicalAnalysis symbol={symbol} />
         )}
 
-        {!['overview', 'financials', 'technical-analysis'].includes(activeTab) && (
+        {activeTab === 'institutional-holdings' && (
+          <InstitutionalPortfolios />
+        )}
+
+        {activeTab === 'portfolio-settings' && (
+          <PortfolioSettings />
+        )}
+
+        {activeTab === 'trading-strategy' && (
+          <TradingStrategy />
+        )}
+
+        {!['overview', 'financials', 'technical-analysis', 'institutional-holdings', 'portfolio-settings', 'trading-strategy'].includes(activeTab) && (
           <div className="bg-[#1a1a1a] rounded-lg p-12 text-center border border-gray-800">
             <div className="text-gray-400 text-lg">
               {activeTab.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())} - Coming Soon

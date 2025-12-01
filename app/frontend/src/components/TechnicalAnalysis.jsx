@@ -74,6 +74,13 @@ const TechnicalAnalysis = ({ symbol = 'SPY' }) => {
   const [savedPortfolios, setSavedPortfolios] = useState([]);
   const [showPortfolioModal, setShowPortfolioModal] = useState(false);
 
+  // Load portfolios and strategies from PortfolioSettings and TradingStrategy components
+  const [availablePortfolios, setAvailablePortfolios] = useState([]);
+  const [availableStrategies, setAvailableStrategies] = useState([]);
+  const [selectedPortfolio, setSelectedPortfolio] = useState(null);
+  const [selectedStrategy, setSelectedStrategy] = useState(null);
+  const [showQuickLoad, setShowQuickLoad] = useState(false);
+
   // Load saved portfolios from localStorage
   useEffect(() => {
     const saved = localStorage.getItem('saved-portfolios');
@@ -84,7 +91,47 @@ const TechnicalAnalysis = ({ symbol = 'SPY' }) => {
         console.error('Error loading portfolios:', e);
       }
     }
+
+    // Load portfolios from PortfolioSettings component
+    const portfolios = localStorage.getItem('portfolios');
+    if (portfolios) {
+      try {
+        setAvailablePortfolios(JSON.parse(portfolios));
+      } catch (e) {
+        console.error('Error loading portfolios from settings:', e);
+      }
+    }
+
+    // Load strategies from TradingStrategy component
+    const strategies = localStorage.getItem('strategies');
+    if (strategies) {
+      try {
+        setAvailableStrategies(JSON.parse(strategies));
+      } catch (e) {
+        console.error('Error loading strategies:', e);
+      }
+    }
   }, []);
+
+  // Function to load a portfolio from PortfolioSettings
+  const loadPortfolioFromSettings = (portfolio) => {
+    setSelectedStocks(portfolio.stocks || []);
+    setStartDate(portfolio.startDate);
+    setEndDate(portfolio.endDate);
+    setSelectedPortfolio(portfolio);
+    setShowQuickLoad(false);
+    alert(`포트폴리오 "${portfolio.name}" 로드됨`);
+  };
+
+  // Function to load a strategy from TradingStrategy
+  const loadStrategyFromSettings = (strategy) => {
+    if (strategy.rebalancing?.enabled) {
+      setRebalancingPeriod(strategy.rebalancing.period);
+    }
+    setSelectedStrategy(strategy);
+    setShowQuickLoad(false);
+    alert(`전략 "${strategy.name}" 로드됨`);
+  };
 
   const handleStockSelect = (stock) => {
     // Check if stock already exists
@@ -191,10 +238,10 @@ const TechnicalAnalysis = ({ symbol = 'SPY' }) => {
         },
         body: JSON.stringify({
           symbols: selectedStocks.map(s => s.symbol),
-          startDate: startDate,
-          endDate: endDate,
-          rebalancingPeriod: rebalancingPeriod,
-          initialCapital: 10000.0
+          start_date: startDate,
+          end_date: endDate,
+          rebalancing_period: rebalancingPeriod,
+          initial_capital: 10000.0
         })
       });
 
@@ -234,7 +281,7 @@ const TechnicalAnalysis = ({ symbol = 'SPY' }) => {
       }
 
       // Normalize portfolio data to start at 100
-      const portfolioStart = result.portfolioData.length > 0 ? result.portfolioData[0].value : 1;
+      const portfolioStart = result.data.portfolio_values.length > 0 ? result.data.portfolio_values[0].value : 1;
 
       // Create date maps for faster lookup
       const benchmarkMap = {};
@@ -255,7 +302,7 @@ const TechnicalAnalysis = ({ symbol = 'SPY' }) => {
       });
 
       // Process portfolio values for chart
-      const chartPoints = result.portfolioData.map((pv, idx) => {
+      const chartPoints = result.data.portfolio_values.map((pv, idx) => {
         // Normalize date to YYYY-MM-DD
         const normalizedDate = pv.date.substring(0, 10);
 
@@ -280,28 +327,28 @@ const TechnicalAnalysis = ({ symbol = 'SPY' }) => {
       });
 
       // Debug logging
-      console.log('=== Backtest Debug Info ===');
-      console.log('Selected stocks:', selectedStocks.map(s => s.symbol));
-      console.log('Stock data keys:', Object.keys(stockData));
-      console.log('Stock data samples:', Object.keys(stockData).map(k => ({
-        symbol: k,
-        count: stockData[k]?.length || 0,
-        firstDate: stockData[k]?.[0]?.date,
-        firstValue: stockData[k]?.[0]?.value
-      })));
-      console.log('Benchmark data length:', benchmarkData.length);
-      console.log('Benchmark sample:', benchmarkData.slice(0, 2));
-      console.log('Chart points count:', chartPoints.length);
-      console.log('First chart point:', chartPoints[0]);
-      console.log('Last chart point:', chartPoints[chartPoints.length - 1]);
+//       console.log('=== Backtest Debug Info ===');
+//       console.log('Selected stocks:', selectedStocks.map(s => s.symbol));
+//       console.log('Stock data keys:', Object.keys(stockData));
+//       console.log('Stock data samples:', Object.keys(stockData).map(k => ({
+//         symbol: k,
+//         count: stockData[k]?.length || 0,
+//         firstDate: stockData[k]?.[0]?.date,
+//         firstValue: stockData[k]?.[0]?.value
+//       })));
+//       console.log('Benchmark data length:', benchmarkData.length);
+//       console.log('Benchmark sample:', benchmarkData.slice(0, 2));
+//       console.log('Chart points count:', chartPoints.length);
+//       console.log('First chart point:', chartPoints[0]);
+//       console.log('Last chart point:', chartPoints[chartPoints.length - 1]);
 
       setChartData(chartPoints);
       setStockChartData(stockData);
 
       // Set results
       setBacktestResults({
-        yearlyReturns: result.yearlyReturns,
-        stats: result.stats
+        yearlyReturns: result.data.yearly_returns,
+        stats: result.data.statistics
       });
 
     } catch (error) {
@@ -319,7 +366,66 @@ const TechnicalAnalysis = ({ symbol = 'SPY' }) => {
         {/* Left Panel: Stock Selection */}
         <div className="col-span-3 bg-[#1a1a1a] rounded-lg border border-gray-800 overflow-hidden flex flex-col">
           <div className="p-4 border-b border-gray-800">
-            <h3 className="text-lg font-semibold text-white mb-4">Add Stocks</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-white">Add Stocks</h3>
+              <button
+                onClick={() => setShowQuickLoad(!showQuickLoad)}
+                className="px-2 py-1 bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 text-xs rounded transition-colors"
+              >
+                Quick Load
+              </button>
+            </div>
+
+            {/* Quick Load Panel */}
+            {showQuickLoad && (
+              <div className="mb-4 p-3 bg-[#0a0e14] rounded-lg border border-gray-700">
+                <div className="mb-3">
+                  <label className="text-xs text-gray-400 mb-2 block">Load Portfolio</label>
+                  {availablePortfolios.length === 0 ? (
+                    <p className="text-xs text-gray-500">No saved portfolios</p>
+                  ) : (
+                    <select
+                      onChange={(e) => {
+                        const portfolio = availablePortfolios.find(p => p.id === e.target.value);
+                        if (portfolio) loadPortfolioFromSettings(portfolio);
+                      }}
+                      className="w-full bg-gray-800 text-white rounded px-2 py-1 text-xs border border-gray-700 focus:border-blue-500 focus:outline-none"
+                      defaultValue=""
+                    >
+                      <option value="">Select...</option>
+                      {availablePortfolios.map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} ({p.stocks?.length || 0} stocks)
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-xs text-gray-400 mb-2 block">Load Strategy</label>
+                  {availableStrategies.length === 0 ? (
+                    <p className="text-xs text-gray-500">No saved strategies</p>
+                  ) : (
+                    <select
+                      onChange={(e) => {
+                        const strategy = availableStrategies.find(s => s.id === e.target.value);
+                        if (strategy) loadStrategyFromSettings(strategy);
+                      }}
+                      className="w-full bg-gray-800 text-white rounded px-2 py-1 text-xs border border-gray-700 focus:border-blue-500 focus:outline-none"
+                      defaultValue=""
+                    >
+                      <option value="">Select...</option>
+                      {availableStrategies.map(s => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Stock Search */}
             <TickerSearch
