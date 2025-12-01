@@ -5,15 +5,22 @@ FastAPI-based dashboard for financial data visualization
 import sys
 from pathlib import Path
 
-# Add parent directory to path to import data_fetcher
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Add parent directories to path
+project_root = str(Path(__file__).parent.parent.parent)
+backend_root = str(Path(__file__).parent)
+sys.path.insert(0, project_root)
+sys.path.insert(0, backend_root)
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.backend.api.routes import stock, economic, news, dashboard, backtest
+# Import routes
+try:
+    from app.backend.api.routes import stock, economic, news, dashboard, backtest, portfolio
+except ModuleNotFoundError:
+    from api.routes import stock, economic, news, dashboard, backtest, portfolio
 
 app = FastAPI(
     title="MarketPulse Dashboard",
@@ -43,6 +50,7 @@ app.include_router(economic.router, prefix="/api/economic", tags=["economic"])
 app.include_router(news.router, prefix="/api/news", tags=["news"])
 app.include_router(dashboard.router, prefix="/api", tags=["dashboard"])
 app.include_router(backtest.router, prefix="/api/backtest", tags=["backtest"])
+app.include_router(portfolio.router, prefix="/api/portfolio", tags=["portfolio"])
 
 @app.get("/")
 async def root():
@@ -57,7 +65,8 @@ async def root():
             "economic": "/api/economic",
             "news": "/api/news",
             "dashboard": "/api/dashboard",
-            "backtest": "/api/backtest"
+            "backtest": "/api/backtest",
+            "portfolio": "/api/portfolio"
         }
     }
 
