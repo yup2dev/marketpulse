@@ -13,8 +13,11 @@ import {
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
+import Card from './widgets/common/Card';
+import MetricCard from './widgets/common/MetricCard';
+import SectionHeader from './widgets/common/SectionHeader';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'http://localhost:8000/api';
 
 /**
  * InstitutionalPortfolios Component
@@ -160,68 +163,72 @@ const InstitutionalPortfolios = () => {
       </div>
 
       {/* Institution Selector */}
-      <div className="bg-[#1a1f2e] rounded-lg p-4">
-        <div className="flex items-center gap-4">
-          <label className="text-sm font-medium text-gray-300 whitespace-nowrap">Select Institution:</label>
-          <select
-            value={selectedInstitution}
-            onChange={(e) => {
-              setSelectedInstitution(e.target.value);
-              if (e.target.value) {
-                fetchPortfolio(e.target.value);
-              }
-            }}
-            className="flex-1 px-3 py-2 bg-[#0a0e14] border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
-            disabled={loading || initialLoading}
-          >
-            <option value="">Choose from {institutions.length} institutions...</option>
-            {institutions.map(inst => (
-              <option key={inst.key} value={inst.key}>
-                {inst.manager} - {inst.name}
-              </option>
-            ))}
-          </select>
-          {loading && (
-            <div className="flex items-center gap-2 text-blue-400">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400"></div>
-              <span className="text-sm">Loading...</span>
-            </div>
-          )}
+      <Card>
+        <div className="p-4">
+          <div className="flex items-center gap-4">
+            <label className="text-sm font-medium text-gray-300 whitespace-nowrap">Select Institution:</label>
+            <select
+              value={selectedInstitution}
+              onChange={(e) => {
+                setSelectedInstitution(e.target.value);
+                if (e.target.value) {
+                  fetchPortfolio(e.target.value);
+                }
+              }}
+              className="flex-1 px-3 py-2 bg-[#0a0e14] border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500 hover:border-gray-600 transition-colors"
+              disabled={loading || initialLoading}
+            >
+              <option value="">Choose from {institutions.length} institutions...</option>
+              {institutions.map(inst => (
+                <option key={inst.key} value={inst.key}>
+                  {inst.manager} - {inst.name}
+                </option>
+              ))}
+            </select>
+            {loading && (
+              <div className="flex items-center gap-2 text-blue-400">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400"></div>
+                <span className="text-sm">Loading...</span>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      </Card>
 
       {/* Search and Filter Bar */}
       {portfolios.length > 0 && (
-        <div className="bg-[#1a1f2e] rounded-lg p-4">
-          <div className="flex gap-4">
-            {/* Search */}
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-3 py-2 bg-[#0a0e14] border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                  placeholder="Search by manager or institution name..."
-                />
+        <Card>
+          <div className="p-4">
+            <div className="flex gap-4">
+              {/* Search */}
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-3 py-2 bg-[#0a0e14] border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500 hover:border-gray-600 transition-colors"
+                    placeholder="Search by manager or institution name..."
+                  />
+                </div>
+              </div>
+
+              {/* Sort */}
+              <div className="w-64">
+                <select
+                  value={sortBy}
+                  onChange={(e) => handleSort(e.target.value)}
+                  className="w-full px-3 py-2 bg-[#0a0e14] border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500 hover:border-gray-600 transition-colors"
+                >
+                  <option value="total_value">Sort by Total Value</option>
+                  <option value="num_holdings">Sort by Holdings Count</option>
+                  <option value="value_change_pct">Sort by Change %</option>
+                </select>
               </div>
             </div>
-
-            {/* Sort */}
-            <div className="w-64">
-              <select
-                value={sortBy}
-                onChange={(e) => handleSort(e.target.value)}
-                className="w-full px-3 py-2 bg-[#0a0e14] border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
-              >
-                <option value="total_value">Sort by Total Value</option>
-                <option value="num_holdings">Sort by Holdings Count</option>
-                <option value="value_change_pct">Sort by Change %</option>
-              </select>
-            </div>
           </div>
-        </div>
+        </Card>
       )}
 
       {/* Initial Loading State */}
@@ -265,40 +272,54 @@ const InstitutionalPortfolios = () => {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between bg-[#1a1f2e] rounded-lg p-4">
-          <div className="text-sm text-gray-400">
-            Showing {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, filteredPortfolios.length)} of {filteredPortfolios.length}
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => goToPage(currentPage - 1)}
-              disabled={currentPage === 1}
-              className="px-3 py-2 bg-[#0a0e14] text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <ChevronLeft size={18} />
-            </button>
-            {[...Array(totalPages)].map((_, i) => (
+        <Card>
+          <div className="flex items-center justify-between p-4">
+            <div className="text-sm text-gray-400">
+              Showing {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, filteredPortfolios.length)} of {filteredPortfolios.length}
+            </div>
+            <div className="flex items-center gap-2">
               <button
-                key={i}
-                onClick={() => goToPage(i + 1)}
-                className={`px-3 py-2 rounded-lg ${
-                  currentPage === i + 1
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-[#0a0e14] text-gray-400 hover:bg-gray-700'
-                }`}
+                onClick={() => goToPage(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="px-3 py-2 bg-[#0a0e14] text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {i + 1}
+                <ChevronLeft size={18} />
               </button>
-            ))}
-            <button
-              onClick={() => goToPage(currentPage + 1)}
-              disabled={currentPage === totalPages}
-              className="px-3 py-2 bg-[#0a0e14] text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <ChevronRight size={18} />
-            </button>
+              {[...Array(Math.min(totalPages, 5))].map((_, i) => {
+                let pageNum;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (currentPage <= 3) {
+                  pageNum = i + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = currentPage - 2 + i;
+                }
+                return (
+                  <button
+                    key={i}
+                    onClick={() => goToPage(pageNum)}
+                    className={`px-3 py-2 rounded-lg transition-colors ${
+                      currentPage === pageNum
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-[#0a0e14] text-gray-400 hover:bg-gray-700'
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+              <button
+                onClick={() => goToPage(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className="px-3 py-2 bg-[#0a0e14] text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
           </div>
-        </div>
+        </Card>
       )}
     </div>
   );
@@ -310,7 +331,7 @@ const InstitutionalPortfolios = () => {
  */
 const PortfolioCard = ({ portfolio, isExpanded, onToggle }) => {
   return (
-    <div className="bg-[#1a1f2e] border border-gray-700 rounded-lg hover:border-blue-500/50 transition-all">
+    <Card hover gradient={isExpanded}>
       {/* Header */}
       <div className="p-6 border-b border-gray-700">
         <div className="flex items-start justify-between mb-4">
@@ -379,11 +400,11 @@ const PortfolioCard = ({ portfolio, isExpanded, onToggle }) => {
         </button>
 
         {/* Holdings Table */}
-        {isExpanded && portfolio.stocks && (
+        {isExpanded && portfolio.stocks && portfolio.stocks.length > 0 && (
           <HoldingsTable stocks={portfolio.stocks} />
         )}
       </div>
-    </div>
+    </Card>
   );
 };
 
@@ -391,93 +412,81 @@ const PortfolioCard = ({ portfolio, isExpanded, onToggle }) => {
  * Performance Section Component
  */
 const PerformanceSection = ({ performance }) => {
+  if (!performance) return null;
+
   return (
     <div className="p-6 border-b border-gray-700 bg-gradient-to-r from-blue-900/10 to-purple-900/10">
-      <div className="flex items-center gap-2 mb-4">
-        <BarChart3 className="text-blue-400" size={20} />
-        <h4 className="text-sm font-semibold text-white">Performance Metrics</h4>
-      </div>
+      <SectionHeader
+        icon={BarChart3}
+        title="Performance Metrics"
+        iconColor="text-blue-400"
+      />
 
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-        <MetricItem
+        <MetricCard
           label="YTD Return"
-          value={performance.ytd_return}
+          value={performance.ytd_return || 0}
           suffix="%"
           showTrend
+          size="md"
         />
-        <MetricItem
+        <MetricCard
           label="1 Year"
-          value={performance.return_1y}
+          value={performance.return_1y || 0}
           suffix="%"
           showTrend
+          size="md"
         />
-        <MetricItem
+        <MetricCard
           label="3 Year"
-          value={performance.return_3y}
+          value={performance.return_3y || 0}
           suffix="%"
           showTrend
+          size="md"
         />
-        <MetricItem
+        <MetricCard
           label="5 Year"
-          value={performance.return_5y}
+          value={performance.return_5y || 0}
           suffix="%"
           showTrend
+          size="md"
         />
-        <MetricItem
+        <MetricCard
           label="Sharpe Ratio"
-          value={performance.sharpe_ratio}
+          value={performance.sharpe_ratio || 0}
+          size="md"
+          color="text-white"
         />
-        <MetricItem
+        <MetricCard
           label="Volatility"
-          value={performance.volatility}
+          value={performance.volatility || 0}
           suffix="%"
-          icon={<Activity size={16} />}
+          icon={Activity}
+          size="md"
+          color="text-white"
         />
       </div>
 
       <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-gray-700/50">
-        <MetricItem
+        <MetricCard
           label="Alpha"
-          value={performance.alpha}
+          value={performance.alpha || 0}
           showTrend
           size="sm"
         />
-        <MetricItem
+        <MetricCard
           label="Beta"
-          value={performance.beta}
+          value={performance.beta || 0}
           size="sm"
+          color="text-white"
         />
-        <MetricItem
+        <MetricCard
           label="Max Drawdown"
-          value={performance.max_drawdown}
+          value={performance.max_drawdown || 0}
           suffix="%"
           size="sm"
-          isNegative
+          color="text-red-400"
         />
-      </div>
-    </div>
-  );
-};
-
-/**
- * Metric Item Component
- */
-const MetricItem = ({ label, value, suffix = '', showTrend = false, icon = null, size = 'md', isNegative = false }) => {
-  const getColor = () => {
-    if (isNegative) return 'text-red-400';
-    if (!showTrend) return 'text-white';
-    return value > 0 ? 'text-green-400' : 'text-red-400';
-  };
-
-  const fontSize = size === 'sm' ? 'text-sm' : 'text-lg';
-
-  return (
-    <div>
-      <div className="text-xs text-gray-400 mb-1">{label}</div>
-      <div className={`${fontSize} font-bold flex items-center gap-1 ${getColor()}`}>
-        {showTrend && (value > 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />)}
-        {icon}
-        {showTrend && value > 0 ? '+' : ''}{value}{suffix}
       </div>
     </div>
   );
@@ -487,25 +496,39 @@ const MetricItem = ({ label, value, suffix = '', showTrend = false, icon = null,
  * Sector Allocation Component
  */
 const SectorAllocation = ({ sectors }) => {
+  if (!sectors || sectors.length === 0) return null;
+
+  const sectorColors = [
+    'bg-blue-500',
+    'bg-purple-500',
+    'bg-green-500',
+    'bg-yellow-500',
+    'bg-red-500',
+    'bg-pink-500',
+    'bg-indigo-500',
+    'bg-cyan-500'
+  ];
+
   return (
     <div className="p-6 border-b border-gray-700">
-      <div className="flex items-center gap-2 mb-3">
-        <PieChart className="text-blue-400" size={20} />
-        <h4 className="text-sm font-semibold text-white">Sector Allocation</h4>
-      </div>
-      <div className="space-y-2">
+      <SectionHeader
+        icon={PieChart}
+        title="Sector Allocation"
+        iconColor="text-blue-400"
+      />
+      <div className="space-y-3">
         {sectors.map((sector, idx) => (
-          <div key={idx} className="flex items-center justify-between">
-            <div className="flex items-center gap-2 flex-1">
-              <div className="text-sm text-gray-300 w-32">{sector.name}</div>
-              <div className="flex-1 bg-gray-700 rounded-full h-2">
+          <div key={idx} className="flex items-center justify-between group">
+            <div className="flex items-center gap-3 flex-1">
+              <div className="text-sm text-gray-300 w-32 font-medium">{sector.name}</div>
+              <div className="flex-1 bg-gray-700/50 rounded-full h-2.5 overflow-hidden">
                 <div
-                  className="bg-blue-500 h-2 rounded-full transition-all"
+                  className={`${sectorColors[idx % sectorColors.length]} h-2.5 rounded-full transition-all duration-500 group-hover:opacity-80`}
                   style={{ width: `${sector.weight}%` }}
                 ></div>
               </div>
             </div>
-            <div className="text-sm font-semibold text-white ml-4 w-16 text-right">
+            <div className="text-sm font-bold text-white ml-4 w-16 text-right">
               {sector.weight}%
             </div>
           </div>
@@ -519,9 +542,11 @@ const SectorAllocation = ({ sectors }) => {
  * Holdings Table Component
  */
 const HoldingsTable = ({ stocks }) => {
+  if (!stocks || stocks.length === 0) return null;
+
   return (
-    <div className="mt-4 bg-[#0a0e14] rounded-lg overflow-hidden">
-      <div className="grid grid-cols-12 gap-2 px-4 py-3 bg-gray-800 text-xs font-semibold text-gray-300">
+    <div className="mt-4 bg-[#0a0e14] rounded-lg overflow-hidden border border-gray-700">
+      <div className="grid grid-cols-12 gap-2 px-4 py-3 bg-gradient-to-r from-gray-800 to-gray-800/80 text-xs font-semibold text-gray-300">
         <div className="col-span-1">#</div>
         <div className="col-span-4">Symbol / Name</div>
         <div className="col-span-2 text-right">Value</div>
@@ -530,36 +555,42 @@ const HoldingsTable = ({ stocks }) => {
         <div className="col-span-1 text-right">Change</div>
         <div className="col-span-1 text-right">YTD</div>
       </div>
-      <div className="max-h-96 overflow-y-auto">
+      <div className="max-h-96 overflow-y-auto custom-scrollbar">
         {stocks.map((stock, idx) => (
           <div
             key={stock.symbol || stock.cusip || idx}
-            className="grid grid-cols-12 gap-2 px-4 py-3 hover:bg-gray-800/50 transition-colors border-b border-gray-800 text-sm"
+            className="grid grid-cols-12 gap-2 px-4 py-3 hover:bg-gradient-to-r hover:from-gray-800/30 hover:to-blue-900/10 transition-all border-b border-gray-800/50 text-sm group"
           >
-            <div className="col-span-1 text-gray-400 font-mono">{idx + 1}</div>
+            <div className="col-span-1 text-gray-500 font-mono text-xs">{idx + 1}</div>
             <div className="col-span-4">
-              <div className="font-semibold text-white">{stock.symbol || stock.cusip}</div>
+              <div className="font-semibold text-white group-hover:text-blue-400 transition-colors">
+                {stock.symbol || stock.cusip}
+              </div>
               <div className="text-xs text-gray-400 truncate">{stock.name}</div>
             </div>
             <div className="col-span-2 text-right text-white font-medium">
-              ${(stock.value / 1000000).toFixed(1)}M
+              ${stock.value ? (stock.value / 1000000).toFixed(1) : '0.0'}M
             </div>
             <div className="col-span-2 text-right text-gray-300">
-              {(stock.shares / 1000000).toFixed(1)}M
+              {stock.shares ? (stock.shares / 1000000).toFixed(1) : '0.0'}M
             </div>
-            <div className="col-span-1 text-right text-white font-semibold">
-              {stock.weight}%
+            <div className="col-span-1 text-right text-blue-400 font-bold">
+              {stock.weight || 0}%
             </div>
-            <div className={`col-span-1 text-right font-medium ${
-              stock.change_pct > 0 ? 'text-green-400' :
-              stock.change_pct < 0 ? 'text-red-400' : 'text-gray-400'
+            <div className={`col-span-1 text-right font-medium flex items-center justify-end gap-1 ${
+              (stock.change_pct || 0) > 0 ? 'text-green-400' :
+              (stock.change_pct || 0) < 0 ? 'text-red-400' : 'text-gray-400'
             }`}>
-              {stock.change_pct > 0 ? '+' : ''}{stock.change_pct}%
+              {(stock.change_pct || 0) > 0 && <TrendingUp size={12} />}
+              {(stock.change_pct || 0) < 0 && <TrendingDown size={12} />}
+              {(stock.change_pct || 0) > 0 ? '+' : ''}{stock.change_pct || 0}%
             </div>
-            <div className={`col-span-1 text-right font-medium ${
-              stock.return_ytd > 0 ? 'text-green-400' : 'text-red-400'
+            <div className={`col-span-1 text-right font-medium flex items-center justify-end gap-1 ${
+              (stock.return_ytd || 0) > 0 ? 'text-green-400' : 'text-red-400'
             }`}>
-              {stock.return_ytd > 0 ? '+' : ''}{stock.return_ytd}%
+              {(stock.return_ytd || 0) > 0 && <TrendingUp size={12} />}
+              {(stock.return_ytd || 0) < 0 && <TrendingDown size={12} />}
+              {(stock.return_ytd || 0) > 0 ? '+' : ''}{stock.return_ytd || 0}%
             </div>
           </div>
         ))}

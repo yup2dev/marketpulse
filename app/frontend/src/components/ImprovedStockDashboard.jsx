@@ -13,7 +13,7 @@ import KeyMetricsWidget from './widgets/KeyMetricsWidget';
 import TechnicalAnalysis from './TechnicalAnalysis';
 import PortfolioSettings from './PortfolioSettings';
 import InstitutionalPortfolios from './InstitutionalPortfolios';
-import TradingStrategy from './TradingStrategy';
+import BacktestingLab from './BacktestingLab';
 import 'react-grid-layout/css/styles.css';
 
 const API_BASE = 'http://localhost:8000/api';
@@ -727,7 +727,7 @@ function ImprovedStockDashboard() {
         )}
 
         {activeTab === 'trading-strategy' && (
-          <TradingStrategy />
+          <BacktestingLab />
         )}
 
         {!['overview', 'financials', 'technical-analysis', 'institutional-holdings', 'portfolio-settings', 'trading-strategy'].includes(activeTab) && (
