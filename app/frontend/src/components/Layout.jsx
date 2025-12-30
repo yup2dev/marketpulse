@@ -1,4 +1,4 @@
-import { TrendingUp, Grid3x3, LayoutDashboard, BarChart3, Briefcase } from 'lucide-react';
+import { TrendingUp, Grid3x3, LayoutDashboard, BarChart3, Briefcase, Globe } from 'lucide-react';
 
 const Layout = ({ children, activeView, onNavigate }) => {
   return (
@@ -38,6 +38,17 @@ const Layout = ({ children, activeView, onNavigate }) => {
               >
                 <LayoutDashboard size={18} />
                 <span className="text-sm font-medium">Analysis</span>
+              </button>
+              <button
+                onClick={() => onNavigate('macro-analysis')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                  activeView === 'macro-analysis'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/20'
+                    : 'text-gray-300 hover:text-white hover:bg-gray-800'
+                }`}
+              >
+                <Globe size={18} />
+                <span className="text-sm font-medium">Macro</span>
               </button>
               <button
                 onClick={() => onNavigate('unified-backtest')}

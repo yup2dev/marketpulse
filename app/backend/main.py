@@ -18,9 +18,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 # Import routes
 try:
-    from app.backend.api.routes import stock, economic, news, dashboard, backtest, portfolio
+    from app.backend.api.routes import stock, economic, news, dashboard, backtest, portfolio, macro
 except ModuleNotFoundError:
-    from api.routes import stock, economic, news, dashboard, backtest, portfolio
+    from api.routes import stock, economic, news, dashboard, backtest, portfolio, macro
 
 app = FastAPI(
     title="MarketPulse Dashboard",
@@ -51,6 +51,7 @@ app.include_router(news.router, prefix="/api/news", tags=["news"])
 app.include_router(dashboard.router, prefix="/api", tags=["dashboard"])
 app.include_router(backtest.router, prefix="/api/backtest", tags=["backtest"])
 app.include_router(portfolio.router, prefix="/api/portfolio", tags=["portfolio"])
+app.include_router(macro.router, prefix="/api/macro", tags=["macro"])
 
 @app.get("/")
 async def root():
@@ -66,7 +67,8 @@ async def root():
             "news": "/api/news",
             "dashboard": "/api/dashboard",
             "backtest": "/api/backtest",
-            "portfolio": "/api/portfolio"
+            "portfolio": "/api/portfolio",
+            "macro": "/api/macro"
         }
     }
 
