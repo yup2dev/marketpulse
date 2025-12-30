@@ -1,8 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+ import { useState, useEffect, useRef } from 'react';
 import GridLayout from 'react-grid-layout';
 import { LineChart, Line, BarChart, Bar, ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { TrendingUp, TrendingDown, Calendar, RefreshCw, Maximize2, Plus, BarChart3, Table2 } from 'lucide-react';
-import Layout from './Layout';
 import StockSelector from './StockSelector';
 import StockSelectorModal from './StockSelectorModal';
 import ResizableStockWidget from './ResizableStockWidget';
@@ -10,15 +9,12 @@ import FinancialWidget from './widgets/FinancialWidget';
 import ChartWidget from './widgets/ChartWidget';
 import TickerInfoWidget from './widgets/TickerInfoWidget';
 import KeyMetricsWidget from './widgets/KeyMetricsWidget';
-import TechnicalAnalysis from './TechnicalAnalysis';
-import PortfolioSettings from './PortfolioSettings';
 import InstitutionalPortfolios from './InstitutionalPortfolios';
-import BacktestingLab from './BacktestingLab';
+import { formatNumber, formatCurrency, formatPercent } from '../utils/widgetUtils';
+import { API_BASE } from '../config/api';
 import 'react-grid-layout/css/styles.css';
 
-const API_BASE = 'http://localhost:8000/api';
-
-const STOCK_TABS = ['Overview', 'Financials', 'Technical Analysis', 'Institutional Holdings', 'Portfolio Settings', 'Trading Strategy', 'Comparison Analysis', 'Ownership', 'Company Calendar', 'Estimates'];
+const STOCK_TABS = ['Overview', 'Financials', 'Institutional Holdings', 'Comparison Analysis', 'Ownership', 'Company Calendar', 'Estimates'];
 
 function ImprovedStockDashboard() {
   const [symbol, setSymbol] = useState('NVDA');
@@ -227,28 +223,8 @@ function ImprovedStockDashboard() {
     }
   };
 
-  const formatNumber = (num) => {
-    if (!num) return 'N/A';
-    if (num >= 1e12) return (num / 1e12).toFixed(2) + 'T';
-    if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
-    if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
-    if (num >= 1e3) return (num / 1e3).toFixed(2) + 'K';
-    return num.toFixed(2);
-  };
-
-  const formatCurrency = (num) => {
-    if (!num) return 'N/A';
-    return '$' + formatNumber(num);
-  };
-
-  const formatPercent = (num) => {
-    if (!num && num !== 0) return 'N/A';
-    return num.toFixed(2) + '%';
-  };
-
   return (
-    <Layout>
-      <div className="max-w-7xl mx-auto px-6 py-6">
+    <div className="max-w-7xl mx-auto px-6 py-6">
         {/* Stock Selector Section */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-4">
@@ -714,23 +690,11 @@ function ImprovedStockDashboard() {
           </div>
         )}
 
-        {activeTab === 'technical-analysis' && (
-          <TechnicalAnalysis symbol={symbol} />
-        )}
-
         {activeTab === 'institutional-holdings' && (
           <InstitutionalPortfolios />
         )}
 
-        {activeTab === 'portfolio-settings' && (
-          <PortfolioSettings />
-        )}
-
-        {activeTab === 'trading-strategy' && (
-          <BacktestingLab />
-        )}
-
-        {!['overview', 'financials', 'technical-analysis', 'institutional-holdings', 'portfolio-settings', 'trading-strategy'].includes(activeTab) && (
+        {!['overview', 'financials', 'institutional-holdings'].includes(activeTab) && (
           <div className="bg-[#1a1a1a] rounded-lg p-12 text-center border border-gray-800">
             <div className="text-gray-400 text-lg">
               {activeTab.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())} - Coming Soon
@@ -738,65 +702,66 @@ function ImprovedStockDashboard() {
           </div>
         )}
 
-        {/* Widget Area */}
-        <div className="mt-12">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-2xl font-bold text-white">Quick Access Widgets</h3>
-              <p className="text-gray-400 mt-1">Add widgets for quick access to stock data</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="flex bg-gray-800/50 rounded-lg p-1 border border-gray-700">
+        {/* Widget Area - Only show in Overview tab */}
+        {activeTab === 'overview' && (
+          <div className="mt-12">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-2xl font-bold text-white">Quick Access Widgets</h3>
+                <p className="text-gray-400 mt-1">Add widgets for quick access to stock data</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex bg-gray-800/50 rounded-lg p-1 border border-gray-700">
+                  <button
+                    onClick={() => setSelectedWidgetType('advanced-chart')}
+                    className={`px-3 py-2 rounded text-xs font-medium transition-colors ${
+                      selectedWidgetType === 'advanced-chart' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    Chart
+                  </button>
+                  <button
+                    onClick={() => setSelectedWidgetType('stock-quote')}
+                    className={`px-3 py-2 rounded text-xs font-medium transition-colors ${
+                      selectedWidgetType === 'stock-quote' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    Stock
+                  </button>
+                  <button
+                    onClick={() => setSelectedWidgetType('ticker-info')}
+                    className={`px-3 py-2 rounded text-xs font-medium transition-colors ${
+                      selectedWidgetType === 'ticker-info' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    Info
+                  </button>
+                  <button
+                    onClick={() => setSelectedWidgetType('key-metrics')}
+                    className={`px-3 py-2 rounded text-xs font-medium transition-colors ${
+                      selectedWidgetType === 'key-metrics' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    Metrics
+                  </button>
+                  <button
+                    onClick={() => setSelectedWidgetType('financials')}
+                    className={`px-3 py-2 rounded text-xs font-medium transition-colors ${
+                      selectedWidgetType === 'financials' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    Financials
+                  </button>
+                </div>
                 <button
-                  onClick={() => setSelectedWidgetType('advanced-chart')}
-                  className={`px-3 py-2 rounded text-xs font-medium transition-colors ${
-                    selectedWidgetType === 'advanced-chart' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
-                  }`}
+                  onClick={() => setShowStockSelector('add-widget')}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors text-white font-medium"
                 >
-                  Chart
-                </button>
-                <button
-                  onClick={() => setSelectedWidgetType('stock-quote')}
-                  className={`px-3 py-2 rounded text-xs font-medium transition-colors ${
-                    selectedWidgetType === 'stock-quote' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
-                  }`}
-                >
-                  Stock
-                </button>
-                <button
-                  onClick={() => setSelectedWidgetType('ticker-info')}
-                  className={`px-3 py-2 rounded text-xs font-medium transition-colors ${
-                    selectedWidgetType === 'ticker-info' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
-                  }`}
-                >
-                  Info
-                </button>
-                <button
-                  onClick={() => setSelectedWidgetType('key-metrics')}
-                  className={`px-3 py-2 rounded text-xs font-medium transition-colors ${
-                    selectedWidgetType === 'key-metrics' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
-                  }`}
-                >
-                  Metrics
-                </button>
-                <button
-                  onClick={() => setSelectedWidgetType('financials')}
-                  className={`px-3 py-2 rounded text-xs font-medium transition-colors ${
-                    selectedWidgetType === 'financials' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
-                  }`}
-                >
-                  Financials
+                  <Plus size={20} />
+                  Add Widget
                 </button>
               </div>
-              <button
-                onClick={() => setShowStockSelector('add-widget')}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors text-white font-medium"
-              >
-                <Plus size={20} />
-                Add Widget
-              </button>
             </div>
-          </div>
 
           <div ref={containerRef}>
             {widgets.length > 0 ? (
@@ -884,7 +849,8 @@ function ImprovedStockDashboard() {
               </div>
             )}
           </div>
-        </div>
+          </div>
+        )}
 
         {/* Stock Selector Modal */}
         <StockSelectorModal
@@ -893,8 +859,7 @@ function ImprovedStockDashboard() {
           onSelect={handleAddWidget}
           onClose={() => setShowStockSelector(false)}
         />
-      </div>
-    </Layout>
+    </div>
   );
 }
 

@@ -84,19 +84,57 @@ class WhaleWisdomFetcher(Fetcher[InstitutionalHoldingsQueryParams, Institutional
                 log.warning(f"No data transformed for {query.institution_key}")
                 return []
 
-            # Enhance with additional metrics (placeholders for future implementation)
-            for portfolio in portfolio_list:
-                portfolio.previous_value = portfolio.total_value * 0.95
-                portfolio.value_change = portfolio.total_value - portfolio.previous_value
-                portfolio.value_change_pct = (
-                    (portfolio.value_change / portfolio.previous_value * 100)
-                    if portfolio.previous_value else 0
-                )
-                portfolio.num_new_positions = 0
-                portfolio.num_sold_out = 0
-                portfolio.num_increased = 0
-                portfolio.num_decreased = 0
-                portfolio.turnover = 0.0
+            # Calculate metrics from real historical data
+            for i, portfolio in enumerate(portfolio_list):
+                # If we have previous quarter data, calculate real changes
+                if i < len(portfolio_list) - 1:
+                    previous_portfolio = portfolio_list[i + 1]
+
+                    # Real value change from previous quarter
+                    portfolio.previous_value = previous_portfolio.total_value
+                    portfolio.value_change = portfolio.total_value - previous_portfolio.total_value
+                    portfolio.value_change_pct = (
+                        (portfolio.value_change / previous_portfolio.total_value * 100)
+                        if previous_portfolio.total_value else 0
+                    )
+
+                    # Calculate position changes by comparing holdings
+                    current_holdings = {h.ticker: h for h in portfolio.holdings}
+                    previous_holdings = {h.ticker: h for h in previous_portfolio.holdings}
+
+                    portfolio.num_new_positions = len(set(current_holdings.keys()) - set(previous_holdings.keys()))
+                    portfolio.num_sold_out = len(set(previous_holdings.keys()) - set(current_holdings.keys()))
+
+                    # Calculate increased/decreased positions
+                    portfolio.num_increased = 0
+                    portfolio.num_decreased = 0
+                    portfolio.turnover = 0.0
+
+                    for ticker in set(current_holdings.keys()) & set(previous_holdings.keys()):
+                        current_shares = current_holdings[ticker].shares
+                        previous_shares = previous_holdings[ticker].shares
+
+                        if current_shares > previous_shares:
+                            portfolio.num_increased += 1
+                        elif current_shares < previous_shares:
+                            portfolio.num_decreased += 1
+
+                        # Turnover calculation (sum of absolute changes / total value)
+                        change_value = abs((current_shares - previous_shares) * current_holdings[ticker].price)
+                        portfolio.turnover += change_value
+
+                    if portfolio.total_value > 0:
+                        portfolio.turnover = (portfolio.turnover / portfolio.total_value) * 100
+                else:
+                    # For the oldest portfolio (no previous data), set defaults
+                    portfolio.previous_value = portfolio.total_value
+                    portfolio.value_change = 0
+                    portfolio.value_change_pct = 0
+                    portfolio.num_new_positions = len(portfolio.holdings)
+                    portfolio.num_sold_out = 0
+                    portfolio.num_increased = 0
+                    portfolio.num_decreased = 0
+                    portfolio.turnover = 0.0
 
             log.info(f"Transformed {len(portfolio_list)} portfolios for {query.institution_key}")
             return portfolio_list

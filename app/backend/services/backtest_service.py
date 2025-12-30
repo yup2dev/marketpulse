@@ -12,39 +12,34 @@ from collections import defaultdict
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from data_fetcher.fetchers.yahoo.stock_price import YahooStockPriceFetcher
+from data_fetcher.fetchers.yahoo.company_info import YahooCompanyInfoFetcher
+from data_fetcher.fetchers.database.index_constituents import DBIndexConstituentsFetcher
 
 
 class BacktestService:
     """Service for backtesting trading strategies"""
 
-    # Popular stock universes
-    UNIVERSES = {
-        'sp500': [
-            'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA', 'BRK.B',
-            'JPM', 'JNJ', 'V', 'WMT', 'PG', 'MA', 'HD', 'CVX', 'ABBV', 'LLY',
-            'MRK', 'PEP', 'KO', 'COST', 'AVGO', 'TMO', 'MCD', 'CSCO', 'ACN',
-            'ABT', 'NKE', 'DHR', 'TXN', 'VZ', 'DIS', 'ADBE', 'CRM', 'NFLX'
-        ],
-        'nasdaq100': [
-            'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA', 'AVGO',
-            'ASML', 'COST', 'PEP', 'ADBE', 'CSCO', 'CMCSA', 'NFLX', 'INTC',
-            'TXN', 'QCOM', 'INTU', 'AMD', 'AMAT', 'HON', 'SBUX', 'ISRG',
-            'BKNG', 'GILD', 'ADI', 'VRTX', 'ADP', 'REGN', 'LRCX', 'MDLZ'
-        ],
-        'dow30': [
-            'AAPL', 'MSFT', 'JPM', 'JNJ', 'V', 'WMT', 'PG', 'HD', 'CVX',
-            'MRK', 'KO', 'MCD', 'DIS', 'VZ', 'BA', 'CAT', 'AXP', 'GS',
-            'IBM', 'MMM', 'NKE', 'TRV', 'UNH', 'CRM', 'HON', 'AMGN', 'DOW'
-        ]
-    }
-
     async def get_universe_stocks(self, universe_id: str) -> List[Dict[str, Any]]:
-        """Get stocks from a predefined universe"""
-        symbols = self.UNIVERSES.get(universe_id, self.UNIVERSES['sp500'][:20])
+        """Get stocks from a predefined universe from Database"""
+        # Fetch index constituents from Database via Fetcher
+        symbols = []
+        try:
+            constituents = await DBIndexConstituentsFetcher.fetch_data({'index': universe_id})
+            if constituents:
+                symbols = [c.symbol for c in constituents[:20]]  # Limit to 20 for demo
+                print(f"Successfully fetched {len(symbols)} constituents from DB for {universe_id}")
+        except Exception as e:
+            print(f"Error fetching index constituents from DB for {universe_id}: {e}")
+            return []
+
+        if not symbols:
+            print(f"No symbols available in DB for universe {universe_id}")
+            return []
 
         stocks = []
-        for symbol in symbols[:20]:  # Limit to 20 for demo
+        for symbol in symbols:
             try:
+                # Fetch real-time price data
                 result = await YahooStockPriceFetcher.fetch_data({
                     'symbol': symbol,
                     'interval': '1d'
@@ -54,9 +49,18 @@ class BacktestService:
                     latest = result[-1]
                     prev = result[-2] if len(result) > 1 else latest
 
+                    # Fetch real company name
+                    company_name = symbol  # Default to symbol
+                    try:
+                        company_info = await YahooCompanyInfoFetcher.fetch_data({'symbol': symbol})
+                        if company_info and len(company_info) > 0:
+                            company_name = company_info[0].company_name
+                    except Exception:
+                        pass  # Use default if company info fetch fails
+
                     stocks.append({
                         'symbol': symbol,
-                        'name': f'{symbol} Inc.',  # In production, fetch from company info
+                        'name': company_name,
                         'price': round(latest.close, 2) if latest.close else 0,
                         'change': round(((latest.close - prev.close) / prev.close * 100), 2) if prev.close else 0
                     })
@@ -72,7 +76,8 @@ class BacktestService:
         start_date: str,
         end_date: str,
         rebalancing_period: str = 'monthly',
-        initial_capital: float = 10000.0
+        initial_capital: float = 10000.0,
+        benchmark_symbol: str = 'SPY'
     ) -> Dict[str, Any]:
         """
         Run backtest on a portfolio of stocks
@@ -83,6 +88,7 @@ class BacktestService:
             end_date: End date (YYYY-MM-DD)
             rebalancing_period: Rebalancing frequency
             initial_capital: Starting capital
+            benchmark_symbol: Benchmark index symbol (SPY, QQQ, DIA, IWM, VTI, etc.)
 
         Returns:
             Backtest results including performance metrics and charts
@@ -113,19 +119,44 @@ class BacktestService:
             if not stock_data:
                 raise ValueError("No stock data available")
 
+            # Fetch real benchmark data
+            benchmark_data = {}
+            try:
+                benchmark_result = await YahooStockPriceFetcher.fetch_data({
+                    'symbol': benchmark_symbol,
+                    'start_date': start_date,
+                    'end_date': end_date,
+                    'interval': '1d'
+                })
+                if benchmark_result:
+                    benchmark_data[benchmark_symbol] = benchmark_result
+                    print(f"Successfully fetched benchmark {benchmark_symbol} with {len(benchmark_result)} data points")
+                else:
+                    print(f"Warning: No benchmark data for {benchmark_symbol}")
+            except Exception as e:
+                print(f"Error fetching benchmark {benchmark_symbol}: {e}")
+
             # Create date-aligned portfolio
             portfolio_values = self._calculate_portfolio_performance(
                 stock_data, initial_capital, rebalancing_period
             )
 
-            # Calculate benchmark (equal-weight all stocks, no rebalancing)
-            benchmark_values = self._calculate_benchmark(stock_data, initial_capital)
+            # Calculate benchmark performance using real benchmark symbol
+            if benchmark_data:
+                benchmark_values = self._calculate_benchmark(benchmark_data, initial_capital)
+                print(f"Benchmark values calculated: {len(benchmark_values)} data points")
+            else:
+                # Fallback: use portfolio buy-and-hold
+                print("Using portfolio buy-and-hold as benchmark fallback")
+                benchmark_values = self._calculate_benchmark(stock_data, initial_capital)
 
             # Calculate statistics
             stats = self._calculate_statistics(portfolio_values, benchmark_values, initial_capital)
 
-            # Calculate yearly returns
-            yearly_returns = self._calculate_yearly_returns(portfolio_values)
+            # Calculate yearly returns with real benchmark data
+            yearly_returns = await self._calculate_yearly_returns(
+                portfolio_values, start_date, end_date, benchmark_symbol
+            )
 
             return {
                 'portfolio_values': portfolio_values,
@@ -134,7 +165,8 @@ class BacktestService:
                 'yearly_returns': yearly_returns,
                 'symbols': symbols,
                 'start_date': start_date,
-                'end_date': end_date
+                'end_date': end_date,
+                'benchmark_symbol': benchmark_symbol
             }
 
         except Exception as e:
@@ -356,26 +388,63 @@ class BacktestService:
             'avgHoldingPeriod': round(len(portfolio_values) / 12, 0)  # Approximate
         }
 
-    def _calculate_yearly_returns(
+    async def _calculate_yearly_returns(
         self,
-        portfolio_values: List[Dict]
+        portfolio_values: List[Dict],
+        start_date: str,
+        end_date: str,
+        benchmark_symbol: str = 'SPY'
     ) -> List[Dict[str, Any]]:
-        """Calculate yearly returns breakdown"""
+        """Calculate yearly returns breakdown with real benchmark data
+
+        Args:
+            portfolio_values: Portfolio value history
+            start_date: Start date
+            end_date: End date
+            benchmark_symbol: Benchmark index symbol (SPY, QQQ, DIA, IWM, VTI, etc.)
+        """
         yearly_data = defaultdict(list)
 
         for pv in portfolio_values:
             year = pv['date'][:4]
             yearly_data[year].append(pv['value'])
 
+        # Fetch real benchmark data from the specified symbol
+        benchmark_data = {}
+        try:
+            benchmark_result = await YahooStockPriceFetcher.fetch_data({
+                'symbol': benchmark_symbol,
+                'start_date': start_date,
+                'end_date': end_date,
+                'interval': '1d'
+            })
+
+            if benchmark_result:
+                for point in benchmark_result:
+                    if point.date and point.close:
+                        year = point.date.isoformat()[:4]
+                        if year not in benchmark_data:
+                            benchmark_data[year] = []
+                        benchmark_data[year].append(point.close)
+        except Exception as e:
+            print(f"Error fetching benchmark data for {benchmark_symbol}: {e}")
+
         yearly_returns = []
         for year in sorted(yearly_data.keys()):
             values = yearly_data[year]
             if len(values) > 1:
                 year_return = ((values[-1] - values[0]) / values[0]) * 100
+
+                # Calculate real benchmark return for the year
+                benchmark_return = 0
+                if year in benchmark_data and len(benchmark_data[year]) > 1:
+                    bench_values = benchmark_data[year]
+                    benchmark_return = ((bench_values[-1] - bench_values[0]) / bench_values[0]) * 100
+
                 yearly_returns.append({
                     'year': year,
                     'return': round(year_return, 2),
-                    'benchmark': round(year_return * 0.85, 2)  # Simulate benchmark
+                    'benchmark': round(benchmark_return, 2)
                 })
 
         return yearly_returns

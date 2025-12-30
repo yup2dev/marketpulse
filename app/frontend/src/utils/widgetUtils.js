@@ -33,12 +33,33 @@ export const formatPrice = (price, decimals = 2) => {
 };
 
 /**
+ * Format a number as currency with appropriate suffix
+ * @param {number} num - The number to format
+ * @returns {string} Formatted currency string
+ */
+export const formatCurrency = (num) => {
+  if (num === null || num === undefined || isNaN(num)) return 'N/A';
+  return '$' + formatNumber(num);
+};
+
+/**
  * Format a percentage value
  * @param {number} value - The percentage value (0.05 = 5%)
  * @param {number} decimals - Number of decimal places (default: 2)
  * @returns {string} Formatted percentage string
  */
 export const formatPercent = (value, decimals = 2) => {
+  if (value === null || value === undefined || isNaN(value)) return 'N/A';
+  return value.toFixed(decimals) + '%';
+};
+
+/**
+ * Format a percentage value from decimal (0.05 = 5%)
+ * @param {number} value - The decimal value (0.05 = 5%)
+ * @param {number} decimals - Number of decimal places (default: 2)
+ * @returns {string} Formatted percentage string
+ */
+export const formatPercentFromDecimal = (value, decimals = 2) => {
   if (value === null || value === undefined || isNaN(value)) return 'N/A';
   return (value * 100).toFixed(decimals) + '%';
 };

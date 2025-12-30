@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import GridLayout from 'react-grid-layout';
 import { TrendingUp } from 'lucide-react';
-import Layout from './Layout';
 import ContextMenu from './ContextMenu';
 import ResizableStockWidget from './ResizableStockWidget';
 import FinancialWidget from './widgets/FinancialWidget';
@@ -167,11 +166,10 @@ const ProfessionalDashboard = () => {
   };
 
   return (
-    <Layout>
-      <div
-        className="max-w-7xl mx-auto px-6 py-8 min-h-[calc(100vh-400px)]"
-        onContextMenu={handleContextMenu}
-      >
+    <div
+      className="max-w-7xl mx-auto px-6 py-8 min-h-[calc(100vh-400px)]"
+      onContextMenu={handleContextMenu}
+    >
         {/* Hero Section */}
         <div className="mb-8">
           <h2 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
@@ -288,7 +286,6 @@ const ProfessionalDashboard = () => {
           </div>
         </div>
       </div>
-    </Layout>
   );
 };
 

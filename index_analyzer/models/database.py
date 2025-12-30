@@ -84,6 +84,56 @@ class MBS_IN_STBD_MST(Base):
         }
 
 
+class MBS_IN_INDX_STBD(Base):
+    """
+    입수 - 지수 상태판 마스터
+    시스템에서 사용할 주요 지수(Index/Universe) 정보 관리
+    """
+    __tablename__ = 'mbs_in_indx_stbd'
+
+    indx_cd = Column(String(50), primary_key=True)  # 지수 코드 (예: sp500, nasdaq100, dow30)
+    indx_nm = Column(String(200), nullable=False)  # 지수명 (예: S&P 500, NASDAQ 100)
+    indx_type = Column(String(20), nullable=False, index=True)  # universe, benchmark
+
+    # API 연동 정보
+    fmp_endpoint = Column(String(100))  # FMP API 엔드포인트 (예: sp500_constituent)
+    api_symbol = Column(String(20))  # API에서 사용하는 심볼 (예: SPY, QQQ - benchmark용)
+
+    # 메타 정보
+    description = Column(Text)  # 설명
+    category = Column(String(50))  # 카테고리 (Large Cap, Small Cap, Tech, etc.)
+    region = Column(String(50), default='US')  # 지역 (US, Global, etc.)
+
+    # 관리 정보
+    is_active = Column(Boolean, default=True, index=True)  # 활성 여부
+    display_order = Column(Integer, default=0)  # 표시 순서
+    remarks = Column(Text)  # 비고
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        Index('idx_indx_type', 'indx_type'),
+        Index('idx_indx_active', 'is_active'),
+        Index('idx_indx_order', 'display_order'),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            'indx_cd': self.indx_cd,
+            'indx_nm': self.indx_nm,
+            'indx_type': self.indx_type,
+            'fmp_endpoint': self.fmp_endpoint,
+            'api_symbol': self.api_symbol,
+            'description': self.description,
+            'category': self.category,
+            'region': self.region,
+            'is_active': self.is_active,
+            'display_order': self.display_order,
+            'remarks': self.remarks
+        }
+
+
 class MBS_IN_ARTICLE(Base):
     """
     입수 - 뉴스 기사 원본

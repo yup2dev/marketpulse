@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { TrendingUp, TrendingDown, RefreshCw, X, BarChart3, Table2, Maximize2 } from 'lucide-react';
-
-const API_BASE = 'http://localhost:8000/api';
+import { formatNumber, formatPrice, formatPercent } from '../utils/widgetUtils';
+import { API_BASE } from '../config/api';
 
 const ResizableStockWidget = ({ symbol, onRemove, onExpand }) => {
   const [quote, setQuote] = useState(null);
@@ -37,24 +37,6 @@ const ResizableStockWidget = ({ symbol, onRemove, onExpand }) => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const formatPrice = (price) => {
-    if (!price) return 'N/A';
-    return '$' + price.toFixed(2);
-  };
-
-  const formatPercent = (num) => {
-    if (!num && num !== 0) return 'N/A';
-    return (num >= 0 ? '+' : '') + num.toFixed(2) + '%';
-  };
-
-  const formatNumber = (num) => {
-    if (!num) return 'N/A';
-    if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
-    if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
-    if (num >= 1e3) return (num / 1e3).toFixed(2) + 'K';
-    return num.toFixed(2);
   };
 
   const isPositive = quote?.change_percent >= 0;

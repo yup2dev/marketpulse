@@ -1,6 +1,6 @@
-import { TrendingUp } from 'lucide-react';
+import { TrendingUp, Grid3x3, LayoutDashboard, BarChart3, Briefcase } from 'lucide-react';
 
-const Layout = ({ children }) => {
+const Layout = ({ children, activeView, onNavigate }) => {
   return (
     <div className="min-h-screen bg-[#0d0d0d] flex flex-col">
       {/* Header */}
@@ -8,7 +8,7 @@ const Layout = ({ children }) => {
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="bg-blue-600 p-2 rounded-lg">
+              <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-2 rounded-lg">
                 <TrendingUp className="text-white" size={24} />
               </div>
               <div>
@@ -16,19 +16,51 @@ const Layout = ({ children }) => {
                 <p className="text-xs text-gray-400">Real-time Stock Analytics</p>
               </div>
             </div>
-            <nav className="flex items-center gap-6">
-              <a href="#dashboard" className="text-gray-300 hover:text-white transition-colors text-sm">
-                Dashboard
-              </a>
-              <a href="#markets" className="text-gray-300 hover:text-white transition-colors text-sm">
-                Markets
-              </a>
-              <a href="#portfolio" className="text-gray-300 hover:text-white transition-colors text-sm">
-                Portfolio
-              </a>
-              <a href="#watchlist" className="text-gray-300 hover:text-white transition-colors text-sm">
-                Watchlist
-              </a>
+            <nav className="flex items-center gap-2">
+              <button
+                onClick={() => onNavigate('professional')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                  activeView === 'professional'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/20'
+                    : 'text-gray-300 hover:text-white hover:bg-gray-800'
+                }`}
+              >
+                <Grid3x3 size={18} />
+                <span className="text-sm font-medium">Dashboard</span>
+              </button>
+              <button
+                onClick={() => onNavigate('stock')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                  activeView === 'stock'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/20'
+                    : 'text-gray-300 hover:text-white hover:bg-gray-800'
+                }`}
+              >
+                <LayoutDashboard size={18} />
+                <span className="text-sm font-medium">Analysis</span>
+              </button>
+              <button
+                onClick={() => onNavigate('unified-backtest')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                  activeView === 'unified-backtest'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/20'
+                    : 'text-gray-300 hover:text-white hover:bg-gray-800'
+                }`}
+              >
+                <BarChart3 size={18} />
+                <span className="text-sm font-medium">Backtest</span>
+              </button>
+              <button
+                onClick={() => onNavigate('portfolio-settings')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                  activeView === 'portfolio-settings'
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/20'
+                    : 'text-gray-300 hover:text-white hover:bg-gray-800'
+                }`}
+              >
+                <Briefcase size={18} />
+                <span className="text-sm font-medium">Portfolio</span>
+              </button>
             </nav>
           </div>
         </div>

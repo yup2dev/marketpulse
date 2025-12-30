@@ -158,23 +158,47 @@ class TickerExtractor:
         return list(set(keywords))
 
     def _init_minimal_tickers(self):
-        """DB 로드 실패 시 최소한의 주요 종목"""
-        minimal_mapping = {
-            'AAPL': {'name': 'Apple Inc.', 'exchange': 'NASDAQ'},
-            'MSFT': {'name': 'Microsoft Corporation', 'exchange': 'NASDAQ'},
-            'GOOGL': {'name': 'Alphabet Inc.', 'exchange': 'NASDAQ'},
-            'AMZN': {'name': 'Amazon.com Inc.', 'exchange': 'NASDAQ'},
-            'TSLA': {'name': 'Tesla Inc.', 'exchange': 'NASDAQ'},
-            'META': {'name': 'Meta Platforms Inc.', 'exchange': 'NASDAQ'},
-            'NVDA': {'name': 'NVIDIA Corporation', 'exchange': 'NASDAQ'},
-        }
+        """DB 로드 실패 시 FMP API에서 가장 활발한 종목 로드"""
+        try:
+            # Import FMP fetchers
+            import sys
+            from pathlib import Path
+            sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+            from data_fetcher.fetchers.fmp.active_stocks import FMPActiveStocksFetcher
 
-        self.ticker_db = minimal_mapping
-        for symbol, info in minimal_mapping.items():
-            name_lower = info['name'].lower()
-            self.company_to_ticker[name_lower] = symbol
-            base_name = name_lower.split()[0]
-            self.company_to_ticker[base_name] = symbol
+            import asyncio
+
+            # Fetch most active stocks from FMP
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            active_stocks = loop.run_until_complete(
+                FMPActiveStocksFetcher.fetch_data({'type': 'actives'})
+            )
+            loop.close()
+
+            if active_stocks:
+                minimal_mapping = {}
+                for stock in active_stocks[:20]:  # Get top 20 most active
+                    minimal_mapping[stock.symbol] = {
+                        'name': stock.name,
+                        'exchange': 'NASDAQ'  # Most active stocks are NASDAQ/NYSE
+                    }
+
+                self.ticker_db = minimal_mapping
+                for symbol, info in minimal_mapping.items():
+                    name_lower = info['name'].lower()
+                    self.company_to_ticker[name_lower] = symbol
+                    base_name = name_lower.split()[0]
+                    self.company_to_ticker[base_name] = symbol
+
+                print(f"Loaded {len(minimal_mapping)} active stocks from FMP API")
+                return
+        except Exception as e:
+            print(f"Error fetching active stocks from FMP: {e}")
+
+        # Fallback if API call fails - empty dict forces error rather than using stale hardcoded data
+        self.ticker_db = {}
+        self.company_to_ticker = {}
 
     def extract(self, text: str, title: str = "") -> List[Dict]:
         """

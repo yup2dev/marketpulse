@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Save, Trash2, X } from 'lucide-react';
+import { Save, Trash2, X, Play } from 'lucide-react';
+import { BUTTON_CLASSES, CARD_CLASSES, INPUT_CLASSES } from '../styles/designTokens';
 
 const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'http://localhost:8000/api';
 
-const PortfolioSettings = () => {
+const PortfolioSettings = ({ onNavigate }) => {
   const [portfolios, setPortfolios] = useState([]);
   const [currentPortfolio, setCurrentPortfolio] = useState({
     name: '',
@@ -11,9 +12,6 @@ const PortfolioSettings = () => {
     type: 'custom', // 'custom' or 'universe'
     universe: 'sp500',
     stocks: [],
-    initialCapital: 10000,
-    startDate: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    endDate: new Date().toISOString().split('T')[0],
   });
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -125,15 +123,37 @@ const PortfolioSettings = () => {
     await fetchUniverseStocks(universe);
   };
 
-  const loadUniverseStocks = () => {
-    const selected = universeStocks.slice(0, 20); // Limit to 20 stocks
-    const equalWeight = 100 / selected.length;
-    const stocks = selected.map(s => ({
-      symbol: s.symbol,
-      name: s.name,
-      weight: parseFloat(equalWeight.toFixed(2))
-    }));
-    setCurrentPortfolio({ ...currentPortfolio, stocks });
+  const loadUniverseStocks = async () => {
+    try {
+      // Fetch fresh data from API
+      const response = await fetch(`${API_BASE}/backtest/universe/${currentPortfolio.universe}`);
+      if (response.ok) {
+        const data = await response.json();
+        const fetchedStocks = data.stocks || [];
+
+        if (fetchedStocks.length === 0) {
+          alert('No stocks found in this universe');
+          return;
+        }
+
+        // Take first 20 stocks
+        const selected = fetchedStocks.slice(0, 20);
+        const equalWeight = 100 / selected.length;
+        const stocks = selected.map(s => ({
+          symbol: s.symbol,
+          name: s.name,
+          weight: parseFloat(equalWeight.toFixed(2))
+        }));
+
+        setCurrentPortfolio({ ...currentPortfolio, stocks });
+        alert(`Loaded ${stocks.length} stocks from ${currentPortfolio.universe.toUpperCase()}`);
+      } else {
+        alert('Failed to load stocks from universe');
+      }
+    } catch (error) {
+      console.error('Error loading universe stocks:', error);
+      alert('Error loading stocks from universe');
+    }
   };
 
   const savePortfolio = () => {
@@ -181,30 +201,67 @@ const PortfolioSettings = () => {
       type: 'custom',
       universe: 'sp500',
       stocks: [],
-      initialCapital: 10000,
-      startDate: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      endDate: new Date().toISOString().split('T')[0],
     });
+  };
+
+  const handleTestInBacktest = () => {
+    if (currentPortfolio.stocks.length === 0) {
+      alert('Please add at least one stock to test');
+      return;
+    }
+
+    const totalWeight = currentPortfolio.stocks.reduce((sum, s) => sum + s.weight, 0);
+    if (Math.abs(totalWeight - 100) > 0.1) {
+      alert('Stock weights must total 100%');
+      return;
+    }
+
+    // Save to sessionStorage for UnifiedBacktest to load
+    sessionStorage.setItem('loadedPortfolio', JSON.stringify(currentPortfolio));
+
+    // Navigate to UnifiedBacktest
+    if (onNavigate) {
+      onNavigate('unified-backtest');
+    }
   };
 
   const totalWeight = currentPortfolio.stocks.reduce((sum, s) => sum + s.weight, 0);
 
   return (
-    <div className="flex flex-col h-full gap-6 p-6 bg-[#0a0e14]">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">Portfolio Settings</h1>
-        <button
-          onClick={savePortfolio}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Save size={18} />
-          Save Portfolio
-        </button>
+    <div className="max-w-7xl mx-auto px-6 py-6">
+      {/* Header */}
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-2xl font-bold text-white">Portfolio Settings</h2>
+            <p className="text-gray-400">Configure and manage your investment portfolios</p>
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={handleTestInBacktest}
+              disabled={currentPortfolio.stocks.length === 0}
+              className={`flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors text-white text-sm font-medium ${
+                currentPortfolio.stocks.length === 0 ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+            >
+              <Play size={18} />
+              Test in Backtest
+            </button>
+            <button
+              onClick={savePortfolio}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors text-white text-sm font-medium"
+            >
+              <Save size={18} />
+              Save Portfolio
+            </button>
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 overflow-hidden">
+      {/* Main Content */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left: Portfolio Configuration */}
-        <div className="lg:col-span-2 bg-[#1a1f2e] rounded-lg p-6 overflow-y-auto">
+        <div className={`lg:col-span-2 ${CARD_CLASSES.default} overflow-y-auto`}>
           <h2 className="text-xl font-semibold text-white mb-4">Configure Portfolio</h2>
 
           {/* Basic Info */}
@@ -215,7 +272,7 @@ const PortfolioSettings = () => {
                 type="text"
                 value={currentPortfolio.name}
                 onChange={(e) => setCurrentPortfolio({ ...currentPortfolio, name: e.target.value })}
-                className="w-full px-3 py-2 bg-[#0a0e14] border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                className={INPUT_CLASSES.default}
                 placeholder="My Portfolio"
               />
             </div>
@@ -225,7 +282,7 @@ const PortfolioSettings = () => {
               <textarea
                 value={currentPortfolio.description}
                 onChange={(e) => setCurrentPortfolio({ ...currentPortfolio, description: e.target.value })}
-                className="w-full px-3 py-2 bg-[#0a0e14] border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                className={INPUT_CLASSES.default}
                 rows="2"
                 placeholder="Portfolio description..."
               />
@@ -266,7 +323,7 @@ const PortfolioSettings = () => {
               <select
                 value={currentPortfolio.universe}
                 onChange={(e) => handleUniverseChange(e.target.value)}
-                className="w-full px-3 py-2 bg-[#0a0e14] border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                className={INPUT_CLASSES.default}
               >
                 {universes.map(u => (
                   <option key={u.id} value={u.id}>{u.name} ({u.count} stocks)</option>
@@ -274,7 +331,7 @@ const PortfolioSettings = () => {
               </select>
               <button
                 onClick={loadUniverseStocks}
-                className="mt-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors w-full"
+                className={`mt-2 w-full ${BUTTON_CLASSES.primary}`}
               >
                 Load Top 20 Stocks from Universe
               </button>
@@ -290,7 +347,7 @@ const PortfolioSettings = () => {
                   type="text"
                   value={searchQuery}
                   onChange={handleSearchChange}
-                  className="w-full px-3 py-2 bg-[#0a0e14] border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                  className={INPUT_CLASSES.default}
                   placeholder="Search stocks by symbol or name..."
                 />
                 {searchResults.length > 0 && (
@@ -364,42 +421,10 @@ const PortfolioSettings = () => {
             )}
           </div>
 
-          {/* Capital and Date Range */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Initial Capital</label>
-              <input
-                type="number"
-                value={currentPortfolio.initialCapital}
-                onChange={(e) => setCurrentPortfolio({ ...currentPortfolio, initialCapital: parseFloat(e.target.value) })}
-                className="w-full px-3 py-2 bg-[#0a0e14] border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
-                step="1000"
-                min="1000"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Start Date</label>
-              <input
-                type="date"
-                value={currentPortfolio.startDate}
-                onChange={(e) => setCurrentPortfolio({ ...currentPortfolio, startDate: e.target.value })}
-                className="w-full px-3 py-2 bg-[#0a0e14] border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">End Date</label>
-              <input
-                type="date"
-                value={currentPortfolio.endDate}
-                onChange={(e) => setCurrentPortfolio({ ...currentPortfolio, endDate: e.target.value })}
-                className="w-full px-3 py-2 bg-[#0a0e14] border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
-              />
-            </div>
-          </div>
         </div>
 
         {/* Right: Saved Portfolios */}
-        <div className="bg-[#1a1f2e] rounded-lg p-6 overflow-y-auto">
+        <div className={`${CARD_CLASSES.default} overflow-y-auto`}>
           <h2 className="text-xl font-semibold text-white mb-4">Saved Portfolios</h2>
 
           {portfolios.length === 0 ? (
@@ -425,16 +450,16 @@ const PortfolioSettings = () => {
                     </button>
                   </div>
                   <div className="text-sm text-gray-400 mb-3">
-                    <div>{portfolio.stocks.length} stocks</div>
-                    <div>${portfolio.initialCapital.toLocaleString()}</div>
-                    <div>{portfolio.startDate} to {portfolio.endDate}</div>
+                    <div>{portfolio.stocks.length} stocks | {portfolio.type === 'custom' ? 'Custom' : 'Universe'}</div>
                   </div>
-                  <button
-                    onClick={() => loadPortfolio(portfolio)}
-                    className="w-full px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm"
-                  >
-                    Load
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => loadPortfolio(portfolio)}
+                      className={`flex-1 ${BUTTON_CLASSES.secondary} !py-1.5 text-sm`}
+                    >
+                      Load
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

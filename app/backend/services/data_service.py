@@ -25,6 +25,7 @@ from data_fetcher.fetchers.fred.housing_starts import FREDHousingStartsFetcher
 from data_fetcher.fetchers.fred.industrial_production import FREDIndustrialProductionFetcher
 from data_fetcher.fetchers.polygon.news import PolygonNewsFetcher
 from data_fetcher.fetchers.fmp.search import FMPSearchFetcher
+from data_fetcher.fetchers.fmp.active_stocks import FMPActiveStocksFetcher
 from data_fetcher.utils.helpers import parse_period_to_dates
 
 
@@ -385,83 +386,28 @@ class DataService:
         except Exception as e:
             print(f"Error searching stocks from FMP for '{query}': {e}")
 
-        # Fallback: Use a popular stocks database and filter
-        popular_stocks = [
-            {'symbol': 'AAPL', 'name': 'Apple Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
-            {'symbol': 'MSFT', 'name': 'Microsoft Corporation', 'exchange': 'NASDAQ', 'currency': 'USD'},
-            {'symbol': 'GOOGL', 'name': 'Alphabet Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
-            {'symbol': 'AMZN', 'name': 'Amazon.com Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
-            {'symbol': 'NVDA', 'name': 'NVIDIA Corporation', 'exchange': 'NASDAQ', 'currency': 'USD'},
-            {'symbol': 'TSLA', 'name': 'Tesla Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
-            {'symbol': 'META', 'name': 'Meta Platforms Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
-            {'symbol': 'BRK.B', 'name': 'Berkshire Hathaway Inc.', 'exchange': 'NYSE', 'currency': 'USD'},
-            {'symbol': 'JPM', 'name': 'JPMorgan Chase & Co.', 'exchange': 'NYSE', 'currency': 'USD'},
-            {'symbol': 'JNJ', 'name': 'Johnson & Johnson', 'exchange': 'NYSE', 'currency': 'USD'},
-            {'symbol': 'V', 'name': 'Visa Inc.', 'exchange': 'NYSE', 'currency': 'USD'},
-            {'symbol': 'WMT', 'name': 'Walmart Inc.', 'exchange': 'NYSE', 'currency': 'USD'},
-            {'symbol': 'PG', 'name': 'Procter & Gamble Co.', 'exchange': 'NYSE', 'currency': 'USD'},
-            {'symbol': 'MA', 'name': 'Mastercard Inc.', 'exchange': 'NYSE', 'currency': 'USD'},
-            {'symbol': 'HD', 'name': 'The Home Depot Inc.', 'exchange': 'NYSE', 'currency': 'USD'},
-            {'symbol': 'CVX', 'name': 'Chevron Corporation', 'exchange': 'NYSE', 'currency': 'USD'},
-            {'symbol': 'ABBV', 'name': 'AbbVie Inc.', 'exchange': 'NYSE', 'currency': 'USD'},
-            {'symbol': 'LLY', 'name': 'Eli Lilly and Company', 'exchange': 'NYSE', 'currency': 'USD'},
-            {'symbol': 'MRK', 'name': 'Merck & Co. Inc.', 'exchange': 'NYSE', 'currency': 'USD'},
-            {'symbol': 'PEP', 'name': 'PepsiCo Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
-            {'symbol': 'KO', 'name': 'The Coca-Cola Company', 'exchange': 'NYSE', 'currency': 'USD'},
-            {'symbol': 'COST', 'name': 'Costco Wholesale Corporation', 'exchange': 'NASDAQ', 'currency': 'USD'},
-            {'symbol': 'AVGO', 'name': 'Broadcom Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
-            {'symbol': 'TMO', 'name': 'Thermo Fisher Scientific Inc.', 'exchange': 'NYSE', 'currency': 'USD'},
-            {'symbol': 'MCD', 'name': 'McDonald\'s Corporation', 'exchange': 'NYSE', 'currency': 'USD'},
-            {'symbol': 'CSCO', 'name': 'Cisco Systems Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
-            {'symbol': 'ACN', 'name': 'Accenture plc', 'exchange': 'NYSE', 'currency': 'USD'},
-            {'symbol': 'ABT', 'name': 'Abbott Laboratories', 'exchange': 'NYSE', 'currency': 'USD'},
-            {'symbol': 'NKE', 'name': 'NIKE Inc.', 'exchange': 'NYSE', 'currency': 'USD'},
-            {'symbol': 'DHR', 'name': 'Danaher Corporation', 'exchange': 'NYSE', 'currency': 'USD'},
-            {'symbol': 'TXN', 'name': 'Texas Instruments Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
-            {'symbol': 'VZ', 'name': 'Verizon Communications Inc.', 'exchange': 'NYSE', 'currency': 'USD'},
-            {'symbol': 'DIS', 'name': 'The Walt Disney Company', 'exchange': 'NYSE', 'currency': 'USD'},
-            {'symbol': 'ADBE', 'name': 'Adobe Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
-            {'symbol': 'CRM', 'name': 'Salesforce Inc.', 'exchange': 'NYSE', 'currency': 'USD'},
-            {'symbol': 'NFLX', 'name': 'Netflix Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
-            {'symbol': 'INTC', 'name': 'Intel Corporation', 'exchange': 'NASDAQ', 'currency': 'USD'},
-            {'symbol': 'AMD', 'name': 'Advanced Micro Devices Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
-            {'symbol': 'QCOM', 'name': 'QUALCOMM Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
-            {'symbol': 'INTU', 'name': 'Intuit Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
-            {'symbol': 'CMCSA', 'name': 'Comcast Corporation', 'exchange': 'NASDAQ', 'currency': 'USD'},
-            {'symbol': 'ORCL', 'name': 'Oracle Corporation', 'exchange': 'NYSE', 'currency': 'USD'},
-            {'symbol': 'IBM', 'name': 'International Business Machines Corporation', 'exchange': 'NYSE', 'currency': 'USD'},
-            {'symbol': 'BA', 'name': 'The Boeing Company', 'exchange': 'NYSE', 'currency': 'USD'},
-            {'symbol': 'CAT', 'name': 'Caterpillar Inc.', 'exchange': 'NYSE', 'currency': 'USD'},
-            {'symbol': 'GS', 'name': 'The Goldman Sachs Group Inc.', 'exchange': 'NYSE', 'currency': 'USD'},
-            {'symbol': 'AXP', 'name': 'American Express Company', 'exchange': 'NYSE', 'currency': 'USD'},
-            {'symbol': 'MMM', 'name': '3M Company', 'exchange': 'NYSE', 'currency': 'USD'},
-            {'symbol': 'HON', 'name': 'Honeywell International Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
-            {'symbol': 'AMGN', 'name': 'Amgen Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
-            {'symbol': 'UNH', 'name': 'UnitedHealth Group Inc.', 'exchange': 'NYSE', 'currency': 'USD'},
-            {'symbol': 'SBUX', 'name': 'Starbucks Corporation', 'exchange': 'NASDAQ', 'currency': 'USD'},
-            {'symbol': 'PYPL', 'name': 'PayPal Holdings Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
-            {'symbol': 'ASML', 'name': 'ASML Holding N.V.', 'exchange': 'NASDAQ', 'currency': 'USD'},
-            {'symbol': 'BKNG', 'name': 'Booking Holdings Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
-            {'symbol': 'GILD', 'name': 'Gilead Sciences Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
-            {'symbol': 'VRTX', 'name': 'Vertex Pharmaceuticals Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
-            {'symbol': 'ADP', 'name': 'Automatic Data Processing Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
-            {'symbol': 'MDLZ', 'name': 'Mondelez International Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
-            {'symbol': 'ISRG', 'name': 'Intuitive Surgical Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
-            {'symbol': 'REGN', 'name': 'Regeneron Pharmaceuticals Inc.', 'exchange': 'NASDAQ', 'currency': 'USD'},
-            {'symbol': 'SPY', 'name': 'SPDR S&P 500 ETF Trust', 'exchange': 'NYSE', 'currency': 'USD'},
-            {'symbol': 'QQQ', 'name': 'Invesco QQQ Trust', 'exchange': 'NASDAQ', 'currency': 'USD'},
-            {'symbol': 'IWM', 'name': 'iShares Russell 2000 ETF', 'exchange': 'NYSE', 'currency': 'USD'},
-            {'symbol': 'DIA', 'name': 'SPDR Dow Jones Industrial Average ETF', 'exchange': 'NYSE', 'currency': 'USD'},
-            {'symbol': 'VTI', 'name': 'Vanguard Total Stock Market ETF', 'exchange': 'NYSE', 'currency': 'USD'},
-        ]
+        # Fallback: Use most active stocks from FMP API and filter by query
+        try:
+            actives = await FMPActiveStocksFetcher.fetch_data({'type': 'actives'})
+            if actives:
+                query_upper = query.upper()
+                results = [
+                    {
+                        'symbol': stock.symbol,
+                        'name': stock.name,
+                        'exchange': 'NASDAQ',  # Most actives are typically NASDAQ/NYSE
+                        'currency': 'USD'
+                    }
+                    for stock in actives
+                    if query_upper in stock.symbol.upper() or query_upper in stock.name.upper()
+                ]
+                if results:
+                    return results[:limit]
+        except Exception as e:
+            print(f"Error fetching active stocks fallback: {e}")
 
-        query_upper = query.upper()
-        results = [
-            stock for stock in popular_stocks
-            if query_upper in stock['symbol'].upper() or query_upper in stock['name'].upper()
-        ]
-
-        return results[:limit]
+        # If all else fails, return empty list
+        return []
 
 
 # Singleton instance
