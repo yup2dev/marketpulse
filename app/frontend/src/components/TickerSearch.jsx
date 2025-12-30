@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Search, X } from 'lucide-react';
-
-const API_BASE = 'http://localhost:8000/api';
+import { API_BASE } from '../config/api';
 
 const TickerSearch = ({ onSelect, placeholder = "Search stocks..." }) => {
   const [query, setQuery] = useState('');

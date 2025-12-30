@@ -3,9 +3,12 @@ Data Service - Integration with data_fetcher
 Provides unified interface for fetching financial data
 """
 import sys
+import logging
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
+
+log = logging.getLogger(__name__)
 
 # Ensure data_fetcher is in path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -54,7 +57,7 @@ class DataService:
                     'open': latest.open
                 }
         except Exception as e:
-            print(f"Error fetching stock quote: {e}")
+            log.error(f"Error fetching stock quote: {e}")
 
         return {}
 
@@ -76,17 +79,17 @@ class DataService:
             if start_date and end_date:
                 params['start_date'] = start_date
                 params['end_date'] = end_date
-                print(f"DATA_SERVICE - Using date range: {start_date} to {end_date}")
+                log.debug(f"DATA_SERVICE - Using date range: {start_date} to {end_date}")
                 # Do NOT set period when using date range
             elif period:
                 params['period'] = period
-                print(f"DATA_SERVICE - Using period: {period}")
+                log.debug(f"DATA_SERVICE - Using period: {period}")
             else:
                 # Default to 1 month if nothing provided
                 params['period'] = '1mo'
-                print(f"DATA_SERVICE - Using default period: 1mo")
+                log.debug(f"DATA_SERVICE - Using default period: 1mo")
 
-            print(f"DATA_SERVICE - Final params: {params}")
+            log.debug(f"DATA_SERVICE - Final params: {params}")
 
             result = await YahooStockPriceFetcher.fetch_data(params)
 
@@ -103,7 +106,7 @@ class DataService:
                     for data in result
                 ]
         except Exception as e:
-            print(f"Error fetching stock history: {e}")
+            log.error(f"Error fetching stock history: {e}")
 
         return []
 
@@ -128,7 +131,7 @@ class DataService:
                     'address': data.address if hasattr(data, 'address') else None
                 }
         except Exception as e:
-            print(f"Error fetching company info: {e}")
+            log.error(f"Error fetching company info: {e}")
 
         return {}
 
@@ -147,7 +150,7 @@ class DataService:
                     'unit': gdp.unit
                 }
         except Exception as e:
-            print(f"Error fetching GDP: {e}")
+            log.error(f"Error fetching GDP: {e}")
 
         try:
             # Unemployment
@@ -160,7 +163,7 @@ class DataService:
                     'unit': '%'
                 }
         except Exception as e:
-            print(f"Error fetching unemployment: {e}")
+            log.error(f"Error fetching unemployment: {e}")
 
         try:
             # CPI (Inflation)
@@ -173,7 +176,7 @@ class DataService:
                     'unit': 'Index'
                 }
         except Exception as e:
-            print(f"Error fetching CPI: {e}")
+            log.error(f"Error fetching CPI: {e}")
 
         try:
             # Interest Rate - provide required rate_type parameter
@@ -186,7 +189,7 @@ class DataService:
                     'unit': '%'
                 }
         except Exception as e:
-            print(f"Error fetching interest rate: {e}")
+            log.error(f"Error fetching interest rate: {e}")
 
         return indicators
 
@@ -262,7 +265,7 @@ class DataService:
                     for data in result
                 ]
         except Exception as e:
-            print(f"Error fetching indicator history: {e}")
+            log.error(f"Error fetching indicator history: {e}")
 
         return []
 
@@ -289,7 +292,7 @@ class DataService:
                     for news in result[:limit]
                 ]
         except Exception as e:
-            print(f"Error fetching news: {e}")
+            log.error(f"Error fetching news: {e}")
 
         return []
 
@@ -351,7 +354,7 @@ class DataService:
                     'periods': periods
                 }
         except Exception as e:
-            print(f"Error fetching financials: {e}")
+            log.error(f"Error fetching financials: {e}")
 
         return {}
 
@@ -384,7 +387,7 @@ class DataService:
                     for stock in result
                 ]
         except Exception as e:
-            print(f"Error searching stocks from FMP for '{query}': {e}")
+            log.error(f"Error searching stocks from FMP for '{query}': {e}")
 
         # Fallback: Use most active stocks from FMP API and filter by query
         try:
@@ -404,7 +407,7 @@ class DataService:
                 if results:
                     return results[:limit]
         except Exception as e:
-            print(f"Error fetching active stocks fallback: {e}")
+            log.error(f"Error fetching active stocks fallback: {e}")
 
         # If all else fails, return empty list
         return []

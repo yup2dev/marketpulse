@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Save, Trash2, X, Play } from 'lucide-react';
 import { BUTTON_CLASSES, CARD_CLASSES, INPUT_CLASSES } from '../styles/designTokens';
-
-const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'http://localhost:8000/api';
+import { API_BASE } from '../config/api';
 
 const PortfolioSettings = ({ onNavigate }) => {
   const [portfolios, setPortfolios] = useState([]);
@@ -158,13 +157,13 @@ const PortfolioSettings = ({ onNavigate }) => {
 
   const savePortfolio = () => {
     if (!currentPortfolio.name) {
-      alert('포트폴리오 이름을 입력해주세요');
+      alert('Please enter a portfolio name');
       return;
     }
 
     const totalWeight = currentPortfolio.stocks.reduce((sum, s) => sum + s.weight, 0);
     if (Math.abs(totalWeight - 100) > 0.1) {
-      alert('종목 비중의 합이 100%가 되어야 합니다');
+      alert('Stock weights must sum to 100%');
       return;
     }
 
@@ -178,7 +177,7 @@ const PortfolioSettings = ({ onNavigate }) => {
     setPortfolios(updatedPortfolios);
     localStorage.setItem('portfolios', JSON.stringify(updatedPortfolios));
 
-    alert('포트폴리오가 저장되었습니다');
+    alert('Portfolio saved successfully');
     resetForm();
   };
 
@@ -187,7 +186,7 @@ const PortfolioSettings = ({ onNavigate }) => {
   };
 
   const deletePortfolio = (id) => {
-    if (confirm('정말 이 포트폴리오를 삭제하시겠습니까?')) {
+    if (confirm('Are you sure you want to delete this portfolio?')) {
       const updatedPortfolios = portfolios.filter(p => p.id !== id);
       setPortfolios(updatedPortfolios);
       localStorage.setItem('portfolios', JSON.stringify(updatedPortfolios));

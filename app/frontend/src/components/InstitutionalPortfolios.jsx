@@ -16,8 +16,7 @@ import {
 import Card from './widgets/common/Card';
 import MetricCard from './widgets/common/MetricCard';
 import SectionHeader from './widgets/common/SectionHeader';
-
-const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'http://localhost:8000/api';
+import { API_BASE } from '../config/api';
 
 /**
  * InstitutionalPortfolios Component

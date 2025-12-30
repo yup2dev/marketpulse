@@ -211,7 +211,7 @@ class WhaleWisdomFetcher(Fetcher[InstitutionalHoldingsQueryParams, Institutional
     def get_holding_by_institution(cls, institution_key: str) -> Optional[Dict]:
         """Get holdings for a specific institution as dictionary
 
-        Args:
+        Args:3
             institution_key: Institution identifier
 
         Returns:

@@ -4,7 +4,7 @@ import ConfigPanel from './backtest/ConfigPanel';
 import ResultsDashboard from './backtest/ResultsDashboard';
 import { DESIGN_TOKENS } from '../styles/designTokens';
 
-const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'http://localhost:8000/api';
+import { API_BASE } from '../config/api';
 
 /**
  * UnifiedBacktest - Main backtesting component

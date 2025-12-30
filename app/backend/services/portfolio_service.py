@@ -3,12 +3,15 @@ Portfolio Service
 Provides institutional portfolio and 13F holdings data
 """
 import sys
+import logging
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from data_fetcher.fetchers.whalewisdom import WhaleWisdomFetcher
+
+log = logging.getLogger(__name__)
 
 
 class PortfolioService:
@@ -52,7 +55,7 @@ class PortfolioService:
             return institutions
 
         except Exception as e:
-            print(f"Error fetching institutions list: {e}")
+            log.error(f"Error fetching institutions list: {e}")
             raise
 
     async def get_institution_portfolio(
@@ -122,7 +125,7 @@ class PortfolioService:
         except ValueError:
             raise
         except Exception as e:
-            print(f"Error fetching portfolio for {institution_key}: {e}")
+            log.error(f"Error fetching portfolio for {institution_key}: {e}")
             raise
 
 

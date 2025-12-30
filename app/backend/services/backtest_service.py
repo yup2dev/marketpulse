@@ -3,6 +3,7 @@ Backtesting Service
 Provides portfolio backtesting and performance analytics
 """
 import sys
+import logging
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
@@ -14,6 +15,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from data_fetcher.fetchers.yahoo.stock_price import YahooStockPriceFetcher
 from data_fetcher.fetchers.yahoo.company_info import YahooCompanyInfoFetcher
 from data_fetcher.fetchers.database.index_constituents import DBIndexConstituentsFetcher
+
+log = logging.getLogger(__name__)
 
 
 class BacktestService:
@@ -27,13 +30,13 @@ class BacktestService:
             constituents = await DBIndexConstituentsFetcher.fetch_data({'index': universe_id})
             if constituents:
                 symbols = [c.symbol for c in constituents[:20]]  # Limit to 20 for demo
-                print(f"Successfully fetched {len(symbols)} constituents from DB for {universe_id}")
+                log.info(f"Successfully fetched {len(symbols)} constituents from DB for {universe_id}")
         except Exception as e:
-            print(f"Error fetching index constituents from DB for {universe_id}: {e}")
+            log.error(f"Error fetching index constituents from DB for {universe_id}: {e}")
             return []
 
         if not symbols:
-            print(f"No symbols available in DB for universe {universe_id}")
+            log.warning(f"No symbols available in DB for universe {universe_id}")
             return []
 
         stocks = []
@@ -65,7 +68,7 @@ class BacktestService:
                         'change': round(((latest.close - prev.close) / prev.close * 100), 2) if prev.close else 0
                     })
             except Exception as e:
-                print(f"Error fetching {symbol}: {e}")
+                log.warning(f"Error fetching {symbol}: {e}")
                 continue
 
         return stocks
@@ -114,7 +117,7 @@ class BacktestService:
                         # No need to filter - API returns data in the requested range
                         stock_data[symbol] = result
                 except Exception as e:
-                    print(f"Error fetching {symbol}: {e}")
+                    log.warning(f"Error fetching {symbol}: {e}")
 
             if not stock_data:
                 raise ValueError("No stock data available")
@@ -130,11 +133,11 @@ class BacktestService:
                 })
                 if benchmark_result:
                     benchmark_data[benchmark_symbol] = benchmark_result
-                    print(f"Successfully fetched benchmark {benchmark_symbol} with {len(benchmark_result)} data points")
+                    log.info(f"Successfully fetched benchmark {benchmark_symbol} with {len(benchmark_result)} data points")
                 else:
-                    print(f"Warning: No benchmark data for {benchmark_symbol}")
+                    log.warning(f"No benchmark data for {benchmark_symbol}")
             except Exception as e:
-                print(f"Error fetching benchmark {benchmark_symbol}: {e}")
+                log.error(f"Error fetching benchmark {benchmark_symbol}: {e}")
 
             # Create date-aligned portfolio
             portfolio_values = self._calculate_portfolio_performance(
@@ -144,10 +147,10 @@ class BacktestService:
             # Calculate benchmark performance using real benchmark symbol
             if benchmark_data:
                 benchmark_values = self._calculate_benchmark(benchmark_data, initial_capital)
-                print(f"Benchmark values calculated: {len(benchmark_values)} data points")
+                log.info(f"Benchmark values calculated: {len(benchmark_values)} data points")
             else:
                 # Fallback: use portfolio buy-and-hold
-                print("Using portfolio buy-and-hold as benchmark fallback")
+                log.info("Using portfolio buy-and-hold as benchmark fallback")
                 benchmark_values = self._calculate_benchmark(stock_data, initial_capital)
 
             # Calculate statistics
@@ -170,7 +173,7 @@ class BacktestService:
             }
 
         except Exception as e:
-            print(f"Error running backtest: {e}")
+            log.error(f"Error running backtest: {e}")
             raise
 
     def _calculate_portfolio_performance(
@@ -427,7 +430,7 @@ class BacktestService:
                             benchmark_data[year] = []
                         benchmark_data[year].append(point.close)
         except Exception as e:
-            print(f"Error fetching benchmark data for {benchmark_symbol}: {e}")
+            log.warning(f"Error fetching benchmark data for {benchmark_symbol}: {e}")
 
         yearly_returns = []
         for year in sorted(yearly_data.keys()):
