@@ -99,8 +99,8 @@ class WhaleWisdomFetcher(Fetcher[InstitutionalHoldingsQueryParams, Institutional
                     )
 
                     # Calculate position changes by comparing holdings
-                    current_holdings = {h.ticker: h for h in portfolio.holdings}
-                    previous_holdings = {h.ticker: h for h in previous_portfolio.holdings}
+                    current_holdings = {h.symbol: h for h in portfolio.stocks}
+                    previous_holdings = {h.symbol: h for h in previous_portfolio.stocks}
 
                     portfolio.num_new_positions = len(set(current_holdings.keys()) - set(previous_holdings.keys()))
                     portfolio.num_sold_out = len(set(previous_holdings.keys()) - set(current_holdings.keys()))
@@ -120,7 +120,9 @@ class WhaleWisdomFetcher(Fetcher[InstitutionalHoldingsQueryParams, Institutional
                             portfolio.num_decreased += 1
 
                         # Turnover calculation (sum of absolute changes / total value)
-                        change_value = abs((current_shares - previous_shares) * current_holdings[ticker].price)
+                        # Calculate price from value/shares
+                        current_price = (current_holdings[ticker].value / current_holdings[ticker].shares) if current_holdings[ticker].shares > 0 else 0
+                        change_value = abs((current_shares - previous_shares) * current_price)
                         portfolio.turnover += change_value
 
                     if portfolio.total_value > 0:
@@ -130,7 +132,7 @@ class WhaleWisdomFetcher(Fetcher[InstitutionalHoldingsQueryParams, Institutional
                     portfolio.previous_value = portfolio.total_value
                     portfolio.value_change = 0
                     portfolio.value_change_pct = 0
-                    portfolio.num_new_positions = len(portfolio.holdings)
+                    portfolio.num_new_positions = len(portfolio.stocks)
                     portfolio.num_sold_out = 0
                     portfolio.num_increased = 0
                     portfolio.num_decreased = 0
