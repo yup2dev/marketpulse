@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Search, TrendingUp } from 'lucide-react';
+import TickerSearch from './TickerSearch';
 
 const POPULAR_STOCKS = [
   { symbol: 'AAPL', name: 'Apple Inc.', sector: 'Technology' },
@@ -25,24 +26,11 @@ const POPULAR_STOCKS = [
 ];
 
 const StockSelector = ({ onSelect }) => {
-  const [activeTab, setActiveTab] = useState('popular');
-  const [customSymbol, setCustomSymbol] = useState('');
+  const [activeTab, setActiveTab] = useState('search');
   const [filter, setFilter] = useState('');
 
   const handleSelectStock = (stock) => {
     onSelect(stock);
-  };
-
-  const handleAddCustom = (e) => {
-    e.preventDefault();
-    if (customSymbol.trim()) {
-      onSelect({
-        symbol: customSymbol.toUpperCase(),
-        name: customSymbol.toUpperCase(),
-        sector: 'Custom'
-      });
-      setCustomSymbol('');
-    }
   };
 
   const filteredStocks = filter
@@ -58,6 +46,19 @@ const StockSelector = ({ onSelect }) => {
       {/* Tabs */}
       <div className="flex gap-2 mb-4 border-b border-gray-800">
         <button
+          onClick={() => setActiveTab('search')}
+          className={`px-4 py-2 text-sm font-medium transition-colors relative ${
+            activeTab === 'search'
+              ? 'text-white'
+              : 'text-gray-400 hover:text-gray-300'
+          }`}
+        >
+          Search Stocks
+          {activeTab === 'search' && (
+            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500"></div>
+          )}
+        </button>
+        <button
           onClick={() => setActiveTab('popular')}
           className={`px-4 py-2 text-sm font-medium transition-colors relative ${
             activeTab === 'popular'
@@ -70,22 +71,24 @@ const StockSelector = ({ onSelect }) => {
             <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500"></div>
           )}
         </button>
-        <button
-          onClick={() => setActiveTab('custom')}
-          className={`px-4 py-2 text-sm font-medium transition-colors relative ${
-            activeTab === 'custom'
-              ? 'text-white'
-              : 'text-gray-400 hover:text-gray-300'
-          }`}
-        >
-          Custom Symbol
-          {activeTab === 'custom' && (
-            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500"></div>
-          )}
-        </button>
       </div>
 
-      {activeTab === 'popular' ? (
+      {activeTab === 'search' ? (
+        <div>
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-300 mb-3">
+              Search for stocks by symbol or name
+            </label>
+            <TickerSearch
+              onSelect={handleSelectStock}
+              placeholder="Search stocks (e.g., AAPL, Tesla)..."
+            />
+            <p className="mt-3 text-xs text-gray-400">
+              Start typing to see real-time suggestions
+            </p>
+          </div>
+        </div>
+      ) : (
         <div>
           {/* Filter */}
           <div className="mb-4">
@@ -122,31 +125,6 @@ const StockSelector = ({ onSelect }) => {
             ))}
           </div>
         </div>
-      ) : (
-        <form onSubmit={handleAddCustom} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Enter Stock Symbol
-            </label>
-            <input
-              type="text"
-              value={customSymbol}
-              onChange={(e) => setCustomSymbol(e.target.value.toUpperCase())}
-              placeholder="e.g., AAPL, TSLA, MSFT"
-              className="w-full px-4 py-3 bg-[#0d0d0d] border border-gray-700 rounded text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
-            />
-            <p className="mt-2 text-xs text-gray-400">
-              Enter any valid stock ticker symbol to add it to your dashboard
-            </p>
-          </div>
-          <button
-            type="submit"
-            disabled={!customSymbol.trim()}
-            className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded font-medium transition-colors"
-          >
-            Add Widget
-          </button>
-        </form>
       )}
     </div>
   );

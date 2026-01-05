@@ -40,12 +40,12 @@ class MacroService:
             'category': 'Banking',
             'unit': 'Billions of Dollars'
         },
-        'foreign_bank_assets': {
-            'id': 'BALBFRBFF',
-            'name': 'Assets and Liabilities of U.S. Branches and Agencies of Foreign Banks',
-            'category': 'Banking',
-            'unit': 'Billions of Dollars'
-        },
+        # 'foreign_bank_assets': {
+        #     'id': 'BALBFRBFF',
+        #     'name': 'Assets and Liabilities of U.S. Branches and Agencies of Foreign Banks',
+        #     'category': 'Banking',
+        #     'unit': 'Billions of Dollars'
+        # },
         'consumer_credit': {
             'id': 'TOTALSL',
             'name': 'Consumer Credit Outstanding',
@@ -92,31 +92,31 @@ class MacroService:
             'category': 'Real Estate',
             'unit': 'Index Jan 2000=100'
         },
-        # Commodities - Precious Metals
-        'gold': {
-            'id': 'GOLDPMGBD228NLBM',
-            'name': 'Gold Fixing Price (London)',
-            'category': 'Commodities',
-            'unit': 'USD per Troy Ounce'
-        },
-        'silver': {
-            'id': 'SLVPRUSD',
-            'name': 'Global Price of Silver',
-            'category': 'Commodities',
-            'unit': 'USD per Troy Ounce'
-        },
-        'platinum': {
-            'id': 'PLTMLGBD228NLBM',
-            'name': 'Platinum Price (London)',
-            'category': 'Commodities',
-            'unit': 'USD per Troy Ounce'
-        },
-        'palladium': {
-            'id': 'PALUMLGBD228NLBM',
-            'name': 'Palladium Price (London)',
-            'category': 'Commodities',
-            'unit': 'USD per Troy Ounce'
-        },
+        # Commodities - Precious Metals (DEPRECATED - FRED series no longer available)
+        # 'gold': {
+        #     'id': 'GOLDPMGBD228NLBM',
+        #     'name': 'Gold Fixing Price (London)',
+        #     'category': 'Commodities',
+        #     'unit': 'USD per Troy Ounce'
+        # },
+        # 'silver': {
+        #     'id': 'SLVPRUSD',
+        #     'name': 'Global Price of Silver',
+        #     'category': 'Commodities',
+        #     'unit': 'USD per Troy Ounce'
+        # },
+        # 'platinum': {
+        #     'id': 'PLTMLGBD228NLBM',
+        #     'name': 'Platinum Price (London)',
+        #     'category': 'Commodities',
+        #     'unit': 'USD per Troy Ounce'
+        # },
+        # 'palladium': {
+        #     'id': 'PALUMLGBD228NLBM',
+        #     'name': 'Palladium Price (London)',
+        #     'category': 'Commodities',
+        #     'unit': 'USD per Troy Ounce'
+        # },
         # Commodities - Energy
         'crude_oil_wti': {
             'id': 'DCOILWTICO',
@@ -432,84 +432,15 @@ class MacroService:
         """
         Calculate important commodity ratios
         Returns ratios like Gold/Silver, Gold/Oil, Copper/Gold
+
+        NOTE: Precious metal series (gold, silver) are currently unavailable from FRED.
+        This function is deprecated and returns empty dict.
         """
         ratios = {}
 
-        try:
-            api_key = get_api_key(
-                credentials=None,
-                api_name="FRED",
-                env_var="FRED_API_KEY"
-            )
-
-            # Fetch latest prices for commodities with sort_order='desc' to get most recent
-            gold_obs = FredSeriesFetcher.fetch_series(
-                series_id='GOLDPMGBD228NLBM',
-                api_key=api_key,
-                limit=1,
-                sort_order='desc'
-            )
-            silver_obs = FredSeriesFetcher.fetch_series(
-                series_id='SLVPRUSD',
-                api_key=api_key,
-                limit=1,
-                sort_order='desc'
-            )
-            oil_obs = FredSeriesFetcher.fetch_series(
-                series_id='DCOILWTICO',
-                api_key=api_key,
-                limit=1,
-                sort_order='desc'
-            )
-            copper_obs = FredSeriesFetcher.fetch_series(
-                series_id='PCOPPUSDM',
-                api_key=api_key,
-                limit=1,
-                sort_order='desc'
-            )
-
-            # Calculate Gold/Silver Ratio
-            if gold_obs and silver_obs:
-                gold_price = float(gold_obs[0]['value']) if gold_obs[0]['value'] != '.' else None
-                silver_price = float(silver_obs[0]['value']) if silver_obs[0]['value'] != '.' else None
-
-                if gold_price and silver_price and silver_price != 0:
-                    ratios['gold_silver'] = {
-                        'name': 'Gold/Silver Ratio',
-                        'value': gold_price / silver_price,
-                        'description': 'Ounces of silver to buy one ounce of gold',
-                        'date': gold_obs[0]['date']
-                    }
-
-            # Calculate Gold/Oil Ratio
-            if gold_obs and oil_obs:
-                gold_price = float(gold_obs[0]['value']) if gold_obs[0]['value'] != '.' else None
-                oil_price = float(oil_obs[0]['value']) if oil_obs[0]['value'] != '.' else None
-
-                if gold_price and oil_price and oil_price != 0:
-                    ratios['gold_oil'] = {
-                        'name': 'Gold/Oil Ratio',
-                        'value': gold_price / oil_price,
-                        'description': 'Barrels of oil to buy one ounce of gold',
-                        'date': gold_obs[0]['date']
-                    }
-
-            # Calculate Copper/Gold Ratio (economic health indicator)
-            if copper_obs and gold_obs:
-                copper_price = float(copper_obs[0]['value']) if copper_obs[0]['value'] != '.' else None
-                gold_price = float(gold_obs[0]['value']) if gold_obs[0]['value'] != '.' else None
-
-                if copper_price and gold_price and gold_price != 0:
-                    # Normalize: copper price per ton / gold price per oz
-                    ratios['copper_gold'] = {
-                        'name': 'Copper/Gold Ratio',
-                        'value': (copper_price / 1000) / gold_price,  # Convert to comparable units
-                        'description': 'Economic health indicator (higher = growth)',
-                        'date': copper_obs[0]['date']
-                    }
-
-        except Exception as e:
-            log.error(f"Error calculating commodity ratios: {e}")
+        # DEPRECATED: Gold and silver series are no longer available from FRED
+        # Commodity ratios cannot be calculated without these base prices
+        log.warning("Commodity ratios are currently unavailable - FRED precious metal series deprecated")
 
         return ratios
 
@@ -524,104 +455,18 @@ class MacroService:
         Args:
             ratio_type: Type of ratio (gold_silver, gold_oil, copper_gold)
             period: Time period (1y, 3y, 5y, 10y, max)
+
+        NOTE: DEPRECATED - Precious metal series are no longer available from FRED.
+        This function will return empty data.
         """
-        start_date, end_date = parse_period_to_dates(period)
+        log.warning(f"Ratio history for {ratio_type} is unavailable - FRED precious metal series deprecated")
 
-        try:
-            api_key = get_api_key(
-                credentials=None,
-                api_name="FRED",
-                env_var="FRED_API_KEY"
-            )
-
-            if ratio_type == 'gold_silver':
-                # Fetch gold and silver data (asc order for historical chart)
-                gold_obs = FredSeriesFetcher.fetch_series(
-                    series_id='GOLDPMGBD228NLBM',
-                    api_key=api_key,
-                    start_date=start_date,
-                    end_date=end_date,
-                    sort_order='asc'
-                )
-                silver_obs = FredSeriesFetcher.fetch_series(
-                    series_id='SLVPRUSD',
-                    api_key=api_key,
-                    start_date=start_date,
-                    end_date=end_date,
-                    sort_order='asc'
-                )
-
-                # Calculate ratio for each date
-                data = self._calculate_ratio_series(gold_obs, silver_obs)
-
-                return {
-                    'ratio_type': ratio_type,
-                    'name': 'Gold/Silver Ratio',
-                    'description': 'Ounces of silver to buy one ounce of gold',
-                    'data': data
-                }
-
-            elif ratio_type == 'gold_oil':
-                gold_obs = FredSeriesFetcher.fetch_series(
-                    series_id='GOLDPMGBD228NLBM',
-                    api_key=api_key,
-                    start_date=start_date,
-                    end_date=end_date,
-                    sort_order='asc'
-                )
-                oil_obs = FredSeriesFetcher.fetch_series(
-                    series_id='DCOILWTICO',
-                    api_key=api_key,
-                    start_date=start_date,
-                    end_date=end_date,
-                    sort_order='asc'
-                )
-
-                data = self._calculate_ratio_series(gold_obs, oil_obs)
-
-                return {
-                    'ratio_type': ratio_type,
-                    'name': 'Gold/Oil Ratio',
-                    'description': 'Barrels of oil to buy one ounce of gold',
-                    'data': data
-                }
-
-            elif ratio_type == 'copper_gold':
-                copper_obs = FredSeriesFetcher.fetch_series(
-                    series_id='PCOPPUSDM',
-                    api_key=api_key,
-                    start_date=start_date,
-                    end_date=end_date,
-                    sort_order='asc'
-                )
-                gold_obs = FredSeriesFetcher.fetch_series(
-                    series_id='GOLDPMGBD228NLBM',
-                    api_key=api_key,
-                    start_date=start_date,
-                    end_date=end_date,
-                    sort_order='asc'
-                )
-
-                # Normalize copper price (per ton) vs gold (per oz)
-                data = self._calculate_ratio_series(
-                    copper_obs,
-                    gold_obs,
-                    numerator_scale=1/1000  # Convert copper to comparable units
-                )
-
-                return {
-                    'ratio_type': ratio_type,
-                    'name': 'Copper/Gold Ratio',
-                    'description': 'Economic health indicator',
-                    'data': data
-                }
-
-            else:
-                raise ValueError(f"Unknown ratio type: {ratio_type}")
-
-        except Exception as e:
-            log.error(f"Error fetching ratio history for {ratio_type}: {e}")
-            raise
+        return {
+            'ratio_type': ratio_type,
+            'name': f'{ratio_type} Ratio (Unavailable)',
+            'description': 'FRED precious metal series deprecated',
+            'data': []
+        }
 
     def _calculate_ratio_series(
         self,

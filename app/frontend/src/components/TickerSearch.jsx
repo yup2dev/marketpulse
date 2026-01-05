@@ -93,12 +93,28 @@ const TickerSearch = ({ onSelect, placeholder = "Search stocks..." }) => {
                 onClick={() => handleSelect(stock)}
                 className="w-full px-4 py-3 text-left hover:bg-gray-800 transition-colors border-b border-gray-800 last:border-b-0"
               >
-                <div className="flex items-center justify-between">
-                  <div>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex-1 min-w-0">
                     <div className="font-semibold text-white">{stock.symbol}</div>
                     <div className="text-sm text-gray-400 truncate">{stock.name}</div>
                   </div>
-                  <div className="text-xs text-gray-500">{stock.exchange}</div>
+                  {stock.exchange && (
+                    <div className={`text-xs px-2 py-1 rounded font-medium whitespace-nowrap ${
+                      stock.exchange === 'KOSPI' || stock.symbol.endsWith('.KS')
+                        ? 'bg-blue-900/40 text-blue-300 border border-blue-700'
+                        : stock.exchange === 'KOSDAQ' || stock.symbol.endsWith('.KQ')
+                        ? 'bg-orange-900/40 text-orange-300 border border-orange-700'
+                        : stock.exchange === 'NASDAQ'
+                        ? 'bg-purple-900/40 text-purple-300 border border-purple-700'
+                        : stock.exchange === 'NYSE'
+                        ? 'bg-cyan-900/40 text-cyan-300 border border-cyan-700'
+                        : 'bg-gray-800 text-gray-400 border border-gray-700'
+                    }`}>
+                      {stock.symbol.endsWith('.KS') ? 'KOSPI' :
+                       stock.symbol.endsWith('.KQ') ? 'KOSDAQ' :
+                       stock.exchange}
+                    </div>
+                  )}
                 </div>
               </button>
             ))
