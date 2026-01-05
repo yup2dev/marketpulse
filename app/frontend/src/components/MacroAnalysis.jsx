@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   TrendingUp,
   TrendingDown,
@@ -12,36 +12,33 @@ import {
   ArrowUpRight,
   ArrowDownRight
 } from 'lucide-react';
-import {
-  LineChart,
-  Line,
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend
-} from 'recharts';
+import { useLoading } from '../contexts/LoadingContext';
 import { API_BASE } from '../config/api';
 import { CARD_CLASSES } from '../styles/designTokens';
+import UniversalChartWidget from './common/UniversalChartWidget';
 
 /**
  * MacroAnalysis - Comprehensive Macroeconomic Analysis Dashboard
  * Shows all macro data from FRED, AlphaVantage, and other sources
  */
 const MacroAnalysis = () => {
+  const { showLoading, hideLoading } = useLoading();
+
   const [activeTab, setActiveTab] = useState('overview');
   const [indicators, setIndicators] = useState({});
   const [fredSeries, setFredSeries] = useState([]);
   const [forexRates, setForexRates] = useState([]);
+  const [commodityRatios, setCommodityRatios] = useState({});
   const [selectedSeries, setSelectedSeries] = useState(null);
+  const [selectedRatio, setSelectedRatio] = useState(null);
   const [seriesData, setSeriesData] = useState(null);
+  const [ratioData, setRatioData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadedTabs, setLoadedTabs] = useState(new Set(['overview']));
 
   const TABS = [
     { id: 'overview', name: 'Overview', icon: Activity },
+    { id: 'commodities', name: 'Commodities', icon: BarChart3 },
     { id: 'banking', name: 'Banking & Credit', icon: Building2 },
     { id: 'money', name: 'Money Supply', icon: DollarSign },
     { id: 'rates', name: 'Interest Rates', icon: TrendingUp },
@@ -59,36 +56,115 @@ const MacroAnalysis = () => {
     }
   }, [selectedSeries]);
 
+  useEffect(() => {
+    if (selectedRatio) {
+      fetchRatioHistory(selectedRatio);
+    }
+  }, [selectedRatio]);
+
   const fetchOverviewData = async () => {
     setLoading(true);
+    showLoading('거시경제 데이터를 불러오는 중...');
     try {
-      const [indicatorsRes, fredSeriesRes, forexRes] = await Promise.all([
-        fetch(`${API_BASE}/macro/indicators/overview`),
+      // Only fetch indicators for initial load
+      const indicatorsRes = await fetch(`${API_BASE}/macro/indicators/overview`);
+      const indicatorsData = await indicatorsRes.json();
+      setIndicators(indicatorsData.indicators || {});
+    } catch (error) {
+      console.error('Error fetching overview data:', error);
+    } finally {
+      setLoading(false);
+      hideLoading();
+    }
+  };
+
+  const fetchCommoditiesData = async () => {
+    if (loadedTabs.has('commodities')) return; // Already loaded
+
+    showLoading('상품 데이터를 불러오는 중...');
+    try {
+      const [fredSeriesRes, ratiosRes] = await Promise.all([
+        fetch(`${API_BASE}/macro/fred/series`),
+        fetch(`${API_BASE}/macro/commodities/ratios`)
+      ]);
+
+      const fredData = await fredSeriesRes.json();
+      const ratiosData = await ratiosRes.json();
+
+      setFredSeries(fredData.series || []);
+      setCommodityRatios(ratiosData.ratios || {});
+      setLoadedTabs(prev => new Set([...prev, 'commodities']));
+    } catch (error) {
+      console.error('Error fetching commodities data:', error);
+    } finally {
+      hideLoading();
+    }
+  };
+
+  const fetchCategoryData = async (category) => {
+    if (loadedTabs.has(category)) return; // Already loaded
+
+    showLoading('데이터를 불러오는 중...');
+    try {
+      const fredSeriesRes = await fetch(`${API_BASE}/macro/fred/series`);
+      const fredData = await fredSeriesRes.json();
+      setFredSeries(fredData.series || []);
+      setLoadedTabs(prev => new Set([...prev, category]));
+    } catch (error) {
+      console.error(`Error fetching ${category} data:`, error);
+    } finally {
+      hideLoading();
+    }
+  };
+
+  const fetchForexData = async () => {
+    if (loadedTabs.has('trade')) return; // Already loaded
+
+    showLoading('외환 데이터를 불러오는 중...');
+    try {
+      const [fredSeriesRes, forexRes] = await Promise.all([
         fetch(`${API_BASE}/macro/fred/series`),
         fetch(`${API_BASE}/macro/forex/rates`)
       ]);
 
-      const indicatorsData = await indicatorsRes.json();
       const fredData = await fredSeriesRes.json();
       const forexData = await forexRes.json();
 
-      setIndicators(indicatorsData.indicators || {});
       setFredSeries(fredData.series || []);
       setForexRates(forexData.forex_rates || []);
+      setLoadedTabs(prev => new Set([...prev, 'trade']));
     } catch (error) {
-      console.error('Error fetching macro data:', error);
+      console.error('Error fetching forex data:', error);
     } finally {
-      setLoading(false);
+      hideLoading();
     }
   };
 
   const fetchSeriesHistory = async (seriesKey, period = '5y') => {
+    showLoading('시계열 데이터를 불러오는 중...');
     try {
       const response = await fetch(`${API_BASE}/macro/fred/series/${seriesKey}?period=${period}`);
       const data = await response.json();
       setSeriesData(data);
+      setRatioData(null);  // Clear ratio data when showing series
     } catch (error) {
       console.error('Error fetching series history:', error);
+    } finally {
+      hideLoading();
+    }
+  };
+
+  const fetchRatioHistory = async (ratioType, period = '5y') => {
+    showLoading('비율 데이터를 불러오는 중...');
+    try {
+      const response = await fetch(`${API_BASE}/macro/commodities/ratios/${ratioType}?period=${period}`);
+      const data = await response.json();
+      setRatioData(data);
+      setSeriesData(null);  // Clear series data when showing ratio
+    } catch (error) {
+      console.error('Error fetching ratio history:', error);
+    } finally {
+      hideLoading();
     }
   };
 
@@ -113,11 +189,32 @@ const MacroAnalysis = () => {
     </div>
   );
 
+  const handleTabChange = async (tabId) => {
+    setActiveTab(tabId);
+    setSelectedSeries(null);
+    setSelectedRatio(null);
+    setSeriesData(null);
+    setRatioData(null);
+
+    // Load data for the tab if not already loaded
+    if (tabId === 'commodities') {
+      await fetchCommoditiesData();
+    } else if (tabId === 'trade') {
+      await fetchForexData();
+    } else if (['banking', 'money', 'rates', 'realestate'].includes(tabId)) {
+      await fetchCategoryData(tabId);
+    }
+    // 'overview' doesn't need additional data
+  };
+
   const renderOverview = () => (
     <div className="space-y-6">
       {/* Core Economic Indicators */}
       <div>
         <h2 className="text-lg font-semibold text-white mb-4">Core Economic Indicators</h2>
+        <p className="text-sm text-gray-400 mb-4">
+          Latest macroeconomic data. Click on each tab above to explore detailed data.
+        </p>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {indicators.gdp && renderMetricCard(
             'GDP',
@@ -163,41 +260,305 @@ const MacroAnalysis = () => {
           )}
         </div>
       </div>
+    </div>
+  );
 
-      {/* Forex Rates */}
-      {forexRates.length > 0 && (
+  const renderCommodities = () => {
+    // Show loading state if data not yet loaded
+    if (!loadedTabs.has('commodities')) {
+      return (
+        <div className="text-center py-12">
+          <Activity className="animate-spin mx-auto mb-4 text-blue-400" size={48} />
+          <p className="text-gray-400">Loading commodities data...</p>
+        </div>
+      );
+    }
+
+    const preciousMetals = fredSeries.filter(s => ['gold', 'silver', 'platinum', 'palladium'].includes(s.key));
+    const energy = fredSeries.filter(s => ['crude_oil_wti', 'natural_gas'].includes(s.key));
+    const industrialMetals = fredSeries.filter(s => ['copper'].includes(s.key));
+
+    return (
+      <div className="space-y-6">
+        {/* Commodity Ratios Section */}
         <div>
-          <h2 className="text-lg font-semibold text-white mb-4">Major Forex Rates</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {forexRates.map((rate) => (
-              <div key={rate.pair} className={`${CARD_CLASSES.default} p-4`}>
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <p className="text-xs text-gray-400 mb-1">{rate.pair}</p>
-                    <p className="text-2xl font-bold text-white">{rate.rate?.toFixed(4)}</p>
-                  </div>
-                  <Globe className="text-blue-400" size={20} />
-                </div>
-                {rate.change !== null && (
-                  <div className={`flex items-center text-sm ${rate.change >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {rate.change >= 0 ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
-                    <span className="ml-1">{Math.abs(rate.change).toFixed(2)}%</span>
-                  </div>
-                )}
+          <h2 className="text-lg font-semibold text-white mb-4">Commodity Ratios</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {Object.entries(commodityRatios).map(([key, ratio]) => (
+              <div
+                key={key}
+                onClick={() => setSelectedRatio(key)}
+                className={`${CARD_CLASSES.default} p-4 cursor-pointer hover:border-blue-500 transition-colors ${
+                  selectedRatio === key ? 'border-blue-500' : ''
+                }`}
+              >
+                <p className="text-xs text-gray-400 mb-1">{ratio.name}</p>
+                <p className="text-2xl font-bold text-white">
+                  {ratio.value?.toFixed(2) || 'N/A'}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">{ratio.description}</p>
               </div>
             ))}
           </div>
         </div>
-      )}
-    </div>
-  );
+
+        {/* Precious Metals */}
+        {preciousMetals.length > 0 && (
+          <div>
+            <h2 className="text-lg font-semibold text-white mb-4">Precious Metals</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {preciousMetals.map((series) => (
+                <div
+                  key={series.key}
+                  onClick={() => {
+                    setSelectedSeries(series);
+                    setSelectedRatio(null);
+                  }}
+                  className={`${CARD_CLASSES.default} p-4 cursor-pointer hover:border-blue-500 transition-colors ${
+                    selectedSeries?.key === series.key ? 'border-blue-500' : ''
+                  }`}
+                >
+                  <p className="text-xs text-gray-400 mb-1">{series.name}</p>
+                  <p className="text-2xl font-bold text-white">
+                    ${series.value?.toLocaleString() || 'N/A'}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">{series.unit}</p>
+                  {series.change !== null && (
+                    <div className={`flex items-center text-sm mt-2 ${series.change >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {series.change >= 0 ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
+                      <span className="ml-1">{Math.abs(series.change).toFixed(2)}%</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Energy Commodities */}
+        {energy.length > 0 && (
+          <div>
+            <h2 className="text-lg font-semibold text-white mb-4">Energy</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {energy.map((series) => (
+                <div
+                  key={series.key}
+                  onClick={() => {
+                    setSelectedSeries(series);
+                    setSelectedRatio(null);
+                  }}
+                  className={`${CARD_CLASSES.default} p-4 cursor-pointer hover:border-blue-500 transition-colors ${
+                    selectedSeries?.key === series.key ? 'border-blue-500' : ''
+                  }`}
+                >
+                  <p className="text-xs text-gray-400 mb-1">{series.name}</p>
+                  <p className="text-2xl font-bold text-white">
+                    ${series.value?.toLocaleString() || 'N/A'}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">{series.unit}</p>
+                  {series.change !== null && (
+                    <div className={`flex items-center text-sm mt-2 ${series.change >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {series.change >= 0 ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
+                      <span className="ml-1">{Math.abs(series.change).toFixed(2)}%</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Industrial Metals */}
+        {industrialMetals.length > 0 && (
+          <div>
+            <h2 className="text-lg font-semibold text-white mb-4">Industrial Metals</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {industrialMetals.map((series) => (
+                <div
+                  key={series.key}
+                  onClick={() => {
+                    setSelectedSeries(series);
+                    setSelectedRatio(null);
+                  }}
+                  className={`${CARD_CLASSES.default} p-4 cursor-pointer hover:border-blue-500 transition-colors ${
+                    selectedSeries?.key === series.key ? 'border-blue-500' : ''
+                  }`}
+                >
+                  <p className="text-xs text-gray-400 mb-1">{series.name}</p>
+                  <p className="text-2xl font-bold text-white">
+                    ${series.value?.toLocaleString() || 'N/A'}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">{series.unit}</p>
+                  {series.change !== null && (
+                    <div className={`flex items-center text-sm mt-2 ${series.change >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {series.change >= 0 ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
+                      <span className="ml-1">{Math.abs(series.change).toFixed(2)}%</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Chart for selected item */}
+        {(selectedSeries && seriesData) && (
+          <UniversalChartWidget
+            series={[
+              {
+                id: seriesData.key || 'commodity',
+                name: seriesData.name,
+                data: seriesData.data,
+                color: '#f59e0b',
+                visible: true
+              }
+            ]}
+            title={seriesData.name}
+            subtitle={`${seriesData.category} - ${seriesData.unit}`}
+            showTimeRanges={true}
+            showNormalize={false}
+            showVolume={false}
+            showTechnicalIndicators={true}
+          />
+        )}
+
+        {/* Chart for selected ratio */}
+        {(selectedRatio && ratioData) && (
+          <UniversalChartWidget
+            series={[
+              {
+                id: ratioData.ratio_type,
+                name: ratioData.name,
+                data: ratioData.data,
+                color: '#8b5cf6',
+                visible: true
+              }
+            ]}
+            title={ratioData.name}
+            subtitle={ratioData.description}
+            showTimeRanges={true}
+            showNormalize={false}
+            showVolume={false}
+            showTechnicalIndicators={true}
+          />
+        )}
+      </div>
+    );
+  };
+
+  const renderTrade = () => {
+    // Show loading state if data not yet loaded
+    if (!loadedTabs.has('trade')) {
+      return (
+        <div className="text-center py-12">
+          <Activity className="animate-spin mx-auto mb-4 text-blue-400" size={48} />
+          <p className="text-gray-400">Loading trade data...</p>
+        </div>
+      );
+    }
+
+    const tradeBalance = fredSeries.filter(s => s.key === 'trade_balance');
+
+    return (
+      <div className="space-y-6">
+        {/* Trade Balance */}
+        {tradeBalance.length > 0 && (
+          <div>
+            <h2 className="text-lg font-semibold text-white mb-4">Trade Balance</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {tradeBalance.map((series) => (
+                <div
+                  key={series.key}
+                  onClick={() => {
+                    setSelectedSeries(series);
+                    setSelectedRatio(null);
+                  }}
+                  className={`${CARD_CLASSES.default} p-4 cursor-pointer hover:border-blue-500 transition-colors ${
+                    selectedSeries?.key === series.key ? 'border-blue-500' : ''
+                  }`}
+                >
+                  <p className="text-xs text-gray-400 mb-1">{series.name}</p>
+                  <p className="text-2xl font-bold text-white">
+                    ${series.value?.toLocaleString() || 'N/A'}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">{series.unit}</p>
+                  {series.change !== null && (
+                    <div className={`flex items-center text-sm mt-2 ${series.change >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {series.change >= 0 ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
+                      <span className="ml-1">{Math.abs(series.change).toFixed(2)}%</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Forex Rates */}
+        {forexRates.length > 0 && (
+          <div>
+            <h2 className="text-lg font-semibold text-white mb-4">Major Forex Rates</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {forexRates.map((rate) => (
+                <div key={rate.pair} className={`${CARD_CLASSES.default} p-4`}>
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <p className="text-xs text-gray-400 mb-1">{rate.pair}</p>
+                      <p className="text-2xl font-bold text-white">{rate.rate?.toFixed(4)}</p>
+                    </div>
+                    <Globe className="text-blue-400" size={20} />
+                  </div>
+                  {rate.change !== null && (
+                    <div className={`flex items-center text-sm ${rate.change >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {rate.change >= 0 ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
+                      <span className="ml-1">{Math.abs(rate.change).toFixed(2)}%</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Chart for selected item */}
+        {(selectedSeries && seriesData) && (
+          <UniversalChartWidget
+            series={[
+              {
+                id: seriesData.key || 'trade',
+                name: seriesData.name,
+                data: seriesData.data,
+                color: '#3b82f6',
+                visible: true
+              }
+            ]}
+            title={seriesData.name}
+            subtitle={`${seriesData.category} - ${seriesData.unit}`}
+            showTimeRanges={true}
+            showNormalize={false}
+            showVolume={false}
+            showTechnicalIndicators={true}
+          />
+        )}
+      </div>
+    );
+  };
 
   const renderCategoryData = (category) => {
+    // Show loading state if data not yet loaded
+    if (!loadedTabs.has(category)) {
+      return (
+        <div className="text-center py-12">
+          <Activity className="animate-spin mx-auto mb-4 text-blue-400" size={48} />
+          <p className="text-gray-400">Loading data...</p>
+        </div>
+      );
+    }
+
     const categoryMap = {
       'banking': ['bank_loans', 'foreign_bank_assets', 'consumer_credit'],
       'money': ['money_supply_m1', 'money_supply_m2'],
       'rates': ['treasury_10y', 'treasury_2y'],
-      'trade': ['trade_balance'],
       'realestate': ['case_shiller']
     };
 
@@ -240,48 +601,23 @@ const MacroAnalysis = () => {
 
         {/* Chart for selected series */}
         {selectedSeries && seriesData && (
-          <div className={CARD_CLASSES.default}>
-            <div className="p-4 border-b border-gray-800">
-              <h3 className="text-lg font-semibold text-white">{seriesData.name}</h3>
-              <p className="text-sm text-gray-400">{seriesData.category} - {seriesData.unit}</p>
-            </div>
-            <div className="p-4">
-              <ResponsiveContainer width="100%" height={300}>
-                <AreaChart data={seriesData.data}>
-                  <defs>
-                    <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                  <XAxis
-                    dataKey="date"
-                    stroke="#666"
-                    tick={{ fill: '#666', fontSize: 12 }}
-                  />
-                  <YAxis
-                    stroke="#666"
-                    tick={{ fill: '#666', fontSize: 12 }}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#1a1a1a',
-                      border: '1px solid #333',
-                      borderRadius: '8px'
-                    }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="value"
-                    stroke="#3b82f6"
-                    strokeWidth={2}
-                    fill="url(#colorValue)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+          <UniversalChartWidget
+            series={[
+              {
+                id: seriesData.key || 'macro_series',
+                name: seriesData.name,
+                data: seriesData.data,
+                color: '#3b82f6',
+                visible: true
+              }
+            ]}
+            title={seriesData.name}
+            subtitle={`${seriesData.category} - ${seriesData.unit}`}
+            showTimeRanges={true}
+            showNormalize={false}
+            showVolume={false}
+            showTechnicalIndicators={true}
+          />
         )}
       </div>
     );
@@ -315,11 +651,7 @@ const MacroAnalysis = () => {
           return (
             <button
               key={tab.id}
-              onClick={() => {
-                setActiveTab(tab.id);
-                setSelectedSeries(null);
-                setSeriesData(null);
-              }}
+              onClick={() => handleTabChange(tab.id)}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors whitespace-nowrap ${
                 activeTab === tab.id
                   ? 'bg-blue-600 text-white'
@@ -336,10 +668,11 @@ const MacroAnalysis = () => {
       {/* Content */}
       <div>
         {activeTab === 'overview' && renderOverview()}
+        {activeTab === 'commodities' && renderCommodities()}
         {activeTab === 'banking' && renderCategoryData('banking')}
         {activeTab === 'money' && renderCategoryData('money')}
         {activeTab === 'rates' && renderCategoryData('rates')}
-        {activeTab === 'trade' && renderCategoryData('trade')}
+        {activeTab === 'trade' && renderTrade()}
         {activeTab === 'realestate' && renderCategoryData('realestate')}
       </div>
     </div>

@@ -16,6 +16,7 @@ import {
 import Card from './widgets/common/Card';
 import MetricCard from './widgets/common/MetricCard';
 import SectionHeader from './widgets/common/SectionHeader';
+import { useLoading } from '../contexts/LoadingContext';
 import { API_BASE } from '../config/api';
 
 /**
@@ -23,6 +24,8 @@ import { API_BASE } from '../config/api';
  * Displays 13F institutional holdings with pagination and filtering
  */
 const InstitutionalPortfolios = () => {
+  const { showLoading, hideLoading } = useLoading();
+
   // State management
   const [institutions, setInstitutions] = useState([]);
   const [portfolios, setPortfolios] = useState([]);
@@ -56,6 +59,7 @@ const InstitutionalPortfolios = () => {
 
   const fetchInstitutions = async () => {
     setInitialLoading(true);
+    showLoading('기관 목록을 불러오는 중...');
     try {
       const response = await fetch(`${API_BASE}/portfolio/13f/institutions`);
       if (response.ok) {
@@ -66,11 +70,13 @@ const InstitutionalPortfolios = () => {
       console.error('Error fetching institutions:', error);
     } finally {
       setInitialLoading(false);
+      hideLoading();
     }
   };
 
   const fetchPortfolio = async (institutionKey) => {
     setLoading(true);
+    showLoading('포트폴리오 데이터를 불러오는 중...');
     try {
       const response = await fetch(`${API_BASE}/portfolio/13f/${institutionKey}`);
       if (response.ok) {
@@ -86,6 +92,7 @@ const InstitutionalPortfolios = () => {
       console.error('Error fetching portfolio:', error);
     } finally {
       setLoading(false);
+      hideLoading();
     }
   };
 

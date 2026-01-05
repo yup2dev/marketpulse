@@ -92,6 +92,51 @@ class MacroService:
             'category': 'Real Estate',
             'unit': 'Index Jan 2000=100'
         },
+        # Commodities - Precious Metals
+        'gold': {
+            'id': 'GOLDPMGBD228NLBM',
+            'name': 'Gold Fixing Price (London)',
+            'category': 'Commodities',
+            'unit': 'USD per Troy Ounce'
+        },
+        'silver': {
+            'id': 'SLVPRUSD',
+            'name': 'Global Price of Silver',
+            'category': 'Commodities',
+            'unit': 'USD per Troy Ounce'
+        },
+        'platinum': {
+            'id': 'PLTMLGBD228NLBM',
+            'name': 'Platinum Price (London)',
+            'category': 'Commodities',
+            'unit': 'USD per Troy Ounce'
+        },
+        'palladium': {
+            'id': 'PALUMLGBD228NLBM',
+            'name': 'Palladium Price (London)',
+            'category': 'Commodities',
+            'unit': 'USD per Troy Ounce'
+        },
+        # Commodities - Energy
+        'crude_oil_wti': {
+            'id': 'DCOILWTICO',
+            'name': 'Crude Oil Prices: West Texas Intermediate (WTI)',
+            'category': 'Commodities',
+            'unit': 'USD per Barrel'
+        },
+        'natural_gas': {
+            'id': 'DHHNGSP',
+            'name': 'Henry Hub Natural Gas Spot Price',
+            'category': 'Commodities',
+            'unit': 'USD per Million Btu'
+        },
+        # Commodities - Industrial Metals
+        'copper': {
+            'id': 'PCOPPUSDM',
+            'name': 'Global Price of Copper',
+            'category': 'Commodities',
+            'unit': 'USD per Metric Ton'
+        },
     }
 
     # Major forex pairs
@@ -148,13 +193,17 @@ class MacroService:
 
         try:
             # Fed Funds Rate
-            rate_data = await FREDInterestRateFetcher.fetch_data({'rate_type': 'DFF'})
+            rate_data = await FREDInterestRateFetcher.fetch_data({'rate_type': 'federal_funds'})
             if rate_data and len(rate_data) > 0:
+                # Get the most recent data (last item in sorted list)
+                latest = rate_data[-1]
+                prev = rate_data[-2] if len(rate_data) > 1 else None
+
                 indicators['fed_funds_rate'] = {
-                    'value': rate_data[0].value,
-                    'date': rate_data[0].date.isoformat() if rate_data[0].date else None,
+                    'value': latest.rate,
+                    'date': latest.date.isoformat() if latest.date else None,
                     'unit': 'Percent',
-                    'change': self._calculate_change(rate_data[:2]) if len(rate_data) > 1 else None
+                    'change': ((latest.rate - prev.rate) / prev.rate * 100) if prev and prev.rate else None
                 }
         except Exception as e:
             log.error(f"Error fetching Fed Funds Rate: {e}")
@@ -212,11 +261,13 @@ class MacroService:
                 env_var="FRED_API_KEY"
             )
 
+            # Fetch historical data in ascending order for charts
             observations = FredSeriesFetcher.fetch_series(
                 series_id=series_info['id'],
                 api_key=api_key,
                 start_date=start_date,
-                end_date=end_date
+                end_date=end_date,
+                sort_order='asc'
             )
 
             data = [
@@ -253,15 +304,18 @@ class MacroService:
                     env_var="FRED_API_KEY"
                 )
 
+                # Fetch with sort_order='desc' to get most recent data first
                 observations = FredSeriesFetcher.fetch_series(
                     series_id=info['id'],
                     api_key=api_key,
-                    limit=2
+                    limit=2,
+                    sort_order='desc'
                 )
 
                 if observations:
-                    latest = observations[-1]
-                    prev = observations[-2] if len(observations) > 1 else None
+                    # With sort_order='desc', index 0 is most recent
+                    latest = observations[0]
+                    prev = observations[1] if len(observations) > 1 else None
 
                     value = float(latest['value']) if latest['value'] != '.' else None
                     prev_value = float(prev['value']) if prev and prev['value'] != '.' else None
@@ -289,6 +343,21 @@ class MacroService:
     async def get_forex_rates(self) -> List[Dict[str, Any]]:
         """Get latest forex exchange rates"""
         rates = []
+
+        # Check if AlphaVantage API key is available
+        try:
+            from data_fetcher.utils.api_keys import get_api_key
+            api_key = get_api_key(
+                credentials=None,
+                api_name="AlphaVantage",
+                env_var="ALPHAVANTAGE_API_KEY"
+            )
+            if not api_key:
+                log.info("AlphaVantage API key not configured, skipping forex rates")
+                return rates
+        except Exception as e:
+            log.info(f"AlphaVantage API key not available, skipping forex rates: {e}")
+            return rates
 
         for pair in self.FOREX_PAIRS:
             try:
@@ -358,6 +427,231 @@ class MacroService:
         except Exception as e:
             log.error(f"Error fetching forex history: {e}")
             raise
+
+    async def get_commodity_ratios(self) -> Dict[str, Any]:
+        """
+        Calculate important commodity ratios
+        Returns ratios like Gold/Silver, Gold/Oil, Copper/Gold
+        """
+        ratios = {}
+
+        try:
+            api_key = get_api_key(
+                credentials=None,
+                api_name="FRED",
+                env_var="FRED_API_KEY"
+            )
+
+            # Fetch latest prices for commodities with sort_order='desc' to get most recent
+            gold_obs = FredSeriesFetcher.fetch_series(
+                series_id='GOLDPMGBD228NLBM',
+                api_key=api_key,
+                limit=1,
+                sort_order='desc'
+            )
+            silver_obs = FredSeriesFetcher.fetch_series(
+                series_id='SLVPRUSD',
+                api_key=api_key,
+                limit=1,
+                sort_order='desc'
+            )
+            oil_obs = FredSeriesFetcher.fetch_series(
+                series_id='DCOILWTICO',
+                api_key=api_key,
+                limit=1,
+                sort_order='desc'
+            )
+            copper_obs = FredSeriesFetcher.fetch_series(
+                series_id='PCOPPUSDM',
+                api_key=api_key,
+                limit=1,
+                sort_order='desc'
+            )
+
+            # Calculate Gold/Silver Ratio
+            if gold_obs and silver_obs:
+                gold_price = float(gold_obs[0]['value']) if gold_obs[0]['value'] != '.' else None
+                silver_price = float(silver_obs[0]['value']) if silver_obs[0]['value'] != '.' else None
+
+                if gold_price and silver_price and silver_price != 0:
+                    ratios['gold_silver'] = {
+                        'name': 'Gold/Silver Ratio',
+                        'value': gold_price / silver_price,
+                        'description': 'Ounces of silver to buy one ounce of gold',
+                        'date': gold_obs[0]['date']
+                    }
+
+            # Calculate Gold/Oil Ratio
+            if gold_obs and oil_obs:
+                gold_price = float(gold_obs[0]['value']) if gold_obs[0]['value'] != '.' else None
+                oil_price = float(oil_obs[0]['value']) if oil_obs[0]['value'] != '.' else None
+
+                if gold_price and oil_price and oil_price != 0:
+                    ratios['gold_oil'] = {
+                        'name': 'Gold/Oil Ratio',
+                        'value': gold_price / oil_price,
+                        'description': 'Barrels of oil to buy one ounce of gold',
+                        'date': gold_obs[0]['date']
+                    }
+
+            # Calculate Copper/Gold Ratio (economic health indicator)
+            if copper_obs and gold_obs:
+                copper_price = float(copper_obs[0]['value']) if copper_obs[0]['value'] != '.' else None
+                gold_price = float(gold_obs[0]['value']) if gold_obs[0]['value'] != '.' else None
+
+                if copper_price and gold_price and gold_price != 0:
+                    # Normalize: copper price per ton / gold price per oz
+                    ratios['copper_gold'] = {
+                        'name': 'Copper/Gold Ratio',
+                        'value': (copper_price / 1000) / gold_price,  # Convert to comparable units
+                        'description': 'Economic health indicator (higher = growth)',
+                        'date': copper_obs[0]['date']
+                    }
+
+        except Exception as e:
+            log.error(f"Error calculating commodity ratios: {e}")
+
+        return ratios
+
+    async def get_ratio_history(
+        self,
+        ratio_type: str,
+        period: str = "5y"
+    ) -> Dict[str, Any]:
+        """
+        Get historical data for commodity ratios
+
+        Args:
+            ratio_type: Type of ratio (gold_silver, gold_oil, copper_gold)
+            period: Time period (1y, 3y, 5y, 10y, max)
+        """
+        start_date, end_date = parse_period_to_dates(period)
+
+        try:
+            api_key = get_api_key(
+                credentials=None,
+                api_name="FRED",
+                env_var="FRED_API_KEY"
+            )
+
+            if ratio_type == 'gold_silver':
+                # Fetch gold and silver data (asc order for historical chart)
+                gold_obs = FredSeriesFetcher.fetch_series(
+                    series_id='GOLDPMGBD228NLBM',
+                    api_key=api_key,
+                    start_date=start_date,
+                    end_date=end_date,
+                    sort_order='asc'
+                )
+                silver_obs = FredSeriesFetcher.fetch_series(
+                    series_id='SLVPRUSD',
+                    api_key=api_key,
+                    start_date=start_date,
+                    end_date=end_date,
+                    sort_order='asc'
+                )
+
+                # Calculate ratio for each date
+                data = self._calculate_ratio_series(gold_obs, silver_obs)
+
+                return {
+                    'ratio_type': ratio_type,
+                    'name': 'Gold/Silver Ratio',
+                    'description': 'Ounces of silver to buy one ounce of gold',
+                    'data': data
+                }
+
+            elif ratio_type == 'gold_oil':
+                gold_obs = FredSeriesFetcher.fetch_series(
+                    series_id='GOLDPMGBD228NLBM',
+                    api_key=api_key,
+                    start_date=start_date,
+                    end_date=end_date,
+                    sort_order='asc'
+                )
+                oil_obs = FredSeriesFetcher.fetch_series(
+                    series_id='DCOILWTICO',
+                    api_key=api_key,
+                    start_date=start_date,
+                    end_date=end_date,
+                    sort_order='asc'
+                )
+
+                data = self._calculate_ratio_series(gold_obs, oil_obs)
+
+                return {
+                    'ratio_type': ratio_type,
+                    'name': 'Gold/Oil Ratio',
+                    'description': 'Barrels of oil to buy one ounce of gold',
+                    'data': data
+                }
+
+            elif ratio_type == 'copper_gold':
+                copper_obs = FredSeriesFetcher.fetch_series(
+                    series_id='PCOPPUSDM',
+                    api_key=api_key,
+                    start_date=start_date,
+                    end_date=end_date,
+                    sort_order='asc'
+                )
+                gold_obs = FredSeriesFetcher.fetch_series(
+                    series_id='GOLDPMGBD228NLBM',
+                    api_key=api_key,
+                    start_date=start_date,
+                    end_date=end_date,
+                    sort_order='asc'
+                )
+
+                # Normalize copper price (per ton) vs gold (per oz)
+                data = self._calculate_ratio_series(
+                    copper_obs,
+                    gold_obs,
+                    numerator_scale=1/1000  # Convert copper to comparable units
+                )
+
+                return {
+                    'ratio_type': ratio_type,
+                    'name': 'Copper/Gold Ratio',
+                    'description': 'Economic health indicator',
+                    'data': data
+                }
+
+            else:
+                raise ValueError(f"Unknown ratio type: {ratio_type}")
+
+        except Exception as e:
+            log.error(f"Error fetching ratio history for {ratio_type}: {e}")
+            raise
+
+    def _calculate_ratio_series(
+        self,
+        numerator_obs: List,
+        denominator_obs: List,
+        numerator_scale: float = 1.0
+    ) -> List[Dict[str, Any]]:
+        """Calculate ratio time series from two observation series"""
+        # Create date map for denominator
+        denom_map = {
+            obs['date']: float(obs['value']) if obs['value'] != '.' else None
+            for obs in denominator_obs
+        }
+
+        data = []
+        for num_obs in numerator_obs:
+            if num_obs['value'] == '.':
+                continue
+
+            date = num_obs['date']
+            num_value = float(num_obs['value']) * numerator_scale
+            denom_value = denom_map.get(date)
+
+            if denom_value and denom_value != 0:
+                data.append({
+                    'date': date,
+                    'value': num_value / denom_value
+                })
+
+        return data
 
     def _calculate_change(self, data: List) -> Optional[float]:
         """Calculate percentage change between two data points"""

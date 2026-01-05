@@ -153,7 +153,9 @@ def parse_period_to_dates(period: str = "1y") -> tuple[date, date]:
         parse_period_to_dates("3mo") -> (3 months ago, today)
         parse_period_to_dates("max") -> (50 years ago, today)
     """
-    end_date = date.today()
+    # Use a safe end date (a few days ago) to avoid issues with future dates
+    # Economic data is typically delayed by a few days anyway
+    end_date = date.today() - timedelta(days=3)
 
     # period 파싱
     period = period.lower().strip()
@@ -199,7 +201,8 @@ def get_date_range(
         (start_date, end_date) 튜플
     """
     if end_date is None:
-        end_date = date.today()
+        # Use a safe end date to avoid issues with future dates
+        end_date = date.today() - timedelta(days=3)
 
     if start_date is None:
         start_date = end_date - timedelta(days=default_days)

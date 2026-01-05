@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Save, Trash2, X, Play } from 'lucide-react';
 import { BUTTON_CLASSES, CARD_CLASSES, INPUT_CLASSES } from '../styles/designTokens';
+import { useLoading } from '../contexts/LoadingContext';
 import { API_BASE } from '../config/api';
 
 const PortfolioSettings = ({ onNavigate }) => {
+  const { showLoading, hideLoading } = useLoading();
+
   const [portfolios, setPortfolios] = useState([]);
   const [currentPortfolio, setCurrentPortfolio] = useState({
     name: '',
@@ -42,6 +45,7 @@ const PortfolioSettings = ({ onNavigate }) => {
   };
 
   const fetchUniverseStocks = async (universeId) => {
+    showLoading('유니버스 주식 데이터를 불러오는 중...');
     try {
       const response = await fetch(`${API_BASE}/backtest/universe/${universeId}`);
       if (response.ok) {
@@ -50,6 +54,8 @@ const PortfolioSettings = ({ onNavigate }) => {
       }
     } catch (error) {
       console.error('Error fetching universe stocks:', error);
+    } finally {
+      hideLoading();
     }
   };
 

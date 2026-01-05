@@ -3,7 +3,7 @@ import { BarChart3 } from 'lucide-react';
 import ConfigPanel from './backtest/ConfigPanel';
 import ResultsDashboard from './backtest/ResultsDashboard';
 import { DESIGN_TOKENS } from '../styles/designTokens';
-
+import { useLoading } from '../contexts/LoadingContext';
 import { API_BASE } from '../config/api';
 
 /**
@@ -11,6 +11,8 @@ import { API_BASE } from '../config/api';
  * Combines all backtesting functionality in one place
  */
 const UnifiedBacktest = () => {
+  const { showLoading, hideLoading } = useLoading();
+
   const [config, setConfig] = useState({
     symbols: [],
     weights: {},
@@ -61,6 +63,7 @@ const UnifiedBacktest = () => {
 
     setLoading(true);
     setError(null);
+    showLoading('백테스트를 실행하는 중입니다...');
 
     try {
       const response = await fetch(`${API_BASE}/backtest/run`, {
@@ -90,6 +93,7 @@ const UnifiedBacktest = () => {
       alert(`Error: ${err.message || 'Failed to run backtest'}`);
     } finally {
       setLoading(false);
+      hideLoading();
     }
   };
 
@@ -144,7 +148,7 @@ const UnifiedBacktest = () => {
               </div>
             )}
 
-            <ResultsDashboard results={results} />
+            <ResultsDashboard results={results} config={config} />
           </div>
         </div>
       </div>

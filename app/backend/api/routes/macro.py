@@ -113,6 +113,43 @@ async def get_forex_history(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/commodities/ratios")
+async def get_commodity_ratios():
+    """
+    Get current commodity ratios (Gold/Silver, Gold/Oil, Copper/Gold)
+
+    These ratios are important economic indicators:
+    - Gold/Silver: Traditional store of value ratio
+    - Gold/Oil: Purchasing power indicator
+    - Copper/Gold: Economic health indicator (higher = growth)
+    """
+    try:
+        ratios = await macro_service.get_commodity_ratios()
+        return {"ratios": ratios}
+    except Exception as e:
+        log.error(f"Error fetching commodity ratios: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/commodities/ratios/{ratio_type}")
+async def get_ratio_history(ratio_type: str, period: str = "5y"):
+    """
+    Get historical data for a commodity ratio
+
+    Args:
+        ratio_type: Type of ratio (gold_silver, gold_oil, copper_gold)
+        period: Time period (1y, 3y, 5y, 10y, max)
+    """
+    try:
+        data = await macro_service.get_ratio_history(ratio_type, period)
+        return data
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        log.error(f"Error fetching ratio history for {ratio_type}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/categories")
 async def get_macro_categories():
     """
@@ -160,6 +197,16 @@ async def get_macro_categories():
                 "name": "Real Estate",
                 "description": "Housing market data",
                 "indicators": ["Case-Shiller Index", "Housing Starts"]
+            },
+            {
+                "id": "commodities",
+                "name": "Commodities",
+                "description": "Commodity prices and ratios",
+                "indicators": [
+                    "Gold", "Silver", "Platinum", "Palladium",
+                    "Crude Oil (WTI)", "Natural Gas", "Copper",
+                    "Gold/Silver Ratio", "Gold/Oil Ratio", "Copper/Gold Ratio"
+                ]
             }
         ]
     }

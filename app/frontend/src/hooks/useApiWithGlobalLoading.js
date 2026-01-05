@@ -2,16 +2,24 @@ import { useState, useEffect, useCallback } from 'react';
 import { apiClient } from '../config/api';
 import { useLoading } from '../contexts/LoadingContext';
 
-export const useApi = (url, options = {}) => {
+/**
+ * useApi hook with global loading overlay support
+ * @param {string} url - API endpoint URL
+ * @param {object} options - Configuration options
+ * @param {boolean} options.manual - If true, won't fetch automatically on mount
+ * @param {boolean} options.useGlobalLoading - If true, shows global loading overlay (default: false)
+ * @param {string} options.loadingMessage - Custom loading message for global overlay
+ */
+export const useApiWithGlobalLoading = (url, options = {}) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const { showLoading, hideLoading } = useLoading();
 
   const {
-    manual = false,
     useGlobalLoading = false,
-    loadingMessage = '데이터를 불러오는 중...'
+    loadingMessage = '데이터를 불러오는 중...',
+    manual = false
   } = options;
 
   const fetchData = useCallback(async () => {
@@ -50,7 +58,10 @@ export const useApi = (url, options = {}) => {
   return { data, loading, error, refetch };
 };
 
-export const useApiMutation = (options = {}) => {
+/**
+ * useApiMutation hook with global loading overlay support
+ */
+export const useApiMutationWithGlobalLoading = (options = {}) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const { showLoading, hideLoading } = useLoading();

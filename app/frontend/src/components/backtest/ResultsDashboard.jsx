@@ -1,14 +1,14 @@
 import React from 'react';
 import { TrendingUp, TrendingDown, Activity, Target } from 'lucide-react';
 import MetricCard from '../widgets/common/MetricCard';
-import EquityCurve from './EquityCurve';
+import BacktestChartWidget from './BacktestChartWidget';
 import PerformanceTable from './PerformanceTable';
 import { CARD_CLASSES } from '../../styles/designTokens';
 
 /**
  * ResultsDashboard - Display backtest results with charts and metrics
  */
-const ResultsDashboard = ({ results, className = '' }) => {
+const ResultsDashboard = ({ results, config, className = '' }) => {
   if (!results) {
     return (
       <div className={`flex flex-col items-center justify-center h-full min-h-[600px] ${className}`}>
@@ -21,14 +21,7 @@ const ResultsDashboard = ({ results, className = '' }) => {
     );
   }
 
-  const { statistics, portfolio_values, benchmark_values, yearly_returns } = results;
-
-  // Format chart data
-  const chartData = portfolio_values.map((pv, index) => ({
-    date: pv.date,
-    portfolio: pv.value,
-    benchmark: benchmark_values[index]?.value || null
-  }));
+  const { statistics, yearly_returns } = results;
 
   return (
     <div className={`space-y-6 ${className}`}>
@@ -60,11 +53,8 @@ const ResultsDashboard = ({ results, className = '' }) => {
         />
       </div>
 
-      {/* Equity Curve Chart */}
-      <div className={CARD_CLASSES.default}>
-        <h3 className="text-lg font-semibold text-white mb-4">Equity Curve</h3>
-        <EquityCurve data={chartData} showBenchmark={true} />
-      </div>
+      {/* Equity Curve Chart with Technical Indicators */}
+      <BacktestChartWidget results={results} config={config} />
 
       {/* Performance Summary Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -106,13 +96,13 @@ const ResultsDashboard = ({ results, className = '' }) => {
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-400">Initial Capital</span>
               <span className="text-sm font-semibold text-white">
-                ${portfolio_values[0]?.value.toLocaleString()}
+                ${results.portfolio_values[0]?.value.toLocaleString()}
               </span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-400">Final Value</span>
               <span className="text-sm font-semibold text-white">
-                ${portfolio_values[portfolio_values.length - 1]?.value.toLocaleString()}
+                ${results.portfolio_values[results.portfolio_values.length - 1]?.value.toLocaleString()}
               </span>
             </div>
             <div className="flex justify-between items-center">
@@ -120,7 +110,7 @@ const ResultsDashboard = ({ results, className = '' }) => {
               <span className={`text-sm font-semibold ${
                 statistics.totalReturn >= 0 ? 'text-green-400' : 'text-red-400'
               }`}>
-                ${((portfolio_values[portfolio_values.length - 1]?.value - portfolio_values[0]?.value) || 0).toLocaleString()}
+                ${((results.portfolio_values[results.portfolio_values.length - 1]?.value - results.portfolio_values[0]?.value) || 0).toLocaleString()}
               </span>
             </div>
             <div className="flex justify-between items-center">
