@@ -1,6 +1,18 @@
-import { TrendingUp, Grid3x3, LayoutDashboard, BarChart3, Briefcase, Globe } from 'lucide-react';
+import { TrendingUp, Grid3x3, LayoutDashboard, BarChart3, Briefcase, Globe, LogOut, User } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import useAuthStore from '../store/authStore';
 
 const Layout = ({ children, activeView, onNavigate }) => {
+  const navigate = useNavigate();
+  const { user, logout } = useAuthStore();
+
+  const handleLogout = async () => {
+    await logout();
+    toast.success('로그아웃되었습니다.');
+    navigate('/login');
+  };
+
   return (
     <div className="min-h-screen bg-[#0d0d0d] flex flex-col">
       {/* Header */}
@@ -16,7 +28,8 @@ const Layout = ({ children, activeView, onNavigate }) => {
                 <p className="text-xs text-gray-400">Real-time Stock Analytics</p>
               </div>
             </div>
-            <nav className="flex items-center gap-2">
+            <div className="flex items-center gap-4">
+              <nav className="flex items-center gap-2">
               <button
                 onClick={() => onNavigate('professional')}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
@@ -73,6 +86,23 @@ const Layout = ({ children, activeView, onNavigate }) => {
                 <span className="text-sm font-medium">Portfolio</span>
               </button>
             </nav>
+
+            {/* User Menu */}
+            <div className="flex items-center gap-3 ml-4 pl-4 border-l border-gray-700">
+              <div className="flex items-center gap-2 text-gray-300">
+                <User size={18} />
+                <span className="text-sm">{user?.username || user?.email}</span>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-300 hover:text-white hover:bg-gray-800 transition-all"
+                title="로그아웃"
+              >
+                <LogOut size={18} />
+                <span className="text-sm font-medium">로그아웃</span>
+              </button>
+            </div>
+            </div>
           </div>
         </div>
       </header>

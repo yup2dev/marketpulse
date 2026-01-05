@@ -18,9 +18,15 @@ from fastapi.middleware.cors import CORSMiddleware
 
 # Import routes
 try:
-    from app.backend.api.routes import stock, economic, news, dashboard, backtest, portfolio, macro
+    from app.backend.api.routes import (
+        stock, economic, news, dashboard, backtest, portfolio, macro,
+        auth, user_portfolio, screener, alerts, export
+    )
 except ModuleNotFoundError:
-    from api.routes import stock, economic, news, dashboard, backtest, portfolio, macro
+    from api.routes import (
+        stock, economic, news, dashboard, backtest, portfolio, macro,
+        auth, user_portfolio, screener, alerts, export
+    )
 
 app = FastAPI(
     title="MarketPulse Dashboard",
@@ -45,6 +51,11 @@ app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="stat
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 # Include routers
+app.include_router(auth.router, prefix="/api", tags=["auth"])
+app.include_router(user_portfolio.router, prefix="/api", tags=["user-portfolio"])
+app.include_router(screener.router, prefix="/api", tags=["screener"])
+app.include_router(alerts.router, prefix="/api", tags=["alerts"])
+app.include_router(export.router, prefix="/api", tags=["export"])
 app.include_router(stock.router, prefix="/api/stock", tags=["stock"])
 app.include_router(economic.router, prefix="/api/economic", tags=["economic"])
 app.include_router(news.router, prefix="/api/news", tags=["news"])

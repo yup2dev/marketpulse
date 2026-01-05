@@ -439,6 +439,349 @@ class MBS_IN_BOND_ISSUANCE(Base):
 
 
 # =============================================================================
+# USER & PORTFOLIO Layer: 사용자 및 포트폴리오 관리
+# =============================================================================
+
+class User(Base):
+    """
+    사용자 계정 정보
+    """
+    __tablename__ = 'users'
+
+    user_id = Column(String(50), primary_key=True)  # UUID
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    username = Column(String(100), unique=True, nullable=False, index=True)
+    hashed_password = Column(String(255), nullable=False)
+
+    # 사용자 정보
+    full_name = Column(String(200))
+    is_active = Column(Boolean, default=True, index=True)
+    is_verified = Column(Boolean, default=False)
+    role = Column(String(20), default='user')  # user, premium, admin
+
+    # 타임스탬프
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_login = Column(DateTime)
+
+    # Relationships
+    portfolios = relationship("Portfolio", back_populates="user", cascade="all, delete-orphan")
+    watchlists = relationship("Watchlist", back_populates="user", cascade="all, delete-orphan")
+    alerts = relationship("Alert", back_populates="user", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index('idx_user_email', 'email'),
+        Index('idx_user_username', 'username'),
+        Index('idx_user_active', 'is_active'),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            'user_id': self.user_id,
+            'email': self.email,
+            'username': self.username,
+            'full_name': self.full_name,
+            'is_active': self.is_active,
+            'is_verified': self.is_verified,
+            'role': self.role,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'last_login': self.last_login.isoformat() if self.last_login else None
+        }
+
+
+class Portfolio(Base):
+    """
+    사용자 포트폴리오
+    """
+    __tablename__ = 'portfolios'
+
+    portfolio_id = Column(String(50), primary_key=True)  # UUID
+    user_id = Column(String(50), ForeignKey('users.user_id'), nullable=False, index=True)
+
+    # 포트폴리오 정보
+    name = Column(String(200), nullable=False)
+    description = Column(Text)
+    currency = Column(String(10), default='USD')
+    is_default = Column(Boolean, default=False)
+
+    # 설정
+    benchmark = Column(String(20))  # SPY, QQQ 등
+    rebalance_frequency = Column(String(20))  # daily, weekly, monthly, quarterly
+
+    # 타임스탬프
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", back_populates="portfolios")
+    holdings = relationship("Holding", back_populates="portfolio", cascade="all, delete-orphan")
+    transactions = relationship("Transaction", back_populates="portfolio", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index('idx_portfolio_user', 'user_id'),
+        Index('idx_portfolio_default', 'user_id', 'is_default'),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            'portfolio_id': self.portfolio_id,
+            'user_id': self.user_id,
+            'name': self.name,
+            'description': self.description,
+            'currency': self.currency,
+            'is_default': self.is_default,
+            'benchmark': self.benchmark,
+            'rebalance_frequency': self.rebalance_frequency,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+
+class Transaction(Base):
+    """
+    거래 기록
+    """
+    __tablename__ = 'transactions'
+
+    transaction_id = Column(String(50), primary_key=True)  # UUID
+    portfolio_id = Column(String(50), ForeignKey('portfolios.portfolio_id'), nullable=False, index=True)
+
+    # 거래 정보
+    ticker_cd = Column(String(20), nullable=False, index=True)
+    transaction_type = Column(String(20), nullable=False)  # buy, sell, dividend
+    quantity = Column(DECIMAL(20, 8), nullable=False)
+    price = Column(DECIMAL(20, 4), nullable=False)
+    commission = Column(DECIMAL(20, 4), default=0)
+    tax = Column(DECIMAL(20, 4), default=0)
+
+    # 계산 필드
+    total_amount = Column(DECIMAL(20, 4))  # quantity * price + commission + tax
+
+    # 날짜
+    transaction_date = Column(DateTime, nullable=False, index=True)
+    notes = Column(Text)
+
+    # 타임스탬프
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    portfolio = relationship("Portfolio", back_populates="transactions")
+
+    __table_args__ = (
+        Index('idx_transaction_portfolio', 'portfolio_id'),
+        Index('idx_transaction_ticker', 'ticker_cd'),
+        Index('idx_transaction_date', 'transaction_date'),
+        Index('idx_transaction_type', 'transaction_type'),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            'transaction_id': self.transaction_id,
+            'portfolio_id': self.portfolio_id,
+            'ticker_cd': self.ticker_cd,
+            'transaction_type': self.transaction_type,
+            'quantity': float(self.quantity) if self.quantity else None,
+            'price': float(self.price) if self.price else None,
+            'commission': float(self.commission) if self.commission else None,
+            'tax': float(self.tax) if self.tax else None,
+            'total_amount': float(self.total_amount) if self.total_amount else None,
+            'transaction_date': self.transaction_date.isoformat() if self.transaction_date else None,
+            'notes': self.notes,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class Holding(Base):
+    """
+    현재 보유 종목 (계산된 값)
+    """
+    __tablename__ = 'holdings'
+
+    holding_id = Column(String(50), primary_key=True)  # UUID
+    portfolio_id = Column(String(50), ForeignKey('portfolios.portfolio_id'), nullable=False, index=True)
+
+    # 보유 정보
+    ticker_cd = Column(String(20), nullable=False, index=True)
+    quantity = Column(DECIMAL(20, 8), nullable=False)
+    avg_cost = Column(DECIMAL(20, 4), nullable=False)  # 평균 매입가
+    current_price = Column(DECIMAL(20, 4))  # 현재가 (실시간 업데이트)
+
+    # 계산 필드
+    total_cost = Column(DECIMAL(20, 4))  # quantity * avg_cost
+    market_value = Column(DECIMAL(20, 4))  # quantity * current_price
+    unrealized_pnl = Column(DECIMAL(20, 4))  # market_value - total_cost
+    unrealized_pnl_pct = Column(DECIMAL(10, 4))  # (market_value - total_cost) / total_cost * 100
+
+    # 타임스탬프
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    portfolio = relationship("Portfolio", back_populates="holdings")
+
+    __table_args__ = (
+        UniqueConstraint('portfolio_id', 'ticker_cd', name='uq_portfolio_ticker'),
+        Index('idx_holding_portfolio', 'portfolio_id'),
+        Index('idx_holding_ticker', 'ticker_cd'),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            'holding_id': self.holding_id,
+            'portfolio_id': self.portfolio_id,
+            'ticker_cd': self.ticker_cd,
+            'quantity': float(self.quantity) if self.quantity else None,
+            'avg_cost': float(self.avg_cost) if self.avg_cost else None,
+            'current_price': float(self.current_price) if self.current_price else None,
+            'total_cost': float(self.total_cost) if self.total_cost else None,
+            'market_value': float(self.market_value) if self.market_value else None,
+            'unrealized_pnl': float(self.unrealized_pnl) if self.unrealized_pnl else None,
+            'unrealized_pnl_pct': float(self.unrealized_pnl_pct) if self.unrealized_pnl_pct else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+
+class Watchlist(Base):
+    """
+    관심 종목
+    """
+    __tablename__ = 'watchlists'
+
+    watchlist_id = Column(String(50), primary_key=True)  # UUID
+    user_id = Column(String(50), ForeignKey('users.user_id'), nullable=False, index=True)
+
+    # 관심종목 정보
+    name = Column(String(200), nullable=False, default='기본 관심종목')
+    description = Column(Text)
+    tickers = Column(Text)  # JSON array of ticker codes
+
+    # 타임스탬프
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", back_populates="watchlists")
+
+    __table_args__ = (
+        Index('idx_watchlist_user', 'user_id'),
+    )
+
+    def to_dict(self) -> dict:
+        import json
+        return {
+            'watchlist_id': self.watchlist_id,
+            'user_id': self.user_id,
+            'name': self.name,
+            'description': self.description,
+            'tickers': json.loads(self.tickers) if self.tickers else [],
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+
+class Alert(Base):
+    """
+    가격/뉴스 알림
+    """
+    __tablename__ = 'alerts'
+
+    alert_id = Column(String(50), primary_key=True)  # UUID
+    user_id = Column(String(50), ForeignKey('users.user_id'), nullable=False, index=True)
+
+    # 알림 정보
+    alert_type = Column(String(20), nullable=False, index=True)  # price, news, technical
+    ticker_cd = Column(String(20), index=True)
+
+    # 조건
+    condition_type = Column(String(20))  # above, below, percent_change, etc.
+    threshold_value = Column(DECIMAL(20, 4))
+
+    # 설정
+    is_active = Column(Boolean, default=True, index=True)
+    notification_method = Column(String(50), default='email')  # email, push, both
+    message = Column(Text)
+
+    # 실행 정보
+    last_triggered = Column(DateTime)
+    trigger_count = Column(Integer, default=0)
+
+    # 타임스탬프
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", back_populates="alerts")
+
+    __table_args__ = (
+        Index('idx_alert_user', 'user_id'),
+        Index('idx_alert_type', 'alert_type'),
+        Index('idx_alert_ticker', 'ticker_cd'),
+        Index('idx_alert_active', 'is_active'),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            'alert_id': self.alert_id,
+            'user_id': self.user_id,
+            'alert_type': self.alert_type,
+            'ticker_cd': self.ticker_cd,
+            'condition_type': self.condition_type,
+            'threshold_value': float(self.threshold_value) if self.threshold_value else None,
+            'is_active': self.is_active,
+            'notification_method': self.notification_method,
+            'message': self.message,
+            'last_triggered': self.last_triggered.isoformat() if self.last_triggered else None,
+            'trigger_count': self.trigger_count,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class SavedScreener(Base):
+    """
+    저장된 스크리너 조건
+    """
+    __tablename__ = 'saved_screeners'
+
+    screener_id = Column(String(50), primary_key=True)  # UUID
+    user_id = Column(String(50), ForeignKey('users.user_id'), nullable=False, index=True)
+
+    # 스크리너 정보
+    name = Column(String(200), nullable=False)
+    description = Column(Text)
+    filters = Column(Text, nullable=False)  # JSON object with filter criteria
+
+    # 설정
+    is_active = Column(Boolean, default=True)
+    run_frequency = Column(String(20))  # manual, daily, weekly
+
+    # 타임스탬프
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_run = Column(DateTime)
+
+    # No relationship needed - user_id is just FK
+
+    __table_args__ = (
+        Index('idx_screener_user', 'user_id'),
+        Index('idx_screener_active', 'is_active'),
+    )
+
+    def to_dict(self) -> dict:
+        import json
+        return {
+            'screener_id': self.screener_id,
+            'user_id': self.user_id,
+            'name': self.name,
+            'description': self.description,
+            'filters': json.loads(self.filters) if self.filters else {},
+            'is_active': self.is_active,
+            'run_frequency': self.run_frequency,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'last_run': self.last_run.isoformat() if self.last_run else None
+        }
+
+
+# =============================================================================
 # PROC Layer: 가공 (ML/요약 처리)
 # =============================================================================
 
