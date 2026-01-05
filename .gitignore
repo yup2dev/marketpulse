@@ -163,10 +163,9 @@ temp.py
 /.claude/
 
 # Test file
-test*.py
-*test.py
+test_*.py
 /test*
-*test/
+*test_/
 spring-boot*/
 /spring-boot*
 

@@ -53,14 +53,27 @@ async def get_13f_portfolio(institution_key: str, limit: int = 50):
     Returns:
         Portfolio data including holdings, metrics, and optional performance data
     """
+    import sys
+    import traceback
+
+    print(f"DEBUG ROUTE START: institution_key={institution_key}, limit={limit}", file=sys.stderr)
+    sys.stderr.flush()
+
     try:
+        print(f"DEBUG: About to call portfolio_service", file=sys.stderr)
+        sys.stderr.flush()
+
         holding = await portfolio_service.get_institution_portfolio(
             institution_key=institution_key,
             limit=limit
         )
+        print(f"DEBUG: Got holding type: {type(holding)}")
+        print(f"DEBUG: Got holding keys: {holding.keys() if isinstance(holding, dict) else 'NOT A DICT'}")
         return holding
 
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
+        print(f"DEBUG ERROR: {e}")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))

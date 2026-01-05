@@ -74,13 +74,22 @@ class PortfolioService:
             Portfolio data including holdings, metrics, and metadata
         """
         try:
+            import sys
+            print(f"SERVICE DEBUG: Starting fetch for {institution_key}", file=sys.stderr)
+            sys.stderr.flush()
+
             params = {"institution_key": institution_key, "limit": limit}
             results = await self.fetcher.fetch_data(params, credentials=None)
+
+            print(f"SERVICE DEBUG: Got results, type={type(results)}, len={len(results) if results else 'None'}", file=sys.stderr)
+            sys.stderr.flush()
 
             if not results or len(results) == 0:
                 raise ValueError(f"Holdings not found for institution: {institution_key}")
 
             portfolio = results[0]
+            print(f"SERVICE DEBUG: Got portfolio, type={type(portfolio)}", file=sys.stderr)
+            sys.stderr.flush()
 
             # Build response with actual fetcher data
             holding = {
