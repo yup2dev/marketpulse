@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BarChart2 } from 'lucide-react';
+import useTheme from '../../hooks/useTheme';
 import {
   WidgetHeader,
   LoadingSpinner,
@@ -13,6 +14,7 @@ import {
 } from './common';
 
 const KeyMetricsWidget = ({ symbol, onRemove }) => {
+  const { classes } = useTheme();
   const [quote, setQuote] = useState(null);
   const [info, setInfo] = useState(null);
   const [loading, setLoading] = useState(false);

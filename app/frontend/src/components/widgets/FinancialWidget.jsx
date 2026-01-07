@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { BarChart3, Table2 } from 'lucide-react';
+import useTheme from '../../hooks/useTheme';
 import {
   WidgetHeader,
   LoadingSpinner,
@@ -10,10 +11,10 @@ import {
   WIDGET_STYLES,
   WIDGET_ICON_COLORS,
   LOADING_COLORS,
-  CHART_THEME,
 } from './common';
 
 const FinancialWidget = ({ symbol, onRemove }) => {
+  const { chartTheme } = useTheme();
   const [financials, setFinancials] = useState(null);
   const [loading, setLoading] = useState(false);
   const [viewMode, setViewMode] = useState('table'); // 'table' or 'chart'
@@ -217,12 +218,12 @@ const FinancialWidget = ({ symbol, onRemove }) => {
           <div className="h-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={getChartData()}>
-                <CartesianGrid strokeDasharray="3 3" stroke={CHART_THEME.grid} />
-                <XAxis dataKey="name" tick={{ fill: CHART_THEME.text, fontSize: 11 }} angle={-45} textAnchor="end" height={80} />
-                <YAxis tick={{ fill: CHART_THEME.text, fontSize: 11 }} tickFormatter={(value) => formatFinancialNumber(value)} />
+                <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
+                <XAxis dataKey="name" tick={{ fill: chartTheme.text, fontSize: 11 }} angle={-45} textAnchor="end" height={80} />
+                <YAxis tick={{ fill: chartTheme.text, fontSize: 11 }} tickFormatter={(value) => formatFinancialNumber(value)} />
                 <Tooltip
-                  contentStyle={{ backgroundColor: CHART_THEME.tooltip.background, border: `1px solid ${CHART_THEME.tooltip.border}` }}
-                  labelStyle={{ color: CHART_THEME.tooltip.text }}
+                  contentStyle={{ backgroundColor: chartTheme.tooltip.background, border: `1px solid ${chartTheme.tooltip.border}` }}
+                  labelStyle={{ color: chartTheme.tooltip.text }}
                   formatter={(value) => formatFinancialNumber(value)}
                 />
                 <Bar dataKey="value" fill="#3b82f6" />

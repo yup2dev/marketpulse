@@ -1,4 +1,5 @@
 import { RefreshCw, X } from 'lucide-react';
+import useTheme from '../../../hooks/useTheme';
 
 /**
  * Common widget header component
@@ -15,8 +16,10 @@ const WidgetHeader = ({
   children,
   className = ''
 }) => {
+  const { classes } = useTheme();
+
   return (
-    <div className={`flex items-center justify-between p-3 border-b border-gray-800 ${className}`}>
+    <div className={`flex items-center justify-between p-3 border-b ${classes.widget.header} ${className}`}>
       {/* Left side - Drag handle area with icon and title */}
       <div className="flex items-center gap-2 cursor-move drag-handle-area flex-1 min-w-0">
         {Icon && <Icon size={18} className={iconColor} />}
@@ -41,7 +44,7 @@ const WidgetHeader = ({
               e.stopPropagation();
               onRefresh();
             }}
-            className="hover:text-white p-1.5 text-gray-400 transition-colors"
+            className={`p-1.5 transition-colors ${classes.button.ghost}`}
             title="Refresh"
             disabled={loading}
           >
@@ -57,7 +60,7 @@ const WidgetHeader = ({
               e.stopPropagation();
               onRemove();
             }}
-            className="hover:text-red-400 p-1.5 text-gray-400 transition-colors"
+            className={`hover:text-red-400 p-1.5 transition-colors ${classes.button.ghost}`}
             title="Remove"
           >
             <X size={16} />

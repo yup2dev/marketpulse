@@ -7,6 +7,7 @@ import FinancialWidget from './widgets/FinancialWidget';
 import ChartWidget from './widgets/ChartWidget';
 import TickerInfoWidget from './widgets/TickerInfoWidget';
 import KeyMetricsWidget from './widgets/KeyMetricsWidget';
+import WatchlistWidget from './widgets/WatchlistWidget';
 import StockSelectorModal from './StockSelectorModal';
 import 'react-grid-layout/css/styles.css';
 
@@ -72,8 +73,43 @@ const ProfessionalDashboard = () => {
   };
 
   const handleSelectWidgetType = (widgetType) => {
-    setShowStockSelector(widgetType);
-    setContextMenu(null);
+    // If widget doesn't need stock selection, add it directly
+    if (!widgetType.needsStock) {
+      const newWidget = {
+        id: `widget-${Date.now()}`,
+        type: widgetType.id,
+        symbol: null,
+        name: widgetType.name
+      };
+
+      setWidgets([...widgets, newWidget]);
+
+      const getWidgetSize = (type) => {
+        if (type === 'watchlist') return { w: 4, h: 6 };
+        if (type === 'financials') return { w: 6, h: 6 };
+        if (type === 'advanced-chart') return { w: 12, h: 8 };
+        if (type === 'ticker-info') return { w: 4, h: 5 };
+        if (type === 'key-metrics') return { w: 4, h: 6 };
+        return { w: 4, h: 4 };
+      };
+
+      const size = getWidgetSize(widgetType.id);
+      const newLayout = {
+        i: newWidget.id,
+        x: (widgets.length * 4) % 12,
+        y: Math.floor(widgets.length / 3) * 4,
+        w: size.w,
+        h: size.h,
+        minW: 3,
+        minH: 3
+      };
+
+      setLayout([...layout, newLayout]);
+      setContextMenu(null);
+    } else {
+      setShowStockSelector(widgetType);
+      setContextMenu(null);
+    }
   };
 
   const handleSelectStock = (stock) => {
@@ -125,6 +161,13 @@ const ProfessionalDashboard = () => {
 
   const renderWidget = (widget) => {
     switch (widget.type) {
+      case 'watchlist':
+        return (
+          <WatchlistWidget
+            widgetId={widget.id}
+            onRemove={() => handleRemoveWidget(widget.id)}
+          />
+        );
       case 'financials':
         return (
           <FinancialWidget

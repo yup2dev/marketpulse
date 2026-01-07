@@ -643,7 +643,7 @@ class Holding(Base):
 
 class Watchlist(Base):
     """
-    관심 종목
+    관심 종목 리스트
     """
     __tablename__ = 'watchlists'
 
@@ -653,7 +653,7 @@ class Watchlist(Base):
     # 관심종목 정보
     name = Column(String(200), nullable=False, default='기본 관심종목')
     description = Column(Text)
-    tickers = Column(Text)  # JSON array of ticker codes
+    tickers = Column(Text)  # DEPRECATED: JSON array of ticker codes (kept for backward compatibility)
 
     # 타임스탬프
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -661,6 +661,7 @@ class Watchlist(Base):
 
     # Relationships
     user = relationship("User", back_populates="watchlists")
+    items = relationship("WatchlistItem", back_populates="watchlist", cascade="all, delete-orphan", order_by="WatchlistItem.sort_order")
 
     __table_args__ = (
         Index('idx_watchlist_user', 'user_id'),
@@ -668,14 +669,61 @@ class Watchlist(Base):
 
     def to_dict(self) -> dict:
         import json
+        # Support both old (tickers) and new (items) structure
+        tickers_list = []
+        if self.items:
+            tickers_list = [item.ticker_cd for item in self.items]
+        elif self.tickers:
+            tickers_list = json.loads(self.tickers)
+
         return {
             'watchlist_id': self.watchlist_id,
             'user_id': self.user_id,
             'name': self.name,
             'description': self.description,
-            'tickers': json.loads(self.tickers) if self.tickers else [],
+            'tickers': tickers_list,
+            'items': [item.to_dict() for item in self.items] if self.items else [],
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+
+class WatchlistItem(Base):
+    """
+    관심 종목 항목 (정규화된 구조)
+    """
+    __tablename__ = 'watchlist_items'
+
+    item_id = Column(String(50), primary_key=True, default=lambda: str(uuid.uuid4()))
+    watchlist_id = Column(String(50), ForeignKey('watchlists.watchlist_id'), nullable=False, index=True)
+    ticker_cd = Column(String(20), nullable=False, index=True)
+
+    # 순서 관리
+    sort_order = Column(Integer, default=0, index=True)
+
+    # 메모 (선택사항)
+    notes = Column(Text)
+
+    # 타임스탬프
+    added_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    watchlist = relationship("Watchlist", back_populates="items")
+
+    __table_args__ = (
+        UniqueConstraint('watchlist_id', 'ticker_cd', name='uq_watchlist_ticker'),
+        Index('idx_watchlist_items_watchlist', 'watchlist_id', 'sort_order'),
+        Index('idx_watchlist_items_ticker', 'ticker_cd'),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            'item_id': self.item_id,
+            'watchlist_id': self.watchlist_id,
+            'ticker_cd': self.ticker_cd,
+            'sort_order': self.sort_order,
+            'notes': self.notes,
+            'added_at': self.added_at.isoformat() if self.added_at else None
         }
 
 

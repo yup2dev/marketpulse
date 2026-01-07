@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { Activity } from 'lucide-react';
+import useTheme from '../../hooks/useTheme';
 import UniversalChartWidget from '../common/UniversalChartWidget';
 import { CHART_COLORS } from '../widgets/common';
 
@@ -9,6 +10,7 @@ import { CHART_COLORS } from '../widgets/common';
  * Uses UniversalChartWidget for all chart functionality
  */
 const BacktestChartWidget = ({ results, config }) => {
+  const { classes } = useTheme();
   // Transform backtest results to series format for UniversalChartWidget
   const series = useMemo(() => {
     if (!results) return [];
@@ -41,7 +43,7 @@ const BacktestChartWidget = ({ results, config }) => {
 
   if (!results) {
     return (
-      <div className="bg-[#1a1a1a] rounded-lg border border-gray-800 p-8 text-center">
+      <div className={`${classes.widget.container} rounded-lg border p-8 text-center`}>
         <Activity className="mx-auto text-gray-600 mb-4" size={48} />
         <p className="text-gray-400">Run backtest to see equity curve</p>
       </div>
