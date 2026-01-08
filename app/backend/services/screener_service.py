@@ -21,6 +21,58 @@ from index_analyzer.models.database import (
 class ScreenerService:
     """종목 스크리너 비즈니스 로직"""
 
+    # 사전 정의된 스크리너 프리셋
+    PRESETS = {
+        "value_stocks": {
+            "name": "가치주 (Value Stocks)",
+            "description": "저평가된 우량주를 찾습니다 (낮은 P/E, P/B, 높은 ROE)",
+            "filters": {
+                "pe_ratio_min": 5,
+                "pe_ratio_max": 15,
+                "pb_ratio_max": 2.0,
+                "roe_min": 10,
+                "market_cap_min": 1000000000,
+            }
+        },
+        "growth_stocks": {
+            "name": "성장주 (Growth Stocks)",
+            "description": "빠르게 성장하는 기업을 찾습니다",
+            "filters": {
+                "roe_min": 15,
+                "roa_min": 10,
+                "market_cap_min": 500000000,
+            }
+        },
+        "dividend_aristocrats": {
+            "name": "배당 귀족 (Dividend Aristocrats)",
+            "description": "안정적인 배당을 지급하는 우량주",
+            "filters": {
+                "market_cap_min": 3000000000,
+                "debt_to_equity_max": 1.0,
+                "roe_min": 10,
+            }
+        },
+        "small_cap_growth": {
+            "name": "소형 성장주 (Small Cap Growth)",
+            "description": "작지만 빠르게 성장하는 기업",
+            "filters": {
+                "market_cap_min": 300000000,
+                "market_cap_max": 2000000000,
+                "roe_min": 15,
+            }
+        },
+        "undervalued_large_cap": {
+            "name": "저평가 대형주 (Undervalued Large Cap)",
+            "description": "저평가된 대형 우량주",
+            "filters": {
+                "market_cap_min": 10000000000,
+                "pe_ratio_max": 20,
+                "pb_ratio_max": 3.0,
+                "roe_min": 12,
+            }
+        }
+    }
+
     @staticmethod
     def screen_stocks(
         db: Session,
@@ -241,3 +293,43 @@ class ScreenerService:
         ).distinct().all()
 
         return [s[0] for s in sectors if s[0]]
+
+    @staticmethod
+    def get_presets() -> List[dict]:
+        """
+        사전 정의된 스크리너 프리셋 목록 조회
+
+        Returns:
+            프리셋 목록
+        """
+        return [
+            {
+                "preset_id": preset_id,
+                "name": preset["name"],
+                "description": preset["description"],
+                "filters": preset["filters"]
+            }
+            for preset_id, preset in ScreenerService.PRESETS.items()
+        ]
+
+    @staticmethod
+    def get_preset_by_id(preset_id: str) -> Optional[dict]:
+        """
+        특정 프리셋 조회
+
+        Args:
+            preset_id: 프리셋 ID
+
+        Returns:
+            프리셋 정보 또는 None
+        """
+        preset = ScreenerService.PRESETS.get(preset_id)
+        if not preset:
+            return None
+
+        return {
+            "preset_id": preset_id,
+            "name": preset["name"],
+            "description": preset["description"],
+            "filters": preset["filters"]
+        }

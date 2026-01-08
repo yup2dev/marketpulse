@@ -150,3 +150,60 @@ def get_sectors(db: Session = Depends(get_db)):
     """
     sectors = ScreenerService.get_available_sectors(db)
     return {"sectors": sectors}
+
+
+@router.get("/presets")
+def get_screener_presets():
+    """
+    사전 정의된 스크리너 프리셋 목록 조회 (로그인 불필요)
+    """
+    presets = ScreenerService.get_presets()
+    return {"presets": presets}
+
+
+@router.get("/presets/{preset_id}")
+def get_screener_preset(preset_id: str):
+    """
+    특정 프리셋 조회 (로그인 불필요)
+    """
+    preset = ScreenerService.get_preset_by_id(preset_id)
+
+    if not preset:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Preset not found"
+        )
+
+    return preset
+
+
+@router.post("/presets/{preset_id}/run")
+def run_preset_screener(
+    preset_id: str,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user)
+):
+    """
+    프리셋을 사용하여 스크리닝 실행 (로그인 선택)
+    """
+    preset = ScreenerService.get_preset_by_id(preset_id)
+
+    if not preset:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Preset not found"
+        )
+
+    # 프리셋 필터로 스크리닝 실행
+    results = ScreenerService.screen_stocks(
+        db=db,
+        filters=preset["filters"],
+        limit=limit
+    )
+
+    return {
+        "preset": preset,
+        "results": results,
+        "count": len(results)
+    }

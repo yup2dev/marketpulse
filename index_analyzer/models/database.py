@@ -784,6 +784,40 @@ class Alert(Base):
         }
 
 
+class AlertHistory(Base):
+    """
+    알림 발생 이력
+    """
+    __tablename__ = 'alert_history'
+
+    history_id = Column(String(50), primary_key=True, default=lambda: str(uuid.uuid4()))
+    alert_id = Column(String(50), ForeignKey('alerts.alert_id'), nullable=False, index=True)
+
+    # 발생 정보
+    triggered_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    triggered_value = Column(DECIMAL(20, 4))  # 알림 발생 시의 값
+    message = Column(Text)  # 발송된 메시지
+    is_sent = Column(Boolean, default=False)  # 알림 발송 성공 여부
+
+    # Relationships
+    # No relationship to Alert to avoid circular dependency
+
+    __table_args__ = (
+        Index('idx_alert_history_alert', 'alert_id'),
+        Index('idx_alert_history_triggered', 'triggered_at'),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            'history_id': self.history_id,
+            'alert_id': self.alert_id,
+            'triggered_at': self.triggered_at.isoformat() if self.triggered_at else None,
+            'triggered_value': float(self.triggered_value) if self.triggered_value else None,
+            'message': self.message,
+            'is_sent': self.is_sent
+        }
+
+
 class SavedScreener(Base):
     """
     저장된 스크리너 조건

@@ -10,12 +10,14 @@ import {
   Building2,
   Activity,
   ArrowUpRight,
-  ArrowDownRight
+  ArrowDownRight,
+  Target
 } from 'lucide-react';
 import { useLoading } from '../contexts/LoadingContext';
 import { API_BASE } from '../config/api';
 import { CARD_CLASSES } from '../styles/designTokens';
 import UniversalChartWidget from './common/UniversalChartWidget';
+import RegimeDashboard from './macro/RegimeDashboard';
 
 /**
  * MacroAnalysis - Comprehensive Macroeconomic Analysis Dashboard
@@ -38,6 +40,7 @@ const MacroAnalysis = () => {
 
   const TABS = [
     { id: 'overview', name: 'Overview', icon: Activity },
+    { id: 'regime', name: 'Economic Regime', icon: Target },
     { id: 'commodities', name: 'Commodities', icon: BarChart3 },
     { id: 'banking', name: 'Banking & Credit', icon: Building2 },
     { id: 'money', name: 'Money Supply', icon: DollarSign },
@@ -544,6 +547,10 @@ const MacroAnalysis = () => {
     );
   };
 
+  const renderRegime = () => {
+    return <RegimeDashboard />;
+  };
+
   const renderCategoryData = (category) => {
     // Show loading state if data not yet loaded
     if (!loadedTabs.has(category)) {
@@ -668,6 +675,7 @@ const MacroAnalysis = () => {
       {/* Content */}
       <div>
         {activeTab === 'overview' && renderOverview()}
+        {activeTab === 'regime' && renderRegime()}
         {activeTab === 'commodities' && renderCommodities()}
         {activeTab === 'banking' && renderCategoryData('banking')}
         {activeTab === 'money' && renderCategoryData('money')}
