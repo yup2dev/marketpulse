@@ -210,3 +210,49 @@ async def get_macro_categories():
             }
         ]
     }
+
+
+@router.get("/regime/current")
+async def get_current_regime():
+    """
+    Get current economic regime analysis
+
+    Returns:
+        Current regime classification based on Growth and Inflation:
+        - goldilocks: Positive growth + moderate inflation (ideal)
+        - reflation: Growth recovering + inflation rising (recovery)
+        - stagflation: Weak growth + high inflation (worst case)
+        - deflation: Weak growth + low inflation (recession)
+
+    Also includes:
+        - growth_score: -100 to +100 (composite of GDP, Industrial Production, Employment)
+        - inflation_score: -100 to +100 (based on CPI relative to 2% target)
+        - momentum indicators (3-month trends)
+        - component breakdown (GDP YoY, CPI YoY, etc.)
+    """
+    try:
+        regime_data = await macro_service.get_current_regime()
+        return regime_data
+    except Exception as e:
+        log.error(f"Error fetching current regime: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/regime/history")
+async def get_regime_history(period: str = "5y"):
+    """
+    Get historical economic regime data
+
+    Args:
+        period: Time period (1y, 3y, 5y, 10y, max)
+
+    Returns:
+        Historical regime classifications and transitions over time.
+        Useful for visualizing regime changes and economic cycles.
+    """
+    try:
+        history_data = await macro_service.get_regime_history(period)
+        return history_data
+    except Exception as e:
+        log.error(f"Error fetching regime history: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

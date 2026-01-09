@@ -511,6 +511,281 @@ class MacroService:
 
         return ((current - previous) / previous) * 100
 
+    async def get_current_regime(self) -> Dict[str, Any]:
+        """
+        Calculate current economic regime based on Growth and Inflation
+
+        Returns:
+            {
+                'regime': str,  # 'goldilocks', 'reflation', 'stagflation', 'deflation'
+                'growth_score': float,  # -100 to +100
+                'inflation_score': float,  # -100 to +100
+                'growth_momentum': float,  # 3m change
+                'inflation_momentum': float,  # 3m change
+                'timestamp': str,
+                'components': {
+                    'gdp_growth': float,  # Already in %
+                    'industrial_production_yoy': float,
+                    'employment_yoy': float,
+                    'cpi_yoy': float
+                }
+            }
+        """
+        try:
+            components = {}
+
+            # Fetch Growth components
+            # 1. GDP Growth Rate (already in % from FRED)
+            # FRED series A191RA1Q225SBEA: Real GDP, Percent Change from Preceding Period, SAAR
+            gdp_data = await FREDGDPFetcher.fetch_data({})
+            # GDP data comes DESC (most recent first)
+            if gdp_data and len(gdp_data) > 0:
+                # value is already the growth rate %
+                components['gdp_growth'] = gdp_data[0].value
+            else:
+                components['gdp_growth'] = 0
+
+            # 2. Industrial Production YoY
+            try:
+                indpro_data = await FREDIndustrialProductionFetcher.fetch_data({})
+                # Check data ordering
+                if indpro_data and len(indpro_data) > 0:
+                    # Sort DESC by date
+                    indpro_sorted = sorted(indpro_data, key=lambda x: x.date, reverse=True)
+                    if len(indpro_sorted) >= 13:  # Need 12 months for YoY
+                        current_ip = indpro_sorted[0].value
+                        year_ago_ip = indpro_sorted[12].value
+                        components['industrial_production_yoy'] = ((current_ip - year_ago_ip) / year_ago_ip * 100) if year_ago_ip else 0
+                    else:
+                        components['industrial_production_yoy'] = 0
+                else:
+                    components['industrial_production_yoy'] = 0
+            except Exception as e:
+                log.warning(f"Could not fetch industrial production: {e}")
+                components['industrial_production_yoy'] = 0
+
+            # 3. Employment YoY (using Nonfarm Payroll)
+            try:
+                employment_data = await FREDNonfarmPayrollFetcher.fetch_data({})
+                if employment_data and len(employment_data) > 0:
+                    # Sort DESC by date
+                    emp_sorted = sorted(employment_data, key=lambda x: x.date, reverse=True)
+                    if len(emp_sorted) >= 13:
+                        current_emp = emp_sorted[0].value
+                        year_ago_emp = emp_sorted[12].value
+                        components['employment_yoy'] = ((current_emp - year_ago_emp) / year_ago_emp * 100) if year_ago_emp else 0
+                    else:
+                        components['employment_yoy'] = 0
+                else:
+                    components['employment_yoy'] = 0
+            except Exception as e:
+                log.warning(f"Could not fetch employment: {e}")
+                components['employment_yoy'] = 0
+
+            # Fetch Inflation components
+            # 4. CPI YoY
+            cpi_data = await FREDCPIFetcher.fetch_data({})
+            if cpi_data and len(cpi_data) > 0:
+                # Sort DESC by date (CPI comes ASC)
+                cpi_sorted = sorted(cpi_data, key=lambda x: x.date, reverse=True)
+                if len(cpi_sorted) >= 13:  # Need 12 months for YoY
+                    current_cpi = cpi_sorted[0].value
+                    year_ago_cpi = cpi_sorted[12].value
+                    components['cpi_yoy'] = ((current_cpi - year_ago_cpi) / year_ago_cpi * 100) if year_ago_cpi else 0
+                else:
+                    components['cpi_yoy'] = 0
+            else:
+                components['cpi_yoy'] = 0
+
+            # Calculate composite scores
+            # Growth Score: weighted average, normalized to -100 to +100
+            # Typical ranges: GDP -5 to +10%, IndPro -10 to +10%, Employment -2 to +4%
+            growth_score = (
+                (components['gdp_growth'] / 5.0) * 100 * 0.5 +  # GDP weighted 50%
+                (components['industrial_production_yoy'] / 10.0) * 100 * 0.25 +  # IndPro 25%
+                (components['employment_yoy'] / 3.0) * 100 * 0.25  # Employment 25%
+            )
+            growth_score = max(-100, min(100, growth_score))  # Clamp
+
+            # Inflation Score: normalized
+            # CPI YoY: -2% to +10% range, centered at 2% target
+            inflation_score = (components['cpi_yoy'] - 2.0) / 6.0 * 100
+            inflation_score = max(-100, min(100, inflation_score))
+
+            # Calculate momentum (quarterly for GDP, monthly for CPI)
+            growth_momentum = 0.0
+            inflation_momentum = 0.0
+
+            if gdp_data and len(gdp_data) >= 2:
+                # Momentum = difference in growth rates (not percentage of percentage!)
+                growth_momentum = gdp_data[0].value - gdp_data[1].value
+
+            if cpi_data and len(cpi_data) > 0:
+                cpi_sorted = sorted(cpi_data, key=lambda x: x.date, reverse=True)
+                if len(cpi_sorted) >= 4:
+                    # CPI momentum: 3-month change in YoY rate
+                    current_cpi_yoy = components['cpi_yoy']
+                    # Calculate YoY for 3 months ago
+                    if len(cpi_sorted) >= 16:  # Need 12 + 3 months
+                        three_mo_ago = cpi_sorted[3].value
+                        fifteen_mo_ago = cpi_sorted[15].value
+                        three_mo_cpi_yoy = ((three_mo_ago - fifteen_mo_ago) / fifteen_mo_ago * 100) if fifteen_mo_ago else current_cpi_yoy
+                        inflation_momentum = current_cpi_yoy - three_mo_cpi_yoy
+                    else:
+                        inflation_momentum = 0
+
+            # Determine regime
+            regime = self._classify_regime(growth_score, inflation_score, components['cpi_yoy'])
+
+            return {
+                'regime': regime,
+                'growth_score': round(growth_score, 2),
+                'inflation_score': round(inflation_score, 2),
+                'growth_momentum': round(growth_momentum, 2),
+                'inflation_momentum': round(inflation_momentum, 2),
+                'timestamp': datetime.now().isoformat(),
+                'components': {k: round(v, 2) for k, v in components.items()}
+            }
+
+        except Exception as e:
+            log.error(f"Error calculating current regime: {e}")
+            raise
+
+    def _classify_regime(self, growth_score: float, inflation_score: float, cpi_yoy: float) -> str:
+        """
+        Classify economic regime based on growth and inflation scores
+
+        4 Regimes:
+        - Goldilocks: Growth positive, Inflation moderate (ideal)
+        - Reflation: Growth recovering, Inflation rising (recovery phase)
+        - Stagflation: Growth weak, Inflation high (worst case)
+        - Deflation: Growth weak, Inflation low/negative (recession)
+        """
+        # Thresholds
+        GROWTH_THRESHOLD = 0  # Above 0 is positive growth
+        INFLATION_TARGET = 2.0  # Fed's 2% target
+        INFLATION_HIGH = 3.0  # Above 3% is concerning
+
+        if growth_score > GROWTH_THRESHOLD:
+            # Positive growth
+            if cpi_yoy < INFLATION_HIGH:
+                return 'goldilocks'  # Growth + moderate inflation = ideal
+            else:
+                return 'reflation'  # Growth + high inflation = overheating
+        else:
+            # Negative/weak growth
+            if cpi_yoy > INFLATION_HIGH:
+                return 'stagflation'  # Weak growth + high inflation = worst
+            else:
+                return 'deflation'  # Weak growth + low inflation = recession
+
+    async def get_regime_history(self, period: str = '5y') -> Dict[str, Any]:
+        """
+        Get historical economic regime data
+
+        Args:
+            period: Time period (1y, 3y, 5y, 10y, max)
+
+        Returns:
+            {
+                'history': [
+                    {
+                        'date': str,
+                        'regime': str,
+                        'growth_score': float,
+                        'inflation_score': float
+                    },
+                    ...
+                ],
+                'regime_transitions': [
+                    {
+                        'date': str,
+                        'from': str,
+                        'to': str
+                    },
+                    ...
+                ]
+            }
+        """
+        try:
+            start_date, end_date = parse_period_to_dates(period)
+
+            # Fetch historical data
+            gdp_data = await FREDGDPFetcher.fetch_data({})
+            cpi_data = await FREDCPIFetcher.fetch_data({})
+
+            # Filter and sort by date
+            gdp_filtered = [d for d in gdp_data if d.date and start_date <= d.date <= end_date]
+            cpi_filtered = [d for d in cpi_data if d.date and start_date <= d.date <= end_date]
+
+            # Sort ascending for chronological order
+            gdp_filtered.sort(key=lambda x: x.date)
+            cpi_filtered.sort(key=lambda x: x.date)
+
+            # Sort CPI descending for easier YoY calc
+            cpi_all_sorted = sorted(cpi_data, key=lambda x: x.date, reverse=True)
+
+            history = []
+
+            # Calculate regime for each GDP data point (quarterly)
+            for gdp_point in gdp_filtered:
+                # GDP value is already growth rate %
+                gdp_growth = gdp_point.value
+
+                # Find closest CPI data point
+                closest_cpi = min(cpi_filtered, key=lambda x: abs((x.date - gdp_point.date).days))
+
+                # Calculate CPI YoY
+                try:
+                    cpi_idx = next(i for i, c in enumerate(cpi_all_sorted) if c.date == closest_cpi.date)
+                    if cpi_idx + 12 < len(cpi_all_sorted):
+                        year_ago_cpi = cpi_all_sorted[cpi_idx + 12].value
+                        cpi_yoy = ((closest_cpi.value - year_ago_cpi) / year_ago_cpi * 100) if year_ago_cpi else 0
+                    else:
+                        cpi_yoy = 0
+                except (StopIteration, ValueError):
+                    cpi_yoy = 0
+
+                # Growth score (GDP is already %, just normalize)
+                growth_score = (gdp_growth / 5.0) * 100
+                growth_score = max(-100, min(100, growth_score))
+
+                # Inflation score
+                inflation_score = (cpi_yoy - 2.0) / 6.0 * 100
+                inflation_score = max(-100, min(100, inflation_score))
+
+                # Classify regime
+                regime = self._classify_regime(growth_score, inflation_score, cpi_yoy)
+
+                history.append({
+                    'date': gdp_point.date.isoformat(),
+                    'regime': regime,
+                    'growth_score': round(growth_score, 2),
+                    'inflation_score': round(inflation_score, 2),
+                    'gdp_growth': round(gdp_growth, 2),
+                    'cpi_yoy': round(cpi_yoy, 2)
+                })
+
+            # Detect regime transitions
+            transitions = []
+            for i in range(1, len(history)):
+                if history[i]['regime'] != history[i-1]['regime']:
+                    transitions.append({
+                        'date': history[i]['date'],
+                        'from': history[i-1]['regime'],
+                        'to': history[i]['regime']
+                    })
+
+            return {
+                'history': history,
+                'regime_transitions': transitions,
+                'period': period
+            }
+
+        except Exception as e:
+            log.error(f"Error fetching regime history: {e}")
+            raise
+
 
 # Global instance
 macro_service = MacroService()

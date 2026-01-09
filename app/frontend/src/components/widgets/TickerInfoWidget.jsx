@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, Building2 } from 'lucide-react';
+import useTheme from '../../hooks/useTheme';
 import {
   WidgetHeader,
   LoadingSpinner,
@@ -12,6 +13,7 @@ import {
 } from './common';
 
 const TickerInfoWidget = ({ symbol, onRemove }) => {
+  const { classes } = useTheme();
   const [quote, setQuote] = useState(null);
   const [info, setInfo] = useState(null);
   const [loading, setLoading] = useState(false);

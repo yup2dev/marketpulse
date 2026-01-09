@@ -131,3 +131,44 @@ def delete_alert(
         )
 
     return {"message": "Alert deleted successfully"}
+
+
+@router.get("/history")
+def get_alert_history(
+    alert_id: Optional[str] = None,
+    limit: int = 50,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    알림 발생 이력 조회
+
+    Args:
+        alert_id: 특정 알림 ID (선택사항)
+        limit: 조회 개수 제한 (기본 50)
+    """
+    history = AlertService.get_alert_history(
+        db, current_user.user_id, alert_id, limit
+    )
+
+    return {"history": history, "count": len(history)}
+
+
+@router.post("/{alert_id}/test")
+def test_alert(
+    alert_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    알림 테스트 발송
+    """
+    result = AlertService.test_alert(db, alert_id, current_user.user_id)
+
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Alert not found"
+        )
+
+    return result

@@ -322,3 +322,147 @@ class UserPortfolioService:
         db.commit()
 
         return True
+
+    # ==================== Portfolio Analytics ====================
+
+    @staticmethod
+    def get_portfolio_summary(db: Session, portfolio_id: str, user_id: str) -> Optional[dict]:
+        """
+        포트폴리오 요약 통계 조회
+
+        Returns:
+            총 자산, 총 비용, 미실현 손익, 수익률 등
+        """
+        portfolio = UserPortfolioService.get_portfolio(db, portfolio_id, user_id)
+        if not portfolio:
+            return None
+
+        holdings = UserPortfolioService.get_portfolio_holdings(db, portfolio_id)
+
+        total_cost = Decimal('0')
+        total_market_value = Decimal('0')
+
+        for holding in holdings:
+            if holding.total_cost:
+                total_cost += holding.total_cost
+            if holding.market_value:
+                total_market_value += holding.market_value
+
+        total_unrealized_pnl = total_market_value - total_cost
+        total_return_pct = (
+            (total_unrealized_pnl / total_cost) * 100
+            if total_cost > 0 else Decimal('0')
+        )
+
+        return {
+            'portfolio_id': portfolio_id,
+            'name': portfolio.name,
+            'currency': portfolio.currency,
+            'total_holdings': len(holdings),
+            'total_cost': float(total_cost),
+            'total_market_value': float(total_market_value),
+            'total_unrealized_pnl': float(total_unrealized_pnl),
+            'total_return_pct': float(total_return_pct),
+            'last_updated': datetime.utcnow().isoformat()
+        }
+
+    @staticmethod
+    def get_portfolio_performance(
+        db: Session,
+        portfolio_id: str,
+        user_id: str,
+        period: str = '1M'
+    ) -> Optional[dict]:
+        """
+        포트폴리오 성과 데이터 조회
+
+        Args:
+            period: 기간 (1D, 1W, 1M, 3M, 6M, 1Y, YTD, ALL)
+
+        Returns:
+            일별/월별 수익률 데이터
+        """
+        from datetime import timedelta
+
+        portfolio = UserPortfolioService.get_portfolio(db, portfolio_id, user_id)
+        if not portfolio:
+            return None
+
+        # 거래 내역 조회
+        transactions = UserPortfolioService.get_portfolio_transactions(db, portfolio_id)
+
+        # 기간 계산
+        end_date = datetime.utcnow()
+        if period == '1D':
+            start_date = end_date - timedelta(days=1)
+        elif period == '1W':
+            start_date = end_date - timedelta(weeks=1)
+        elif period == '1M':
+            start_date = end_date - timedelta(days=30)
+        elif period == '3M':
+            start_date = end_date - timedelta(days=90)
+        elif period == '6M':
+            start_date = end_date - timedelta(days=180)
+        elif period == '1Y':
+            start_date = end_date - timedelta(days=365)
+        elif period == 'YTD':
+            start_date = datetime(end_date.year, 1, 1)
+        else:  # ALL
+            start_date = portfolio.created_at
+
+        # 기간 내 거래만 필터링
+        period_transactions = [
+            t for t in transactions
+            if start_date <= t.transaction_date <= end_date
+        ]
+
+        # 현재 포트폴리오 가치
+        summary = UserPortfolioService.get_portfolio_summary(db, portfolio_id, user_id)
+
+        return {
+            'portfolio_id': portfolio_id,
+            'period': period,
+            'start_date': start_date.isoformat(),
+            'end_date': end_date.isoformat(),
+            'transaction_count': len(period_transactions),
+            'current_value': summary['total_market_value'] if summary else 0,
+            'current_return_pct': summary['total_return_pct'] if summary else 0,
+            # 추가적인 시계열 데이터는 별도 구현 필요 (일별 스냅샷 테이블)
+        }
+
+    @staticmethod
+    def calculate_portfolio_allocation(db: Session, portfolio_id: str, user_id: str) -> Optional[list]:
+        """
+        포트폴리오 자산 배분 비율 계산
+
+        Returns:
+            종목별 비중 리스트
+        """
+        portfolio = UserPortfolioService.get_portfolio(db, portfolio_id, user_id)
+        if not portfolio:
+            return None
+
+        holdings = UserPortfolioService.get_portfolio_holdings(db, portfolio_id)
+
+        total_market_value = sum(
+            holding.market_value for holding in holdings
+            if holding.market_value
+        ) or Decimal('1')  # Avoid division by zero
+
+        allocation = []
+        for holding in holdings:
+            if holding.market_value:
+                weight = (holding.market_value / total_market_value) * 100
+                allocation.append({
+                    'ticker_cd': holding.ticker_cd,
+                    'market_value': float(holding.market_value),
+                    'weight_pct': float(weight),
+                    'quantity': float(holding.quantity),
+                    'avg_cost': float(holding.avg_cost),
+                    'current_price': float(holding.current_price) if holding.current_price else None,
+                })
+
+        # 비중 순으로 정렬
+        allocation.sort(key=lambda x: x['weight_pct'], reverse=True)
+
+        return allocation

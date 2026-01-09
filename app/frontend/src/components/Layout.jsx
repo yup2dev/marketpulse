@@ -2,10 +2,13 @@ import { TrendingUp, Grid3x3, LayoutDashboard, BarChart3, Briefcase, Globe, LogO
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useAuthStore from '../store/authStore';
+import useTheme from '../hooks/useTheme';
+import ThemeToggle from './ThemeToggle';
 
 const Layout = ({ children, activeView, onNavigate }) => {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
+  const { classes } = useTheme();
 
   const handleLogout = async () => {
     await logout();
@@ -14,9 +17,9 @@ const Layout = ({ children, activeView, onNavigate }) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0d0d0d] flex flex-col">
+    <div className="min-h-screen flex flex-col">
       {/* Header */}
-      <header className="bg-[#1a1a1a] border-b border-gray-800 sticky top-0 z-40">
+      <header className={`${classes.layout.header} border-b sticky top-0 z-40`}>
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -93,6 +96,10 @@ const Layout = ({ children, activeView, onNavigate }) => {
                 <User size={18} />
                 <span className="text-sm">{user?.username || user?.email}</span>
               </div>
+
+              {/* Theme Toggle */}
+              <ThemeToggle />
+
               <button
                 onClick={handleLogout}
                 className="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-300 hover:text-white hover:bg-gray-800 transition-all"
@@ -113,7 +120,7 @@ const Layout = ({ children, activeView, onNavigate }) => {
       </main>
 
       {/* Footer */}
-      <footer className="bg-[#1a1a1a] border-t border-gray-800 mt-auto">
+      <footer className={`${classes.layout.footer} border-t mt-auto`}>
         <div className="max-w-7xl mx-auto px-6 py-6">
           <div className="grid grid-cols-4 gap-8 mb-6">
             <div>

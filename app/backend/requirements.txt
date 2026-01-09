@@ -23,6 +23,7 @@ httpx>=0.25.0
 # Authentication & Security
 python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.4
+bcrypt==3.2.2
 
 # Email & Notifications
 fastapi-mail>=1.4.1

@@ -6,7 +6,21 @@
 import { API_BASE } from '../../../config/api';
 export { API_BASE };
 
-// Widget Styles
+// Theme utilities
+import { getThemeClassNames, getChartTheme as getChartThemeUtil } from '../../../utils/themeUtils';
+
+// Widget Styles (theme-aware)
+export const getWidgetStyles = (theme = 'dark') => {
+  const classes = getThemeClassNames(theme);
+
+  return {
+    container: `h-full ${classes.widget.container} rounded-lg border flex flex-col overflow-hidden`,
+    content: 'flex-1 overflow-auto',
+    contentPadding: 'p-4',
+  };
+};
+
+// Legacy Widget Styles (deprecated - kept for backward compatibility)
 export const WIDGET_STYLES = {
   container: 'h-full bg-[#1a1a1a] rounded-lg border border-gray-800 flex flex-col overflow-hidden',
   content: 'flex-1 overflow-auto',
@@ -144,7 +158,12 @@ export const LOADING_COLORS = {
   default: 'text-gray-500',
 };
 
-// Chart Theme Colors
+// Chart Theme Colors (theme-aware)
+export const getChartConfig = (theme = 'dark') => {
+  return getChartThemeUtil(theme);
+};
+
+// Legacy Chart Theme Colors (deprecated - kept for backward compatibility)
 export const CHART_THEME = {
   background: '#0d0d0d',
   grid: '#333',

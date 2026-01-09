@@ -1,12 +1,13 @@
 import { useEffect } from 'react';
-import { Plus, BarChart3, Table2, TrendingUp, DollarSign, PieChart, Activity, LineChart, Building2, BarChart2 } from 'lucide-react';
+import { Plus, BarChart3, Table2, TrendingUp, DollarSign, PieChart, Activity, LineChart, Building2, BarChart2, Star } from 'lucide-react';
 
 const WIDGET_TYPES = [
-  { id: 'stock-quote', name: 'Stock Quote', icon: TrendingUp, description: 'Real-time price and changes' },
-  { id: 'advanced-chart', name: 'Advanced Chart', icon: LineChart, description: 'Multi-ticker comparison & analysis' },
-  { id: 'ticker-info', name: 'Ticker Info', icon: Building2, description: 'Company information & price details' },
-  { id: 'key-metrics', name: 'Key Metrics', icon: BarChart2, description: 'Valuation & trading metrics' },
-  { id: 'financials', name: 'Financial Data', icon: DollarSign, description: 'Income, balance sheet, cash flow' },
+  { id: 'watchlist', name: 'Watchlist', icon: Star, description: 'Manage favorite stocks', needsStock: false },
+  { id: 'stock-quote', name: 'Stock Quote', icon: TrendingUp, description: 'Real-time price and changes', needsStock: true },
+  { id: 'advanced-chart', name: 'Advanced Chart', icon: LineChart, description: 'Multi-ticker comparison & analysis', needsStock: true },
+  { id: 'ticker-info', name: 'Ticker Info', icon: Building2, description: 'Company information & price details', needsStock: true },
+  { id: 'key-metrics', name: 'Key Metrics', icon: BarChart2, description: 'Valuation & trading metrics', needsStock: true },
+  { id: 'financials', name: 'Financial Data', icon: DollarSign, description: 'Income, balance sheet, cash flow', needsStock: true },
 ];
 
 const ContextMenu = ({ x, y, onClose, onSelectWidget }) => {

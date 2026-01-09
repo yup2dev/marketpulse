@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { LineChart, Line, BarChart, Bar, ComposedChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { Plus, TrendingUp, Percent, Activity, X, TrendingDown } from 'lucide-react';
 import StockSelectorModal from '../StockSelectorModal';
+import useTheme from '../../hooks/useTheme';
 import {
   WidgetHeader,
   LoadingSpinner,
@@ -13,7 +14,6 @@ import {
   WIDGET_ICON_COLORS,
   LOADING_COLORS,
   CHART_COLORS,
-  CHART_THEME,
   TIME_RANGES,
   MACRO_INDICATORS,
   TECHNICAL_INDICATORS,
@@ -23,6 +23,7 @@ import {
 import { calculateIndicator } from '../../utils/technicalIndicators';
 
 const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
+  const { classes, chartTheme, tokens } = useTheme();
   const storageKey = widgetId ? `chart-widget-${widgetId}` : null;
 
   // Load saved state or use initial values
@@ -423,7 +424,7 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
 
       {/* Macro Indicator Selector Dropdown */}
       {showIndicatorSelector && (
-        <div className="absolute top-14 right-4 z-50 bg-[#1a1a1a] border border-gray-700 rounded-lg shadow-2xl py-2 min-w-[300px]">
+        <div className={`absolute top-14 right-4 z-50 ${tokens.bg.tertiary} border border-gray-700 rounded-lg shadow-2xl py-2 min-w-[300px]`} style={{ backgroundColor: tokens.bg.tertiary }}>
           <div className="px-3 py-2 border-b border-gray-800">
             <div className="flex items-center justify-between">
               <div className="text-sm font-semibold text-white">Macro Indicators</div>
@@ -453,8 +454,8 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
 
       {/* Technical Indicator Selector Dropdown */}
       {showTechnicalIndicatorSelector && (
-        <div className="absolute top-14 right-4 z-50 bg-[#1a1a1a] border border-gray-700 rounded-lg shadow-2xl py-2 min-w-[350px] max-h-[500px] overflow-y-auto">
-          <div className="px-3 py-2 border-b border-gray-800 sticky top-0 bg-[#1a1a1a]">
+        <div className="absolute top-14 right-4 z-50 border border-gray-700 rounded-lg shadow-2xl py-2 min-w-[350px] max-h-[500px] overflow-y-auto" style={{ backgroundColor: tokens.bg.tertiary }}>
+          <div className="px-3 py-2 border-b border-gray-800 sticky top-0" style={{ backgroundColor: tokens.bg.tertiary }}>
             <div className="flex items-center justify-between">
               <div className="text-sm font-semibold text-white">Technical Indicators</div>
               <button
@@ -636,14 +637,14 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
             </div>
 
             {/* Main Chart */}
-            <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: CHART_THEME.background }}>
+            <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: chartTheme.background }}>
               <div className="h-96">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_THEME.grid} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
                     <XAxis
                       dataKey="date"
-                      tick={{ fill: CHART_THEME.text, fontSize: 11 }}
+                      tick={{ fill: chartTheme.text, fontSize: 11 }}
                       tickFormatter={(date) => formatDate(date)}
                       type="category"
                       allowDuplicatedCategory={false}
@@ -651,7 +652,7 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
                     <YAxis
                       yAxisId="price"
                       orientation="right"
-                      tick={{ fill: CHART_THEME.text, fontSize: 11 }}
+                      tick={{ fill: chartTheme.text, fontSize: 11 }}
                       tickFormatter={(value) => normalized ? `${value.toFixed(0)}%` : `${value.toFixed(0)}`}
                       domain={['auto', 'auto']}
                     />
@@ -659,14 +660,14 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
                       <YAxis
                         yAxisId="volume"
                         orientation="left"
-                        tick={{ fill: CHART_THEME.text, fontSize: 11 }}
+                        tick={{ fill: chartTheme.text, fontSize: 11 }}
                         tickFormatter={(value) => formatNumber(value)}
                         domain={[0, 'auto']}
                       />
                     )}
                     <Tooltip
-                      contentStyle={{ backgroundColor: CHART_THEME.tooltip.background, border: `1px solid ${CHART_THEME.tooltip.border}` }}
-                      labelStyle={{ color: CHART_THEME.tooltip.text }}
+                      contentStyle={{ backgroundColor: chartTheme.tooltip.background, border: `1px solid ${chartTheme.tooltip.border}` }}
+                      labelStyle={{ color: chartTheme.tooltip.text }}
                       formatter={(value, name) => {
                         if (name.includes('_volume')) return [formatNumber(value), 'Volume'];
                         const ticker = tickers.find(t => t.symbol === name);
@@ -771,7 +772,7 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
                       return null;
                     })}
 
-                    {normalized && <ReferenceLine yAxisId="price" y={0} stroke={CHART_THEME.text} strokeDasharray="3 3" />}
+                    {normalized && <ReferenceLine yAxisId="price" y={0} stroke={chartTheme.text} strokeDasharray="3 3" />}
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
@@ -779,27 +780,27 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
 
             {/* RSI Oscillator */}
             {!normalized && technicalIndicators.some(ti => ti.indicatorId === 'RSI' && ti.visible) && (
-              <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: CHART_THEME.background }}>
+              <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: chartTheme.background }}>
                 <div className="mb-2">
                   <h4 className="text-sm font-semibold text-gray-400">RSI (Relative Strength Index)</h4>
                 </div>
                 <div className="h-48">
                   <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={CHART_THEME.grid} />
+                      <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
                       <XAxis
                         dataKey="date"
-                        tick={{ fill: CHART_THEME.text, fontSize: 11 }}
+                        tick={{ fill: chartTheme.text, fontSize: 11 }}
                         tickFormatter={(date) => formatDate(date)}
                         type="category"
                       />
                       <YAxis
-                        tick={{ fill: CHART_THEME.text, fontSize: 11 }}
+                        tick={{ fill: chartTheme.text, fontSize: 11 }}
                         domain={[0, 100]}
                       />
                       <Tooltip
-                        contentStyle={{ backgroundColor: CHART_THEME.tooltip.background, border: `1px solid ${CHART_THEME.tooltip.border}` }}
-                        labelStyle={{ color: CHART_THEME.tooltip.text }}
+                        contentStyle={{ backgroundColor: chartTheme.tooltip.background, border: `1px solid ${chartTheme.tooltip.border}` }}
+                        labelStyle={{ color: chartTheme.tooltip.text }}
                         labelFormatter={(date) => formatDate(date)}
                       />
                       <ReferenceLine y={70} stroke="#ef4444" strokeDasharray="3 3" label={{ value: 'Overbought', fill: '#ef4444', fontSize: 10 }} />
@@ -824,30 +825,30 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
 
             {/* MACD Oscillator */}
             {!normalized && technicalIndicators.some(ti => ti.indicatorId === 'MACD' && ti.visible) && (
-              <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: CHART_THEME.background }}>
+              <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: chartTheme.background }}>
                 <div className="mb-2">
                   <h4 className="text-sm font-semibold text-gray-400">MACD (Moving Average Convergence Divergence)</h4>
                 </div>
                 <div className="h-48">
                   <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={CHART_THEME.grid} />
+                      <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
                       <XAxis
                         dataKey="date"
-                        tick={{ fill: CHART_THEME.text, fontSize: 11 }}
+                        tick={{ fill: chartTheme.text, fontSize: 11 }}
                         tickFormatter={(date) => formatDate(date)}
                         type="category"
                       />
                       <YAxis
-                        tick={{ fill: CHART_THEME.text, fontSize: 11 }}
+                        tick={{ fill: chartTheme.text, fontSize: 11 }}
                         domain={['auto', 'auto']}
                       />
                       <Tooltip
-                        contentStyle={{ backgroundColor: CHART_THEME.tooltip.background, border: `1px solid ${CHART_THEME.tooltip.border}` }}
-                        labelStyle={{ color: CHART_THEME.tooltip.text }}
+                        contentStyle={{ backgroundColor: chartTheme.tooltip.background, border: `1px solid ${chartTheme.tooltip.border}` }}
+                        labelStyle={{ color: chartTheme.tooltip.text }}
                         labelFormatter={(date) => formatDate(date)}
                       />
-                      <ReferenceLine y={0} stroke={CHART_THEME.text} strokeDasharray="3 3" />
+                      <ReferenceLine y={0} stroke={chartTheme.text} strokeDasharray="3 3" />
                       {technicalIndicators.filter(ti => ti.indicatorId === 'MACD' && ti.visible).map(indicator => (
                         <React.Fragment key={`${indicator.symbol}_MACD`}>
                           <Bar
@@ -884,27 +885,27 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
 
             {/* Stochastic Oscillator */}
             {!normalized && technicalIndicators.some(ti => ti.indicatorId === 'STOCH' && ti.visible) && (
-              <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: CHART_THEME.background }}>
+              <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: chartTheme.background }}>
                 <div className="mb-2">
                   <h4 className="text-sm font-semibold text-gray-400">Stochastic Oscillator</h4>
                 </div>
                 <div className="h-48">
                   <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={CHART_THEME.grid} />
+                      <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
                       <XAxis
                         dataKey="date"
-                        tick={{ fill: CHART_THEME.text, fontSize: 11 }}
+                        tick={{ fill: chartTheme.text, fontSize: 11 }}
                         tickFormatter={(date) => formatDate(date)}
                         type="category"
                       />
                       <YAxis
-                        tick={{ fill: CHART_THEME.text, fontSize: 11 }}
+                        tick={{ fill: chartTheme.text, fontSize: 11 }}
                         domain={[0, 100]}
                       />
                       <Tooltip
-                        contentStyle={{ backgroundColor: CHART_THEME.tooltip.background, border: `1px solid ${CHART_THEME.tooltip.border}` }}
-                        labelStyle={{ color: CHART_THEME.tooltip.text }}
+                        contentStyle={{ backgroundColor: chartTheme.tooltip.background, border: `1px solid ${chartTheme.tooltip.border}` }}
+                        labelStyle={{ color: chartTheme.tooltip.text }}
                         labelFormatter={(date) => formatDate(date)}
                       />
                       <ReferenceLine y={80} stroke="#ef4444" strokeDasharray="3 3" label={{ value: 'Overbought', fill: '#ef4444', fontSize: 10 }} />
@@ -939,27 +940,27 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
 
             {/* ATR (Average True Range) */}
             {!normalized && technicalIndicators.some(ti => ti.indicatorId === 'ATR' && ti.visible) && (
-              <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: CHART_THEME.background }}>
+              <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: chartTheme.background }}>
                 <div className="mb-2">
                   <h4 className="text-sm font-semibold text-gray-400">ATR (Average True Range)</h4>
                 </div>
                 <div className="h-48">
                   <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={CHART_THEME.grid} />
+                      <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
                       <XAxis
                         dataKey="date"
-                        tick={{ fill: CHART_THEME.text, fontSize: 11 }}
+                        tick={{ fill: chartTheme.text, fontSize: 11 }}
                         tickFormatter={(date) => formatDate(date)}
                         type="category"
                       />
                       <YAxis
-                        tick={{ fill: CHART_THEME.text, fontSize: 11 }}
+                        tick={{ fill: chartTheme.text, fontSize: 11 }}
                         domain={['auto', 'auto']}
                       />
                       <Tooltip
-                        contentStyle={{ backgroundColor: CHART_THEME.tooltip.background, border: `1px solid ${CHART_THEME.tooltip.border}` }}
-                        labelStyle={{ color: CHART_THEME.tooltip.text }}
+                        contentStyle={{ backgroundColor: chartTheme.tooltip.background, border: `1px solid ${chartTheme.tooltip.border}` }}
+                        labelStyle={{ color: chartTheme.tooltip.text }}
                         labelFormatter={(date) => formatDate(date)}
                       />
                       {technicalIndicators.filter(ti => ti.indicatorId === 'ATR' && ti.visible).map(indicator => (
@@ -982,28 +983,28 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
 
             {/* OBV (On-Balance Volume) */}
             {!normalized && technicalIndicators.some(ti => ti.indicatorId === 'OBV' && ti.visible) && (
-              <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: CHART_THEME.background }}>
+              <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: chartTheme.background }}>
                 <div className="mb-2">
                   <h4 className="text-sm font-semibold text-gray-400">OBV (On-Balance Volume)</h4>
                 </div>
                 <div className="h-48">
                   <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={CHART_THEME.grid} />
+                      <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
                       <XAxis
                         dataKey="date"
-                        tick={{ fill: CHART_THEME.text, fontSize: 11 }}
+                        tick={{ fill: chartTheme.text, fontSize: 11 }}
                         tickFormatter={(date) => formatDate(date)}
                         type="category"
                       />
                       <YAxis
-                        tick={{ fill: CHART_THEME.text, fontSize: 11 }}
+                        tick={{ fill: chartTheme.text, fontSize: 11 }}
                         domain={['auto', 'auto']}
                         tickFormatter={(value) => formatNumber(value)}
                       />
                       <Tooltip
-                        contentStyle={{ backgroundColor: CHART_THEME.tooltip.background, border: `1px solid ${CHART_THEME.tooltip.border}` }}
-                        labelStyle={{ color: CHART_THEME.tooltip.text }}
+                        contentStyle={{ backgroundColor: chartTheme.tooltip.background, border: `1px solid ${chartTheme.tooltip.border}` }}
+                        labelStyle={{ color: chartTheme.tooltip.text }}
                         labelFormatter={(date) => formatDate(date)}
                         formatter={(value) => [formatNumber(value), 'OBV']}
                       />

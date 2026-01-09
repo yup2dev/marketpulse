@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { LineChart, Line, BarChart, Bar, ComposedChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { TrendingUp, Percent, TrendingDown, X, Plus, Activity } from 'lucide-react';
+import useTheme from '../../hooks/useTheme';
 import {
   WidgetHeader,
   LoadingSpinner,
@@ -11,7 +12,6 @@ import {
   WIDGET_ICON_COLORS,
   LOADING_COLORS,
   CHART_COLORS,
-  CHART_THEME,
   TIME_RANGES,
   TECHNICAL_INDICATORS,
   INDICATOR_COLORS,
@@ -44,6 +44,7 @@ const UniversalChartWidget = ({
   onAddSeries,
   loading = false,
 }) => {
+  const { chartTheme, tokens } = useTheme();
   const [normalized, setNormalized] = useState(false);
   const [showVol, setShowVol] = useState(true);
   const [timeRange, setTimeRange] = useState('1yr');
@@ -375,14 +376,14 @@ const UniversalChartWidget = ({
           </div>
 
           {/* Main Chart */}
-          <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: CHART_THEME.background }}>
+          <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: chartTheme.background }}>
             <div className="h-96">
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={CHART_THEME.grid} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
                   <XAxis
                     dataKey="date"
-                    tick={{ fill: CHART_THEME.text, fontSize: 11 }}
+                    tick={{ fill: chartTheme.text, fontSize: 11 }}
                     tickFormatter={(date) => formatDate(date)}
                     type="category"
                     allowDuplicatedCategory={false}
@@ -390,7 +391,7 @@ const UniversalChartWidget = ({
                   <YAxis
                     yAxisId="value"
                     orientation="right"
-                    tick={{ fill: CHART_THEME.text, fontSize: 11 }}
+                    tick={{ fill: chartTheme.text, fontSize: 11 }}
                     tickFormatter={(value) => normalized ? `${value.toFixed(0)}%` : formatPrice(value)}
                     domain={['auto', 'auto']}
                   />
@@ -398,14 +399,14 @@ const UniversalChartWidget = ({
                     <YAxis
                       yAxisId="volume"
                       orientation="left"
-                      tick={{ fill: CHART_THEME.text, fontSize: 11 }}
+                      tick={{ fill: chartTheme.text, fontSize: 11 }}
                       tickFormatter={(value) => formatNumber(value)}
                       domain={[0, 'auto']}
                     />
                   )}
                   <Tooltip
-                    contentStyle={{ backgroundColor: CHART_THEME.tooltip.background, border: `1px solid ${CHART_THEME.tooltip.border}` }}
-                    labelStyle={{ color: CHART_THEME.tooltip.text }}
+                    contentStyle={{ backgroundColor: chartTheme.tooltip.background, border: `1px solid ${chartTheme.tooltip.border}` }}
+                    labelStyle={{ color: chartTheme.tooltip.text }}
                     formatter={(value, name) => {
                       if (name.includes('_volume')) return [formatNumber(value), 'Volume'];
                       return [normalized ? `${value?.toFixed(2) || 'N/A'}%` : formatPrice(value), name];
@@ -503,7 +504,7 @@ const UniversalChartWidget = ({
                     return null;
                   })}
 
-                  {normalized && <ReferenceLine yAxisId="value" y={0} stroke={CHART_THEME.text} strokeDasharray="3 3" />}
+                  {normalized && <ReferenceLine yAxisId="value" y={0} stroke={chartTheme.text} strokeDasharray="3 3" />}
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
@@ -511,27 +512,27 @@ const UniversalChartWidget = ({
 
           {/* RSI Oscillator */}
           {!normalized && technicalIndicators.some(ti => ti.indicatorId === 'RSI' && ti.visible) && (
-            <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: CHART_THEME.background }}>
+            <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: chartTheme.background }}>
               <div className="mb-2">
                 <h4 className="text-sm font-semibold text-gray-400">RSI (Relative Strength Index)</h4>
               </div>
               <div className="h-48">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_THEME.grid} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
                     <XAxis
                       dataKey="date"
-                      tick={{ fill: CHART_THEME.text, fontSize: 11 }}
+                      tick={{ fill: chartTheme.text, fontSize: 11 }}
                       tickFormatter={(date) => formatDate(date)}
                       type="category"
                     />
                     <YAxis
-                      tick={{ fill: CHART_THEME.text, fontSize: 11 }}
+                      tick={{ fill: chartTheme.text, fontSize: 11 }}
                       domain={[0, 100]}
                     />
                     <Tooltip
-                      contentStyle={{ backgroundColor: CHART_THEME.tooltip.background, border: `1px solid ${CHART_THEME.tooltip.border}` }}
-                      labelStyle={{ color: CHART_THEME.tooltip.text }}
+                      contentStyle={{ backgroundColor: chartTheme.tooltip.background, border: `1px solid ${chartTheme.tooltip.border}` }}
+                      labelStyle={{ color: chartTheme.tooltip.text }}
                       labelFormatter={(date) => formatDate(date)}
                     />
                     <ReferenceLine y={70} stroke="#ef4444" strokeDasharray="3 3" label={{ value: 'Overbought', fill: '#ef4444', fontSize: 10 }} />
@@ -556,30 +557,30 @@ const UniversalChartWidget = ({
 
           {/* MACD Oscillator */}
           {!normalized && technicalIndicators.some(ti => ti.indicatorId === 'MACD' && ti.visible) && (
-            <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: CHART_THEME.background }}>
+            <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: chartTheme.background }}>
               <div className="mb-2">
                 <h4 className="text-sm font-semibold text-gray-400">MACD (Moving Average Convergence Divergence)</h4>
               </div>
               <div className="h-48">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_THEME.grid} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
                     <XAxis
                       dataKey="date"
-                      tick={{ fill: CHART_THEME.text, fontSize: 11 }}
+                      tick={{ fill: chartTheme.text, fontSize: 11 }}
                       tickFormatter={(date) => formatDate(date)}
                       type="category"
                     />
                     <YAxis
-                      tick={{ fill: CHART_THEME.text, fontSize: 11 }}
+                      tick={{ fill: chartTheme.text, fontSize: 11 }}
                       domain={['auto', 'auto']}
                     />
                     <Tooltip
-                      contentStyle={{ backgroundColor: CHART_THEME.tooltip.background, border: `1px solid ${CHART_THEME.tooltip.border}` }}
-                      labelStyle={{ color: CHART_THEME.tooltip.text }}
+                      contentStyle={{ backgroundColor: chartTheme.tooltip.background, border: `1px solid ${chartTheme.tooltip.border}` }}
+                      labelStyle={{ color: chartTheme.tooltip.text }}
                       labelFormatter={(date) => formatDate(date)}
                     />
-                    <ReferenceLine y={0} stroke={CHART_THEME.text} strokeDasharray="3 3" />
+                    <ReferenceLine y={0} stroke={chartTheme.text} strokeDasharray="3 3" />
                     {technicalIndicators.filter(ti => ti.indicatorId === 'MACD' && ti.visible).map(indicator => (
                       <React.Fragment key={`${indicator.seriesId}_MACD`}>
                         <Bar
@@ -616,27 +617,27 @@ const UniversalChartWidget = ({
 
           {/* Stochastic Oscillator */}
           {!normalized && technicalIndicators.some(ti => ti.indicatorId === 'STOCH' && ti.visible) && (
-            <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: CHART_THEME.background }}>
+            <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: chartTheme.background }}>
               <div className="mb-2">
                 <h4 className="text-sm font-semibold text-gray-400">Stochastic Oscillator</h4>
               </div>
               <div className="h-48">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_THEME.grid} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
                     <XAxis
                       dataKey="date"
-                      tick={{ fill: CHART_THEME.text, fontSize: 11 }}
+                      tick={{ fill: chartTheme.text, fontSize: 11 }}
                       tickFormatter={(date) => formatDate(date)}
                       type="category"
                     />
                     <YAxis
-                      tick={{ fill: CHART_THEME.text, fontSize: 11 }}
+                      tick={{ fill: chartTheme.text, fontSize: 11 }}
                       domain={[0, 100]}
                     />
                     <Tooltip
-                      contentStyle={{ backgroundColor: CHART_THEME.tooltip.background, border: `1px solid ${CHART_THEME.tooltip.border}` }}
-                      labelStyle={{ color: CHART_THEME.tooltip.text }}
+                      contentStyle={{ backgroundColor: chartTheme.tooltip.background, border: `1px solid ${chartTheme.tooltip.border}` }}
+                      labelStyle={{ color: chartTheme.tooltip.text }}
                       labelFormatter={(date) => formatDate(date)}
                     />
                     <ReferenceLine y={80} stroke="#ef4444" strokeDasharray="3 3" label={{ value: 'Overbought', fill: '#ef4444', fontSize: 10 }} />
@@ -671,27 +672,27 @@ const UniversalChartWidget = ({
 
           {/* ATR (Average True Range) */}
           {!normalized && technicalIndicators.some(ti => ti.indicatorId === 'ATR' && ti.visible) && (
-            <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: CHART_THEME.background }}>
+            <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: chartTheme.background }}>
               <div className="mb-2">
                 <h4 className="text-sm font-semibold text-gray-400">ATR (Average True Range)</h4>
               </div>
               <div className="h-48">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_THEME.grid} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
                     <XAxis
                       dataKey="date"
-                      tick={{ fill: CHART_THEME.text, fontSize: 11 }}
+                      tick={{ fill: chartTheme.text, fontSize: 11 }}
                       tickFormatter={(date) => formatDate(date)}
                       type="category"
                     />
                     <YAxis
-                      tick={{ fill: CHART_THEME.text, fontSize: 11 }}
+                      tick={{ fill: chartTheme.text, fontSize: 11 }}
                       domain={['auto', 'auto']}
                     />
                     <Tooltip
-                      contentStyle={{ backgroundColor: CHART_THEME.tooltip.background, border: `1px solid ${CHART_THEME.tooltip.border}` }}
-                      labelStyle={{ color: CHART_THEME.tooltip.text }}
+                      contentStyle={{ backgroundColor: chartTheme.tooltip.background, border: `1px solid ${chartTheme.tooltip.border}` }}
+                      labelStyle={{ color: chartTheme.tooltip.text }}
                       labelFormatter={(date) => formatDate(date)}
                     />
                     {technicalIndicators.filter(ti => ti.indicatorId === 'ATR' && ti.visible).map(indicator => (
@@ -714,28 +715,28 @@ const UniversalChartWidget = ({
 
           {/* OBV (On Balance Volume) */}
           {!normalized && technicalIndicators.some(ti => ti.indicatorId === 'OBV' && ti.visible) && (
-            <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: CHART_THEME.background }}>
+            <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: chartTheme.background }}>
               <div className="mb-2">
                 <h4 className="text-sm font-semibold text-gray-400">OBV (On Balance Volume)</h4>
               </div>
               <div className="h-48">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_THEME.grid} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
                     <XAxis
                       dataKey="date"
-                      tick={{ fill: CHART_THEME.text, fontSize: 11 }}
+                      tick={{ fill: chartTheme.text, fontSize: 11 }}
                       tickFormatter={(date) => formatDate(date)}
                       type="category"
                     />
                     <YAxis
-                      tick={{ fill: CHART_THEME.text, fontSize: 11 }}
+                      tick={{ fill: chartTheme.text, fontSize: 11 }}
                       domain={['auto', 'auto']}
                       tickFormatter={(value) => formatNumber(value)}
                     />
                     <Tooltip
-                      contentStyle={{ backgroundColor: CHART_THEME.tooltip.background, border: `1px solid ${CHART_THEME.tooltip.border}` }}
-                      labelStyle={{ color: CHART_THEME.tooltip.text }}
+                      contentStyle={{ backgroundColor: chartTheme.tooltip.background, border: `1px solid ${chartTheme.tooltip.border}` }}
+                      labelStyle={{ color: chartTheme.tooltip.text }}
                       labelFormatter={(date) => formatDate(date)}
                       formatter={(value) => formatNumber(value)}
                     />

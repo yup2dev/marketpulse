@@ -232,6 +232,75 @@ def get_holdings(
     return [h.to_dict() for h in holdings]
 
 
+@router.get("/portfolios/{portfolio_id}/summary")
+def get_portfolio_summary(
+    portfolio_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    포트폴리오 요약 통계 조회
+    총 자산, 총 비용, 미실현 손익, 수익률 등
+    """
+    summary = UserPortfolioService.get_portfolio_summary(db, portfolio_id, current_user.user_id)
+
+    if not summary:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Portfolio not found"
+        )
+
+    return summary
+
+
+@router.get("/portfolios/{portfolio_id}/performance")
+def get_portfolio_performance(
+    portfolio_id: str,
+    period: str = '1M',
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    포트폴리오 성과 데이터 조회
+
+    Args:
+        period: 기간 (1D, 1W, 1M, 3M, 6M, 1Y, YTD, ALL)
+    """
+    performance = UserPortfolioService.get_portfolio_performance(
+        db, portfolio_id, current_user.user_id, period
+    )
+
+    if not performance:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Portfolio not found"
+        )
+
+    return performance
+
+
+@router.get("/portfolios/{portfolio_id}/allocation")
+def get_portfolio_allocation(
+    portfolio_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    포트폴리오 자산 배분 비율 조회
+    """
+    allocation = UserPortfolioService.calculate_portfolio_allocation(
+        db, portfolio_id, current_user.user_id
+    )
+
+    if allocation is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Portfolio not found"
+        )
+
+    return {"allocation": allocation}
+
+
 # ==================== Watchlist Endpoints ====================
 
 @router.post("/watchlists", status_code=status.HTTP_201_CREATED)

@@ -7,7 +7,7 @@ from decimal import Decimal
 from datetime import datetime
 import uuid
 
-from index_analyzer.models.database import Alert, User, MBS_IN_STK_STBD
+from index_analyzer.models.database import Alert, AlertHistory, User, MBS_IN_STK_STBD
 
 
 class AlertService:
@@ -184,3 +184,130 @@ class AlertService:
         db.commit()
 
         return triggered_alerts
+
+    @staticmethod
+    def get_alert_history(
+        db: Session,
+        user_id: str,
+        alert_id: Optional[str] = None,
+        limit: int = 50
+    ) -> List[dict]:
+        """
+        알림 발생 이력 조회
+
+        Args:
+            user_id: 사용자 ID
+            alert_id: 특정 알림 ID (선택사항)
+            limit: 조회 개수 제한
+
+        Returns:
+            알림 이력 리스트
+        """
+        # 먼저 사용자의 알림 ID들 조회
+        user_alert_ids = [
+            a.alert_id for a in db.query(Alert.alert_id).filter(Alert.user_id == user_id).all()
+        ]
+
+        # 히스토리 조회
+        query = db.query(AlertHistory).filter(
+            AlertHistory.alert_id.in_(user_alert_ids)
+        )
+
+        if alert_id:
+            # 특정 알림의 히스토리만 조회
+            if alert_id not in user_alert_ids:
+                return []
+            query = query.filter(AlertHistory.alert_id == alert_id)
+
+        history = query.order_by(
+            AlertHistory.triggered_at.desc()
+        ).limit(limit).all()
+
+        # 알림 정보와 함께 반환
+        result = []
+        for h in history:
+            alert = db.query(Alert).filter(Alert.alert_id == h.alert_id).first()
+            history_dict = h.to_dict()
+            if alert:
+                history_dict['alert_info'] = {
+                    'ticker_cd': alert.ticker_cd,
+                    'alert_type': alert.alert_type,
+                    'condition_type': alert.condition_type
+                }
+            result.append(history_dict)
+
+        return result
+
+    @staticmethod
+    def create_alert_history(
+        db: Session,
+        alert_id: str,
+        triggered_value: Decimal,
+        message: str,
+        is_sent: bool = True
+    ) -> AlertHistory:
+        """
+        알림 히스토리 생성
+
+        Args:
+            alert_id: 알림 ID
+            triggered_value: 발생 시의 값
+            message: 발송 메시지
+            is_sent: 발송 성공 여부
+
+        Returns:
+            생성된 히스토리
+        """
+        history = AlertHistory(
+            history_id=f"hist_{uuid.uuid4().hex[:16]}",
+            alert_id=alert_id,
+            triggered_at=datetime.utcnow(),
+            triggered_value=triggered_value,
+            message=message,
+            is_sent=is_sent
+        )
+
+        db.add(history)
+        db.commit()
+        db.refresh(history)
+
+        return history
+
+    @staticmethod
+    def test_alert(db: Session, alert_id: str, user_id: str) -> dict:
+        """
+        알림 테스트 발송
+
+        Args:
+            alert_id: 알림 ID
+            user_id: 사용자 ID
+
+        Returns:
+            테스트 결과
+        """
+        alert = db.query(Alert).filter(
+            Alert.alert_id == alert_id,
+            Alert.user_id == user_id
+        ).first()
+
+        if not alert:
+            return None
+
+        # 테스트 메시지 생성
+        test_message = f"[TEST] Alert: {alert.alert_type} for {alert.ticker_cd or 'N/A'}"
+
+        # 히스토리에 기록
+        AlertService.create_alert_history(
+            db=db,
+            alert_id=alert_id,
+            triggered_value=alert.threshold_value,
+            message=test_message,
+            is_sent=True
+        )
+
+        return {
+            "success": True,
+            "message": "Test alert sent successfully",
+            "alert_id": alert_id,
+            "test_message": test_message
+        }

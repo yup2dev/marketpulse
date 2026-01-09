@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { TrendingUp, TrendingDown, RefreshCw, X, BarChart3, Table2, Maximize2 } from 'lucide-react';
+import useTheme from '../hooks/useTheme';
 import { formatNumber, formatPrice, formatPercent } from '../utils/widgetUtils';
 import { API_BASE } from '../config/api';
 
 const ResizableStockWidget = ({ symbol, onRemove, onExpand }) => {
+  const { classes, chartTheme } = useTheme();
   const [quote, setQuote] = useState(null);
   const [history, setHistory] = useState([]);
   const [viewMode, setViewMode] = useState('chart'); // 'chart' or 'table'
@@ -42,9 +44,9 @@ const ResizableStockWidget = ({ symbol, onRemove, onExpand }) => {
   const isPositive = quote?.change_percent >= 0;
 
   return (
-    <div className="h-full bg-[#1a1a1a] rounded-lg border border-gray-800 flex flex-col overflow-hidden">
+    <div className={`h-full ${classes.widget.container} rounded-lg border flex flex-col overflow-hidden`}>
       {/* Header - Drag Handle */}
-      <div className="flex items-center justify-between p-3 border-b border-gray-800">
+      <div className={`flex items-center justify-between p-3 border-b ${classes.widget.header}`}>
         <div className="flex items-center gap-2 cursor-move drag-handle-area flex-1">
           <h3 className="font-semibold text-white">{symbol}</h3>
           {quote && (
@@ -160,15 +162,15 @@ const ResizableStockWidget = ({ symbol, onRemove, onExpand }) => {
             <div className="flex-1 min-h-[150px]">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={history.slice(-30)}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                  <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
                   <XAxis
                     dataKey="date"
-                    tick={{ fill: '#666', fontSize: 10 }}
+                    tick={{ fill: chartTheme.text, fontSize: 10 }}
                     tickFormatter={(date) => new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   />
-                  <YAxis tick={{ fill: '#666', fontSize: 10 }} domain={['dataMin - 5', 'dataMax + 5']} />
+                  <YAxis tick={{ fill: chartTheme.text, fontSize: 10 }} domain={['dataMin - 5', 'dataMax + 5']} />
                   <Tooltip
-                    contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333' }}
+                    contentStyle={{ backgroundColor: chartTheme.tooltip.background, border: `1px solid ${chartTheme.tooltip.border}` }}
                     labelStyle={{ color: '#fff' }}
                     formatter={(value) => formatPrice(value)}
                   />

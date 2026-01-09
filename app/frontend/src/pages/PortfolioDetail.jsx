@@ -18,6 +18,8 @@ import { portfolioAPI, exportAPI } from '../lib/api';
 import AddTransactionModal from '../components/portfolio/AddTransactionModal';
 import HoldingsTable from '../components/portfolio/HoldingsTable';
 import TransactionsTable from '../components/portfolio/TransactionsTable';
+import PortfolioSummaryWidget from '../components/portfolio/PortfolioSummaryWidget';
+import AssetAllocationChart from '../components/portfolio/AssetAllocationChart';
 
 export default function PortfolioDetail() {
   const { portfolioId } = useParams();
@@ -225,60 +227,12 @@ export default function PortfolioDetail() {
           </div>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-gray-600">총 자산</span>
-              <DollarSign className="text-blue-600" size={20} />
-            </div>
-            <p className="text-2xl font-bold text-gray-900">${stats.totalValue.toFixed(2)}</p>
-          </div>
+        {/* Portfolio Summary Widget */}
+        <PortfolioSummaryWidget portfolioId={portfolioId} />
 
-          <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-gray-600">총 투자액</span>
-              <DollarSign className="text-gray-600" size={20} />
-            </div>
-            <p className="text-2xl font-bold text-gray-900">${stats.totalCost.toFixed(2)}</p>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-gray-600">수익/손실</span>
-              {stats.totalPnL >= 0 ? (
-                <TrendingUp className="text-green-600" size={20} />
-              ) : (
-                <TrendingDown className="text-red-600" size={20} />
-              )}
-            </div>
-            <p
-              className={`text-2xl font-bold ${
-                stats.totalPnL >= 0 ? 'text-green-600' : 'text-red-600'
-              }`}
-            >
-              ${stats.totalPnL.toFixed(2)}
-            </p>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-gray-600">수익률</span>
-              {stats.totalPnLPct >= 0 ? (
-                <TrendingUp className="text-green-600" size={20} />
-              ) : (
-                <TrendingDown className="text-red-600" size={20} />
-              )}
-            </div>
-            <p
-              className={`text-2xl font-bold ${
-                stats.totalPnLPct >= 0 ? 'text-green-600' : 'text-red-600'
-              }`}
-            >
-              {stats.totalPnLPct >= 0 ? '+' : ''}
-              {stats.totalPnLPct.toFixed(2)}%
-            </p>
-          </div>
+        {/* Asset Allocation Chart */}
+        <div className="mb-8">
+          <AssetAllocationChart portfolioId={portfolioId} />
         </div>
 
         {/* Tabs */}
