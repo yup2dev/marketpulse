@@ -18,6 +18,12 @@ import { API_BASE } from '../config/api';
 import { CARD_CLASSES } from '../styles/designTokens';
 import UniversalChartWidget from './common/UniversalChartWidget';
 import RegimeDashboard from './macro/RegimeDashboard';
+import FedPolicyGauge from './macro/FedPolicyGauge';
+import YieldCurveChart from './macro/YieldCurveChart';
+import InflationDecomposition from './macro/InflationDecomposition';
+import LaborMarketHeatmap from './macro/LaborMarketHeatmap';
+import FinancialConditionsWidget from './macro/FinancialConditionsWidget';
+import SentimentComposite from './macro/SentimentComposite';
 
 /**
  * MacroAnalysis - Comprehensive Macroeconomic Analysis Dashboard
@@ -41,6 +47,12 @@ const MacroAnalysis = () => {
   const TABS = [
     { id: 'overview', name: 'Overview', icon: Activity },
     { id: 'regime', name: 'Economic Regime', icon: Target },
+    { id: 'fed-policy', name: 'Fed Policy', icon: TrendingUp },
+    { id: 'yield-curve', name: 'Yield Curve', icon: Activity },
+    { id: 'inflation', name: 'Inflation', icon: TrendingUp },
+    { id: 'labor', name: 'Labor Market', icon: Activity },
+    { id: 'financial-conditions', name: 'Financial Conditions', icon: CreditCard },
+    { id: 'sentiment', name: 'Market Sentiment', icon: Activity },
     { id: 'commodities', name: 'Commodities', icon: BarChart3 },
     { id: 'banking', name: 'Banking & Credit', icon: Building2 },
     { id: 'money', name: 'Money Supply', icon: DollarSign },
@@ -551,6 +563,30 @@ const MacroAnalysis = () => {
     return <RegimeDashboard />;
   };
 
+  const renderFedPolicy = () => {
+    return <FedPolicyGauge />;
+  };
+
+  const renderYieldCurve = () => {
+    return <YieldCurveChart />;
+  };
+
+  const renderInflation = () => {
+    return <InflationDecomposition />;
+  };
+
+  const renderLabor = () => {
+    return <LaborMarketHeatmap />;
+  };
+
+  const renderFinancialConditions = () => {
+    return <FinancialConditionsWidget />;
+  };
+
+  const renderSentiment = () => {
+    return <SentimentComposite />;
+  };
+
   const renderCategoryData = (category) => {
     // Show loading state if data not yet loaded
     if (!loadedTabs.has(category)) {
@@ -676,6 +712,12 @@ const MacroAnalysis = () => {
       <div>
         {activeTab === 'overview' && renderOverview()}
         {activeTab === 'regime' && renderRegime()}
+        {activeTab === 'fed-policy' && renderFedPolicy()}
+        {activeTab === 'yield-curve' && renderYieldCurve()}
+        {activeTab === 'inflation' && renderInflation()}
+        {activeTab === 'labor' && renderLabor()}
+        {activeTab === 'financial-conditions' && renderFinancialConditions()}
+        {activeTab === 'sentiment' && renderSentiment()}
         {activeTab === 'commodities' && renderCommodities()}
         {activeTab === 'banking' && renderCategoryData('banking')}
         {activeTab === 'money' && renderCategoryData('money')}

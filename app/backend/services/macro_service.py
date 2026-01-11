@@ -786,6 +786,1379 @@ class MacroService:
             log.error(f"Error fetching regime history: {e}")
             raise
 
+    async def get_fed_policy_stance(self) -> Dict[str, Any]:
+        """
+        Calculate Federal Reserve policy stance
+
+        Returns analysis of Fed's hawkish/dovish position based on:
+        - Fed Funds Rate level and trajectory
+        - Rate change velocity
+        - Historical context
+        """
+        try:
+            # Fetch Fed Funds Rate history
+            rate_data = await FREDInterestRateFetcher.fetch_data({'rate_type': 'federal_funds'})
+
+            if not rate_data or len(rate_data) < 2:
+                raise ValueError("Insufficient Fed Funds Rate data")
+
+            # Sort by date descending (most recent first)
+            rate_data_sorted = sorted(rate_data, key=lambda x: x.date, reverse=True)
+
+            # Current rate
+            current_rate = rate_data_sorted[0].rate
+            current_date = rate_data_sorted[0].date
+
+            # Calculate rate changes over 12 months
+            twelve_months_ago = datetime.now() - timedelta(days=365)
+            recent_rates = [r for r in rate_data_sorted if r.date >= twelve_months_ago]
+
+            # Count rate changes
+            rate_changes_12m = 0
+            for i in range(len(recent_rates) - 1):
+                if abs(recent_rates[i].rate - recent_rates[i+1].rate) > 0.01:  # Significant change
+                    rate_changes_12m += 1
+
+            # Historical context
+            peak_rate = max(r.rate for r in rate_data_sorted)
+            trough_rate = min(r.rate for r in rate_data_sorted)
+
+            # Calculate stance score (-100 to +100)
+            # Based on: rate level, rate momentum, change frequency
+            rate_level_score = ((current_rate - 2.0) / 3.0) * 50  # Normalized around 2% neutral
+
+            # Momentum: compare current to 3 months ago
+            three_months_ago = datetime.now() - timedelta(days=90)
+            three_month_rates = [r for r in rate_data_sorted if r.date >= three_months_ago]
+            if len(three_month_rates) >= 2:
+                rate_momentum = (three_month_rates[0].rate - three_month_rates[-1].rate) * 10
+            else:
+                rate_momentum = 0
+
+            stance_score = rate_level_score + rate_momentum
+            stance_score = max(-100, min(100, stance_score))
+
+            # Classify stance
+            if stance_score > 30:
+                stance = 'hawkish'
+            elif stance_score < -30:
+                stance = 'dovish'
+            else:
+                stance = 'neutral'
+
+            # Simplified next meeting probabilities
+            # In reality, this would use Fed Funds Futures data
+            # For now, base on recent momentum
+            if stance == 'hawkish' and current_rate < peak_rate - 0.5:
+                probs = {'hike': 65, 'hold': 30, 'cut': 5}
+            elif stance == 'dovish' and current_rate > trough_rate + 0.5:
+                probs = {'hike': 5, 'hold': 30, 'cut': 65}
+            else:
+                probs = {'hike': 20, 'hold': 60, 'cut': 20}
+
+            return {
+                'stance': stance,
+                'stance_score': round(stance_score, 2),
+                'fed_funds_rate': round(current_rate, 2),
+                'fed_funds_target_range': {
+                    'lower': round(current_rate - 0.25, 2),
+                    'upper': round(current_rate, 2)
+                },
+                'last_updated': current_date.isoformat() if current_date else None,
+                'next_meeting': {
+                    'date': 'TBD',  # Would need FOMC calendar integration
+                    'probabilities': probs
+                },
+                'historical_context': {
+                    'rate_changes_12m': rate_changes_12m,
+                    'peak_rate': round(peak_rate, 2),
+                    'trough_rate': round(trough_rate, 2),
+                    'percentile': round((current_rate - trough_rate) / (peak_rate - trough_rate) * 100, 1) if peak_rate != trough_rate else 50
+                }
+            }
+
+        except Exception as e:
+            log.error(f"Error calculating Fed policy stance: {e}")
+            raise
+
+    async def get_yield_curve(self) -> Dict[str, Any]:
+        """
+        Get current Treasury yield curve and calculate key metrics
+
+        Returns full curve data, spreads, and shape analysis
+        """
+        try:
+            api_key = get_api_key(
+                credentials=None,
+                api_name="FRED",
+                env_var="FRED_API_KEY"
+            )
+
+            # Define Treasury maturities to fetch
+            maturities = [
+                {'key': '3m', 'series': 'DGS3MO', 'years': 0.25, 'name': '3-Month'},
+                {'key': '6m', 'series': 'DGS6MO', 'years': 0.5, 'name': '6-Month'},
+                {'key': '1y', 'series': 'DGS1', 'years': 1, 'name': '1-Year'},
+                {'key': '2y', 'series': 'DGS2', 'years': 2, 'name': '2-Year'},
+                {'key': '5y', 'series': 'DGS5', 'years': 5, 'name': '5-Year'},
+                {'key': '10y', 'series': 'DGS10', 'years': 10, 'name': '10-Year'},
+                {'key': '30y', 'series': 'DGS30', 'years': 30, 'name': '30-Year'}
+            ]
+
+            curve = []
+            yields_dict = {}
+
+            # Fetch current yield for each maturity
+            for mat in maturities:
+                try:
+                    obs = FredSeriesFetcher.fetch_series(
+                        series_id=mat['series'],
+                        api_key=api_key,
+                        limit=1,
+                        sort_order='desc'
+                    )
+                    if obs and obs[0]['value'] != '.':
+                        yield_value = float(obs[0]['value'])
+                        curve.append({
+                            'maturity': mat['name'],
+                            'years': mat['years'],
+                            'yield': yield_value
+                        })
+                        yields_dict[mat['key']] = yield_value
+                except Exception as e:
+                    log.warning(f"Could not fetch {mat['name']}: {e}")
+                    continue
+
+            # Calculate key spreads
+            spreads = {}
+            if '2y' in yields_dict and '10y' in yields_dict:
+                spreads['2y10y'] = round(yields_dict['10y'] - yields_dict['2y'], 2)
+            if '3m' in yields_dict and '10y' in yields_dict:
+                spreads['3m10y'] = round(yields_dict['10y'] - yields_dict['3m'], 2)
+            if '5y' in yields_dict and '30y' in yields_dict:
+                spreads['5y30y'] = round(yields_dict['30y'] - yields_dict['5y'], 2)
+
+            # Determine curve shape
+            inversion_signal = False
+            curve_shape = 'normal'
+
+            if '2y10y' in spreads:
+                if spreads['2y10y'] < 0:
+                    curve_shape = 'inverted'
+                    inversion_signal = True
+                elif spreads['2y10y'] < 0.25:
+                    curve_shape = 'flat'
+
+            # Historical percentile (simplified - would need historical data)
+            historical_percentile = {}
+            if '2y10y' in spreads:
+                # Typical range: -2% to +3%
+                percentile = ((spreads['2y10y'] + 2) / 5) * 100
+                historical_percentile['2y10y'] = round(max(0, min(100, percentile)), 1)
+
+            return {
+                'curve': curve,
+                'spreads': spreads,
+                'curve_shape': curve_shape,
+                'inversion_signal': inversion_signal,
+                'historical_percentile': historical_percentile,
+                'timestamp': datetime.now().isoformat()
+            }
+
+        except Exception as e:
+            log.error(f"Error fetching yield curve: {e}")
+            raise
+
+    async def get_yield_curve_history(self, period: str = '5y') -> Dict[str, Any]:
+        """
+        Get historical yield curve spread data
+
+        Args:
+            period: Time period (1y, 3y, 5y, 10y, max)
+
+        Returns:
+            Historical spreads and inversion events
+        """
+        try:
+            start_date, end_date = parse_period_to_dates(period)
+
+            api_key = get_api_key(
+                credentials=None,
+                api_name="FRED",
+                env_var="FRED_API_KEY"
+            )
+
+            # Fetch historical data for key maturities
+            series_to_fetch = {
+                '2y': 'DGS2',
+                '10y': 'DGS10',
+                '3m': 'DGS3MO',
+                '30y': 'DGS30',
+                '5y': 'DGS5'
+            }
+
+            historical_data = {}
+            for key, series_id in series_to_fetch.items():
+                try:
+                    obs = FredSeriesFetcher.fetch_series(
+                        series_id=series_id,
+                        api_key=api_key,
+                        start_date=start_date,
+                        end_date=end_date,
+                        sort_order='asc'
+                    )
+                    historical_data[key] = {
+                        obs['date']: float(obs['value']) if obs['value'] != '.' else None
+                        for obs in obs
+                    }
+                except Exception as e:
+                    log.warning(f"Could not fetch historical data for {key}: {e}")
+                    historical_data[key] = {}
+
+            # Calculate historical spreads
+            spreads_history = []
+
+            # Get all dates where we have data
+            all_dates = sorted(set(
+                date for series_data in historical_data.values()
+                for date in series_data.keys()
+            ))
+
+            for date in all_dates:
+                point = {'date': date}
+
+                # 2y-10y spread
+                if (date in historical_data.get('2y', {}) and
+                    date in historical_data.get('10y', {}) and
+                    historical_data['2y'][date] is not None and
+                    historical_data['10y'][date] is not None):
+                    point['2y10y'] = round(
+                        historical_data['10y'][date] - historical_data['2y'][date],
+                        2
+                    )
+
+                # 3m-10y spread
+                if (date in historical_data.get('3m', {}) and
+                    date in historical_data.get('10y', {}) and
+                    historical_data['3m'][date] is not None and
+                    historical_data['10y'][date] is not None):
+                    point['3m10y'] = round(
+                        historical_data['10y'][date] - historical_data['3m'][date],
+                        2
+                    )
+
+                if len(point) > 1:  # Has date + at least one spread
+                    spreads_history.append(point)
+
+            # Detect inversion events (2y-10y spread goes negative)
+            inversions = []
+            in_inversion = False
+            inversion_start = None
+
+            for point in spreads_history:
+                if '2y10y' in point:
+                    if point['2y10y'] < 0 and not in_inversion:
+                        in_inversion = True
+                        inversion_start = point['date']
+                    elif point['2y10y'] >= 0 and in_inversion:
+                        inversions.append({
+                            'start': inversion_start,
+                            'end': point['date']
+                        })
+                        in_inversion = False
+                        inversion_start = None
+
+            # If still in inversion at end of period
+            if in_inversion:
+                inversions.append({
+                    'start': inversion_start,
+                    'end': spreads_history[-1]['date']
+                })
+
+            return {
+                'spreads_history': spreads_history,
+                'inversion_events': inversions,
+                'period': period
+            }
+
+        except Exception as e:
+            log.error(f"Error fetching yield curve history: {e}")
+            raise
+
+    async def get_inflation_decomposition(self) -> Dict[str, Any]:
+        """
+        Get detailed inflation breakdown and analysis
+
+        Returns inflation components, sticky vs flexible prices, and expectations
+        """
+        try:
+            api_key = get_api_key(
+                credentials=None,
+                api_name="FRED",
+                env_var="FRED_API_KEY"
+            )
+
+            # Fetch CPI data
+            cpi_data = await FREDCPIFetcher.fetch_data({})
+            cpi_sorted = sorted(cpi_data, key=lambda x: x.date, reverse=True)
+
+            # Calculate headline CPI metrics
+            headline_cpi = {}
+            if len(cpi_sorted) >= 13:
+                current_cpi = cpi_sorted[0].value
+                month_ago_cpi = cpi_sorted[1].value if len(cpi_sorted) > 1 else current_cpi
+                year_ago_cpi = cpi_sorted[12].value
+
+                headline_cpi = {
+                    'current': round(current_cpi, 2),
+                    'yoy': round(((current_cpi - year_ago_cpi) / year_ago_cpi * 100), 2),
+                    'mom': round(((current_cpi - month_ago_cpi) / month_ago_cpi * 100), 2),
+                    'date': cpi_sorted[0].date.isoformat() if cpi_sorted[0].date else None
+                }
+
+            # Fetch Core CPI (CPI Less Food and Energy)
+            core_cpi = {}
+            try:
+                core_obs = FredSeriesFetcher.fetch_series(
+                    series_id='CPILFESL',  # Core CPI
+                    api_key=api_key,
+                    limit=13,
+                    sort_order='desc'
+                )
+                if core_obs and len(core_obs) >= 13:
+                    current_core = float(core_obs[0]['value'])
+                    month_ago_core = float(core_obs[1]['value'])
+                    year_ago_core = float(core_obs[12]['value'])
+
+                    core_cpi = {
+                        'current': round(current_core, 2),
+                        'yoy': round(((current_core - year_ago_core) / year_ago_core * 100), 2),
+                        'mom': round(((current_core - month_ago_core) / month_ago_core * 100), 2)
+                    }
+            except Exception as e:
+                log.warning(f"Could not fetch core CPI: {e}")
+
+            # CPI Component breakdown (simplified - FRED has limited granular data)
+            # In production, would fetch from BLS API with detailed categories
+            components = [
+                {
+                    'category': 'Food',
+                    'weight': 13.4,  # % of CPI basket
+                    'yoy_change': 2.5,  # Simplified estimate
+                    'contribution': 0.34
+                },
+                {
+                    'category': 'Energy',
+                    'weight': 7.2,
+                    'yoy_change': -5.0,
+                    'contribution': -0.36
+                },
+                {
+                    'category': 'Shelter',
+                    'weight': 32.9,
+                    'yoy_change': 5.5,
+                    'contribution': 1.81
+                },
+                {
+                    'category': 'Services (ex-shelter)',
+                    'weight': 24.5,
+                    'yoy_change': 3.8,
+                    'contribution': 0.93
+                },
+                {
+                    'category': 'Goods (ex-food, energy)',
+                    'weight': 22.0,
+                    'yoy_change': 1.2,
+                    'contribution': 0.26
+                }
+            ]
+
+            # Sticky vs Flexible CPI (from Atlanta Fed)
+            sticky_vs_flexible = {}
+            try:
+                # Sticky CPI: CORESTICKM159SFRBATL
+                sticky_obs = FredSeriesFetcher.fetch_series(
+                    series_id='CORESTICKM159SFRBATL',
+                    api_key=api_key,
+                    limit=1,
+                    sort_order='desc'
+                )
+                # Flexible CPI: COREFLEXM159SFRBATL
+                flexible_obs = FredSeriesFetcher.fetch_series(
+                    series_id='COREFLEXM159SFRBATL',
+                    api_key=api_key,
+                    limit=1,
+                    sort_order='desc'
+                )
+
+                if sticky_obs and flexible_obs:
+                    sticky_vs_flexible = {
+                        'sticky_cpi_yoy': round(float(sticky_obs[0]['value']), 2) if sticky_obs[0]['value'] != '.' else None,
+                        'flexible_cpi_yoy': round(float(flexible_obs[0]['value']), 2) if flexible_obs[0]['value'] != '.' else None
+                    }
+            except Exception as e:
+                log.warning(f"Could not fetch sticky/flexible CPI: {e}")
+
+            # Inflation Expectations (Breakeven rates)
+            expectations = {}
+            try:
+                # 5-Year Breakeven: T5YIE
+                five_yr_obs = FredSeriesFetcher.fetch_series(
+                    series_id='T5YIE',
+                    api_key=api_key,
+                    limit=1,
+                    sort_order='desc'
+                )
+                # 10-Year Breakeven: T10YIE
+                ten_yr_obs = FredSeriesFetcher.fetch_series(
+                    series_id='T10YIE',
+                    api_key=api_key,
+                    limit=1,
+                    sort_order='desc'
+                )
+
+                if five_yr_obs and five_yr_obs[0]['value'] != '.':
+                    expectations['5y_breakeven'] = round(float(five_yr_obs[0]['value']), 2)
+                if ten_yr_obs and ten_yr_obs[0]['value'] != '.':
+                    expectations['10y_breakeven'] = round(float(ten_yr_obs[0]['value']), 2)
+            except Exception as e:
+                log.warning(f"Could not fetch breakeven rates: {e}")
+
+            return {
+                'headline_cpi': headline_cpi,
+                'core_cpi': core_cpi,
+                'components': components,
+                'sticky_vs_flexible': sticky_vs_flexible,
+                'expectations': expectations,
+                'timestamp': datetime.now().isoformat()
+            }
+
+        except Exception as e:
+            log.error(f"Error fetching inflation decomposition: {e}")
+            raise
+
+    async def get_labor_dashboard(self) -> Dict[str, Any]:
+        """
+        Get comprehensive labor market metrics
+
+        Returns unemployment, job market, wages, and labor market heat index
+        """
+        try:
+            api_key = get_api_key(
+                credentials=None,
+                api_name="FRED",
+                env_var="FRED_API_KEY"
+            )
+
+            # Unemployment metrics
+            unemployment = {}
+            try:
+                # U3 (official unemployment rate)
+                u3_data = await FREDUnemploymentFetcher.fetch_data({})
+                u3_sorted = sorted(u3_data, key=lambda x: x.date, reverse=True)
+
+                # U6 (broader unemployment) - FRED: U6RATE
+                u6_obs = FredSeriesFetcher.fetch_series(
+                    series_id='U6RATE',
+                    api_key=api_key,
+                    limit=2,
+                    sort_order='desc'
+                )
+
+                # Labor Force Participation Rate - FRED: CIVPART
+                lfpr_obs = FredSeriesFetcher.fetch_series(
+                    series_id='CIVPART',
+                    api_key=api_key,
+                    limit=2,
+                    sort_order='desc'
+                )
+
+                if u3_sorted:
+                    current_u3 = u3_sorted[0].value
+                    prev_u3 = u3_sorted[1].value if len(u3_sorted) > 1 else current_u3
+
+                    # Determine trend
+                    if current_u3 < prev_u3 - 0.1:
+                        trend = 'improving'
+                    elif current_u3 > prev_u3 + 0.1:
+                        trend = 'deteriorating'
+                    else:
+                        trend = 'stable'
+
+                    unemployment = {
+                        'u3': round(current_u3, 1),
+                        'u6': round(float(u6_obs[0]['value']), 1) if u6_obs and u6_obs[0]['value'] != '.' else None,
+                        'participation_rate': round(float(lfpr_obs[0]['value']), 1) if lfpr_obs and lfpr_obs[0]['value'] != '.' else None,
+                        'trend': trend
+                    }
+            except Exception as e:
+                log.warning(f"Error fetching unemployment data: {e}")
+
+            # Job market metrics
+            job_market = {}
+            try:
+                # Nonfarm Payrolls
+                payroll_data = await FREDNonfarmPayrollFetcher.fetch_data({})
+                payroll_sorted = sorted(payroll_data, key=lambda x: x.date, reverse=True)
+
+                # JOLTS Job Openings - JTSJOL
+                jolts_obs = FredSeriesFetcher.fetch_series(
+                    series_id='JTSJOL',
+                    api_key=api_key,
+                    limit=1,
+                    sort_order='desc'
+                )
+
+                # Quits Rate - JTSQUR
+                quits_obs = FredSeriesFetcher.fetch_series(
+                    series_id='JTSQUR',
+                    api_key=api_key,
+                    limit=1,
+                    sort_order='desc'
+                )
+
+                # Initial Jobless Claims - ICSA
+                claims_obs = FredSeriesFetcher.fetch_series(
+                    series_id='ICSA',
+                    api_key=api_key,
+                    limit=1,
+                    sort_order='desc'
+                )
+
+                # Continuing Claims - CCSA
+                cont_claims_obs = FredSeriesFetcher.fetch_series(
+                    series_id='CCSA',
+                    api_key=api_key,
+                    limit=1,
+                    sort_order='desc'
+                )
+
+                if payroll_sorted and len(payroll_sorted) >= 2:
+                    current_payroll = payroll_sorted[0].value
+                    prev_payroll = payroll_sorted[1].value
+                    payroll_change = int(current_payroll - prev_payroll)
+
+                    job_market = {
+                        'nonfarm_payrolls': int(current_payroll),
+                        'payroll_change_mom': payroll_change,
+                        'jolts_openings': int(float(jolts_obs[0]['value'])) if jolts_obs and jolts_obs[0]['value'] != '.' else None,
+                        'quits_rate': round(float(quits_obs[0]['value']), 1) if quits_obs and quits_obs[0]['value'] != '.' else None,
+                        'initial_claims': int(float(claims_obs[0]['value'])) if claims_obs and claims_obs[0]['value'] != '.' else None,
+                        'continuing_claims': int(float(cont_claims_obs[0]['value'])) if cont_claims_obs and cont_claims_obs[0]['value'] != '.' else None
+                    }
+            except Exception as e:
+                log.warning(f"Error fetching job market data: {e}")
+
+            # Wage metrics
+            wages = {}
+            try:
+                # Average Hourly Earnings - CES0500000003
+                earnings_obs = FredSeriesFetcher.fetch_series(
+                    series_id='CES0500000003',
+                    api_key=api_key,
+                    limit=13,
+                    sort_order='desc'
+                )
+
+                # Unit Labor Cost (nonfarm business) - ULCNFB
+                ulc_obs = FredSeriesFetcher.fetch_series(
+                    series_id='ULCNFB',
+                    api_key=api_key,
+                    limit=1,
+                    sort_order='desc'
+                )
+
+                # Nonfarm Business Productivity - OPHNFB
+                prod_obs = FredSeriesFetcher.fetch_series(
+                    series_id='OPHNFB',
+                    api_key=api_key,
+                    limit=5,
+                    sort_order='desc'
+                )
+
+                if earnings_obs and len(earnings_obs) >= 13:
+                    current_earnings = float(earnings_obs[0]['value'])
+                    year_ago_earnings = float(earnings_obs[12]['value'])
+                    earnings_yoy = ((current_earnings - year_ago_earnings) / year_ago_earnings * 100)
+
+                    wages = {
+                        'hourly_earnings': round(current_earnings, 2),
+                        'hourly_earnings_yoy': round(earnings_yoy, 2),
+                        'unit_labor_cost': round(float(ulc_obs[0]['value']), 1) if ulc_obs and ulc_obs[0]['value'] != '.' else None,
+                        'productivity_growth': round(float(prod_obs[0]['value']), 1) if prod_obs and prod_obs[0]['value'] != '.' else None
+                    }
+            except Exception as e:
+                log.warning(f"Error fetching wage data: {e}")
+
+            # Calculate Labor Market Heat Index (0-100)
+            heat_index = 50.0  # Default neutral
+            try:
+                # Factors: low unemployment, high job openings, high quits rate, low claims
+                heat_factors = []
+
+                if 'u3' in unemployment:
+                    # Lower unemployment = hotter (invert)
+                    u3_score = max(0, min(100, 100 - (unemployment['u3'] * 20)))
+                    heat_factors.append(u3_score)
+
+                if job_market.get('quits_rate'):
+                    # Higher quits = hotter labor market
+                    quits_score = min(100, job_market['quits_rate'] * 40)
+                    heat_factors.append(quits_score)
+
+                if job_market.get('initial_claims'):
+                    # Lower claims = hotter (normalize around 250k)
+                    claims_score = max(0, min(100, 100 - ((job_market['initial_claims'] - 200000) / 2000)))
+                    heat_factors.append(claims_score)
+
+                if heat_factors:
+                    heat_index = round(sum(heat_factors) / len(heat_factors), 1)
+            except Exception as e:
+                log.warning(f"Error calculating heat index: {e}")
+
+            # Phillips Curve current point
+            phillips_curve = {}
+            try:
+                cpi_data = await FREDCPIFetcher.fetch_data({})
+                cpi_sorted = sorted(cpi_data, key=lambda x: x.date, reverse=True)
+
+                if unemployment.get('u3') and len(cpi_sorted) >= 13:
+                    current_cpi = cpi_sorted[0].value
+                    year_ago_cpi = cpi_sorted[12].value
+                    cpi_yoy = ((current_cpi - year_ago_cpi) / year_ago_cpi * 100)
+
+                    phillips_curve = {
+                        'current_point': {
+                            'unemployment': round(unemployment['u3'], 1),
+                            'inflation': round(cpi_yoy, 1)
+                        },
+                        'historical_average': {
+                            'unemployment': 5.5,  # Historical average
+                            'inflation': 2.5
+                        }
+                    }
+            except Exception as e:
+                log.warning(f"Error calculating Phillips Curve: {e}")
+
+            return {
+                'unemployment': unemployment,
+                'job_market': job_market,
+                'wages': wages,
+                'heat_index': heat_index,
+                'phillips_curve': phillips_curve,
+                'timestamp': datetime.now().isoformat()
+            }
+
+        except Exception as e:
+            log.error(f"Error fetching labor dashboard: {e}")
+            raise
+
+    async def get_labor_history(self, period: str = '5y') -> Dict[str, Any]:
+        """
+        Get historical labor market data for Phillips Curve visualization
+
+        Args:
+            period: Time period (1y, 3y, 5y, 10y, max)
+
+        Returns:
+            Historical unemployment and inflation data points
+        """
+        try:
+            start_date, end_date = parse_period_to_dates(period)
+
+            # Fetch historical unemployment and CPI data
+            unemployment_data = await FREDUnemploymentFetcher.fetch_data({})
+            cpi_data = await FREDCPIFetcher.fetch_data({})
+
+            # Filter by date range
+            unemployment_filtered = [u for u in unemployment_data if u.date and start_date <= u.date <= end_date]
+            cpi_filtered = [c for c in cpi_data if c.date and start_date <= c.date <= end_date]
+
+            # Sort ascending
+            unemployment_filtered.sort(key=lambda x: x.date)
+            cpi_all_sorted = sorted(cpi_data, key=lambda x: x.date, reverse=True)
+
+            # Create Phillips Curve data points
+            phillips_points = []
+
+            for u_point in unemployment_filtered:
+                # Find closest CPI point
+                closest_cpi = min(cpi_filtered, key=lambda c: abs((c.date - u_point.date).days))
+
+                # Calculate CPI YoY
+                try:
+                    cpi_idx = next(i for i, c in enumerate(cpi_all_sorted) if c.date == closest_cpi.date)
+                    if cpi_idx + 12 < len(cpi_all_sorted):
+                        year_ago_cpi = cpi_all_sorted[cpi_idx + 12].value
+                        cpi_yoy = ((closest_cpi.value - year_ago_cpi) / year_ago_cpi * 100)
+
+                        phillips_points.append({
+                            'date': u_point.date.isoformat(),
+                            'unemployment': round(u_point.value, 1),
+                            'inflation': round(cpi_yoy, 1)
+                        })
+                except (StopIteration, ValueError):
+                    continue
+
+            return {
+                'phillips_curve_data': phillips_points,
+                'period': period
+            }
+
+        except Exception as e:
+            log.error(f"Error fetching labor history: {e}")
+            raise
+
+    async def get_financial_conditions(self) -> Dict[str, Any]:
+        """
+        Get comprehensive financial conditions analysis
+
+        Returns FCI, credit spreads, liquidity indicators, and health metrics
+        """
+        try:
+            api_key = get_api_key(
+                credentials=None,
+                api_name="FRED",
+                env_var="FRED_API_KEY"
+            )
+
+            # Financial Conditions Index (Chicago Fed NFCI)
+            fci_composite = {}
+            try:
+                # Chicago Fed National Financial Conditions Index - NFCI
+                nfci_obs = FredSeriesFetcher.fetch_series(
+                    series_id='NFCI',
+                    api_key=api_key,
+                    limit=1,
+                    sort_order='desc'
+                )
+
+                if nfci_obs and nfci_obs[0]['value'] != '.':
+                    nfci_value = float(nfci_obs[0]['value'])
+
+                    # Normalize to -100 to +100 scale (NFCI typically ranges from -1 to +2)
+                    normalized_value = (nfci_value / 2.0) * 100
+                    normalized_value = max(-100, min(100, normalized_value))
+
+                    # Determine status
+                    if nfci_value > 0.5:
+                        status = 'very_tight'
+                    elif nfci_value > 0:
+                        status = 'tight'
+                    elif nfci_value > -0.5:
+                        status = 'neutral'
+                    else:
+                        status = 'loose'
+
+                    fci_composite = {
+                        'value': round(normalized_value, 2),
+                        'raw_value': round(nfci_value, 2),
+                        'status': status,
+                        'sources': {
+                            'chicago_fed': round(nfci_value, 2)
+                        }
+                    }
+            except Exception as e:
+                log.warning(f"Could not fetch FCI: {e}")
+
+            # Credit Spreads
+            credit_spreads = {}
+            try:
+                # BAA Corporate Bond Yield - BAMLC0A4CBBB
+                baa_obs = FredSeriesFetcher.fetch_series(
+                    series_id='BAMLC0A4CBBB',
+                    api_key=api_key,
+                    limit=1,
+                    sort_order='desc'
+                )
+
+                # AAA Corporate Bond Yield - BAMLC0A1CAAA
+                aaa_obs = FredSeriesFetcher.fetch_series(
+                    series_id='BAMLC0A1CAAA',
+                    api_key=api_key,
+                    limit=1,
+                    sort_order='desc'
+                )
+
+                # High Yield Option-Adjusted Spread - BAMLH0A0HYM2
+                hy_obs = FredSeriesFetcher.fetch_series(
+                    series_id='BAMLH0A0HYM2',
+                    api_key=api_key,
+                    limit=1,
+                    sort_order='desc'
+                )
+
+                # BBB Option-Adjusted Spread - BAMLC0A4CBBBEY
+                bbb_spread_obs = FredSeriesFetcher.fetch_series(
+                    series_id='BAMLC0A4CBBBEY',
+                    api_key=api_key,
+                    limit=1,
+                    sort_order='desc'
+                )
+
+                # Calculate Investment Grade spread (approximate)
+                ig_spread = None
+                if aaa_obs and aaa_obs[0]['value'] != '.':
+                    aaa_yield = float(aaa_obs[0]['value'])
+                    # Assume 10Y Treasury around 4% (would fetch DGS10 for accuracy)
+                    ig_spread = aaa_yield * 100  # Convert to basis points approximation
+
+                # High Yield spread
+                hy_spread = None
+                hy_percentile = None
+                if hy_obs and hy_obs[0]['value'] != '.':
+                    hy_spread = float(hy_obs[0]['value'])
+                    # Estimate percentile (typical range: 200-800bp, crisis: >1000bp)
+                    hy_percentile = min(100, max(0, ((hy_spread - 200) / 800) * 100))
+
+                # BBB-Treasury spread
+                bbb_spread = None
+                if bbb_spread_obs and bbb_spread_obs[0]['value'] != '.':
+                    bbb_spread = float(bbb_spread_obs[0]['value'])
+
+                # Distressed ratio (simplified estimate)
+                distressed_ratio = 0
+                if hy_spread and hy_spread > 1000:
+                    distressed_ratio = min(50, (hy_spread - 1000) / 20)  # Rough estimate
+
+                credit_spreads = {
+                    'investment_grade': {
+                        'spread': round(ig_spread, 0) if ig_spread else None,
+                        'percentile': 50.0  # Placeholder
+                    },
+                    'high_yield': {
+                        'spread': round(hy_spread, 0) if hy_spread else None,
+                        'percentile': round(hy_percentile, 1) if hy_percentile else None
+                    },
+                    'bbb_treasury': {
+                        'spread': round(bbb_spread, 0) if bbb_spread else None,
+                        'description': 'Lower end of Investment Grade'
+                    },
+                    'distressed_ratio': round(distressed_ratio, 1)
+                }
+            except Exception as e:
+                log.warning(f"Could not fetch credit spreads: {e}")
+
+            # Liquidity Indicators
+            liquidity = {}
+            try:
+                # TED Spread - TEDRATE
+                ted_obs = FredSeriesFetcher.fetch_series(
+                    series_id='TEDRATE',
+                    api_key=api_key,
+                    limit=1,
+                    sort_order='desc'
+                )
+
+                # Commercial Paper Outstanding - COMPOUT (discontinued, use COMPNSA)
+                cp_obs = FredSeriesFetcher.fetch_series(
+                    series_id='COMPNSA',
+                    api_key=api_key,
+                    limit=1,
+                    sort_order='desc'
+                )
+
+                liquidity = {
+                    'ted_spread': round(float(ted_obs[0]['value']), 2) if ted_obs and ted_obs[0]['value'] != '.' else None,
+                    'libor_ois_spread': None,  # LIBOR discontinued, would need SOFR alternative
+                    'commercial_paper_outstanding': round(float(cp_obs[0]['value']), 1) if cp_obs and cp_obs[0]['value'] != '.' else None
+                }
+            except Exception as e:
+                log.warning(f"Could not fetch liquidity indicators: {e}")
+
+            # Consumer Health
+            consumer_health = {}
+            try:
+                # Consumer Credit Outstanding - TOTALSL
+                consumer_credit_obs = FredSeriesFetcher.fetch_series(
+                    series_id='TOTALSL',
+                    api_key=api_key,
+                    limit=13,
+                    sort_order='desc'
+                )
+
+                # Credit Card Delinquency Rate - DRCCLACBS
+                cc_delinq_obs = FredSeriesFetcher.fetch_series(
+                    series_id='DRCCLACBS',
+                    api_key=api_key,
+                    limit=1,
+                    sort_order='desc'
+                )
+
+                # Auto Loan Delinquency Rate - DREALACBS
+                auto_delinq_obs = FredSeriesFetcher.fetch_series(
+                    series_id='DREALACBS',
+                    api_key=api_key,
+                    limit=1,
+                    sort_order='desc'
+                )
+
+                # Mortgage Delinquency Rate - DRSFRMACBS
+                mortgage_delinq_obs = FredSeriesFetcher.fetch_series(
+                    series_id='DRSFRMACBS',
+                    api_key=api_key,
+                    limit=1,
+                    sort_order='desc'
+                )
+
+                # Calculate consumer credit growth
+                credit_growth = None
+                if consumer_credit_obs and len(consumer_credit_obs) >= 13:
+                    current = float(consumer_credit_obs[0]['value'])
+                    year_ago = float(consumer_credit_obs[12]['value'])
+                    credit_growth = ((current - year_ago) / year_ago * 100)
+
+                consumer_health = {
+                    'consumer_credit_growth': round(credit_growth, 2) if credit_growth else None,
+                    'credit_card_delinquency': round(float(cc_delinq_obs[0]['value']), 2) if cc_delinq_obs and cc_delinq_obs[0]['value'] != '.' else None,
+                    'auto_loan_delinquency': round(float(auto_delinq_obs[0]['value']), 2) if auto_delinq_obs and auto_delinq_obs[0]['value'] != '.' else None,
+                    'mortgage_delinquency': round(float(mortgage_delinq_obs[0]['value']), 2) if mortgage_delinq_obs and mortgage_delinq_obs[0]['value'] != '.' else None
+                }
+            except Exception as e:
+                log.warning(f"Could not fetch consumer health: {e}")
+
+            # Corporate Health
+            corporate_health = {}
+            try:
+                # Nonfinancial Corporate Business Debt - BCNSDODNS
+                corp_debt_obs = FredSeriesFetcher.fetch_series(
+                    series_id='BCNSDODNS',
+                    api_key=api_key,
+                    limit=13,
+                    sort_order='desc'
+                )
+
+                # GDP for debt-to-GDP ratio
+                gdp_data = await FREDGDPFetcher.fetch_data({})
+                gdp_sorted = sorted(gdp_data, key=lambda x: x.date, reverse=True)
+
+                # Calculate metrics
+                debt_to_gdp = None
+                debt_growth = None
+
+                if corp_debt_obs and len(corp_debt_obs) >= 1 and gdp_sorted:
+                    current_debt = float(corp_debt_obs[0]['value'])
+                    current_gdp = gdp_sorted[0].value
+
+                    # Debt is in millions, GDP in billions - convert
+                    debt_to_gdp = (current_debt / 1000) / current_gdp * 100
+
+                    if len(corp_debt_obs) >= 5:  # Quarterly data
+                        year_ago_debt = float(corp_debt_obs[4]['value'])
+                        debt_growth = ((current_debt - year_ago_debt) / year_ago_debt * 100)
+
+                corporate_health = {
+                    'corporate_debt_to_gdp': round(debt_to_gdp, 1) if debt_to_gdp else None,
+                    'interest_coverage_ratio': None,  # Would need earnings data
+                    'debt_growth_yoy': round(debt_growth, 2) if debt_growth else None
+                }
+            except Exception as e:
+                log.warning(f"Could not fetch corporate health: {e}")
+
+            return {
+                'fci_composite': fci_composite,
+                'credit_spreads': credit_spreads,
+                'liquidity': liquidity,
+                'consumer_health': consumer_health,
+                'corporate_health': corporate_health,
+                'timestamp': datetime.now().isoformat()
+            }
+
+        except Exception as e:
+            log.error(f"Error fetching financial conditions: {e}")
+            raise
+
+    async def get_financial_conditions_history(self, period: str = '5y') -> Dict[str, Any]:
+        """
+        Get historical financial conditions data
+
+        Args:
+            period: Time period (1y, 3y, 5y, 10y, max)
+
+        Returns:
+            Historical FCI and credit spread data
+        """
+        try:
+            start_date, end_date = parse_period_to_dates(period)
+
+            api_key = get_api_key(
+                credentials=None,
+                api_name="FRED",
+                env_var="FRED_API_KEY"
+            )
+
+            # Fetch historical FCI
+            nfci_history = []
+            try:
+                nfci_obs = FredSeriesFetcher.fetch_series(
+                    series_id='NFCI',
+                    api_key=api_key,
+                    start_date=start_date,
+                    end_date=end_date,
+                    sort_order='asc'
+                )
+
+                nfci_history = [
+                    {
+                        'date': obs['date'],
+                        'value': float(obs['value'])
+                    }
+                    for obs in nfci_obs
+                    if obs['value'] != '.'
+                ]
+            except Exception as e:
+                log.warning(f"Could not fetch NFCI history: {e}")
+
+            # Fetch historical credit spreads
+            credit_spread_history = []
+            try:
+                # High Yield spread history
+                hy_obs = FredSeriesFetcher.fetch_series(
+                    series_id='BAMLH0A0HYM2',
+                    api_key=api_key,
+                    start_date=start_date,
+                    end_date=end_date,
+                    sort_order='asc'
+                )
+
+                credit_spread_history = [
+                    {
+                        'date': obs['date'],
+                        'high_yield_spread': float(obs['value'])
+                    }
+                    for obs in hy_obs
+                    if obs['value'] != '.'
+                ]
+            except Exception as e:
+                log.warning(f"Could not fetch credit spread history: {e}")
+
+            return {
+                'fci_history': nfci_history,
+                'credit_spread_history': credit_spread_history,
+                'period': period
+            }
+
+        except Exception as e:
+            log.error(f"Error fetching financial conditions history: {e}")
+            raise
+
+    async def get_sentiment_composite(self) -> Dict[str, Any]:
+        """
+        Get comprehensive market sentiment analysis
+
+        Returns Fear & Greed Index, volatility metrics, positioning, and cross-asset signals
+        """
+        try:
+            api_key = get_api_key(
+                credentials=None,
+                api_name="FRED",
+                env_var="FRED_API_KEY"
+            )
+
+            # Fear & Greed Index Components
+            components = {}
+
+            # 1. VIX (CBOE Volatility Index) - VIXCLS
+            vix_value = None
+            vix_score = 50  # Neutral default
+            try:
+                vix_obs = FredSeriesFetcher.fetch_series(
+                    series_id='VIXCLS',
+                    api_key=api_key,
+                    limit=1,
+                    sort_order='desc'
+                )
+                if vix_obs and vix_obs[0]['value'] != '.':
+                    vix_value = float(vix_obs[0]['value'])
+                    # Lower VIX = more greed, Higher VIX = more fear
+                    # Normalize: VIX 10-15 = greedy, 15-20 = neutral, 20-30 = fear, >30 = extreme fear
+                    if vix_value < 15:
+                        vix_score = 100 - ((vix_value - 10) / 5) * 30  # 70-100 range
+                    elif vix_value < 20:
+                        vix_score = 70 - ((vix_value - 15) / 5) * 40  # 30-70 range
+                    elif vix_value < 30:
+                        vix_score = 30 - ((vix_value - 20) / 10) * 20  # 10-30 range
+                    else:
+                        vix_score = max(0, 10 - ((vix_value - 30) / 10) * 10)  # 0-10 range
+
+                    components['vix'] = {
+                        'value': round(vix_value, 2),
+                        'score': round(vix_score, 1)
+                    }
+            except Exception as e:
+                log.warning(f"Could not fetch VIX: {e}")
+
+            # 2. SKEW Index (tail risk) - SKEW data not available in FRED, use placeholder
+            # In production, would fetch from CBOE
+            components['skew'] = {
+                'value': None,
+                'score': 50  # Neutral placeholder
+            }
+
+            # 3. Put/Call Ratio - Not directly in FRED, use placeholder
+            components['put_call_ratio'] = {
+                'value': None,
+                'score': 50  # Neutral placeholder
+            }
+
+            # 4. High Yield Spread (already have this)
+            hy_score = 50
+            try:
+                hy_obs = FredSeriesFetcher.fetch_series(
+                    series_id='BAMLH0A0HYM2',
+                    api_key=api_key,
+                    limit=1,
+                    sort_order='desc'
+                )
+                if hy_obs and hy_obs[0]['value'] != '.':
+                    hy_spread = float(hy_obs[0]['value'])
+                    # Lower spread = greed, Higher spread = fear
+                    # Normalize: <300bp = greedy, 300-500 = neutral, >500 = fear
+                    if hy_spread < 300:
+                        hy_score = 100 - ((300 - hy_spread) / 100) * 20
+                    elif hy_spread < 500:
+                        hy_score = 80 - ((hy_spread - 300) / 200) * 50
+                    else:
+                        hy_score = max(0, 30 - ((hy_spread - 500) / 500) * 30)
+
+                    components['high_yield_spread'] = {
+                        'value': round(hy_spread, 0),
+                        'score': round(hy_score, 1)
+                    }
+            except Exception as e:
+                log.warning(f"Could not fetch HY spread for sentiment: {e}")
+
+            # 5. Safe Haven Demand (Gold, Treasury yields)
+            safe_haven_score = 50
+            try:
+                # Gold price increase = fear, decrease = greed
+                # 10Y Treasury yield decrease = fear (flight to safety)
+                treasury_obs = FredSeriesFetcher.fetch_series(
+                    series_id='DGS10',
+                    api_key=api_key,
+                    limit=20,
+                    sort_order='desc'
+                )
+                if treasury_obs and len(treasury_obs) >= 20:
+                    current_yield = float(treasury_obs[0]['value'])
+                    avg_yield = sum(float(obs['value']) for obs in treasury_obs[:20] if obs['value'] != '.') / 20
+                    # If current < average, flight to safety (fear)
+                    yield_diff = current_yield - avg_yield
+                    safe_haven_score = 50 - (yield_diff * 10)  # Rough estimate
+                    safe_haven_score = max(0, min(100, safe_haven_score))
+
+                components['safe_haven_demand'] = {
+                    'score': round(safe_haven_score, 1)
+                }
+            except Exception as e:
+                log.warning(f"Could not calculate safe haven demand: {e}")
+
+            # Calculate composite Fear & Greed Index
+            valid_scores = [v['score'] for v in components.values() if 'score' in v and v['score'] is not None]
+            if valid_scores:
+                fear_greed_value = sum(valid_scores) / len(valid_scores)
+            else:
+                fear_greed_value = 50  # Neutral default
+
+            # Classify status
+            if fear_greed_value < 20:
+                status = 'extreme_fear'
+            elif fear_greed_value < 40:
+                status = 'fear'
+            elif fear_greed_value < 60:
+                status = 'neutral'
+            elif fear_greed_value < 80:
+                status = 'greed'
+            else:
+                status = 'extreme_greed'
+
+            fear_greed_index = {
+                'value': round(fear_greed_value, 1),
+                'status': status,
+                'components': components
+            }
+
+            # Volatility metrics
+            volatility = {}
+            if vix_value is not None:
+                # Estimate percentile (VIX historical range: 10-80, typical 15-25)
+                vix_percentile = min(100, max(0, ((vix_value - 10) / 70) * 100))
+
+                if vix_value < 15:
+                    vix_status = 'low'
+                elif vix_value < 20:
+                    vix_status = 'normal'
+                elif vix_value < 30:
+                    vix_status = 'elevated'
+                else:
+                    vix_status = 'high'
+
+                volatility = {
+                    'vix': round(vix_value, 2),
+                    'vix_percentile': round(vix_percentile, 1),
+                    'vix_status': vix_status,
+                    'skew': None  # CBOE SKEW not in FRED
+                }
+
+            # Positioning (simplified - real data would come from AAII, fund flows)
+            positioning = {
+                'aaii_sentiment': {
+                    'bullish': None,  # AAII data not in FRED
+                    'bearish': None,
+                    'neutral': None,
+                    'bull_bear_spread': None
+                },
+                'fund_flows': {
+                    'equity_flows': None,
+                    'bond_flows': None,
+                    'money_market_flows': None
+                }
+            }
+
+            # Cross-asset signals
+            cross_asset_signals = {
+                'stock_bond_correlation': None,  # Would need daily price data
+                'risk_on_off': 'mixed',  # Default
+                'safe_haven_strength': safe_haven_score
+            }
+
+            # Determine risk-on/off based on VIX and spreads
+            if vix_value and hy_obs:
+                if vix_value < 18 and hy_spread < 400:
+                    cross_asset_signals['risk_on_off'] = 'risk_on'
+                elif vix_value > 25 or hy_spread > 600:
+                    cross_asset_signals['risk_on_off'] = 'risk_off'
+
+            return {
+                'fear_greed_index': fear_greed_index,
+                'volatility': volatility,
+                'positioning': positioning,
+                'cross_asset_signals': cross_asset_signals,
+                'timestamp': datetime.now().isoformat()
+            }
+
+        except Exception as e:
+            log.error(f"Error fetching sentiment composite: {e}")
+            raise
+
+    async def get_sentiment_history(self, period: str = '5y') -> Dict[str, Any]:
+        """
+        Get historical sentiment data
+
+        Args:
+            period: Time period (1y, 3y, 5y, 10y, max)
+
+        Returns:
+            Historical VIX and calculated sentiment scores
+        """
+        try:
+            start_date, end_date = parse_period_to_dates(period)
+
+            api_key = get_api_key(
+                credentials=None,
+                api_name="FRED",
+                env_var="FRED_API_KEY"
+            )
+
+            # Fetch historical VIX
+            vix_history = []
+            try:
+                vix_obs = FredSeriesFetcher.fetch_series(
+                    series_id='VIXCLS',
+                    api_key=api_key,
+                    start_date=start_date,
+                    end_date=end_date,
+                    sort_order='asc'
+                )
+
+                vix_history = [
+                    {
+                        'date': obs['date'],
+                        'vix': float(obs['value'])
+                    }
+                    for obs in vix_obs
+                    if obs['value'] != '.'
+                ]
+            except Exception as e:
+                log.warning(f"Could not fetch VIX history: {e}")
+
+            # Fetch historical High Yield spreads for fear/greed calculation
+            hy_history = []
+            try:
+                hy_obs = FredSeriesFetcher.fetch_series(
+                    series_id='BAMLH0A0HYM2',
+                    api_key=api_key,
+                    start_date=start_date,
+                    end_date=end_date,
+                    sort_order='asc'
+                )
+
+                hy_history = [
+                    {
+                        'date': obs['date'],
+                        'hy_spread': float(obs['value'])
+                    }
+                    for obs in hy_obs
+                    if obs['value'] != '.'
+                ]
+            except Exception as e:
+                log.warning(f"Could not fetch HY spread history: {e}")
+
+            # Calculate historical Fear/Greed scores
+            # Merge VIX and HY data by date
+            sentiment_history = []
+            vix_dict = {v['date']: v['vix'] for v in vix_history}
+            hy_dict = {h['date']: h['hy_spread'] for h in hy_history}
+
+            all_dates = sorted(set(list(vix_dict.keys()) + list(hy_dict.keys())))
+
+            for date in all_dates:
+                vix_val = vix_dict.get(date)
+                hy_val = hy_dict.get(date)
+
+                scores = []
+
+                # Calculate VIX score
+                if vix_val is not None:
+                    if vix_val < 15:
+                        vix_score = 100 - ((vix_val - 10) / 5) * 30
+                    elif vix_val < 20:
+                        vix_score = 70 - ((vix_val - 15) / 5) * 40
+                    elif vix_val < 30:
+                        vix_score = 30 - ((vix_val - 20) / 10) * 20
+                    else:
+                        vix_score = max(0, 10 - ((vix_val - 30) / 10) * 10)
+                    scores.append(vix_score)
+
+                # Calculate HY score
+                if hy_val is not None:
+                    if hy_val < 300:
+                        hy_score = 100 - ((300 - hy_val) / 100) * 20
+                    elif hy_val < 500:
+                        hy_score = 80 - ((hy_val - 300) / 200) * 50
+                    else:
+                        hy_score = max(0, 30 - ((hy_val - 500) / 500) * 30)
+                    scores.append(hy_score)
+
+                if scores:
+                    fear_greed_score = sum(scores) / len(scores)
+                    sentiment_history.append({
+                        'date': date,
+                        'fear_greed_score': round(fear_greed_score, 1),
+                        'vix': round(vix_val, 2) if vix_val else None,
+                        'hy_spread': round(hy_val, 0) if hy_val else None
+                    })
+
+            return {
+                'sentiment_history': sentiment_history,
+                'vix_history': vix_history,
+                'period': period
+            }
+
+        except Exception as e:
+            log.error(f"Error fetching sentiment history: {e}")
+            raise
+
 
 # Global instance
 macro_service = MacroService()
