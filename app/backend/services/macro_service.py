@@ -149,90 +149,113 @@ class MacroService:
     ]
 
     async def get_economic_indicators_overview(self) -> Dict[str, Any]:
-        """Get overview of all major economic indicators (latest values)"""
+        """Get overview of all major economic indicators (latest values) - Parallel fetching for speed"""
+        import asyncio
+
         indicators = {}
 
-        try:
-            # GDP
-            gdp_data = await FREDGDPFetcher.fetch_data({})
-            if gdp_data and len(gdp_data) > 0:
-                indicators['gdp'] = {
-                    'value': gdp_data[0].value,
-                    'date': gdp_data[0].date.isoformat() if gdp_data[0].date else None,
-                    'unit': 'Billions of Dollars',
-                    'change': self._calculate_change(gdp_data[:2]) if len(gdp_data) > 1 else None
-                }
-        except Exception as e:
-            log.error(f"Error fetching GDP: {e}")
+        # Define all fetch tasks
+        async def fetch_gdp():
+            try:
+                gdp_data = await FREDGDPFetcher.fetch_data({})
+                if gdp_data and len(gdp_data) > 0:
+                    return ('gdp', {
+                        'value': gdp_data[0].value,
+                        'date': gdp_data[0].date.isoformat() if gdp_data[0].date else None,
+                        'unit': 'Billions of Dollars',
+                        'change': self._calculate_change(gdp_data[:2]) if len(gdp_data) > 1 else None
+                    })
+            except Exception as e:
+                log.error(f"Error fetching GDP: {e}")
+            return None
 
-        try:
-            # Unemployment
-            unemployment_data = await FREDUnemploymentFetcher.fetch_data({})
-            if unemployment_data and len(unemployment_data) > 0:
-                indicators['unemployment'] = {
-                    'value': unemployment_data[0].value,
-                    'date': unemployment_data[0].date.isoformat() if unemployment_data[0].date else None,
-                    'unit': 'Percent',
-                    'change': self._calculate_change(unemployment_data[:2]) if len(unemployment_data) > 1 else None
-                }
-        except Exception as e:
-            log.error(f"Error fetching unemployment: {e}")
+        async def fetch_unemployment():
+            try:
+                unemployment_data = await FREDUnemploymentFetcher.fetch_data({})
+                if unemployment_data and len(unemployment_data) > 0:
+                    return ('unemployment', {
+                        'value': unemployment_data[0].value,
+                        'date': unemployment_data[0].date.isoformat() if unemployment_data[0].date else None,
+                        'unit': 'Percent',
+                        'change': self._calculate_change(unemployment_data[:2]) if len(unemployment_data) > 1 else None
+                    })
+            except Exception as e:
+                log.error(f"Error fetching unemployment: {e}")
+            return None
 
-        try:
-            # CPI
-            cpi_data = await FREDCPIFetcher.fetch_data({})
-            if cpi_data and len(cpi_data) > 0:
-                indicators['cpi'] = {
-                    'value': cpi_data[0].value,
-                    'date': cpi_data[0].date.isoformat() if cpi_data[0].date else None,
-                    'unit': 'Index',
-                    'change': self._calculate_change(cpi_data[:2]) if len(cpi_data) > 1 else None
-                }
-        except Exception as e:
-            log.error(f"Error fetching CPI: {e}")
+        async def fetch_cpi():
+            try:
+                cpi_data = await FREDCPIFetcher.fetch_data({})
+                if cpi_data and len(cpi_data) > 0:
+                    return ('cpi', {
+                        'value': cpi_data[0].value,
+                        'date': cpi_data[0].date.isoformat() if cpi_data[0].date else None,
+                        'unit': 'Index',
+                        'change': self._calculate_change(cpi_data[:2]) if len(cpi_data) > 1 else None
+                    })
+            except Exception as e:
+                log.error(f"Error fetching CPI: {e}")
+            return None
 
-        try:
-            # Fed Funds Rate
-            rate_data = await FREDInterestRateFetcher.fetch_data({'rate_type': 'federal_funds'})
-            if rate_data and len(rate_data) > 0:
-                # Get the most recent data (last item in sorted list)
-                latest = rate_data[-1]
-                prev = rate_data[-2] if len(rate_data) > 1 else None
+        async def fetch_fed_funds():
+            try:
+                rate_data = await FREDInterestRateFetcher.fetch_data({'rate_type': 'federal_funds'})
+                if rate_data and len(rate_data) > 0:
+                    latest = rate_data[-1]
+                    prev = rate_data[-2] if len(rate_data) > 1 else None
+                    return ('fed_funds_rate', {
+                        'value': latest.rate,
+                        'date': latest.date.isoformat() if latest.date else None,
+                        'unit': 'Percent',
+                        'change': ((latest.rate - prev.rate) / prev.rate * 100) if prev and prev.rate else None
+                    })
+            except Exception as e:
+                log.error(f"Error fetching Fed Funds Rate: {e}")
+            return None
 
-                indicators['fed_funds_rate'] = {
-                    'value': latest.rate,
-                    'date': latest.date.isoformat() if latest.date else None,
-                    'unit': 'Percent',
-                    'change': ((latest.rate - prev.rate) / prev.rate * 100) if prev and prev.rate else None
-                }
-        except Exception as e:
-            log.error(f"Error fetching Fed Funds Rate: {e}")
+        async def fetch_retail_sales():
+            try:
+                retail_data = await FREDRetailSalesFetcher.fetch_data({})
+                if retail_data and len(retail_data) > 0:
+                    return ('retail_sales', {
+                        'value': retail_data[0].value,
+                        'date': retail_data[0].date.isoformat() if retail_data[0].date else None,
+                        'unit': 'Millions of Dollars',
+                        'change': self._calculate_change(retail_data[:2]) if len(retail_data) > 1 else None
+                    })
+            except Exception as e:
+                log.error(f"Error fetching retail sales: {e}")
+            return None
 
-        try:
-            # Retail Sales
-            retail_data = await FREDRetailSalesFetcher.fetch_data({})
-            if retail_data and len(retail_data) > 0:
-                indicators['retail_sales'] = {
-                    'value': retail_data[0].value,
-                    'date': retail_data[0].date.isoformat() if retail_data[0].date else None,
-                    'unit': 'Millions of Dollars',
-                    'change': self._calculate_change(retail_data[:2]) if len(retail_data) > 1 else None
-                }
-        except Exception as e:
-            log.error(f"Error fetching retail sales: {e}")
+        async def fetch_consumer_sentiment():
+            try:
+                sentiment_data = await FREDConsumerSentimentFetcher.fetch_data({})
+                if sentiment_data and len(sentiment_data) > 0:
+                    return ('consumer_sentiment', {
+                        'value': sentiment_data[0].value,
+                        'date': sentiment_data[0].date.isoformat() if sentiment_data[0].date else None,
+                        'unit': 'Index',
+                        'change': self._calculate_change(sentiment_data[:2]) if len(sentiment_data) > 1 else None
+                    })
+            except Exception as e:
+                log.error(f"Error fetching consumer sentiment: {e}")
+            return None
 
-        try:
-            # Consumer Sentiment
-            sentiment_data = await FREDConsumerSentimentFetcher.fetch_data({})
-            if sentiment_data and len(sentiment_data) > 0:
-                indicators['consumer_sentiment'] = {
-                    'value': sentiment_data[0].value,
-                    'date': sentiment_data[0].date.isoformat() if sentiment_data[0].date else None,
-                    'unit': 'Index',
-                    'change': self._calculate_change(sentiment_data[:2]) if len(sentiment_data) > 1 else None
-                }
-        except Exception as e:
-            log.error(f"Error fetching consumer sentiment: {e}")
+        # Execute all fetches in parallel
+        results = await asyncio.gather(
+            fetch_gdp(),
+            fetch_unemployment(),
+            fetch_cpi(),
+            fetch_fed_funds(),
+            fetch_retail_sales(),
+            fetch_consumer_sentiment()
+        )
+
+        # Collect results
+        for result in results:
+            if result:
+                key, value = result
+                indicators[key] = value
 
         return indicators
 

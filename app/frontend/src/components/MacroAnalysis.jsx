@@ -45,20 +45,20 @@ const MacroAnalysis = () => {
   const [loadedTabs, setLoadedTabs] = useState(new Set(['overview']));
 
   const TABS = [
-    { id: 'overview', name: 'Overview', icon: Activity },
-    { id: 'regime', name: 'Economic Regime', icon: Target },
-    { id: 'fed-policy', name: 'Fed Policy', icon: TrendingUp },
-    { id: 'yield-curve', name: 'Yield Curve', icon: Activity },
-    { id: 'inflation', name: 'Inflation', icon: TrendingUp },
-    { id: 'labor', name: 'Labor Market', icon: Activity },
-    { id: 'financial-conditions', name: 'Financial Conditions', icon: CreditCard },
-    { id: 'sentiment', name: 'Market Sentiment', icon: Activity },
-    { id: 'commodities', name: 'Commodities', icon: BarChart3 },
-    { id: 'banking', name: 'Banking & Credit', icon: Building2 },
-    { id: 'money', name: 'Money Supply', icon: DollarSign },
-    { id: 'rates', name: 'Interest Rates', icon: TrendingUp },
-    { id: 'trade', name: 'Trade & Forex', icon: Globe },
-    { id: 'realestate', name: 'Real Estate', icon: Home },
+    { id: 'overview', name: 'Overview' },
+    { id: 'regime', name: 'Economic Regime' },
+    { id: 'fed-policy', name: 'Fed Policy' },
+    { id: 'yield-curve', name: 'Yield Curve' },
+    { id: 'inflation', name: 'Inflation' },
+    { id: 'labor', name: 'Labor Market' },
+    { id: 'financial-conditions', name: 'Financial Conditions' },
+    { id: 'sentiment', name: 'Market Sentiment' },
+    { id: 'commodities', name: 'Commodities' },
+    { id: 'banking', name: 'Banking & Credit' },
+    { id: 'money', name: 'Money Supply' },
+    { id: 'rates', name: 'Interest Rates' },
+    { id: 'trade', name: 'Trade & Forex' },
+    { id: 'realestate', name: 'Real Estate' },
   ];
 
   useEffect(() => {
@@ -749,24 +749,25 @@ const MacroAnalysis = () => {
       </div>
 
       {/* Tabs */}
-      <div className="flex space-x-2 mb-6 overflow-x-auto">
-        {TABS.map((tab) => {
-          const Icon = tab.icon;
-          return (
+      <div className="border-b border-gray-800 mb-6">
+        <div className="flex gap-6 overflow-x-auto">
+          {TABS.map((tab) => (
             <button
               key={tab.id}
               onClick={() => handleTabChange(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors whitespace-nowrap ${
+              className={`pb-3 px-1 text-sm font-medium transition-colors relative whitespace-nowrap ${
                 activeTab === tab.id
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  ? 'text-white'
+                  : 'text-gray-400 hover:text-gray-300'
               }`}
             >
-              <Icon size={16} />
               {tab.name}
+              {activeTab === tab.id && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500"></div>
+              )}
             </button>
-          );
-        })}
+          ))}
+        </div>
       </div>
 
       {/* Content */}
