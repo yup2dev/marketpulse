@@ -66,7 +66,7 @@ const MacroAnalysis = () => {
   }, []);
 
   useEffect(() => {
-    if (selectedSeries) {
+    if (selectedSeries && selectedSeries.type !== 'indicator') {
       fetchSeriesHistory(selectedSeries.key);
     }
   }, [selectedSeries]);
@@ -183,8 +183,31 @@ const MacroAnalysis = () => {
     }
   };
 
-  const renderMetricCard = (title, value, unit, change, Icon) => (
-    <div className={`${CARD_CLASSES.default} p-4`}>
+  const fetchIndicatorHistory = async (indicatorKey, period = '5y') => {
+    showLoading('지표 데이터를 불러오는 중...');
+    try {
+      const response = await fetch(`${API_BASE}/macro/indicators/${indicatorKey}/history?period=${period}`);
+      const data = await response.json();
+      setSeriesData(data);
+      setRatioData(null);  // Clear ratio data when showing indicator
+    } catch (error) {
+      console.error('Error fetching indicator history:', error);
+    } finally {
+      hideLoading();
+    }
+  };
+
+  const renderMetricCard = (title, value, unit, change, Icon, indicatorKey) => (
+    <div
+      className={`${CARD_CLASSES.default} p-4 cursor-pointer hover:border-blue-500 transition-colors ${
+        selectedSeries?.key === indicatorKey ? 'border-blue-500' : ''
+      }`}
+      onClick={() => {
+        setSelectedSeries({ key: indicatorKey, name: title, type: 'indicator' });
+        setSelectedRatio(null);
+        fetchIndicatorHistory(indicatorKey);
+      }}
+    >
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1">
           <p className="text-xs text-gray-400 mb-1">{title}</p>
@@ -228,7 +251,7 @@ const MacroAnalysis = () => {
       <div>
         <h2 className="text-lg font-semibold text-white mb-4">Core Economic Indicators</h2>
         <p className="text-sm text-gray-400 mb-4">
-          Latest macroeconomic data. Click on each tab above to explore detailed data.
+          Latest macroeconomic data. Click on each card to view historical data.
         </p>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {indicators.gdp && renderMetricCard(
@@ -236,45 +259,79 @@ const MacroAnalysis = () => {
             indicators.gdp.value,
             'B USD',
             indicators.gdp.change,
-            BarChart3
+            BarChart3,
+            'gdp'
           )}
           {indicators.unemployment && renderMetricCard(
             'Unemployment Rate',
             indicators.unemployment.value,
             '%',
             indicators.unemployment.change,
-            TrendingDown
+            TrendingDown,
+            'unemployment'
           )}
           {indicators.cpi && renderMetricCard(
             'CPI (Inflation)',
             indicators.cpi.value,
             'Index',
             indicators.cpi.change,
-            TrendingUp
+            TrendingUp,
+            'cpi'
           )}
           {indicators.fed_funds_rate && renderMetricCard(
             'Fed Funds Rate',
             indicators.fed_funds_rate.value,
             '%',
             indicators.fed_funds_rate.change,
-            DollarSign
+            DollarSign,
+            'fed_funds_rate'
           )}
           {indicators.retail_sales && renderMetricCard(
             'Retail Sales',
             indicators.retail_sales.value,
             'M USD',
             indicators.retail_sales.change,
-            CreditCard
+            CreditCard,
+            'retail_sales'
           )}
           {indicators.consumer_sentiment && renderMetricCard(
             'Consumer Sentiment',
             indicators.consumer_sentiment.value,
             'Index',
             indicators.consumer_sentiment.change,
-            Activity
+            Activity,
+            'consumer_sentiment'
           )}
         </div>
       </div>
+
+      {/* Chart for selected indicator */}
+      {selectedSeries && seriesData && (
+        <UniversalChartWidget
+          series={[
+            {
+              id: seriesData.key || selectedSeries.key,
+              name: seriesData.name || selectedSeries.name,
+              data: seriesData.data || [],
+              color: '#3b82f6',
+              visible: true
+            }
+          ]}
+          title={seriesData.name || selectedSeries.name}
+          subtitle={seriesData.unit || ''}
+          showTimeRanges={true}
+          showNormalize={false}
+          showVolume={false}
+          showTechnicalIndicators={true}
+          onPeriodChange={(period) => {
+            if (selectedSeries.type === 'indicator') {
+              fetchIndicatorHistory(selectedSeries.key, period);
+            } else {
+              fetchSeriesHistory(selectedSeries.key, period);
+            }
+          }}
+        />
+      )}
     </div>
   );
 
@@ -434,6 +491,7 @@ const MacroAnalysis = () => {
             showNormalize={false}
             showVolume={false}
             showTechnicalIndicators={true}
+            onPeriodChange={(period) => fetchSeriesHistory(selectedSeries.key, period)}
           />
         )}
 
@@ -455,6 +513,7 @@ const MacroAnalysis = () => {
             showNormalize={false}
             showVolume={false}
             showTechnicalIndicators={true}
+            onPeriodChange={(period) => fetchRatioHistory(selectedRatio, period)}
           />
         )}
       </div>
@@ -553,6 +612,7 @@ const MacroAnalysis = () => {
             showNormalize={false}
             showVolume={false}
             showTechnicalIndicators={true}
+            onPeriodChange={(period) => fetchSeriesHistory(selectedSeries.key, period)}
           />
         )}
       </div>
@@ -660,6 +720,7 @@ const MacroAnalysis = () => {
             showNormalize={false}
             showVolume={false}
             showTechnicalIndicators={true}
+            onPeriodChange={(period) => fetchSeriesHistory(selectedSeries.key, period)}
           />
         )}
       </div>

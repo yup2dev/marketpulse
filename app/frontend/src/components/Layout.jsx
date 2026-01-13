@@ -1,4 +1,4 @@
-import { TrendingUp, Grid3x3, LayoutDashboard, BarChart3, Briefcase, Globe, LogOut, User } from 'lucide-react';
+import { TrendingUp, Grid3x3, LayoutDashboard, BarChart3, Briefcase, Globe, Bell, LogOut, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useAuthStore from '../store/authStore';
@@ -87,6 +87,13 @@ const Layout = ({ children, activeView, onNavigate }) => {
               >
                 <Briefcase size={18} />
                 <span className="text-sm font-medium">Portfolio</span>
+              </button>
+              <button
+                onClick={() => navigate('/alerts')}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-gray-300 hover:text-white hover:bg-gray-800"
+              >
+                <Bell size={18} />
+                <span className="text-sm font-medium">Alerts</span>
               </button>
             </nav>
 

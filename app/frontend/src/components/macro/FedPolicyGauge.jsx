@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { API_BASE } from '../../config/api';
 import { CARD_CLASSES } from '../../styles/designTokens';
+import UniversalChartWidget from '../common/UniversalChartWidget';
 
 const STANCE_CONFIG = {
   hawkish: {
@@ -39,6 +40,8 @@ const STANCE_CONFIG = {
 export default function FedPolicyGauge() {
   const [policyData, setPolicyData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [selectedMetric, setSelectedMetric] = useState(null);
+  const [historicalData, setHistoricalData] = useState(null);
 
   useEffect(() => {
     fetchPolicyData();
@@ -59,6 +62,25 @@ export default function FedPolicyGauge() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchHistoricalData = async (metric, period = '5y') => {
+    try {
+      const response = await fetch(`${API_BASE}/macro/indicators/${metric}/history?period=${period}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      setHistoricalData(data);
+    } catch (error) {
+      console.error('Error fetching historical data:', error);
+      setHistoricalData(null);
+    }
+  };
+
+  const handleMetricClick = (metric, name) => {
+    setSelectedMetric({ key: metric, name });
+    fetchHistoricalData(metric);
   };
 
   if (loading) {
@@ -172,8 +194,14 @@ export default function FedPolicyGauge() {
       {/* Current Metrics */}
       <div className={`${CARD_CLASSES.default} p-6`}>
         <h3 className="text-lg font-semibold text-white mb-4">Current Fed Funds Rate</h3>
+        <p className="text-sm text-gray-400 mb-4">Click on each card to view historical data</p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-gray-700/50 rounded-lg p-4">
+          <div
+            className={`bg-gray-700/50 rounded-lg p-4 cursor-pointer hover:border-blue-500 transition-colors ${
+              selectedMetric?.key === 'fed_funds_rate' ? 'border-2 border-blue-500' : 'border-2 border-transparent'
+            }`}
+            onClick={() => handleMetricClick('fed_funds_rate', 'Fed Funds Effective Rate')}
+          >
             <div className="text-sm text-gray-400 mb-2">Effective Rate</div>
             <div className="text-3xl font-bold text-white">
               {policyData.fed_funds_rate}%
@@ -286,6 +314,27 @@ export default function FedPolicyGauge() {
           </div>
         </div>
       </div>
+
+      {/* Historical Chart */}
+      {selectedMetric && historicalData && (
+        <UniversalChartWidget
+          series={[
+            {
+              id: historicalData.key || selectedMetric.key,
+              name: historicalData.name || selectedMetric.name,
+              data: historicalData.data || [],
+              color: '#3b82f6',
+              visible: true
+            }
+          ]}
+          title={historicalData.name || selectedMetric.name}
+          subtitle={historicalData.unit || ''}
+          showTimeRanges={true}
+          showNormalize={false}
+          showVolume={false}
+          showTechnicalIndicators={true}
+        />
+      )}
 
       {/* Last Updated */}
       {policyData.last_updated && (

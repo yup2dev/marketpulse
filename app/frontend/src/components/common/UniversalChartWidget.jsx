@@ -42,6 +42,7 @@ const UniversalChartWidget = ({
   showTechnicalIndicators = true,
   onRemove,
   onAddSeries,
+  onPeriodChange,
   loading = false,
 }) => {
   const { chartTheme, tokens } = useTheme();
@@ -333,7 +334,12 @@ const UniversalChartWidget = ({
               {showTimeRanges && TIME_RANGES.map((range) => (
                 <button
                   key={range.id}
-                  onClick={() => setTimeRange(range.id)}
+                  onClick={() => {
+                    setTimeRange(range.id);
+                    if (onPeriodChange) {
+                      onPeriodChange(range.period);
+                    }
+                  }}
                   className={`px-2.5 py-1.5 rounded text-xs font-medium transition-colors ${
                     timeRange === range.id
                       ? 'bg-blue-600 text-white'

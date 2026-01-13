@@ -236,6 +236,113 @@ class MacroService:
 
         return indicators
 
+    async def get_indicator_history(
+        self,
+        indicator_key: str,
+        period: str = "5y"
+    ) -> Dict[str, Any]:
+        """
+        Get historical data for a specific economic indicator
+
+        Args:
+            indicator_key: Indicator identifier (gdp, unemployment, cpi, fed_funds_rate, retail_sales, consumer_sentiment)
+            period: Time period (1y, 3y, 5y, 10y, max)
+
+        Returns:
+            Dictionary with indicator history data formatted for charts
+        """
+        # Map indicator keys to fetchers and metadata
+        indicator_map = {
+            'gdp': {
+                'fetcher': FREDGDPFetcher,
+                'name': 'Gross Domestic Product',
+                'unit': 'Billions of Dollars',
+                'params': {}
+            },
+            'unemployment': {
+                'fetcher': FREDUnemploymentFetcher,
+                'name': 'Unemployment Rate',
+                'unit': 'Percent',
+                'params': {}
+            },
+            'cpi': {
+                'fetcher': FREDCPIFetcher,
+                'name': 'Consumer Price Index',
+                'unit': 'Index',
+                'params': {}
+            },
+            'fed_funds_rate': {
+                'fetcher': FREDInterestRateFetcher,
+                'name': 'Federal Funds Effective Rate',
+                'unit': 'Percent',
+                'params': {'rate_type': 'federal_funds'}
+            },
+            'retail_sales': {
+                'fetcher': FREDRetailSalesFetcher,
+                'name': 'Advance Retail Sales',
+                'unit': 'Millions of Dollars',
+                'params': {}
+            },
+            'consumer_sentiment': {
+                'fetcher': FREDConsumerSentimentFetcher,
+                'name': 'University of Michigan Consumer Sentiment',
+                'unit': 'Index',
+                'params': {}
+            }
+        }
+
+        if indicator_key not in indicator_map:
+            raise ValueError(f"Unknown indicator: {indicator_key}")
+
+        indicator_info = indicator_map[indicator_key]
+        start_date, end_date = parse_period_to_dates(period)
+
+        try:
+            # Fetch historical data
+            params = indicator_info['params'].copy()
+            if 'start_date' not in params:
+                params['start_date'] = start_date
+            if 'end_date' not in params:
+                params['end_date'] = end_date
+
+            data = await indicator_info['fetcher'].fetch_data(params)
+
+            if not data:
+                return {
+                    'key': indicator_key,
+                    'name': indicator_info['name'],
+                    'unit': indicator_info['unit'],
+                    'data': []
+                }
+
+            # Format data for charts
+            chart_data = []
+            for item in data:
+                # Handle different data structures
+                if hasattr(item, 'rate'):  # Interest rate data
+                    value = item.rate
+                elif hasattr(item, 'value'):  # GDP, CPI, etc.
+                    value = item.value
+                else:
+                    continue
+
+                if hasattr(item, 'date') and item.date:
+                    chart_data.append({
+                        'date': item.date.isoformat(),
+                        'value': round(value, 2) if value is not None else None
+                    })
+
+            return {
+                'key': indicator_key,
+                'name': indicator_info['name'],
+                'unit': indicator_info['unit'],
+                'data': chart_data
+            }
+
+        except Exception as e:
+            log.error(f"Error fetching indicator history for {indicator_key}: {e}")
+            raise
+
     async def get_fred_series_data(
         self,
         series_key: str,

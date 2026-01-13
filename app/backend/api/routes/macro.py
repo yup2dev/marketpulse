@@ -27,6 +27,33 @@ async def get_indicators_overview():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/indicators/{indicator_key}/history")
+async def get_indicator_history(indicator_key: str, period: str = "5y"):
+    """
+    Get historical data for a specific economic indicator
+
+    Args:
+        indicator_key: Indicator identifier (gdp, unemployment, cpi, fed_funds_rate, retail_sales, consumer_sentiment)
+        period: Time period (1y, 3y, 5y, 10y, max)
+
+    Available indicators:
+    - gdp: Gross Domestic Product
+    - unemployment: Unemployment Rate
+    - cpi: Consumer Price Index (Inflation)
+    - fed_funds_rate: Federal Funds Effective Rate
+    - retail_sales: Advance Retail Sales
+    - consumer_sentiment: University of Michigan Consumer Sentiment
+    """
+    try:
+        data = await macro_service.get_indicator_history(indicator_key, period)
+        return data
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        log.error(f"Error fetching indicator history for {indicator_key}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/fred/series")
 async def list_fred_series():
     """

@@ -1,8 +1,11 @@
 """Portfolio API Routes - Institutional 13F holdings data"""
+import logging
+
 from fastapi import APIRouter, HTTPException
 
 from app.backend.services.portfolio_service import portfolio_service
 
+log = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -54,10 +57,8 @@ async def get_13f_portfolio(institution_key: str, limit: int = 50):
         Portfolio data including holdings, metrics, and optional performance data
     """
     import sys
-    import traceback
 
-    print(f"DEBUG ROUTE START: institution_key={institution_key}, limit={limit}", file=sys.stderr)
-    sys.stderr.flush()
+    log.debug(f"DEBUG ROUTE START: institution_key={institution_key}, limit={limit}, file={sys.stderr}",)
 
     try:
         print(f"DEBUG: About to call portfolio_service", file=sys.stderr)
@@ -67,13 +68,12 @@ async def get_13f_portfolio(institution_key: str, limit: int = 50):
             institution_key=institution_key,
             limit=limit
         )
-        print(f"DEBUG: Got holding type: {type(holding)}")
-        print(f"DEBUG: Got holding keys: {holding.keys() if isinstance(holding, dict) else 'NOT A DICT'}")
+        log.debug(f"DEBUG: Got holding type: {type(holding)}")
+        log.debug(f"DEBUG: Got holding keys: {holding.keys() if isinstance(holding, dict) else 'NOT A DICT'}")
         return holding
 
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        print(f"DEBUG ERROR: {e}")
-        traceback.print_exc()
+        log.error(f"DEBUG ERROR: {e}")
         raise HTTPException(status_code=500, detail=str(e))

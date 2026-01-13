@@ -217,7 +217,7 @@ const ProfessionalDashboard = () => {
         <div className="mb-8">
           <h2 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
             <TrendingUp className="text-blue-500" size={32} />
-            Professional Dashboard
+            Dashboard
           </h2>
           <p className="text-gray-400">Right-click anywhere to add widgets • Drag to rearrange • Resize from corners</p>
         </div>

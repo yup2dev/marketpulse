@@ -202,7 +202,7 @@ const WatchlistWidget = ({ widgetId, onRemove }) => {
     <div className={`${classes.widget.container} rounded-lg h-full flex flex-col`}>
       <WidgetHeader
         icon={Star}
-        iconColor={tokens.colors.accent}
+        iconColor="text-yellow-500"
         title="Watchlist"
         subtitle={selectedWatchlist?.name}
         loading={loading}
