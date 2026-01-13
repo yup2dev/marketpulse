@@ -810,8 +810,8 @@ class MacroService:
             current_date = rate_data_sorted[0].date
 
             # Calculate rate changes over 12 months
-            twelve_months_ago = datetime.now() - timedelta(days=365)
-            recent_rates = [r for r in rate_data_sorted if r.date >= twelve_months_ago]
+            twelve_months_ago = datetime.now().date() - timedelta(days=365)
+            recent_rates = [r for r in rate_data_sorted if r.date and r.date >= twelve_months_ago]
 
             # Count rate changes
             rate_changes_12m = 0
@@ -828,8 +828,8 @@ class MacroService:
             rate_level_score = ((current_rate - 2.0) / 3.0) * 50  # Normalized around 2% neutral
 
             # Momentum: compare current to 3 months ago
-            three_months_ago = datetime.now() - timedelta(days=90)
-            three_month_rates = [r for r in rate_data_sorted if r.date >= three_months_ago]
+            three_months_ago = datetime.now().date() - timedelta(days=90)
+            three_month_rates = [r for r in rate_data_sorted if r.date and r.date >= three_months_ago]
             if len(three_month_rates) >= 2:
                 rate_momentum = (three_month_rates[0].rate - three_month_rates[-1].rate) * 10
             else:
@@ -989,12 +989,15 @@ class MacroService:
             )
 
             # Fetch historical data for key maturities
+            # Using FRED series IDs matching interest_rate.py FRED_SERIES_MAP
             series_to_fetch = {
-                '2y': 'DGS2',
-                '10y': 'DGS10',
-                '3m': 'DGS3MO',
-                '30y': 'DGS30',
-                '5y': 'DGS5'
+                '3m': 'DTB3',     # 3-Month Treasury Bill
+                '6m': 'DTB6',     # 6-Month Treasury Bill
+                '1y': 'DGS1',     # 1-Year Treasury Rate
+                '2y': 'DGS2',     # 2-Year Treasury Rate
+                '5y': 'DGS5',     # 5-Year Treasury Rate
+                '10y': 'DGS10',   # 10-Year Treasury Rate
+                '30y': 'DGS30'    # 30-Year Treasury Rate
             }
 
             historical_data = {}
@@ -1075,8 +1078,21 @@ class MacroService:
                     'end': spreads_history[-1]['date']
                 })
 
+            # Prepare individual yields history for charting
+            yields_history = []
+            for date in all_dates:
+                point = {'date': date}
+                # Add all available maturity yields
+                for key in ['3m', '6m', '1y', '2y', '5y', '10y', '30y']:
+                    if date in historical_data.get(key, {}) and historical_data[key][date] is not None:
+                        point[key] = round(historical_data[key][date], 2)
+
+                if len(point) > 1:  # Has date + at least one yield
+                    yields_history.append(point)
+
             return {
                 'spreads_history': spreads_history,
+                'yields_history': yields_history,
                 'inversion_events': inversions,
                 'period': period
             }

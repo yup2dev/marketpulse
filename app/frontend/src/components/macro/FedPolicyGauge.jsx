@@ -48,10 +48,14 @@ export default function FedPolicyGauge() {
     setLoading(true);
     try {
       const response = await fetch(`${API_BASE}/macro/fed-policy/stance`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       const data = await response.json();
       setPolicyData(data);
     } catch (error) {
       console.error('Error fetching Fed policy data:', error);
+      setPolicyData(null);
     } finally {
       setLoading(false);
     }

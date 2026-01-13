@@ -55,19 +55,70 @@ const SHAPE_CONFIG = {
   }
 };
 
+const MATURITY_OPTIONS = [
+  { key: '3m', label: '3-Month', color: '#ef4444' },
+  { key: '6m', label: '6-Month', color: '#f97316' },
+  { key: '1y', label: '1-Year', color: '#f59e0b' },
+  { key: '2y', label: '2-Year', color: '#ec4899' },
+  { key: '5y', label: '5-Year', color: '#3b82f6' },
+  { key: '10y', label: '10-Year', color: '#10b981' },
+  { key: '30y', label: '30-Year', color: '#8b5cf6' }
+];
+
+// Generate all possible spread combinations
+const SPREAD_OPTIONS = [
+  // 3-month based spreads
+  { short: '3m', long: '6m', label: '3M-6M', color: '#ef4444' },
+  { short: '3m', long: '1y', label: '3M-1Y', color: '#f97316' },
+  { short: '3m', long: '2y', label: '3M-2Y', color: '#f59e0b' },
+  { short: '3m', long: '5y', label: '3M-5Y', color: '#eab308' },
+  { short: '3m', long: '10y', label: '3M-10Y', color: '#10b981' },
+  { short: '3m', long: '30y', label: '3M-30Y', color: '#06b6d4' },
+
+  // 6-month based spreads
+  { short: '6m', long: '1y', label: '6M-1Y', color: '#f97316' },
+  { short: '6m', long: '2y', label: '6M-2Y', color: '#f59e0b' },
+  { short: '6m', long: '5y', label: '6M-5Y', color: '#eab308' },
+  { short: '6m', long: '10y', label: '6M-10Y', color: '#84cc16' },
+  { short: '6m', long: '30y', label: '6M-30Y', color: '#10b981' },
+
+  // 1-year based spreads
+  { short: '1y', long: '2y', label: '1Y-2Y', color: '#f59e0b' },
+  { short: '1y', long: '5y', label: '1Y-5Y', color: '#eab308' },
+  { short: '1y', long: '10y', label: '1Y-10Y', color: '#84cc16' },
+  { short: '1y', long: '30y', label: '1Y-30Y', color: '#22c55e' },
+
+  // 2-year based spreads
+  { short: '2y', long: '5y', label: '2Y-5Y', color: '#eab308' },
+  { short: '2y', long: '10y', label: '2Y-10Y', color: '#3b82f6' },
+  { short: '2y', long: '30y', label: '2Y-30Y', color: '#06b6d4' },
+
+  // 5-year based spreads
+  { short: '5y', long: '10y', label: '5Y-10Y', color: '#14b8a6' },
+  { short: '5y', long: '30y', label: '5Y-30Y', color: '#0ea5e9' },
+
+  // 10-year based spreads
+  { short: '10y', long: '30y', label: '10Y-30Y', color: '#8b5cf6' }
+];
+
 export default function YieldCurveChart() {
   const [curveData, setCurveData] = useState(null);
   const [historyData, setHistoryData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedPeriod, setSelectedPeriod] = useState('5y');
-  const [viewMode, setViewMode] = useState('current'); // 'current' or 'historical'
+  const [viewMode, setViewMode] = useState('current'); // 'current', 'historical-spreads', or 'historical-yields'
+  const [selectedMaturities, setSelectedMaturities] = useState(['1y', '10y']); // Default selection
+  const [selectedSpreads, setSelectedSpreads] = useState([
+    { short: '3m', long: '10y' },
+    { short: '2y', long: '10y' }
+  ]); // Default spread selection
 
   useEffect(() => {
     fetchCurrentCurve();
   }, []);
 
   useEffect(() => {
-    if (viewMode === 'historical') {
+    if (viewMode === 'historical-spreads' || viewMode === 'historical-yields') {
       fetchHistoricalData();
     }
   }, [viewMode, selectedPeriod]);
@@ -151,6 +202,107 @@ export default function YieldCurveChart() {
     return null;
   };
 
+  const CustomYieldsTooltip = ({ active, payload }) => {
+    if (active && payload && payload.length > 0) {
+      const data = payload[0].payload;
+      return (
+        <div className="bg-gray-900 border border-gray-700 rounded-lg p-3 shadow-lg">
+          <p className="text-white font-semibold mb-2">
+            {new Date(data.date).toLocaleDateString()}
+          </p>
+          {selectedMaturities.map(maturity => {
+            if (data[maturity] !== undefined) {
+              const maturityOption = MATURITY_OPTIONS.find(opt => opt.key === maturity);
+              return (
+                <p key={maturity} className="text-sm" style={{ color: maturityOption?.color }}>
+                  {maturityOption?.label}: {data[maturity].toFixed(2)}%
+                </p>
+              );
+            }
+            return null;
+          })}
+        </div>
+      );
+    }
+    return null;
+  };
+
+  const toggleMaturity = (maturityKey) => {
+    setSelectedMaturities(prev => {
+      if (prev.includes(maturityKey)) {
+        // Don't allow deselecting if it's the only one selected
+        if (prev.length === 1) return prev;
+        return prev.filter(m => m !== maturityKey);
+      } else {
+        return [...prev, maturityKey];
+      }
+    });
+  };
+
+  const toggleSpread = (spreadOption) => {
+    setSelectedSpreads(prev => {
+      const exists = prev.some(s => s.short === spreadOption.short && s.long === spreadOption.long);
+      if (exists) {
+        // Don't allow deselecting if it's the only one selected
+        if (prev.length === 1) return prev;
+        return prev.filter(s => !(s.short === spreadOption.short && s.long === spreadOption.long));
+      } else {
+        return [...prev, { short: spreadOption.short, long: spreadOption.long }];
+      }
+    });
+  };
+
+  const isSpreadSelected = (spreadOption) => {
+    return selectedSpreads.some(s => s.short === spreadOption.short && s.long === spreadOption.long);
+  };
+
+  // Calculate spreads dynamically from yields_history
+  const calculateSpreadsData = () => {
+    if (!historyData || !historyData.yields_history) return [];
+
+    return historyData.yields_history.map(point => {
+      const result = { date: point.date };
+
+      selectedSpreads.forEach(spread => {
+        const shortYield = point[spread.short];
+        const longYield = point[spread.long];
+
+        if (shortYield !== undefined && longYield !== undefined) {
+          const spreadKey = `${spread.short}${spread.long}`;
+          result[spreadKey] = parseFloat((longYield - shortYield).toFixed(2));
+        }
+      });
+
+      return result;
+    });
+  };
+
+  const CustomSpreadsTooltip = ({ active, payload }) => {
+    if (active && payload && payload.length > 0) {
+      const data = payload[0].payload;
+      return (
+        <div className="bg-gray-900 border border-gray-700 rounded-lg p-3 shadow-lg">
+          <p className="text-white font-semibold mb-2">
+            {new Date(data.date).toLocaleDateString()}
+          </p>
+          {selectedSpreads.map((spread, idx) => {
+            const spreadKey = `${spread.short}${spread.long}`;
+            if (data[spreadKey] !== undefined) {
+              const spreadOption = SPREAD_OPTIONS.find(opt => opt.short === spread.short && opt.long === spread.long);
+              return (
+                <p key={idx} className={`text-sm ${data[spreadKey] < 0 ? 'text-red-400' : 'text-green-400'}`}>
+                  {spreadOption?.label}: {data[spreadKey].toFixed(2)}%
+                </p>
+              );
+            }
+            return null;
+          })}
+        </div>
+      );
+    }
+    return null;
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -171,17 +323,27 @@ export default function YieldCurveChart() {
                   : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
               }`}
             >
-              Current Curve
+              Current
             </button>
             <button
-              onClick={() => setViewMode('historical')}
+              onClick={() => setViewMode('historical-spreads')}
               className={`px-4 py-2 rounded-lg text-sm transition-colors ${
-                viewMode === 'historical'
+                viewMode === 'historical-spreads'
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
               }`}
             >
-              Historical Spreads
+              Spreads
+            </button>
+            <button
+              onClick={() => setViewMode('historical-yields')}
+              className={`px-4 py-2 rounded-lg text-sm transition-colors ${
+                viewMode === 'historical-yields'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              }`}
+            >
+              Yields
             </button>
           </div>
         </div>
@@ -201,7 +363,7 @@ export default function YieldCurveChart() {
         )}
       </div>
 
-      {viewMode === 'current' ? (
+      {viewMode === 'current' && (
         <>
           {/* Curve Shape Card */}
           <div
@@ -329,9 +491,11 @@ export default function YieldCurveChart() {
             </div>
           </div>
         </>
-      ) : (
+      )}
+
+      {viewMode === 'historical-spreads' && (
         <>
-          {/* Historical View */}
+          {/* Historical Spreads View */}
           <div className={`${CARD_CLASSES.default} p-6`}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-white">Historical Spread Analysis</h3>
@@ -352,9 +516,38 @@ export default function YieldCurveChart() {
               </div>
             </div>
 
-            {historyData && historyData.spreads_history && (
+            {/* Spread Selection */}
+            <div className="mb-4">
+              <p className="text-sm text-gray-400 mb-3">Select Spreads to Compare:</p>
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                {SPREAD_OPTIONS.map(option => (
+                  <button
+                    key={`${option.short}-${option.long}`}
+                    onClick={() => toggleSpread(option)}
+                    className={`px-3 py-2 rounded-lg text-xs transition-all ${
+                      isSpreadSelected(option)
+                        ? 'ring-2'
+                        : 'bg-gray-700/50 text-gray-400 hover:bg-gray-700'
+                    }`}
+                    style={
+                      isSpreadSelected(option)
+                        ? {
+                            backgroundColor: option.color + '20',
+                            color: option.color,
+                            ringColor: option.color
+                          }
+                        : {}
+                    }
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {historyData && historyData.yields_history && (
               <ResponsiveContainer width="100%" height={400}>
-                <LineChart data={historyData.spreads_history}>
+                <LineChart data={calculateSpreadsData()}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                   <XAxis
                     dataKey="date"
@@ -367,24 +560,24 @@ export default function YieldCurveChart() {
                     tick={{ fill: '#9ca3af' }}
                     label={{ value: 'Spread (%)', angle: -90, position: 'insideLeft', fill: '#9ca3af' }}
                   />
-                  <Tooltip content={<CustomHistoricalTooltip />} />
+                  <Tooltip content={<CustomSpreadsTooltip />} />
                   <ReferenceLine y={0} stroke="#ef4444" strokeDasharray="3 3" />
-                  <Line
-                    type="monotone"
-                    dataKey="2y10y"
-                    stroke="#3b82f6"
-                    strokeWidth={2}
-                    dot={false}
-                    name="2Y-10Y"
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="3m10y"
-                    stroke="#10b981"
-                    strokeWidth={2}
-                    dot={false}
-                    name="3M-10Y"
-                  />
+                  {selectedSpreads.map((spread, idx) => {
+                    const spreadKey = `${spread.short}${spread.long}`;
+                    const spreadOption = SPREAD_OPTIONS.find(opt => opt.short === spread.short && opt.long === spread.long);
+                    return (
+                      <Line
+                        key={idx}
+                        type="monotone"
+                        dataKey={spreadKey}
+                        stroke={spreadOption?.color}
+                        strokeWidth={2}
+                        dot={false}
+                        name={spreadOption?.label}
+                        connectNulls
+                      />
+                    );
+                  })}
                 </LineChart>
               </ResponsiveContainer>
             )}
@@ -413,6 +606,96 @@ export default function YieldCurveChart() {
               </div>
             </div>
           )}
+        </>
+      )}
+
+      {viewMode === 'historical-yields' && (
+        <>
+          {/* Historical Yields View */}
+          <div className={`${CARD_CLASSES.default} p-6`}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-white">Historical Treasury Yields</h3>
+              <div className="flex gap-2">
+                {['1y', '3y', '5y', '10y'].map(period => (
+                  <button
+                    key={period}
+                    onClick={() => setSelectedPeriod(period)}
+                    className={`px-3 py-1 rounded-lg text-sm transition-colors ${
+                      selectedPeriod === period
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    }`}
+                  >
+                    {period}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Maturity Selection */}
+            <div className="mb-4">
+              <p className="text-sm text-gray-400 mb-3">Select Treasury Maturities:</p>
+              <div className="flex flex-wrap gap-2">
+                {MATURITY_OPTIONS.map(option => (
+                  <button
+                    key={option.key}
+                    onClick={() => toggleMaturity(option.key)}
+                    className={`px-3 py-2 rounded-lg text-sm transition-all ${
+                      selectedMaturities.includes(option.key)
+                        ? 'ring-2'
+                        : 'bg-gray-700/50 text-gray-400 hover:bg-gray-700'
+                    }`}
+                    style={
+                      selectedMaturities.includes(option.key)
+                        ? {
+                            backgroundColor: option.color + '20',
+                            color: option.color,
+                            ringColor: option.color
+                          }
+                        : {}
+                    }
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {historyData && historyData.yields_history && (
+              <ResponsiveContainer width="100%" height={400}>
+                <LineChart data={historyData.yields_history}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                  <XAxis
+                    dataKey="date"
+                    stroke="#9ca3af"
+                    tick={{ fill: '#9ca3af' }}
+                    tickFormatter={(date) => new Date(date).toLocaleDateString('en-US', { year: '2-digit', month: 'short' })}
+                  />
+                  <YAxis
+                    stroke="#9ca3af"
+                    tick={{ fill: '#9ca3af' }}
+                    label={{ value: 'Yield (%)', angle: -90, position: 'insideLeft', fill: '#9ca3af' }}
+                  />
+                  <Tooltip content={<CustomYieldsTooltip />} />
+                  {selectedMaturities.map(maturity => {
+                    const option = MATURITY_OPTIONS.find(opt => opt.key === maturity);
+                    return (
+                      <Line
+                        key={maturity}
+                        type="monotone"
+                        dataKey={maturity}
+                        stroke={option?.color}
+                        strokeWidth={2}
+                        dot={false}
+                        name={option?.label}
+                        connectNulls
+                      />
+                    );
+                  })}
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </div>
         </>
       )}
 
