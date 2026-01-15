@@ -1,19 +1,55 @@
+import { useState } from 'react';
 import { TrendingUp, Grid3x3, LayoutDashboard, BarChart3, Briefcase, Globe, Bell, LogOut, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useAuthStore from '../store/authStore';
 import useTheme from '../hooks/useTheme';
 import ThemeToggle from './ThemeToggle';
+import useMenus from '../hooks/useMenus';
+import MenuDropdown from './MenuDropdown';
 
 const Layout = ({ children, activeView, onNavigate }) => {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
   const { classes } = useTheme();
+  const { menus, loading: menusLoading } = useMenus();
+  const [hoveredMenu, setHoveredMenu] = useState(null);
 
   const handleLogout = async () => {
     await logout();
     toast.success('로그아웃되었습니다.');
     navigate('/login');
+  };
+
+  // Icon mapping from string to component
+  const iconMap = {
+    'Grid3x3': Grid3x3,
+    'LayoutDashboard': LayoutDashboard,
+    'Globe': Globe,
+    'BarChart3': BarChart3,
+    'Briefcase': Briefcase,
+    'Bell': Bell,
+  };
+
+  // Get icon component from string
+  const getIcon = (iconName) => {
+    const IconComponent = iconMap[iconName];
+    return IconComponent ? <IconComponent size={18} /> : null;
+  };
+
+  // Handle navigation - supports both direct paths and query params
+  const handleMenuNavigate = (menuPath) => {
+    // Extract base path and query string
+    const [basePath, queryString] = menuPath.split('?');
+
+    // Call onNavigate with base path
+    onNavigate(basePath);
+
+    // If there's a query string, update URL
+    if (queryString) {
+      const searchParams = new URLSearchParams(queryString);
+      navigate(`?${searchParams.toString()}`);
+    }
   };
 
   return (
@@ -33,69 +69,45 @@ const Layout = ({ children, activeView, onNavigate }) => {
             </div>
             <div className="flex items-center gap-4">
               <nav className="flex items-center gap-2">
-              <button
-                onClick={() => onNavigate('professional')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
-                  activeView === 'professional'
-                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/20'
-                    : 'text-gray-300 hover:text-white hover:bg-gray-800'
-                }`}
-              >
-                <Grid3x3 size={18} />
-                <span className="text-sm font-medium">Dashboard</span>
-              </button>
-              <button
-                onClick={() => onNavigate('stock')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
-                  activeView === 'stock'
-                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/20'
-                    : 'text-gray-300 hover:text-white hover:bg-gray-800'
-                }`}
-              >
-                <LayoutDashboard size={18} />
-                <span className="text-sm font-medium">Analysis</span>
-              </button>
-              <button
-                onClick={() => onNavigate('macro-analysis')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
-                  activeView === 'macro-analysis'
-                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/20'
-                    : 'text-gray-300 hover:text-white hover:bg-gray-800'
-                }`}
-              >
-                <Globe size={18} />
-                <span className="text-sm font-medium">Macro</span>
-              </button>
-              <button
-                onClick={() => onNavigate('unified-backtest')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
-                  activeView === 'unified-backtest'
-                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/20'
-                    : 'text-gray-300 hover:text-white hover:bg-gray-800'
-                }`}
-              >
-                <BarChart3 size={18} />
-                <span className="text-sm font-medium">Backtest</span>
-              </button>
-              <button
-                onClick={() => onNavigate('portfolio-settings')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
-                  activeView === 'portfolio-settings'
-                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/20'
-                    : 'text-gray-300 hover:text-white hover:bg-gray-800'
-                }`}
-              >
-                <Briefcase size={18} />
-                <span className="text-sm font-medium">Portfolio</span>
-              </button>
-              <button
-                onClick={() => navigate('/alerts')}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-gray-300 hover:text-white hover:bg-gray-800"
-              >
-                <Bell size={18} />
-                <span className="text-sm font-medium">Alerts</span>
-              </button>
-            </nav>
+                {menusLoading ? (
+                  // Loading state - show skeleton
+                  <div className="flex items-center gap-2">
+                    {[1, 2, 3, 4].map((i) => (
+                      <div key={i} className="h-9 w-24 bg-gray-800 rounded-lg animate-pulse" />
+                    ))}
+                  </div>
+                ) : (
+                  // Render dynamic menus from DB
+                  menus.map((menu) => (
+                    <div
+                      key={menu.menu_id}
+                      className="relative"
+                      onMouseEnter={() => menu.children && menu.children.length > 0 && setHoveredMenu(menu.menu_id)}
+                      onMouseLeave={() => setHoveredMenu(null)}
+                    >
+                      <button
+                        onClick={() => handleMenuNavigate(menu.menu_path)}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                          activeView === menu.menu_path
+                            ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/20'
+                            : 'text-gray-300 hover:text-white hover:bg-gray-800'
+                        }`}
+                      >
+                        {getIcon(menu.menu_icon)}
+                        <span className="text-sm font-medium">{menu.menu_name}</span>
+                      </button>
+
+                      {/* Dropdown for sub-menus */}
+                      {hoveredMenu === menu.menu_id && menu.children && menu.children.length > 0 && (
+                        <MenuDropdown
+                          menuItems={menu.children}
+                          onNavigate={handleMenuNavigate}
+                        />
+                      )}
+                    </div>
+                  ))
+                )}
+              </nav>
 
             {/* User Menu */}
             <div className="flex items-center gap-3 ml-4 pl-4 border-l border-gray-700">

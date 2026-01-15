@@ -20,12 +20,12 @@ from fastapi.middleware.cors import CORSMiddleware
 try:
     from app.backend.api.routes import (
         stock, economic, news, dashboard, backtest, portfolio, macro,
-        auth, user_portfolio, screener, alerts, export, watchlist
+        auth, user_portfolio, screener, alerts, export, watchlist, menu
     )
 except ModuleNotFoundError:
     from api.routes import (
         stock, economic, news, dashboard, backtest, portfolio, macro,
-        auth, user_portfolio, screener, alerts, export, watchlist
+        auth, user_portfolio, screener, alerts, export, watchlist, menu
     )
 
 app = FastAPI(
@@ -33,6 +33,33 @@ app = FastAPI(
     description="Financial data visualization dashboard",
     version="1.0.0"
 )
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize application on startup"""
+    try:
+        from index_analyzer.models.database import Base, get_sqlite_db
+        from pathlib import Path
+
+        # Initialize database and create tables
+        db_path = Path(__file__).parent.parent.parent / "data" / "marketpulse.db"
+        db_instance = get_sqlite_db(str(db_path))
+
+        # Create menu_management table if it doesn't exist
+        Base.metadata.create_all(bind=db_instance.engine)
+
+        print("✓ Database tables initialized successfully")
+
+        # Initialize menu data if needed
+        try:
+            from scripts.init_menu_data import init_menu_data
+            init_menu_data()
+            print("✓ Menu data initialized successfully")
+        except Exception as e:
+            print(f"⚠ Menu data initialization skipped: {e}")
+
+    except Exception as e:
+        print(f"✗ Startup initialization failed: {e}")
 
 # CORS middleware for frontend
 app.add_middleware(
@@ -57,6 +84,7 @@ app.include_router(screener.router, prefix="/api", tags=["screener"])
 app.include_router(alerts.router, prefix="/api", tags=["alerts"])
 app.include_router(export.router, prefix="/api", tags=["export"])
 app.include_router(watchlist.router, prefix="/api", tags=["watchlist"])
+app.include_router(menu.router, prefix="/api", tags=["menu"])
 app.include_router(stock.router, prefix="/api/stock", tags=["stock"])
 app.include_router(economic.router, prefix="/api/economic", tags=["economic"])
 app.include_router(news.router, prefix="/api/news", tags=["news"])

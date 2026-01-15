@@ -1,4 +1,5 @@
  import { useState, useEffect, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import GridLayout from 'react-grid-layout';
 import { LineChart, Line, BarChart, Bar, ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { TrendingUp, TrendingDown, Calendar, RefreshCw, Maximize2, Plus, BarChart3, Table2 } from 'lucide-react';
@@ -17,8 +18,15 @@ import 'react-grid-layout/css/styles.css';
 const STOCK_TABS = ['Overview', 'Financials', 'Institutional Holdings', 'Comparison Analysis', 'Ownership', 'Company Calendar', 'Estimates'];
 
 function ImprovedStockDashboard() {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Read tab from URL query parameter
+  const searchParams = new URLSearchParams(location.search);
+  const tabFromUrl = searchParams.get('tab') || 'overview';
+
   const [symbol, setSymbol] = useState('NVDA');
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState(tabFromUrl);
   const [quote, setQuote] = useState(null);
   const [companyInfo, setCompanyInfo] = useState(null);
   const [history, setHistory] = useState([]);
@@ -33,9 +41,24 @@ function ImprovedStockDashboard() {
   const [financialsPeriod, setFinancialsPeriod] = useState('quarterly'); // 'quarterly' or 'annual'
   const containerRef = useRef(null);
 
+  // Update tab when URL changes
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const tabParam = searchParams.get('tab');
+    if (tabParam && tabParam !== activeTab) {
+      setActiveTab(tabParam);
+    }
+  }, [location.search]);
+
   useEffect(() => {
     loadStockData();
   }, [symbol]);
+
+  // Update URL when tab changes
+  const handleTabChange = (newTab) => {
+    setActiveTab(newTab);
+    navigate(`?tab=${newTab}`);
+  };
 
   const loadStockData = async () => {
     setLoading(true);
@@ -253,7 +276,7 @@ function ImprovedStockDashboard() {
             {STOCK_TABS.map((tab) => (
               <button
                 key={tab}
-                onClick={() => setActiveTab(tab.toLowerCase().replace(' ', '-'))}
+                onClick={() => handleTabChange(tab.toLowerCase().replace(' ', '-'))}
                 className={`pb-3 px-1 text-sm font-medium transition-colors relative ${
                   activeTab === tab.toLowerCase().replace(' ', '-')
                     ? 'text-white'

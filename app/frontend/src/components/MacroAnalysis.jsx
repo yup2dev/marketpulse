@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   TrendingUp,
   TrendingDown,
@@ -31,8 +32,14 @@ import SentimentComposite from './macro/SentimentComposite';
  */
 const MacroAnalysis = () => {
   const { showLoading, hideLoading } = useLoading();
+  const location = useLocation();
+  const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState('overview');
+  // Read tab from URL query parameter
+  const searchParams = new URLSearchParams(location.search);
+  const tabFromUrl = searchParams.get('tab') || 'overview';
+
+  const [activeTab, setActiveTab] = useState(tabFromUrl);
   const [indicators, setIndicators] = useState({});
   const [fredSeries, setFredSeries] = useState([]);
   const [forexRates, setForexRates] = useState([]);
@@ -41,7 +48,7 @@ const MacroAnalysis = () => {
   const [selectedRatio, setSelectedRatio] = useState(null);
   const [seriesData, setSeriesData] = useState(null);
   const [ratioData, setRatioData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [loadedTabs, setLoadedTabs] = useState(new Set(['overview']));
 
   const TABS = [
@@ -61,6 +68,15 @@ const MacroAnalysis = () => {
     { id: 'realestate', name: 'Real Estate' },
   ];
 
+  // Update tab when URL changes
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const tabParam = searchParams.get('tab');
+    if (tabParam && tabParam !== activeTab) {
+      setActiveTab(tabParam);
+    }
+  }, [location.search]);
+
   useEffect(() => {
     fetchOverviewData();
   }, []);
@@ -78,18 +94,13 @@ const MacroAnalysis = () => {
   }, [selectedRatio]);
 
   const fetchOverviewData = async () => {
-    setLoading(true);
-    showLoading('거시경제 데이터를 불러오는 중...');
     try {
-      // Only fetch indicators for initial load
+      // Fetch indicators in background (non-blocking)
       const indicatorsRes = await fetch(`${API_BASE}/macro/indicators/overview`);
       const indicatorsData = await indicatorsRes.json();
       setIndicators(indicatorsData.indicators || {});
     } catch (error) {
       console.error('Error fetching overview data:', error);
-    } finally {
-      setLoading(false);
-      hideLoading();
     }
   };
 
@@ -233,6 +244,9 @@ const MacroAnalysis = () => {
     setSelectedRatio(null);
     setSeriesData(null);
     setRatioData(null);
+
+    // Update URL
+    navigate(`?tab=${tabId}`);
 
     // Load data for the tab if not already loaded
     if (tabId === 'commodities') {
@@ -727,16 +741,7 @@ const MacroAnalysis = () => {
     );
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
-          <Activity className="animate-spin mx-auto mb-4 text-blue-400" size={48} />
-          <p className="text-gray-400">Loading macroeconomic data...</p>
-        </div>
-      </div>
-    );
-  }
+  // Removed blocking loader - render UI immediately and let individual widgets handle loading
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-6">
