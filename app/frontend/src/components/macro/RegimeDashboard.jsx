@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { API_BASE } from '../../config/api';
 import { CARD_CLASSES } from '../../styles/designTokens';
+import { SkeletonLoader } from '../widgets/common';
 
 const REGIME_CONFIG = {
   goldilocks: {
@@ -155,24 +156,7 @@ export default function RegimeDashboard() {
     return null;
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Activity className="animate-spin text-blue-400" size={48} />
-      </div>
-    );
-  }
-
-  if (!currentRegime) {
-    return (
-      <div className="text-center py-12 text-gray-400">
-        <AlertCircle className="mx-auto mb-4" size={48} />
-        <p>Unable to load regime data</p>
-      </div>
-    );
-  }
-
-  const currentConfig = REGIME_CONFIG[currentRegime.regime];
+  const currentConfig = currentRegime ? REGIME_CONFIG[currentRegime.regime] : null;
 
   // Prepare scatter data - mark the last item as current
   const scatterData = history.map((h, index) => ({
@@ -217,68 +201,74 @@ export default function RegimeDashboard() {
         </div>
 
         {/* Current Regime Card - Using most recent history data */}
-        <div
-          className="rounded-lg p-6 border-2"
-          style={{
-            backgroundColor: mostRecentConfig.bgColor,
-            borderColor: mostRecentConfig.color
-          }}
-        >
-          <div className="flex items-center gap-4 mb-4">
-            <span className="text-6xl">{mostRecentConfig.emoji}</span>
-            <div>
-              <h3 className="text-3xl font-bold text-white mb-1">
-                {mostRecentConfig.name}
-              </h3>
-              <p className="text-gray-400">{mostRecentConfig.description}</p>
-              {mostRecentData && (
-                <p className="text-xs text-gray-500 mt-1">
-                  Latest data: {new Date(mostRecentData.date).toLocaleDateString()}
-                </p>
-              )}
+        {loading || !mostRecentConfig ? (
+          <div className="rounded-lg p-6 border-2 border-gray-700 bg-gray-800/30">
+            <SkeletonLoader variant="card" count={3} />
+          </div>
+        ) : (
+          <div
+            className="rounded-lg p-6 border-2"
+            style={{
+              backgroundColor: mostRecentConfig.bgColor,
+              borderColor: mostRecentConfig.color
+            }}
+          >
+            <div className="flex items-center gap-4 mb-4">
+              <span className="text-6xl">{mostRecentConfig.emoji}</span>
+              <div>
+                <h3 className="text-3xl font-bold text-white mb-1">
+                  {mostRecentConfig.name}
+                </h3>
+                <p className="text-gray-400">{mostRecentConfig.description}</p>
+                {mostRecentData && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Latest data: {new Date(mostRecentData.date).toLocaleDateString()}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-gray-800/50 rounded-lg p-3">
+                <div className="text-xs text-gray-400 mb-1">Growth Score</div>
+                <div className="text-2xl font-bold text-white flex items-center gap-2">
+                  {mostRecentData && mostRecentData.growth_score > 0 ? (
+                    <TrendingUp className="text-green-400" size={20} />
+                  ) : (
+                    <TrendingDown className="text-red-400" size={20} />
+                  )}
+                  {mostRecentData?.growth_score?.toFixed(1) || 'N/A'}
+                </div>
+              </div>
+
+              <div className="bg-gray-800/50 rounded-lg p-3">
+                <div className="text-xs text-gray-400 mb-1">Inflation Score</div>
+                <div className="text-2xl font-bold text-white flex items-center gap-2">
+                  {mostRecentData && mostRecentData.inflation_score > 0 ? (
+                    <TrendingUp className="text-orange-400" size={20} />
+                  ) : (
+                    <TrendingDown className="text-blue-400" size={20} />
+                  )}
+                  {mostRecentData?.inflation_score?.toFixed(1) || 'N/A'}
+                </div>
+              </div>
+
+              <div className="bg-gray-800/50 rounded-lg p-3">
+                <div className="text-xs text-gray-400 mb-1">GDP Growth</div>
+                <div className="text-2xl font-bold text-white">
+                  {mostRecentData?.gdp_growth?.toFixed(1) || 'N/A'}%
+                </div>
+              </div>
+
+              <div className="bg-gray-800/50 rounded-lg p-3">
+                <div className="text-xs text-gray-400 mb-1">CPI YoY</div>
+                <div className="text-2xl font-bold text-white">
+                  {mostRecentData?.cpi_yoy?.toFixed(1) || 'N/A'}%
+                </div>
+              </div>
             </div>
           </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-gray-800/50 rounded-lg p-3">
-              <div className="text-xs text-gray-400 mb-1">Growth Score</div>
-              <div className="text-2xl font-bold text-white flex items-center gap-2">
-                {mostRecentData && mostRecentData.growth_score > 0 ? (
-                  <TrendingUp className="text-green-400" size={20} />
-                ) : (
-                  <TrendingDown className="text-red-400" size={20} />
-                )}
-                {mostRecentData?.growth_score?.toFixed(1) || 'N/A'}
-              </div>
-            </div>
-
-            <div className="bg-gray-800/50 rounded-lg p-3">
-              <div className="text-xs text-gray-400 mb-1">Inflation Score</div>
-              <div className="text-2xl font-bold text-white flex items-center gap-2">
-                {mostRecentData && mostRecentData.inflation_score > 0 ? (
-                  <TrendingUp className="text-orange-400" size={20} />
-                ) : (
-                  <TrendingDown className="text-blue-400" size={20} />
-                )}
-                {mostRecentData?.inflation_score?.toFixed(1) || 'N/A'}
-              </div>
-            </div>
-
-            <div className="bg-gray-800/50 rounded-lg p-3">
-              <div className="text-xs text-gray-400 mb-1">GDP Growth</div>
-              <div className="text-2xl font-bold text-white">
-                {mostRecentData?.gdp_growth?.toFixed(1) || 'N/A'}%
-              </div>
-            </div>
-
-            <div className="bg-gray-800/50 rounded-lg p-3">
-              <div className="text-xs text-gray-400 mb-1">CPI YoY</div>
-              <div className="text-2xl font-bold text-white">
-                {mostRecentData?.cpi_yoy?.toFixed(1) || 'N/A'}%
-              </div>
-            </div>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* 4-Quadrant Chart */}
@@ -287,7 +277,12 @@ export default function RegimeDashboard() {
           Historical Regime Transitions
         </h3>
 
-        <ResponsiveContainer width="100%" height={500}>
+        {loading || history.length === 0 ? (
+          <div style={{ height: 500 }}>
+            <SkeletonLoader variant="chart" />
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={500}>
           <ScatterChart
             margin={{ top: 20, right: 20, bottom: 20, left: 20 }}
           >
@@ -356,6 +351,7 @@ export default function RegimeDashboard() {
             </Scatter>
           </ScatterChart>
         </ResponsiveContainer>
+        )}
 
         {/* Legend */}
         <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -378,7 +374,7 @@ export default function RegimeDashboard() {
       </div>
 
       {/* Component Breakdown */}
-      {currentRegime.components && (
+      {currentRegime?.components && (
         <div className={`${CARD_CLASSES.default} p-6`}>
           <h3 className="text-lg font-semibold text-white mb-4">
             Growth Components (Real-time Calculation)

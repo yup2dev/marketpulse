@@ -11,18 +11,20 @@ import {
   WIDGET_STYLES,
   LOADING_COLORS,
 } from './common';
+import useRefreshStore from '../../store/refreshStore';
 
 const TickerInfoWidget = ({ symbol, onRemove }) => {
   const { classes } = useTheme();
   const [quote, setQuote] = useState(null);
   const [info, setInfo] = useState(null);
   const [loading, setLoading] = useState(false);
+  const { refreshKey } = useRefreshStore();
 
   useEffect(() => {
     if (symbol) {
       loadData();
     }
-  }, [symbol]);
+  }, [symbol, refreshKey]);
 
   const loadData = async () => {
     setLoading(true);

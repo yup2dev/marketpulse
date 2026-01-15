@@ -12,6 +12,7 @@ import {
 import { API_BASE } from '../../config/api';
 import { CARD_CLASSES } from '../../styles/designTokens';
 import UniversalChartWidget from '../common/UniversalChartWidget';
+import { SkeletonLoader } from '../widgets/common';
 
 const STANCE_CONFIG = {
   hawkish: {
@@ -83,27 +84,10 @@ export default function FedPolicyGauge() {
     fetchHistoricalData(metric);
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Activity className="animate-spin text-blue-400" size={48} />
-      </div>
-    );
-  }
-
-  if (!policyData) {
-    return (
-      <div className="text-center py-12 text-gray-400">
-        <AlertCircle className="mx-auto mb-4" size={48} />
-        <p>Unable to load Fed policy data</p>
-      </div>
-    );
-  }
-
-  const config = STANCE_CONFIG[policyData.stance];
+  const config = policyData ? STANCE_CONFIG[policyData.stance] : null;
 
   // Calculate gauge position (-100 to +100 -> 0% to 100%)
-  const gaugePosition = ((policyData.stance_score + 100) / 200) * 100;
+  const gaugePosition = policyData ? ((policyData.stance_score + 100) / 200) * 100 : 50;
 
   return (
     <div className="space-y-6">
@@ -114,8 +98,13 @@ export default function FedPolicyGauge() {
       </div>
 
       {/* Main Gauge Card */}
-      <div
-        className={`${CARD_CLASSES.default} p-8`}
+      {loading || !policyData || !config ? (
+        <div className={`${CARD_CLASSES.default} p-8`}>
+          <SkeletonLoader variant="card" count={3} />
+        </div>
+      ) : (
+        <div
+          className={`${CARD_CLASSES.default} p-8`}
         style={{
           backgroundColor: config.bgColor,
           borderColor: config.color,
@@ -190,12 +179,16 @@ export default function FedPolicyGauge() {
           </div>
         </div>
       </div>
+      )}
 
       {/* Current Metrics */}
       <div className={`${CARD_CLASSES.default} p-6`}>
         <h3 className="text-lg font-semibold text-white mb-4">Current Fed Funds Rate</h3>
         <p className="text-sm text-gray-400 mb-4">Click on each card to view historical data</p>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {loading || !policyData ? (
+          <SkeletonLoader variant="card" count={3} />
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div
             className={`bg-gray-700/50 rounded-lg p-4 cursor-pointer hover:border-blue-500 transition-colors ${
               selectedMetric?.key === 'fed_funds_rate' ? 'border-2 border-blue-500' : 'border-2 border-transparent'
@@ -220,6 +213,7 @@ export default function FedPolicyGauge() {
             </div>
           </div>
         </div>
+        )}
       </div>
 
       {/* Next Meeting Probabilities */}
@@ -227,7 +221,10 @@ export default function FedPolicyGauge() {
         <h3 className="text-lg font-semibold text-white mb-4">
           Next FOMC Meeting Probabilities
         </h3>
-        <div className="space-y-4">
+        {loading || !policyData ? (
+          <SkeletonLoader variant="card" count={3} />
+        ) : (
+          <div className="space-y-4">
           {/* Hike */}
           <div>
             <div className="flex justify-between items-center mb-2">
@@ -285,12 +282,16 @@ export default function FedPolicyGauge() {
             </div>
           </div>
         </div>
+        )}
       </div>
 
       {/* Historical Context */}
       <div className={`${CARD_CLASSES.default} p-6`}>
         <h3 className="text-lg font-semibold text-white mb-4">Historical Context</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {loading || !policyData ? (
+          <SkeletonLoader variant="card" count={3} />
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-gray-700/50 rounded-lg p-4">
             <div className="text-sm text-gray-400 mb-2">Peak Rate (Historical)</div>
             <div className="text-2xl font-bold text-white">
@@ -313,6 +314,7 @@ export default function FedPolicyGauge() {
             </p>
           </div>
         </div>
+        )}
       </div>
 
       {/* Historical Chart */}
@@ -337,7 +339,7 @@ export default function FedPolicyGauge() {
       )}
 
       {/* Last Updated */}
-      {policyData.last_updated && (
+      {policyData?.last_updated && (
         <div className="text-center text-xs text-gray-500">
           Last updated: {new Date(policyData.last_updated).toLocaleString()}
         </div>

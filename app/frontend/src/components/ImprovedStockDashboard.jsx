@@ -13,6 +13,7 @@ import KeyMetricsWidget from './widgets/KeyMetricsWidget';
 import InstitutionalPortfolios from './InstitutionalPortfolios';
 import { formatNumber, formatCurrency, formatPercent } from '../utils/widgetUtils';
 import { API_BASE } from '../config/api';
+import useRefreshStore from '../store/refreshStore';
 import 'react-grid-layout/css/styles.css';
 
 const STOCK_TABS = ['Overview', 'Financials', 'Institutional Holdings', 'Comparison Analysis', 'Ownership', 'Company Calendar', 'Estimates'];
@@ -20,6 +21,9 @@ const STOCK_TABS = ['Overview', 'Financials', 'Institutional Holdings', 'Compari
 function ImprovedStockDashboard() {
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Global refresh state
+  const { refreshKey, triggerRefresh } = useRefreshStore();
 
   // Read tab from URL query parameter
   const searchParams = new URLSearchParams(location.search);
@@ -52,7 +56,7 @@ function ImprovedStockDashboard() {
 
   useEffect(() => {
     loadStockData();
-  }, [symbol]);
+  }, [symbol, refreshKey]);
 
   // Update URL when tab changes
   const handleTabChange = (newTab) => {
@@ -102,7 +106,7 @@ function ImprovedStockDashboard() {
     if (activeTab === 'financials') {
       loadFinancials();
     }
-  }, [activeTab, symbol, financialsPeriod]);
+  }, [activeTab, symbol, financialsPeriod, refreshKey]);
 
   // Update grid width on resize
   useEffect(() => {
@@ -251,9 +255,19 @@ function ImprovedStockDashboard() {
         {/* Stock Selector Section */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-2xl font-bold text-white">Stock Analysis</h2>
-              <p className="text-gray-400">Deep dive into company fundamentals and performance</p>
+            <div className="flex items-center">
+              <div>
+                <h2 className="text-2xl font-bold text-white">Stock Analysis</h2>
+                <p className="text-gray-400">Deep dive into company fundamentals and performance</p>
+              </div>
+              <button
+                  onClick={triggerRefresh}
+                  className="ml-6 flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors text-white text-sm font-medium"
+                  title="Refresh all widgets in this dashboard"
+              >
+                  <RefreshCw size={16} />
+                  Refresh All
+              </button>
             </div>
             <button
               onClick={() => setShowStockSelector(!showStockSelector)}

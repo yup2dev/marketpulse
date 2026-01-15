@@ -24,6 +24,13 @@ from data_fetcher.fetchers.fred.series import FredSeriesFetcher
 from data_fetcher.fetchers.alphavantage.forex import AlphaVantageForexFetcher
 from data_fetcher.utils.helpers import parse_period_to_dates
 from data_fetcher.utils.api_keys import get_api_key
+from app.backend.constants.fred_series import (
+    STICKY_CORE_CPI,
+    FLEXIBLE_CORE_CPI,
+    BREAKEVEN_5Y,
+    BREAKEVEN_10Y,
+    CORE_CPI
+)
 
 log = logging.getLogger(__name__)
 
@@ -1266,7 +1273,7 @@ class MacroService:
             core_cpi = {}
             try:
                 core_obs = FredSeriesFetcher.fetch_series(
-                    series_id='CPILFESL',  # Core CPI
+                    series_id=CORE_CPI,
                     api_key=api_key,
                     limit=13,
                     sort_order='desc'
@@ -1322,16 +1329,16 @@ class MacroService:
             # Sticky vs Flexible CPI (from Atlanta Fed)
             sticky_vs_flexible = {}
             try:
-                # Sticky CPI: CORESTICKM159SFRBATL
+                # Sticky CPI
                 sticky_obs = FredSeriesFetcher.fetch_series(
-                    series_id='CORESTICKM159SFRBATL',
+                    series_id=STICKY_CORE_CPI,
                     api_key=api_key,
                     limit=1,
                     sort_order='desc'
                 )
-                # Flexible CPI: COREFLEXM159SFRBATL
+                # Flexible CPI
                 flexible_obs = FredSeriesFetcher.fetch_series(
-                    series_id='COREFLEXM159SFRBATL',
+                    series_id=FLEXIBLE_CORE_CPI,
                     api_key=api_key,
                     limit=1,
                     sort_order='desc'
@@ -1348,16 +1355,16 @@ class MacroService:
             # Inflation Expectations (Breakeven rates)
             expectations = {}
             try:
-                # 5-Year Breakeven: T5YIE
+                # 5-Year Breakeven
                 five_yr_obs = FredSeriesFetcher.fetch_series(
-                    series_id='T5YIE',
+                    series_id=BREAKEVEN_5Y,
                     api_key=api_key,
                     limit=1,
                     sort_order='desc'
                 )
-                # 10-Year Breakeven: T10YIE
+                # 10-Year Breakeven
                 ten_yr_obs = FredSeriesFetcher.fetch_series(
-                    series_id='T10YIE',
+                    series_id=BREAKEVEN_10Y,
                     api_key=api_key,
                     limit=1,
                     sort_order='desc'

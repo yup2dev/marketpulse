@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { API_BASE } from '../../config/api';
 import { CARD_CLASSES } from '../../styles/designTokens';
+import { SkeletonLoader } from '../widgets/common';
 
 const SHAPE_CONFIG = {
   normal: {
@@ -146,24 +147,7 @@ export default function YieldCurveChart() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Activity className="animate-spin text-blue-400" size={48} />
-      </div>
-    );
-  }
-
-  if (!curveData) {
-    return (
-      <div className="text-center py-12 text-gray-400">
-        <AlertCircle className="mx-auto mb-4" size={48} />
-        <p>Unable to load yield curve data</p>
-      </div>
-    );
-  }
-
-  const shapeConfig = SHAPE_CONFIG[curveData.curve_shape];
+  const shapeConfig = curveData ? SHAPE_CONFIG[curveData.curve_shape] : null;
 
   const CustomTooltip = ({ active, payload }) => {
     if (active && payload && payload.length > 0) {
@@ -349,7 +333,7 @@ export default function YieldCurveChart() {
         </div>
 
         {/* Inversion Warning */}
-        {curveData.inversion_signal && (
+        {curveData?.inversion_signal && (
           <div className="bg-red-900/20 border border-red-500 rounded-lg p-4 flex items-start gap-3">
             <AlertTriangle className="text-red-400 mt-0.5 flex-shrink-0" size={20} />
             <div>
@@ -366,30 +350,41 @@ export default function YieldCurveChart() {
       {viewMode === 'current' && (
         <>
           {/* Curve Shape Card */}
-          <div
-            className={`${CARD_CLASSES.default} p-6`}
-            style={{
-              backgroundColor: shapeConfig.color + '15',
-              borderColor: shapeConfig.color,
-              borderWidth: '2px'
-            }}
-          >
-            <div className="text-center">
-              <span className="text-5xl mb-3 block">{shapeConfig.emoji}</span>
-              <h3 className="text-2xl font-bold text-white mb-2">{shapeConfig.name} Curve</h3>
-              <p className="text-gray-300 mb-2">{shapeConfig.description}</p>
-              <p className="text-sm" style={{ color: shapeConfig.color }}>
-                💡 {shapeConfig.signal}
-              </p>
+          {loading || !curveData || !shapeConfig ? (
+            <div className={`${CARD_CLASSES.default} p-6`}>
+              <SkeletonLoader variant="card" count={3} />
             </div>
-          </div>
+          ) : (
+            <div
+              className={`${CARD_CLASSES.default} p-6`}
+              style={{
+                backgroundColor: shapeConfig.color + '15',
+                borderColor: shapeConfig.color,
+                borderWidth: '2px'
+              }}
+            >
+              <div className="text-center">
+                <span className="text-5xl mb-3 block">{shapeConfig.emoji}</span>
+                <h3 className="text-2xl font-bold text-white mb-2">{shapeConfig.name} Curve</h3>
+                <p className="text-gray-300 mb-2">{shapeConfig.description}</p>
+                <p className="text-sm" style={{ color: shapeConfig.color }}>
+                  💡 {shapeConfig.signal}
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Current Yield Curve Chart */}
           <div className={`${CARD_CLASSES.default} p-6`}>
             <h3 className="text-lg font-semibold text-white mb-4">
               Current Yield Curve
             </h3>
-            <ResponsiveContainer width="100%" height={400}>
+            {loading || !curveData ? (
+              <div style={{ height: 400 }}>
+                <SkeletonLoader variant="chart" />
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={400}>
               <AreaChart data={curveData.curve}>
                 <defs>
                   <linearGradient id="yieldGradient" x1="0" y1="0" x2="0" y2="1">
@@ -418,12 +413,16 @@ export default function YieldCurveChart() {
                 />
               </AreaChart>
             </ResponsiveContainer>
+            )}
           </div>
 
           {/* Key Spreads */}
           <div className={`${CARD_CLASSES.default} p-6`}>
             <h3 className="text-lg font-semibold text-white mb-4">Key Spreads</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {loading || !curveData ? (
+              <SkeletonLoader variant="card" count={3} />
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {curveData.spreads['2y10y'] !== undefined && (
                 <div className="bg-gray-700/50 rounded-lg p-4">
                   <div className="flex items-center justify-between mb-2">
@@ -489,6 +488,7 @@ export default function YieldCurveChart() {
                 </div>
               )}
             </div>
+            )}
           </div>
         </>
       )}
@@ -700,7 +700,7 @@ export default function YieldCurveChart() {
       )}
 
       {/* Last Updated */}
-      {curveData.timestamp && (
+      {curveData?.timestamp && (
         <div className="text-center text-xs text-gray-500">
           Last updated: {new Date(curveData.timestamp).toLocaleString()}
         </div>

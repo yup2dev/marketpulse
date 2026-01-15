@@ -25,6 +25,7 @@ import InflationDecomposition from './macro/InflationDecomposition';
 import LaborMarketHeatmap from './macro/LaborMarketHeatmap';
 import FinancialConditionsWidget from './macro/FinancialConditionsWidget';
 import SentimentComposite from './macro/SentimentComposite';
+import { MetricCard, SkeletonLoader } from './widgets/common';
 
 /**
  * MacroAnalysis - Comprehensive Macroeconomic Analysis Dashboard
@@ -41,6 +42,7 @@ const MacroAnalysis = () => {
 
   const [activeTab, setActiveTab] = useState(tabFromUrl);
   const [indicators, setIndicators] = useState({});
+  const [indicatorsLoading, setIndicatorsLoading] = useState(true);
   const [fredSeries, setFredSeries] = useState([]);
   const [forexRates, setForexRates] = useState([]);
   const [commodityRatios, setCommodityRatios] = useState({});
@@ -94,6 +96,7 @@ const MacroAnalysis = () => {
   }, [selectedRatio]);
 
   const fetchOverviewData = async () => {
+    setIndicatorsLoading(true);
     try {
       // Fetch indicators in background (non-blocking)
       const indicatorsRes = await fetch(`${API_BASE}/macro/indicators/overview`);
@@ -101,6 +104,8 @@ const MacroAnalysis = () => {
       setIndicators(indicatorsData.indicators || {});
     } catch (error) {
       console.error('Error fetching overview data:', error);
+    } finally {
+      setIndicatorsLoading(false);
     }
   };
 
@@ -210,31 +215,21 @@ const MacroAnalysis = () => {
 
   const renderMetricCard = (title, value, unit, change, Icon, indicatorKey) => (
     <div
-      className={`${CARD_CLASSES.default} p-4 cursor-pointer hover:border-blue-500 transition-colors ${
-        selectedSeries?.key === indicatorKey ? 'border-blue-500' : ''
-      }`}
+      className={`cursor-pointer ${selectedSeries?.key === indicatorKey ? 'ring-2 ring-blue-500' : ''}`}
       onClick={() => {
         setSelectedSeries({ key: indicatorKey, name: title, type: 'indicator' });
         setSelectedRatio(null);
         fetchIndicatorHistory(indicatorKey);
       }}
     >
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex-1">
-          <p className="text-xs text-gray-400 mb-1">{title}</p>
-          <p className="text-2xl font-bold text-white">
-            {value !== null && value !== undefined ? value.toLocaleString() : 'N/A'}
-            <span className="text-sm text-gray-400 ml-1">{unit}</span>
-          </p>
-        </div>
-        <Icon className="text-blue-400" size={20} />
-      </div>
-      {change !== null && change !== undefined && (
-        <div className={`flex items-center text-sm ${change >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-          {change >= 0 ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
-          <span className="ml-1">{Math.abs(change).toFixed(2)}%</span>
-        </div>
-      )}
+      <MetricCard
+        label={title}
+        value={value !== null && value !== undefined ? `${value.toLocaleString()} ${unit}` : 'N/A'}
+        change={change}
+        icon={Icon}
+        iconColor="text-blue-400"
+        loading={indicatorsLoading}
+      />
     </div>
   );
 
