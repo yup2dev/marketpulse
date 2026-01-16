@@ -96,7 +96,6 @@ function WidgetDashboard({
   // This master function knows how to render every widget type in the application.
   const renderWidget = (widget) => {
     const props = {
-        key: widget.id,
         onRemove: () => handleRemoveWidget(widget.id),
         ...widget,
     };

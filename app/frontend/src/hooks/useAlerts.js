@@ -27,10 +27,13 @@ export const useAlerts = () => {
       const response = await axios.get(`${apiUrl}/alerts`, {
         headers: getAuthHeader()
       });
-      setAlerts(response.data);
+      // Ensure we always set an array
+      const alertsData = Array.isArray(response.data) ? response.data : (response.data.alerts || []);
+      setAlerts(alertsData);
     } catch (error) {
       toast.error('알림 목록을 불러오지 못했습니다');
       console.error(error);
+      setAlerts([]); // Set to empty array on error
     } finally {
       setIsLoading(false);
     }
@@ -136,31 +139,42 @@ export const useAlerts = () => {
   }, [apiUrl, getAuthHeader]);
 
   // Computed statistics
-  const statistics = useMemo(() => ({
-    total: alerts.length,
-    active: alerts.filter(a => a.is_active).length,
-    inactive: alerts.filter(a => !a.is_active).length,
-    byType: {
-      price: alerts.filter(a => a.alert_type === 'price').length,
-      technical: alerts.filter(a => a.alert_type === 'technical').length,
-      news: alerts.filter(a => a.alert_type === 'news').length
-    },
-    totalTriggers: alerts.reduce((sum, a) => sum + (a.trigger_count || 0), 0)
-  }), [alerts]);
+  const statistics = useMemo(() => {
+    const alertsArray = Array.isArray(alerts) ? alerts : [];
+    return {
+      total: alertsArray.length,
+      active: alertsArray.filter(a => a.is_active).length,
+      inactive: alertsArray.filter(a => !a.is_active).length,
+      byType: {
+        price: alertsArray.filter(a => a.alert_type === 'price').length,
+        technical: alertsArray.filter(a => a.alert_type === 'technical').length,
+        news: alertsArray.filter(a => a.alert_type === 'news').length
+      },
+      totalTriggers: alertsArray.reduce((sum, a) => sum + (a.trigger_count || 0), 0)
+    };
+  }, [alerts]);
 
   // Filtered alerts by type
-  const priceAlerts = useMemo(() =>
-    alerts.filter(a => a.alert_type === 'price'), [alerts]);
+  const priceAlerts = useMemo(() => {
+    const alertsArray = Array.isArray(alerts) ? alerts : [];
+    return alertsArray.filter(a => a.alert_type === 'price');
+  }, [alerts]);
 
-  const technicalAlerts = useMemo(() =>
-    alerts.filter(a => a.alert_type === 'technical'), [alerts]);
+  const technicalAlerts = useMemo(() => {
+    const alertsArray = Array.isArray(alerts) ? alerts : [];
+    return alertsArray.filter(a => a.alert_type === 'technical');
+  }, [alerts]);
 
-  const newsAlerts = useMemo(() =>
-    alerts.filter(a => a.alert_type === 'news'), [alerts]);
+  const newsAlerts = useMemo(() => {
+    const alertsArray = Array.isArray(alerts) ? alerts : [];
+    return alertsArray.filter(a => a.alert_type === 'news');
+  }, [alerts]);
 
   // Active alerts only
-  const activeAlerts = useMemo(() =>
-    alerts.filter(a => a.is_active), [alerts]);
+  const activeAlerts = useMemo(() => {
+    const alertsArray = Array.isArray(alerts) ? alerts : [];
+    return alertsArray.filter(a => a.is_active);
+  }, [alerts]);
 
   // Recent triggers (from history)
   const recentTriggers = useMemo(() =>
