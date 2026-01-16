@@ -7,7 +7,8 @@ import ProfessionalDashboard from '../components/ProfessionalDashboard';
 import ImprovedStockDashboard from '../components/ImprovedStockDashboard';
 import UnifiedBacktest from '../components/UnifiedBacktest';
 import PortfolioSettings from '../components/PortfolioSettings';
-import MacroAnalysis from '../components/MacroAnalysis';
+import AlertsDashboard from '../components/alerts/AlertsDashboard';
+import MacroDashboard from '../components/macro/MacroDashboard';
 
 export default function Dashboard() {
   const [activeView, setActiveView] = useState('professional');
@@ -16,11 +17,12 @@ export default function Dashboard() {
     <Layout activeView={activeView} onNavigate={setActiveView}>
       {activeView === 'professional' && <ProfessionalDashboard />}
       {activeView === 'stock' && <ImprovedStockDashboard />}
-      {activeView === 'macro-analysis' && <MacroAnalysis />}
+      {activeView === 'macro-analysis' && <MacroDashboard />}
       {activeView === 'unified-backtest' && <UnifiedBacktest />}
       {activeView === 'portfolio-settings' && (
         <PortfolioSettings onNavigate={setActiveView} />
       )}
+      {activeView === 'alerts' && <AlertsDashboard />}
     </Layout>
   );
 }

@@ -6,10 +6,11 @@ import { X, Bell, TrendingUp, TrendingDown, Percent, DollarSign, Activity } from
 import StockSelector from '../StockSelector';
 import { TECHNICAL_INDICATORS } from '../widgets/common/widgetConfig';
 
-export default function CreateAlertModal({ onClose, onCreate }) {
-  const [step, setStep] = useState(1); // 1: Type, 2: Ticker, 3: Condition
+export default function CreateAlertModal({ onClose, onCreate, initialAlertType = null }) {
+  // initialAlertType이 제공되면 step 1을 건너뜀
+  const [step, setStep] = useState(initialAlertType ? 2 : 1);
   const [formData, setFormData] = useState({
-    alert_type: 'price',
+    alert_type: initialAlertType || 'price',
     ticker_cd: '',
     ticker_name: '',
     condition_type: 'above',
@@ -179,13 +180,15 @@ export default function CreateAlertModal({ onClose, onCreate }) {
               <div className="space-y-4">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-gray-900">종목 선택</h3>
-                  <button
-                    type="button"
-                    onClick={() => setStep(1)}
-                    className="text-sm text-blue-600 hover:text-blue-700"
-                  >
-                    ← 이전
-                  </button>
+                  {!initialAlertType && (
+                    <button
+                      type="button"
+                      onClick={() => setStep(1)}
+                      className="text-sm text-blue-600 hover:text-blue-700"
+                    >
+                      ← 이전
+                    </button>
+                  )}
                 </div>
 
                 {formData.ticker_cd ? (
