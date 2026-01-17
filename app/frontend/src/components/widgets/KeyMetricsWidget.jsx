@@ -17,6 +17,7 @@ const KeyMetricsWidget = ({ symbol, onRemove }) => {
   const { classes } = useTheme();
   const [quote, setQuote] = useState(null);
   const [info, setInfo] = useState(null);
+  const [financials, setFinancials] = useState(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -28,9 +29,10 @@ const KeyMetricsWidget = ({ symbol, onRemove }) => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [quoteRes, infoRes] = await Promise.all([
+      const [quoteRes, infoRes, financialsRes] = await Promise.all([
         fetch(`${API_BASE}/stock/quote/${symbol}`),
-        fetch(`${API_BASE}/stock/info/${symbol}`)
+        fetch(`${API_BASE}/stock/info/${symbol}`),
+        fetch(`${API_BASE}/stock/financials/${symbol}?freq=annual&limit=2`)
       ]);
 
       if (quoteRes.ok) {
@@ -39,6 +41,9 @@ const KeyMetricsWidget = ({ symbol, onRemove }) => {
       if (infoRes.ok) {
         setInfo(await infoRes.json());
       }
+      if (financialsRes.ok) {
+        setFinancials(await financialsRes.json());
+      }
     } catch (error) {
       console.error('Error loading key metrics:', error);
     } finally {
@@ -46,11 +51,62 @@ const KeyMetricsWidget = ({ symbol, onRemove }) => {
     }
   };
 
+  // Calculate derived metrics
+  const getMetrics = () => {
+    if (!financials?.periods || financials.periods.length === 0) return {};
 
-  const MetricRow = ({ label, value, highlight = false }) => (
+    const latest = financials.periods[0];
+    const previous = financials.periods[1];
+
+    const incomeStatement = latest?.income_statement || {};
+    const balanceSheet = latest?.balance_sheet || {};
+    const prevIncomeStatement = previous?.income_statement || {};
+
+    // Profitability
+    const grossMargin = incomeStatement.revenue && incomeStatement.gross_profit
+      ? (incomeStatement.gross_profit / incomeStatement.revenue * 100)
+      : null;
+    const operatingMargin = incomeStatement.revenue && incomeStatement.operating_income
+      ? (incomeStatement.operating_income / incomeStatement.revenue * 100)
+      : null;
+    const netMargin = incomeStatement.revenue && incomeStatement.net_income
+      ? (incomeStatement.net_income / incomeStatement.revenue * 100)
+      : null;
+    const roe = balanceSheet.total_equity && incomeStatement.net_income
+      ? (incomeStatement.net_income / balanceSheet.total_equity * 100)
+      : null;
+    const roa = balanceSheet.total_assets && incomeStatement.net_income
+      ? (incomeStatement.net_income / balanceSheet.total_assets * 100)
+      : null;
+
+    // Financial Health
+    const debtToEquity = balanceSheet.total_equity && balanceSheet.total_debt
+      ? (balanceSheet.total_debt / balanceSheet.total_equity)
+      : null;
+    const currentRatio = balanceSheet.current_assets && balanceSheet.current_liabilities
+      ? (balanceSheet.current_assets / balanceSheet.current_liabilities)
+      : null;
+
+    // Growth
+    const revenueGrowth = prevIncomeStatement.revenue && incomeStatement.revenue
+      ? ((incomeStatement.revenue - prevIncomeStatement.revenue) / prevIncomeStatement.revenue * 100)
+      : null;
+    const earningsGrowth = prevIncomeStatement.net_income && incomeStatement.net_income
+      ? ((incomeStatement.net_income - prevIncomeStatement.net_income) / Math.abs(prevIncomeStatement.net_income) * 100)
+      : null;
+
+    return {
+      grossMargin, operatingMargin, netMargin, roe, roa,
+      debtToEquity, currentRatio, revenueGrowth, earningsGrowth
+    };
+  };
+
+  const metrics = getMetrics();
+
+  const MetricRow = ({ label, value, highlight = false, highlightColor = 'text-blue-400' }) => (
     <div className="flex justify-between items-center py-2 border-b border-gray-800 last:border-0">
       <span className="text-gray-400 text-sm">{label}</span>
-      <span className={`font-medium ${highlight ? 'text-blue-400 text-lg' : 'text-white'}`}>
+      <span className={`font-medium ${highlight ? `${highlightColor} text-lg` : 'text-white'}`}>
         {value}
       </span>
     </div>
@@ -67,38 +123,14 @@ const KeyMetricsWidget = ({ symbol, onRemove }) => {
         onRemove={onRemove}
       />
 
-      <div className={`${WIDGET_STYLES.content} ${WIDGET_STYLES.contentPadding}`}>
+      <div className={`${WIDGET_STYLES.content} p-3`}>
         {loading ? (
           <LoadingSpinner color={LOADING_COLORS.metrics} />
         ) : quote && info ? (
-          <div className="space-y-6">
-            {/* Price Ranges */}
-            <div>
-              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Price Ranges</h4>
-              <div className="space-y-1">
-                <MetricRow
-                  label="Day Range"
-                  value={`${formatPrice(quote.low)} - ${formatPrice(quote.high)}`}
-                />
-                <MetricRow
-                  label="52-Week High"
-                  value={formatPrice(quote.year_high)}
-                  highlight={quote.price >= quote.year_high * 0.95}
-                />
-                <MetricRow
-                  label="52-Week Low"
-                  value={formatPrice(quote.year_low)}
-                />
-                <MetricRow
-                  label="52-Week Range"
-                  value={`${formatPrice(quote.year_low)} - ${formatPrice(quote.year_high)}`}
-                />
-              </div>
-            </div>
-
+          <div className="space-y-5">
             {/* Valuation Metrics */}
             <div>
-              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Valuation</h4>
+              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Valuation</h4>
               <div className="space-y-1">
                 <MetricRow
                   label="Market Cap"
@@ -108,22 +140,118 @@ const KeyMetricsWidget = ({ symbol, onRemove }) => {
                   label="P/E Ratio"
                   value={info.pe_ratio?.toFixed(2) || 'N/A'}
                   highlight={info.pe_ratio && info.pe_ratio < 15}
+                  highlightColor="text-green-400"
+                />
+                <MetricRow
+                  label="P/B Ratio"
+                  value={info.price_to_book?.toFixed(2) || 'N/A'}
+                  highlight={info.price_to_book && info.price_to_book < 1}
+                  highlightColor="text-green-400"
+                />
+                <MetricRow
+                  label="P/S Ratio"
+                  value={info.price_to_sales?.toFixed(2) || 'N/A'}
+                  highlight={info.price_to_sales && info.price_to_sales < 2}
+                  highlightColor="text-green-400"
+                />
+                <MetricRow
+                  label="PEG Ratio"
+                  value={info.peg_ratio?.toFixed(2) || 'N/A'}
+                  highlight={info.peg_ratio && info.peg_ratio < 1}
+                  highlightColor="text-green-400"
                 />
                 <MetricRow
                   label="EPS (TTM)"
                   value={info.eps ? formatPrice(info.eps) : 'N/A'}
                 />
+              </div>
+            </div>
+
+            {/* Profitability */}
+            <div>
+              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Profitability</h4>
+              <div className="space-y-1">
+                <MetricRow
+                  label="ROE"
+                  value={metrics.roe ? metrics.roe.toFixed(2) + '%' : 'N/A'}
+                  highlight={metrics.roe && metrics.roe > 15}
+                  highlightColor="text-green-400"
+                />
+                <MetricRow
+                  label="ROA"
+                  value={metrics.roa ? metrics.roa.toFixed(2) + '%' : 'N/A'}
+                  highlight={metrics.roa && metrics.roa > 10}
+                  highlightColor="text-green-400"
+                />
+                <MetricRow
+                  label="Gross Margin"
+                  value={metrics.grossMargin ? metrics.grossMargin.toFixed(2) + '%' : 'N/A'}
+                />
+                <MetricRow
+                  label="Operating Margin"
+                  value={metrics.operatingMargin ? metrics.operatingMargin.toFixed(2) + '%' : 'N/A'}
+                />
+                <MetricRow
+                  label="Net Margin"
+                  value={metrics.netMargin ? metrics.netMargin.toFixed(2) + '%' : 'N/A'}
+                />
+              </div>
+            </div>
+
+            {/* Financial Health */}
+            <div>
+              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Financial Health</h4>
+              <div className="space-y-1">
+                <MetricRow
+                  label="Debt/Equity"
+                  value={metrics.debtToEquity ? metrics.debtToEquity.toFixed(2) : 'N/A'}
+                  highlight={metrics.debtToEquity && metrics.debtToEquity < 0.5}
+                  highlightColor="text-green-400"
+                />
+                <MetricRow
+                  label="Current Ratio"
+                  value={metrics.currentRatio ? metrics.currentRatio.toFixed(2) : 'N/A'}
+                  highlight={metrics.currentRatio && metrics.currentRatio > 1.5}
+                  highlightColor="text-green-400"
+                />
+              </div>
+            </div>
+
+            {/* Growth */}
+            <div>
+              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Growth (YoY)</h4>
+              <div className="space-y-1">
+                <MetricRow
+                  label="Revenue Growth"
+                  value={metrics.revenueGrowth ? metrics.revenueGrowth.toFixed(2) + '%' : 'N/A'}
+                  highlight={metrics.revenueGrowth && metrics.revenueGrowth > 10}
+                  highlightColor={metrics.revenueGrowth > 0 ? 'text-green-400' : 'text-red-400'}
+                />
+                <MetricRow
+                  label="Earnings Growth"
+                  value={metrics.earningsGrowth ? metrics.earningsGrowth.toFixed(2) + '%' : 'N/A'}
+                  highlight={metrics.earningsGrowth && Math.abs(metrics.earningsGrowth) > 10}
+                  highlightColor={metrics.earningsGrowth > 0 ? 'text-green-400' : 'text-red-400'}
+                />
+              </div>
+            </div>
+
+            {/* Dividend */}
+            <div>
+              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Dividend</h4>
+              <div className="space-y-1">
                 <MetricRow
                   label="Dividend Yield"
                   value={info.dividend_yield ? (info.dividend_yield * 100).toFixed(2) + '%' : 'N/A'}
                   highlight={info.dividend_yield && info.dividend_yield > 0.03}
+                  highlightColor="text-green-400"
                 />
               </div>
             </div>
 
             {/* Trading Metrics */}
             <div>
-              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Trading</h4>
+              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Trading</h4>
               <div className="space-y-1">
                 <MetricRow
                   label="Volume"
@@ -139,29 +267,6 @@ const KeyMetricsWidget = ({ symbol, onRemove }) => {
                 />
               </div>
             </div>
-
-            {/* Company Info */}
-            {info.sector && (
-              <div>
-                <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Company</h4>
-                <div className="space-y-1">
-                  <MetricRow
-                    label="Sector"
-                    value={info.sector}
-                  />
-                  <MetricRow
-                    label="Industry"
-                    value={info.industry}
-                  />
-                  {info.country && (
-                    <MetricRow
-                      label="Country"
-                      value={info.country}
-                    />
-                  )}
-                </div>
-              </div>
-            )}
           </div>
         ) : (
           <NoDataState />

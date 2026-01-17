@@ -103,6 +103,48 @@ async def search_stocks(query: str = ""):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/earnings/{symbol}")
+async def get_earnings(symbol: str, limit: int = 8):
+    """
+    Get earnings data for a stock
+
+    Returns quarterly earnings with EPS actual vs estimated
+    """
+    try:
+        earnings = await data_service.get_earnings(symbol.upper(), limit)
+        return earnings
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/insider-trading/{symbol}")
+async def get_insider_trading(symbol: str, limit: int = 50):
+    """
+    Get insider trading data for a stock
+
+    Returns recent insider transactions with buy/sell summary
+    """
+    try:
+        insider = await data_service.get_insider_trading(symbol.upper(), limit)
+        return insider
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/analyst/{symbol}")
+async def get_analyst_data(symbol: str):
+    """
+    Get analyst recommendations and price targets
+
+    Returns consensus rating, price targets, and analyst count
+    """
+    try:
+        analyst = await data_service.get_analyst_data(symbol.upper())
+        return analyst
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/indicator/{indicator}")
 async def get_indicator_history(indicator: str, period: str = "5y"):
     """

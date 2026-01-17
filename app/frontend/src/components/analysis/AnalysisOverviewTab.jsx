@@ -16,7 +16,7 @@ const availableAnalysisWidgets = [
     id: 'key-metrics',
     name: '핵심 지표',
     description: 'P/E, EPS, 시가총액 등 핵심 재무지표',
-    defaultSize: { w: 4, h: 7 }
+    defaultSize: { w: 4, h: 9 }
   },
   {
     id: 'advanced-chart',
@@ -35,6 +35,24 @@ const availableAnalysisWidgets = [
     name: '주가 위젯',
     description: '간단한 주가 차트와 정보',
     defaultSize: { w: 5, h: 7 }
+  },
+  {
+    id: 'earnings',
+    name: '실적 발표',
+    description: '분기별 EPS 실제값 vs 예상값',
+    defaultSize: { w: 4, h: 7 }
+  },
+  {
+    id: 'analyst',
+    name: '애널리스트',
+    description: '투자의견, 목표가, 예상 수익률',
+    defaultSize: { w: 4, h: 7 }
+  },
+  {
+    id: 'insider',
+    name: '내부자 거래',
+    description: '임원 매수/매도 내역',
+    defaultSize: { w: 4, h: 8 }
   }
 ];
 

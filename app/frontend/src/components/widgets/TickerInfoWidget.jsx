@@ -93,9 +93,25 @@ const TickerInfoWidget = ({ symbol, onRemove }) => {
 
               <div className="pt-3 border-t border-gray-800"></div>
 
-              <div className="flex justify-between">
+              <div className="flex justify-between items-center">
                 <span className="text-gray-400 text-sm">Volume</span>
-                <span className="text-white font-medium">{formatNumber(quote.volume)}</span>
+                <div className="text-right">
+                  <span className="text-white font-medium">{formatNumber(quote.volume)}</span>
+                  {info.avg_volume && quote.volume && (
+                    <div className={`text-xs ${
+                      (quote.volume / info.avg_volume) >= 1.5 ? 'text-green-400' :
+                      (quote.volume / info.avg_volume) <= 0.5 ? 'text-red-400' :
+                      'text-gray-400'
+                    }`}>
+                      {((quote.volume / info.avg_volume) * 100).toFixed(0)}% of avg
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex justify-between">
+                <span className="text-gray-400 text-sm">Avg Volume</span>
+                <span className="text-white font-medium">{info.avg_volume ? formatNumber(info.avg_volume) : 'N/A'}</span>
               </div>
 
               <div className="flex justify-between">

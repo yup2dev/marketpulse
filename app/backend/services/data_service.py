@@ -16,6 +16,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from data_fetcher.fetchers.yahoo.stock_price import YahooStockPriceFetcher
 from data_fetcher.fetchers.yahoo.company_info import YahooCompanyInfoFetcher
 from data_fetcher.fetchers.yahoo.financials import YahooFinancialsFetcher
+from data_fetcher.fetchers.polygon.earnings import PolygonEarningsFetcher
+from data_fetcher.fetchers.polygon.insider_trading import PolygonInsiderTradingFetcher
+from data_fetcher.fetchers.fmp.analyst_recommendations import FMPAnalystRecommendationsFetcher
 from data_fetcher.fetchers.fred.gdp import FREDGDPFetcher
 from data_fetcher.fetchers.fred.unemployment import FREDUnemploymentFetcher
 from data_fetcher.fetchers.fred.cpi import FREDCPIFetcher
@@ -411,6 +414,211 @@ class DataService:
 
         # If all else fails, return empty list
         return []
+
+
+    async def get_earnings(self, symbol: str, limit: int = 8) -> Dict[str, Any]:
+        """
+        Get earnings data for a company
+
+        Args:
+            symbol: Stock symbol
+            limit: Number of periods to return (default 8)
+
+        Returns:
+            Earnings data with EPS actual vs estimated
+        """
+        try:
+            result = await PolygonEarningsFetcher.fetch_data({
+                'ticker': symbol,
+                'limit': limit
+            })
+
+            if result:
+                earnings_list = []
+                for data in result:
+                    earnings_list.append({
+                        'fiscal_period': data.fiscal_period,
+                        'fiscal_year': data.fiscal_year,
+                        'fiscal_quarter': data.fiscal_quarter,
+                        'report_date': data.report_date.isoformat() if data.report_date else None,
+                        'period_end_date': data.period_end_date.isoformat() if data.period_end_date else None,
+                        'eps_actual': data.eps_actual,
+                        'eps_estimated': data.eps_estimated,
+                        'eps_surprise': data.eps_surprise,
+                        'eps_surprise_percent': data.eps_surprise_percent,
+                        'revenue_actual': data.revenue_actual,
+                        'revenue_estimated': data.revenue_estimated,
+                        'revenue_surprise': data.revenue_surprise,
+                        'revenue_surprise_percent': data.revenue_surprise_percent,
+                        'net_income': data.net_income,
+                        'operating_income': data.operating_income,
+                        'gross_profit': data.gross_profit
+                    })
+
+                return {
+                    'symbol': symbol,
+                    'earnings': earnings_list
+                }
+        except Exception as e:
+            log.error(f"Error fetching earnings: {e}")
+
+        return {'symbol': symbol, 'earnings': []}
+
+    async def get_insider_trading(self, symbol: str, limit: int = 50) -> Dict[str, Any]:
+        """
+        Get insider trading data for a company
+
+        Args:
+            symbol: Stock symbol
+            limit: Number of transactions to return (default 50)
+
+        Returns:
+            Insider trading transactions with summary statistics
+        """
+        try:
+            result = await PolygonInsiderTradingFetcher.fetch_data({
+                'ticker': symbol,
+                'limit': limit
+            })
+
+            if result:
+                transactions = []
+                buy_count = 0
+                sell_count = 0
+                buy_value = 0
+                sell_value = 0
+
+                for data in result:
+                    tx_value = data.transaction_value or 0
+                    tx_type = data.acquisition_or_disposition
+
+                    if tx_type == 'A':  # Acquisition (buy)
+                        buy_count += 1
+                        buy_value += tx_value
+                    elif tx_type == 'D':  # Disposition (sell)
+                        sell_count += 1
+                        sell_value += tx_value
+
+                    transactions.append({
+                        'transaction_date': data.transaction_date.isoformat() if data.transaction_date else None,
+                        'filing_date': data.filing_date.isoformat() if data.filing_date else None,
+                        'insider_name': data.insider_name,
+                        'insider_title': data.insider_title,
+                        'is_director': data.is_director,
+                        'is_officer': data.is_officer,
+                        'transaction_type': data.transaction_type,
+                        'acquisition_or_disposition': data.acquisition_or_disposition,
+                        'shares_traded': data.shares_traded,
+                        'price_per_share': data.price_per_share,
+                        'transaction_value': data.transaction_value,
+                        'shares_owned_after': data.shares_owned_after
+                    })
+
+                return {
+                    'symbol': symbol,
+                    'summary': {
+                        'buy_count': buy_count,
+                        'sell_count': sell_count,
+                        'buy_value': buy_value,
+                        'sell_value': sell_value,
+                        'net_value': buy_value - sell_value
+                    },
+                    'transactions': transactions
+                }
+        except Exception as e:
+            log.error(f"Error fetching insider trading: {e}")
+
+        return {'symbol': symbol, 'summary': {}, 'transactions': []}
+
+    async def get_analyst_data(self, symbol: str) -> Dict[str, Any]:
+        """
+        Get analyst recommendations and price targets
+
+        Args:
+            symbol: Stock symbol
+
+        Returns:
+            Analyst consensus, price targets, and recommendations
+        """
+        try:
+            result = await FMPAnalystRecommendationsFetcher.fetch_data({
+                'symbol': symbol,
+                'limit': 50
+            })
+
+            if result:
+                # Get latest recommendation
+                latest = result[0] if result else None
+
+                # Aggregate ratings from recent data
+                strong_buy = 0
+                buy = 0
+                hold = 0
+                sell = 0
+                strong_sell = 0
+                target_prices = []
+
+                for data in result[:20]:  # Consider last 20 recommendations
+                    consensus = (data.analyst_rating_consensus or '').lower()
+                    if 'strong buy' in consensus or consensus == 'buy':
+                        strong_buy += 1
+                    elif 'buy' in consensus or consensus == 'outperform':
+                        buy += 1
+                    elif 'hold' in consensus or consensus == 'neutral':
+                        hold += 1
+                    elif 'sell' in consensus or consensus == 'underperform':
+                        sell += 1
+                    elif 'strong sell' in consensus:
+                        strong_sell += 1
+
+                    if data.analyst_target_price:
+                        target_prices.append(data.analyst_target_price)
+
+                # Calculate average target price
+                avg_target_price = sum(target_prices) / len(target_prices) if target_prices else None
+                min_target_price = min(target_prices) if target_prices else None
+                max_target_price = max(target_prices) if target_prices else None
+
+                # Determine consensus rating
+                total_ratings = strong_buy + buy + hold + sell + strong_sell
+                if total_ratings > 0:
+                    if (strong_buy + buy) / total_ratings >= 0.6:
+                        consensus_rating = 'Buy'
+                    elif (sell + strong_sell) / total_ratings >= 0.6:
+                        consensus_rating = 'Sell'
+                    else:
+                        consensus_rating = 'Hold'
+                else:
+                    consensus_rating = 'N/A'
+
+                return {
+                    'symbol': symbol,
+                    'consensus_rating': consensus_rating,
+                    'ratings': {
+                        'strong_buy': strong_buy,
+                        'buy': buy,
+                        'hold': hold,
+                        'sell': sell,
+                        'strong_sell': strong_sell,
+                        'total': total_ratings
+                    },
+                    'price_target': {
+                        'average': avg_target_price,
+                        'low': min_target_price,
+                        'high': max_target_price
+                    },
+                    'number_of_analysts': latest.number_of_analysts if latest else None
+                }
+        except Exception as e:
+            log.error(f"Error fetching analyst data: {e}")
+
+        return {
+            'symbol': symbol,
+            'consensus_rating': 'N/A',
+            'ratings': {},
+            'price_target': {},
+            'number_of_analysts': None
+        }
 
 
 # Singleton instance

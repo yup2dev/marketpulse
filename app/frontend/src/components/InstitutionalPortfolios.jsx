@@ -11,7 +11,8 @@ import {
   Activity,
   Filter,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  X
 } from 'lucide-react';
 import Card from './widgets/common/Card';
 import MetricCard from './widgets/common/MetricCard';
@@ -22,8 +23,9 @@ import { API_BASE } from '../config/api';
 /**
  * InstitutionalPortfolios Component
  * Displays 13F institutional holdings with pagination and filtering
+ * @param {string} symbol - Optional stock symbol to filter institutions by holdings
  */
-const InstitutionalPortfolios = () => {
+const InstitutionalPortfolios = ({ symbol = null }) => {
   const { showLoading, hideLoading } = useLoading();
 
   // State management
@@ -37,6 +39,7 @@ const InstitutionalPortfolios = () => {
   const [sortBy, setSortBy] = useState('total_value');
   const [sortOrder, setSortOrder] = useState('desc');
   const [selectedInstitution, setSelectedInstitution] = useState('');
+  const [symbolFilter, setSymbolFilter] = useState(symbol || '');
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -50,7 +53,14 @@ const InstitutionalPortfolios = () => {
   // Filter and sort portfolios when search or sort changes
   useEffect(() => {
     filterAndSortPortfolios();
-  }, [portfolios, searchTerm, sortBy, sortOrder]);
+  }, [portfolios, searchTerm, sortBy, sortOrder, symbolFilter]);
+
+  // Update symbolFilter when symbol prop changes
+  useEffect(() => {
+    if (symbol) {
+      setSymbolFilter(symbol);
+    }
+  }, [symbol]);
 
   // Reset to first page when filter changes
   useEffect(() => {
@@ -106,6 +116,17 @@ const InstitutionalPortfolios = () => {
         p.name?.toLowerCase().includes(term) ||
         p.manager?.toLowerCase().includes(term) ||
         p.institution_key?.toLowerCase().includes(term)
+      );
+    }
+
+    // Apply symbol filter - only show institutions that hold the specified stock
+    if (symbolFilter) {
+      const symUpper = symbolFilter.toUpperCase();
+      result = result.filter(p =>
+        p.stocks?.some(stock =>
+          stock.symbol?.toUpperCase() === symUpper ||
+          stock.cusip?.toUpperCase() === symUpper
+        )
       );
     }
 
@@ -220,8 +241,22 @@ const InstitutionalPortfolios = () => {
                 </div>
               </div>
 
+              {/* Symbol Filter */}
+              <div className="w-40">
+                <div className="relative">
+                  <Filter className="absolute left-3 top-2.5 text-gray-400" size={18} />
+                  <input
+                    type="text"
+                    value={symbolFilter}
+                    onChange={(e) => setSymbolFilter(e.target.value.toUpperCase())}
+                    className="w-full pl-10 pr-3 py-2 bg-[#0a0e14] border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500 hover:border-gray-600 transition-colors uppercase"
+                    placeholder="Symbol"
+                  />
+                </div>
+              </div>
+
               {/* Sort */}
-              <div className="w-64">
+              <div className="w-52">
                 <select
                   value={sortBy}
                   onChange={(e) => handleSort(e.target.value)}
@@ -233,6 +268,25 @@ const InstitutionalPortfolios = () => {
                 </select>
               </div>
             </div>
+            {symbolFilter && (
+              <div className="mt-2 flex items-center gap-2">
+                <span className="text-sm text-gray-400">
+                  Filtering by holders of:
+                </span>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded text-sm font-medium">
+                  {symbolFilter}
+                  <button
+                    onClick={() => setSymbolFilter('')}
+                    className="hover:text-red-400 transition-colors ml-1"
+                  >
+                    <X size={14} />
+                  </button>
+                </span>
+                <span className="text-sm text-gray-500">
+                  ({filteredPortfolios.length} institutions)
+                </span>
+              </div>
+            )}
           </div>
         </Card>
       )}

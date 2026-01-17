@@ -10,6 +10,9 @@ import TickerInfoWidget from './widgets/TickerInfoWidget';
 import KeyMetricsWidget from './widgets/KeyMetricsWidget';
 import ResizableStockWidget from './ResizableStockWidget';
 import YieldCurveWidget from './widgets/macro/YieldCurveWidget';
+import EarningsWidget from './widgets/EarningsWidget';
+import AnalystWidget from './widgets/AnalystWidget';
+import InsiderWidget from './widgets/InsiderWidget';
 
 // Alert Widgets
 import AlertStatisticsWidget from './alerts/widgets/AlertStatisticsWidget';
@@ -112,7 +115,13 @@ function WidgetDashboard({
             return <KeyMetricsWidget {...props} />;
         case 'stock-quote':
             return <ResizableStockWidget {...props} />;
-        
+        case 'earnings':
+            return <EarningsWidget {...props} />;
+        case 'analyst':
+            return <AnalystWidget {...props} />;
+        case 'insider':
+            return <InsiderWidget {...props} />;
+
         // Macro Widgets
         case 'yield-curve':
             return <YieldCurveWidget {...props} />;
