@@ -131,6 +131,20 @@ async def get_insider_trading(symbol: str, limit: int = 50):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/insider-holders/{symbol}")
+async def get_insider_holders(symbol: str):
+    """
+    Get insider roster/holders information for a stock
+
+    Returns list of insiders with their positions and share holdings
+    """
+    try:
+        holders = await data_service.get_insider_holders(symbol.upper())
+        return holders
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/analyst/{symbol}")
 async def get_analyst_data(symbol: str):
     """
@@ -141,6 +155,62 @@ async def get_analyst_data(symbol: str):
     try:
         analyst = await data_service.get_analyst_data(symbol.upper())
         return analyst
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/holders/{symbol}")
+async def get_holders(symbol: str):
+    """
+    Get institutional and insider holder information
+
+    Returns ownership breakdown, institutional holders list, and share statistics
+    """
+    try:
+        holders = await data_service.get_holders(symbol.upper())
+        return holders
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/calendar/{symbol}")
+async def get_calendar(symbol: str):
+    """
+    Get company calendar events
+
+    Returns upcoming earnings dates, dividend dates, and other corporate events
+    """
+    try:
+        calendar = await data_service.get_calendar(symbol.upper())
+        return calendar
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/dividends/{symbol}")
+async def get_dividends(symbol: str, limit: int = 20):
+    """
+    Get dividend history for a stock
+
+    Returns historical dividend payments with dates and amounts
+    """
+    try:
+        dividends = await data_service.get_dividends(symbol.upper(), limit)
+        return dividends
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/estimates/{symbol}")
+async def get_estimates(symbol: str):
+    """
+    Get analyst estimates for EPS and revenue
+
+    Returns consensus estimates, price targets, and analyst revisions
+    """
+    try:
+        estimates = await data_service.get_estimates(symbol.upper())
+        return estimates
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

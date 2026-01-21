@@ -7,9 +7,14 @@ from pydantic import BaseModel
 from typing import Optional
 from decimal import Decimal
 
-from ...database.db_dependency import get_db
-from ...auth.dependencies import get_current_active_user
-from ...services.alert_service import AlertService
+try:
+    from ...database.db_dependency import get_db
+    from ...auth.dependencies import get_current_active_user
+    from ...services.alert_service import AlertService
+except ImportError:
+    from database.db_dependency import get_db
+    from auth.dependencies import get_current_active_user
+    from services.alert_service import AlertService
 from index_analyzer.models.database import User
 
 router = APIRouter(prefix="/alerts", tags=["Alerts"])

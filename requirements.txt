@@ -1,3 +1,5 @@
+passlib
+python-jose
 transformers
 # MarketPulse - Financial News Crawler & Analyzer
 

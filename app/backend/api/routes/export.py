@@ -7,10 +7,16 @@ from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 from io import BytesIO
 
-from ...database.db_dependency import get_db
-from ...auth.dependencies import get_current_active_user
-from ...services.export_service import ExportService
-from ...services.user_portfolio_service import UserPortfolioService
+try:
+    from ...database.db_dependency import get_db
+    from ...auth.dependencies import get_current_active_user
+    from ...services.export_service import ExportService
+    from ...services.user_portfolio_service import UserPortfolioService
+except ImportError:
+    from database.db_dependency import get_db
+    from auth.dependencies import get_current_active_user
+    from services.export_service import ExportService
+    from services.user_portfolio_service import UserPortfolioService
 from index_analyzer.models.database import User
 
 router = APIRouter(prefix="/export", tags=["Export"])

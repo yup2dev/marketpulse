@@ -11,6 +11,10 @@ import ChartWidget from './widgets/ChartWidget';
 import TickerInfoWidget from './widgets/TickerInfoWidget';
 import KeyMetricsWidget from './widgets/KeyMetricsWidget';
 import InstitutionalPortfolios from './InstitutionalPortfolios';
+import ComparisonAnalysisTab from './analysis/ComparisonAnalysisTab';
+import OwnershipTab from './analysis/OwnershipTab';
+import CompanyCalendarTab from './analysis/CompanyCalendarTab';
+import EstimatesTab from './analysis/EstimatesTab';
 import { formatNumber, formatCurrency, formatPercent } from '../utils/widgetUtils';
 import { API_BASE } from '../config/api';
 import useRefreshStore from '../store/refreshStore';
@@ -731,12 +735,20 @@ function ImprovedStockDashboard() {
           <InstitutionalPortfolios />
         )}
 
-        {!['overview', 'financials', 'institutional-holdings'].includes(activeTab) && (
-          <div className="bg-[#1a1a1a] rounded-lg p-12 text-center border border-gray-800">
-            <div className="text-gray-400 text-lg">
-              {activeTab.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())} - Coming Soon
-            </div>
-          </div>
+        {activeTab === 'comparison-analysis' && (
+          <ComparisonAnalysisTab symbol={symbol} />
+        )}
+
+        {activeTab === 'ownership' && (
+          <OwnershipTab symbol={symbol} />
+        )}
+
+        {activeTab === 'company-calendar' && (
+          <CompanyCalendarTab symbol={symbol} />
+        )}
+
+        {activeTab === 'estimates' && (
+          <EstimatesTab symbol={symbol} />
         )}
 
         {/* Widget Area - Only show in Overview tab */}

@@ -8,9 +8,14 @@ from typing import List, Optional
 from datetime import datetime
 from decimal import Decimal
 
-from ...database.db_dependency import get_db
-from ...auth.dependencies import get_current_active_user
-from ...services.user_portfolio_service import UserPortfolioService
+try:
+    from ...database.db_dependency import get_db
+    from ...auth.dependencies import get_current_active_user
+    from ...services.user_portfolio_service import UserPortfolioService
+except ImportError:
+    from database.db_dependency import get_db
+    from auth.dependencies import get_current_active_user
+    from services.user_portfolio_service import UserPortfolioService
 from index_analyzer.models.database import User
 
 router = APIRouter(prefix="/user-portfolio", tags=["User Portfolio"])

@@ -83,6 +83,30 @@ const getFallbackMenus = () => [
         menu_name: 'Institutional Holdings',
         menu_path: 'stock?tab=institutional-holdings',
         display_seq: 3
+      },
+      {
+        menu_id: 'analysis-comparison',
+        menu_name: 'Comparison Analysis',
+        menu_path: 'stock?tab=comparison-analysis',
+        display_seq: 4
+      },
+      {
+        menu_id: 'analysis-ownership',
+        menu_name: 'Ownership',
+        menu_path: 'stock?tab=ownership',
+        display_seq: 5
+      },
+      {
+        menu_id: 'analysis-calendar',
+        menu_name: 'Company Calendar',
+        menu_path: 'stock?tab=company-calendar',
+        display_seq: 6
+      },
+      {
+        menu_id: 'analysis-estimates',
+        menu_name: 'Estimates',
+        menu_path: 'stock?tab=estimates',
+        display_seq: 7
       }
     ]
   },

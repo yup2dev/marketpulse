@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
+import pandas as pd
 
 log = logging.getLogger(__name__)
 
@@ -16,6 +17,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from data_fetcher.fetchers.yahoo.stock_price import YahooStockPriceFetcher
 from data_fetcher.fetchers.yahoo.company_info import YahooCompanyInfoFetcher
 from data_fetcher.fetchers.yahoo.financials import YahooFinancialsFetcher
+from data_fetcher.fetchers.yahoo.dividends import YahooDividendsFetcher
+from data_fetcher.fetchers.yahoo.insider_trading import YahooInsiderTradingFetcher, YahooInsiderHoldersFetcher
 from data_fetcher.fetchers.polygon.earnings import PolygonEarningsFetcher
 from data_fetcher.fetchers.polygon.insider_trading import PolygonInsiderTradingFetcher
 from data_fetcher.fetchers.fmp.analyst_recommendations import FMPAnalystRecommendationsFetcher
@@ -466,7 +469,7 @@ class DataService:
 
     async def get_insider_trading(self, symbol: str, limit: int = 50) -> Dict[str, Any]:
         """
-        Get insider trading data for a company
+        Get insider trading data for a company using Yahoo Finance
 
         Args:
             symbol: Stock symbol
@@ -475,10 +478,10 @@ class DataService:
         Returns:
             Insider trading transactions with summary statistics
         """
+        # Try Yahoo Finance first
         try:
-            result = await PolygonInsiderTradingFetcher.fetch_data({
-                'ticker': symbol,
-                'limit': limit
+            result = await YahooInsiderTradingFetcher.fetch_data({
+                'symbol': symbol
             })
 
             if result:
@@ -488,47 +491,94 @@ class DataService:
                 buy_value = 0
                 sell_value = 0
 
-                for data in result:
+                for data in result[:limit]:
                     tx_value = data.transaction_value or 0
-                    tx_type = data.acquisition_or_disposition
+                    tx_type = (data.transaction_type or '').lower()
 
-                    if tx_type == 'A':  # Acquisition (buy)
+                    # Determine if buy or sell
+                    is_buy = 'purchase' in tx_type or 'buy' in tx_type or 'acquisition' in tx_type
+                    is_sell = 'sale' in tx_type or 'sell' in tx_type or 'disposition' in tx_type
+
+                    if is_buy:
                         buy_count += 1
                         buy_value += tx_value
-                    elif tx_type == 'D':  # Disposition (sell)
+                        acquisition_disposition = 'A'
+                    elif is_sell:
                         sell_count += 1
                         sell_value += tx_value
+                        acquisition_disposition = 'D'
+                    else:
+                        acquisition_disposition = None
 
                     transactions.append({
                         'transaction_date': data.transaction_date.isoformat() if data.transaction_date else None,
-                        'filing_date': data.filing_date.isoformat() if data.filing_date else None,
+                        'filing_date': None,
                         'insider_name': data.insider_name,
                         'insider_title': data.insider_title,
-                        'is_director': data.is_director,
-                        'is_officer': data.is_officer,
+                        'is_director': None,
+                        'is_officer': None,
                         'transaction_type': data.transaction_type,
-                        'acquisition_or_disposition': data.acquisition_or_disposition,
+                        'acquisition_or_disposition': acquisition_disposition,
                         'shares_traded': data.shares_traded,
                         'price_per_share': data.price_per_share,
                         'transaction_value': data.transaction_value,
                         'shares_owned_after': data.shares_owned_after
                     })
 
-                return {
-                    'symbol': symbol,
-                    'summary': {
-                        'buy_count': buy_count,
-                        'sell_count': sell_count,
-                        'buy_value': buy_value,
-                        'sell_value': sell_value,
-                        'net_value': buy_value - sell_value
-                    },
-                    'transactions': transactions
-                }
+                if transactions:
+                    return {
+                        'symbol': symbol,
+                        'source': 'yahoo',
+                        'summary': {
+                            'buy_count': buy_count,
+                            'sell_count': sell_count,
+                            'buy_value': buy_value,
+                            'sell_value': sell_value,
+                            'net_value': buy_value - sell_value
+                        },
+                        'transactions': transactions
+                    }
         except Exception as e:
-            log.error(f"Error fetching insider trading: {e}")
+            log.warning(f"Yahoo Finance insider trading failed for {symbol}: {e}")
 
         return {'symbol': symbol, 'summary': {}, 'transactions': []}
+
+    async def get_insider_holders(self, symbol: str) -> Dict[str, Any]:
+        """
+        Get insider holders (roster) information using Yahoo Finance
+
+        Args:
+            symbol: Stock symbol
+
+        Returns:
+            List of insider holders with their positions
+        """
+        try:
+            result = await YahooInsiderHoldersFetcher.fetch_data({
+                'symbol': symbol
+            })
+
+            if result:
+                holders = []
+                for data in result:
+                    holders.append({
+                        'name': data.name,
+                        'position': data.position,
+                        'shares': data.shares,
+                        'value': data.value,
+                        'latest_transaction_date': data.latest_transaction_date.isoformat() if data.latest_transaction_date else None,
+                        'position_direct': data.position_direct,
+                        'position_indirect': data.position_indirect
+                    })
+
+                return {
+                    'symbol': symbol,
+                    'holders': holders
+                }
+        except Exception as e:
+            log.error(f"Error fetching insider holders for {symbol}: {e}")
+
+        return {'symbol': symbol, 'holders': []}
 
     async def get_analyst_data(self, symbol: str) -> Dict[str, Any]:
         """
@@ -619,6 +669,312 @@ class DataService:
             'price_target': {},
             'number_of_analysts': None
         }
+
+
+    async def get_holders(self, symbol: str) -> Dict[str, Any]:
+        """
+        Get institutional and insider holder information
+
+        Args:
+            symbol: Stock symbol
+
+        Returns:
+            Holder information including institutional, insider, and summary data
+        """
+        try:
+            import yfinance as yf
+            ticker = yf.Ticker(symbol)
+
+            # Get holder data
+            institutional_holders = ticker.institutional_holders
+            major_holders = ticker.major_holders
+
+            # Get company info for shares data
+            info = ticker.info
+
+            # Process institutional holders
+            institutions = []
+            if institutional_holders is not None and not institutional_holders.empty:
+                for _, row in institutional_holders.iterrows():
+                    institutions.append({
+                        'name': row.get('Holder', ''),
+                        'shares': int(row.get('Shares', 0)) if row.get('Shares') else 0,
+                        'value': float(row.get('Value', 0)) if row.get('Value') else 0,
+                        'pct_held': float(row.get('% Out', 0)) if row.get('% Out') else 0,
+                        'date_reported': row.get('Date Reported').strftime('%Y-%m-%d') if row.get('Date Reported') else None
+                    })
+
+            # Process major holders summary
+            summary = {}
+            if major_holders is not None and not major_holders.empty:
+                for idx, row in major_holders.iterrows():
+                    value = row.iloc[0] if len(row) > 0 else None
+                    # Convert percentage string to float
+                    if isinstance(value, str) and '%' in value:
+                        value = float(value.replace('%', ''))
+                    summary[idx] = value
+
+            return {
+                'symbol': symbol,
+                'summary': {
+                    'institutional_pct': summary.get('% of Shares Held by Institutions', 0),
+                    'insider_pct': summary.get('% of Shares Held by Insiders', 0),
+                    'institutional_float_pct': summary.get('% of Float Held by Institutions', 0),
+                    'shares_outstanding': info.get('sharesOutstanding', 0),
+                    'float_shares': info.get('floatShares', 0),
+                    'short_interest': info.get('shortPercentOfFloat', 0) * 100 if info.get('shortPercentOfFloat') else 0,
+                    'short_ratio': info.get('shortRatio', 0)
+                },
+                'institutional': institutions
+            }
+        except Exception as e:
+            log.error(f"Error fetching holders for {symbol}: {e}")
+            return {'symbol': symbol, 'summary': {}, 'institutional': []}
+
+    async def get_calendar(self, symbol: str) -> Dict[str, Any]:
+        """
+        Get company calendar events (earnings dates, dividends, etc.)
+
+        Args:
+            symbol: Stock symbol
+
+        Returns:
+            Calendar events including earnings and dividend dates
+        """
+        try:
+            import yfinance as yf
+            from datetime import datetime as dt
+            ticker = yf.Ticker(symbol)
+
+            calendar = ticker.calendar  # This is a dict
+            earnings_dates_df = ticker.earnings_dates  # Historical and future earnings
+            info = ticker.info
+
+            events = []
+            upcoming_earnings = {}
+
+            # Process calendar dict (contains next earnings info)
+            if calendar and isinstance(calendar, dict):
+                # Earnings dates from calendar
+                earnings_date_list = calendar.get('Earnings Date', [])
+                if earnings_date_list:
+                    if not isinstance(earnings_date_list, list):
+                        earnings_date_list = [earnings_date_list]
+                    for ed in earnings_date_list:
+                        if ed:
+                            date_str = ed.strftime('%Y-%m-%d') if hasattr(ed, 'strftime') else str(ed)
+                            events.append({
+                                'type': 'earnings',
+                                'title': 'Earnings Release',
+                                'date': date_str,
+                                'description': 'Quarterly earnings report',
+                                'eps_estimate': calendar.get('Earnings Average'),
+                                'eps_low': calendar.get('Earnings Low'),
+                                'eps_high': calendar.get('Earnings High'),
+                                'revenue_estimate': calendar.get('Revenue Average'),
+                                'revenue_low': calendar.get('Revenue Low'),
+                                'revenue_high': calendar.get('Revenue High')
+                            })
+                            upcoming_earnings['date'] = date_str
+                            upcoming_earnings['eps_estimate'] = calendar.get('Earnings Average')
+
+                # Ex-Dividend Date from calendar
+                ex_div = calendar.get('Ex-Dividend Date')
+                if ex_div:
+                    date_str = ex_div.strftime('%Y-%m-%d') if hasattr(ex_div, 'strftime') else str(ex_div)
+                    events.append({
+                        'type': 'ex_dividend',
+                        'title': 'Ex-Dividend Date',
+                        'date': date_str,
+                        'description': f"Dividend: ${info.get('dividendRate', 0):.2f}/share",
+                        'amount': info.get('dividendRate', 0)
+                    })
+
+                # Dividend Payment Date from calendar
+                div_date = calendar.get('Dividend Date')
+                if div_date:
+                    date_str = div_date.strftime('%Y-%m-%d') if hasattr(div_date, 'strftime') else str(div_date)
+                    events.append({
+                        'type': 'dividend_payment',
+                        'title': 'Dividend Payment',
+                        'date': date_str,
+                        'description': f"Dividend: ${info.get('dividendRate', 0):.2f}/share",
+                        'amount': info.get('dividendRate', 0)
+                    })
+
+            # Process earnings_dates DataFrame for historical earnings
+            earnings_history = []
+            if earnings_dates_df is not None and not earnings_dates_df.empty:
+                for date_idx, row in earnings_dates_df.iterrows():
+                    try:
+                        date_str = date_idx.strftime('%Y-%m-%d') if hasattr(date_idx, 'strftime') else str(date_idx)[:10]
+                        earnings_history.append({
+                            'date': date_str,
+                            'eps_estimate': float(row.get('EPS Estimate')) if row.get('EPS Estimate') and not pd.isna(row.get('EPS Estimate')) else None,
+                            'eps_actual': float(row.get('Reported EPS')) if row.get('Reported EPS') and not pd.isna(row.get('Reported EPS')) else None,
+                            'surprise_pct': float(row.get('Surprise(%)')) if row.get('Surprise(%)') and not pd.isna(row.get('Surprise(%)')) else None
+                        })
+                    except Exception as e:
+                        log.warning(f"Error parsing earnings date: {e}")
+                        continue
+
+            # Sort events by date
+            events.sort(key=lambda x: x.get('date', ''), reverse=False)
+
+            return {
+                'symbol': symbol,
+                'events': events,
+                'upcoming_earnings': upcoming_earnings,
+                'earnings_history': earnings_history[:12],  # Last 12 quarters
+                'dividend_info': {
+                    'rate': info.get('dividendRate'),
+                    'yield': info.get('dividendYield'),
+                    'payout_ratio': info.get('payoutRatio')
+                }
+            }
+        except Exception as e:
+            log.error(f"Error fetching calendar for {symbol}: {e}")
+            return {'symbol': symbol, 'events': [], 'earnings_history': [], 'dividend_info': {}}
+
+    async def get_dividends(self, symbol: str, limit: int = 20) -> Dict[str, Any]:
+        """
+        Get dividend history for a company
+
+        Args:
+            symbol: Stock symbol
+            limit: Number of dividend records to return
+
+        Returns:
+            Dividend history with dates and amounts
+        """
+        try:
+            result = await YahooDividendsFetcher.fetch_data({
+                'symbol': symbol
+            })
+
+            if result:
+                dividends = []
+                for data in result[:limit]:
+                    dividends.append({
+                        'date': data.date.strftime('%Y-%m-%d') if data.date else None,
+                        'amount': data.dividend,
+                        'dividend_yield': data.dividend_yield,
+                        'yoy_growth': data.yoy_growth
+                    })
+
+                return {
+                    'symbol': symbol,
+                    'history': dividends
+                }
+        except Exception as e:
+            log.error(f"Error fetching dividends for {symbol}: {e}")
+
+        return {'symbol': symbol, 'history': []}
+
+    async def get_estimates(self, symbol: str) -> Dict[str, Any]:
+        """
+        Get analyst estimates for EPS and revenue
+
+        Args:
+            symbol: Stock symbol
+
+        Returns:
+            Analyst estimates including EPS and revenue forecasts
+        """
+        try:
+            import yfinance as yf
+            ticker = yf.Ticker(symbol)
+
+            # Get earnings estimates
+            earnings_est = ticker.earnings_estimate
+            revenue_est = ticker.revenue_estimate
+            eps_revisions = ticker.eps_revisions
+            price_targets = ticker.analyst_price_targets
+            recommendations = ticker.recommendations
+
+            estimates = {
+                'symbol': symbol,
+                'eps': {},
+                'revenue': {},
+                'price_target': {},
+                'recommendations': {}
+            }
+
+            # Process earnings estimates - periods are in INDEX (0q, +1q, 0y, +1y)
+            if earnings_est is not None and not earnings_est.empty:
+                for period in earnings_est.index:
+                    period_key = self._format_period_key(period)
+                    estimates['eps'][period_key] = {
+                        'estimate': float(earnings_est.loc[period, 'avg']) if 'avg' in earnings_est.columns else None,
+                        'low': float(earnings_est.loc[period, 'low']) if 'low' in earnings_est.columns else None,
+                        'high': float(earnings_est.loc[period, 'high']) if 'high' in earnings_est.columns else None,
+                        'year_ago': float(earnings_est.loc[period, 'yearAgoEps']) if 'yearAgoEps' in earnings_est.columns else None,
+                        'num_analysts': int(earnings_est.loc[period, 'numberOfAnalysts']) if 'numberOfAnalysts' in earnings_est.columns else None,
+                        'growth': float(earnings_est.loc[period, 'growth']) if 'growth' in earnings_est.columns else None
+                    }
+
+            # Process revenue estimates - periods are in INDEX
+            if revenue_est is not None and not revenue_est.empty:
+                for period in revenue_est.index:
+                    period_key = self._format_period_key(period)
+                    estimates['revenue'][period_key] = {
+                        'estimate': float(revenue_est.loc[period, 'avg']) if 'avg' in revenue_est.columns else None,
+                        'low': float(revenue_est.loc[period, 'low']) if 'low' in revenue_est.columns else None,
+                        'high': float(revenue_est.loc[period, 'high']) if 'high' in revenue_est.columns else None,
+                        'year_ago': float(revenue_est.loc[period, 'yearAgoRevenue']) if 'yearAgoRevenue' in revenue_est.columns else None,
+                        'num_analysts': int(revenue_est.loc[period, 'numberOfAnalysts']) if 'numberOfAnalysts' in revenue_est.columns else None,
+                        'growth': float(revenue_est.loc[period, 'growth']) if 'growth' in revenue_est.columns else None
+                    }
+
+            # Process price targets (dict format)
+            if price_targets:
+                estimates['price_target'] = {
+                    'current': price_targets.get('current'),
+                    'mean': price_targets.get('mean'),
+                    'median': price_targets.get('median'),
+                    'low': price_targets.get('low'),
+                    'high': price_targets.get('high')
+                }
+
+            # Process recommendations
+            if recommendations is not None and not recommendations.empty:
+                latest = recommendations.iloc[0] if len(recommendations) > 0 else None
+                if latest is not None:
+                    estimates['recommendations'] = {
+                        'strong_buy': int(latest.get('strongBuy', 0)),
+                        'buy': int(latest.get('buy', 0)),
+                        'hold': int(latest.get('hold', 0)),
+                        'sell': int(latest.get('sell', 0)),
+                        'strong_sell': int(latest.get('strongSell', 0))
+                    }
+
+            # Process EPS revisions
+            if eps_revisions is not None and not eps_revisions.empty:
+                revisions = {}
+                for period in eps_revisions.index:
+                    period_key = self._format_period_key(period)
+                    revisions[period_key] = {
+                        'up_last_7_days': int(eps_revisions.loc[period, 'upLast7days']) if 'upLast7days' in eps_revisions.columns else 0,
+                        'up_last_30_days': int(eps_revisions.loc[period, 'upLast30days']) if 'upLast30days' in eps_revisions.columns else 0,
+                        'down_last_7_days': int(eps_revisions.loc[period, 'downLast7days']) if 'downLast7days' in eps_revisions.columns else 0,
+                        'down_last_30_days': int(eps_revisions.loc[period, 'downLast30days']) if 'downLast30days' in eps_revisions.columns else 0
+                    }
+                estimates['revisions'] = revisions
+
+            return estimates
+        except Exception as e:
+            log.error(f"Error fetching estimates for {symbol}: {e}")
+            return {'symbol': symbol, 'eps': {}, 'revenue': {}, 'price_target': {}, 'recommendations': {}}
+
+    def _format_period_key(self, period: str) -> str:
+        """Format period key for readability"""
+        period_map = {
+            '0q': 'Current Quarter',
+            '+1q': 'Next Quarter',
+            '0y': 'Current Year',
+            '+1y': 'Next Year'
+        }
+        return period_map.get(period, period)
 
 
 # Singleton instance
