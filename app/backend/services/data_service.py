@@ -731,12 +731,19 @@ class DataService:
             log.error(f"Error fetching holders for {symbol}: {e}")
             return {'symbol': symbol, 'summary': {}, 'institutional': []}
 
-    async def get_calendar(self, symbol: str) -> Dict[str, Any]:
+    async def get_calendar(
+        self,
+        symbol: str,
+        start_date: str = None,
+        end_date: str = None
+    ) -> Dict[str, Any]:
         """
         Get company calendar events (earnings dates, dividends, etc.)
 
         Args:
             symbol: Stock symbol
+            start_date: Start date filter (YYYY-MM-DD)
+            end_date: End date filter (YYYY-MM-DD)
 
         Returns:
             Calendar events including earnings and dividend dates
@@ -820,6 +827,18 @@ class DataService:
 
             # Sort events by date
             events.sort(key=lambda x: x.get('date', ''), reverse=False)
+
+            # Filter events by date range if provided
+            if start_date or end_date:
+                filtered_events = []
+                for event in events:
+                    event_date = event.get('date', '')
+                    if start_date and event_date < start_date:
+                        continue
+                    if end_date and event_date > end_date:
+                        continue
+                    filtered_events.append(event)
+                events = filtered_events
 
             return {
                 'symbol': symbol,

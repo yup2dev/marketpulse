@@ -18,23 +18,95 @@ const EVENT_TYPES = {
 };
 
 const CompanyCalendarTab = ({ symbol }) => {
-  const [events, setEvents] = useState([]);
+  const [calendarEvents, setCalendarEvents] = useState([]);  // 달력 뷰용 월별 이벤트
+  const [listEvents, setListEvents] = useState([]);  // 리스트 뷰용 (전월 1개월 ~ 향후 3개월)
   const [earningsHistory, setEarningsHistory] = useState([]);
   const [dividendHistory, setDividendHistory] = useState([]);
   const [dividendInfo, setDividendInfo] = useState({});
   const [upcomingEarnings, setUpcomingEarnings] = useState({});
   const [loading, setLoading] = useState(false);
+  const [calendarLoading, setCalendarLoading] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(null);
   const [viewMode, setViewMode] = useState('calendar');
 
+  // 월의 시작일과 종료일 계산
+  const getMonthRange = (date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const startDate = new Date(year, month, 1);
+    const endDate = new Date(year, month + 1, 0);
+    return {
+      start: startDate.toISOString().split('T')[0],
+      end: endDate.toISOString().split('T')[0]
+    };
+  };
+
+  // 리스트용 기간 계산 (전월 1개월 ~ 향후 3개월)
+  const getListDateRange = () => {
+    const now = new Date();
+    const startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const endDate = new Date(now.getFullYear(), now.getMonth() + 4, 0);
+    return {
+      start: startDate.toISOString().split('T')[0],
+      end: endDate.toISOString().split('T')[0]
+    };
+  };
+
+  // 달력 뷰용 월별 이벤트 로드
+  const loadCalendarMonthEvents = async (monthDate) => {
+    setCalendarLoading(true);
+    try {
+      const { start, end } = getMonthRange(monthDate);
+      const res = await fetch(`${API_BASE}/stock/calendar/${symbol}?start_date=${start}&end_date=${end}`);
+      if (res.ok) {
+        const data = await res.json();
+        setCalendarEvents(data.events || []);
+      }
+    } catch (error) {
+      console.error('Error loading calendar month events:', error);
+    } finally {
+      setCalendarLoading(false);
+    }
+  };
+
+  // 리스트 뷰용 이벤트 로드 (전월 1개월 ~ 향후 3개월)
+  const loadListEvents = async () => {
+    try {
+      const { start, end } = getListDateRange();
+      const res = await fetch(`${API_BASE}/stock/calendar/${symbol}?start_date=${start}&end_date=${end}`);
+      if (res.ok) {
+        const data = await res.json();
+        setListEvents(data.events || []);
+        setUpcomingEarnings(data.upcoming_earnings || {});
+      }
+    } catch (error) {
+      console.error('Error loading list events:', error);
+    }
+  };
+
+  // 초기 데이터 로드 (earnings, dividends 등)
   useEffect(() => {
     if (symbol) {
-      loadCalendarData();
+      loadInitialData();
     }
   }, [symbol]);
 
-  const loadCalendarData = async () => {
+  // 월 변경 시 달력 이벤트 로드
+  useEffect(() => {
+    if (symbol && viewMode === 'calendar') {
+      loadCalendarMonthEvents(currentMonth);
+    }
+  }, [symbol, currentMonth, viewMode]);
+
+  // 리스트 뷰 선택 시 리스트 이벤트 로드
+  useEffect(() => {
+    if (symbol && viewMode === 'list') {
+      loadListEvents();
+    }
+  }, [symbol, viewMode]);
+
+  const loadInitialData = async () => {
     setLoading(true);
     try {
       const [calendarRes, earningsRes, dividendsRes] = await Promise.all([
@@ -45,7 +117,6 @@ const CompanyCalendarTab = ({ symbol }) => {
 
       if (calendarRes.ok) {
         const data = await calendarRes.json();
-        setEvents(data.events || []);
         // Use earnings_history from calendar endpoint (Yahoo Finance)
         if (data.earnings_history && data.earnings_history.length > 0) {
           setEarningsHistory(data.earnings_history);
@@ -66,6 +137,9 @@ const CompanyCalendarTab = ({ symbol }) => {
         const data = await dividendsRes.json();
         setDividendHistory(data.history || []);
       }
+
+      // 초기 달력 뷰 이벤트 로드
+      await loadCalendarMonthEvents(currentMonth);
     } catch (error) {
       console.error('Error loading calendar data:', error);
     } finally {
@@ -88,11 +162,13 @@ const CompanyCalendarTab = ({ symbol }) => {
 
   const getEventsForDate = (date) => {
     const dateStr = date.toISOString().split('T')[0];
-    return events.filter(e => e.date === dateStr);
+    return calendarEvents.filter(e => e.date === dateStr);
   };
 
   const navigateMonth = (direction) => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + direction, 1));
+    const newMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + direction, 1);
+    setCurrentMonth(newMonth);
+    // 월별 이벤트는 useEffect에서 자동으로 로드됨
   };
 
   const renderCalendar = () => {
@@ -147,12 +223,13 @@ const CompanyCalendarTab = ({ symbol }) => {
     return days;
   };
 
-  const upcomingEvents = events
-    .filter(e => new Date(e.date) >= new Date())
-    .sort((a, b) => new Date(a.date) - new Date(b.date))
-    .slice(0, 10);
+  // 리스트 뷰용: 전월 1개월 ~ 향후 3개월 이벤트 (정렬)
+  const sortedListEvents = [...listEvents].sort((a, b) => new Date(a.date) - new Date(b.date));
 
-  const nextEarnings = upcomingEvents.find(e => e.type === 'earnings');
+  // 다가오는 이벤트 (오늘 이후)
+  const upcomingEventsFiltered = sortedListEvents.filter(e => new Date(e.date) >= new Date());
+
+  const nextEarnings = upcomingEventsFiltered.find(e => e.type === 'earnings');
 
   if (loading) {
     return (
@@ -189,7 +266,10 @@ const CompanyCalendarTab = ({ symbol }) => {
               ))}
             </div>
             <button
-              onClick={loadCalendarData}
+              onClick={() => {
+                loadInitialData();
+                if (viewMode === 'list') loadListEvents();
+              }}
               className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors text-white text-sm"
             >
               <RefreshCw size={16} />
@@ -256,7 +336,10 @@ const CompanyCalendarTab = ({ symbol }) => {
             >
               <ChevronLeft size={20} />
             </button>
-            <h4 className="text-lg font-semibold text-white">{formatMonthYear(currentMonth)}</h4>
+            <div className="flex items-center gap-2">
+              <h4 className="text-lg font-semibold text-white">{formatMonthYear(currentMonth)}</h4>
+              {calendarLoading && <RefreshCw className="animate-spin text-blue-500" size={16} />}
+            </div>
             <button
               onClick={() => navigateMonth(1)}
               className="p-2 hover:bg-gray-800 rounded-lg transition-colors text-gray-400 hover:text-white"
@@ -285,21 +368,32 @@ const CompanyCalendarTab = ({ symbol }) => {
         </div>
       )}
 
-      {/* List View */}
+      {/* List View - 전월 1개월 ~ 향후 3개월 */}
       {viewMode === 'list' && (
         <div className="bg-[#1a1a1a] rounded-lg p-6 border border-gray-800">
-          <h4 className="text-lg font-semibold text-white mb-4">Upcoming Events</h4>
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="text-lg font-semibold text-white">Events (Past 1 Month ~ Next 3 Months)</h4>
+            <span className="text-sm text-gray-400">
+              {(() => {
+                const { start, end } = getListDateRange();
+                return `${start} ~ ${end}`;
+              })()}
+            </span>
+          </div>
           <div className="space-y-3">
-            {upcomingEvents.length === 0 ? (
-              <div className="text-center py-8 text-gray-400">No upcoming events</div>
+            {sortedListEvents.length === 0 ? (
+              <div className="text-center py-8 text-gray-400">No events in this period</div>
             ) : (
-              upcomingEvents.map((event, idx) => {
+              sortedListEvents.map((event, idx) => {
                 const eventConfig = EVENT_TYPES[event.type] || EVENT_TYPES.earnings;
                 const IconComponent = eventConfig.icon;
+                const isPast = new Date(event.date) < new Date();
                 return (
                   <div
                     key={idx}
-                    className="flex items-start gap-4 p-4 bg-gray-800/30 rounded-lg hover:bg-gray-800/50 transition-colors"
+                    className={`flex items-start gap-4 p-4 rounded-lg transition-colors ${
+                      isPast ? 'bg-gray-800/20 opacity-60' : 'bg-gray-800/30 hover:bg-gray-800/50'
+                    }`}
                   >
                     <div className={`p-2 rounded-lg bg-${eventConfig.color}-500/20`}>
                       <IconComponent className={`text-${eventConfig.color}-400`} size={20} />
@@ -307,6 +401,7 @@ const CompanyCalendarTab = ({ symbol }) => {
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
                         <span className="text-white font-medium">{event.title}</span>
+                        {isPast && <span className="text-xs text-gray-500 bg-gray-700 px-1.5 py-0.5 rounded">Past</span>}
                       </div>
                       <div className="text-gray-400 text-sm mt-1">{event.description}</div>
                       {event.amount && (
@@ -315,7 +410,7 @@ const CompanyCalendarTab = ({ symbol }) => {
                     </div>
                     <div className="text-right">
                       <div className="text-white font-medium">
-                        {new Date(event.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        {new Date(event.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                       </div>
                       {event.time && (
                         <div className="text-gray-400 text-sm">{event.time}</div>
@@ -521,7 +616,7 @@ const CompanyCalendarTab = ({ symbol }) => {
       )}
 
       {/* Empty State */}
-      {events.length === 0 && earningsHistory.length === 0 && !loading && (
+      {calendarEvents.length === 0 && listEvents.length === 0 && earningsHistory.length === 0 && !loading && (
         <div className="bg-[#1a1a1a] rounded-lg p-12 text-center border border-gray-800">
           <Calendar className="mx-auto mb-4 text-gray-600" size={48} />
           <div className="text-gray-400 text-lg">No calendar data available for {symbol}</div>

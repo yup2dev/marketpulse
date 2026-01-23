@@ -174,14 +174,27 @@ async def get_holders(symbol: str):
 
 
 @router.get("/calendar/{symbol}")
-async def get_calendar(symbol: str):
+async def get_calendar(
+    symbol: str,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None
+):
     """
     Get company calendar events
 
     Returns upcoming earnings dates, dividend dates, and other corporate events
+
+    Args:
+        symbol: Stock symbol
+        start_date: Start date filter (YYYY-MM-DD)
+        end_date: End date filter (YYYY-MM-DD)
     """
     try:
-        calendar = await data_service.get_calendar(symbol.upper())
+        calendar = await data_service.get_calendar(
+            symbol.upper(),
+            start_date=start_date,
+            end_date=end_date
+        )
         return calendar
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
