@@ -374,7 +374,7 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
 
 
   return (
-    <div className={WIDGET_STYLES.container}>
+    <div className="bg-[#1a1a1a] rounded-lg flex flex-col h-full border border-gray-800 relative">
       <WidgetHeader
         icon={TrendingUp}
         iconColor={WIDGET_ICON_COLORS.chart}

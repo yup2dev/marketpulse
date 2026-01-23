@@ -41,11 +41,26 @@ from data_fetcher.utils.helpers import parse_period_to_dates
 class DataService:
     """Unified data service for fetching market data"""
 
+    # 심볼 매핑 (검색 결과 심볼 -> Yahoo Finance 심볼)
+    SYMBOL_MAPPING = {
+        'KOSPI200.KS': '^KS200',
+        'KOSPI200': '^KS200',
+        'KOSPI.KS': '^KS11',
+        'KOSPI': '^KS11',
+        'KOSDAQ.KS': '^KQ11',
+        'KOSDAQ': '^KQ11',
+    }
+
+    def _map_symbol(self, symbol: str) -> str:
+        """심볼을 Yahoo Finance 형식으로 변환"""
+        return self.SYMBOL_MAPPING.get(symbol.upper(), symbol)
+
     async def get_stock_quote(self, symbol: str) -> Dict[str, Any]:
         """Get current stock quote"""
+        mapped_symbol = self._map_symbol(symbol)
         try:
             result = await YahooStockPriceFetcher.fetch_data({
-                'symbol': symbol,
+                'symbol': mapped_symbol,
                 'interval': '1d'
             })
 
@@ -75,9 +90,10 @@ class DataService:
         end_date: str = None
     ) -> List[Dict[str, Any]]:
         """Get historical stock prices"""
+        mapped_symbol = self._map_symbol(symbol)
         try:
             params = {
-                'symbol': symbol,
+                'symbol': mapped_symbol,
                 'interval': '1d'
             }
 

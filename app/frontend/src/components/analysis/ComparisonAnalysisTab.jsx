@@ -1,15 +1,12 @@
 import { useState, useEffect } from 'react';
 import {
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ResponsiveContainer, RadarChart, PolarGrid,
-  PolarAngleAxis, PolarRadiusAxis, Radar
+  RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
+  Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
-import {
-  TrendingUp, TrendingDown, Plus, X, Search, RefreshCw,
-  BarChart3, GitCompare, Percent, DollarSign
-} from 'lucide-react';
+import { Plus, X, Search, RefreshCw, GitCompare } from 'lucide-react';
 import { API_BASE } from '../../config/api';
-import { formatNumber, formatCurrency, formatPercent } from '../../utils/widgetUtils';
+import { formatCurrency } from '../../utils/widgetUtils';
+import ChartWidget from '../widgets/ChartWidget';
 
 const COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 
@@ -19,10 +16,7 @@ const ComparisonAnalysisTab = ({ symbol }) => {
   const [searchResults, setSearchResults] = useState([]);
   const [showSearch, setShowSearch] = useState(false);
   const [stocksData, setStocksData] = useState({});
-  const [priceHistory, setPriceHistory] = useState({});
   const [loading, setLoading] = useState(false);
-  const [comparisonType, setComparisonType] = useState('price'); // price, returns, valuation
-  const [period, setPeriod] = useState('6mo');
 
   useEffect(() => {
     if (symbol && !symbols.includes(symbol)) {
@@ -32,7 +26,7 @@ const ComparisonAnalysisTab = ({ symbol }) => {
 
   useEffect(() => {
     loadComparisonData();
-  }, [symbols, period]);
+  }, [symbols]);
 
   const loadComparisonData = async () => {
     if (symbols.length === 0) return;
@@ -40,34 +34,28 @@ const ComparisonAnalysisTab = ({ symbol }) => {
     setLoading(true);
     try {
       const dataPromises = symbols.map(async (sym) => {
-        const [quoteRes, infoRes, historyRes] = await Promise.all([
+        const [quoteRes, infoRes] = await Promise.all([
           fetch(`${API_BASE}/stock/quote/${sym}`),
-          fetch(`${API_BASE}/stock/info/${sym}`),
-          fetch(`${API_BASE}/stock/history/${sym}?period=${period}`)
+          fetch(`${API_BASE}/stock/info/${sym}`)
         ]);
 
         const quote = quoteRes.ok ? await quoteRes.json() : null;
         const info = infoRes.ok ? await infoRes.json() : null;
-        const history = historyRes.ok ? await historyRes.json() : null;
 
-        return { symbol: sym, quote, info, history: history?.data || [] };
+        return { symbol: sym, quote, info };
       });
 
       const results = await Promise.all(dataPromises);
 
       const newStocksData = {};
-      const newPriceHistory = {};
-
       results.forEach(result => {
         newStocksData[result.symbol] = {
           quote: result.quote,
           info: result.info
         };
-        newPriceHistory[result.symbol] = result.history;
       });
 
       setStocksData(newStocksData);
-      setPriceHistory(newPriceHistory);
     } catch (error) {
       console.error('Error loading comparison data:', error);
     } finally {
@@ -107,44 +95,6 @@ const ComparisonAnalysisTab = ({ symbol }) => {
     }
   };
 
-  // Prepare chart data
-  const prepareChartData = () => {
-    if (Object.keys(priceHistory).length === 0) return [];
-
-    const allDates = new Set();
-    Object.values(priceHistory).forEach(history => {
-      history.forEach(item => allDates.add(item.date));
-    });
-
-    const sortedDates = Array.from(allDates).sort();
-
-    return sortedDates.map(date => {
-      const dataPoint = { date };
-      symbols.forEach(sym => {
-        const historyItem = priceHistory[sym]?.find(h => h.date === date);
-        if (historyItem) {
-          dataPoint[sym] = historyItem.close;
-          // Calculate normalized return from first day
-          const firstDay = priceHistory[sym]?.[0];
-          if (firstDay) {
-            dataPoint[`${sym}_return`] = ((historyItem.close - firstDay.close) / firstDay.close) * 100;
-          }
-        }
-      });
-      return dataPoint;
-    });
-  };
-
-  // Prepare valuation comparison data
-  const prepareValuationData = () => {
-    return [
-      { metric: 'P/E', ...Object.fromEntries(symbols.map(s => [s, stocksData[s]?.info?.pe_ratio || 0])) },
-      { metric: 'P/B', ...Object.fromEntries(symbols.map(s => [s, stocksData[s]?.info?.pb_ratio || 0])) },
-      { metric: 'P/S', ...Object.fromEntries(symbols.map(s => [s, stocksData[s]?.info?.ps_ratio || 0])) },
-      { metric: 'EV/EBITDA', ...Object.fromEntries(symbols.map(s => [s, stocksData[s]?.info?.ev_ebitda || 0])) },
-    ];
-  };
-
   // Prepare radar chart data for metrics comparison
   const prepareRadarData = () => {
     const metrics = ['profitMargin', 'operatingMargin', 'returnOnEquity', 'returnOnAssets', 'debtToEquity'];
@@ -169,8 +119,6 @@ const ComparisonAnalysisTab = ({ symbol }) => {
       return dataPoint;
     });
   };
-
-  const chartData = prepareChartData();
 
   return (
     <div className="space-y-6">
@@ -261,103 +209,14 @@ const ComparisonAnalysisTab = ({ symbol }) => {
             </div>
           )}
         </div>
-
-        {/* Controls */}
-        <div className="flex items-center gap-4">
-          <div className="flex bg-gray-800/50 rounded-lg p-1 border border-gray-700">
-            {['price', 'returns', 'valuation'].map((type) => (
-              <button
-                key={type}
-                onClick={() => setComparisonType(type)}
-                className={`px-4 py-2 rounded text-sm font-medium transition-colors capitalize ${
-                  comparisonType === type ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                {type}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex bg-gray-800/50 rounded-lg p-1 border border-gray-700">
-            {['1mo', '3mo', '6mo', '1y', '2y'].map((p) => (
-              <button
-                key={p}
-                onClick={() => setPeriod(p)}
-                className={`px-3 py-2 rounded text-sm font-medium transition-colors ${
-                  period === p ? 'bg-green-600 text-white' : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                {p.toUpperCase()}
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
 
-      {/* Main Chart */}
-      <div className="bg-[#1a1a1a] rounded-lg p-6 border border-gray-800">
-        <h4 className="text-lg font-semibold text-white mb-4">
-          {comparisonType === 'price' ? 'Price Comparison' :
-           comparisonType === 'returns' ? 'Normalized Returns (%)' : 'Valuation Multiples'}
-        </h4>
-
-        {loading ? (
-          <div className="flex items-center justify-center h-80">
-            <RefreshCw className="animate-spin text-blue-500" size={32} />
-          </div>
-        ) : comparisonType === 'valuation' ? (
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={prepareValuationData()} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                <XAxis type="number" tick={{ fill: '#666' }} />
-                <YAxis dataKey="metric" type="category" tick={{ fill: '#666' }} width={80} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333' }}
-                  labelStyle={{ color: '#fff' }}
-                />
-                <Legend />
-                {symbols.map((sym, idx) => (
-                  <Bar key={sym} dataKey={sym} fill={COLORS[idx]} name={sym} />
-                ))}
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        ) : (
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                <XAxis
-                  dataKey="date"
-                  tick={{ fill: '#666' }}
-                  tickFormatter={(date) => new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                />
-                <YAxis tick={{ fill: '#666' }} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333' }}
-                  labelStyle={{ color: '#fff' }}
-                  formatter={(value, name) => [
-                    comparisonType === 'returns' ? `${value.toFixed(2)}%` : `$${value.toFixed(2)}`,
-                    name.replace('_return', '')
-                  ]}
-                />
-                <Legend />
-                {symbols.map((sym, idx) => (
-                  <Line
-                    key={sym}
-                    type="monotone"
-                    dataKey={comparisonType === 'returns' ? `${sym}_return` : sym}
-                    stroke={COLORS[idx]}
-                    strokeWidth={2}
-                    dot={false}
-                    name={sym}
-                  />
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        )}
+      {/* Advanced Chart Widget */}
+      <div className="bg-[#1a1a1a] rounded-lg border border-gray-800 min-h-[600px] relative overflow-visible">
+        <ChartWidget
+          widgetId={`comparison-${symbol}`}
+          initialSymbols={symbols}
+        />
       </div>
 
       {/* Metrics Comparison Table */}
