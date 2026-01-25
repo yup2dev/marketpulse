@@ -51,15 +51,17 @@ export const CHART_COLORS = [
   '#f97316', // orange
 ];
 
+// TIME_RANGES with intervals to maintain ~250 bars (same as 1Y daily)
+// Note: Yahoo Finance limits intraday data (< 1d intervals) to last 60 days
 export const TIME_RANGES = [
-  { id: '1d', label: '1D', value: '1d' },
-  { id: '5d', label: '5D', value: '5d' },
-  { id: '1mo', label: '1M', value: '1mo' },
-  { id: '3mo', label: '3M', value: '3mo' },
-  { id: '6mo', label: '6M', value: '6mo' },
-  { id: '1y', label: '1Y', value: '1y' },
-  { id: '5y', label: '5Y', value: '5y' },
-  { id: 'max', label: 'MAX', value: 'max' },
+  { id: '1d', label: '1D', value: '1d', interval: '2m' },     // ~195 bars (390min / 2)
+  { id: '5d', label: '5D', value: '5d', interval: '5m' },     // ~390 bars
+  { id: '1mo', label: '1M', value: '1mo', interval: '30m' },  // ~273 bars (21days * 13)
+  { id: '3mo', label: '3M', value: '3mo', interval: '1d' },   // ~63 bars (daily)
+  { id: '6mo', label: '6M', value: '6mo', interval: '1d' },   // ~126 bars (daily)
+  { id: '1y', label: '1Y', value: '1y', interval: '1d' },     // ~252 bars (baseline)
+  { id: '5y', label: '5Y', value: '5y', interval: '1wk' },    // ~260 bars
+  { id: 'max', label: 'MAX', value: 'max', interval: '1mo' }, // variable
 ];
 
 export const MACRO_INDICATORS = [
@@ -72,27 +74,39 @@ export const MACRO_INDICATORS = [
 ];
 
 export const TECHNICAL_INDICATORS = [
-  { id: 'sma_20', label: 'SMA 20', description: '20-day Simple Moving Average' },
-  { id: 'sma_50', label: 'SMA 50', description: '50-day Simple Moving Average' },
-  { id: 'sma_200', label: 'SMA 200', description: '200-day Simple Moving Average' },
-  { id: 'ema_12', label: 'EMA 12', description: '12-day Exponential Moving Average' },
-  { id: 'ema_26', label: 'EMA 26', description: '26-day Exponential Moving Average' },
-  { id: 'bb_upper', label: 'BB Upper', description: 'Bollinger Band Upper' },
-  { id: 'bb_lower', label: 'BB Lower', description: 'Bollinger Band Lower' },
-  { id: 'rsi', label: 'RSI', description: 'Relative Strength Index' },
-  { id: 'macd', label: 'MACD', description: 'Moving Average Convergence Divergence' },
+  // Overlay indicators (price chart)
+  { id: 'SMA_20', name: 'SMA 20', description: '20-day Simple Moving Average', type: 'overlay' },
+  { id: 'SMA_50', name: 'SMA 50', description: '50-day Simple Moving Average', type: 'overlay' },
+  { id: 'SMA_200', name: 'SMA 200', description: '200-day Simple Moving Average', type: 'overlay' },
+  { id: 'EMA_12', name: 'EMA 12', description: '12-day Exponential Moving Average', type: 'overlay' },
+  { id: 'EMA_26', name: 'EMA 26', description: '26-day Exponential Moving Average', type: 'overlay' },
+  { id: 'BBANDS', name: 'Bollinger Bands', description: 'Bollinger Bands (20, 2)', type: 'overlay' },
+  // Oscillators (separate pane)
+  { id: 'RSI', name: 'RSI', description: 'Relative Strength Index (14)', type: 'oscillator' },
+  { id: 'MACD', name: 'MACD', description: 'Moving Average Convergence Divergence', type: 'oscillator' },
+  { id: 'STOCH', name: 'Stochastic', description: 'Stochastic Oscillator (14, 3)', type: 'oscillator' },
+  // Separate pane indicators
+  { id: 'ATR', name: 'ATR', description: 'Average True Range (14)', type: 'separate' },
+  { id: 'OBV', name: 'OBV', description: 'On-Balance Volume', type: 'separate' },
 ];
 
 export const INDICATOR_COLORS = {
-  sma_20: '#3b82f6',
-  sma_50: '#10b981',
-  sma_200: '#f59e0b',
-  ema_12: '#8b5cf6',
-  ema_26: '#ec4899',
-  bb_upper: '#06b6d4',
-  bb_lower: '#06b6d4',
-  rsi: '#f97316',
-  macd: '#ef4444',
+  SMA_20: '#3b82f6',
+  SMA_50: '#10b981',
+  SMA_200: '#f59e0b',
+  EMA_12: '#8b5cf6',
+  EMA_26: '#ec4899',
+  BBANDS: '#06b6d4',
+  BBANDS_upper: '#06b6d4',
+  BBANDS_middle: '#a855f7',
+  BBANDS_lower: '#06b6d4',
+  RSI: '#f97316',
+  MACD: '#ef4444',
+  MACD_signal: '#22c55e',
+  STOCH_k: '#3b82f6',
+  STOCH_d: '#ef4444',
+  ATR: '#8b5cf6',
+  OBV: '#10b981',
 };
 
 export const WIDGET_CONSTRAINTS = {
@@ -134,10 +148,36 @@ export const formatPrice = (price, decimals = 2) => {
   return '$' + price.toFixed(decimals);
 };
 
-export const formatDate = (date, options = { month: 'short', day: 'numeric', year: '2-digit' }) => {
+export const formatDate = (date, options = null) => {
   if (!date) return 'N/A';
   try {
-    return new Date(date).toLocaleDateString('en-US', options);
+    const d = new Date(date);
+
+    // If date string contains time info (has 'T' or includes time), show time for intraday
+    const hasTime = typeof date === 'string' && (date.includes('T') || date.includes(':'));
+
+    if (options) {
+      return d.toLocaleDateString('en-US', options);
+    }
+
+    // For intraday data with time, show shorter format with time
+    if (hasTime) {
+      const hours = d.getHours();
+      const minutes = d.getMinutes();
+      // If time is not midnight, it's likely intraday data
+      if (hours !== 0 || minutes !== 0) {
+        return d.toLocaleString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        });
+      }
+    }
+
+    // Default date-only format
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
   } catch (error) {
     console.error('Error formatting date:', error);
     return 'Invalid Date';

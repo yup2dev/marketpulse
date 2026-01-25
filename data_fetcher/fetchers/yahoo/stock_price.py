@@ -102,6 +102,9 @@ class YahooStockPriceFetcher(Fetcher[StockPriceQueryParams, StockPriceData]):
         result = []
         prev_close = None
 
+        # Check if intraday interval (contains time info)
+        is_intraday = query.interval in ['1m', '2m', '5m', '15m', '30m', '60m', '90m', '1h']
+
         for idx, row in data.iterrows():
             try:
                 close_price = float(row['Close'])
@@ -116,9 +119,16 @@ class YahooStockPriceFetcher(Fetcher[StockPriceQueryParams, StockPriceData]):
                 price_change = close_price - open_price
                 price_change_pct = (price_change / open_price * 100) if open_price > 0 else None
 
+                # For intraday data, preserve full datetime; for daily+, use date only
+                if is_intraday:
+                    # idx is a pandas Timestamp, convert to Python datetime
+                    date_value = idx.to_pydatetime()
+                else:
+                    date_value = idx.date()
+
                 stock_data = StockPriceData(
                     symbol=query.symbol,
-                    date=idx.date(),
+                    date=date_value,
                     open=open_price,
                     high=float(row['High']),
                     low=float(row['Low']),
@@ -137,5 +147,5 @@ class YahooStockPriceFetcher(Fetcher[StockPriceQueryParams, StockPriceData]):
                 log.warning(f"Error parsing stock data for {idx}: {e}")
                 continue
 
-        log.info(f"Fetched {len(result)} stock price records for {query.symbol}")
+        log.info(f"Fetched {len(result)} stock price records for {query.symbol} (interval: {query.interval})")
         return result

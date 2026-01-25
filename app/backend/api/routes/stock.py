@@ -28,6 +28,7 @@ async def get_stock_quote(symbol: str):
 async def get_stock_history(
     symbol: str,
     period: Optional[str] = None,
+    interval: Optional[str] = None,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None
 ):
@@ -35,14 +36,16 @@ async def get_stock_history(
     Get historical stock prices
 
     Periods: 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, max
+    Intervals: 1m, 2m, 5m, 15m, 30m, 60m, 90m, 1h, 1d, 5d, 1wk, 1mo, 3mo
 
     Or use start_date and end_date (YYYY-MM-DD format) for custom range
     """
-    log.debug(f"ROUTE PARAMS - symbol={symbol}, period={period}, start_date={start_date}, end_date={end_date}")
+    log.debug(f"ROUTE PARAMS - symbol={symbol}, period={period}, interval={interval}, start_date={start_date}, end_date={end_date}")
     try:
         history = await data_service.get_stock_history(
             symbol.upper(),
             period,
+            interval=interval,
             start_date=start_date,
             end_date=end_date
         )

@@ -55,6 +55,22 @@ class DataService:
         """심볼을 Yahoo Finance 형식으로 변환"""
         return self.SYMBOL_MAPPING.get(symbol.upper(), symbol)
 
+    def _get_default_interval(self, period: str) -> str:
+        """Get appropriate interval based on period to maintain consistent bar count"""
+        interval_map = {
+            '1d': '5m',    # ~78 bars (market hours)
+            '5d': '30m',   # ~65 bars
+            '1mo': '1h',   # ~130 bars
+            '3mo': '1d',   # ~63 bars
+            '6mo': '1d',   # ~126 bars
+            '1y': '1d',    # ~252 bars
+            '2y': '1wk',   # ~104 bars
+            '5y': '1wk',   # ~260 bars
+            '10y': '1mo',  # ~120 bars
+            'max': '1mo',  # variable
+        }
+        return interval_map.get(period, '1d')
+
     async def get_stock_quote(self, symbol: str) -> Dict[str, Any]:
         """Get current stock quote"""
         mapped_symbol = self._map_symbol(symbol)
@@ -86,15 +102,20 @@ class DataService:
         self,
         symbol: str,
         period: str = None,
+        interval: str = None,
         start_date: str = None,
         end_date: str = None
     ) -> List[Dict[str, Any]]:
         """Get historical stock prices"""
         mapped_symbol = self._map_symbol(symbol)
         try:
+            # Determine appropriate interval based on period if not specified
+            if not interval:
+                interval = self._get_default_interval(period)
+
             params = {
                 'symbol': mapped_symbol,
-                'interval': '1d'
+                'interval': interval
             }
 
             # Use custom date range if provided, otherwise use period

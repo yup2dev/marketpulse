@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { LineChart, Line, BarChart, Bar, ComposedChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
-import { Plus, TrendingUp, Percent, Activity, X, TrendingDown } from 'lucide-react';
+import { LineChart, Line, BarChart, Bar, ComposedChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, ReferenceArea } from 'recharts';
+import { Plus, TrendingUp, Percent, Activity, X, TrendingDown, GitCompare, Settings, ChevronDown, ChevronUp } from 'lucide-react';
 import StockSelectorModal from '../StockSelectorModal';
 import useTheme from '../../hooks/useTheme';
 import {
@@ -19,8 +19,20 @@ import {
   TECHNICAL_INDICATORS,
   INDICATOR_COLORS,
   WIDGET_CONSTRAINTS,
+  formatCurrency,
 } from './common';
 import { calculateIndicator } from '../../utils/technicalIndicators';
+import {
+  calculateSpread,
+  normalizeSpread,
+  identifyOutperformancePeriods,
+  detectRegime,
+  getRegimePeriods,
+  getRegimeColor,
+  getRegimeBadge,
+  mergeSpreadData,
+  mergeRegimeData,
+} from '../../utils/pairAnalysis';
 
 const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
   const { classes, chartTheme, tokens } = useTheme();
@@ -54,6 +66,27 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
   const [tickerStats, setTickerStats] = useState({});
   const [technicalIndicators, setTechnicalIndicators] = useState(savedState?.technicalIndicators || []);
 
+  // Pair Analysis Mode states
+  const [pairMode, setPairMode] = useState(savedState?.pairMode || false);
+  const [pairConfig, setPairConfig] = useState(savedState?.pairConfig || {
+    longSymbol: null,
+    shortSymbol: null,
+    regimeSymbol: '^KS11',
+    showSpread: true,
+    showIndex: true,      // 코스피 지수 라인 표시
+    showHighlight: true,
+    showRegime: true,
+    showFCF: true,
+  });
+  const [indexData, setIndexData] = useState([]);
+  const [showPairSettings, setShowPairSettings] = useState(false);
+  const [spreadData, setSpreadData] = useState([]);
+  const [regimeData, setRegimeData] = useState([]);
+  const [regimePeriods, setRegimePeriods] = useState([]);
+  const [outperformPeriods, setOutperformPeriods] = useState([]);
+  const [financialData, setFinancialData] = useState({ long: null, short: null });
+  const [currentRegime, setCurrentRegime] = useState('sideways');
+
   // Save state to localStorage whenever key settings change
   useEffect(() => {
     if (storageKey) {
@@ -62,11 +95,13 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
         timeRange,
         normalized,
         showVolume,
-        technicalIndicators
+        technicalIndicators,
+        pairMode,
+        pairConfig
       };
       localStorage.setItem(storageKey, JSON.stringify(stateToSave));
     }
-  }, [storageKey, tickers, timeRange, normalized, showVolume, technicalIndicators]);
+  }, [storageKey, tickers, timeRange, normalized, showVolume, technicalIndicators, pairMode, pairConfig]);
 
   // Load data for all tickers and indicators
   const loadData = useCallback(async () => {
@@ -74,7 +109,9 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
 
     setLoading(true);
     try {
-      const period = TIME_RANGES.find(r => r.id === timeRange)?.period || '1y';
+      const rangeConfig = TIME_RANGES.find(r => r.id === timeRange);
+      const period = rangeConfig?.value || '1y';
+      const interval = rangeConfig?.interval || '1d';
 
       // Separate stocks and indicators
       const stocks = tickers.filter(t => t.type === 'stock');
@@ -84,7 +121,7 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
       const stockPromises = stocks.map(async (ticker) => {
         try {
           const [historyRes, quoteRes, infoRes] = await Promise.all([
-            fetch(`${API_BASE}/stock/history/${ticker.symbol}?period=${period}`),
+            fetch(`${API_BASE}/stock/history/${ticker.symbol}?period=${period}&interval=${interval}`),
             fetch(`${API_BASE}/stock/quote/${ticker.symbol}`),
             fetch(`${API_BASE}/stock/info/${ticker.symbol}`)
           ]);
@@ -152,13 +189,119 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
         });
       }
 
+      // Pair Analysis Mode data loading
+      if (pairMode && pairConfig.longSymbol && pairConfig.shortSymbol) {
+        const longStockData = results.find(r => r.symbol === pairConfig.longSymbol && r.type === 'stock');
+        const shortStockData = results.find(r => r.symbol === pairConfig.shortSymbol && r.type === 'stock');
+
+        if (longStockData?.data?.length && shortStockData?.data?.length) {
+          // Calculate spread
+          const rawSpread = calculateSpread(longStockData.data, shortStockData.data);
+          const normalizedSpreadData = normalizeSpread(rawSpread);
+          setSpreadData(normalizedSpreadData);
+
+          // Identify outperformance periods
+          const outperform = identifyOutperformancePeriods(normalizedSpreadData);
+          setOutperformPeriods(outperform);
+
+          // Merge spread into chart data
+          if (pairConfig.showSpread) {
+            mergedData = mergeSpreadData(mergedData, normalizedSpreadData);
+          }
+        }
+
+        // Load KOSPI/Index data for regime and index line
+        if ((pairConfig.showRegime || pairConfig.showIndex) && pairConfig.regimeSymbol) {
+          try {
+            const regimeRes = await fetch(`${API_BASE}/stock/history/${encodeURIComponent(pairConfig.regimeSymbol)}?period=${period}&interval=${interval}`);
+            if (regimeRes.ok) {
+              const regimeHistory = await regimeRes.json();
+              if (regimeHistory?.data?.length) {
+                // Store raw index data for display
+                setIndexData(regimeHistory.data);
+
+                // Regime detection
+                if (pairConfig.showRegime) {
+                  const regime = detectRegime(regimeHistory.data);
+                  setRegimeData(regime);
+
+                  const periods = getRegimePeriods(regime);
+                  setRegimePeriods(periods);
+
+                  // Set current regime from latest data
+                  if (regime.length > 0) {
+                    setCurrentRegime(regime[regime.length - 1].regime);
+                  }
+
+                  // Merge regime into chart data
+                  mergedData = mergeRegimeData(mergedData, regime);
+                }
+
+                // Merge normalized index data for chart display
+                if (pairConfig.showIndex) {
+                  const indexMap = new Map();
+                  const sortedIndexData = [...regimeHistory.data].sort((a, b) => new Date(a.date) - new Date(b.date));
+                  const baseIndexPrice = sortedIndexData[0]?.close || 1;
+
+                  sortedIndexData.forEach(item => {
+                    indexMap.set(item.date, (item.close / baseIndexPrice));
+                  });
+
+                  mergedData = mergedData.map(item => {
+                    const indexValue = indexMap.get(item.date);
+                    return indexValue !== undefined
+                      ? { ...item, indexNormalized: indexValue }
+                      : item;
+                  });
+                }
+              }
+            }
+          } catch (error) {
+            console.error('Error loading regime/index data:', error);
+          }
+        }
+
+        // Load financial data (FCF/CapEx) for pair analysis
+        if (pairConfig.showFCF) {
+          const loadFinancials = async (symbol) => {
+            try {
+              const res = await fetch(`${API_BASE}/stock/financials/${symbol}?freq=quarterly&limit=8`);
+              if (res.ok) {
+                return await res.json();
+              }
+            } catch (error) {
+              console.error(`Error loading financials for ${symbol}:`, error);
+            }
+            return null;
+          };
+
+          const [longFinancials, shortFinancials] = await Promise.all([
+            loadFinancials(pairConfig.longSymbol),
+            loadFinancials(pairConfig.shortSymbol)
+          ]);
+
+          setFinancialData({
+            long: longFinancials,
+            short: shortFinancials
+          });
+        }
+      } else {
+        // Reset pair analysis data when mode is off
+        setSpreadData([]);
+        setRegimeData([]);
+        setRegimePeriods([]);
+        setOutperformPeriods([]);
+        setFinancialData({ long: null, short: null });
+        setIndexData([]);
+      }
+
       setChartData(mergedData);
     } catch (error) {
       console.error('Error loading chart data:', error);
     } finally {
       setLoading(false);
     }
-  }, [tickers, timeRange, normalized, technicalIndicators]);
+  }, [tickers, timeRange, normalized, technicalIndicators, pairMode, pairConfig]);
 
   const mergeData = (results, normalize) => {
     if (results.length === 0) return [];
@@ -633,14 +776,197 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
                 >
                   Volume
                 </button>
+
+                <div className="w-px h-6 bg-gray-700 mx-1"></div>
+
+                {/* Pair Analysis Mode Toggle */}
+                <button
+                  onClick={() => {
+                    setPairMode(!pairMode);
+                    if (!pairMode) {
+                      setShowPairSettings(true);
+                    }
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                    pairMode ? 'bg-amber-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
+                  }`}
+                  title="Pair Analysis Mode"
+                >
+                  <GitCompare size={14} />
+                  Pair
+                </button>
+
+                {/* Pair Settings Toggle */}
+                {pairMode && (
+                  <button
+                    onClick={() => setShowPairSettings(!showPairSettings)}
+                    className="flex items-center gap-1 px-2 py-1.5 rounded text-xs font-medium transition-colors bg-gray-800 text-gray-400 hover:text-white"
+                    title="Pair Settings"
+                  >
+                    <Settings size={14} />
+                  </button>
+                )}
               </div>
             </div>
+
+            {/* Pair Analysis Settings Panel */}
+            {pairMode && showPairSettings && (
+              <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold text-white flex items-center gap-2">
+                    <GitCompare size={16} className="text-amber-400" />
+                    Pair Analysis Settings
+                  </h4>
+                  <button
+                    onClick={() => setShowPairSettings(false)}
+                    className="text-gray-400 hover:text-white"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* Long Position Selector */}
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Long Position</label>
+                    <select
+                      value={pairConfig.longSymbol || ''}
+                      onChange={(e) => setPairConfig({ ...pairConfig, longSymbol: e.target.value || null })}
+                      className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-sm text-white focus:outline-none focus:border-amber-500"
+                    >
+                      <option value="">Select Long</option>
+                      {tickers.filter(t => t.type === 'stock' && t.symbol !== pairConfig.shortSymbol).map(t => (
+                        <option key={t.symbol} value={t.symbol}>{t.symbol}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Short Position Selector */}
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Short Position</label>
+                    <select
+                      value={pairConfig.shortSymbol || ''}
+                      onChange={(e) => setPairConfig({ ...pairConfig, shortSymbol: e.target.value || null })}
+                      className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-sm text-white focus:outline-none focus:border-amber-500"
+                    >
+                      <option value="">Select Short</option>
+                      {tickers.filter(t => t.type === 'stock' && t.symbol !== pairConfig.longSymbol).map(t => (
+                        <option key={t.symbol} value={t.symbol}>{t.symbol}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Regime Index Selector */}
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Regime Index</label>
+                    <select
+                      value={pairConfig.regimeSymbol}
+                      onChange={(e) => setPairConfig({ ...pairConfig, regimeSymbol: e.target.value })}
+                      className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-sm text-white focus:outline-none focus:border-amber-500"
+                    >
+                      <option value="^KS11">KOSPI (^KS11)</option>
+                      <option value="^GSPC">S&P 500 (^GSPC)</option>
+                      <option value="^IXIC">NASDAQ (^IXIC)</option>
+                      <option value="^DJI">Dow Jones (^DJI)</option>
+                    </select>
+                  </div>
+
+                  {/* Current Regime Badge */}
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Current Regime</label>
+                    {(() => {
+                      const badge = getRegimeBadge(currentRegime);
+                      return (
+                        <div className={`${badge.bgColor} ${badge.textColor} px-3 py-1.5 rounded text-sm font-medium text-center`}>
+                          {badge.label}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                {/* Toggle Options */}
+                <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t border-gray-700">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={pairConfig.showSpread}
+                      onChange={(e) => setPairConfig({ ...pairConfig, showSpread: e.target.checked })}
+                      className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-amber-500 focus:ring-amber-500"
+                    />
+                    <span className="text-sm text-gray-300">Spread Line</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={pairConfig.showIndex}
+                      onChange={(e) => setPairConfig({ ...pairConfig, showIndex: e.target.checked })}
+                      className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-amber-500 focus:ring-amber-500"
+                    />
+                    <span className="text-sm text-gray-300">Index Line (KOSPI)</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={pairConfig.showHighlight}
+                      onChange={(e) => setPairConfig({ ...pairConfig, showHighlight: e.target.checked })}
+                      className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-amber-500 focus:ring-amber-500"
+                    />
+                    <span className="text-sm text-gray-300">Outperform Highlight</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={pairConfig.showRegime}
+                      onChange={(e) => setPairConfig({ ...pairConfig, showRegime: e.target.checked })}
+                      className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-amber-500 focus:ring-amber-500"
+                    />
+                    <span className="text-sm text-gray-300">Regime Background</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={pairConfig.showFCF}
+                      onChange={(e) => setPairConfig({ ...pairConfig, showFCF: e.target.checked })}
+                      className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-amber-500 focus:ring-amber-500"
+                    />
+                    <span className="text-sm text-gray-300">FCF/CapEx Panel</span>
+                  </label>
+                </div>
+              </div>
+            )}
 
             {/* Main Chart */}
             <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: chartTheme.background }}>
               <div className="h-96">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={chartData}>
+                    {/* Regime Background Areas */}
+                    {pairMode && pairConfig.showRegime && regimePeriods.map((period, idx) => (
+                      <ReferenceArea
+                        key={`regime-${idx}`}
+                        x1={period.start}
+                        x2={period.end}
+                        yAxisId="price"
+                        fill={getRegimeColor(period.regime)}
+                        fillOpacity={1}
+                      />
+                    ))}
+
+                    {/* Outperform Highlight Areas */}
+                    {pairMode && pairConfig.showHighlight && outperformPeriods.map((period, idx) => (
+                      <ReferenceArea
+                        key={`outperform-${idx}`}
+                        x1={period.start}
+                        x2={period.end}
+                        yAxisId="price"
+                        fill="rgba(34, 197, 94, 0.15)"
+                        fillOpacity={1}
+                        stroke="rgba(34, 197, 94, 0.3)"
+                        strokeDasharray="3 3"
+                      />
+                    ))}
+
                     <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
                     <XAxis
                       dataKey="date"
@@ -665,10 +991,31 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
                         domain={[0, 'auto']}
                       />
                     )}
+                    {/* Spread/Index Y-Axis (left side) - normalized to 1.0 base */}
+                    {pairMode && ((pairConfig.showSpread && spreadData.length > 0) || (pairConfig.showIndex && indexData.length > 0)) && (
+                      <YAxis
+                        yAxisId="spread"
+                        orientation="left"
+                        tick={{ fill: '#f59e0b', fontSize: 11 }}
+                        tickFormatter={(value) => value?.toFixed(2)}
+                        domain={['auto', 'auto']}
+                        label={{
+                          value: 'Normalized (1.0 = Base)',
+                          angle: -90,
+                          position: 'insideLeft',
+                          fill: '#9ca3af',
+                          fontSize: 10
+                        }}
+                      />
+                    )}
                     <Tooltip
                       contentStyle={{ backgroundColor: chartTheme.tooltip.background, border: `1px solid ${chartTheme.tooltip.border}` }}
                       labelStyle={{ color: chartTheme.tooltip.text }}
                       formatter={(value, name) => {
+                        if (name === 'Spread') return [value?.toFixed(3) || 'N/A', 'L/S Spread'];
+                        if (name === 'KOSPI' || name === pairConfig.regimeSymbol) {
+                          return [value?.toFixed(3) || 'N/A', `${name} (Norm)`];
+                        }
                         if (name.includes('_volume')) return [formatNumber(value), 'Volume'];
                         const ticker = tickers.find(t => t.symbol === name);
                         if (ticker?.type === 'indicator') {
@@ -773,10 +1120,183 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
                     })}
 
                     {normalized && <ReferenceLine yAxisId="price" y={0} stroke={chartTheme.text} strokeDasharray="3 3" />}
+
+                    {/* Pair Analysis Index Line (KOSPI) */}
+                    {pairMode && pairConfig.showIndex && indexData.length > 0 && (
+                      <Line
+                        yAxisId="spread"
+                        type="monotone"
+                        dataKey="indexNormalized"
+                        stroke="#3b82f6"
+                        strokeWidth={2}
+                        strokeDasharray="4 2"
+                        dot={false}
+                        connectNulls={true}
+                        name={pairConfig.regimeSymbol === '^KS11' ? 'KOSPI' : pairConfig.regimeSymbol}
+                      />
+                    )}
+
+                    {/* Pair Analysis Spread Line */}
+                    {pairMode && pairConfig.showSpread && spreadData.length > 0 && (
+                      <>
+                        <Line
+                          yAxisId="spread"
+                          type="monotone"
+                          dataKey="spread"
+                          stroke="#f59e0b"
+                          strokeWidth={2.5}
+                          dot={false}
+                          connectNulls={true}
+                          name="Spread"
+                        />
+                        <ReferenceLine
+                          yAxisId="spread"
+                          y={1}
+                          stroke="#f59e0b"
+                          strokeDasharray="5 5"
+                          strokeOpacity={0.7}
+                          label={{
+                            value: 'Base (1.0)',
+                            fill: '#f59e0b',
+                            fontSize: 10,
+                            position: 'left'
+                          }}
+                        />
+                      </>
+                    )}
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
             </div>
+
+            {/* FCF/CapEx Comparison Panel */}
+            {pairMode && pairConfig.showFCF && pairConfig.longSymbol && pairConfig.shortSymbol && (
+              <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: chartTheme.background }}>
+                <h4 className="text-sm font-semibold text-gray-400 mb-3 flex items-center gap-2">
+                  <GitCompare size={14} className="text-amber-400" />
+                  FCF / CapEx Comparison
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Long Position Financials */}
+                  <div className="bg-gray-800/30 rounded-lg p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xs font-medium text-green-400 bg-green-400/20 px-2 py-0.5 rounded">LONG</span>
+                      <span className="text-sm font-semibold text-white">{pairConfig.longSymbol}</span>
+                    </div>
+                    {financialData.long?.data ? (
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-400">Free Cash Flow</span>
+                          <span className="text-white font-medium">
+                            {formatCurrency(financialData.long.data[0]?.free_cash_flow)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-400">CapEx</span>
+                          <span className="text-white font-medium">
+                            {formatCurrency(financialData.long.data[0]?.capital_expenditures)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-400">Operating CF</span>
+                          <span className="text-white font-medium">
+                            {formatCurrency(financialData.long.data[0]?.operating_cash_flow)}
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-gray-500">No financial data available</div>
+                    )}
+                  </div>
+
+                  {/* Short Position Financials */}
+                  <div className="bg-gray-800/30 rounded-lg p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xs font-medium text-red-400 bg-red-400/20 px-2 py-0.5 rounded">SHORT</span>
+                      <span className="text-sm font-semibold text-white">{pairConfig.shortSymbol}</span>
+                    </div>
+                    {financialData.short?.data ? (
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-400">Free Cash Flow</span>
+                          <span className="text-white font-medium">
+                            {formatCurrency(financialData.short.data[0]?.free_cash_flow)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-400">CapEx</span>
+                          <span className="text-white font-medium">
+                            {formatCurrency(financialData.short.data[0]?.capital_expenditures)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-400">Operating CF</span>
+                          <span className="text-white font-medium">
+                            {formatCurrency(financialData.short.data[0]?.operating_cash_flow)}
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-gray-500">No financial data available</div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Spread & Index Summary */}
+                {(spreadData.length > 0 || indexData.length > 0) && (
+                  <div className="mt-4 pt-4 border-t border-gray-700">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                      {spreadData.length > 0 && (
+                        <>
+                          <div>
+                            <div className="text-xs text-gray-400 mb-1">Current Spread</div>
+                            <div className="text-lg font-bold text-amber-400">
+                              {spreadData[spreadData.length - 1]?.normalizedSpread?.toFixed(3) || 'N/A'}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-400 mb-1">Spread Range</div>
+                            <div className="text-sm font-bold">
+                              <span className="text-red-400">{Math.min(...spreadData.map(d => d.normalizedSpread))?.toFixed(3)}</span>
+                              <span className="text-gray-500 mx-1">~</span>
+                              <span className="text-green-400">{Math.max(...spreadData.map(d => d.normalizedSpread))?.toFixed(3)}</span>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                      {indexData.length > 0 && (
+                        <>
+                          <div>
+                            <div className="text-xs text-gray-400 mb-1">{pairConfig.regimeSymbol === '^KS11' ? 'KOSPI' : pairConfig.regimeSymbol} Change</div>
+                            <div className={`text-lg font-bold ${
+                              indexData[indexData.length - 1]?.close > indexData[0]?.close ? 'text-green-400' : 'text-red-400'
+                            }`}>
+                              {(((indexData[indexData.length - 1]?.close / indexData[0]?.close) - 1) * 100).toFixed(2)}%
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-400 mb-1">Current Regime</div>
+                            {(() => {
+                              const badge = getRegimeBadge(currentRegime);
+                              return (
+                                <div className={`${badge.bgColor} ${badge.textColor} px-2 py-1 rounded text-sm font-medium inline-block`}>
+                                  {badge.label}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    {/* Legend */}
+                    <div className="flex justify-center gap-6 mt-3 text-xs text-gray-500">
+                      {pairConfig.showSpread && <div className="flex items-center gap-1"><span className="w-3 h-0.5 bg-amber-500 inline-block"></span> L/S Spread</div>}
+                      {pairConfig.showIndex && <div className="flex items-center gap-1"><span className="w-3 h-0.5 bg-blue-500 inline-block" style={{borderTop: '2px dashed'}}></span> {pairConfig.regimeSymbol === '^KS11' ? 'KOSPI' : pairConfig.regimeSymbol}</div>}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* RSI Oscillator */}
             {!normalized && technicalIndicators.some(ti => ti.indicatorId === 'RSI' && ti.visible) && (
