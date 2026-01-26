@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { LineChart, Line, BarChart, Bar, ComposedChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, ReferenceArea } from 'recharts';
-import { Plus, TrendingUp, Percent, Activity, X, TrendingDown, GitCompare, Settings, ChevronDown, ChevronUp } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { LineChart, Line, BarChart, Bar, ComposedChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, ReferenceArea, Cell, Rectangle } from 'recharts';
+import { Plus, TrendingUp, Percent, Activity, X, TrendingDown, GitCompare, Settings, ChevronDown, ChevronUp, BarChart2, Layers } from 'lucide-react';
 import StockSelectorModal from '../StockSelectorModal';
 import useTheme from '../../hooks/useTheme';
 import {
@@ -20,6 +20,8 @@ import {
   INDICATOR_COLORS,
   WIDGET_CONSTRAINTS,
   formatCurrency,
+  CHART_TYPES,
+  CANDLE_COLORS,
 } from './common';
 import { calculateIndicator } from '../../utils/technicalIndicators';
 import {
@@ -33,6 +35,144 @@ import {
   mergeSpreadData,
   mergeRegimeData,
 } from '../../utils/pairAnalysis';
+
+// Custom Candlestick Bar Shape
+const CandlestickBar = (props) => {
+  const { x, y, width, height, payload, dataKey } = props;
+  const symbol = dataKey?.replace('_candleBody', '') || '';
+
+  const open = payload?.[`${symbol}_open`];
+  const high = payload?.[`${symbol}_high`];
+  const low = payload?.[`${symbol}_low`];
+  const close = payload?.[`${symbol}_close`];
+
+  if (open === undefined || close === undefined || high === undefined || low === undefined) {
+    return null;
+  }
+
+  const isBullish = close >= open;
+  const color = isBullish ? CANDLE_COLORS.up : CANDLE_COLORS.down;
+
+  // Calculate wick positions relative to body
+  const bodyTop = y;
+  const bodyBottom = y + height;
+  const bodyMid = x + width / 2;
+
+  // Calculate wick heights based on price ratios
+  const priceRange = Math.abs(open - close) || 0.01;
+  const highExtend = ((Math.max(open, close) - low) / priceRange) * height;
+  const lowExtend = ((high - Math.max(open, close)) / priceRange) * height;
+
+  return (
+    <g>
+      {/* Upper wick */}
+      <line
+        x1={bodyMid}
+        y1={bodyTop - lowExtend}
+        x2={bodyMid}
+        y2={bodyTop}
+        stroke={color}
+        strokeWidth={1}
+      />
+      {/* Lower wick */}
+      <line
+        x1={bodyMid}
+        y1={bodyBottom}
+        x2={bodyMid}
+        y2={bodyBottom + highExtend}
+        stroke={color}
+        strokeWidth={1}
+      />
+      {/* Body */}
+      <rect
+        x={x}
+        y={y}
+        width={width}
+        height={Math.max(height, 1)}
+        fill={isBullish ? '#1a1a1a' : color}
+        stroke={color}
+        strokeWidth={1}
+      />
+    </g>
+  );
+};
+
+// Custom OHLC Bar Shape
+const OHLCBar = (props) => {
+  const { x, y, width, height, payload, dataKey } = props;
+  const symbol = dataKey?.replace('_candleBody', '') || '';
+
+  const open = payload?.[`${symbol}_open`];
+  const high = payload?.[`${symbol}_high`];
+  const low = payload?.[`${symbol}_low`];
+  const close = payload?.[`${symbol}_close`];
+
+  if (open === undefined || close === undefined || high === undefined || low === undefined) {
+    return null;
+  }
+
+  const isBullish = close >= open;
+  const color = isBullish ? CANDLE_COLORS.up : CANDLE_COLORS.down;
+
+  const bodyMid = x + width / 2;
+  const tickWidth = Math.max(width * 0.4, 3);
+
+  // Calculate positions
+  const priceRange = Math.abs(open - close) || 0.01;
+  const highExtend = ((Math.max(open, close) - low) / priceRange) * height;
+  const lowExtend = ((high - Math.max(open, close)) / priceRange) * height;
+
+  const topY = y - lowExtend;
+  const bottomY = y + height + highExtend;
+  const openY = isBullish ? y + height : y;
+  const closeY = isBullish ? y : y + height;
+
+  return (
+    <g>
+      {/* Vertical line (high to low) */}
+      <line x1={bodyMid} y1={topY} x2={bodyMid} y2={bottomY} stroke={color} strokeWidth={1.5} />
+      {/* Open tick (left) */}
+      <line x1={bodyMid - tickWidth} y1={openY} x2={bodyMid} y2={openY} stroke={color} strokeWidth={1.5} />
+      {/* Close tick (right) */}
+      <line x1={bodyMid} y1={closeY} x2={bodyMid + tickWidth} y2={closeY} stroke={color} strokeWidth={1.5} />
+    </g>
+  );
+};
+
+// Calculate Heikin-Ashi values
+const calculateHeikinAshi = (data, symbol) => {
+  if (!data || data.length === 0) return data;
+
+  const result = [...data];
+  let prevHA = null;
+
+  for (let i = 0; i < result.length; i++) {
+    const item = result[i];
+    const open = item[`${symbol}_open`];
+    const high = item[`${symbol}_high`];
+    const low = item[`${symbol}_low`];
+    const close = item[`${symbol}_close`];
+
+    if (open === undefined || close === undefined) continue;
+
+    const haClose = (open + high + low + close) / 4;
+    const haOpen = prevHA ? (prevHA.open + prevHA.close) / 2 : (open + close) / 2;
+    const haHigh = Math.max(high || haClose, haOpen, haClose);
+    const haLow = Math.min(low || haClose, haOpen, haClose);
+
+    result[i] = {
+      ...item,
+      [`${symbol}_open`]: haOpen,
+      [`${symbol}_high`]: haHigh,
+      [`${symbol}_low`]: haLow,
+      [`${symbol}_close`]: haClose,
+    };
+
+    prevHA = { open: haOpen, close: haClose };
+  }
+
+  return result;
+};
 
 const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
   const { classes, chartTheme, tokens } = useTheme();
@@ -65,6 +205,111 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
   const [showTechnicalIndicatorSelector, setShowTechnicalIndicatorSelector] = useState(false);
   const [tickerStats, setTickerStats] = useState({});
   const [technicalIndicators, setTechnicalIndicators] = useState(savedState?.technicalIndicators || []);
+  const [chartType, setChartType] = useState(savedState?.chartType || 'line');
+  const [showChartTypeSelector, setShowChartTypeSelector] = useState(false);
+
+  // Zoom/Pan state for scroll and drag functionality
+  const [visibleRange, setVisibleRange] = useState({ start: 0, end: 100 }); // percentage
+  const chartContainerRef = useRef(null);
+  const isDragging = useRef(false);
+  const dragStartX = useRef(0);
+  const dragStartRange = useRef({ start: 0, end: 100 });
+
+  // Reset visible range when time range changes
+  useEffect(() => {
+    setVisibleRange({ start: 0, end: 100 });
+  }, [timeRange]);
+
+  // Handle mouse wheel for zoom
+  const handleWheel = useCallback((e) => {
+    e.preventDefault();
+    const zoomIntensity = 0.1;
+    const delta = e.deltaY > 0 ? 1 : -1; // zoom out or in
+
+    setVisibleRange(prev => {
+      const range = prev.end - prev.start;
+      const minRange = 5; // minimum 5% of data visible
+      const maxRange = 100;
+
+      // Calculate new range
+      const zoomAmount = range * zoomIntensity * delta;
+      let newRange = Math.max(minRange, Math.min(maxRange, range + zoomAmount));
+
+      // Get mouse position ratio
+      const rect = chartContainerRef.current?.getBoundingClientRect();
+      const mouseRatio = rect ? (e.clientX - rect.left) / rect.width : 0.5;
+
+      // Adjust start/end based on mouse position
+      const rangeDiff = newRange - range;
+      let newStart = prev.start - rangeDiff * mouseRatio;
+      let newEnd = prev.end + rangeDiff * (1 - mouseRatio);
+
+      // Clamp values
+      if (newStart < 0) {
+        newEnd = Math.min(100, newEnd - newStart);
+        newStart = 0;
+      }
+      if (newEnd > 100) {
+        newStart = Math.max(0, newStart - (newEnd - 100));
+        newEnd = 100;
+      }
+
+      return { start: Math.max(0, newStart), end: Math.min(100, newEnd) };
+    });
+  }, []);
+
+  // Handle mouse drag for pan
+  const handleMouseDown = useCallback((e) => {
+    if (e.button !== 0) return; // only left click
+    isDragging.current = true;
+    dragStartX.current = e.clientX;
+    dragStartRange.current = { ...visibleRange };
+    e.preventDefault();
+  }, [visibleRange]);
+
+  const handleMouseMove = useCallback((e) => {
+    if (!isDragging.current) return;
+
+    const rect = chartContainerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    const deltaX = e.clientX - dragStartX.current;
+    const deltaPercent = (deltaX / rect.width) * (dragStartRange.current.end - dragStartRange.current.start);
+
+    setVisibleRange(prev => {
+      let newStart = dragStartRange.current.start - deltaPercent;
+      let newEnd = dragStartRange.current.end - deltaPercent;
+
+      // Clamp values
+      if (newStart < 0) {
+        newEnd = newEnd - newStart;
+        newStart = 0;
+      }
+      if (newEnd > 100) {
+        newStart = newStart - (newEnd - 100);
+        newEnd = 100;
+      }
+
+      return {
+        start: Math.max(0, newStart),
+        end: Math.min(100, newEnd)
+      };
+    });
+  }, []);
+
+  const handleMouseUp = useCallback(() => {
+    isDragging.current = false;
+  }, []);
+
+  // Add global mouse event listeners for drag
+  useEffect(() => {
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [handleMouseMove, handleMouseUp]);
 
   // Pair Analysis Mode states
   const [pairMode, setPairMode] = useState(savedState?.pairMode || false);
@@ -87,6 +332,80 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
   const [financialData, setFinancialData] = useState({ long: null, short: null });
   const [currentRegime, setCurrentRegime] = useState('sideways');
 
+  // Full chart data with Heikin-Ashi transformation if needed
+  const fullChartData = useMemo(() => {
+    if (chartType !== 'heikinashi' || !chartData || chartData.length === 0) {
+      return chartData;
+    }
+
+    // Apply Heikin-Ashi transformation for each stock ticker
+    let transformedData = [...chartData];
+    tickers.filter(t => t.type === 'stock').forEach(ticker => {
+      transformedData = calculateHeikinAshi(transformedData, ticker.symbol);
+    });
+
+    return transformedData;
+  }, [chartData, chartType, tickers]);
+
+  // Slice data based on visible range for zoom/pan
+  const displayChartData = useMemo(() => {
+    if (!fullChartData || fullChartData.length === 0) return fullChartData;
+
+    const totalLen = fullChartData.length;
+    const startIdx = Math.floor((visibleRange.start / 100) * totalLen);
+    const endIdx = Math.ceil((visibleRange.end / 100) * totalLen);
+
+    return fullChartData.slice(startIdx, endIdx);
+  }, [fullChartData, visibleRange]);
+
+  // Add candleBody data for candlestick/OHLC charts
+  const chartDataWithCandles = useMemo(() => {
+    if (!displayChartData || displayChartData.length === 0) return displayChartData;
+
+    const isOHLCChart = ['candlestick', 'ohlc', 'heikinashi'].includes(chartType) && !normalized;
+    if (!isOHLCChart) return displayChartData;
+
+    return displayChartData.map(item => {
+      const newItem = { ...item };
+      tickers.filter(t => t.type === 'stock' && t.visible).forEach(ticker => {
+        const open = item[`${ticker.symbol}_open`];
+        const close = item[`${ticker.symbol}_close`];
+        if (open !== undefined && close !== undefined) {
+          // candleBody represents the body range (from min(open,close) to max(open,close))
+          newItem[`${ticker.symbol}_candleBody`] = [Math.min(open, close), Math.max(open, close)];
+        }
+      });
+      return newItem;
+    });
+  }, [displayChartData, chartType, normalized, tickers]);
+
+  // Calculate Y-axis domain for candlestick/OHLC charts (needs to include high/low)
+  const priceYDomain = useMemo(() => {
+    if (!displayChartData || displayChartData.length === 0) return ['auto', 'auto'];
+
+    const isOHLCChart = ['candlestick', 'ohlc', 'heikinashi'].includes(chartType) && !normalized;
+
+    if (!isOHLCChart) return ['auto', 'auto'];
+
+    let minPrice = Infinity;
+    let maxPrice = -Infinity;
+
+    displayChartData.forEach(item => {
+      tickers.filter(t => t.type === 'stock' && t.visible).forEach(ticker => {
+        const high = item[`${ticker.symbol}_high`];
+        const low = item[`${ticker.symbol}_low`];
+        if (high !== undefined && high > maxPrice) maxPrice = high;
+        if (low !== undefined && low < minPrice) minPrice = low;
+      });
+    });
+
+    if (minPrice === Infinity || maxPrice === -Infinity) return ['auto', 'auto'];
+
+    // Add some padding (2%)
+    const padding = (maxPrice - minPrice) * 0.02;
+    return [minPrice - padding, maxPrice + padding];
+  }, [displayChartData, chartType, normalized, tickers]);
+
   // Save state to localStorage whenever key settings change
   useEffect(() => {
     if (storageKey) {
@@ -96,12 +415,13 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
         normalized,
         showVolume,
         technicalIndicators,
+        chartType,
         pairMode,
         pairConfig
       };
       localStorage.setItem(storageKey, JSON.stringify(stateToSave));
     }
-  }, [storageKey, tickers, timeRange, normalized, showVolume, technicalIndicators, pairMode, pairConfig]);
+  }, [storageKey, tickers, timeRange, normalized, showVolume, technicalIndicators, chartType, pairMode, pairConfig]);
 
   // Load data for all tickers and indicators
   const loadData = useCallback(async () => {
@@ -110,8 +430,26 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
     setLoading(true);
     try {
       const rangeConfig = TIME_RANGES.find(r => r.id === timeRange);
-      const period = rangeConfig?.value || '1y';
+      let period = rangeConfig?.value || '1y';
       const interval = rangeConfig?.interval || '1d';
+
+      // Extend period to load extra data for technical indicators (need ~200 extra days for SMA200)
+      // This ensures indicators don't get cut off at the start
+      const extendedPeriodMap = {
+        '1d': '5d',      // 1d -> 5d for some buffer
+        '5d': '1mo',     // 5d -> 1mo
+        '1mo': '3mo',    // 1mo -> 3mo
+        '3mo': '6mo',    // 3mo -> 6mo (includes ~200 trading days buffer)
+        '6mo': '1y',     // 6mo -> 1y
+        '1y': '2y',      // 1y -> 2y
+        '5y': '10y',     // 5y -> 10y
+        'max': 'max',    // max stays max
+      };
+
+      // Use extended period if we have technical indicators that need historical data
+      const needsExtendedData = technicalIndicators.length > 0 ||
+        ['candlestick', 'ohlc', 'heikinashi'].includes(chartType);
+      const fetchPeriod = needsExtendedData ? (extendedPeriodMap[period] || period) : period;
 
       // Separate stocks and indicators
       const stocks = tickers.filter(t => t.type === 'stock');
@@ -121,7 +459,7 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
       const stockPromises = stocks.map(async (ticker) => {
         try {
           const [historyRes, quoteRes, infoRes] = await Promise.all([
-            fetch(`${API_BASE}/stock/history/${ticker.symbol}?period=${period}&interval=${interval}`),
+            fetch(`${API_BASE}/stock/history/${ticker.symbol}?period=${fetchPeriod}&interval=${interval}`),
             fetch(`${API_BASE}/stock/quote/${ticker.symbol}`),
             fetch(`${API_BASE}/stock/info/${ticker.symbol}`)
           ]);
@@ -301,7 +639,7 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
     } finally {
       setLoading(false);
     }
-  }, [tickers, timeRange, normalized, technicalIndicators, pairMode, pairConfig]);
+  }, [tickers, timeRange, normalized, technicalIndicators, chartType, pairMode, pairConfig]);
 
   const mergeData = (results, normalize) => {
     if (results.length === 0) return [];
@@ -363,6 +701,13 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
           const entry = dateMap.get(item.date);
           entry[symbol] = normalize ? ((item.close / basePrice - 1) * 100) : item.close;
           entry[`${symbol}_volume`] = item.volume;
+          // Store OHLC data for candlestick/OHLC charts
+          if (!normalize) {
+            entry[`${symbol}_open`] = item.open;
+            entry[`${symbol}_high`] = item.high;
+            entry[`${symbol}_low`] = item.low;
+            entry[`${symbol}_close`] = item.close;
+          }
         });
       } else {
         // Indicator data
@@ -527,6 +872,18 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
         onRefresh={loadData}
         onRemove={onRemove}
       >
+        {/* Chart Type Selector Button */}
+        <button
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowChartTypeSelector(!showChartTypeSelector);
+          }}
+          className={`hover:text-white p-1.5 ${showChartTypeSelector ? 'text-blue-400' : 'text-gray-400'}`}
+          title="Chart Type"
+        >
+          <BarChart2 size={16} />
+        </button>
         {/* Add Stock Button */}
         <button
           onMouseDown={(e) => e.stopPropagation()}
@@ -564,6 +921,51 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
           <TrendingDown size={16} />
         </button>
       </WidgetHeader>
+
+      {/* Chart Type Selector Dropdown */}
+      {showChartTypeSelector && (
+        <div className="absolute top-14 right-4 z-50 border border-gray-700 rounded-lg shadow-2xl py-2 min-w-[200px]" style={{ backgroundColor: tokens.bg.tertiary }}>
+          <div className="px-3 py-2 border-b border-gray-800">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-semibold text-white">Chart Type</div>
+              <button
+                onClick={() => setShowChartTypeSelector(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+          <div className="py-1">
+            {CHART_TYPES.map((type) => (
+              <button
+                key={type.id}
+                onClick={() => {
+                  setChartType(type.id);
+                  setShowChartTypeSelector(false);
+                }}
+                className={`w-full px-3 py-2 hover:bg-gray-800 transition-colors text-left flex items-center gap-3 ${
+                  chartType === type.id ? 'bg-blue-600/20 border-l-2 border-blue-500' : ''
+                }`}
+              >
+                <div className={`w-8 h-8 rounded flex items-center justify-center ${
+                  chartType === type.id ? 'bg-blue-600' : 'bg-gray-700'
+                }`}>
+                  {type.id === 'line' && <TrendingUp size={16} />}
+                  {type.id === 'area' && <Activity size={16} />}
+                  {type.id === 'candlestick' && <BarChart2 size={16} />}
+                  {type.id === 'ohlc' && <BarChart2 size={16} />}
+                  {type.id === 'heikinashi' && <Layers size={16} />}
+                </div>
+                <div>
+                  <div className="text-sm font-medium text-white">{type.name}</div>
+                  <div className="text-xs text-gray-400">{type.description}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Macro Indicator Selector Dropdown */}
       {showIndicatorSelector && (
@@ -757,6 +1159,26 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
 
                 <div className="w-px h-6 bg-gray-700 mx-1"></div>
 
+                {/* Chart Type Quick Selector */}
+                <div className="flex items-center bg-gray-800 rounded overflow-hidden">
+                  {CHART_TYPES.map((type) => (
+                    <button
+                      key={type.id}
+                      onClick={() => setChartType(type.id)}
+                      className={`px-2 py-1.5 text-xs font-medium transition-colors ${
+                        chartType === type.id
+                          ? 'bg-blue-600 text-white'
+                          : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                      }`}
+                      title={type.description}
+                    >
+                      {type.name}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="w-px h-6 bg-gray-700 mx-1"></div>
+
                 <button
                   onClick={() => setNormalized(!normalized)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
@@ -938,9 +1360,14 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
 
             {/* Main Chart */}
             <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: chartTheme.background }}>
-              <div className="h-96">
+              <div
+                ref={chartContainerRef}
+                className="h-[420px] cursor-grab active:cursor-grabbing select-none"
+                onWheel={handleWheel}
+                onMouseDown={handleMouseDown}
+              >
                 <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={chartData}>
+                  <ComposedChart data={chartDataWithCandles}>
                     {/* Regime Background Areas */}
                     {pairMode && pairConfig.showRegime && regimePeriods.map((period, idx) => (
                       <ReferenceArea
@@ -980,7 +1407,7 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
                       orientation="right"
                       tick={{ fill: chartTheme.text, fontSize: 11 }}
                       tickFormatter={(value) => normalized ? `${value.toFixed(0)}%` : `${value.toFixed(0)}`}
-                      domain={['auto', 'auto']}
+                      domain={priceYDomain}
                     />
                     {showVolume && tickers.some(t => t.type === 'stock' && t.visible) && (
                       <YAxis
@@ -1011,19 +1438,71 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
                     <Tooltip
                       contentStyle={{ backgroundColor: chartTheme.tooltip.background, border: `1px solid ${chartTheme.tooltip.border}` }}
                       labelStyle={{ color: chartTheme.tooltip.text }}
-                      formatter={(value, name) => {
-                        if (name === 'Spread') return [value?.toFixed(3) || 'N/A', 'L/S Spread'];
-                        if (name === 'KOSPI' || name === pairConfig.regimeSymbol) {
-                          return [value?.toFixed(3) || 'N/A', `${name} (Norm)`];
-                        }
-                        if (name.includes('_volume')) return [formatNumber(value), 'Volume'];
-                        const ticker = tickers.find(t => t.symbol === name);
-                        if (ticker?.type === 'indicator') {
-                          return [value?.toFixed(2) || 'N/A', ticker.name || name];
-                        }
-                        return [normalized ? `${value?.toFixed(2) || 'N/A'}%` : formatPrice(value), name];
+                      content={({ active, payload, label }) => {
+                        if (!active || !payload || payload.length === 0) return null;
+
+                        const data = payload[0]?.payload;
+                        const showOHLC = ['candlestick', 'ohlc', 'heikinashi'].includes(chartType) && !normalized;
+
+                        return (
+                          <div style={{
+                            backgroundColor: chartTheme.tooltip.background,
+                            border: `1px solid ${chartTheme.tooltip.border}`,
+                            padding: '8px 12px',
+                            borderRadius: '4px',
+                            fontSize: '12px'
+                          }}>
+                            <div style={{ color: chartTheme.tooltip.text, marginBottom: '6px', fontWeight: 600 }}>
+                              {formatDate(label)}
+                            </div>
+                            {tickers.filter(t => t.visible && t.type === 'stock').map(ticker => {
+                              const sym = ticker.symbol;
+                              if (showOHLC && data[`${sym}_open`] !== undefined) {
+                                const o = data[`${sym}_open`];
+                                const h = data[`${sym}_high`];
+                                const l = data[`${sym}_low`];
+                                const c = data[`${sym}_close`];
+                                const change = o ? ((c - o) / o * 100).toFixed(2) : 0;
+                                const isUp = c >= o;
+                                return (
+                                  <div key={sym} style={{ marginBottom: '4px' }}>
+                                    <div style={{ color: ticker.color, fontWeight: 600 }}>{sym}</div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 8px', color: '#9ca3af' }}>
+                                      <span>O: {formatPrice(o)}</span>
+                                      <span>H: {formatPrice(h)}</span>
+                                      <span>C: <span style={{ color: isUp ? CANDLE_COLORS.up : CANDLE_COLORS.down }}>{formatPrice(c)}</span></span>
+                                      <span>L: {formatPrice(l)}</span>
+                                    </div>
+                                    <div style={{ color: isUp ? CANDLE_COLORS.up : CANDLE_COLORS.down, fontSize: '11px' }}>
+                                      {isUp ? '+' : ''}{change}%
+                                    </div>
+                                  </div>
+                                );
+                              } else {
+                                const val = data[sym];
+                                return val !== undefined ? (
+                                  <div key={sym} style={{ color: ticker.color }}>
+                                    {sym}: {normalized ? `${val?.toFixed(2)}%` : formatPrice(val)}
+                                  </div>
+                                ) : null;
+                              }
+                            })}
+                            {tickers.filter(t => t.visible && t.type === 'indicator').map(ticker => {
+                              const val = data[ticker.symbol];
+                              return val !== undefined ? (
+                                <div key={ticker.symbol} style={{ color: ticker.color }}>
+                                  {ticker.name || ticker.symbol}: {val?.toFixed(2)}
+                                </div>
+                              ) : null;
+                            })}
+                            {pairMode && pairConfig.showSpread && data.spread !== undefined && (
+                              <div style={{ color: '#f59e0b' }}>
+                                Spread: {data.spread?.toFixed(3)}
+                              </div>
+                            )}
+                          </div>
+                        );
                       }}
-                      labelFormatter={(date) => formatDate(date)}
                     />
                     <Legend />
 
@@ -1039,21 +1518,113 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
                       />
                     ))}
 
-                    {/* Lines for all visible items */}
-                    {tickers.filter(t => t.visible).map((ticker) => (
-                      <Line
-                        key={ticker.symbol}
-                        yAxisId="price"
-                        type="monotone"
-                        dataKey={ticker.symbol}
-                        stroke={ticker.color}
-                        strokeWidth={ticker.type === 'indicator' ? 3 : 2}
-                        strokeDasharray={ticker.type === 'indicator' ? '5 5' : '0'}
-                        dot={false}
-                        connectNulls={true}
-                        name={ticker.name || ticker.symbol}
-                      />
-                    ))}
+                    {/* Chart rendering based on chart type */}
+                    {tickers.filter(t => t.visible).map((ticker) => {
+                      // For indicators, always use line chart
+                      if (ticker.type === 'indicator') {
+                        return (
+                          <Line
+                            key={ticker.symbol}
+                            yAxisId="price"
+                            type="monotone"
+                            dataKey={ticker.symbol}
+                            stroke={ticker.color}
+                            strokeWidth={3}
+                            strokeDasharray="5 5"
+                            dot={false}
+                            connectNulls={true}
+                            name={ticker.name || ticker.symbol}
+                          />
+                        );
+                      }
+
+                      // For stocks, render based on chart type
+                      switch (chartType) {
+                        case 'area':
+                          return (
+                            <Area
+                              key={ticker.symbol}
+                              yAxisId="price"
+                              type="monotone"
+                              dataKey={ticker.symbol}
+                              stroke={ticker.color}
+                              strokeWidth={2}
+                              fill={ticker.color}
+                              fillOpacity={0.1}
+                              dot={false}
+                              connectNulls={true}
+                              name={ticker.name || ticker.symbol}
+                            />
+                          );
+
+                        case 'candlestick':
+                        case 'heikinashi':
+                          // Render candlestick using Bar with custom shape
+                          return !normalized ? (
+                            <Bar
+                              key={ticker.symbol}
+                              yAxisId="price"
+                              dataKey={`${ticker.symbol}_candleBody`}
+                              shape={(props) => <CandlestickBar {...props} dataKey={`${ticker.symbol}_candleBody`} />}
+                              name={ticker.name || ticker.symbol}
+                              isAnimationActive={false}
+                            />
+                          ) : (
+                            <Line
+                              key={ticker.symbol}
+                              yAxisId="price"
+                              type="monotone"
+                              dataKey={ticker.symbol}
+                              stroke={ticker.color}
+                              strokeWidth={2}
+                              dot={false}
+                              connectNulls={true}
+                              name={ticker.name || ticker.symbol}
+                            />
+                          );
+
+                        case 'ohlc':
+                          // Render OHLC using Bar with custom shape
+                          return !normalized ? (
+                            <Bar
+                              key={ticker.symbol}
+                              yAxisId="price"
+                              dataKey={`${ticker.symbol}_candleBody`}
+                              shape={(props) => <OHLCBar {...props} dataKey={`${ticker.symbol}_candleBody`} />}
+                              name={ticker.name || ticker.symbol}
+                              isAnimationActive={false}
+                            />
+                          ) : (
+                            <Line
+                              key={ticker.symbol}
+                              yAxisId="price"
+                              type="monotone"
+                              dataKey={ticker.symbol}
+                              stroke={ticker.color}
+                              strokeWidth={2}
+                              dot={false}
+                              connectNulls={true}
+                              name={ticker.name || ticker.symbol}
+                            />
+                          );
+
+                        case 'line':
+                        default:
+                          return (
+                            <Line
+                              key={ticker.symbol}
+                              yAxisId="price"
+                              type="monotone"
+                              dataKey={ticker.symbol}
+                              stroke={ticker.color}
+                              strokeWidth={2}
+                              dot={false}
+                              connectNulls={true}
+                              name={ticker.name || ticker.symbol}
+                            />
+                          );
+                      }
+                    })}
 
                     {/* Technical Indicators */}
                     {!normalized && technicalIndicators.filter(ti => ti.visible).map((indicator) => {
@@ -1164,8 +1735,29 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
                         />
                       </>
                     )}
+
                   </ComposedChart>
                 </ResponsiveContainer>
+              </div>
+
+              {/* Zoom/Pan Controls */}
+              <div className="flex items-center justify-between mt-2 px-1">
+                <div className="flex items-center gap-2 text-xs text-gray-500">
+                  <span>🖱️ Drag to pan, Scroll to zoom</span>
+                  {visibleRange.start > 0 || visibleRange.end < 100 ? (
+                    <span className="text-blue-400">
+                      ({Math.round(visibleRange.end - visibleRange.start)}% visible)
+                    </span>
+                  ) : null}
+                </div>
+                {(visibleRange.start > 0 || visibleRange.end < 100) && (
+                  <button
+                    onClick={() => setVisibleRange({ start: 0, end: 100 })}
+                    className="text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-gray-300"
+                  >
+                    Reset Zoom
+                  </button>
+                )}
               </div>
             </div>
 

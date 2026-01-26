@@ -109,6 +109,24 @@ export const INDICATOR_COLORS = {
   OBV: '#10b981',
 };
 
+// Chart type options for easy switching
+export const CHART_TYPES = [
+  { id: 'line', name: 'Line', icon: 'TrendingUp', description: 'Simple line chart' },
+  { id: 'area', name: 'Area', icon: 'Activity', description: 'Area chart with gradient fill' },
+  { id: 'candlestick', name: 'Candle', icon: 'BarChart2', description: 'Japanese candlestick chart' },
+  { id: 'ohlc', name: 'OHLC', icon: 'BarChart', description: 'Open-High-Low-Close bars' },
+  { id: 'heikinashi', name: 'Heikin-Ashi', icon: 'Layers', description: 'Smoothed candlestick' },
+];
+
+// Candlestick colors
+export const CANDLE_COLORS = {
+  up: '#22c55e',      // green for bullish
+  down: '#ef4444',    // red for bearish
+  upWick: '#22c55e',
+  downWick: '#ef4444',
+  doji: '#9ca3af',    // gray for doji
+};
+
 export const WIDGET_CONSTRAINTS = {
   minW: 3,
   minH: 2,
