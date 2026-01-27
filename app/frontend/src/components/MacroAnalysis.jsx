@@ -17,7 +17,7 @@ import {
 import { useLoading } from '../contexts/LoadingContext';
 import { API_BASE } from '../config/api';
 import { CARD_CLASSES } from '../styles/designTokens';
-import UniversalChartWidget from './common/UniversalChartWidget';
+import ChartWidget from './widgets/ChartWidget';
 import RegimeDashboard from './macro/RegimeDashboard';
 import FedPolicyGauge from './macro/FedPolicyGauge';
 import YieldCurveChart from './macro/YieldCurveChart';
@@ -316,7 +316,7 @@ const MacroAnalysis = () => {
 
       {/* Chart for selected indicator */}
       {selectedSeries && seriesData && (
-        <UniversalChartWidget
+        <ChartWidget
           series={[
             {
               id: seriesData.key || selectedSeries.key,
@@ -332,6 +332,9 @@ const MacroAnalysis = () => {
           showNormalize={false}
           showVolume={false}
           showTechnicalIndicators={true}
+          showChartTypeSelector={false}
+          showAddStock={false}
+          showPairAnalysis={false}
           onPeriodChange={(period) => {
             if (selectedSeries.type === 'indicator') {
               fetchIndicatorHistory(selectedSeries.key, period);
@@ -484,7 +487,7 @@ const MacroAnalysis = () => {
 
         {/* Chart for selected item */}
         {(selectedSeries && seriesData) && (
-          <UniversalChartWidget
+          <ChartWidget
             series={[
               {
                 id: seriesData.key || 'commodity',
@@ -500,13 +503,16 @@ const MacroAnalysis = () => {
             showNormalize={false}
             showVolume={false}
             showTechnicalIndicators={true}
+            showChartTypeSelector={false}
+            showAddStock={false}
+            showPairAnalysis={false}
             onPeriodChange={(period) => fetchSeriesHistory(selectedSeries.key, period)}
           />
         )}
 
         {/* Chart for selected ratio */}
         {(selectedRatio && ratioData) && (
-          <UniversalChartWidget
+          <ChartWidget
             series={[
               {
                 id: ratioData.ratio_type,
@@ -522,6 +528,9 @@ const MacroAnalysis = () => {
             showNormalize={false}
             showVolume={false}
             showTechnicalIndicators={true}
+            showChartTypeSelector={false}
+            showAddStock={false}
+            showPairAnalysis={false}
             onPeriodChange={(period) => fetchRatioHistory(selectedRatio, period)}
           />
         )}
@@ -605,7 +614,7 @@ const MacroAnalysis = () => {
 
         {/* Chart for selected item */}
         {(selectedSeries && seriesData) && (
-          <UniversalChartWidget
+          <ChartWidget
             series={[
               {
                 id: seriesData.key || 'trade',
@@ -621,6 +630,9 @@ const MacroAnalysis = () => {
             showNormalize={false}
             showVolume={false}
             showTechnicalIndicators={true}
+            showChartTypeSelector={false}
+            showAddStock={false}
+            showPairAnalysis={false}
             onPeriodChange={(period) => fetchSeriesHistory(selectedSeries.key, period)}
           />
         )}
@@ -713,7 +725,7 @@ const MacroAnalysis = () => {
 
         {/* Chart for selected series */}
         {selectedSeries && seriesData && (
-          <UniversalChartWidget
+          <ChartWidget
             series={[
               {
                 id: seriesData.key || 'macro_series',
@@ -729,6 +741,9 @@ const MacroAnalysis = () => {
             showNormalize={false}
             showVolume={false}
             showTechnicalIndicators={true}
+            showChartTypeSelector={false}
+            showAddStock={false}
+            showPairAnalysis={false}
             onPeriodChange={(period) => fetchSeriesHistory(selectedSeries.key, period)}
           />
         )}

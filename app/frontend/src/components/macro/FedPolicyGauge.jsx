@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { API_BASE } from '../../config/api';
 import { CARD_CLASSES } from '../../styles/designTokens';
-import UniversalChartWidget from '../common/UniversalChartWidget';
+import ChartWidget from '../widgets/ChartWidget';
 import { SkeletonLoader } from '../widgets/common';
 
 const STANCE_CONFIG = {
@@ -319,7 +319,7 @@ export default function FedPolicyGauge() {
 
       {/* Historical Chart */}
       {selectedMetric && historicalData && (
-        <UniversalChartWidget
+        <ChartWidget
           series={[
             {
               id: historicalData.key || selectedMetric.key,
@@ -335,6 +335,9 @@ export default function FedPolicyGauge() {
           showNormalize={false}
           showVolume={false}
           showTechnicalIndicators={true}
+          showChartTypeSelector={false}
+          showAddStock={false}
+          showPairAnalysis={false}
         />
       )}
 

@@ -1,17 +1,17 @@
 import React, { useMemo } from 'react';
 import { Activity } from 'lucide-react';
 import useTheme from '../../hooks/useTheme';
-import UniversalChartWidget from '../common/UniversalChartWidget';
+import ChartWidget from '../widgets/ChartWidget';
 import { CHART_COLORS } from '../widgets/common';
 
 /**
  * BacktestChartWidget - Enhanced chart for backtest results
  * Shows portfolio equity curve, benchmark, and technical indicators
- * Uses UniversalChartWidget for all chart functionality
+ * Uses ChartWidget in series mode for all chart functionality
  */
 const BacktestChartWidget = ({ results, config }) => {
   const { classes } = useTheme();
-  // Transform backtest results to series format for UniversalChartWidget
+  // Transform backtest results to series format for ChartWidget
   const series = useMemo(() => {
     if (!results) return [];
 
@@ -51,7 +51,7 @@ const BacktestChartWidget = ({ results, config }) => {
   }
 
   return (
-    <UniversalChartWidget
+    <ChartWidget
       series={series}
       title="Equity Curve"
       subtitle={`Portfolio vs ${config?.benchmark || 'Benchmark'}`}
@@ -59,6 +59,9 @@ const BacktestChartWidget = ({ results, config }) => {
       showNormalize={true}
       showVolume={false}
       showTechnicalIndicators={true}
+      showChartTypeSelector={false}
+      showAddStock={false}
+      showPairAnalysis={false}
     />
   );
 };

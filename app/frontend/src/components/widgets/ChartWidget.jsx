@@ -174,7 +174,30 @@ const calculateHeikinAshi = (data, symbol) => {
   return result;
 };
 
-const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
+const ChartWidget = ({
+  widgetId,
+  initialSymbols = ['NVDA'],
+  onRemove,
+  // Series mode props (for external data charts)
+  series,                          // Array<{id, name, data, color, visible}>
+  title,                           // Chart title (series mode)
+  subtitle,                        // Subtitle (series mode)
+  // Feature toggles
+  showTimeRanges = true,           // Show time range selector
+  showChartTypeSelector = true,    // Show chart type selector
+  showAddStock = true,             // Show add stock button
+  showPairAnalysis = true,         // Show pair analysis mode
+  showNormalize = true,            // Show normalize button
+  showVolume: showVolumeToggle = true, // Show volume toggle
+  showTechnicalIndicators = true,  // Show technical indicators
+  // Callbacks
+  onPeriodChange,                  // Period change callback (series mode)
+  onAddSeries,                     // Add series callback (series mode)
+  // External state
+  loading: externalLoading = false, // External loading state
+}) => {
+  // Detect series mode: when series prop is provided and has data
+  const isSeriesMode = series && series.length > 0;
   const { classes, chartTheme, tokens } = useTheme();
   const storageKey = widgetId ? `chart-widget-${widgetId}` : null;
 
@@ -206,7 +229,7 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
   const [tickerStats, setTickerStats] = useState({});
   const [technicalIndicators, setTechnicalIndicators] = useState(savedState?.technicalIndicators || []);
   const [chartType, setChartType] = useState(savedState?.chartType || 'line');
-  const [showChartTypeSelector, setShowChartTypeSelector] = useState(false);
+  const [showChartTypeSelectorDropdown, setShowChartTypeSelectorDropdown] = useState(false);
 
   // Zoom/Pan state for scroll and drag functionality
   const [visibleRange, setVisibleRange] = useState({ start: 0, end: 100 }); // percentage
@@ -223,6 +246,7 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
   // Handle mouse wheel for zoom
   const handleWheel = useCallback((e) => {
     e.preventDefault();
+    e.stopPropagation();
     const zoomIntensity = 0.1;
     const delta = e.deltaY > 0 ? 1 : -1; // zoom out or in
 
@@ -311,6 +335,17 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
     };
   }, [handleMouseMove, handleMouseUp]);
 
+  // Add wheel event listener with passive: false to prevent page scroll
+  useEffect(() => {
+    const container = chartContainerRef.current;
+    if (!container) return;
+
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      container.removeEventListener('wheel', handleWheel);
+    };
+  }, [handleWheel]);
+
   // Pair Analysis Mode states
   const [pairMode, setPairMode] = useState(savedState?.pairMode || false);
   const [pairConfig, setPairConfig] = useState(savedState?.pairConfig || {
@@ -331,6 +366,135 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
   const [outperformPeriods, setOutperformPeriods] = useState([]);
   const [financialData, setFinancialData] = useState({ long: null, short: null });
   const [currentRegime, setCurrentRegime] = useState('sideways');
+
+  // Series mode: Transform series data to chartData format
+  useEffect(() => {
+    if (!isSeriesMode || !series || series.length === 0) return;
+
+    // Collect all unique dates
+    const dateMap = new Map();
+
+    series.forEach(s => {
+      if (!s.data || !Array.isArray(s.data)) return;
+
+      s.data.forEach(point => {
+        const date = point.date;
+        if (!dateMap.has(date)) {
+          dateMap.set(date, { date, timestamp: new Date(date).getTime() });
+        }
+
+        const entry = dateMap.get(date);
+
+        // Add main value
+        entry[s.id] = point.value !== undefined ? point.value : point.close;
+
+        // Add volume if exists
+        if (point.volume !== undefined) {
+          entry[`${s.id}_volume`] = point.volume;
+        }
+
+        // Add OHLC if exists
+        if (point.high !== undefined) entry[`${s.id}_high`] = point.high;
+        if (point.low !== undefined) entry[`${s.id}_low`] = point.low;
+        if (point.open !== undefined) entry[`${s.id}_open`] = point.open;
+      });
+    });
+
+    let data = Array.from(dateMap.values()).sort((a, b) => a.timestamp - b.timestamp);
+
+    // Apply normalization for series mode
+    if (normalized && data.length > 0) {
+      const normalizedData = data.map((d) => {
+        const newPoint = { ...d };
+
+        series.forEach(s => {
+          if (s.visible !== false && d[s.id] !== undefined) {
+            // Find first non-null value as base
+            let baseValue = null;
+            for (let i = 0; i < data.length; i++) {
+              if (data[i][s.id] !== null && data[i][s.id] !== undefined) {
+                baseValue = data[i][s.id];
+                break;
+              }
+            }
+
+            if (baseValue && baseValue !== 0) {
+              newPoint[s.id] = ((d[s.id] / baseValue - 1) * 100);
+            }
+          }
+        });
+
+        return newPoint;
+      });
+
+      data = normalizedData;
+    }
+
+    // Calculate technical indicators for series mode
+    if (technicalIndicators.length > 0 && !normalized) {
+      technicalIndicators.forEach(({ indicatorId, seriesId }) => {
+        const targetSeries = series.find(s => s.id === seriesId);
+        if (!targetSeries || !targetSeries.data) return;
+
+        // Convert to stock-like format
+        const stockData = targetSeries.data.map(d => ({
+          date: d.date,
+          close: d.value !== undefined ? d.value : d.close || 0,
+          high: d.high || d.value || d.close || 0,
+          low: d.low || d.value || d.close || 0,
+          volume: d.volume || 0,
+        }));
+
+        const indicatorData = calculateIndicator(indicatorId, stockData);
+        if (indicatorData) {
+          data = mergeSeriesIndicatorData(data, indicatorData, indicatorId, seriesId);
+        }
+      });
+    }
+
+    setChartData(data);
+  }, [isSeriesMode, series, normalized, technicalIndicators]);
+
+  // Helper to merge indicator data in series mode
+  const mergeSeriesIndicatorData = (chartData, indicatorData, indicatorId, seriesId) => {
+    const dataMap = new Map(chartData.map(d => [d.date, { ...d }]));
+
+    if (indicatorData.macd) {
+      indicatorData.macd.forEach((item, idx) => {
+        if (dataMap.has(item.date)) {
+          const entry = dataMap.get(item.date);
+          entry[`${seriesId}_${indicatorId}_macd`] = item.value;
+          entry[`${seriesId}_${indicatorId}_signal`] = indicatorData.signal[idx]?.value || null;
+          entry[`${seriesId}_${indicatorId}_histogram`] = indicatorData.histogram[idx]?.value || null;
+        }
+      });
+    } else if (indicatorData.upper) {
+      indicatorData.upper.forEach((item, idx) => {
+        if (dataMap.has(item.date)) {
+          const entry = dataMap.get(item.date);
+          entry[`${seriesId}_${indicatorId}_upper`] = item.value;
+          entry[`${seriesId}_${indicatorId}_middle`] = indicatorData.middle[idx]?.value || null;
+          entry[`${seriesId}_${indicatorId}_lower`] = indicatorData.lower[idx]?.value || null;
+        }
+      });
+    } else if (indicatorData.k) {
+      indicatorData.k.forEach((item, idx) => {
+        if (dataMap.has(item.date)) {
+          const entry = dataMap.get(item.date);
+          entry[`${seriesId}_${indicatorId}_k`] = item.value;
+          entry[`${seriesId}_${indicatorId}_d`] = indicatorData.d[idx]?.value || null;
+        }
+      });
+    } else {
+      indicatorData.forEach(item => {
+        if (dataMap.has(item.date)) {
+          dataMap.get(item.date)[`${seriesId}_${indicatorId}`] = item.value;
+        }
+      });
+    }
+
+    return Array.from(dataMap.values()).sort((a, b) => a.timestamp - b.timestamp);
+  };
 
   // Full chart data with Heikin-Ashi transformation if needed
   const fullChartData = useMemo(() => {
@@ -425,6 +589,9 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
 
   // Load data for all tickers and indicators
   const loadData = useCallback(async () => {
+    // Skip API loading in series mode - data is provided via props
+    if (isSeriesMode) return;
+
     if (tickers.length === 0) return;
 
     setLoading(true);
@@ -830,15 +997,34 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
     setShowTechnicalIndicatorSelector(false);
   };
 
-  const handleRemoveTechnicalIndicator = (indicatorId, symbol) => {
+  // Series mode: add technical indicator for a series
+  const handleAddSeriesTechnicalIndicator = (indicator, seriesId) => {
+    const exists = technicalIndicators.find(
+      ti => ti.indicatorId === indicator.id && ti.seriesId === seriesId
+    );
+    if (exists) {
+      alert('Indicator already added for this series');
+      return;
+    }
+
+    setTechnicalIndicators([...technicalIndicators, {
+      indicatorId: indicator.id,
+      seriesId: seriesId,
+      name: indicator.name,
+      visible: true
+    }]);
+    setShowTechnicalIndicatorSelector(false);
+  };
+
+  const handleRemoveTechnicalIndicator = (indicatorId, symbolOrSeriesId) => {
     setTechnicalIndicators(technicalIndicators.filter(
-      ti => !(ti.indicatorId === indicatorId && ti.symbol === symbol)
+      ti => !(ti.indicatorId === indicatorId && (ti.symbol === symbolOrSeriesId || ti.seriesId === symbolOrSeriesId))
     ));
   };
 
-  const toggleTechnicalIndicatorVisibility = (indicatorId, symbol) => {
+  const toggleTechnicalIndicatorVisibility = (indicatorId, symbolOrSeriesId) => {
     setTechnicalIndicators(technicalIndicators.map(ti =>
-      ti.indicatorId === indicatorId && ti.symbol === symbol
+      ti.indicatorId === indicatorId && (ti.symbol === symbolOrSeriesId || ti.seriesId === symbolOrSeriesId)
         ? { ...ti, visible: !ti.visible }
         : ti
     ));
@@ -861,75 +1047,122 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
   };
 
 
+  // Determine visible series for series mode
+  const visibleSeries = useMemo(() =>
+    isSeriesMode ? series.filter(s => s.visible !== false) : [],
+    [isSeriesMode, series]
+  );
+
+  // Check if any series has volume data
+  const hasVolumeInSeries = useMemo(() =>
+    visibleSeries.some(s => s.data?.some(d => d.volume !== undefined)),
+    [visibleSeries]
+  );
+
+  // Determine effective loading state
+  const effectiveLoading = isSeriesMode ? externalLoading : loading;
+
+  // Determine chart title and subtitle
+  const chartTitle = isSeriesMode ? (title || 'Chart') : 'Advanced Chart';
+  const chartSubtitle = isSeriesMode
+    ? subtitle
+    : `${tickers.filter(t => t.visible).length} item${tickers.filter(t => t.visible).length !== 1 ? 's' : ''}`;
+
   return (
-    <div className="bg-[#1a1a1a] rounded-lg flex flex-col h-full border border-gray-800 relative">
+    <div className={WIDGET_STYLES.container}>
       <WidgetHeader
         icon={TrendingUp}
         iconColor={WIDGET_ICON_COLORS.chart}
-        title="Advanced Chart"
-        subtitle={`${tickers.filter(t => t.visible).length} item${tickers.filter(t => t.visible).length !== 1 ? 's' : ''}`}
-        loading={loading}
-        onRefresh={loadData}
+        title={chartTitle}
+        subtitle={chartSubtitle}
+        loading={effectiveLoading}
+        onRefresh={isSeriesMode ? undefined : loadData}
         onRemove={onRemove}
       >
+        {/* Add Series Button (series mode only) */}
+        {isSeriesMode && onAddSeries && (
+          <button
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddSeries();
+            }}
+            className="hover:text-white p-1.5 text-gray-400"
+            title="Add Series"
+          >
+            <Plus size={16} />
+          </button>
+        )}
+
         {/* Chart Type Selector Button */}
-        <button
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={(e) => {
-            e.stopPropagation();
-            setShowChartTypeSelector(!showChartTypeSelector);
-          }}
-          className={`hover:text-white p-1.5 ${showChartTypeSelector ? 'text-blue-400' : 'text-gray-400'}`}
-          title="Chart Type"
-        >
-          <BarChart2 size={16} />
-        </button>
-        {/* Add Stock Button */}
-        <button
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={(e) => {
-            e.stopPropagation();
-            setShowStockSelector(true);
-          }}
-          className="hover:text-white p-1.5 text-gray-400"
-          title="Add Stock"
-        >
-          <Plus size={16} />
-        </button>
-        {/* Add Macro Indicator Button */}
-        <button
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={(e) => {
-            e.stopPropagation();
-            setShowIndicatorSelector(!showIndicatorSelector);
-          }}
-          className="hover:text-white p-1.5 text-gray-400"
-          title="Add Macro Indicator"
-        >
-          <Activity size={16} />
-        </button>
+        {showChartTypeSelector && !isSeriesMode && (
+          <button
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowChartTypeSelectorDropdown(!showChartTypeSelectorDropdown);
+            }}
+            className={`hover:text-white p-1.5 ${showChartTypeSelectorDropdown ? 'text-blue-400' : 'text-gray-400'}`}
+            title="Chart Type"
+          >
+            <BarChart2 size={16} />
+          </button>
+        )}
+
+        {/* Add Stock Button (symbol mode only) */}
+        {showAddStock && !isSeriesMode && (
+          <button
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowStockSelector(true);
+            }}
+            className="hover:text-white p-1.5 text-gray-400"
+            title="Add Stock"
+          >
+            <Plus size={16} />
+          </button>
+        )}
+
+        {/* Add Macro Indicator Button (symbol mode only) */}
+        {!isSeriesMode && (
+          <button
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowIndicatorSelector(!showIndicatorSelector);
+            }}
+            className="hover:text-white p-1.5 text-gray-400"
+            title="Add Macro Indicator"
+          >
+            <Activity size={16} />
+          </button>
+        )}
+
         {/* Add Technical Indicator Button */}
-        <button
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={(e) => {
-            e.stopPropagation();
-            setShowTechnicalIndicatorSelector(!showTechnicalIndicatorSelector);
-          }}
-          className="hover:text-white p-1.5 text-gray-400"
-          title="Add Technical Indicator"
-        >
-          <TrendingDown size={16} />
-        </button>
+        {showTechnicalIndicators && (
+          <button
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowTechnicalIndicatorSelector(!showTechnicalIndicatorSelector);
+            }}
+            className="hover:text-white p-1.5 text-gray-400"
+            title="Add Technical Indicator"
+          >
+            <TrendingDown size={16} />
+          </button>
+        )}
       </WidgetHeader>
 
       {/* Chart Type Selector Dropdown */}
-      {showChartTypeSelector && (
+      {showChartTypeSelectorDropdown && (
         <div className="absolute top-14 right-4 z-50 border border-gray-700 rounded-lg shadow-2xl py-2 min-w-[200px]" style={{ backgroundColor: tokens.bg.tertiary }}>
           <div className="px-3 py-2 border-b border-gray-800">
             <div className="flex items-center justify-between">
               <div className="text-sm font-semibold text-white">Chart Type</div>
               <button
-                onClick={() => setShowChartTypeSelector(false)}
+                onClick={() => setShowChartTypeSelectorDropdown(false)}
                 className="text-gray-400 hover:text-white"
               >
                 <X size={14} />
@@ -942,7 +1175,7 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
                 key={type.id}
                 onClick={() => {
                   setChartType(type.id);
-                  setShowChartTypeSelector(false);
+                  setShowChartTypeSelectorDropdown(false);
                 }}
                 className={`w-full px-3 py-2 hover:bg-gray-800 transition-colors text-left flex items-center gap-3 ${
                   chartType === type.id ? 'bg-blue-600/20 border-l-2 border-blue-500' : ''
@@ -1010,7 +1243,7 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
                 <X size={14} />
               </button>
             </div>
-            <div className="text-xs text-gray-500 mt-1">Select a stock first</div>
+            <div className="text-xs text-gray-500 mt-1">{isSeriesMode ? 'Select a series' : 'Select a stock first'}</div>
           </div>
 
           {/* Group by type */}
@@ -1025,7 +1258,34 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
                     {type === 'overlay' ? 'Price Overlays' : type === 'oscillator' ? 'Oscillators' : 'Separate Pane'}
                   </div>
                 </div>
-                {tickers.filter(t => t.type === 'stock').map(stock => (
+                {/* Series mode: show visible series */}
+                {isSeriesMode && visibleSeries.map(s => (
+                  <div key={s.id}>
+                    <div className="px-3 py-1 bg-gray-800/30">
+                      <div className="text-xs text-blue-400">{s.name}</div>
+                    </div>
+                    {indicators.map(indicator => {
+                      const exists = technicalIndicators.some(
+                        ti => ti.indicatorId === indicator.id && ti.seriesId === s.id
+                      );
+                      return (
+                        <button
+                          key={`${s.id}-${indicator.id}`}
+                          onClick={() => handleAddSeriesTechnicalIndicator(indicator, s.id)}
+                          className={`w-full px-4 py-2 hover:bg-gray-800 transition-colors text-left ${
+                            exists ? 'opacity-50 cursor-not-allowed' : ''
+                          }`}
+                          disabled={exists}
+                        >
+                          <div className="text-sm font-medium text-white">{indicator.name}</div>
+                          <div className="text-xs text-gray-400">{indicator.description}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))}
+                {/* Symbol mode: show stock tickers */}
+                {!isSeriesMode && tickers.filter(t => t.type === 'stock').map(stock => (
                   <div key={stock.symbol}>
                     <div className="px-3 py-1 bg-gray-800/30">
                       <div className="text-xs text-blue-400">{stock.symbol}</div>
@@ -1057,13 +1317,29 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
       )}
 
       <div className={`${WIDGET_STYLES.content} ${WIDGET_STYLES.contentPadding}`}>
-        {loading && tickers.length === 0 ? (
+        {effectiveLoading && (isSeriesMode ? series.length === 0 : tickers.length === 0) ? (
           <LoadingSpinner size={32} color={LOADING_COLORS.chart} message="Loading chart data..." />
         ) : (
           <div className="space-y-4">
-            {/* Ticker Selection and Controls */}
+            {/* Ticker/Series Selection and Controls */}
             <div className="flex items-center justify-between gap-3 flex-wrap">
-              {/* Ticker Chips */}
+              {/* Series Chips (series mode) */}
+              {isSeriesMode && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  {visibleSeries.map((s) => (
+                    <div
+                      key={s.id}
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-gray-800/50 border-gray-700"
+                    >
+                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: s.color || CHART_COLORS[0] }} />
+                      <span className="text-sm font-medium">{s.name}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Ticker Chips (symbol mode) */}
+              {!isSeriesMode && (
               <div className="flex items-center gap-2 flex-wrap">
                 {tickers.map((ticker) => (
                   <div
@@ -1139,14 +1415,22 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
                   );
                 })}
               </div>
+              )}
 
               {/* Chart Controls */}
               <div className="flex items-center gap-2">
                 {/* Time Range Selector */}
-                {TIME_RANGES.map((range) => (
+                {showTimeRanges && TIME_RANGES.map((range) => (
                   <button
                     key={range.id}
-                    onClick={() => setTimeRange(range.id)}
+                    onClick={() => {
+                      setTimeRange(range.id);
+                      // Call onPeriodChange callback for series mode
+                      if (isSeriesMode && onPeriodChange) {
+                        const rangeConfig = TIME_RANGES.find(r => r.id === range.id);
+                        onPeriodChange(rangeConfig?.period || range.id);
+                      }
+                    }}
                     className={`px-2.5 py-1.5 rounded text-xs font-medium transition-colors ${
                       timeRange === range.id
                         ? 'bg-blue-600 text-white'
@@ -1157,82 +1441,97 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
                   </button>
                 ))}
 
-                <div className="w-px h-6 bg-gray-700 mx-1"></div>
+                {showTimeRanges && showChartTypeSelector && !isSeriesMode && (
+                  <div className="w-px h-6 bg-gray-700 mx-1"></div>
+                )}
 
-                {/* Chart Type Quick Selector */}
-                <div className="flex items-center bg-gray-800 rounded overflow-hidden">
-                  {CHART_TYPES.map((type) => (
-                    <button
-                      key={type.id}
-                      onClick={() => setChartType(type.id)}
-                      className={`px-2 py-1.5 text-xs font-medium transition-colors ${
-                        chartType === type.id
-                          ? 'bg-blue-600 text-white'
-                          : 'text-gray-400 hover:text-white hover:bg-gray-700'
-                      }`}
-                      title={type.description}
-                    >
-                      {type.name}
-                    </button>
-                  ))}
-                </div>
+                {/* Chart Type Quick Selector (symbol mode only) */}
+                {showChartTypeSelector && !isSeriesMode && (
+                  <div className="flex items-center bg-gray-800 rounded overflow-hidden">
+                    {CHART_TYPES.map((type) => (
+                      <button
+                        key={type.id}
+                        onClick={() => setChartType(type.id)}
+                        className={`px-2 py-1.5 text-xs font-medium transition-colors ${
+                          chartType === type.id
+                            ? 'bg-blue-600 text-white'
+                            : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                        }`}
+                        title={type.description}
+                      >
+                        {type.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
 
-                <div className="w-px h-6 bg-gray-700 mx-1"></div>
+                {((showTimeRanges || (showChartTypeSelector && !isSeriesMode)) && (showNormalize || showVolumeToggle)) && (
+                  <div className="w-px h-6 bg-gray-700 mx-1"></div>
+                )}
 
-                <button
-                  onClick={() => setNormalized(!normalized)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-                    normalized ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
-                  }`}
-                  title="Normalize to percentage change"
-                >
-                  <Percent size={14} />
-                  Normalize
-                </button>
-                <button
-                  onClick={() => setShowVolume(!showVolume)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-                    showVolume ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
-                  }`}
-                  title="Show volume"
-                >
-                  Volume
-                </button>
-
-                <div className="w-px h-6 bg-gray-700 mx-1"></div>
-
-                {/* Pair Analysis Mode Toggle */}
-                <button
-                  onClick={() => {
-                    setPairMode(!pairMode);
-                    if (!pairMode) {
-                      setShowPairSettings(true);
-                    }
-                  }}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-                    pairMode ? 'bg-amber-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
-                  }`}
-                  title="Pair Analysis Mode"
-                >
-                  <GitCompare size={14} />
-                  Pair
-                </button>
-
-                {/* Pair Settings Toggle */}
-                {pairMode && (
+                {showNormalize && (
                   <button
-                    onClick={() => setShowPairSettings(!showPairSettings)}
-                    className="flex items-center gap-1 px-2 py-1.5 rounded text-xs font-medium transition-colors bg-gray-800 text-gray-400 hover:text-white"
-                    title="Pair Settings"
+                    onClick={() => setNormalized(!normalized)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                      normalized ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
+                    }`}
+                    title="Normalize to percentage change"
                   >
-                    <Settings size={14} />
+                    <Percent size={14} />
+                    Normalize
                   </button>
+                )}
+
+                {showVolumeToggle && (isSeriesMode ? hasVolumeInSeries : tickers.some(t => t.type === 'stock')) && (
+                  <button
+                    onClick={() => setShowVolume(!showVolume)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                      showVolume ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
+                    }`}
+                    title="Show volume"
+                  >
+                    Volume
+                  </button>
+                )}
+
+                {/* Pair Analysis Mode Toggle (symbol mode only) */}
+                {showPairAnalysis && !isSeriesMode && (
+                  <>
+                    <div className="w-px h-6 bg-gray-700 mx-1"></div>
+
+                    <button
+                      onClick={() => {
+                        setPairMode(!pairMode);
+                        if (!pairMode) {
+                          setShowPairSettings(true);
+                        }
+                      }}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                        pairMode ? 'bg-amber-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
+                      }`}
+                      title="Pair Analysis Mode"
+                    >
+                      <GitCompare size={14} />
+                      Pair
+                    </button>
+
+                    {/* Pair Settings Toggle */}
+                    {pairMode && (
+                      <button
+                        onClick={() => setShowPairSettings(!showPairSettings)}
+                        className="flex items-center gap-1 px-2 py-1.5 rounded text-xs font-medium transition-colors bg-gray-800 text-gray-400 hover:text-white"
+                        title="Pair Settings"
+                      >
+                        <Settings size={14} />
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             </div>
 
-            {/* Pair Analysis Settings Panel */}
-            {pairMode && showPairSettings && (
+            {/* Pair Analysis Settings Panel (symbol mode only) */}
+            {!isSeriesMode && pairMode && showPairSettings && (
               <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="text-sm font-semibold text-white flex items-center gap-2">
@@ -1363,7 +1662,6 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
               <div
                 ref={chartContainerRef}
                 className="h-[420px] cursor-grab active:cursor-grabbing select-none"
-                onWheel={handleWheel}
                 onMouseDown={handleMouseDown}
               >
                 <ResponsiveContainer width="100%" height="100%">
@@ -1409,7 +1707,7 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
                       tickFormatter={(value) => normalized ? `${value.toFixed(0)}%` : `${value.toFixed(0)}`}
                       domain={priceYDomain}
                     />
-                    {showVolume && tickers.some(t => t.type === 'stock' && t.visible) && (
+                    {showVolume && (isSeriesMode ? hasVolumeInSeries : tickers.some(t => t.type === 'stock' && t.visible)) && (
                       <YAxis
                         yAxisId="volume"
                         orientation="left"
@@ -1455,7 +1753,17 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
                             <div style={{ color: chartTheme.tooltip.text, marginBottom: '6px', fontWeight: 600 }}>
                               {formatDate(label)}
                             </div>
-                            {tickers.filter(t => t.visible && t.type === 'stock').map(ticker => {
+                            {/* Series mode tooltip */}
+                            {isSeriesMode && visibleSeries.map(s => {
+                              const val = data[s.id];
+                              return val !== undefined ? (
+                                <div key={s.id} style={{ color: s.color || CHART_COLORS[0] }}>
+                                  {s.name}: {normalized ? `${val?.toFixed(2)}%` : formatPrice(val)}
+                                </div>
+                              ) : null;
+                            })}
+                            {/* Symbol mode tooltip */}
+                            {!isSeriesMode && tickers.filter(t => t.visible && t.type === 'stock').map(ticker => {
                               const sym = ticker.symbol;
                               if (showOHLC && data[`${sym}_open`] !== undefined) {
                                 const o = data[`${sym}_open`];
@@ -1518,8 +1826,35 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
                       />
                     ))}
 
-                    {/* Chart rendering based on chart type */}
-                    {tickers.filter(t => t.visible).map((ticker) => {
+                    {/* Series mode: render lines for each series */}
+                    {isSeriesMode && visibleSeries.map((s) => (
+                      <Line
+                        key={s.id}
+                        yAxisId="price"
+                        type="monotone"
+                        dataKey={s.id}
+                        stroke={s.color || CHART_COLORS[0]}
+                        strokeWidth={2}
+                        dot={false}
+                        connectNulls={true}
+                        name={s.name}
+                      />
+                    ))}
+
+                    {/* Series mode: volume bars */}
+                    {isSeriesMode && showVolume && hasVolumeInSeries && visibleSeries.map((s) => (
+                      <Bar
+                        key={`${s.id}_volume`}
+                        yAxisId="volume"
+                        dataKey={`${s.id}_volume`}
+                        fill={s.color || CHART_COLORS[0]}
+                        opacity={0.3}
+                        name={`${s.name} Vol`}
+                      />
+                    ))}
+
+                    {/* Symbol mode: Chart rendering based on chart type */}
+                    {!isSeriesMode && tickers.filter(t => t.visible).map((ticker) => {
                       // For indicators, always use line chart
                       if (ticker.type === 'indicator') {
                         return (
@@ -2141,13 +2476,15 @@ const ChartWidget = ({ widgetId, initialSymbols = ['NVDA'], onRemove }) => {
         )}
       </div>
 
-      {/* Stock Selector Modal */}
-      <StockSelectorModal
-        isOpen={showStockSelector}
-        title="Add Stock to Chart"
-        onSelect={handleAddTicker}
-        onClose={() => setShowStockSelector(false)}
-      />
+      {/* Stock Selector Modal (symbol mode only) */}
+      {!isSeriesMode && (
+        <StockSelectorModal
+          isOpen={showStockSelector}
+          title="Add Stock to Chart"
+          onSelect={handleAddTicker}
+          onClose={() => setShowStockSelector(false)}
+        />
+      )}
     </div>
   );
 };
