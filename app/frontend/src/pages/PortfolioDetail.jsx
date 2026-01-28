@@ -14,7 +14,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { portfolioAPI, exportAPI } from '../lib/api';
+import { portfolioAPI, exportAPI } from '../config/api';
 import AddTransactionModal from '../components/portfolio/AddTransactionModal';
 import HoldingsTable from '../components/portfolio/HoldingsTable';
 import TransactionsTable from '../components/portfolio/TransactionsTable';
@@ -167,8 +167,8 @@ export default function PortfolioDetail() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-[#0a0a0f] p-4 text-white">
+      <div className="w-full">
         {/* Header */}
         <div className="mb-6">
           <button

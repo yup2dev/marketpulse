@@ -21,31 +21,31 @@ import ActiveAlertsWidget from './alerts/widgets/ActiveAlertsWidget';
 
 import 'react-grid-layout/css/styles.css';
 
-// A simple modal for selecting a widget to add from the available list
+// Compact modal for selecting a widget to add
 const AddWidgetModal = ({ isOpen, onClose, availableWidgets, onSelect }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center">
-      <div className="bg-[#1a1f2e] rounded-lg shadow-2xl p-6 w-full max-w-md">
-        <h3 className="text-xl font-semibold text-white mb-6">Add New Widget</h3>
-        <div className="grid grid-cols-2 gap-4">
+    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center">
+      <div className="bg-[#12121a] border border-gray-800 rounded shadow-2xl p-4 w-full max-w-sm">
+        <h3 className="text-sm font-medium text-white mb-3">Add Widget</h3>
+        <div className="grid grid-cols-2 gap-2 max-h-[300px] overflow-y-auto">
           {availableWidgets.map((widget) => (
             <button
               key={widget.id}
               onClick={() => onSelect(widget)}
-              className="p-4 bg-[#252b3b] hover:bg-blue-600 rounded-lg transition-colors text-left"
+              className="p-2 bg-gray-800/50 hover:bg-cyan-900/50 border border-gray-700 hover:border-cyan-700 rounded transition-colors text-left"
             >
-              <div className="font-semibold text-white">{widget.name}</div>
-              {widget.description && <p className="text-sm text-gray-400 mt-1">{widget.description}</p>}
+              <div className="text-xs font-medium text-white">{widget.name}</div>
+              {widget.description && <p className="text-[10px] text-gray-500 mt-0.5 line-clamp-2">{widget.description}</p>}
             </button>
           ))}
         </div>
         <button
           onClick={onClose}
-          className="mt-8 w-full py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white transition-colors"
+          className="mt-3 w-full py-1.5 bg-gray-800 hover:bg-gray-700 rounded text-xs text-gray-400 hover:text-white transition-colors"
         >
-          Close
+          Cancel
         </button>
       </div>
     </div>
@@ -144,19 +144,19 @@ function WidgetDashboard({
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-6 py-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-2xl font-bold text-white">{title}</h2>
-          {subtitle && <p className="text-gray-400 mt-1">{subtitle}</p>}
+    <div className="w-full px-2 py-2">
+      {/* Compact Header */}
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-3">
+          <h2 className="text-sm font-medium text-white">{title}</h2>
+          {subtitle && <span className="text-xs text-gray-500">{subtitle}</span>}
         </div>
         <button
           onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors text-white font-medium"
+          className="flex items-center gap-1 px-2 py-1 bg-gray-800 hover:bg-gray-700 rounded text-xs text-gray-400 hover:text-white transition-colors"
         >
-          <Plus size={20} />
-          Add Widget
+          <Plus size={12} />
+          Add
         </button>
       </div>
 
@@ -167,7 +167,7 @@ function WidgetDashboard({
             className="layout"
             layout={layout}
             cols={12}
-            rowHeight={50}
+            rowHeight={40}
             width={gridWidth}
             onLayoutChange={handleLayoutChange}
             draggableHandle=".drag-handle-area"
@@ -175,6 +175,7 @@ function WidgetDashboard({
             isResizable={true}
             compactType="vertical"
             preventCollision={false}
+            margin={[4, 4]}
           >
             {widgets.map((widget) => (
               <div key={widget.id} className="bg-transparent">
@@ -183,14 +184,13 @@ function WidgetDashboard({
             ))}
           </GridLayout>
         ) : (
-          <div className="flex flex-col items-center justify-center py-20 bg-[#1a1a1a] rounded-lg border border-gray-800 border-dashed">
-            <h3 className="text-xl font-semibold text-white mb-2">Empty Dashboard</h3>
-            <p className="text-gray-400 mb-6">Add your first widget to get started.</p>
+          <div className="flex flex-col items-center justify-center py-12 bg-[#0d0d12] rounded border border-gray-800 border-dashed">
+            <p className="text-gray-500 text-xs mb-3">No widgets. Click to add.</p>
             <button
               onClick={() => setIsModalOpen(true)}
-              className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors font-medium text-white"
+              className="flex items-center gap-1 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded text-xs text-white transition-colors"
             >
-              <Plus size={20} />
+              <Plus size={12} />
               Add Widget
             </button>
           </div>

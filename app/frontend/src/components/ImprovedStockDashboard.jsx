@@ -65,7 +65,10 @@ function ImprovedStockDashboard() {
   // Update URL when tab changes
   const handleTabChange = (newTab) => {
     setActiveTab(newTab);
-    navigate(`?tab=${newTab}`);
+    // Preserve the view parameter when changing tabs
+    const params = new URLSearchParams(location.search);
+    params.set('tab', newTab);
+    navigate(`?${params.toString()}`);
   };
 
   const loadStockData = async () => {
@@ -255,60 +258,49 @@ function ImprovedStockDashboard() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-6 py-6">
-        {/* Stock Selector Section */}
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center">
-              <div>
-                <h2 className="text-2xl font-bold text-white">Stock Analysis</h2>
-                <p className="text-gray-400">Deep dive into company fundamentals and performance</p>
-              </div>
-              <button
-                  onClick={triggerRefresh}
-                  className="ml-6 flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors text-white text-sm font-medium"
-                  title="Refresh all widgets in this dashboard"
-              >
-                  <RefreshCw size={16} />
-                  Refresh All
-              </button>
-            </div>
-            <button
-              onClick={() => setShowStockSelector(!showStockSelector)}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors text-white text-sm font-medium"
-            >
-              {showStockSelector ? 'Hide Selector' : 'Change Stock'}
-            </button>
-          </div>
-
-          {showStockSelector === true && (
-            <div className="mb-6">
-              <StockSelector onSelect={handleStockSelect} />
-            </div>
-          )}
-        </div>
-
-        {/* Tabs */}
-        <div className="border-b border-gray-800 mb-6">
-          <div className="flex gap-6">
+    <div className="w-full px-2 py-2 bg-[#0a0a0f] min-h-screen text-[11px]">
+        {/* Compact Header with Tabs */}
+        <div className="flex items-center justify-between border-b border-gray-800 mb-2 pb-2">
+          {/* Tabs - Left */}
+          <div className="flex items-center gap-1">
             {STOCK_TABS.map((tab) => (
               <button
                 key={tab}
                 onClick={() => handleTabChange(tab.toLowerCase().replace(' ', '-'))}
-                className={`pb-3 px-1 text-sm font-medium transition-colors relative ${
+                className={`px-3 py-1.5 text-xs font-medium transition-colors rounded ${
                   activeTab === tab.toLowerCase().replace(' ', '-')
-                    ? 'text-white'
-                    : 'text-gray-400 hover:text-gray-300'
+                    ? 'text-white bg-gray-800'
+                    : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
                 }`}
               >
                 {tab}
-                {activeTab === tab.toLowerCase().replace(' ', '-') && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500"></div>
-                )}
               </button>
             ))}
           </div>
+
+          {/* Controls - Right */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={triggerRefresh}
+              className="flex items-center gap-1 px-2 py-1 bg-gray-800 hover:bg-gray-700 rounded text-gray-400 hover:text-white text-xs"
+              title="Refresh"
+            >
+              <RefreshCw size={12} />
+            </button>
+            <button
+              onClick={() => setShowStockSelector(!showStockSelector)}
+              className="px-2 py-1 bg-cyan-900/50 hover:bg-cyan-900/70 rounded text-cyan-400 text-xs font-medium"
+            >
+              {symbol}
+            </button>
+          </div>
         </div>
+
+        {showStockSelector === true && (
+          <div className="mb-2">
+            <StockSelector onSelect={handleStockSelect} />
+          </div>
+        )}
 
         {/* Content */}
         {activeTab === 'overview' && (

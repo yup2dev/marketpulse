@@ -42,11 +42,16 @@ class ApiClient {
         ...options,
       });
 
+      const data = await response.json().catch(() => ({}));
+
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const error = new Error(data.detail || `HTTP error! status: ${response.status}`);
+        error.status = response.status;
+        error.detail = data.detail;
+        throw error;
       }
 
-      return await response.json();
+      return data;
     } catch (error) {
       console.error('API request failed:', error);
       throw error;
@@ -67,3 +72,37 @@ class ApiClient {
 
 export const apiClient = new ApiClient();
 export default API_BASE_URL;
+
+// Auth API
+export const authAPI = {
+  login: (data) => apiClient.post(`${API_BASE}/auth/login`, data),
+  register: (data) => apiClient.post(`${API_BASE}/auth/register`, data),
+  logout: () => apiClient.post(`${API_BASE}/auth/logout`),
+  verifyToken: () => apiClient.get(`${API_BASE}/auth/verify`),
+};
+
+// Portfolio API
+export const portfolioAPI = {
+  getAll: () => apiClient.get(`${API_BASE}/portfolios`),
+  getById: (id) => apiClient.get(`${API_BASE}/portfolios/${id}`),
+  create: (data) => apiClient.post(`${API_BASE}/portfolios`, data),
+  update: (id, data) => apiClient.post(`${API_BASE}/portfolios/${id}`, data),
+  delete: (id) => apiClient.request(`${API_BASE}/portfolios/${id}`, { method: 'DELETE' }),
+  getHoldings: (id) => apiClient.get(`${API_BASE}/portfolios/${id}/holdings`),
+  getTransactions: (id) => apiClient.get(`${API_BASE}/portfolios/${id}/transactions`),
+  addTransaction: (id, data) => apiClient.post(`${API_BASE}/portfolios/${id}/transactions`, data),
+};
+
+// Export API
+export const exportAPI = {
+  portfolioCSV: (id) => apiClient.get(`${API_BASE}/export/portfolio/${id}/csv`),
+  portfolioExcel: (id) => apiClient.get(`${API_BASE}/export/portfolio/${id}/excel`),
+  portfolioPDF: (id) => apiClient.get(`${API_BASE}/export/portfolio/${id}/pdf`),
+};
+
+// Dashboard API
+export const dashboardAPI = {
+  getWatchlist: () => apiClient.get(`${API_BASE}/dashboard/watchlist`),
+  addToWatchlist: (symbol) => apiClient.post(`${API_BASE}/dashboard/watchlist`, { symbol }),
+  removeFromWatchlist: (symbol) => apiClient.request(`${API_BASE}/dashboard/watchlist/${symbol}`, { method: 'DELETE' }),
+};

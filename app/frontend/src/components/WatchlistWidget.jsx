@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { Star, TrendingUp, TrendingDown, Plus, Trash2, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { dashboardAPI } from '../lib/api';
+import { dashboardAPI } from '../config/api';
 import Card from './widgets/common/Card';
 import WidgetHeader from './widgets/common/WidgetHeader';
 

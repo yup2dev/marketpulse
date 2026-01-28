@@ -2,7 +2,7 @@
  * Auth 상태 관리 (Zustand)
  */
 import { create } from 'zustand';
-import { authAPI } from '../lib/api';
+import { authAPI } from '../config/api';
 
 const useAuthStore = create((set, get) => ({
   // State
@@ -18,7 +18,7 @@ const useAuthStore = create((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const response = await authAPI.login({ email, password });
-      const { access_token, refresh_token, user } = response.data;
+      const { access_token, refresh_token, user } = response;
 
       // 로컬스토리지에 저장
       localStorage.setItem('access_token', access_token);
@@ -36,7 +36,7 @@ const useAuthStore = create((set, get) => ({
 
       return { success: true };
     } catch (error) {
-      const errorMessage = error.response?.data?.detail || '로그인에 실패했습니다.';
+      const errorMessage = error.detail || error.message || '로그인에 실패했습니다.';
       set({ isLoading: false, error: errorMessage });
       return { success: false, error: errorMessage };
     }
@@ -51,7 +51,7 @@ const useAuthStore = create((set, get) => ({
         password,
         full_name,
       });
-      const { access_token, refresh_token, user } = response.data;
+      const { access_token, refresh_token, user } = response;
 
       // 로컬스토리지에 저장
       localStorage.setItem('access_token', access_token);
@@ -69,7 +69,7 @@ const useAuthStore = create((set, get) => ({
 
       return { success: true };
     } catch (error) {
-      const errorMessage = error.response?.data?.detail || '회원가입에 실패했습니다.';
+      const errorMessage = error.detail || error.message || '회원가입에 실패했습니다.';
       set({ isLoading: false, error: errorMessage });
       return { success: false, error: errorMessage };
     }
@@ -105,7 +105,7 @@ const useAuthStore = create((set, get) => ({
 
     try {
       const response = await authAPI.verifyToken();
-      const { user } = response.data;
+      const { user } = response;
 
       localStorage.setItem('user', JSON.stringify(user));
       set({ user, isAuthenticated: true });

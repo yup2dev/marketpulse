@@ -62,7 +62,7 @@ export default function AlertsPage() {
       <div className="text-white">
         {/* Page Header */}
         <div className="border-b border-gray-800">
-          <div className="max-w-[1800px] mx-auto px-6 py-4">
+          <div className="w-full px-4 py-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-blue-600/20 rounded-lg">

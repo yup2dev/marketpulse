@@ -1,5 +1,6 @@
-passlib
-python-jose
+passlib~=1.7.4
+bcrypt==4.0.1
+python-jose~=3.5.0
 transformers
 # MarketPulse - Financial News Crawler & Analyzer
 
@@ -98,3 +99,6 @@ flake8>=6.1.0
 mypy>=1.7.0
 
 pathlib~=1.0.1
+openpyxl~=3.1.5
+dotenv~=0.9.9
+urllib3~=2.5.0

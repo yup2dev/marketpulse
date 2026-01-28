@@ -1,0 +1,181 @@
+/**
+ * Market Overview Widget - Real-time market indices display
+ * Shows major indices with mini sparkline charts
+ */
+import { useState, useEffect, useCallback } from 'react';
+import { TrendingUp, TrendingDown, RefreshCw } from 'lucide-react';
+import { LineChart, Line, ResponsiveContainer } from 'recharts';
+import { API_BASE } from '../../config/api';
+
+// Major indices to display
+const MARKET_INDICES = [
+  { symbol: '^GSPC', name: 'S&P 500', shortName: 'S&P 500' },
+  { symbol: '^IXIC', name: 'NASDAQ Composite', shortName: 'Nasdaq' },
+  { symbol: '^DJI', name: 'Dow Jones', shortName: 'Dow Jones' },
+  { symbol: '^RUT', name: 'Russell 2000', shortName: 'Russell 2000' },
+  { symbol: '^GDAXI', name: 'DAX', shortName: 'DAX' },
+  { symbol: '^N225', name: 'Nikkei 225', shortName: 'Nikkei 225' },
+  { symbol: '^KS11', name: 'KOSPI', shortName: 'KOSPI' },
+  { symbol: '^KQ11', name: 'KOSDAQ', shortName: 'KOSDAQ' },
+];
+
+const MiniSparkline = ({ data, isPositive }) => {
+  if (!data || data.length === 0) return null;
+
+  return (
+    <div className="w-16 h-6">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data}>
+          <Line
+            type="monotone"
+            dataKey="close"
+            stroke={isPositive ? '#22c55e' : '#ef4444'}
+            strokeWidth={1}
+            dot={false}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+};
+
+const IndexCard = ({ symbol, name, shortName, quote, history }) => {
+  const price = quote?.price || quote?.regularMarketPrice || 0;
+  const change = quote?.change || quote?.regularMarketChange || 0;
+  const changePercent = quote?.changePercent || quote?.regularMarketChangePercent || 0;
+  const isPositive = change >= 0;
+
+  return (
+    <div className="flex items-center gap-2 px-3 py-1.5 border-r border-gray-800 last:border-r-0 min-w-[140px]">
+      <div className="flex-1">
+        <div className="text-[10px] text-gray-500 font-medium">{shortName}</div>
+        <div className="text-[11px] font-bold text-white">
+          {price ? price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'}
+        </div>
+        <div className={`text-[10px] font-medium ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
+          {isPositive ? '+' : ''}{change?.toFixed(2)} ({isPositive ? '+' : ''}{changePercent?.toFixed(2)}%)
+        </div>
+      </div>
+      <MiniSparkline data={history} isPositive={isPositive} />
+    </div>
+  );
+};
+
+export default function MarketOverview({ symbols = MARKET_INDICES }) {
+  const [quotes, setQuotes] = useState({});
+  const [histories, setHistories] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [lastUpdate, setLastUpdate] = useState(null);
+
+  const fetchData = useCallback(async () => {
+    try {
+      // Fetch quotes for all indices
+      const quotePromises = symbols.map(async ({ symbol }) => {
+        try {
+          const res = await fetch(`${API_BASE}/stock/quote/${encodeURIComponent(symbol)}`);
+          if (res.ok) {
+            const data = await res.json();
+            return { symbol, data };
+          }
+        } catch (e) {
+          console.error(`Failed to fetch quote for ${symbol}:`, e);
+        }
+        return { symbol, data: null };
+      });
+
+      // Fetch mini history for sparklines (5 days)
+      const historyPromises = symbols.map(async ({ symbol }) => {
+        try {
+          const res = await fetch(`${API_BASE}/stock/history/${encodeURIComponent(symbol)}?period=5d&interval=1h`);
+          if (res.ok) {
+            const data = await res.json();
+            return { symbol, data: data.data || [] };
+          }
+        } catch (e) {
+          console.error(`Failed to fetch history for ${symbol}:`, e);
+        }
+        return { symbol, data: [] };
+      });
+
+      const [quoteResults, historyResults] = await Promise.all([
+        Promise.all(quotePromises),
+        Promise.all(historyPromises)
+      ]);
+
+      const newQuotes = {};
+      quoteResults.forEach(({ symbol, data }) => {
+        if (data) newQuotes[symbol] = data;
+      });
+
+      const newHistories = {};
+      historyResults.forEach(({ symbol, data }) => {
+        newHistories[symbol] = data;
+      });
+
+      setQuotes(newQuotes);
+      setHistories(newHistories);
+      setLastUpdate(new Date());
+    } catch (error) {
+      console.error('Failed to fetch market data:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [symbols]);
+
+  useEffect(() => {
+    fetchData();
+    // Refresh every 60 seconds
+    const interval = setInterval(fetchData, 60000);
+    return () => clearInterval(interval);
+  }, [fetchData]);
+
+  return (
+    <div className="bg-[#0d0d12] border-b border-gray-800">
+      <div className="flex items-center">
+        {/* Title */}
+        <div className="flex items-center gap-2 px-4 py-2 border-r border-gray-800 bg-[#12121a]">
+          <RefreshCw
+            size={14}
+            className={`text-gray-400 ${loading ? 'animate-spin' : 'cursor-pointer hover:text-white'}`}
+            onClick={() => !loading && fetchData()}
+          />
+          <span className="text-xs text-gray-400 font-medium">Market Overview</span>
+          <select className="bg-transparent text-xs text-gray-500 border-none outline-none cursor-pointer">
+            <option>Global</option>
+          </select>
+        </div>
+
+        {/* Scrollable indices */}
+        <div className="flex-1 overflow-x-auto">
+          <div className="flex">
+            {symbols.map(({ symbol, name, shortName }) => (
+              <IndexCard
+                key={symbol}
+                symbol={symbol}
+                name={name}
+                shortName={shortName}
+                quote={quotes[symbol]}
+                history={histories[symbol]}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Widget controls */}
+        <div className="flex items-center gap-1 px-2 border-l border-gray-800">
+          <button className="p-1 text-gray-500 hover:text-white">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="7" height="7" />
+              <rect x="14" y="3" width="7" height="7" />
+              <rect x="3" y="14" width="7" height="7" />
+              <rect x="14" y="14" width="7" height="7" />
+            </svg>
+          </button>
+          <button className="p-1 text-gray-500 hover:text-white">⋮</button>
+          <button className="p-1 text-gray-500 hover:text-white">↗</button>
+          <button className="p-1 text-gray-500 hover:text-white">×</button>
+        </div>
+      </div>
+    </div>
+  );
+}

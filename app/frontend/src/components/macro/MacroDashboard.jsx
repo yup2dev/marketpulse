@@ -65,11 +65,11 @@ export default function MacroDashboard() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-6 py-6">
+    <div className="w-full px-4 py-4 bg-[#0a0a0f] min-h-screen">
       {/* Page Header */}
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-white">Macro Analysis</h2>
-        <p className="text-gray-400">Economic indicators, Fed policy, and market conditions</p>
+      <div className="mb-4">
+        <h2 className="text-xl font-bold text-white">Macro Analysis</h2>
+        <p className="text-sm text-gray-400">Economic indicators, Fed policy, and market conditions</p>
       </div>
 
       {/* Tabs - Analysis Style */}

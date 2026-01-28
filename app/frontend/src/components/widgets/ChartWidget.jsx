@@ -1658,16 +1658,30 @@ const ChartWidget = ({
 
                         case 'candlestick':
                         case 'heikinashi':
-                          // Render candlestick using Bar with custom shape
+                          // Render candlestick using Bar with custom shape + invisible line for tooltip
                           return !normalized ? (
-                            <Bar
-                              key={ticker.symbol}
-                              yAxisId="price"
-                              dataKey={`${ticker.symbol}_candleBody`}
-                              shape={(props) => <CandlestickBar {...props} dataKey={`${ticker.symbol}_candleBody`} />}
-                              name={ticker.name || ticker.symbol}
-                              isAnimationActive={false}
-                            />
+                            <React.Fragment key={ticker.symbol}>
+                              <Bar
+                                yAxisId="price"
+                                dataKey={`${ticker.symbol}_candleBody`}
+                                shape={(props) => <CandlestickBar {...props} dataKey={`${ticker.symbol}_candleBody`} />}
+                                name={ticker.name || ticker.symbol}
+                                isAnimationActive={false}
+                              />
+                              {/* Invisible line overlay for tooltip triggering */}
+                              <Line
+                                yAxisId="price"
+                                type="monotone"
+                                dataKey={`${ticker.symbol}_close`}
+                                stroke="transparent"
+                                strokeWidth={20}
+                                dot={false}
+                                activeDot={{ r: 4, fill: ticker.color, stroke: '#fff', strokeWidth: 2 }}
+                                connectNulls={true}
+                                name=""
+                                legendType="none"
+                              />
+                            </React.Fragment>
                           ) : (
                             <Line
                               key={ticker.symbol}
@@ -1683,16 +1697,30 @@ const ChartWidget = ({
                           );
 
                         case 'ohlc':
-                          // Render OHLC using Bar with custom shape
+                          // Render OHLC using Bar with custom shape + invisible line for tooltip
                           return !normalized ? (
-                            <Bar
-                              key={ticker.symbol}
-                              yAxisId="price"
-                              dataKey={`${ticker.symbol}_candleBody`}
-                              shape={(props) => <OHLCBar {...props} dataKey={`${ticker.symbol}_candleBody`} />}
-                              name={ticker.name || ticker.symbol}
-                              isAnimationActive={false}
-                            />
+                            <React.Fragment key={ticker.symbol}>
+                              <Bar
+                                yAxisId="price"
+                                dataKey={`${ticker.symbol}_candleBody`}
+                                shape={(props) => <OHLCBar {...props} dataKey={`${ticker.symbol}_candleBody`} />}
+                                name={ticker.name || ticker.symbol}
+                                isAnimationActive={false}
+                              />
+                              {/* Invisible line overlay for tooltip triggering */}
+                              <Line
+                                yAxisId="price"
+                                type="monotone"
+                                dataKey={`${ticker.symbol}_close`}
+                                stroke="transparent"
+                                strokeWidth={20}
+                                dot={false}
+                                activeDot={{ r: 4, fill: ticker.color, stroke: '#fff', strokeWidth: 2 }}
+                                connectNulls={true}
+                                name=""
+                                legendType="none"
+                              />
+                            </React.Fragment>
                           ) : (
                             <Line
                               key={ticker.symbol}

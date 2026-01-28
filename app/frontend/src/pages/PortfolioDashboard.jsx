@@ -13,7 +13,7 @@ import {
   ResponsiveContainer, Area, AreaChart
 } from 'recharts';
 import toast from 'react-hot-toast';
-import { portfolioAPI } from '../lib/api';
+import { portfolioAPI } from '../config/api';
 import CreatePortfolioModal from '../components/portfolio/CreatePortfolioModal';
 
 // Tab configuration - Analysis style tabs
@@ -169,12 +169,12 @@ export default function PortfolioDashboard() {
   };
 
   return (
-    <div className="text-white">
-      <div className="max-w-7xl mx-auto px-6 py-6">
+    <div className="text-white bg-[#0a0a0f] min-h-screen">
+      <div className="w-full px-4 py-4">
         {/* Page Header */}
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold text-white">Portfolio</h2>
-          <p className="text-gray-400">Manage your assets, positions, and trading history</p>
+        <div className="mb-4">
+          <h2 className="text-xl font-bold text-white">Portfolio</h2>
+          <p className="text-sm text-gray-400">Manage your assets, positions, and trading history</p>
         </div>
 
         {/* Tabs - Analysis Style */}
