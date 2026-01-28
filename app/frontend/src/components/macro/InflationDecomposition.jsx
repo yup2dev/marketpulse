@@ -86,9 +86,9 @@ export default function InflationDecomposition() {
                          inflationData.headline_cpi.yoy < 1.5 ? 'low' : 'moderate';
 
   const statusConfig = {
-    high: { color: '#ef4444', emoji: '🔥', label: 'High Inflation', description: 'Above Fed target' },
-    moderate: { color: '#10b981', emoji: '✓', label: 'Moderate Inflation', description: 'Near target' },
-    low: { color: '#3b82f6', emoji: '❄️', label: 'Low Inflation', description: 'Below target' }
+    high: { color: '#ef4444', textColor: 'text-red-400', label: 'High Inflation', description: 'Above Fed target' },
+    moderate: { color: '#10b981', textColor: 'text-green-400', label: 'Moderate Inflation', description: 'Near target' },
+    low: { color: '#3b82f6', textColor: 'text-blue-400', label: 'Low Inflation', description: 'Below target' }
   };
 
   const status = statusConfig[inflationStatus];
@@ -113,9 +113,8 @@ export default function InflationDecomposition() {
           }}
         >
           <div className="text-center mb-4">
-            <span className="text-5xl mb-3 block">{status.emoji}</span>
-            <h3 className="text-xl font-bold text-white mb-1">Headline CPI</h3>
-            <p className="text-sm text-gray-400">All Items</p>
+            <h3 className={`text-xl font-bold ${status.textColor} mb-1`}>Headline CPI</h3>
+            <p className="text-sm text-gray-400">All Items - {status.label}</p>
           </div>
 
           <div className="space-y-4">
@@ -153,8 +152,7 @@ export default function InflationDecomposition() {
         {/* Core CPI */}
         <div className={`${CARD_CLASSES.default} p-6`}>
           <div className="text-center mb-4">
-            <span className="text-5xl mb-3 block">🎯</span>
-            <h3 className="text-xl font-bold text-white mb-1">Core CPI</h3>
+            <h3 className="text-xl font-bold text-cyan-400 mb-1">Core CPI</h3>
             <p className="text-sm text-gray-400">Ex Food & Energy</p>
           </div>
 
@@ -255,10 +253,7 @@ export default function InflationDecomposition() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-gray-700/30 rounded-lg p-4">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-lg font-semibold text-white">Sticky CPI</span>
-                <span className="text-2xl">🔒</span>
-              </div>
+              <div className="text-sm text-gray-400 mb-2">Sticky CPI</div>
               <div className="text-4xl font-bold text-orange-400">
                 {inflationData.sticky_vs_flexible.sticky_cpi_yoy}%
               </div>
@@ -266,10 +261,7 @@ export default function InflationDecomposition() {
             </div>
 
             <div className="bg-gray-700/30 rounded-lg p-4">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-lg font-semibold text-white">Flexible CPI</span>
-                <span className="text-2xl">⚡</span>
-              </div>
+              <div className="text-sm text-gray-400 mb-2">Flexible CPI</div>
               <div className="text-4xl font-bold text-blue-400">
                 {inflationData.sticky_vs_flexible.flexible_cpi_yoy}%
               </div>

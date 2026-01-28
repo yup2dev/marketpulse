@@ -1,5 +1,5 @@
 /**
- * 알림 관리 페이지 - 4탭 구조
+ * Alerts Management Page
  */
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -12,10 +12,10 @@ import NewsAlertsTab from '../components/alerts/NewsAlertsTab';
 import AlertHistoryModal from '../components/alerts/AlertHistoryModal';
 
 const TABS = [
-  { id: 'overview', name: '개요', icon: LayoutDashboard },
-  { id: 'price', name: '가격 알림', icon: DollarSign },
-  { id: 'technical', name: '기술적 알림', icon: Activity },
-  { id: 'news', name: '뉴스 알림', icon: Newspaper }
+  { id: 'overview', name: 'Overview', icon: LayoutDashboard },
+  { id: 'price', name: 'Price Alerts', icon: DollarSign },
+  { id: 'technical', name: 'Technical Alerts', icon: Activity },
+  { id: 'news', name: 'News Alerts', icon: Newspaper }
 ];
 
 export default function AlertsPage() {
@@ -23,25 +23,25 @@ export default function AlertsPage() {
   const navigate = useNavigate();
   const [showHistoryModal, setShowHistoryModal] = useState(false);
 
-  // URL에서 탭 파라미터 읽기
+  // Get tab from URL
   const searchParams = new URLSearchParams(location.search);
   const tabFromUrl = searchParams.get('tab') || 'overview';
   const [activeTab, setActiveTab] = useState(tabFromUrl);
 
-  // URL 변경 시 탭 상태 동기화
+  // Sync tab state with URL
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const tab = params.get('tab') || 'overview';
     setActiveTab(tab);
   }, [location.search]);
 
-  // 탭 변경 핸들러
+  // Tab change handler
   const handleTabChange = (tabId) => {
     setActiveTab(tabId);
     navigate(`?tab=${tabId}`);
   };
 
-  // 탭 컨텐츠 렌더링
+  // Render tab content
   const renderTabContent = () => {
     switch (activeTab) {
       case 'overview':
@@ -59,33 +59,33 @@ export default function AlertsPage() {
 
   return (
     <AlertsProvider>
-      <div className="min-h-screen bg-[#0a0a0f]">
-        {/* Header */}
-        <div className="bg-[#12121a] border-b border-gray-800">
-          <div className="max-w-7xl mx-auto px-6 py-6">
+      <div className="text-white">
+        {/* Page Header */}
+        <div className="border-b border-gray-800">
+          <div className="max-w-[1800px] mx-auto px-6 py-4">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-blue-600/20 rounded-xl">
-                  <Bell className="text-blue-500" size={28} />
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-600/20 rounded-lg">
+                  <Bell className="text-blue-400" size={20} />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold text-white">알림 관리</h1>
-                  <p className="text-gray-400 text-sm mt-1">
-                    가격, 기술적 지표, 뉴스 알림을 설정하고 관리하세요
+                  <h1 className="text-xl font-semibold">Alerts</h1>
+                  <p className="text-gray-500 text-xs mt-0.5">
+                    Manage price, technical, and news alerts
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setShowHistoryModal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors text-gray-300"
+                className="flex items-center gap-2 px-3 py-1.5 border border-gray-700 hover:border-gray-600 rounded-lg transition-colors text-gray-400 hover:text-white text-sm"
               >
-                <History size={18} />
-                <span>히스토리</span>
+                <History size={16} />
+                <span>History</span>
               </button>
             </div>
 
             {/* Tab Navigation */}
-            <div className="flex gap-1 mt-6 -mb-px">
+            <div className="flex gap-0.5 mt-4 -mb-px">
               {TABS.map((tab) => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
@@ -93,17 +93,14 @@ export default function AlertsPage() {
                   <button
                     key={tab.id}
                     onClick={() => handleTabChange(tab.id)}
-                    className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-all relative ${
+                    className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-colors ${
                       isActive
-                        ? 'text-blue-500'
-                        : 'text-gray-400 hover:text-gray-200'
+                        ? 'text-cyan-400 border-b-2 border-cyan-400'
+                        : 'text-gray-400 hover:text-white border-b-2 border-transparent'
                     }`}
                   >
-                    <Icon size={18} />
+                    <Icon size={16} />
                     <span>{tab.name}</span>
-                    {isActive && (
-                      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 rounded-t" />
-                    )}
                   </button>
                 );
               })}
@@ -112,7 +109,7 @@ export default function AlertsPage() {
         </div>
 
         {/* Tab Content */}
-        <div className="py-6">
+        <div className="py-4">
           {renderTabContent()}
         </div>
 

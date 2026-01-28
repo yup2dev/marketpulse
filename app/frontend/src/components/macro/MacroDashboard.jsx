@@ -1,22 +1,7 @@
 /**
- * Macro 대시보드 - Alerts 스타일 탭+위젯 구조
+ * Macro Dashboard - Analysis style with data-driven content
  */
-import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import {
-  Globe,
-  LayoutDashboard,
-  Target,
-  TrendingUp,
-  Activity,
-  Users,
-  Building2,
-  BarChart3,
-  DollarSign,
-  CreditCard,
-  Home,
-  Repeat
-} from 'lucide-react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import MacroOverviewTab from './MacroOverviewTab';
 import MacroRegimeTab from './MacroRegimeTab';
 import MacroFedPolicyTab from './MacroFedPolicyTab';
@@ -27,31 +12,38 @@ import MacroFinConditionsTab from './MacroFinConditionsTab';
 import MacroSentimentTab from './MacroSentimentTab';
 import MacroCommoditiesTab from './MacroCommoditiesTab';
 
-const TABS = [
-  { id: 'overview', name: '개요', icon: LayoutDashboard },
-  { id: 'regime', name: '경제 국면', icon: Target },
-  { id: 'fed-policy', name: 'Fed 정책', icon: Building2 },
-  { id: 'yield-curve', name: '수익률 곡선', icon: TrendingUp },
-  { id: 'inflation', name: '인플레이션', icon: DollarSign },
-  { id: 'labor', name: '노동 시장', icon: Users },
-  { id: 'financial-conditions', name: '금융 환경', icon: Activity },
-  { id: 'sentiment', name: '시장 심리', icon: BarChart3 },
-  { id: 'commodities', name: '원자재', icon: Globe }
+const MACRO_TABS = [
+  'Overview',
+  'Economic Regime',
+  'Fed Policy',
+  'Yield Curve',
+  'Inflation',
+  'Labor Market',
+  'Financial Conditions',
+  'Sentiment',
+  'Commodities'
 ];
 
 export default function MacroDashboard() {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const activeTab = searchParams.get('tab') || 'overview';
 
-  const handleTabChange = (tabId) => {
-    setSearchParams({ tab: tabId });
+  const handleTabChange = (tabName) => {
+    const tabId = tabName.toLowerCase().replace(/ /g, '-');
+    navigate(`/?view=macro-analysis&tab=${tabId}`, { replace: true });
+  };
+
+  const isTabActive = (tabName) => {
+    const tabId = tabName.toLowerCase().replace(/ /g, '-');
+    return activeTab === tabId;
   };
 
   const renderTabContent = () => {
     switch (activeTab) {
       case 'overview':
         return <MacroOverviewTab />;
-      case 'regime':
+      case 'economic-regime':
         return <MacroRegimeTab />;
       case 'fed-policy':
         return <MacroFedPolicyTab />;
@@ -59,7 +51,7 @@ export default function MacroDashboard() {
         return <MacroYieldCurveTab />;
       case 'inflation':
         return <MacroInflationTab />;
-      case 'labor':
+      case 'labor-market':
         return <MacroLaborTab />;
       case 'financial-conditions':
         return <MacroFinConditionsTab />;
@@ -73,55 +65,37 @@ export default function MacroDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f]">
-      {/* Header */}
-      <div className="bg-[#12121a] border-b border-gray-800">
-        <div className="max-w-7xl mx-auto px-6 py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-green-600/20 rounded-xl">
-                <Globe className="text-green-500" size={28} />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-white">거시경제 분석</h1>
-                <p className="text-gray-400 text-sm mt-1">
-                  경제 지표, Fed 정책, 시장 심리를 분석하세요
-                </p>
-              </div>
-            </div>
-          </div>
+    <div className="max-w-7xl mx-auto px-6 py-6">
+      {/* Page Header */}
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold text-white">Macro Analysis</h2>
+        <p className="text-gray-400">Economic indicators, Fed policy, and market conditions</p>
+      </div>
 
-          {/* Tab Navigation - Scrollable */}
-          <div className="flex gap-1 mt-6 -mb-px overflow-x-auto pb-1 scrollbar-hide">
-            {TABS.map((tab) => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => handleTabChange(tab.id)}
-                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-all relative whitespace-nowrap ${
-                    isActive
-                      ? 'text-green-500'
-                      : 'text-gray-400 hover:text-gray-200'
-                  }`}
-                >
-                  <Icon size={18} />
-                  <span>{tab.name}</span>
-                  {isActive && (
-                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-green-500 rounded-t" />
-                  )}
-                </button>
-              );
-            })}
-          </div>
+      {/* Tabs - Analysis Style */}
+      <div className="border-b border-gray-800 mb-6">
+        <div className="flex gap-6 overflow-x-auto">
+          {MACRO_TABS.map((tab) => (
+            <button
+              key={tab}
+              onClick={() => handleTabChange(tab)}
+              className={`pb-3 px-1 text-sm font-medium transition-colors relative whitespace-nowrap ${
+                isTabActive(tab)
+                  ? 'text-white'
+                  : 'text-gray-400 hover:text-gray-300'
+              }`}
+            >
+              {tab}
+              {isTabActive(tab) && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-cyan-500"></div>
+              )}
+            </button>
+          ))}
         </div>
       </div>
 
       {/* Tab Content */}
-      <div className="py-6">
-        {renderTabContent()}
-      </div>
+      {renderTabContent()}
     </div>
   );
 }

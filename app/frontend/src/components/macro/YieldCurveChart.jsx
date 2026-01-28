@@ -28,29 +28,29 @@ import { SkeletonLoader } from '../widgets/common';
 const SHAPE_CONFIG = {
   normal: {
     name: 'Normal',
-    emoji: '📈',
     color: '#10b981',
+    textColor: 'text-green-400',
     description: 'Longer-term rates higher than short-term (healthy)',
     signal: 'Economic expansion expected'
   },
   flat: {
     name: 'Flat',
-    emoji: '➡️',
     color: '#f59e0b',
+    textColor: 'text-amber-400',
     description: 'Little difference between short and long rates',
     signal: 'Economic uncertainty or transition'
   },
   inverted: {
     name: 'Inverted',
-    emoji: '📉',
     color: '#ef4444',
+    textColor: 'text-red-400',
     description: 'Short-term rates higher than long-term (warning)',
     signal: 'Recession signal - historically precedes downturn'
   },
   humped: {
     name: 'Humped',
-    emoji: '🏔️',
     color: '#3b82f6',
+    textColor: 'text-blue-400',
     description: 'Mid-term rates higher than both short and long',
     signal: 'Market expects rates to decline in future'
   }
@@ -364,12 +364,9 @@ export default function YieldCurveChart() {
               }}
             >
               <div className="text-center">
-                <span className="text-5xl mb-3 block">{shapeConfig.emoji}</span>
-                <h3 className="text-2xl font-bold text-white mb-2">{shapeConfig.name} Curve</h3>
+                <h3 className={`text-3xl font-bold mb-2 ${shapeConfig.textColor}`}>{shapeConfig.name} Curve</h3>
                 <p className="text-gray-300 mb-2">{shapeConfig.description}</p>
-                <p className="text-sm" style={{ color: shapeConfig.color }}>
-                  💡 {shapeConfig.signal}
-                </p>
+                <p className="text-sm text-gray-400">{shapeConfig.signal}</p>
               </div>
             </div>
           )}

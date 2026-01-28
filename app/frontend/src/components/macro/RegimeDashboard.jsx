@@ -1,6 +1,5 @@
 /**
- * Economic Regime Dashboard
- * 4-Quadrant visualization of Growth vs Inflation
+ * Economic Regime Dashboard - Data-driven growth vs inflation analysis
  */
 import { useState, useEffect } from 'react';
 import {
@@ -12,60 +11,43 @@ import {
   Tooltip,
   ResponsiveContainer,
   ReferenceLine,
-  Cell,
-  Legend
+  Cell
 } from 'recharts';
-import {
-  TrendingUp,
-  TrendingDown,
-  Activity,
-  AlertCircle,
-  ChevronRight
-} from 'lucide-react';
+import { ArrowUp, ArrowDown, RefreshCw } from 'lucide-react';
 import { API_BASE } from '../../config/api';
-import { CARD_CLASSES } from '../../styles/designTokens';
-import { SkeletonLoader } from '../widgets/common';
 
 const REGIME_CONFIG = {
   goldilocks: {
     name: 'Goldilocks',
-    emoji: '🌟',
     color: '#10b981',
-    bgColor: 'rgba(16, 185, 129, 0.1)',
-    description: 'Positive growth + moderate inflation',
-    quadrant: 'Q1',
-    x: 1,
-    y: 1
+    bgColor: 'bg-green-500/10',
+    borderColor: 'border-green-500',
+    textColor: 'text-green-400',
+    description: 'Positive growth + moderate inflation'
   },
   reflation: {
     name: 'Reflation',
-    emoji: '🔥',
     color: '#f59e0b',
-    bgColor: 'rgba(245, 158, 11, 0.1)',
-    description: 'Growth recovering + inflation rising',
-    quadrant: 'Q2',
-    x: -1,
-    y: 1
+    bgColor: 'bg-amber-500/10',
+    borderColor: 'border-amber-500',
+    textColor: 'text-amber-400',
+    description: 'Growth recovering + inflation rising'
   },
   stagflation: {
     name: 'Stagflation',
-    emoji: '⚠️',
     color: '#ef4444',
-    bgColor: 'rgba(239, 68, 68, 0.1)',
-    description: 'Weak growth + high inflation',
-    quadrant: 'Q3',
-    x: -1,
-    y: -1
+    bgColor: 'bg-red-500/10',
+    borderColor: 'border-red-500',
+    textColor: 'text-red-400',
+    description: 'Weak growth + high inflation'
   },
   deflation: {
     name: 'Deflation',
-    emoji: '❄️',
     color: '#3b82f6',
-    bgColor: 'rgba(59, 130, 246, 0.1)',
-    description: 'Weak growth + low inflation',
-    quadrant: 'Q4',
-    x: 1,
-    y: -1
+    bgColor: 'bg-blue-500/10',
+    borderColor: 'border-blue-500',
+    textColor: 'text-blue-400',
+    description: 'Weak growth + low inflation'
   }
 };
 
@@ -102,53 +84,20 @@ export default function RegimeDashboard() {
   const CustomTooltip = ({ active, payload }) => {
     if (active && payload && payload.length > 0) {
       const data = payload[0].payload;
-
-      // Ensure we have valid data
       if (!data || !data.regime) return null;
 
       const config = REGIME_CONFIG[data.regime];
       if (!config) return null;
 
-      // Format date properly
-      const formattedDate = data.date
-        ? new Date(data.date).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
-          })
-        : 'N/A';
-
       return (
-        <div className="bg-gray-900 border border-gray-700 rounded-lg p-3 shadow-lg">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-2xl">{config.emoji}</span>
-            <span className="font-semibold text-white">{config.name}</span>
-            {data.isCurrent && (
-              <span className="px-2 py-0.5 bg-blue-600 text-white text-xs font-bold rounded-full">
-                LATEST
-              </span>
-            )}
-          </div>
-          <div className="text-xs space-y-1">
-            <div className={data.isCurrent ? 'font-bold text-white' : 'text-gray-400'}>
-              📅 Date: {formattedDate}
-            </div>
-            <div className="text-gray-300">
-              📈 Growth Score: {data.growth_score != null ? data.growth_score.toFixed(1) : 'N/A'}
-            </div>
-            <div className="text-gray-300">
-              🔥 Inflation Score: {data.inflation_score != null ? data.inflation_score.toFixed(1) : 'N/A'}
-            </div>
-            {data.gdp_growth != null && (
-              <div className="text-gray-300">
-                💰 GDP Growth: {data.gdp_growth.toFixed(1)}%
-              </div>
-            )}
-            {data.cpi_yoy != null && (
-              <div className="text-gray-300">
-                📊 CPI YoY: {data.cpi_yoy.toFixed(1)}%
-              </div>
-            )}
+        <div className="bg-[#1a1a1a] border border-gray-700 rounded-lg p-3 shadow-lg">
+          <div className={`font-semibold ${config.textColor} mb-2`}>{config.name}</div>
+          <div className="text-xs space-y-1 text-gray-300">
+            <div>Date: {new Date(data.date).toLocaleDateString()}</div>
+            <div>Growth Score: {data.growth_score?.toFixed(1)}</div>
+            <div>Inflation Score: {data.inflation_score?.toFixed(1)}</div>
+            {data.gdp_growth != null && <div>GDP Growth: {data.gdp_growth.toFixed(1)}%</div>}
+            {data.cpi_yoy != null && <div>CPI YoY: {data.cpi_yoy.toFixed(1)}%</div>}
           </div>
         </div>
       );
@@ -156,114 +105,94 @@ export default function RegimeDashboard() {
     return null;
   };
 
-  const currentConfig = currentRegime ? REGIME_CONFIG[currentRegime.regime] : null;
+  const mostRecentData = history.length > 0 ? history[history.length - 1] : null;
+  const config = mostRecentData ? REGIME_CONFIG[mostRecentData.regime] : null;
 
-  // Prepare scatter data - mark the last item as current
   const scatterData = history.map((h, index) => ({
     ...h,
     isCurrent: index === history.length - 1
   }));
 
-  const mostRecentData = history.length > 0
-    ? history[history.length - 1]
-    : null;
-
-  const mostRecentConfig = mostRecentData
-    ? REGIME_CONFIG[mostRecentData.regime]
-    : currentConfig;
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        {[1, 2].map(i => (
+          <div key={i} className="bg-[#1a1a1a] rounded-lg p-6 border border-gray-800 animate-pulse">
+            <div className="h-4 bg-gray-700 rounded w-1/4 mb-4"></div>
+            <div className="h-8 bg-gray-700 rounded w-1/2"></div>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* Header with Current Regime */}
-      <div className={`${CARD_CLASSES.default} p-6`}>
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <h2 className="text-2xl font-bold text-white mb-2">Economic Regime</h2>
-            <p className="text-gray-400">Growth vs Inflation Analysis</p>
-          </div>
-
-          {/* Period Selector */}
-          <div className="flex gap-2">
+      {/* Current Regime Card */}
+      <div className="bg-[#1a1a1a] rounded-lg border border-gray-800">
+        <div className="p-4 border-b border-gray-800 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-white">Current Economic Regime</h3>
+          <div className="flex items-center gap-2">
             {['1y', '3y', '5y', '10y'].map(period => (
               <button
                 key={period}
                 onClick={() => setSelectedPeriod(period)}
-                className={`px-3 py-1 rounded-lg text-sm transition-colors ${
+                className={`px-3 py-1 rounded text-sm transition-colors ${
                   selectedPeriod === period
-                    ? 'bg-blue-600 text-white'
+                    ? 'bg-cyan-500 text-black'
                     : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                 }`}
               >
                 {period}
               </button>
             ))}
+            <button onClick={fetchRegimeData} className="ml-2 text-gray-400 hover:text-white">
+              <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+            </button>
           </div>
         </div>
 
-        {/* Current Regime Card - Using most recent history data */}
-        {loading || !mostRecentConfig ? (
-          <div className="rounded-lg p-6 border-2 border-gray-700 bg-gray-800/30">
-            <SkeletonLoader variant="card" count={3} />
-          </div>
-        ) : (
-          <div
-            className="rounded-lg p-6 border-2"
-            style={{
-              backgroundColor: mostRecentConfig.bgColor,
-              borderColor: mostRecentConfig.color
-            }}
-          >
-            <div className="flex items-center gap-4 mb-4">
-              <span className="text-6xl">{mostRecentConfig.emoji}</span>
-              <div>
-                <h3 className="text-3xl font-bold text-white mb-1">
-                  {mostRecentConfig.name}
-                </h3>
-                <p className="text-gray-400">{mostRecentConfig.description}</p>
-                {mostRecentData && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    Latest data: {new Date(mostRecentData.date).toLocaleDateString()}
-                  </p>
-                )}
+        {config && mostRecentData && (
+          <div className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+              {/* Regime Status */}
+              <div className={`col-span-1 md:col-span-2 p-4 rounded-lg ${config.bgColor} border ${config.borderColor}`}>
+                <div className={`text-3xl font-bold ${config.textColor} mb-2`}>{config.name}</div>
+                <p className="text-gray-400 text-sm mb-4">{config.description}</p>
+                <p className="text-xs text-gray-500">
+                  Latest: {new Date(mostRecentData.date).toLocaleDateString()}
+                </p>
               </div>
-            </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-gray-800/50 rounded-lg p-3">
+              {/* Metrics */}
+              <div className="bg-gray-800/50 rounded-lg p-4">
                 <div className="text-xs text-gray-400 mb-1">Growth Score</div>
                 <div className="text-2xl font-bold text-white flex items-center gap-2">
-                  {mostRecentData && mostRecentData.growth_score > 0 ? (
-                    <TrendingUp className="text-green-400" size={20} />
+                  {mostRecentData.growth_score > 0 ? (
+                    <ArrowUp size={20} className="text-green-400" />
                   ) : (
-                    <TrendingDown className="text-red-400" size={20} />
+                    <ArrowDown size={20} className="text-red-400" />
                   )}
-                  {mostRecentData?.growth_score?.toFixed(1) || 'N/A'}
+                  {mostRecentData.growth_score?.toFixed(1)}
                 </div>
               </div>
 
-              <div className="bg-gray-800/50 rounded-lg p-3">
+              <div className="bg-gray-800/50 rounded-lg p-4">
                 <div className="text-xs text-gray-400 mb-1">Inflation Score</div>
                 <div className="text-2xl font-bold text-white flex items-center gap-2">
-                  {mostRecentData && mostRecentData.inflation_score > 0 ? (
-                    <TrendingUp className="text-orange-400" size={20} />
+                  {mostRecentData.inflation_score > 0 ? (
+                    <ArrowUp size={20} className="text-amber-400" />
                   ) : (
-                    <TrendingDown className="text-blue-400" size={20} />
+                    <ArrowDown size={20} className="text-blue-400" />
                   )}
-                  {mostRecentData?.inflation_score?.toFixed(1) || 'N/A'}
+                  {mostRecentData.inflation_score?.toFixed(1)}
                 </div>
               </div>
 
-              <div className="bg-gray-800/50 rounded-lg p-3">
-                <div className="text-xs text-gray-400 mb-1">GDP Growth</div>
-                <div className="text-2xl font-bold text-white">
-                  {mostRecentData?.gdp_growth?.toFixed(1) || 'N/A'}%
-                </div>
-              </div>
-
-              <div className="bg-gray-800/50 rounded-lg p-3">
-                <div className="text-xs text-gray-400 mb-1">CPI YoY</div>
-                <div className="text-2xl font-bold text-white">
-                  {mostRecentData?.cpi_yoy?.toFixed(1) || 'N/A'}%
+              <div className="bg-gray-800/50 rounded-lg p-4">
+                <div className="text-xs text-gray-400 mb-1">GDP / CPI</div>
+                <div className="text-xl font-bold text-white">
+                  {mostRecentData.gdp_growth?.toFixed(1)}% / {mostRecentData.cpi_yoy?.toFixed(1)}%
                 </div>
               </div>
             </div>
@@ -271,173 +200,111 @@ export default function RegimeDashboard() {
         )}
       </div>
 
-      {/* 4-Quadrant Chart */}
-      <div className={`${CARD_CLASSES.default} p-6`}>
-        <h3 className="text-lg font-semibold text-white mb-4">
-          Historical Regime Transitions
-        </h3>
-
-        {loading || history.length === 0 ? (
-          <div style={{ height: 500 }}>
-            <SkeletonLoader variant="chart" />
-          </div>
-        ) : (
-          <ResponsiveContainer width="100%" height={500}>
-          <ScatterChart
-            margin={{ top: 20, right: 20, bottom: 20, left: 20 }}
-          >
-            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-
-            {/* Axes */}
-            <XAxis
-              type="number"
-              dataKey="growth_score"
-              domain={[-100, 100]}
-              stroke="#9ca3af"
-              label={{ value: 'Growth Score', position: 'bottom', fill: '#9ca3af' }}
-            />
-            <YAxis
-              type="number"
-              dataKey="inflation_score"
-              domain={[-100, 100]}
-              stroke="#9ca3af"
-              label={{ value: 'Inflation Score', angle: -90, position: 'left', fill: '#9ca3af' }}
-            />
-
-            {/* Reference Lines (Quadrant Dividers) */}
-            <ReferenceLine x={0} stroke="#6b7280" strokeWidth={2} />
-            <ReferenceLine y={0} stroke="#6b7280" strokeWidth={2} />
-
-            <Tooltip content={<CustomTooltip />} />
-
-            {/* Background Quadrant Labels */}
-            <text x="75%" y="20%" fill="#10b981" opacity={0.3} fontSize={20} fontWeight="bold">
-              Goldilocks 🌟
-            </text>
-            <text x="15%" y="20%" fill="#f59e0b" opacity={0.3} fontSize={20} fontWeight="bold">
-              Reflation 🔥
-            </text>
-            <text x="15%" y="85%" fill="#ef4444" opacity={0.3} fontSize={20} fontWeight="bold">
-              Stagflation ⚠️
-            </text>
-            <text x="75%" y="85%" fill="#3b82f6" opacity={0.3} fontSize={20} fontWeight="bold">
-              Deflation ❄️
-            </text>
-
-            {/* All data points - single Scatter */}
-            <Scatter
-              name="Regime Data"
-              data={scatterData}
-              fill="#6b7280"
-            >
-              {scatterData.map((entry, index) => {
-                const config = REGIME_CONFIG[entry.regime];
-                const isLatest = entry.isCurrent;
-
-                return (
-                  <Cell
-                    key={`cell-${index}`}
-                    fill={config.color}
-                    opacity={isLatest ? 1 : 0.4}
-                    r={isLatest ? 16 : 4}
-                    stroke={isLatest ? "#fff" : "none"}
-                    strokeWidth={isLatest ? 4 : 0}
-                    style={isLatest ? {
-                      filter: 'drop-shadow(0 0 8px currentColor)'
-                    } : {}}
-                  />
-                );
-              })}
-            </Scatter>
-          </ScatterChart>
-        </ResponsiveContainer>
-        )}
+      {/* Scatter Chart */}
+      <div className="bg-[#1a1a1a] rounded-lg border border-gray-800">
+        <div className="p-4 border-b border-gray-800">
+          <h3 className="text-lg font-semibold text-white">Regime History (Growth vs Inflation)</h3>
+        </div>
+        <div className="p-4">
+          {history.length > 0 ? (
+            <ResponsiveContainer width="100%" height={400}>
+              <ScatterChart margin={{ top: 20, right: 20, bottom: 40, left: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis
+                  type="number"
+                  dataKey="growth_score"
+                  domain={[-100, 100]}
+                  stroke="#9ca3af"
+                  label={{ value: 'Growth Score', position: 'bottom', fill: '#9ca3af', offset: 20 }}
+                />
+                <YAxis
+                  type="number"
+                  dataKey="inflation_score"
+                  domain={[-100, 100]}
+                  stroke="#9ca3af"
+                  label={{ value: 'Inflation Score', angle: -90, position: 'left', fill: '#9ca3af' }}
+                />
+                <ReferenceLine x={0} stroke="#6b7280" strokeWidth={2} />
+                <ReferenceLine y={0} stroke="#6b7280" strokeWidth={2} />
+                <Tooltip content={<CustomTooltip />} />
+                <Scatter name="Regime Data" data={scatterData}>
+                  {scatterData.map((entry, index) => {
+                    const entryConfig = REGIME_CONFIG[entry.regime];
+                    const isLatest = entry.isCurrent;
+                    return (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={entryConfig?.color || '#6b7280'}
+                        opacity={isLatest ? 1 : 0.4}
+                        r={isLatest ? 12 : 4}
+                        stroke={isLatest ? "#fff" : "none"}
+                        strokeWidth={isLatest ? 3 : 0}
+                      />
+                    );
+                  })}
+                </Scatter>
+              </ScatterChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-[400px] flex items-center justify-center text-gray-400">
+              No historical data available
+            </div>
+          )}
+        </div>
 
         {/* Legend */}
-        <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-          {Object.entries(REGIME_CONFIG).map(([key, config]) => (
-            <div
-              key={key}
-              className="flex items-center gap-3 bg-gray-700/30 rounded-lg p-3"
-            >
-              <div
-                className="w-4 h-4 rounded-full"
-                style={{ backgroundColor: config.color }}
-              />
-              <div className="flex items-center gap-2">
-                <span className="text-xl">{config.emoji}</span>
-                <span className="text-sm text-gray-300">{config.name}</span>
+        <div className="p-4 border-t border-gray-800">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {Object.entries(REGIME_CONFIG).map(([key, cfg]) => (
+              <div key={key} className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cfg.color }} />
+                <span className={`text-sm ${cfg.textColor}`}>{cfg.name}</span>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* Component Breakdown */}
+      {/* Components Breakdown */}
       {currentRegime?.components && (
-        <div className={`${CARD_CLASSES.default} p-6`}>
-          <h3 className="text-lg font-semibold text-white mb-4">
-            Growth Components (Real-time Calculation)
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-gray-700/50 rounded-lg p-4">
-              <div className="text-sm text-gray-400 mb-2">GDP Growth Rate</div>
-              <div className="text-2xl font-bold text-white">
-                {currentRegime.components?.gdp_growth?.toFixed(2)}%
-              </div>
-              <div className="text-xs text-gray-500 mt-1">Weight: 50%</div>
-            </div>
-            <div className="bg-gray-700/50 rounded-lg p-4">
-              <div className="text-sm text-gray-400 mb-2">Industrial Production YoY</div>
-              <div className="text-2xl font-bold text-white">
-                {currentRegime.components?.industrial_production_yoy?.toFixed(2)}%
-              </div>
-              <div className="text-xs text-gray-500 mt-1">Weight: 25%</div>
-            </div>
-            <div className="bg-gray-700/50 rounded-lg p-4">
-              <div className="text-sm text-gray-400 mb-2">Employment YoY</div>
-              <div className="text-2xl font-bold text-white">
-                {currentRegime.components?.employment_yoy?.toFixed(2)}%
-              </div>
-              <div className="text-xs text-gray-500 mt-1">Weight: 25%</div>
-            </div>
+        <div className="bg-[#1a1a1a] rounded-lg border border-gray-800">
+          <div className="p-4 border-b border-gray-800">
+            <h3 className="text-lg font-semibold text-white">Component Breakdown</h3>
           </div>
-
-          <h3 className="text-lg font-semibold text-white mt-6 mb-4">
-            Momentum Indicators (Real-time Calculation)
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-gray-700/50 rounded-lg p-4">
-              <div className="text-sm text-gray-400 mb-2">Growth Momentum (3M)</div>
-              <div className="flex items-center gap-2">
-                <div className={`text-2xl font-bold ${
-                  currentRegime.growth_momentum > 0 ? 'text-green-400' : 'text-red-400'
-                }`}>
-                  {currentRegime.growth_momentum > 0 ? '+' : ''}
-                  {currentRegime.growth_momentum?.toFixed(2)}%
-                </div>
-                {currentRegime.growth_momentum > 0 ? (
-                  <TrendingUp className="text-green-400" size={24} />
-                ) : (
-                  <TrendingDown className="text-red-400" size={24} />
-                )}
-              </div>
-            </div>
-            <div className="bg-gray-700/50 rounded-lg p-4">
-              <div className="text-sm text-gray-400 mb-2">Inflation Momentum (3M)</div>
-              <div className="flex items-center gap-2">
-                <div className={`text-2xl font-bold ${
-                  currentRegime.inflation_momentum > 0 ? 'text-orange-400' : 'text-blue-400'
-                }`}>
-                  {currentRegime.inflation_momentum > 0 ? '+' : ''}
-                  {currentRegime.inflation_momentum?.toFixed(2)}%
-                </div>
-                {currentRegime.inflation_momentum > 0 ? (
-                  <TrendingUp className="text-orange-400" size={24} />
-                ) : (
-                  <TrendingDown className="text-blue-400" size={24} />
-                )}
-              </div>
+          <div className="p-4">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="text-left text-sm text-gray-400 border-b border-gray-800">
+                    <th className="px-4 py-3 font-medium">Component</th>
+                    <th className="px-4 py-3 font-medium text-right">Value</th>
+                    <th className="px-4 py-3 font-medium text-right">Weight</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-gray-800/50">
+                    <td className="px-4 py-3 text-white">GDP Growth Rate</td>
+                    <td className="px-4 py-3 text-right text-white font-medium">
+                      {currentRegime.components?.gdp_growth?.toFixed(2)}%
+                    </td>
+                    <td className="px-4 py-3 text-right text-gray-400">50%</td>
+                  </tr>
+                  <tr className="border-b border-gray-800/50">
+                    <td className="px-4 py-3 text-white">Industrial Production YoY</td>
+                    <td className="px-4 py-3 text-right text-white font-medium">
+                      {currentRegime.components?.industrial_production_yoy?.toFixed(2)}%
+                    </td>
+                    <td className="px-4 py-3 text-right text-gray-400">25%</td>
+                  </tr>
+                  <tr className="border-b border-gray-800/50">
+                    <td className="px-4 py-3 text-white">Employment YoY</td>
+                    <td className="px-4 py-3 text-right text-white font-medium">
+                      {currentRegime.components?.employment_yoy?.toFixed(2)}%
+                    </td>
+                    <td className="px-4 py-3 text-right text-gray-400">25%</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </div>

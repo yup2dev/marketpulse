@@ -1,8 +1,11 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { LineChart, Line, BarChart, Bar, ComposedChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, ReferenceArea, Cell, Rectangle } from 'recharts';
 import { Plus, TrendingUp, Percent, Activity, X, TrendingDown, GitCompare, Settings, ChevronDown, ChevronUp, BarChart2, Layers } from 'lucide-react';
 import StockSelectorModal from '../StockSelectorModal';
 import useTheme from '../../hooks/useTheme';
+import useChartZoom from '../../hooks/useChartZoom';
+import usePairAnalysis from '../../hooks/usePairAnalysis';
+import useTechnicalIndicators from '../../hooks/useTechnicalIndicators';
 import {
   WidgetHeader,
   LoadingSpinner,
@@ -25,15 +28,8 @@ import {
 } from './common';
 import { calculateIndicator } from '../../utils/technicalIndicators';
 import {
-  calculateSpread,
-  normalizeSpread,
-  identifyOutperformancePeriods,
-  detectRegime,
-  getRegimePeriods,
   getRegimeColor,
   getRegimeBadge,
-  mergeSpreadData,
-  mergeRegimeData,
 } from '../../utils/pairAnalysis';
 
 // Custom Candlestick Bar Shape
@@ -225,147 +221,66 @@ const ChartWidget = ({
   const [showVolume, setShowVolume] = useState(savedState?.showVolume !== undefined ? savedState.showVolume : true);
   const [showStockSelector, setShowStockSelector] = useState(false);
   const [showIndicatorSelector, setShowIndicatorSelector] = useState(false);
-  const [showTechnicalIndicatorSelector, setShowTechnicalIndicatorSelector] = useState(false);
   const [tickerStats, setTickerStats] = useState({});
-  const [technicalIndicators, setTechnicalIndicators] = useState(savedState?.technicalIndicators || []);
   const [chartType, setChartType] = useState(savedState?.chartType || 'line');
   const [showChartTypeSelectorDropdown, setShowChartTypeSelectorDropdown] = useState(false);
 
-  // Zoom/Pan state for scroll and drag functionality
-  const [visibleRange, setVisibleRange] = useState({ start: 0, end: 100 }); // percentage
-  const chartContainerRef = useRef(null);
-  const isDragging = useRef(false);
-  const dragStartX = useRef(0);
-  const dragStartRange = useRef({ start: 0, end: 100 });
+  // Zoom/Pan functionality via custom hook
+  const {
+    visibleRange,
+    setVisibleRange,
+    isZoomed,
+    chartContainerRef,
+    handleMouseDown,
+    resetZoom,
+  } = useChartZoom();
+
+  // Technical Indicators via custom hook
+  const {
+    technicalIndicators,
+    setTechnicalIndicators,
+    showSelector: showTechnicalIndicatorSelector,
+    setShowSelector: setShowTechnicalIndicatorSelector,
+    addIndicator: addTechnicalIndicator,
+    addSeriesIndicator: addSeriesTechnicalIndicator,
+    removeIndicator: removeTechnicalIndicator,
+    toggleVisibility: toggleTechnicalIndicatorVisibility,
+    removeAllForSymbol: removeAllIndicatorsForSymbol,
+    applyIndicators,
+    mergeIndicatorData,
+  } = useTechnicalIndicators({ initialIndicators: savedState?.technicalIndicators || [] });
 
   // Reset visible range when time range changes
   useEffect(() => {
-    setVisibleRange({ start: 0, end: 100 });
-  }, [timeRange]);
+    resetZoom();
+  }, [timeRange, resetZoom]);
 
-  // Handle mouse wheel for zoom
-  const handleWheel = useCallback((e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const zoomIntensity = 0.1;
-    const delta = e.deltaY > 0 ? 1 : -1; // zoom out or in
-
-    setVisibleRange(prev => {
-      const range = prev.end - prev.start;
-      const minRange = 5; // minimum 5% of data visible
-      const maxRange = 100;
-
-      // Calculate new range
-      const zoomAmount = range * zoomIntensity * delta;
-      let newRange = Math.max(minRange, Math.min(maxRange, range + zoomAmount));
-
-      // Get mouse position ratio
-      const rect = chartContainerRef.current?.getBoundingClientRect();
-      const mouseRatio = rect ? (e.clientX - rect.left) / rect.width : 0.5;
-
-      // Adjust start/end based on mouse position
-      const rangeDiff = newRange - range;
-      let newStart = prev.start - rangeDiff * mouseRatio;
-      let newEnd = prev.end + rangeDiff * (1 - mouseRatio);
-
-      // Clamp values
-      if (newStart < 0) {
-        newEnd = Math.min(100, newEnd - newStart);
-        newStart = 0;
-      }
-      if (newEnd > 100) {
-        newStart = Math.max(0, newStart - (newEnd - 100));
-        newEnd = 100;
-      }
-
-      return { start: Math.max(0, newStart), end: Math.min(100, newEnd) };
-    });
-  }, []);
-
-  // Handle mouse drag for pan
-  const handleMouseDown = useCallback((e) => {
-    if (e.button !== 0) return; // only left click
-    isDragging.current = true;
-    dragStartX.current = e.clientX;
-    dragStartRange.current = { ...visibleRange };
-    e.preventDefault();
-  }, [visibleRange]);
-
-  const handleMouseMove = useCallback((e) => {
-    if (!isDragging.current) return;
-
-    const rect = chartContainerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-
-    const deltaX = e.clientX - dragStartX.current;
-    const deltaPercent = (deltaX / rect.width) * (dragStartRange.current.end - dragStartRange.current.start);
-
-    setVisibleRange(prev => {
-      let newStart = dragStartRange.current.start - deltaPercent;
-      let newEnd = dragStartRange.current.end - deltaPercent;
-
-      // Clamp values
-      if (newStart < 0) {
-        newEnd = newEnd - newStart;
-        newStart = 0;
-      }
-      if (newEnd > 100) {
-        newStart = newStart - (newEnd - 100);
-        newEnd = 100;
-      }
-
-      return {
-        start: Math.max(0, newStart),
-        end: Math.min(100, newEnd)
-      };
-    });
-  }, []);
-
-  const handleMouseUp = useCallback(() => {
-    isDragging.current = false;
-  }, []);
-
-  // Add global mouse event listeners for drag
-  useEffect(() => {
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [handleMouseMove, handleMouseUp]);
-
-  // Add wheel event listener with passive: false to prevent page scroll
-  useEffect(() => {
-    const container = chartContainerRef.current;
-    if (!container) return;
-
-    container.addEventListener('wheel', handleWheel, { passive: false });
-    return () => {
-      container.removeEventListener('wheel', handleWheel);
-    };
-  }, [handleWheel]);
-
-  // Pair Analysis Mode states
-  const [pairMode, setPairMode] = useState(savedState?.pairMode || false);
-  const [pairConfig, setPairConfig] = useState(savedState?.pairConfig || {
-    longSymbol: null,
-    shortSymbol: null,
-    regimeSymbol: '^KS11',
-    showSpread: true,
-    showIndex: true,      // 코스피 지수 라인 표시
-    showHighlight: true,
-    showRegime: true,
-    showFCF: true,
+  // Pair Analysis via custom hook
+  const {
+    pairMode,
+    setPairMode,
+    pairConfig,
+    setPairConfig,
+    showSettings: showPairSettings,
+    setShowSettings: setShowPairSettings,
+    spreadData,
+    regimeData,
+    regimePeriods,
+    outperformPeriods,
+    indexData,
+    financialData,
+    currentRegime,
+    calculateSpreadData,
+    loadRegimeData,
+    loadFinancialData,
+    mergeSpreadToChart,
+    mergeRegimeToChart,
+    mergeIndexToChart,
+    resetData: resetPairData,
+  } = usePairAnalysis({
+    initialConfig: savedState?.pairConfig,
+    initialMode: savedState?.pairMode || false,
   });
-  const [indexData, setIndexData] = useState([]);
-  const [showPairSettings, setShowPairSettings] = useState(false);
-  const [spreadData, setSpreadData] = useState([]);
-  const [regimeData, setRegimeData] = useState([]);
-  const [regimePeriods, setRegimePeriods] = useState([]);
-  const [outperformPeriods, setOutperformPeriods] = useState([]);
-  const [financialData, setFinancialData] = useState({ long: null, short: null });
-  const [currentRegime, setCurrentRegime] = useState('sideways');
 
   // Series mode: Transform series data to chartData format
   useEffect(() => {
@@ -694,110 +609,31 @@ const ChartWidget = ({
         });
       }
 
-      // Pair Analysis Mode data loading
+      // Pair Analysis Mode data loading (using hook functions)
       if (pairMode && pairConfig.longSymbol && pairConfig.shortSymbol) {
         const longStockData = results.find(r => r.symbol === pairConfig.longSymbol && r.type === 'stock');
         const shortStockData = results.find(r => r.symbol === pairConfig.shortSymbol && r.type === 'stock');
 
+        // Calculate spread using hook function
         if (longStockData?.data?.length && shortStockData?.data?.length) {
-          // Calculate spread
-          const rawSpread = calculateSpread(longStockData.data, shortStockData.data);
-          const normalizedSpreadData = normalizeSpread(rawSpread);
-          setSpreadData(normalizedSpreadData);
-
-          // Identify outperformance periods
-          const outperform = identifyOutperformancePeriods(normalizedSpreadData);
-          setOutperformPeriods(outperform);
-
-          // Merge spread into chart data
-          if (pairConfig.showSpread) {
-            mergedData = mergeSpreadData(mergedData, normalizedSpreadData);
-          }
+          calculateSpreadData(longStockData.data, shortStockData.data);
         }
 
-        // Load KOSPI/Index data for regime and index line
-        if ((pairConfig.showRegime || pairConfig.showIndex) && pairConfig.regimeSymbol) {
-          try {
-            const regimeRes = await fetch(`${API_BASE}/stock/history/${encodeURIComponent(pairConfig.regimeSymbol)}?period=${period}&interval=${interval}`);
-            if (regimeRes.ok) {
-              const regimeHistory = await regimeRes.json();
-              if (regimeHistory?.data?.length) {
-                // Store raw index data for display
-                setIndexData(regimeHistory.data);
-
-                // Regime detection
-                if (pairConfig.showRegime) {
-                  const regime = detectRegime(regimeHistory.data);
-                  setRegimeData(regime);
-
-                  const periods = getRegimePeriods(regime);
-                  setRegimePeriods(periods);
-
-                  // Set current regime from latest data
-                  if (regime.length > 0) {
-                    setCurrentRegime(regime[regime.length - 1].regime);
-                  }
-
-                  // Merge regime into chart data
-                  mergedData = mergeRegimeData(mergedData, regime);
-                }
-
-                // Merge normalized index data for chart display
-                if (pairConfig.showIndex) {
-                  const indexMap = new Map();
-                  const sortedIndexData = [...regimeHistory.data].sort((a, b) => new Date(a.date) - new Date(b.date));
-                  const baseIndexPrice = sortedIndexData[0]?.close || 1;
-
-                  sortedIndexData.forEach(item => {
-                    indexMap.set(item.date, (item.close / baseIndexPrice));
-                  });
-
-                  mergedData = mergedData.map(item => {
-                    const indexValue = indexMap.get(item.date);
-                    return indexValue !== undefined
-                      ? { ...item, indexNormalized: indexValue }
-                      : item;
-                  });
-                }
-              }
-            }
-          } catch (error) {
-            console.error('Error loading regime/index data:', error);
-          }
+        // Load regime/index data using hook function
+        if (pairConfig.showRegime || pairConfig.showIndex) {
+          await loadRegimeData(period, interval);
         }
 
-        // Load financial data (FCF/CapEx) for pair analysis
-        if (pairConfig.showFCF) {
-          const loadFinancials = async (symbol) => {
-            try {
-              const res = await fetch(`${API_BASE}/stock/financials/${symbol}?freq=quarterly&limit=8`);
-              if (res.ok) {
-                return await res.json();
-              }
-            } catch (error) {
-              console.error(`Error loading financials for ${symbol}:`, error);
-            }
-            return null;
-          };
+        // Load financial data using hook function
+        await loadFinancialData();
 
-          const [longFinancials, shortFinancials] = await Promise.all([
-            loadFinancials(pairConfig.longSymbol),
-            loadFinancials(pairConfig.shortSymbol)
-          ]);
-
-          setFinancialData({
-            long: longFinancials,
-            short: shortFinancials
-          });
-        }
+        // Merge pair analysis data into chart data
+        mergedData = mergeSpreadToChart(mergedData);
+        mergedData = mergeRegimeToChart(mergedData);
+        mergedData = mergeIndexToChart(mergedData);
       } else {
         // Reset pair analysis data when mode is off
-        setSpreadData([]);
-        setRegimeData([]);
-        setRegimePeriods([]);
-        setOutperformPeriods([]);
-        setFinancialData({ long: null, short: null });
-        setIndexData([]);
+        resetPairData();
       }
 
       setChartData(mergedData);
@@ -895,50 +731,6 @@ const ChartWidget = ({
     return Array.from(dateMap.values()).sort((a, b) => a.timestamp - b.timestamp);
   };
 
-  const mergeIndicatorData = (chartData, indicatorData, indicatorId, symbol) => {
-    const dataMap = new Map(chartData.map(d => [d.date, { ...d }]));
-
-    if (indicatorData.macd) {
-      // MACD has multiple lines
-      indicatorData.macd.forEach((item, idx) => {
-        if (dataMap.has(item.date)) {
-          const entry = dataMap.get(item.date);
-          entry[`${symbol}_${indicatorId}_macd`] = item.value;
-          entry[`${symbol}_${indicatorId}_signal`] = indicatorData.signal[idx]?.value || null;
-          entry[`${symbol}_${indicatorId}_histogram`] = indicatorData.histogram[idx]?.value || null;
-        }
-      });
-    } else if (indicatorData.upper) {
-      // Bollinger Bands
-      indicatorData.upper.forEach((item, idx) => {
-        if (dataMap.has(item.date)) {
-          const entry = dataMap.get(item.date);
-          entry[`${symbol}_${indicatorId}_upper`] = item.value;
-          entry[`${symbol}_${indicatorId}_middle`] = indicatorData.middle[idx]?.value || null;
-          entry[`${symbol}_${indicatorId}_lower`] = indicatorData.lower[idx]?.value || null;
-        }
-      });
-    } else if (indicatorData.k) {
-      // Stochastic
-      indicatorData.k.forEach((item, idx) => {
-        if (dataMap.has(item.date)) {
-          const entry = dataMap.get(item.date);
-          entry[`${symbol}_${indicatorId}_k`] = item.value;
-          entry[`${symbol}_${indicatorId}_d`] = indicatorData.d[idx]?.value || null;
-        }
-      });
-    } else {
-      // Simple single-line indicator
-      indicatorData.forEach(item => {
-        if (dataMap.has(item.date)) {
-          dataMap.get(item.date)[`${symbol}_${indicatorId}`] = item.value;
-        }
-      });
-    }
-
-    return Array.from(dataMap.values()).sort((a, b) => a.timestamp - b.timestamp);
-  };
-
   useEffect(() => {
     loadData();
   }, [loadData]);
@@ -979,55 +771,27 @@ const ChartWidget = ({
     setShowIndicatorSelector(false);
   };
 
+  // Wrapper functions for technical indicators (using hook functions)
   const handleAddTechnicalIndicator = (indicator, symbol) => {
-    const exists = technicalIndicators.find(
-      ti => ti.indicatorId === indicator.id && ti.symbol === symbol
-    );
-    if (exists) {
-      alert('Indicator already added for this stock');
-      return;
+    const result = addTechnicalIndicator(indicator, symbol);
+    if (!result.success) {
+      alert(result.message);
     }
-
-    setTechnicalIndicators([...technicalIndicators, {
-      indicatorId: indicator.id,
-      symbol: symbol,
-      name: indicator.name,
-      visible: true
-    }]);
-    setShowTechnicalIndicatorSelector(false);
   };
 
-  // Series mode: add technical indicator for a series
   const handleAddSeriesTechnicalIndicator = (indicator, seriesId) => {
-    const exists = technicalIndicators.find(
-      ti => ti.indicatorId === indicator.id && ti.seriesId === seriesId
-    );
-    if (exists) {
-      alert('Indicator already added for this series');
-      return;
+    const result = addSeriesTechnicalIndicator(indicator, seriesId);
+    if (!result.success) {
+      alert(result.message);
     }
-
-    setTechnicalIndicators([...technicalIndicators, {
-      indicatorId: indicator.id,
-      seriesId: seriesId,
-      name: indicator.name,
-      visible: true
-    }]);
-    setShowTechnicalIndicatorSelector(false);
   };
 
   const handleRemoveTechnicalIndicator = (indicatorId, symbolOrSeriesId) => {
-    setTechnicalIndicators(technicalIndicators.filter(
-      ti => !(ti.indicatorId === indicatorId && (ti.symbol === symbolOrSeriesId || ti.seriesId === symbolOrSeriesId))
-    ));
+    removeTechnicalIndicator(indicatorId, symbolOrSeriesId);
   };
 
-  const toggleTechnicalIndicatorVisibility = (indicatorId, symbolOrSeriesId) => {
-    setTechnicalIndicators(technicalIndicators.map(ti =>
-      ti.indicatorId === indicatorId && (ti.symbol === symbolOrSeriesId || ti.seriesId === symbolOrSeriesId)
-        ? { ...ti, visible: !ti.visible }
-        : ti
-    ));
+  const handleToggleTechnicalIndicatorVisibility = (indicatorId, symbolOrSeriesId) => {
+    toggleTechnicalIndicatorVisibility(indicatorId, symbolOrSeriesId);
   };
 
   const handleRemoveTicker = (symbol) => {
@@ -1036,7 +800,7 @@ const ChartWidget = ({
       return;
     }
     // Also remove all technical indicators for this ticker
-    setTechnicalIndicators(technicalIndicators.filter(ti => ti.symbol !== symbol));
+    removeAllIndicatorsForSymbol(symbol);
     setTickers(tickers.filter(t => t.symbol !== symbol));
   };
 
@@ -1395,7 +1159,7 @@ const ChartWidget = ({
                         style={{ backgroundColor: INDICATOR_COLORS[indicator.indicatorId] || '#888' }}
                         onClick={(e) => {
                           e.stopPropagation();
-                          toggleTechnicalIndicatorVisibility(indicator.indicatorId, indicator.symbol);
+                          handleToggleTechnicalIndicatorVisibility(indicator.indicatorId, indicator.symbol);
                         }}
                       />
                       <span className="text-sm font-medium flex items-center gap-1">
@@ -2078,16 +1842,16 @@ const ChartWidget = ({
               {/* Zoom/Pan Controls */}
               <div className="flex items-center justify-between mt-2 px-1">
                 <div className="flex items-center gap-2 text-xs text-gray-500">
-                  <span>🖱️ Drag to pan, Scroll to zoom</span>
-                  {visibleRange.start > 0 || visibleRange.end < 100 ? (
+                  <span>Drag to pan, Scroll to zoom</span>
+                  {isZoomed && (
                     <span className="text-blue-400">
                       ({Math.round(visibleRange.end - visibleRange.start)}% visible)
                     </span>
-                  ) : null}
+                  )}
                 </div>
-                {(visibleRange.start > 0 || visibleRange.end < 100) && (
+                {isZoomed && (
                   <button
-                    onClick={() => setVisibleRange({ start: 0, end: 100 })}
+                    onClick={resetZoom}
                     className="text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-gray-300"
                   >
                     Reset Zoom

@@ -1,10 +1,9 @@
 /**
- * Macro 원자재 탭
+ * Macro Commodities Tab - Data-driven commodities dashboard
  */
 import { useState, useEffect } from 'react';
-import { Globe, TrendingUp, TrendingDown, Gem, Flame, Factory } from 'lucide-react';
+import { ArrowUp, ArrowDown, RefreshCw } from 'lucide-react';
 import { API_BASE } from '../../config/api';
-import { CARD_CLASSES } from '../../styles/designTokens';
 
 export default function MacroCommoditiesTab() {
   const [fredSeries, setFredSeries] = useState([]);
@@ -39,15 +38,14 @@ export default function MacroCommoditiesTab() {
     }
   };
 
-  // Filter commodity series
   const commoditySeries = fredSeries.filter(s =>
     ['precious_metals', 'energy', 'industrial_metals'].includes(s.category)
   );
 
   const categoryLabels = {
-    precious_metals: '귀금속',
-    energy: '에너지',
-    industrial_metals: '산업 금속'
+    precious_metals: 'Precious Metals',
+    energy: 'Energy',
+    industrial_metals: 'Industrial Metals'
   };
 
   const groupedSeries = commoditySeries.reduce((acc, series) => {
@@ -57,120 +55,106 @@ export default function MacroCommoditiesTab() {
     return acc;
   }, {});
 
-  const categoryIcons = {
-    precious_metals: Gem,
-    energy: Flame,
-    industrial_metals: Factory
-  };
-
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto px-6">
-        <div className={`${CARD_CLASSES.default} p-12`}>
-          <div className="flex items-center justify-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500"></div>
+      <div className="space-y-6">
+        {[1, 2, 3].map(i => (
+          <div key={i} className="bg-[#1a1a1a] rounded-lg p-6 border border-gray-800 animate-pulse">
+            <div className="h-4 bg-gray-700 rounded w-1/4 mb-4"></div>
+            <div className="h-8 bg-gray-700 rounded w-1/2"></div>
           </div>
-        </div>
+        ))}
       </div>
     );
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-6">
-      <div className="space-y-6">
-        {/* Header Card */}
-        <div className={`${CARD_CLASSES.default} p-6`}>
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-green-600/20 rounded-xl">
-              <Globe className="text-green-500" size={28} />
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-white">원자재 분석</h2>
-              <p className="text-gray-400 text-sm mt-0.5">귀금속, 에너지, 산업 금속 가격과 비율을 분석합니다</p>
-            </div>
+    <div className="space-y-6">
+      {/* Commodity Categories */}
+      {Object.entries(groupedSeries).map(([category, series]) => (
+        <div key={category} className="bg-[#1a1a1a] rounded-lg border border-gray-800">
+          <div className="p-4 border-b border-gray-800 flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-white">
+              {categoryLabels[category] || category}
+            </h3>
+            <button onClick={fetchCommoditiesData} className="text-gray-400 hover:text-white">
+              <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+            </button>
           </div>
-        </div>
-
-        {/* Commodity Categories */}
-        {Object.entries(groupedSeries).map(([category, series]) => {
-          const CategoryIcon = categoryIcons[category] || Globe;
-          return (
-            <div key={category} className={`${CARD_CLASSES.default} p-6`}>
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-gray-700/50 rounded-lg">
-                  <CategoryIcon className="text-green-400" size={20} />
-                </div>
-                <h3 className="text-lg font-semibold text-white">
-                  {categoryLabels[category] || category}
-                </h3>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="text-left text-sm text-gray-400 border-b border-gray-800">
+                  <th className="px-4 py-3 font-medium">Name</th>
+                  <th className="px-4 py-3 font-medium">ID</th>
+                  <th className="px-4 py-3 font-medium text-right">Value</th>
+                  <th className="px-4 py-3 font-medium text-right">Change</th>
+                  <th className="px-4 py-3 font-medium text-right">Date</th>
+                </tr>
+              </thead>
+              <tbody>
                 {series.map((item) => (
-                  <div
-                    key={item.id}
-                    className="bg-gray-800/50 rounded-xl border border-gray-700/50 p-4 hover:border-green-500/50 transition-colors cursor-pointer"
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <h4 className="font-medium text-white">{item.name}</h4>
-                        <p className="text-xs text-gray-500">{item.id}</p>
-                      </div>
-                      {item.change !== undefined && (
-                        <div className={`flex items-center gap-1 text-sm font-medium px-2 py-0.5 rounded ${
-                          item.change >= 0 ? 'text-green-400 bg-green-500/10' : 'text-red-400 bg-red-500/10'
+                  <tr key={item.id} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                    <td className="px-4 py-3 font-medium text-white">{item.name}</td>
+                    <td className="px-4 py-3 text-gray-400 text-sm">{item.id}</td>
+                    <td className="px-4 py-3 text-right text-white font-medium">
+                      {item.value !== undefined ? item.value.toLocaleString() : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {item.change !== undefined ? (
+                        <div className={`flex items-center justify-end gap-1 ${
+                          item.change >= 0 ? 'text-green-400' : 'text-red-400'
                         }`}>
-                          {item.change >= 0 ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
+                          {item.change >= 0 ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
                           {Math.abs(item.change).toFixed(2)}%
                         </div>
-                      )}
-                    </div>
-                    <div className="text-2xl font-bold text-white">
-                      {item.value !== undefined ? item.value.toLocaleString() : '-'}
-                    </div>
-                    {item.date && (
-                      <p className="text-xs text-gray-500 mt-2">
-                        {new Date(item.date).toLocaleDateString('ko-KR')}
-                      </p>
-                    )}
-                  </div>
+                      ) : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-right text-gray-400 text-sm">
+                      {item.date ? new Date(item.date).toLocaleDateString() : '-'}
+                    </td>
+                  </tr>
                 ))}
-              </div>
-            </div>
-          );
-        })}
-
-        {/* Commodity Ratios */}
-        {Object.keys(commodityRatios).length > 0 && (
-          <div className={`${CARD_CLASSES.default} p-6`}>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-gray-700/50 rounded-lg">
-                <TrendingUp className="text-blue-400" size={20} />
-              </div>
-              <h3 className="text-lg font-semibold text-white">원자재 비율</h3>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {Object.entries(commodityRatios).map(([key, ratio]) => (
-                <div
-                  key={key}
-                  className="bg-gray-800/50 rounded-xl border border-gray-700/50 p-4"
-                >
-                  <h4 className="font-medium text-white mb-2">{ratio.name || key}</h4>
-                  <div className="text-2xl font-bold text-white">
-                    {ratio.value?.toFixed(4) || '-'}
-                  </div>
-                </div>
-              ))}
-            </div>
+              </tbody>
+            </table>
           </div>
-        )}
+        </div>
+      ))}
 
-        {commoditySeries.length === 0 && (
-          <div className={`${CARD_CLASSES.default} p-12 text-center`}>
-            <Globe className="mx-auto text-gray-500 mb-4" size={48} />
-            <p className="text-gray-400">원자재 데이터를 불러오는 중...</p>
+      {/* Commodity Ratios */}
+      {Object.keys(commodityRatios).length > 0 && (
+        <div className="bg-[#1a1a1a] rounded-lg border border-gray-800">
+          <div className="p-4 border-b border-gray-800">
+            <h3 className="text-lg font-semibold text-white">Commodity Ratios</h3>
           </div>
-        )}
-      </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="text-left text-sm text-gray-400 border-b border-gray-800">
+                  <th className="px-4 py-3 font-medium">Ratio</th>
+                  <th className="px-4 py-3 font-medium text-right">Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(commodityRatios).map(([key, ratio]) => (
+                  <tr key={key} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                    <td className="px-4 py-3 font-medium text-white">{ratio.name || key}</td>
+                    <td className="px-4 py-3 text-right text-white font-medium">
+                      {ratio.value?.toFixed(4) || '-'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {commoditySeries.length === 0 && (
+        <div className="bg-[#1a1a1a] rounded-lg border border-gray-800 p-12 text-center">
+          <p className="text-gray-400">No commodities data available</p>
+        </div>
+      )}
     </div>
   );
 }

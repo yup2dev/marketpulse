@@ -126,7 +126,7 @@ const getFallbackMenus = () => [
       {
         menu_id: 'macro-regime',
         menu_name: 'Economic Regime',
-        menu_path: 'macro-analysis?tab=regime',
+        menu_path: 'macro-analysis?tab=economic-regime',
         display_seq: 2
       },
       {
@@ -150,8 +150,26 @@ const getFallbackMenus = () => [
       {
         menu_id: 'macro-labor',
         menu_name: 'Labor Market',
-        menu_path: 'macro-analysis?tab=labor',
+        menu_path: 'macro-analysis?tab=labor-market',
         display_seq: 6
+      },
+      {
+        menu_id: 'macro-financial',
+        menu_name: 'Financial Conditions',
+        menu_path: 'macro-analysis?tab=financial-conditions',
+        display_seq: 7
+      },
+      {
+        menu_id: 'macro-sentiment',
+        menu_name: 'Sentiment',
+        menu_path: 'macro-analysis?tab=sentiment',
+        display_seq: 8
+      },
+      {
+        menu_id: 'macro-commodities',
+        menu_name: 'Commodities',
+        menu_path: 'macro-analysis?tab=commodities',
+        display_seq: 9
       }
     ]
   },
@@ -169,7 +187,50 @@ const getFallbackMenus = () => [
     menu_icon: 'Briefcase',
     menu_path: 'portfolio-settings',
     display_seq: 5,
-    children: []
+    children: [
+      {
+        menu_id: 'portfolio-overview',
+        menu_name: 'Overview',
+        menu_path: 'portfolio-settings?tab=overview',
+        display_seq: 1
+      },
+      {
+        menu_id: 'portfolio-balances',
+        menu_name: 'Balances',
+        menu_path: 'portfolio-settings?tab=balances',
+        display_seq: 2
+      },
+      {
+        menu_id: 'portfolio-positions',
+        menu_name: 'Positions',
+        menu_path: 'portfolio-settings?tab=positions',
+        display_seq: 3
+      },
+      {
+        menu_id: 'portfolio-orders',
+        menu_name: 'Open Orders',
+        menu_path: 'portfolio-settings?tab=open-orders',
+        display_seq: 4
+      },
+      {
+        menu_id: 'portfolio-trade-history',
+        menu_name: 'Trade History',
+        menu_path: 'portfolio-settings?tab=trade-history',
+        display_seq: 5
+      },
+      {
+        menu_id: 'portfolio-dividends',
+        menu_name: 'Dividends',
+        menu_path: 'portfolio-settings?tab=dividends',
+        display_seq: 6
+      },
+      {
+        menu_id: 'portfolio-deposits',
+        menu_name: 'Deposits & Withdrawals',
+        menu_path: 'portfolio-settings?tab=deposits-withdrawals',
+        display_seq: 7
+      }
+    ]
   },
   {
     menu_id: 'alerts',
