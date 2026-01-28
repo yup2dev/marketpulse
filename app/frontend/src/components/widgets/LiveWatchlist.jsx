@@ -3,9 +3,10 @@
  * Similar to trading terminal style
  */
 import { useState, useEffect, useCallback } from 'react';
-import { TrendingUp, TrendingDown, RefreshCw, Plus, X, Settings } from 'lucide-react';
+import { TrendingUp, TrendingDown, List } from 'lucide-react';
 import { LineChart, Line, ResponsiveContainer } from 'recharts';
 import { API_BASE } from '../../config/api';
+import WidgetHeader from './common/WidgetHeader';
 
 // Default watchlist symbols
 const DEFAULT_SYMBOLS = [
@@ -90,7 +91,7 @@ const WatchlistRow = ({ item, onRemove }) => {
   );
 };
 
-export default function LiveWatchlist({ defaultSymbols = DEFAULT_SYMBOLS, title = "Live Watchlist" }) {
+export default function LiveWatchlist({ defaultSymbols = DEFAULT_SYMBOLS, title = "Live Watchlist", onRemove }) {
   const [symbols, setSymbols] = useState(defaultSymbols);
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -144,26 +145,17 @@ export default function LiveWatchlist({ defaultSymbols = DEFAULT_SYMBOLS, title 
   };
 
   return (
-    <div className="bg-[#0d0d12] border border-gray-800 rounded overflow-hidden h-full flex flex-col">
+    <div className="bg-[#0d0d12] border border-gray-800 rounded-lg overflow-hidden h-full flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between px-2 py-1.5 border-b border-gray-800 bg-[#101016]">
-        <div className="flex items-center gap-2">
-          <RefreshCw
-            size={11}
-            className={`text-gray-500 ${loading ? 'animate-spin' : 'cursor-pointer hover:text-white'}`}
-            onClick={() => !loading && fetchData()}
-          />
-          <span className="text-xs font-medium text-white">{title}</span>
-          <span className="text-[10px] text-gray-500">({selectedCount})</span>
-        </div>
-        <div className="flex items-center gap-0.5">
-          <button className="p-1 text-gray-500 hover:text-white rounded hover:bg-gray-800">
-            <Plus size={11} />
-          </button>
-          <button className="p-1 text-gray-500 hover:text-white">⋮</button>
-          <button className="p-1 text-gray-500 hover:text-white">×</button>
-        </div>
-      </div>
+      <WidgetHeader
+        icon={List}
+        iconColor="text-cyan-400"
+        title={title}
+        subtitle={`${selectedCount} symbols`}
+        loading={loading}
+        onRefresh={fetchData}
+        onRemove={onRemove}
+      />
 
       {/* Table */}
       <div className="flex-1 overflow-auto">

@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { TrendingUp, TrendingDown, RefreshCw, X, BarChart3, Table2, Maximize2 } from 'lucide-react';
+import { TrendingUp, TrendingDown, BarChart3, Table2 } from 'lucide-react';
 import useTheme from '../hooks/useTheme';
 import { formatNumber, formatPrice, formatPercent } from '../utils/widgetUtils';
 import { API_BASE } from '../config/api';
+import WidgetHeader from './widgets/common/WidgetHeader';
 
 const ResizableStockWidget = ({ symbol, onRemove, onExpand }) => {
   const { classes, chartTheme } = useTheme();
@@ -44,86 +45,47 @@ const ResizableStockWidget = ({ symbol, onRemove, onExpand }) => {
   const isPositive = quote?.change_percent >= 0;
 
   return (
-    <div className={`h-full ${classes.widget.container} rounded-lg border flex flex-col overflow-hidden`}>
-      {/* Header - Drag Handle */}
-      <div className={`flex items-center justify-between p-3 border-b ${classes.widget.header}`}>
-        <div className="flex items-center gap-2 cursor-move drag-handle-area flex-1">
-          <h3 className="font-semibold text-white">{symbol}</h3>
-          {quote && (
-            <span className={`text-sm font-semibold ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
-              {formatPercent(quote.change_percent)}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-1">
-          {/* View Toggle */}
-          <div className="flex bg-gray-800/50 rounded p-0.5 mr-2">
-            <button
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.stopPropagation();
-                setViewMode('chart');
-              }}
-              className={`p-1.5 rounded transition-colors ${
-                viewMode === 'chart' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
-              }`}
-              title="Chart View"
-            >
-              <BarChart3 size={14} />
-            </button>
-            <button
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.stopPropagation();
-                setViewMode('table');
-              }}
-              className={`p-1.5 rounded transition-colors ${
-                viewMode === 'table' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
-              }`}
-              title="Table View"
-            >
-              <Table2 size={14} />
-            </button>
-          </div>
+    <div className="h-full bg-[#0d0d12] rounded-lg border border-gray-800 flex flex-col overflow-hidden">
+      {/* Header */}
+      <WidgetHeader
+        icon={TrendingUp}
+        iconColor={isPositive ? 'text-green-400' : 'text-red-400'}
+        title={symbol}
+        subtitle={quote ? formatPercent(quote.change_percent) : ''}
+        loading={loading}
+        onRefresh={loadData}
+        onRemove={onRemove}
+      >
+        {/* View Toggle */}
+        <div className="flex bg-gray-800/50 rounded p-0.5 mr-2">
           <button
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
-              loadData();
+              setViewMode('chart');
             }}
-            className="hover:text-white p-1 text-gray-400"
-            title="Refresh"
+            className={`p-1.5 rounded transition-colors ${
+              viewMode === 'chart' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
+            }`}
+            title="Chart View"
           >
-            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+            <BarChart3 size={14} />
           </button>
-          {onExpand && (
-            <button
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.stopPropagation();
-                onExpand();
-              }}
-              className="hover:text-white p-1 text-gray-400"
-              title="Expand"
-            >
-              <Maximize2 size={16} />
-            </button>
-          )}
-          {onRemove && (
-            <button
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.stopPropagation();
-                onRemove();
-              }}
-              className="hover:text-red-400 p-1 text-gray-400"
-              title="Remove"
-            >
-              <X size={16} />
-            </button>
-          )}
+          <button
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              setViewMode('table');
+            }}
+            className={`p-1.5 rounded transition-colors ${
+              viewMode === 'table' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
+            }`}
+            title="Table View"
+          >
+            <Table2 size={14} />
+          </button>
         </div>
-      </div>
+      </WidgetHeader>
 
       {/* Content */}
       <div className="flex-1 overflow-auto p-3">
@@ -183,7 +145,7 @@ const ResizableStockWidget = ({ symbol, onRemove, onExpand }) => {
           <div className="h-full overflow-auto">
             {/* Table View */}
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-[#1a1a1a]">
+              <thead className="sticky top-0 bg-[#0d0d12]">
                 <tr className="border-b border-gray-800">
                   <th className="text-left py-2 text-gray-400 font-medium">Date</th>
                   <th className="text-right py-2 text-gray-400 font-medium">Close</th>

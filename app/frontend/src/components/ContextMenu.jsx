@@ -1,7 +1,10 @@
 import { useEffect } from 'react';
-import { Plus, BarChart3, Table2, TrendingUp, DollarSign, PieChart, Activity, LineChart, Building2, BarChart2, Star } from 'lucide-react';
+import { Plus, BarChart3, Table2, TrendingUp, DollarSign, PieChart, Activity, LineChart, Building2, BarChart2, Star, Globe, List, Info } from 'lucide-react';
 
 const WIDGET_TYPES = [
+  { id: 'market-overview', name: 'Market Overview', icon: Globe, description: 'Global market indices', needsStock: false },
+  { id: 'live-watchlist', name: 'Live Watchlist', icon: List, description: 'Real-time watchlist with sparklines', needsStock: false },
+  { id: 'ticker-information', name: 'Ticker Information', icon: Info, description: 'Detailed ticker info with chart', needsStock: true },
   { id: 'watchlist', name: 'Watchlist', icon: Star, description: 'Manage favorite stocks', needsStock: false },
   { id: 'stock-quote', name: 'Stock Quote', icon: TrendingUp, description: 'Real-time price and changes', needsStock: true },
   { id: 'advanced-chart', name: 'Advanced Chart', icon: LineChart, description: 'Multi-ticker comparison & analysis', needsStock: true },

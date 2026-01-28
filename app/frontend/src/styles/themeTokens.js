@@ -114,13 +114,13 @@ export const getThemeClasses = (theme) => {
     // Widget/Card classes
     widget: {
       container: isDark
-        ? 'bg-[#1a1a1a] border-gray-800'
+        ? 'bg-[#0d0d12] border-gray-800'
         : 'bg-white border-gray-300 shadow-sm',
       header: isDark
         ? 'border-gray-800'
         : 'border-gray-200',
       content: isDark
-        ? 'bg-[#1a1a1a]'
+        ? 'bg-[#0d0d12]'
         : 'bg-white',
     },
 

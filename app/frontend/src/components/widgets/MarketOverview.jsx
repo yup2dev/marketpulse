@@ -3,9 +3,10 @@
  * Shows major indices with mini sparkline charts
  */
 import { useState, useEffect, useCallback } from 'react';
-import { TrendingUp, TrendingDown, RefreshCw } from 'lucide-react';
+import { TrendingUp, TrendingDown, Globe } from 'lucide-react';
 import { LineChart, Line, ResponsiveContainer } from 'recharts';
 import { API_BASE } from '../../config/api';
+import WidgetHeader from './common/WidgetHeader';
 
 // Major indices to display
 const MARKET_INDICES = [
@@ -61,7 +62,7 @@ const IndexCard = ({ symbol, name, shortName, quote, history }) => {
   );
 };
 
-export default function MarketOverview({ symbols = MARKET_INDICES }) {
+export default function MarketOverview({ symbols = MARKET_INDICES, onRemove }) {
   const [quotes, setQuotes] = useState({});
   const [histories, setHistories] = useState({});
   const [loading, setLoading] = useState(true);
@@ -130,50 +131,31 @@ export default function MarketOverview({ symbols = MARKET_INDICES }) {
   }, [fetchData]);
 
   return (
-    <div className="bg-[#0d0d12] border-b border-gray-800">
-      <div className="flex items-center">
-        {/* Title */}
-        <div className="flex items-center gap-2 px-4 py-2 border-r border-gray-800 bg-[#12121a]">
-          <RefreshCw
-            size={14}
-            className={`text-gray-400 ${loading ? 'animate-spin' : 'cursor-pointer hover:text-white'}`}
-            onClick={() => !loading && fetchData()}
-          />
-          <span className="text-xs text-gray-400 font-medium">Market Overview</span>
-          <select className="bg-transparent text-xs text-gray-500 border-none outline-none cursor-pointer">
-            <option>Global</option>
-          </select>
-        </div>
+    <div className="bg-[#0d0d12] border border-gray-800 rounded-lg overflow-hidden h-full flex flex-col">
+      {/* Header */}
+      <WidgetHeader
+        icon={Globe}
+        iconColor="text-green-400"
+        title="Market Overview"
+        subtitle="Global Indices"
+        loading={loading}
+        onRefresh={fetchData}
+        onRemove={onRemove}
+      />
 
-        {/* Scrollable indices */}
-        <div className="flex-1 overflow-x-auto">
-          <div className="flex">
-            {symbols.map(({ symbol, name, shortName }) => (
-              <IndexCard
-                key={symbol}
-                symbol={symbol}
-                name={name}
-                shortName={shortName}
-                quote={quotes[symbol]}
-                history={histories[symbol]}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* Widget controls */}
-        <div className="flex items-center gap-1 px-2 border-l border-gray-800">
-          <button className="p-1 text-gray-500 hover:text-white">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="3" width="7" height="7" />
-              <rect x="14" y="3" width="7" height="7" />
-              <rect x="3" y="14" width="7" height="7" />
-              <rect x="14" y="14" width="7" height="7" />
-            </svg>
-          </button>
-          <button className="p-1 text-gray-500 hover:text-white">⋮</button>
-          <button className="p-1 text-gray-500 hover:text-white">↗</button>
-          <button className="p-1 text-gray-500 hover:text-white">×</button>
+      {/* Scrollable indices */}
+      <div className="flex-1 overflow-x-auto">
+        <div className="flex h-full">
+          {symbols.map(({ symbol, name, shortName }) => (
+            <IndexCard
+              key={symbol}
+              symbol={symbol}
+              name={name}
+              shortName={shortName}
+              quote={quotes[symbol]}
+              history={histories[symbol]}
+            />
+          ))}
         </div>
       </div>
     </div>

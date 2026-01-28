@@ -106,7 +106,7 @@ const FinancialWidget = ({ symbol, onRemove }) => {
         ) : viewMode === 'table' && financials ? (
           <div className="overflow-auto">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-[#1a1a1a]">
+              <thead className="sticky top-0 bg-[#0d0d12]">
                 <tr className="border-b border-gray-800">
                   <th className="text-left py-2 text-gray-400 font-medium">Metric</th>
                   <th className="text-right py-2 text-gray-400 font-medium">Value</th>

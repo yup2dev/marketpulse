@@ -22,7 +22,7 @@ export const getWidgetStyles = (theme = 'dark') => {
 
 // Legacy Widget Styles (deprecated - kept for backward compatibility)
 export const WIDGET_STYLES = {
-  container: 'h-full bg-[#1a1a1a] rounded-lg border border-gray-800 flex flex-col overflow-hidden',
+  container: 'h-full bg-[#0d0d12] rounded-lg border border-gray-800 flex flex-col overflow-hidden',
   content: 'flex-1 overflow-auto',
   contentPadding: 'p-4',
 };
