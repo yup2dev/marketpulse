@@ -1,5 +1,5 @@
 /**
- * 가격 알림 탭 컴포넌트
+ * 가격 알림 탭 컴포넌트 - Static Grid Layout
  */
 import { useState } from 'react';
 import { useAlertsContext } from '../../contexts/AlertsContext';
@@ -31,18 +31,22 @@ export default function PriceAlertsTab() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-6">
-      <AlertsListView
-        alerts={priceAlerts}
-        onToggle={handleToggle}
-        onDelete={handleDelete}
-        onTest={handleTest}
-        onCreateClick={() => setShowCreateModal(true)}
-        title="가격 알림"
-        subtitle="특정 가격 도달 시 알림을 받으세요"
-        emptyMessage="가격 알림이 없습니다"
-        emptySubMessage="목표 가격에 도달하면 알림을 받을 수 있습니다"
-      />
+    <div className="h-full">
+      <div className="grid grid-cols-12 gap-1 h-[calc(100vh-180px)]">
+        <div className="col-span-12 min-h-[280px]">
+          <AlertsListView
+            alerts={priceAlerts}
+            onToggle={handleToggle}
+            onDelete={handleDelete}
+            onTest={handleTest}
+            onCreateClick={() => setShowCreateModal(true)}
+            title="가격 알림"
+            subtitle="특정 가격 도달 시 알림을 받으세요"
+            emptyMessage="가격 알림이 없습니다"
+            emptySubMessage="목표 가격에 도달하면 알림을 받을 수 있습니다"
+          />
+        </div>
+      </div>
 
       {showCreateModal && (
         <CreateAlertModal

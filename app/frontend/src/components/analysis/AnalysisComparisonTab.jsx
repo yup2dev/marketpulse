@@ -1,5 +1,5 @@
 /**
- * Analysis 비교 분석 탭
+ * Analysis 비교 분석 탭 - Static Grid Layout
  */
 import { useState, useEffect } from 'react';
 import { GitCompare, Plus, X, TrendingUp, TrendingDown } from 'lucide-react';
@@ -153,115 +153,123 @@ export default function AnalysisComparisonTab() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-6">
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <GitCompare className="text-purple-500" size={28} />
-            <div>
-              <h2 className="text-xl font-bold text-white">비교 분석</h2>
-              <p className="text-gray-400 text-sm mt-0.5">여러 종목을 비교 분석하세요</p>
+    <div className="h-full">
+      <div className="grid grid-cols-12 gap-1 h-[calc(100vh-180px)]">
+        {/* Header with Controls */}
+        <div className="col-span-12 min-h-[60px]">
+          <div className="bg-[#1a1f2e] rounded-xl border border-gray-700 p-4 h-full">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <GitCompare className="text-purple-500" size={24} />
+                <div>
+                  <h2 className="text-lg font-bold text-white">비교 분석</h2>
+                  <p className="text-gray-400 text-sm">여러 종목을 비교 분석하세요</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                {/* Selected Stocks */}
+                <div className="flex flex-wrap gap-2">
+                  {compareSymbols.map((sym) => (
+                    <div
+                      key={sym}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${
+                        sym === symbol ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-300'
+                      }`}
+                    >
+                      <span className="font-medium">{sym}</span>
+                      {compareSymbols.length > 1 && (
+                        <button
+                          onClick={() => handleRemoveStock(sym)}
+                          className="hover:text-red-400 transition-colors"
+                        >
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={() => setShowAddStock(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors text-white"
+                >
+                  <Plus size={18} />
+                  <span>종목 추가</span>
+                </button>
+              </div>
             </div>
           </div>
-
-          <button
-            onClick={() => setShowAddStock(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors text-white"
-          >
-            <Plus size={18} />
-            <span>종목 추가</span>
-          </button>
         </div>
 
-        {/* Selected Stocks */}
-        <div className="flex flex-wrap gap-2">
-          {compareSymbols.map((sym) => (
-            <div
-              key={sym}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${
-                sym === symbol ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-300'
-              }`}
-            >
-              <span className="font-medium">{sym}</span>
-              {compareSymbols.length > 1 && (
-                <button
-                  onClick={() => handleRemoveStock(sym)}
-                  className="hover:text-red-400 transition-colors"
-                >
-                  <X size={14} />
-                </button>
+        {/* Metrics Table */}
+        <div className="col-span-12 min-h-[200px]">
+          {compareSymbols.length > 1 && (
+            <div className="bg-[#1a1f2e] rounded-xl border border-gray-700 overflow-hidden h-full">
+              <div className="p-4 border-b border-gray-700">
+                <h3 className="text-lg font-semibold text-white">핵심 지표 비교</h3>
+              </div>
+              {loading ? (
+                <div className="flex items-center justify-center h-32">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-700 bg-gray-800/50">
+                        <th className="text-left py-3 px-4 text-gray-400 font-medium sticky left-0 bg-gray-800/50">지표</th>
+                        {compareSymbols.map(sym => (
+                          <th key={sym} className="text-center py-3 px-4 text-white font-semibold min-w-[100px]">
+                            {sym}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {COMPARISON_METRICS.map(metric => {
+                        const { best, worst } = getBestWorst(metric.key);
+                        return (
+                          <tr key={metric.key} className="border-b border-gray-800 hover:bg-gray-800/30">
+                            <td className="py-3 px-4 text-gray-300 sticky left-0 bg-[#1a1f2e]">
+                              {metric.label}
+                            </td>
+                            {compareSymbols.map(sym => {
+                              const value = stockData[sym]?.[metric.key];
+                              const isBest = sym === best && compareSymbols.length > 1;
+                              const isWorst = sym === worst && compareSymbols.length > 1;
+                              return (
+                                <td key={sym} className="text-center py-3 px-4">
+                                  <div className="flex items-center justify-center gap-1">
+                                    {isBest && <TrendingUp size={14} className="text-green-400" />}
+                                    {isWorst && <TrendingDown size={14} className="text-red-400" />}
+                                    <span className={`font-medium ${getHighlightClass(value, metric.highlight)} ${
+                                      isBest ? 'text-green-400' : isWorst ? 'text-red-400' : 'text-white'
+                                    }`}>
+                                      {formatValue(value, metric.format)}
+                                    </span>
+                                  </div>
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
-          ))}
+          )}
         </div>
 
-        {/* Metrics Comparison Table */}
-        {compareSymbols.length > 1 && (
-          <div className="bg-[#1a1f2e] rounded-xl border border-gray-700 overflow-hidden">
-            <div className="p-4 border-b border-gray-700">
-              <h3 className="text-lg font-semibold text-white">핵심 지표 비교</h3>
-            </div>
-            {loading ? (
-              <div className="flex items-center justify-center h-32">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-700 bg-gray-800/50">
-                      <th className="text-left py-3 px-4 text-gray-400 font-medium sticky left-0 bg-gray-800/50">지표</th>
-                      {compareSymbols.map(sym => (
-                        <th key={sym} className="text-center py-3 px-4 text-white font-semibold min-w-[100px]">
-                          {sym}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {COMPARISON_METRICS.map(metric => {
-                      const { best, worst } = getBestWorst(metric.key);
-                      return (
-                        <tr key={metric.key} className="border-b border-gray-800 hover:bg-gray-800/30">
-                          <td className="py-3 px-4 text-gray-300 sticky left-0 bg-[#1a1f2e]">
-                            {metric.label}
-                          </td>
-                          {compareSymbols.map(sym => {
-                            const value = stockData[sym]?.[metric.key];
-                            const isBest = sym === best && compareSymbols.length > 1;
-                            const isWorst = sym === worst && compareSymbols.length > 1;
-                            return (
-                              <td key={sym} className="text-center py-3 px-4">
-                                <div className="flex items-center justify-center gap-1">
-                                  {isBest && <TrendingUp size={14} className="text-green-400" />}
-                                  {isWorst && <TrendingDown size={14} className="text-red-400" />}
-                                  <span className={`font-medium ${getHighlightClass(value, metric.highlight)} ${
-                                    isBest ? 'text-green-400' : isWorst ? 'text-red-400' : 'text-white'
-                                  }`}>
-                                    {formatValue(value, metric.format)}
-                                  </span>
-                                </div>
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
+        {/* Chart */}
+        <div className="col-span-12 min-h-[320px]">
+          <div className="bg-[#1a1f2e] rounded-xl border border-gray-700 h-full">
+            <ChartWidget
+              widgetId="comparison-chart"
+              initialSymbols={compareSymbols}
+              onRemove={() => {}}
+            />
           </div>
-        )}
-
-        {/* Chart Comparison */}
-        <div className="bg-[#1a1f2e] rounded-xl border border-gray-700 p-4" style={{ height: '500px' }}>
-          <ChartWidget
-            widgetId="comparison-chart"
-            initialSymbols={compareSymbols}
-            onRemove={() => {}}
-          />
         </div>
       </div>
 

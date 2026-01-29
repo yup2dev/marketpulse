@@ -1,5 +1,5 @@
 /**
- * Analysis 재무제표 탭
+ * Analysis 재무제표 탭 - Static Grid Layout
  */
 import { useState, useEffect } from 'react';
 import { FileText, TrendingUp, TrendingDown, Table2, BarChart3 } from 'lucide-react';
@@ -15,7 +15,6 @@ const FINANCIAL_TABS = [
   { id: 'margins', name: 'Margin 분석' }
 ];
 
-// Korean labels for key metrics
 const METRIC_LABELS = {
   revenue: '매출액',
   cost_of_revenue: '매출원가',
@@ -68,7 +67,6 @@ export default function AnalysisFinancialsTab() {
     }
   };
 
-  // Prepare data for charts
   const getChartData = () => {
     if (!financials?.periods) return [];
 
@@ -77,7 +75,6 @@ export default function AnalysisFinancialsTab() {
       const bal = p.balance_sheet || {};
       const cf = p.cash_flow || {};
 
-      // Calculate margins
       const grossMargin = inc.revenue && inc.gross_profit
         ? (inc.gross_profit / inc.revenue * 100) : 0;
       const operatingMargin = inc.revenue && inc.operating_income
@@ -87,27 +84,23 @@ export default function AnalysisFinancialsTab() {
 
       return {
         date: p.date?.substring(0, 7) || 'N/A',
-        // Income Statement
         revenue: inc.revenue,
         grossProfit: inc.gross_profit,
         operatingIncome: inc.operating_income,
         netIncome: inc.net_income,
         ebitda: inc.ebitda,
-        // Balance Sheet
         totalAssets: bal.total_assets,
         totalLiabilities: bal.total_liabilities,
         totalEquity: bal.total_equity,
         cash: bal.cash,
         totalDebt: bal.total_debt,
-        // Cash Flow
         operatingCashFlow: cf.operating_cash_flow,
         freeCashFlow: cf.free_cash_flow,
-        // Margins
         grossMargin,
         operatingMargin,
         netMargin
       };
-    }).reverse(); // Oldest first for charts
+    }).reverse();
   };
 
   const renderChartView = () => {
@@ -125,9 +118,9 @@ export default function AnalysisFinancialsTab() {
 
     if (activeFinTab === 'margins') {
       return (
-        <div className="p-6">
+        <div className="p-6 h-full">
           <h4 className="text-white font-medium mb-4">이익률 추이</h4>
-          <ResponsiveContainer width="100%" height={400}>
+          <ResponsiveContainer width="100%" height={300}>
             <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
               <XAxis dataKey="date" stroke="#9ca3af" fontSize={12} />
@@ -143,29 +136,6 @@ export default function AnalysisFinancialsTab() {
               <Line type="monotone" dataKey="netMargin" name="순이익률" stroke="#8b5cf6" strokeWidth={2} dot={{ fill: '#8b5cf6' }} />
             </LineChart>
           </ResponsiveContainer>
-
-          {/* Margin Summary Cards */}
-          <div className="grid grid-cols-3 gap-4 mt-6">
-            {chartData.length > 0 && (() => {
-              const latest = chartData[chartData.length - 1];
-              return (
-                <>
-                  <div className="bg-gray-800/50 rounded-lg p-4">
-                    <div className="text-sm text-gray-400 mb-1">매출총이익률</div>
-                    <div className="text-2xl font-bold text-green-400">{latest.grossMargin?.toFixed(2)}%</div>
-                  </div>
-                  <div className="bg-gray-800/50 rounded-lg p-4">
-                    <div className="text-sm text-gray-400 mb-1">영업이익률</div>
-                    <div className="text-2xl font-bold text-blue-400">{latest.operatingMargin?.toFixed(2)}%</div>
-                  </div>
-                  <div className="bg-gray-800/50 rounded-lg p-4">
-                    <div className="text-sm text-gray-400 mb-1">순이익률</div>
-                    <div className="text-2xl font-bold text-purple-400">{latest.netMargin?.toFixed(2)}%</div>
-                  </div>
-                </>
-              );
-            })()}
-          </div>
         </div>
       );
     }
@@ -200,9 +170,9 @@ export default function AnalysisFinancialsTab() {
     const config = chartConfig[activeFinTab];
 
     return (
-      <div className="p-6">
+      <div className="p-6 h-full">
         <h4 className="text-white font-medium mb-4">{config.title}</h4>
-        <ResponsiveContainer width="100%" height={400}>
+        <ResponsiveContainer width="100%" height={300}>
           <BarChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
             <XAxis dataKey="date" stroke="#9ca3af" fontSize={12} />
@@ -231,7 +201,6 @@ export default function AnalysisFinancialsTab() {
       );
     }
 
-    // Get data based on type
     const getData = (period) => {
       switch (type) {
         case 'income': return period.income_statement || {};
@@ -241,12 +210,11 @@ export default function AnalysisFinancialsTab() {
       }
     };
 
-    // Get all keys from first period
     const firstData = getData(periods[0]);
     const metricKeys = Object.keys(firstData).filter(k => firstData[k] !== null);
 
     return (
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto h-full">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-700">
@@ -296,89 +264,92 @@ export default function AnalysisFinancialsTab() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-6">
-      <div className="space-y-6">
+    <div className="h-full">
+      <div className="grid grid-cols-12 gap-1 h-[calc(100vh-180px)]">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <FileText className="text-purple-500" size={28} />
-            <div>
-              <h2 className="text-xl font-bold text-white">재무제표</h2>
-              <p className="text-gray-400 text-sm mt-0.5">{symbol} - 재무 데이터 분석</p>
+        <div className="col-span-12 min-h-[80px]">
+          <div className="bg-[#1a1f2e] rounded-xl border border-gray-700 p-4 h-full">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <FileText className="text-purple-500" size={28} />
+                <div>
+                  <h2 className="text-xl font-bold text-white">재무제표</h2>
+                  <p className="text-gray-400 text-sm mt-0.5">{symbol} - 재무 데이터 분석</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="flex bg-gray-800 rounded-lg p-1">
+                  <button
+                    onClick={() => setPeriod('quarterly')}
+                    className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                      period === 'quarterly' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    분기
+                  </button>
+                  <button
+                    onClick={() => setPeriod('annual')}
+                    className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                      period === 'annual' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    연간
+                  </button>
+                </div>
+
+                <div className="flex bg-gray-800 rounded-lg p-1">
+                  <button
+                    onClick={() => setViewMode('table')}
+                    className={`p-2 rounded-md transition-colors ${
+                      viewMode === 'table' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    <Table2 size={16} />
+                  </button>
+                  <button
+                    onClick={() => setViewMode('chart')}
+                    className={`p-2 rounded-md transition-colors ${
+                      viewMode === 'chart' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    <BarChart3 size={16} />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-2 mt-4">
+              {FINANCIAL_TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveFinTab(tab.id)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    activeFinTab === tab.id
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-gray-800 text-gray-400 hover:text-white'
+                  }`}
+                >
+                  {tab.name}
+                </button>
+              ))}
             </div>
           </div>
-
-          <div className="flex items-center gap-3">
-            {/* Period Toggle */}
-            <div className="flex bg-gray-800 rounded-lg p-1">
-              <button
-                onClick={() => setPeriod('quarterly')}
-                className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                  period === 'quarterly' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                분기
-              </button>
-              <button
-                onClick={() => setPeriod('annual')}
-                className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                  period === 'annual' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                연간
-              </button>
-            </div>
-
-            {/* View Mode Toggle */}
-            <div className="flex bg-gray-800 rounded-lg p-1">
-              <button
-                onClick={() => setViewMode('table')}
-                className={`p-2 rounded-md transition-colors ${
-                  viewMode === 'table' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                <Table2 size={16} />
-              </button>
-              <button
-                onClick={() => setViewMode('chart')}
-                className={`p-2 rounded-md transition-colors ${
-                  viewMode === 'chart' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                <BarChart3 size={16} />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Financial Type Tabs */}
-        <div className="flex gap-2">
-          {FINANCIAL_TABS.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveFinTab(tab.id)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                activeFinTab === tab.id
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-gray-800 text-gray-400 hover:text-white'
-              }`}
-            >
-              {tab.name}
-            </button>
-          ))}
         </div>
 
         {/* Content */}
-        <div className="bg-[#1a1f2e] rounded-xl border border-gray-700 overflow-hidden">
-          {loading ? (
-            <div className="flex items-center justify-center h-64">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
-            </div>
-          ) : viewMode === 'chart' || activeFinTab === 'margins' ? (
-            renderChartView()
-          ) : (
-            renderFinancialTable(financials?.periods || [], activeFinTab)
-          )}
+        <div className="col-span-12 min-h-[400px]">
+          <div className="bg-[#1a1f2e] rounded-xl border border-gray-700 overflow-hidden h-full">
+            {loading ? (
+              <div className="flex items-center justify-center h-64">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
+              </div>
+            ) : viewMode === 'chart' || activeFinTab === 'margins' ? (
+              renderChartView()
+            ) : (
+              renderFinancialTable(financials?.periods || [], activeFinTab)
+            )}
+          </div>
         </div>
       </div>
     </div>

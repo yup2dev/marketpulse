@@ -2,9 +2,9 @@
  * Professional Dashboard - Full-width trading terminal style layout
  * All widgets are draggable with grid layout
  */
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import GridLayout from 'react-grid-layout';
-import ContextMenu from './ContextMenu';
+import WidgetContextMenu from './common/WidgetContextMenu';
 import ResizableStockWidget from './ResizableStockWidget';
 import FinancialWidget from './widgets/FinancialWidget';
 import ChartWidget from './widgets/ChartWidget';
@@ -14,8 +14,30 @@ import WatchlistWidget from './widgets/WatchlistWidget';
 import MarketOverview from './widgets/MarketOverview';
 import LiveWatchlist from './widgets/LiveWatchlist';
 import TickerInformation from './widgets/TickerInformation';
+import EarningsWidget from './widgets/EarningsWidget';
+import AnalystWidget from './widgets/AnalystWidget';
+import InsiderWidget from './widgets/InsiderWidget';
+import YieldCurveWidget from './widgets/macro/YieldCurveWidget';
+import RegimeWidget from './widgets/macro/RegimeWidget';
+import AlertStatisticsWidget from './alerts/widgets/AlertStatisticsWidget';
+import RecentTriggersWidget from './alerts/widgets/RecentTriggersWidget';
+import ActiveAlertsWidget from './alerts/widgets/ActiveAlertsWidget';
 import StockSelectorModal from './StockSelectorModal';
+import { useGlobalWidgetContext } from './AppLayout';
 import 'react-grid-layout/css/styles.css';
+
+// Available widgets for the Professional Dashboard
+const AVAILABLE_WIDGETS = [
+  { id: 'market-overview', name: 'Market Overview', description: 'Global market indices', needsStock: false },
+  { id: 'live-watchlist', name: 'Live Watchlist', description: 'Real-time watchlist with sparklines', needsStock: false },
+  { id: 'ticker-information', name: 'Ticker Information', description: 'Detailed ticker info with chart', needsStock: true },
+  { id: 'watchlist', name: 'Watchlist', description: 'Manage favorite stocks', needsStock: false },
+  { id: 'stock-quote', name: 'Stock Quote', description: 'Real-time price and changes', needsStock: true },
+  { id: 'advanced-chart', name: 'Advanced Chart', description: 'Multi-ticker comparison & analysis', needsStock: true },
+  { id: 'ticker-info', name: 'Ticker Info', description: 'Company information & price details', needsStock: true },
+  { id: 'key-metrics', name: 'Key Metrics', description: 'Valuation & trading metrics', needsStock: true },
+  { id: 'financials', name: 'Financial Data', description: 'Income, balance sheet, cash flow', needsStock: true },
+];
 
 // Default widgets configuration
 const DEFAULT_WIDGETS = [
@@ -39,6 +61,79 @@ const ProfessionalDashboard = () => {
   const [showStockSelector, setShowStockSelector] = useState(null);
   const [tickerSymbols, setTickerSymbols] = useState({ 'ticker-info-default': 'AAPL' });
   const containerRef = useRef(null);
+
+  // Global widget context for registering widgets
+  const globalContext = useGlobalWidgetContext();
+
+  // Handle widget selection from context menu
+  const handleSelectWidgetFromMenu = useCallback((widgetConfig) => {
+    const widgetType = AVAILABLE_WIDGETS.find(w => w.id === widgetConfig.id) || widgetConfig;
+
+    if (!widgetType.needsStock) {
+      const newWidget = {
+        id: `widget-${Date.now()}`,
+        type: widgetType.id,
+        symbol: null,
+        name: widgetType.name
+      };
+
+      setWidgets(prev => [...prev, newWidget]);
+
+      const getWidgetSize = (type) => {
+        // Global/Dashboard Widgets
+        if (type === 'market-overview') return { w: 12, h: 2 };
+        if (type === 'live-watchlist') return { w: 8, h: 5 };
+        if (type === 'ticker-information') return { w: 4, h: 4 };
+        if (type === 'watchlist') return { w: 4, h: 5 };
+        // Stock Analysis Widgets
+        if (type === 'financials') return { w: 6, h: 5 };
+        if (type === 'advanced-chart') return { w: 8, h: 5 };
+        if (type === 'ticker-info') return { w: 4, h: 4 };
+        if (type === 'key-metrics') return { w: 4, h: 4 };
+        if (type === 'earnings') return { w: 4, h: 6 };
+        if (type === 'analyst') return { w: 4, h: 6 };
+        if (type === 'insider') return { w: 4, h: 6 };
+        // Macro Widgets
+        if (type === 'yield-curve') return { w: 6, h: 5 };
+        if (type === 'regime') return { w: 6, h: 5 };
+        // Alert Widgets
+        if (type === 'alert-statistics') return { w: 4, h: 5 };
+        if (type === 'recent-triggers') return { w: 6, h: 5 };
+        if (type === 'active-alerts') return { w: 6, h: 5 };
+        return { w: 4, h: 4 };
+      };
+
+      const size = getWidgetSize(widgetType.id);
+      const newLayout = {
+        i: newWidget.id,
+        x: 0,
+        y: Infinity,
+        w: size.w,
+        h: size.h,
+        minW: 2,
+        minH: 2
+      };
+
+      setLayout(prev => [...prev, newLayout]);
+      setContextMenu(null);
+    } else {
+      setShowStockSelector(widgetType);
+      setContextMenu(null);
+    }
+  }, []);
+
+  // Register widgets with global context
+  useEffect(() => {
+    if (globalContext?.registerWidgets) {
+      globalContext.registerWidgets(AVAILABLE_WIDGETS, handleSelectWidgetFromMenu);
+    }
+
+    return () => {
+      if (globalContext?.unregisterWidgets) {
+        globalContext.unregisterWidgets();
+      }
+    };
+  }, [handleSelectWidgetFromMenu, globalContext]);
 
   // Update grid width on resize
   useEffect(() => {
@@ -98,49 +193,8 @@ const ProfessionalDashboard = () => {
 
   const handleContextMenu = (e) => {
     e.preventDefault();
+    e.stopPropagation(); // Prevent global context menu
     setContextMenu({ x: e.clientX, y: e.clientY });
-  };
-
-  const handleSelectWidgetType = (widgetType) => {
-    if (!widgetType.needsStock) {
-      const newWidget = {
-        id: `widget-${Date.now()}`,
-        type: widgetType.id,
-        symbol: null,
-        name: widgetType.name
-      };
-
-      setWidgets([...widgets, newWidget]);
-
-      const getWidgetSize = (type) => {
-        if (type === 'watchlist') return { w: 4, h: 5 };
-        if (type === 'financials') return { w: 6, h: 5 };
-        if (type === 'advanced-chart') return { w: 8, h: 5 };
-        if (type === 'ticker-info') return { w: 4, h: 4 };
-        if (type === 'key-metrics') return { w: 4, h: 4 };
-        if (type === 'market-overview') return { w: 12, h: 2 };
-        if (type === 'live-watchlist') return { w: 8, h: 5 };
-        if (type === 'ticker-information') return { w: 4, h: 4 };
-        return { w: 4, h: 4 };
-      };
-
-      const size = getWidgetSize(widgetType.id);
-      const newLayout = {
-        i: newWidget.id,
-        x: 0,
-        y: Infinity, // Will be placed at the bottom
-        w: size.w,
-        h: size.h,
-        minW: 2,
-        minH: 2
-      };
-
-      setLayout([...layout, newLayout]);
-      setContextMenu(null);
-    } else {
-      setShowStockSelector(widgetType);
-      setContextMenu(null);
-    }
   };
 
   const handleSelectStock = (stock) => {
@@ -160,11 +214,15 @@ const ProfessionalDashboard = () => {
     }
 
     const getWidgetSize = (type) => {
+      // Stock Analysis Widgets
       if (type === 'financials') return { w: 6, h: 5 };
       if (type === 'advanced-chart') return { w: 8, h: 5 };
       if (type === 'ticker-info') return { w: 4, h: 4 };
       if (type === 'key-metrics') return { w: 4, h: 4 };
       if (type === 'ticker-information') return { w: 4, h: 4 };
+      if (type === 'earnings') return { w: 4, h: 6 };
+      if (type === 'analyst') return { w: 4, h: 6 };
+      if (type === 'insider') return { w: 4, h: 6 };
       return { w: 4, h: 4 };
     };
 
@@ -208,6 +266,7 @@ const ProfessionalDashboard = () => {
     };
 
     switch (widget.type) {
+      // Global/Dashboard Widgets
       case 'market-overview':
         return <MarketOverview {...commonProps} />;
       case 'live-watchlist':
@@ -222,6 +281,7 @@ const ProfessionalDashboard = () => {
         );
       case 'watchlist':
         return <WatchlistWidget widgetId={widget.id} {...commonProps} />;
+      // Stock Analysis Widgets
       case 'financials':
         return <FinancialWidget symbol={widget.symbol} {...commonProps} />;
       case 'advanced-chart':
@@ -230,6 +290,24 @@ const ProfessionalDashboard = () => {
         return <TickerInfoWidget symbol={widget.symbol} {...commonProps} />;
       case 'key-metrics':
         return <KeyMetricsWidget symbol={widget.symbol} {...commonProps} />;
+      case 'earnings':
+        return <EarningsWidget symbol={widget.symbol} {...commonProps} />;
+      case 'analyst':
+        return <AnalystWidget symbol={widget.symbol} {...commonProps} />;
+      case 'insider':
+        return <InsiderWidget symbol={widget.symbol} {...commonProps} />;
+      // Macro Widgets
+      case 'yield-curve':
+        return <YieldCurveWidget {...commonProps} />;
+      case 'regime':
+        return <RegimeWidget {...commonProps} />;
+      // Alert Widgets
+      case 'alert-statistics':
+        return <AlertStatisticsWidget {...commonProps} />;
+      case 'recent-triggers':
+        return <RecentTriggersWidget {...commonProps} />;
+      case 'active-alerts':
+        return <ActiveAlertsWidget {...commonProps} />;
       case 'stock-quote':
       case 'stock-chart':
       default:
@@ -290,11 +368,12 @@ const ProfessionalDashboard = () => {
 
       {/* Context Menu */}
       {contextMenu && (
-        <ContextMenu
+        <WidgetContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
           onClose={() => setContextMenu(null)}
-          onSelectWidget={handleSelectWidgetType}
+          availableWidgets={AVAILABLE_WIDGETS}
+          onSelect={handleSelectWidgetFromMenu}
         />
       )}
 

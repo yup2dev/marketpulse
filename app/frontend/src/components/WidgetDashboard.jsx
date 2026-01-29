@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import GridLayout from 'react-grid-layout';
 import { Plus } from 'lucide-react';
 import { useWidgetGrid } from '../hooks/useWidgetGrid';
+import { useGlobalWidgetContext } from './AppLayout';
 
 // Import all possible widget components
 import FinancialWidget from './widgets/FinancialWidget';
@@ -10,9 +11,14 @@ import TickerInfoWidget from './widgets/TickerInfoWidget';
 import KeyMetricsWidget from './widgets/KeyMetricsWidget';
 import ResizableStockWidget from './ResizableStockWidget';
 import YieldCurveWidget from './widgets/macro/YieldCurveWidget';
+import RegimeWidget from './widgets/macro/RegimeWidget';
 import EarningsWidget from './widgets/EarningsWidget';
 import AnalystWidget from './widgets/AnalystWidget';
 import InsiderWidget from './widgets/InsiderWidget';
+import MarketOverview from './widgets/MarketOverview';
+import LiveWatchlist from './widgets/LiveWatchlist';
+import TickerInformation from './widgets/TickerInformation';
+import WatchlistWidget from './widgets/WatchlistWidget';
 
 // Alert Widgets
 import AlertStatisticsWidget from './alerts/widgets/AlertStatisticsWidget';
@@ -20,6 +26,9 @@ import RecentTriggersWidget from './alerts/widgets/RecentTriggersWidget';
 import ActiveAlertsWidget from './alerts/widgets/ActiveAlertsWidget';
 
 import 'react-grid-layout/css/styles.css';
+
+// Import reusable context menu
+import WidgetContextMenu from './common/WidgetContextMenu';
 
 // Compact modal for selecting a widget to add
 const AddWidgetModal = ({ isOpen, onClose, availableWidgets, onSelect }) => {
@@ -73,7 +82,42 @@ function WidgetDashboard({
 
   const [gridWidth, setGridWidth] = useState(1200);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [contextMenu, setContextMenu] = useState(null);
   const containerRef = useRef(null);
+
+  // Global widget context for registering widgets
+  const globalContext = useGlobalWidgetContext();
+
+  // Handle right-click context menu
+  const handleContextMenu = (e) => {
+    e.preventDefault();
+    e.stopPropagation(); // Prevent global context menu
+    setContextMenu({ x: e.clientX, y: e.clientY });
+  };
+
+  // Handle adding widget (used by both local context menu and global)
+  const handleAddWidget = useCallback((widgetConfig) => {
+    addWidgetToGrid({
+      type: widgetConfig.id,
+      defaultSize: widgetConfig.defaultSize,
+      ...widgetConfig.initialProps,
+    });
+    setIsModalOpen(false);
+    setContextMenu(null);
+  }, [addWidgetToGrid]);
+
+  // Register widgets with global context when mounted
+  useEffect(() => {
+    if (globalContext?.registerWidgets) {
+      globalContext.registerWidgets(availableWidgets, handleAddWidget);
+    }
+
+    return () => {
+      if (globalContext?.unregisterWidgets) {
+        globalContext.unregisterWidgets();
+      }
+    };
+  }, [availableWidgets, handleAddWidget, globalContext]);
 
   // Update grid width on resize for the grid layout component
   useEffect(() => {
@@ -87,15 +131,6 @@ function WidgetDashboard({
     return () => window.removeEventListener('resize', updateWidth);
   }, []);
 
-  const handleAddWidget = (widgetConfig) => {
-    addWidgetToGrid({
-      type: widgetConfig.id,
-      defaultSize: widgetConfig.defaultSize,
-      ...widgetConfig.initialProps,
-    });
-    setIsModalOpen(false);
-  };
-  
   // This master function knows how to render every widget type in the application.
   const renderWidget = (widget) => {
     const props = {
@@ -104,6 +139,16 @@ function WidgetDashboard({
     };
 
     switch (widget.type) {
+        // Global/Dashboard Widgets
+        case 'market-overview':
+            return <MarketOverview {...props} />;
+        case 'live-watchlist':
+            return <LiveWatchlist {...props} />;
+        case 'ticker-information':
+            return <TickerInformation symbol={widget.symbol || 'AAPL'} {...props} />;
+        case 'watchlist':
+            return <WatchlistWidget widgetId={widget.id} {...props} />;
+
         // Stock Widgets
         case 'financials':
             return <FinancialWidget {...props} />;
@@ -125,6 +170,8 @@ function WidgetDashboard({
         // Macro Widgets
         case 'yield-curve':
             return <YieldCurveWidget {...props} />;
+        case 'regime':
+            return <RegimeWidget {...props} />;
 
         // Alert Widgets
         case 'alert-statistics':
@@ -144,7 +191,7 @@ function WidgetDashboard({
   }
 
   return (
-    <div className="w-full px-2 py-2">
+    <div className="w-full px-2 py-2" onContextMenu={handleContextMenu}>
       {/* Compact Header */}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-3">
@@ -184,8 +231,12 @@ function WidgetDashboard({
             ))}
           </GridLayout>
         ) : (
-          <div className="flex flex-col items-center justify-center py-12 bg-[#0d0d12] rounded border border-gray-800 border-dashed">
-            <p className="text-gray-500 text-xs mb-3">No widgets. Click to add.</p>
+          <div className="flex flex-col items-center justify-center py-12 bg-[#0d0d12] rounded border border-gray-800 border-dashed min-h-[300px]">
+            <div className="w-12 h-12 mb-3 rounded-full bg-gray-800/50 flex items-center justify-center">
+              <Plus size={20} className="text-gray-600" />
+            </div>
+            <p className="text-gray-400 text-sm mb-1">No widgets added yet</p>
+            <p className="text-gray-500 text-xs mb-4">Right-click anywhere to add widgets</p>
             <button
               onClick={() => setIsModalOpen(true)}
               className="flex items-center gap-1 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded text-xs text-white transition-colors"
@@ -197,6 +248,17 @@ function WidgetDashboard({
         )}
       </div>
 
+      {/* Context Menu for right-click */}
+      {contextMenu && (
+        <WidgetContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={() => setContextMenu(null)}
+          availableWidgets={availableWidgets}
+          onSelect={handleAddWidget}
+        />
+      )}
+
       {/* Add Widget Modal */}
       <AddWidgetModal
         isOpen={isModalOpen}
@@ -204,6 +266,52 @@ function WidgetDashboard({
         availableWidgets={availableWidgets}
         onSelect={handleAddWidget}
       />
+
+      {/* Grid Layout Styles */}
+      <style>{`
+        .react-grid-item {
+          transition: all 200ms ease;
+          transition-property: left, top;
+        }
+        .react-grid-item.cssTransforms {
+          transition-property: transform;
+        }
+        .react-grid-item.resizing {
+          z-index: 1;
+          will-change: width, height;
+        }
+        .react-grid-item.react-draggable-dragging {
+          transition: none;
+          z-index: 3;
+          will-change: transform;
+          opacity: 0.9;
+        }
+        .react-grid-item > .react-resizable-handle {
+          position: absolute;
+          width: 20px;
+          height: 20px;
+        }
+        .react-grid-item > .react-resizable-handle::after {
+          content: "";
+          position: absolute;
+          right: 3px;
+          bottom: 3px;
+          width: 5px;
+          height: 5px;
+          border-right: 2px solid rgba(255, 255, 255, 0.3);
+          border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+        }
+        .react-grid-item:hover > .react-resizable-handle::after {
+          border-color: rgba(255, 255, 255, 0.5);
+        }
+        .react-grid-placeholder {
+          background: #3b82f6;
+          opacity: 0.2;
+          border-radius: 8px;
+          transition-duration: 100ms;
+          z-index: 2;
+        }
+      `}</style>
     </div>
   );
 }

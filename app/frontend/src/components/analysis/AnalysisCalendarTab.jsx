@@ -1,5 +1,5 @@
 /**
- * Analysis Calendar Tab - 회사 일정 (실적 발표, 배당)
+ * Analysis Calendar Tab - Static Grid Layout
  */
 import { useState, useEffect } from 'react';
 import { Calendar, DollarSign, TrendingUp, Clock, AlertCircle } from 'lucide-react';
@@ -78,9 +78,11 @@ export default function AnalysisCalendarTab() {
 
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto px-6">
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
+      <div className="h-full">
+        <div className="grid grid-cols-12 gap-1 h-[calc(100vh-180px)]">
+          <div className="col-span-12 flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
+          </div>
         </div>
       </div>
     );
@@ -92,21 +94,24 @@ export default function AnalysisCalendarTab() {
   const dividendDaysUntil = getDaysUntil(dividend.ex_date);
 
   return (
-    <div className="max-w-7xl mx-auto px-6">
-      <div className="space-y-6">
+    <div className="h-full">
+      <div className="grid grid-cols-12 gap-1 h-[calc(100vh-180px)]">
         {/* Header */}
-        <div className="flex items-center gap-3">
-          <Calendar className="text-purple-500" size={28} />
-          <div>
-            <h2 className="text-xl font-bold text-white">회사 일정</h2>
-            <p className="text-gray-400 text-sm mt-0.5">실적 발표 및 배당 일정을 확인하세요</p>
+        <div className="col-span-12 min-h-[60px]">
+          <div className="bg-[#1a1f2e] rounded-xl border border-gray-700 p-4 h-full">
+            <div className="flex items-center gap-3">
+              <Calendar className="text-purple-500" size={28} />
+              <div>
+                <h2 className="text-xl font-bold text-white">회사 일정</h2>
+                <p className="text-gray-400 text-sm mt-0.5">실적 발표 및 배당 일정을 확인하세요</p>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Upcoming Events Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Earnings Card */}
-          <div className="bg-[#1a1f2e] rounded-xl border border-gray-700 p-6">
+        {/* Earnings Card */}
+        <div className="col-span-6 min-h-[280px]">
+          <div className="bg-[#1a1f2e] rounded-xl border border-gray-700 p-6 h-full">
             <div className="flex items-center gap-3 mb-4">
               <div className="p-2 bg-blue-600/20 rounded-lg">
                 <TrendingUp className="text-blue-400" size={20} />
@@ -140,7 +145,6 @@ export default function AnalysisCalendarTab() {
                   </div>
                 )}
 
-                {/* EPS Estimate */}
                 {(earnings.eps_average || earnings.eps_low || earnings.eps_high) && (
                   <div className="border-t border-gray-700 pt-4">
                     <h4 className="text-sm font-medium text-gray-400 mb-2">EPS 추정치</h4>
@@ -160,27 +164,6 @@ export default function AnalysisCalendarTab() {
                     </div>
                   </div>
                 )}
-
-                {/* Revenue Estimate */}
-                {(earnings.revenue_average || earnings.revenue_low || earnings.revenue_high) && (
-                  <div className="border-t border-gray-700 pt-4">
-                    <h4 className="text-sm font-medium text-gray-400 mb-2">매출 추정치</h4>
-                    <div className="grid grid-cols-3 gap-2 text-center">
-                      <div className="bg-gray-800 rounded-lg p-2">
-                        <div className="text-xs text-gray-500">Low</div>
-                        <div className="text-white font-medium text-sm">{formatNumber(earnings.revenue_low, 'currency')}</div>
-                      </div>
-                      <div className="bg-purple-600/20 rounded-lg p-2">
-                        <div className="text-xs text-purple-400">Avg</div>
-                        <div className="text-white font-bold text-sm">{formatNumber(earnings.revenue_average, 'currency')}</div>
-                      </div>
-                      <div className="bg-gray-800 rounded-lg p-2">
-                        <div className="text-xs text-gray-500">High</div>
-                        <div className="text-white font-medium text-sm">{formatNumber(earnings.revenue_high, 'currency')}</div>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
             ) : (
               <div className="flex items-center gap-2 text-gray-400">
@@ -189,9 +172,11 @@ export default function AnalysisCalendarTab() {
               </div>
             )}
           </div>
+        </div>
 
-          {/* Dividend Card */}
-          <div className="bg-[#1a1f2e] rounded-xl border border-gray-700 p-6">
+        {/* Dividend Card */}
+        <div className="col-span-6 min-h-[280px]">
+          <div className="bg-[#1a1f2e] rounded-xl border border-gray-700 p-6 h-full">
             <div className="flex items-center gap-3 mb-4">
               <div className="p-2 bg-green-600/20 rounded-lg">
                 <DollarSign className="text-green-400" size={20} />
@@ -243,53 +228,55 @@ export default function AnalysisCalendarTab() {
         </div>
 
         {/* Earnings History Table */}
-        {earningsHistory.length > 0 && (
-          <div className="bg-[#1a1f2e] rounded-xl border border-gray-700 overflow-hidden">
-            <div className="p-4 border-b border-gray-700">
-              <h3 className="text-lg font-semibold text-white">실적 발표 이력</h3>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-700 bg-gray-800/50">
-                    <th className="text-left py-3 px-4 text-gray-400 font-medium">기간</th>
-                    <th className="text-center py-3 px-4 text-gray-400 font-medium">발표일</th>
-                    <th className="text-center py-3 px-4 text-gray-400 font-medium">EPS 실제</th>
-                    <th className="text-center py-3 px-4 text-gray-400 font-medium">EPS 예상</th>
-                    <th className="text-center py-3 px-4 text-gray-400 font-medium">Surprise</th>
-                    <th className="text-center py-3 px-4 text-gray-400 font-medium">매출</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {earningsHistory.map((earning, index) => (
-                    <tr key={index} className="border-b border-gray-800 hover:bg-gray-800/30">
-                      <td className="py-3 px-4 text-white font-medium">
-                        {earning.fiscal_year} {earning.fiscal_period}
-                      </td>
-                      <td className="text-center py-3 px-4 text-gray-300">
-                        {formatDate(earning.report_date)}
-                      </td>
-                      <td className="text-center py-3 px-4 text-white font-medium">
-                        {formatNumber(earning.eps_actual)}
-                      </td>
-                      <td className="text-center py-3 px-4 text-gray-400">
-                        {formatNumber(earning.eps_estimated)}
-                      </td>
-                      <td className={`text-center py-3 px-4 font-medium ${getSurpriseColor(earning.eps_surprise_percent)}`}>
-                        {earning.eps_surprise_percent != null
-                          ? `${earning.eps_surprise_percent > 0 ? '+' : ''}${earning.eps_surprise_percent.toFixed(2)}%`
-                          : 'N/A'}
-                      </td>
-                      <td className="text-center py-3 px-4 text-gray-300">
-                        {formatNumber(earning.revenue_actual, 'currency')}
-                      </td>
+        <div className="col-span-12 min-h-[280px]">
+          {earningsHistory.length > 0 && (
+            <div className="bg-[#1a1f2e] rounded-xl border border-gray-700 overflow-hidden h-full">
+              <div className="p-4 border-b border-gray-700">
+                <h3 className="text-lg font-semibold text-white">실적 발표 이력</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-700 bg-gray-800/50">
+                      <th className="text-left py-3 px-4 text-gray-400 font-medium">기간</th>
+                      <th className="text-center py-3 px-4 text-gray-400 font-medium">발표일</th>
+                      <th className="text-center py-3 px-4 text-gray-400 font-medium">EPS 실제</th>
+                      <th className="text-center py-3 px-4 text-gray-400 font-medium">EPS 예상</th>
+                      <th className="text-center py-3 px-4 text-gray-400 font-medium">Surprise</th>
+                      <th className="text-center py-3 px-4 text-gray-400 font-medium">매출</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {earningsHistory.map((earning, index) => (
+                      <tr key={index} className="border-b border-gray-800 hover:bg-gray-800/30">
+                        <td className="py-3 px-4 text-white font-medium">
+                          {earning.fiscal_year} {earning.fiscal_period}
+                        </td>
+                        <td className="text-center py-3 px-4 text-gray-300">
+                          {formatDate(earning.report_date)}
+                        </td>
+                        <td className="text-center py-3 px-4 text-white font-medium">
+                          {formatNumber(earning.eps_actual)}
+                        </td>
+                        <td className="text-center py-3 px-4 text-gray-400">
+                          {formatNumber(earning.eps_estimated)}
+                        </td>
+                        <td className={`text-center py-3 px-4 font-medium ${getSurpriseColor(earning.eps_surprise_percent)}`}>
+                          {earning.eps_surprise_percent != null
+                            ? `${earning.eps_surprise_percent > 0 ? '+' : ''}${earning.eps_surprise_percent.toFixed(2)}%`
+                            : 'N/A'}
+                        </td>
+                        <td className="text-center py-3 px-4 text-gray-300">
+                          {formatNumber(earning.revenue_actual, 'currency')}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

@@ -1,86 +1,34 @@
 /**
- * Analysis 개요 탭 - 위젯 대시보드
+ * Analysis 개요 탭 - Static Grid Layout
  */
-import WidgetDashboard from '../WidgetDashboard';
 import { useStockContext } from './AnalysisDashboard';
-
-// 분석 대시보드에서 사용 가능한 위젯 정의
-const availableAnalysisWidgets = [
-  {
-    id: 'ticker-info',
-    name: '종목 정보',
-    description: '현재가, 변동률, 거래량 등 기본 정보',
-    defaultSize: { w: 4, h: 6 }
-  },
-  {
-    id: 'key-metrics',
-    name: '핵심 지표',
-    description: 'P/E, EPS, 시가총액 등 핵심 재무지표',
-    defaultSize: { w: 4, h: 9 }
-  },
-  {
-    id: 'advanced-chart',
-    name: '고급 차트',
-    description: '멀티 티커 비교 및 기술적 분석',
-    defaultSize: { w: 12, h: 8 }
-  },
-  {
-    id: 'financials',
-    name: '재무 요약',
-    description: '손익계산서, 재무상태표, 현금흐름표',
-    defaultSize: { w: 6, h: 9 }
-  },
-  {
-    id: 'stock-quote',
-    name: '주가 위젯',
-    description: '간단한 주가 차트와 정보',
-    defaultSize: { w: 5, h: 7 }
-  },
-  {
-    id: 'earnings',
-    name: '실적 발표',
-    description: '분기별 EPS 실제값 vs 예상값',
-    defaultSize: { w: 4, h: 7 }
-  },
-  {
-    id: 'analyst',
-    name: '애널리스트',
-    description: '투자의견, 목표가, 예상 수익률',
-    defaultSize: { w: 4, h: 7 }
-  },
-  {
-    id: 'insider',
-    name: '내부자 거래',
-    description: '임원 매수/매도 내역',
-    defaultSize: { w: 4, h: 8 }
-  }
-];
-
-// 기본 레이아웃
-const defaultAnalysisLayout = [
-  { i: 'ticker-info-default', x: 0, y: 0, w: 4, h: 6 },
-  { i: 'key-metrics-default', x: 4, y: 0, w: 4, h: 7 },
-  { i: 'advanced-chart-default', x: 0, y: 6, w: 12, h: 8 }
-];
-
-// 기본 위젯
-const defaultAnalysisWidgets = [
-  { id: 'ticker-info-default', type: 'ticker-info' },
-  { id: 'key-metrics-default', type: 'key-metrics' },
-  { id: 'advanced-chart-default', type: 'advanced-chart' }
-];
+import TickerInfoWidget from '../widgets/TickerInfoWidget';
+import KeyMetricsWidget from '../widgets/KeyMetricsWidget';
+import EarningsWidget from '../widgets/EarningsWidget';
+import ChartWidget from '../widgets/ChartWidget';
 
 export default function AnalysisOverviewTab() {
   const { symbol } = useStockContext();
 
   return (
-    <WidgetDashboard
-      dashboardId="analysis-overview"
-      title="종목 분석 대시보드"
-      subtitle={`${symbol} - 커스터마이즈 가능한 분석 대시보드`}
-      availableWidgets={availableAnalysisWidgets}
-      defaultLayout={defaultAnalysisLayout}
-      defaultWidgets={defaultAnalysisWidgets}
-    />
+    <div className="h-full">
+      <div className="grid grid-cols-12 gap-1 h-[calc(100vh-180px)]">
+        {/* Top Row - Info, Metrics, Earnings */}
+        <div className="col-span-4 min-h-[280px]">
+          <TickerInfoWidget symbol={symbol} />
+        </div>
+        <div className="col-span-4 min-h-[280px]">
+          <KeyMetricsWidget symbol={symbol} />
+        </div>
+        <div className="col-span-4 min-h-[280px]">
+          <EarningsWidget symbol={symbol} />
+        </div>
+
+        {/* Bottom Row - Chart */}
+        <div className="col-span-12 min-h-[320px]">
+          <ChartWidget widgetId="analysis-overview-chart" initialSymbols={[symbol]} />
+        </div>
+      </div>
+    </div>
   );
 }

@@ -1,5 +1,5 @@
 /**
- * 기술적 알림 탭 컴포넌트
+ * 기술적 알림 탭 컴포넌트 - Static Grid Layout
  */
 import { useState } from 'react';
 import { useAlertsContext } from '../../contexts/AlertsContext';
@@ -31,18 +31,22 @@ export default function TechnicalAlertsTab() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-6">
-      <AlertsListView
-        alerts={technicalAlerts}
-        onToggle={handleToggle}
-        onDelete={handleDelete}
-        onTest={handleTest}
-        onCreateClick={() => setShowCreateModal(true)}
-        title="기술적 알림"
-        subtitle="기술 지표 조건 충족 시 알림을 받으세요"
-        emptyMessage="기술적 알림이 없습니다"
-        emptySubMessage="RSI, MACD 등 기술 지표 기반 알림을 설정하세요"
-      />
+    <div className="h-full">
+      <div className="grid grid-cols-12 gap-1 h-[calc(100vh-180px)]">
+        <div className="col-span-12 min-h-[280px]">
+          <AlertsListView
+            alerts={technicalAlerts}
+            onToggle={handleToggle}
+            onDelete={handleDelete}
+            onTest={handleTest}
+            onCreateClick={() => setShowCreateModal(true)}
+            title="기술적 알림"
+            subtitle="기술 지표 조건 충족 시 알림을 받으세요"
+            emptyMessage="기술적 알림이 없습니다"
+            emptySubMessage="RSI, MACD 등 기술 지표 기반 알림을 설정하세요"
+          />
+        </div>
+      </div>
 
       {showCreateModal && (
         <CreateAlertModal

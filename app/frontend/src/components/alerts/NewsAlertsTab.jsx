@@ -1,5 +1,5 @@
 /**
- * 뉴스 알림 탭 컴포넌트
+ * 뉴스 알림 탭 컴포넌트 - Static Grid Layout
  */
 import { useState } from 'react';
 import { useAlertsContext } from '../../contexts/AlertsContext';
@@ -31,18 +31,22 @@ export default function NewsAlertsTab() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-6">
-      <AlertsListView
-        alerts={newsAlerts}
-        onToggle={handleToggle}
-        onDelete={handleDelete}
-        onTest={handleTest}
-        onCreateClick={() => setShowCreateModal(true)}
-        title="뉴스 알림"
-        subtitle="중요 뉴스 발생 시 알림을 받으세요"
-        emptyMessage="뉴스 알림이 없습니다"
-        emptySubMessage="관심 종목의 중요 뉴스를 놓치지 마세요"
-      />
+    <div className="h-full">
+      <div className="grid grid-cols-12 gap-1 h-[calc(100vh-180px)]">
+        <div className="col-span-12 min-h-[280px]">
+          <AlertsListView
+            alerts={newsAlerts}
+            onToggle={handleToggle}
+            onDelete={handleDelete}
+            onTest={handleTest}
+            onCreateClick={() => setShowCreateModal(true)}
+            title="뉴스 알림"
+            subtitle="중요 뉴스 발생 시 알림을 받으세요"
+            emptyMessage="뉴스 알림이 없습니다"
+            emptySubMessage="관심 종목의 중요 뉴스를 놓치지 마세요"
+          />
+        </div>
+      </div>
 
       {showCreateModal && (
         <CreateAlertModal

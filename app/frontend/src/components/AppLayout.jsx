@@ -1,8 +1,9 @@
 /**
  * AppLayout - Common layout for all authenticated pages
  * Hyperliquid-style header with left-aligned navigation
+ * Supports right-click context menu for widget addition on all pages
  */
-import { useState } from 'react';
+import { useState, useCallback, createContext, useContext } from 'react';
 import {
   TrendingUp, Grid3x3, LayoutDashboard, BarChart3, Briefcase,
   Globe, Bell, LogOut, User, Settings, ChevronDown
@@ -13,6 +14,14 @@ import useAuthStore from '../store/authStore';
 import useMenus from '../hooks/useMenus';
 import ThemeToggle from './ThemeToggle';
 import MenuDropdown from './MenuDropdown';
+import WidgetContextMenu from './common/WidgetContextMenu';
+
+// Global widget context for page-level widget management
+export const GlobalWidgetContext = createContext(null);
+
+export const useGlobalWidgetContext = () => {
+  return useContext(GlobalWidgetContext);
+};
 
 // Menu path to page route mapping
 const PAGE_ROUTES = {
@@ -29,6 +38,46 @@ const AppLayout = () => {
   const { user, logout } = useAuthStore();
   const { menus, loading: menusLoading } = useMenus();
   const [hoveredMenu, setHoveredMenu] = useState(null);
+
+  // Context menu state for widget addition
+  const [contextMenu, setContextMenu] = useState(null);
+  const [availableWidgets, setAvailableWidgets] = useState([]);
+  const [addWidgetCallback, setAddWidgetCallback] = useState(null);
+
+  // Register widgets for current page
+  const registerWidgets = useCallback((widgets, onAddWidget) => {
+    setAvailableWidgets(widgets || []);
+    setAddWidgetCallback(() => onAddWidget);
+  }, []);
+
+  // Unregister widgets when page unmounts
+  const unregisterWidgets = useCallback(() => {
+    setAvailableWidgets([]);
+    setAddWidgetCallback(null);
+  }, []);
+
+  // Handle right-click context menu
+  const handleContextMenu = useCallback((e) => {
+    // Only show if widgets are registered and callback is available
+    if (availableWidgets.length === 0 || !addWidgetCallback) return;
+
+    // Don't show menu if clicking on interactive elements
+    const target = e.target;
+    const isInteractive = target.closest('button, a, input, select, textarea, [role="button"], .no-context-menu, .react-grid-item');
+
+    if (!isInteractive) {
+      e.preventDefault();
+      setContextMenu({ x: e.clientX, y: e.clientY });
+    }
+  }, [availableWidgets, addWidgetCallback]);
+
+  // Handle widget selection
+  const handleSelectWidget = useCallback((widget) => {
+    if (addWidgetCallback) {
+      addWidgetCallback(widget);
+    }
+    setContextMenu(null);
+  }, [addWidgetCallback]);
 
   const handleLogout = async () => {
     await logout();
@@ -119,8 +168,15 @@ const AppLayout = () => {
     return false;
   };
 
+  // Context value for child pages
+  const contextValue = {
+    registerWidgets,
+    unregisterWidgets,
+  };
+
   return (
-    <div className="min-h-screen flex flex-col bg-[#0d0d0d]">
+    <GlobalWidgetContext.Provider value={contextValue}>
+    <div className="min-h-screen flex flex-col bg-[#0d0d0d]" onContextMenu={handleContextMenu}>
       {/* Fixed Header */}
       <header className="fixed top-0 left-0 right-0 z-50 border-b border-gray-800 bg-[#0d0d0d]">
         <div className="px-6">
@@ -249,7 +305,19 @@ const AppLayout = () => {
           </div>
         </div>
       </footer>
+
+      {/* Global Context Menu for Widget Addition */}
+      {contextMenu && availableWidgets.length > 0 && (
+        <WidgetContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={() => setContextMenu(null)}
+          availableWidgets={availableWidgets}
+          onSelect={handleSelectWidget}
+        />
+      )}
     </div>
+    </GlobalWidgetContext.Provider>
   );
 };
 
