@@ -81,7 +81,7 @@ export default function PortfolioWidget({ onRemove }) {
               return (
                 <div
                   key={portfolio.portfolio_id}
-                  className="p-3 bg-[#1a1a1a] rounded-lg hover:bg-gray-800 transition-colors cursor-pointer group"
+                  className="p-3 bg-[#0d0d12] rounded-lg hover:bg-gray-800 transition-colors cursor-pointer group"
                   onClick={() => handleViewPortfolio(portfolio.portfolio_id)}
                 >
                   <div className="flex items-start justify-between mb-2">

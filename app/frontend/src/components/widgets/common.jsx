@@ -12,8 +12,8 @@ import { API_BASE } from '../../config/api';
 export { API_BASE };
 
 export const WIDGET_STYLES = {
-  container: 'bg-[#1a1a1a] rounded-lg overflow-hidden flex flex-col h-full border border-gray-800',
-  header: 'flex items-center justify-between p-2.5 border-b border-gray-800 bg-gradient-to-b from-gray-800/50 to-transparent',
+  container: 'bg-[#0d0d12] rounded-lg overflow-hidden flex flex-col h-full border border-gray-800',
+  header: 'flex items-center justify-between p-3 border-b border-gray-800',
   content: 'flex-1 overflow-auto',
   title: 'text-sm font-semibold text-white',
 };
@@ -219,7 +219,7 @@ export const formatDate = (date, options = null) => {
  */
 export const WidgetHeader = ({
   icon: Icon,
-  iconColor,
+  iconColor = 'text-blue-400',
   title,
   loading = false,
   onRefresh,
@@ -229,9 +229,9 @@ export const WidgetHeader = ({
 }) => {
   return (
     <div className={WIDGET_STYLES.header}>
-      {/* Left side - Icon and Title */}
-      <div className="flex items-center gap-2 min-w-0">
-        {Icon && <Icon size={16} className={`${iconColor} flex-shrink-0`} />}
+      {/* Left side - Drag handle area with Icon and Title */}
+      <div className="flex items-center gap-2 min-w-0 cursor-move drag-handle-area flex-1">
+        {Icon && <Icon size={18} className={`${iconColor} flex-shrink-0`} />}
         <h3 className={`${WIDGET_STYLES.title} truncate`}>{title}</h3>
       </div>
 

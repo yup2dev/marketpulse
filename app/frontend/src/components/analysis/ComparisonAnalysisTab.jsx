@@ -127,7 +127,7 @@ const ComparisonAnalysisTab = ({ symbol }) => {
       <div className="grid grid-cols-12 gap-1 h-[calc(100vh-180px)]">
         {/* Header */}
         <div className="col-span-12 min-h-[80px]">
-          <div className="bg-[#1a1a1a] rounded-lg p-4 border border-gray-800 h-full">
+          <div className="bg-[#0d0d12] rounded-lg p-4 border border-gray-800 h-full">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-xl font-semibold text-white flex items-center gap-2">
@@ -176,7 +176,7 @@ const ComparisonAnalysisTab = ({ symbol }) => {
                   </button>
 
                   {showSearch && (
-                    <div className="absolute top-full left-0 mt-2 w-72 bg-[#1a1a1a] border border-gray-700 rounded-lg shadow-xl z-50">
+                    <div className="absolute top-full left-0 mt-2 w-72 bg-[#0d0d12] border border-gray-700 rounded-lg shadow-xl z-50">
                       <div className="p-2">
                         <div className="relative">
                           <Search className="absolute left-3 top-2.5 text-gray-400" size={16} />
@@ -218,7 +218,7 @@ const ComparisonAnalysisTab = ({ symbol }) => {
 
         {/* Chart */}
         <div className="col-span-12 min-h-[400px]">
-          <div className="bg-[#1a1a1a] rounded-lg border border-gray-800 h-full relative overflow-visible">
+          <div className="bg-[#0d0d12] rounded-lg border border-gray-800 h-full relative overflow-visible">
             <ChartWidget
               widgetId={`comparison-${symbol}`}
               initialSymbols={symbols}
@@ -228,7 +228,7 @@ const ComparisonAnalysisTab = ({ symbol }) => {
 
         {/* Metrics Table */}
         <div className="col-span-7 min-h-[280px]">
-          <div className="bg-[#1a1a1a] rounded-lg p-6 border border-gray-800 h-full">
+          <div className="bg-[#0d0d12] rounded-lg p-6 border border-gray-800 h-full">
             <h4 className="text-lg font-semibold text-white mb-4">Key Metrics Comparison</h4>
 
             <div className="overflow-x-auto">
@@ -296,7 +296,7 @@ const ComparisonAnalysisTab = ({ symbol }) => {
         {/* Radar Chart */}
         {symbols.length > 1 && (
           <div className="col-span-5 min-h-[280px]">
-            <div className="bg-[#1a1a1a] rounded-lg p-6 border border-gray-800 h-full">
+            <div className="bg-[#0d0d12] rounded-lg p-6 border border-gray-800 h-full">
               <h4 className="text-lg font-semibold text-white mb-4">Financial Metrics Radar</h4>
               <div className="h-48">
                 <ResponsiveContainer width="100%" height="100%">

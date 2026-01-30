@@ -227,7 +227,7 @@ const AppLayout = () => {
 
                       {/* Dropdown */}
                       {hoveredMenu === menu.menu_id && menu.children?.length > 0 && (
-                        <div className="absolute top-full left-0 mt-1 py-2 bg-[#1a1a1a] border border-gray-800 rounded-lg shadow-xl min-w-[180px] z-50">
+                        <div className="absolute top-full left-0 mt-1 py-2 bg-[#0d0d12] border border-gray-800 rounded-lg shadow-xl min-w-[180px] z-50">
                           {menu.children.map((child) => (
                             <button
                               key={child.menu_id}

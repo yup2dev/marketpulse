@@ -70,7 +70,7 @@ const TickerSearch = ({ onSelect, placeholder = "Search stocks..." }) => {
           onChange={(e) => setQuery(e.target.value.toUpperCase())}
           onFocus={() => query && setIsOpen(true)}
           placeholder={placeholder}
-          className="w-full pl-10 pr-10 py-2 bg-[#1a1a1a] border border-gray-700 rounded text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+          className="w-full pl-10 pr-10 py-2 bg-[#0d0d12] border border-gray-700 rounded text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
         />
         {query && (
           <button
@@ -83,7 +83,7 @@ const TickerSearch = ({ onSelect, placeholder = "Search stocks..." }) => {
       </div>
 
       {isOpen && (query || results.length > 0) && (
-        <div className="absolute z-[102] w-full mt-1 bg-[#1a1a1a] border border-gray-700 rounded shadow-lg max-h-60 overflow-y-auto">
+        <div className="absolute z-[102] w-full mt-1 bg-[#0d0d12] border border-gray-700 rounded shadow-lg max-h-60 overflow-y-auto">
           {loading ? (
             <div className="p-4 text-center text-gray-400">Searching...</div>
           ) : results.length > 0 ? (

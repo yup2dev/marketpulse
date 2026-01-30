@@ -1,11 +1,14 @@
 /**
- * Macro Commodities Tab - Data-driven commodities dashboard
+ * Macro Commodities Tab - WidgetDashboard 기반 동적 레이아웃
+ * 원자재 데이터는 복잡한 내부 상태를 가지므로 단일 위젯으로 처리
  */
 import { useState, useEffect } from 'react';
-import { ArrowUp, ArrowDown, RefreshCw } from 'lucide-react';
+import { ArrowUp, ArrowDown, RefreshCw, GripVertical } from 'lucide-react';
+import WidgetDashboard from '../WidgetDashboard';
 import { API_BASE } from '../../config/api';
 
-export default function MacroCommoditiesTab() {
+// Commodities 위젯 컴포넌트
+function CommoditiesWidget({ onRemove }) {
   const [fredSeries, setFredSeries] = useState([]);
   const [commodityRatios, setCommodityRatios] = useState({});
   const [loading, setLoading] = useState(true);
@@ -57,104 +60,136 @@ export default function MacroCommoditiesTab() {
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        {[1, 2, 3].map(i => (
-          <div key={i} className="bg-[#1a1a1a] rounded-lg p-6 border border-gray-800 animate-pulse">
-            <div className="h-4 bg-gray-700 rounded w-1/4 mb-4"></div>
-            <div className="h-8 bg-gray-700 rounded w-1/2"></div>
-          </div>
-        ))}
+      <div className="bg-[#0d0d12] rounded-lg border border-gray-800 h-full flex items-center justify-center">
+        <RefreshCw className="animate-spin text-cyan-500" size={32} />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Commodity Categories */}
-      {Object.entries(groupedSeries).map(([category, series]) => (
-        <div key={category} className="bg-[#1a1a1a] rounded-lg border border-gray-800">
-          <div className="p-4 border-b border-gray-800 flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-white">
-              {categoryLabels[category] || category}
-            </h3>
-            <button onClick={fetchCommoditiesData} className="text-gray-400 hover:text-white">
-              <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-            </button>
+    <div className="bg-[#0d0d12] rounded-lg border border-gray-800 h-full overflow-hidden flex flex-col">
+      {/* Header */}
+      <div className="p-3 border-b border-gray-800 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-2">
+          <div className="drag-handle-area cursor-move p-1 hover:bg-gray-700 rounded">
+            <GripVertical size={14} className="text-gray-500" />
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="text-left text-sm text-gray-400 border-b border-gray-800">
-                  <th className="px-4 py-3 font-medium">Name</th>
-                  <th className="px-4 py-3 font-medium">ID</th>
-                  <th className="px-4 py-3 font-medium text-right">Value</th>
-                  <th className="px-4 py-3 font-medium text-right">Change</th>
-                  <th className="px-4 py-3 font-medium text-right">Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {series.map((item) => (
-                  <tr key={item.id} className="border-b border-gray-800/50 hover:bg-gray-800/30">
-                    <td className="px-4 py-3 font-medium text-white">{item.name}</td>
-                    <td className="px-4 py-3 text-gray-400 text-sm">{item.id}</td>
-                    <td className="px-4 py-3 text-right text-white font-medium">
-                      {item.value !== undefined ? item.value.toLocaleString() : '-'}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      {item.change !== undefined ? (
-                        <div className={`flex items-center justify-end gap-1 ${
-                          item.change >= 0 ? 'text-green-400' : 'text-red-400'
-                        }`}>
-                          {item.change >= 0 ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
-                          {Math.abs(item.change).toFixed(2)}%
-                        </div>
-                      ) : '-'}
-                    </td>
-                    <td className="px-4 py-3 text-right text-gray-400 text-sm">
-                      {item.date ? new Date(item.date).toLocaleDateString() : '-'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <h3 className="text-sm font-semibold text-white">원자재</h3>
         </div>
-      ))}
+        <button onClick={fetchCommoditiesData} className="text-gray-400 hover:text-white">
+          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+        </button>
+      </div>
 
-      {/* Commodity Ratios */}
-      {Object.keys(commodityRatios).length > 0 && (
-        <div className="bg-[#1a1a1a] rounded-lg border border-gray-800">
-          <div className="p-4 border-b border-gray-800">
-            <h3 className="text-lg font-semibold text-white">Commodity Ratios</h3>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="text-left text-sm text-gray-400 border-b border-gray-800">
-                  <th className="px-4 py-3 font-medium">Ratio</th>
-                  <th className="px-4 py-3 font-medium text-right">Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Object.entries(commodityRatios).map(([key, ratio]) => (
-                  <tr key={key} className="border-b border-gray-800/50 hover:bg-gray-800/30">
-                    <td className="px-4 py-3 font-medium text-white">{ratio.name || key}</td>
-                    <td className="px-4 py-3 text-right text-white font-medium">
-                      {ratio.value?.toFixed(4) || '-'}
-                    </td>
+      {/* Content */}
+      <div className="flex-1 overflow-auto p-4 space-y-4">
+        {Object.entries(groupedSeries).map(([category, series]) => (
+          <div key={category} className="bg-gray-800/30 rounded-lg border border-gray-700/50">
+            <div className="p-3 border-b border-gray-700/50">
+              <h4 className="text-sm font-medium text-white">
+                {categoryLabels[category] || category}
+              </h4>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-left text-gray-400 border-b border-gray-700/50">
+                    <th className="px-3 py-2 font-medium">Name</th>
+                    <th className="px-3 py-2 font-medium text-right">Value</th>
+                    <th className="px-3 py-2 font-medium text-right">Change</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {series.map((item) => (
+                    <tr key={item.id} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                      <td className="px-3 py-2 font-medium text-white">{item.name}</td>
+                      <td className="px-3 py-2 text-right text-white">
+                        {item.value !== undefined ? item.value.toLocaleString() : '-'}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        {item.change !== undefined ? (
+                          <div className={`flex items-center justify-end gap-1 ${
+                            item.change >= 0 ? 'text-green-400' : 'text-red-400'
+                          }`}>
+                            {item.change >= 0 ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
+                            {Math.abs(item.change).toFixed(2)}%
+                          </div>
+                        ) : '-'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      )}
+        ))}
 
-      {commoditySeries.length === 0 && (
-        <div className="bg-[#1a1a1a] rounded-lg border border-gray-800 p-12 text-center">
-          <p className="text-gray-400">No commodities data available</p>
-        </div>
-      )}
+        {/* Commodity Ratios */}
+        {Object.keys(commodityRatios).length > 0 && (
+          <div className="bg-gray-800/30 rounded-lg border border-gray-700/50">
+            <div className="p-3 border-b border-gray-700/50">
+              <h4 className="text-sm font-medium text-white">Commodity Ratios</h4>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-left text-gray-400 border-b border-gray-700/50">
+                    <th className="px-3 py-2 font-medium">Ratio</th>
+                    <th className="px-3 py-2 font-medium text-right">Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(commodityRatios).map(([key, ratio]) => (
+                    <tr key={key} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                      <td className="px-3 py-2 font-medium text-white">{ratio.name || key}</td>
+                      <td className="px-3 py-2 text-right text-white">
+                        {ratio.value?.toFixed(4) || '-'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {commoditySeries.length === 0 && (
+          <div className="text-center py-8 text-gray-400">
+            No commodities data available
+          </div>
+        )}
+      </div>
     </div>
+  );
+}
+
+// WidgetDashboard의 renderWidget에서 사용할 수 있도록 export
+export { CommoditiesWidget };
+
+// 사용 가능한 위젯 목록
+const AVAILABLE_WIDGETS = [
+  { id: 'commodities', name: '원자재', description: '원자재 가격 및 비율', defaultSize: { w: 12, h: 12 } },
+];
+
+// 기본 위젯 구성
+const DEFAULT_WIDGETS = [
+  { id: 'commodities-1', type: 'commodities' },
+];
+
+// 기본 레이아웃
+const DEFAULT_LAYOUT = [
+  { i: 'commodities-1', x: 0, y: 0, w: 12, h: 12, minW: 6, minH: 8 },
+];
+
+export default function MacroCommoditiesTab() {
+  return (
+    <WidgetDashboard
+      dashboardId="macro-commodities-dashboard"
+      title="원자재"
+      subtitle="글로벌 원자재 가격"
+      availableWidgets={AVAILABLE_WIDGETS}
+      defaultWidgets={DEFAULT_WIDGETS}
+      defaultLayout={DEFAULT_LAYOUT}
+    />
   );
 }

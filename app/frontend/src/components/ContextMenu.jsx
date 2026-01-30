@@ -48,7 +48,7 @@ const ContextMenu = ({ x, y, onClose, onSelectWidget }) => {
 
   return (
     <div
-      className="fixed z-[100] bg-[#1a1a1a] border border-gray-700 rounded-lg shadow-2xl py-2 min-w-[280px]"
+      className="fixed z-[100] bg-[#0d0d12] border border-gray-700 rounded-lg shadow-2xl py-2 min-w-[280px]"
       style={{
         left: `${x}px`,
         top: `${y}px`,

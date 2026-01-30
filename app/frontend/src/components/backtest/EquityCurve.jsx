@@ -20,7 +20,7 @@ const EquityCurve = ({ data = [], showBenchmark = true, className = '' }) => {
     if (!active || !payload || payload.length === 0) return null;
 
     return (
-      <div className="bg-[#1a1a1a] border border-gray-700 rounded-lg p-3 shadow-xl">
+      <div className="bg-[#0d0d12] border border-gray-700 rounded-lg p-3 shadow-xl">
         <p className="text-sm text-gray-400 mb-2">{label}</p>
         {payload.map((entry, index) => (
           <div key={index} className="flex items-center justify-between gap-4">

@@ -6,6 +6,7 @@ import { useGlobalWidgetContext } from './AppLayout';
 
 // Import all possible widget components
 import FinancialWidget from './widgets/FinancialWidget';
+import FinancialTableWidget from './widgets/FinancialTableWidget';
 import ChartWidget from './widgets/ChartWidget';
 import TickerInfoWidget from './widgets/TickerInfoWidget';
 import KeyMetricsWidget from './widgets/KeyMetricsWidget';
@@ -24,6 +25,26 @@ import WatchlistWidget from './widgets/WatchlistWidget';
 import AlertStatisticsWidget from './alerts/widgets/AlertStatisticsWidget';
 import RecentTriggersWidget from './alerts/widgets/RecentTriggersWidget';
 import ActiveAlertsWidget from './alerts/widgets/ActiveAlertsWidget';
+import AlertsListView from './alerts/AlertsListView';
+
+// Macro Widgets
+import FedPolicyGauge from './macro/FedPolicyGauge';
+import InflationDecomposition from './macro/InflationDecomposition';
+import LaborMarketHeatmap from './macro/LaborMarketHeatmap';
+import RegimeDashboard from './macro/RegimeDashboard';
+import SentimentComposite from './macro/SentimentComposite';
+import FinancialConditionsWidget from './macro/FinancialConditionsWidget';
+import YieldCurveChart from './macro/YieldCurveChart';
+import { CommoditiesWidget } from './macro/MacroCommoditiesTab';
+
+// Analysis Widgets
+import InstitutionalPortfolios from './InstitutionalPortfolios';
+import { EstimatesContentWidget } from './analysis/AnalysisEstimateTab';
+import { ComparisonContentWidget } from './analysis/AnalysisComparisonTab';
+import { FinancialsContentWidget } from './analysis/AnalysisFinancialsTab';
+import { CalendarContentWidget } from './analysis/AnalysisCalendarTab';
+import { EstimatesTabWidget } from './analysis/EstimatesTab';
+import { OwnershipTabWidget } from './analysis/OwnershipTab';
 
 import 'react-grid-layout/css/styles.css';
 
@@ -134,8 +155,8 @@ function WidgetDashboard({
   // This master function knows how to render every widget type in the application.
   const renderWidget = (widget) => {
     const props = {
-        onRemove: () => handleRemoveWidget(widget.id),
         ...widget,
+        onRemove: () => handleRemoveWidget(widget.id),
     };
 
     switch (widget.type) {
@@ -152,6 +173,8 @@ function WidgetDashboard({
         // Stock Widgets
         case 'financials':
             return <FinancialWidget {...props} />;
+        case 'financial-table':
+            return <FinancialTableWidget symbol={widget.symbol} {...props} />;
         case 'advanced-chart':
             return <ChartWidget widgetId={widget.id} initialSymbols={[widget.symbol || 'NVDA']} onRemove={props.onRemove} />;
         case 'ticker-info':
@@ -180,6 +203,42 @@ function WidgetDashboard({
             return <RecentTriggersWidget {...props} />;
         case 'active-alerts':
             return <ActiveAlertsWidget {...props} />;
+        case 'alerts-list':
+            return <AlertsListView {...props} />;
+
+        // Macro Widgets
+        case 'fed-policy':
+            return <FedPolicyGauge {...props} />;
+        case 'inflation':
+            return <InflationDecomposition {...props} />;
+        case 'labor-market':
+            return <LaborMarketHeatmap {...props} />;
+        case 'regime-dashboard':
+            return <RegimeDashboard {...props} />;
+        case 'sentiment':
+            return <SentimentComposite {...props} />;
+        case 'fin-conditions':
+            return <FinancialConditionsWidget {...props} />;
+        case 'yield-curve-chart':
+            return <YieldCurveChart {...props} />;
+        case 'commodities':
+            return <CommoditiesWidget {...props} />;
+
+        // Analysis Widgets
+        case 'institutional-portfolios':
+            return <InstitutionalPortfolios symbol={widget.symbol} {...props} />;
+        case 'estimates-content':
+            return <EstimatesContentWidget symbol={widget.symbol} {...props} />;
+        case 'comparison-content':
+            return <ComparisonContentWidget symbol={widget.symbol} {...props} />;
+        case 'financials-content':
+            return <FinancialsContentWidget symbol={widget.symbol} {...props} />;
+        case 'calendar-content':
+            return <CalendarContentWidget symbol={widget.symbol} {...props} />;
+        case 'estimates-tab':
+            return <EstimatesTabWidget symbol={widget.symbol} {...props} />;
+        case 'ownership-tab':
+            return <OwnershipTabWidget symbol={widget.symbol} {...props} />;
 
         default:
             return (

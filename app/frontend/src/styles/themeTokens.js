@@ -127,10 +127,10 @@ export const getThemeClasses = (theme) => {
     // Layout classes
     layout: {
       header: isDark
-        ? 'bg-[#1a1a1a] border-gray-800'
+        ? 'bg-[#0d0d12] border-gray-800'
         : 'bg-white border-gray-200 shadow-sm',
       footer: isDark
-        ? 'bg-[#1a1a1a] border-gray-800'
+        ? 'bg-[#0d0d12] border-gray-800'
         : 'bg-white border-gray-200',
     },
 

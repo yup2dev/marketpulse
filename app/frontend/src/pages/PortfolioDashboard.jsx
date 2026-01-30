@@ -207,7 +207,7 @@ export default function PortfolioDashboard() {
               {/* Left Column - Volume & Fees */}
               <div className="col-span-12 lg:col-span-2 space-y-4">
                 {/* Volume Card */}
-                <div className="bg-[#1a1a1a] rounded-lg p-4 border border-gray-800">
+                <div className="bg-[#0d0d12] rounded-lg p-4 border border-gray-800">
                   <div className="text-sm text-gray-400 mb-2">14 Day Volume</div>
                   <div className="text-2xl font-bold">{formatCurrency(stats.volume)}</div>
                   <button className="text-cyan-400 text-sm mt-2 hover:underline">
@@ -216,7 +216,7 @@ export default function PortfolioDashboard() {
                 </div>
 
                 {/* Fees Card */}
-                <div className="bg-[#1a1a1a] rounded-lg p-4 border border-gray-800">
+                <div className="bg-[#0d0d12] rounded-lg p-4 border border-gray-800">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm text-gray-400">Fees (Taker / Maker)</span>
                     <ChevronDown size={16} className="text-gray-400" />
@@ -230,7 +230,7 @@ export default function PortfolioDashboard() {
 
               {/* Center Column - Stats */}
               <div className="col-span-12 lg:col-span-4">
-                <div className="bg-[#1a1a1a] rounded-lg p-4 border border-gray-800 h-full">
+                <div className="bg-[#0d0d12] rounded-lg p-4 border border-gray-800 h-full">
                   {/* Header with dropdowns */}
                   <div className="flex items-center justify-between mb-4">
                     <select
@@ -239,7 +239,7 @@ export default function PortfolioDashboard() {
                       className="bg-transparent text-white text-sm border border-gray-700 rounded px-2 py-1 focus:outline-none focus:border-cyan-500"
                     >
                       {ACCOUNT_TYPES.map(type => (
-                        <option key={type.id} value={type.id} className="bg-[#1a1a1a]">
+                        <option key={type.id} value={type.id} className="bg-[#0d0d12]">
                           {type.label}
                         </option>
                       ))}
@@ -250,7 +250,7 @@ export default function PortfolioDashboard() {
                       className="bg-transparent text-white text-sm border border-gray-700 rounded px-2 py-1 focus:outline-none focus:border-cyan-500"
                     >
                       {PERIOD_OPTIONS.map(period => (
-                        <option key={period.id} value={period.id} className="bg-[#1a1a1a]">
+                        <option key={period.id} value={period.id} className="bg-[#0d0d12]">
                           {period.label}
                         </option>
                       ))}
@@ -272,7 +272,7 @@ export default function PortfolioDashboard() {
 
               {/* Right Column - Chart */}
               <div className="col-span-12 lg:col-span-6">
-                <div className="bg-[#1a1a1a] rounded-lg p-4 border border-gray-800 h-full">
+                <div className="bg-[#0d0d12] rounded-lg p-4 border border-gray-800 h-full">
                   {/* Chart Tabs */}
                   <div className="flex items-center gap-4 mb-4">
                     <button
@@ -340,7 +340,7 @@ export default function PortfolioDashboard() {
             </div>
 
             {/* Top Holdings */}
-            <div className="bg-[#1a1a1a] rounded-lg p-4 border border-gray-800">
+            <div className="bg-[#0d0d12] rounded-lg p-4 border border-gray-800">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold">Top Holdings</h3>
                 <button
@@ -356,7 +356,7 @@ export default function PortfolioDashboard() {
         )}
 
         {activeTab === 'balances' && (
-          <div className="bg-[#1a1a1a] rounded-lg border border-gray-800">
+          <div className="bg-[#0d0d12] rounded-lg border border-gray-800">
             <div className="flex items-center justify-between p-4 border-b border-gray-800">
               <h3 className="text-lg font-semibold">Balances</h3>
               <div className="flex items-center gap-3">
@@ -382,7 +382,7 @@ export default function PortfolioDashboard() {
         )}
 
         {activeTab === 'positions' && (
-          <div className="bg-[#1a1a1a] rounded-lg border border-gray-800">
+          <div className="bg-[#0d0d12] rounded-lg border border-gray-800">
             <div className="flex items-center justify-between p-4 border-b border-gray-800">
               <h3 className="text-lg font-semibold">Positions</h3>
               <button className="flex items-center gap-2 text-sm text-gray-400 hover:text-white">
@@ -397,25 +397,25 @@ export default function PortfolioDashboard() {
         )}
 
         {activeTab === 'open-orders' && (
-          <div className="bg-[#1a1a1a] rounded-lg border border-gray-800 p-4">
+          <div className="bg-[#0d0d12] rounded-lg border border-gray-800 p-4">
             <EmptyState message="No open orders" />
           </div>
         )}
 
         {activeTab === 'trade-history' && (
-          <div className="bg-[#1a1a1a] rounded-lg border border-gray-800 p-4">
+          <div className="bg-[#0d0d12] rounded-lg border border-gray-800 p-4">
             <EmptyState message="No trade history" />
           </div>
         )}
 
         {activeTab === 'dividends' && (
-          <div className="bg-[#1a1a1a] rounded-lg border border-gray-800 p-4">
+          <div className="bg-[#0d0d12] rounded-lg border border-gray-800 p-4">
             <EmptyState message="No dividend records" />
           </div>
         )}
 
         {activeTab === 'deposits-withdrawals' && (
-          <div className="bg-[#1a1a1a] rounded-lg border border-gray-800 p-4">
+          <div className="bg-[#0d0d12] rounded-lg border border-gray-800 p-4">
             <EmptyState message="No deposit/withdrawal records" />
           </div>
         )}

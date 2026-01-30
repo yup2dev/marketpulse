@@ -1,19 +1,20 @@
 /**
- * Analysis Estimate Tab - Static Grid Layout
+ * Analysis Estimate Tab - WidgetDashboard 기반 동적 레이아웃
  */
 import { useState, useEffect } from 'react';
-import { Target, TrendingUp, TrendingDown, BarChart3, ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react';
+import { Target, TrendingUp, TrendingDown, BarChart3, ArrowUpRight, ArrowDownRight, Minus, GripVertical } from 'lucide-react';
 import { useStockContext } from './AnalysisDashboard';
+import WidgetDashboard from '../WidgetDashboard';
 import { API_BASE } from '../../config/api';
 
-export default function AnalysisEstimateTab() {
-  const { symbol } = useStockContext();
+// 추정치 위젯 컴포넌트
+function EstimatesContentWidget({ symbol, onRemove }) {
   const [estimatesData, setEstimatesData] = useState(null);
   const [analystData, setAnalystData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadEstimatesData();
+    if (symbol) loadEstimatesData();
   }, [symbol]);
 
   const loadEstimatesData = async () => {
@@ -24,15 +25,8 @@ export default function AnalysisEstimateTab() {
         fetch(`${API_BASE}/stock/analyst/${symbol}`)
       ]);
 
-      if (estimatesRes.ok) {
-        const data = await estimatesRes.json();
-        setEstimatesData(data);
-      }
-
-      if (analystRes.ok) {
-        const data = await analystRes.json();
-        setAnalystData(data);
-      }
+      if (estimatesRes.ok) setEstimatesData(await estimatesRes.json());
+      if (analystRes.ok) setAnalystData(await analystRes.json());
     } catch (error) {
       console.error('Error loading estimates data:', error);
     } finally {
@@ -48,9 +42,7 @@ export default function AnalysisEstimateTab() {
       if (Math.abs(value) >= 1e6) return `$${(value / 1e6).toFixed(2)}M`;
       return `$${value.toFixed(2)}`;
     }
-    if (type === 'percent') {
-      return `${(value * 100).toFixed(2)}%`;
-    }
+    if (type === 'percent') return `${(value * 100).toFixed(2)}%`;
     return value.toFixed(2);
   };
 
@@ -77,12 +69,8 @@ export default function AnalysisEstimateTab() {
 
   if (loading) {
     return (
-      <div className="h-full">
-        <div className="grid grid-cols-12 gap-1 h-[calc(100vh-180px)]">
-          <div className="col-span-12 flex items-center justify-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
-          </div>
-        </div>
+      <div className="bg-[#1a1f2e] rounded-xl border border-gray-700 h-full flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
       </div>
     );
   }
@@ -98,190 +86,95 @@ export default function AnalysisEstimateTab() {
   const upside = currentPrice && targetPrice ? ((targetPrice - currentPrice) / currentPrice * 100) : null;
 
   return (
-    <div className="h-full">
-      <div className="grid grid-cols-12 gap-1 h-[calc(100vh-180px)]">
-        {/* Header */}
-        <div className="col-span-12 min-h-[60px]">
-          <div className="bg-[#1a1f2e] rounded-xl border border-gray-700 p-4 h-full">
-            <div className="flex items-center gap-3">
-              <Target className="text-purple-500" size={28} />
-              <div>
-                <h2 className="text-xl font-bold text-white">애널리스트 추정치</h2>
-                <p className="text-gray-400 text-sm mt-0.5">목표주가, EPS, 매출 예측을 확인하세요</p>
-              </div>
-            </div>
-          </div>
+    <div className="bg-[#1a1f2e] rounded-xl border border-gray-700 h-full overflow-hidden flex flex-col">
+      {/* Header */}
+      <div className="p-4 border-b border-gray-700 flex items-center gap-3 shrink-0">
+        <div className="drag-handle-area cursor-move p-1 hover:bg-gray-700 rounded">
+          <GripVertical size={14} className="text-gray-500" />
         </div>
+        <Target className="text-purple-500" size={24} />
+        <div>
+          <h2 className="text-lg font-bold text-white">애널리스트 추정치</h2>
+          <p className="text-gray-400 text-xs">목표주가, EPS, 매출 예측</p>
+        </div>
+      </div>
 
-        {/* Price Target Card */}
-        <div className="col-span-6 min-h-[280px]">
-          <div className="bg-[#1a1f2e] rounded-xl border border-gray-700 p-6 h-full">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-purple-600/20 rounded-lg">
-                <Target className="text-purple-400" size={20} />
-              </div>
-              <h3 className="text-lg font-semibold text-white">목표주가</h3>
+      {/* Content */}
+      <div className="flex-1 overflow-auto p-4 space-y-4">
+        {/* Price Target & Analyst Rating */}
+        <div className="grid grid-cols-2 gap-4">
+          {/* Price Target */}
+          <div className="bg-gray-800/30 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Target className="text-purple-400" size={16} />
+              <h3 className="text-sm font-semibold text-white">목표주가</h3>
             </div>
-
             {priceTarget ? (
-              <div className="space-y-4">
-                <div className="flex items-end justify-between">
+              <div className="space-y-3">
+                <div className="flex justify-between">
                   <div>
-                    <div className="text-sm text-gray-400">현재가</div>
-                    <div className="text-2xl font-bold text-white">
-                      ${currentPrice?.toFixed(2) || 'N/A'}
-                    </div>
+                    <div className="text-xs text-gray-400">현재가</div>
+                    <div className="text-lg font-bold text-white">${currentPrice?.toFixed(2) || 'N/A'}</div>
                   </div>
                   <div className="text-right">
-                    <div className="text-sm text-gray-400">평균 목표가</div>
-                    <div className="text-2xl font-bold text-purple-400">
-                      ${targetPrice?.toFixed(2) || 'N/A'}
-                    </div>
+                    <div className="text-xs text-gray-400">목표가</div>
+                    <div className="text-lg font-bold text-purple-400">${targetPrice?.toFixed(2) || 'N/A'}</div>
                   </div>
                 </div>
-
                 {upside !== null && (
-                  <div className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg ${
-                    upside > 0 ? 'bg-green-600/20' : upside < 0 ? 'bg-red-600/20' : 'bg-gray-800'
-                  }`}>
-                    {upside > 0 ? (
-                      <TrendingUp className="text-green-400" size={20} />
-                    ) : upside < 0 ? (
-                      <TrendingDown className="text-red-400" size={20} />
-                    ) : null}
-                    <span className={`text-lg font-bold ${upside > 0 ? 'text-green-400' : upside < 0 ? 'text-red-400' : 'text-gray-400'}`}>
-                      {upside > 0 ? '+' : ''}{upside.toFixed(2)}% {upside > 0 ? 'Upside' : 'Downside'}
-                    </span>
+                  <div className={`text-center py-2 rounded ${upside > 0 ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'}`}>
+                    {upside > 0 ? <TrendingUp className="inline mr-1" size={14} /> : <TrendingDown className="inline mr-1" size={14} />}
+                    {upside > 0 ? '+' : ''}{upside.toFixed(2)}%
                   </div>
                 )}
-
-                <div className="border-t border-gray-700 pt-4">
-                  <div className="flex justify-between text-sm mb-2">
-                    <span className="text-gray-400">Low</span>
-                    <span className="text-gray-400">High</span>
-                  </div>
-                  <div className="relative h-2 bg-gray-700 rounded-full">
-                    {priceTarget.low && priceTarget.high && currentPrice && (
-                      <div
-                        className="absolute h-full bg-gradient-to-r from-red-500 via-yellow-500 to-green-500 rounded-full"
-                        style={{ width: '100%' }}
-                      />
-                    )}
-                    {currentPrice && priceTarget.low && priceTarget.high && (
-                      <div
-                        className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full border-2 border-purple-500"
-                        style={{
-                          left: `${Math.min(100, Math.max(0, ((currentPrice - priceTarget.low) / (priceTarget.high - priceTarget.low)) * 100))}%`,
-                          transform: 'translateX(-50%) translateY(-50%)'
-                        }}
-                      />
-                    )}
-                  </div>
-                  <div className="flex justify-between text-sm mt-2">
-                    <span className="text-white font-medium">${priceTarget.low?.toFixed(2) || 'N/A'}</span>
-                    <span className="text-white font-medium">${priceTarget.high?.toFixed(2) || 'N/A'}</span>
-                  </div>
-                </div>
               </div>
             ) : (
-              <div className="text-gray-400 text-center py-4">
-                목표주가 데이터가 없습니다
-              </div>
+              <div className="text-gray-400 text-center py-4 text-sm">데이터 없음</div>
             )}
           </div>
-        </div>
 
-        {/* Analyst Rating Card */}
-        <div className="col-span-6 min-h-[280px]">
-          <div className="bg-[#1a1f2e] rounded-xl border border-gray-700 p-6 h-full">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-blue-600/20 rounded-lg">
-                <BarChart3 className="text-blue-400" size={20} />
-              </div>
-              <h3 className="text-lg font-semibold text-white">애널리스트 의견</h3>
+          {/* Analyst Rating */}
+          <div className="bg-gray-800/30 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <BarChart3 className="text-blue-400" size={16} />
+              <h3 className="text-sm font-semibold text-white">애널리스트 의견</h3>
             </div>
-
             {analystData?.consensus_rating && analystData.consensus_rating !== 'N/A' ? (
-              <div className="space-y-4">
-                <div className="text-center">
-                  <span className={`inline-block px-4 py-2 rounded-full text-lg font-bold ${getRatingColor(analystData.consensus_rating)}`}>
-                    {analystData.consensus_rating}
-                  </span>
-                </div>
-
-                {ratings.total > 0 && (
-                  <div className="space-y-2">
-                    {[
-                      { key: 'strong_buy', label: 'Strong Buy', color: 'bg-green-500' },
-                      { key: 'buy', label: 'Buy', color: 'bg-green-400' },
-                      { key: 'hold', label: 'Hold', color: 'bg-yellow-400' },
-                      { key: 'sell', label: 'Sell', color: 'bg-red-400' },
-                      { key: 'strong_sell', label: 'Strong Sell', color: 'bg-red-500' }
-                    ].map(({ key, label, color }) => {
-                      const count = ratings[key] || 0;
-                      const percent = (count / ratings.total) * 100;
-                      return (
-                        <div key={key} className="flex items-center gap-3">
-                          <span className="text-gray-400 text-sm w-24">{label}</span>
-                          <div className="flex-1 h-2 bg-gray-700 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full ${color} rounded-full transition-all`}
-                              style={{ width: `${percent}%` }}
-                            />
-                          </div>
-                          <span className="text-white text-sm w-8 text-right">{count}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                <div className="text-center text-gray-400 text-sm pt-2 border-t border-gray-700">
-                  총 {ratings.total || 0}명의 애널리스트
-                </div>
+              <div className="text-center">
+                <span className={`inline-block px-3 py-1 rounded-full text-sm font-bold ${getRatingColor(analystData.consensus_rating)}`}>
+                  {analystData.consensus_rating}
+                </span>
+                <div className="text-xs text-gray-400 mt-2">총 {ratings.total || 0}명</div>
               </div>
             ) : (
-              <div className="text-gray-400 text-center py-4">
-                애널리스트 의견 데이터가 없습니다
-              </div>
+              <div className="text-gray-400 text-center py-4 text-sm">데이터 없음</div>
             )}
           </div>
         </div>
 
-        {/* EPS Estimates */}
-        <div className="col-span-6 min-h-[280px]">
+        {/* EPS & Revenue Estimates */}
+        <div className="grid grid-cols-2 gap-4">
           {earningsEstimates.length > 0 && (
-            <div className="bg-[#1a1f2e] rounded-xl border border-gray-700 overflow-hidden h-full">
-              <div className="p-4 border-b border-gray-700">
-                <h3 className="text-lg font-semibold text-white">EPS 추정치</h3>
+            <div className="bg-gray-800/30 rounded-lg overflow-hidden">
+              <div className="p-3 border-b border-gray-700">
+                <h3 className="text-sm font-semibold text-white">EPS 추정치</h3>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b border-gray-700 bg-gray-800/50">
-                      <th className="text-left py-3 px-4 text-gray-400 font-medium">기간</th>
-                      <th className="text-center py-3 px-4 text-gray-400 font-medium">평균</th>
-                      <th className="text-center py-3 px-4 text-gray-400 font-medium">범위</th>
-                      <th className="text-center py-3 px-4 text-gray-400 font-medium">성장률</th>
+                      <th className="text-left py-2 px-3 text-gray-400">기간</th>
+                      <th className="text-center py-2 px-3 text-gray-400">평균</th>
+                      <th className="text-center py-2 px-3 text-gray-400">성장률</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {earningsEstimates.map((est, index) => (
-                      <tr key={index} className="border-b border-gray-800 hover:bg-gray-800/30">
-                        <td className="py-3 px-4 text-white font-medium">{est.period}</td>
-                        <td className="text-center py-3 px-4 text-white font-bold">
-                          {formatNumber(est.avg)}
-                        </td>
-                        <td className="text-center py-3 px-4 text-gray-400">
-                          {est.low != null && est.high != null
-                            ? `${formatNumber(est.low)} - ${formatNumber(est.high)}`
-                            : 'N/A'}
-                        </td>
-                        <td className={`text-center py-3 px-4 font-medium ${getGrowthColor(est.growth)}`}>
-                          <span className="flex items-center justify-center gap-1">
-                            {getGrowthIcon(est.growth)}
-                            {est.growth != null ? formatNumber(est.growth, 'percent') : 'N/A'}
-                          </span>
+                    {earningsEstimates.slice(0, 4).map((est, idx) => (
+                      <tr key={idx} className="border-b border-gray-800">
+                        <td className="py-2 px-3 text-white">{est.period}</td>
+                        <td className="text-center py-2 px-3 text-white font-medium">{formatNumber(est.avg)}</td>
+                        <td className={`text-center py-2 px-3 ${getGrowthColor(est.growth)}`}>
+                          {est.growth != null ? formatNumber(est.growth, 'percent') : 'N/A'}
                         </td>
                       </tr>
                     ))}
@@ -290,42 +183,28 @@ export default function AnalysisEstimateTab() {
               </div>
             </div>
           )}
-        </div>
 
-        {/* Revenue Estimates */}
-        <div className="col-span-6 min-h-[280px]">
           {revenueEstimates.length > 0 && (
-            <div className="bg-[#1a1f2e] rounded-xl border border-gray-700 overflow-hidden h-full">
-              <div className="p-4 border-b border-gray-700">
-                <h3 className="text-lg font-semibold text-white">매출 추정치</h3>
+            <div className="bg-gray-800/30 rounded-lg overflow-hidden">
+              <div className="p-3 border-b border-gray-700">
+                <h3 className="text-sm font-semibold text-white">매출 추정치</h3>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b border-gray-700 bg-gray-800/50">
-                      <th className="text-left py-3 px-4 text-gray-400 font-medium">기간</th>
-                      <th className="text-center py-3 px-4 text-gray-400 font-medium">평균</th>
-                      <th className="text-center py-3 px-4 text-gray-400 font-medium">범위</th>
-                      <th className="text-center py-3 px-4 text-gray-400 font-medium">성장률</th>
+                      <th className="text-left py-2 px-3 text-gray-400">기간</th>
+                      <th className="text-center py-2 px-3 text-gray-400">평균</th>
+                      <th className="text-center py-2 px-3 text-gray-400">성장률</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {revenueEstimates.map((est, index) => (
-                      <tr key={index} className="border-b border-gray-800 hover:bg-gray-800/30">
-                        <td className="py-3 px-4 text-white font-medium">{est.period}</td>
-                        <td className="text-center py-3 px-4 text-white font-bold">
-                          {formatNumber(est.avg, 'currency')}
-                        </td>
-                        <td className="text-center py-3 px-4 text-gray-400 text-xs">
-                          {est.low != null && est.high != null
-                            ? `${formatNumber(est.low, 'currency')} - ${formatNumber(est.high, 'currency')}`
-                            : 'N/A'}
-                        </td>
-                        <td className={`text-center py-3 px-4 font-medium ${getGrowthColor(est.growth)}`}>
-                          <span className="flex items-center justify-center gap-1">
-                            {getGrowthIcon(est.growth)}
-                            {est.growth != null ? formatNumber(est.growth, 'percent') : 'N/A'}
-                          </span>
+                    {revenueEstimates.slice(0, 4).map((est, idx) => (
+                      <tr key={idx} className="border-b border-gray-800">
+                        <td className="py-2 px-3 text-white">{est.period}</td>
+                        <td className="text-center py-2 px-3 text-white font-medium">{formatNumber(est.avg, 'currency')}</td>
+                        <td className={`text-center py-2 px-3 ${getGrowthColor(est.growth)}`}>
+                          {est.growth != null ? formatNumber(est.growth, 'percent') : 'N/A'}
                         </td>
                       </tr>
                     ))}
@@ -338,37 +217,61 @@ export default function AnalysisEstimateTab() {
 
         {/* Growth Estimates */}
         {growthEstimate && (
-          <div className="col-span-12 min-h-[140px]">
-            <div className="bg-[#1a1f2e] rounded-xl border border-gray-700 p-6 h-full">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-green-600/20 rounded-lg">
-                  <TrendingUp className="text-green-400" size={20} />
-                </div>
-                <h3 className="text-lg font-semibold text-white">성장 전망</h3>
-              </div>
-
-              <div className="grid grid-cols-6 gap-4">
-                {[
-                  { label: '현재 분기', value: growthEstimate.current_quarter },
-                  { label: '다음 분기', value: growthEstimate.next_quarter },
-                  { label: '현재 연도', value: growthEstimate.current_year },
-                  { label: '다음 연도', value: growthEstimate.next_year },
-                  { label: '향후 5년', value: growthEstimate.next_5_years },
-                  { label: '과거 5년', value: growthEstimate.past_5_years }
-                ].map(({ label, value }, index) => (
-                  <div key={index} className="bg-gray-800 rounded-lg p-4 text-center">
-                    <div className="text-xs text-gray-400 mb-2">{label}</div>
-                    <div className={`text-lg font-bold flex items-center justify-center gap-1 ${getGrowthColor(value)}`}>
-                      {getGrowthIcon(value)}
-                      {value != null ? formatNumber(value, 'percent') : 'N/A'}
-                    </div>
+          <div className="bg-gray-800/30 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <TrendingUp className="text-green-400" size={16} />
+              <h3 className="text-sm font-semibold text-white">성장 전망</h3>
+            </div>
+            <div className="grid grid-cols-6 gap-2">
+              {[
+                { label: '현재 분기', value: growthEstimate.current_quarter },
+                { label: '다음 분기', value: growthEstimate.next_quarter },
+                { label: '현재 연도', value: growthEstimate.current_year },
+                { label: '다음 연도', value: growthEstimate.next_year },
+                { label: '향후 5년', value: growthEstimate.next_5_years },
+                { label: '과거 5년', value: growthEstimate.past_5_years }
+              ].map(({ label, value }, idx) => (
+                <div key={idx} className="bg-gray-800 rounded p-2 text-center">
+                  <div className="text-[10px] text-gray-400 mb-1">{label}</div>
+                  <div className={`text-sm font-bold ${getGrowthColor(value)}`}>
+                    {value != null ? formatNumber(value, 'percent') : 'N/A'}
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+export { EstimatesContentWidget };
+
+// 사용 가능한 위젯 목록
+const AVAILABLE_WIDGETS = [
+  { id: 'estimates-content', name: '추정치', description: '애널리스트 추정치 전체', defaultSize: { w: 12, h: 12 } },
+];
+
+export default function AnalysisEstimateTab() {
+  const { symbol } = useStockContext();
+
+  const DEFAULT_WIDGETS = [
+    { id: 'estimates-content-1', type: 'estimates-content', symbol },
+  ];
+
+  const DEFAULT_LAYOUT = [
+    { i: 'estimates-content-1', x: 0, y: 0, w: 12, h: 12, minW: 6, minH: 8 },
+  ];
+
+  return (
+    <WidgetDashboard
+      dashboardId={`analysis-estimates-${symbol}`}
+      title="추정치"
+      subtitle={symbol}
+      availableWidgets={AVAILABLE_WIDGETS}
+      defaultWidgets={DEFAULT_WIDGETS}
+      defaultLayout={DEFAULT_LAYOUT}
+    />
   );
 }

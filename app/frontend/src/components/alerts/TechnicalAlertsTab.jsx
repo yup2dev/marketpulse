@@ -1,10 +1,25 @@
 /**
- * 기술적 알림 탭 컴포넌트 - Static Grid Layout
+ * 기술적 알림 탭 컴포넌트 - WidgetDashboard 기반 동적 레이아웃
  */
 import { useState } from 'react';
 import { useAlertsContext } from '../../contexts/AlertsContext';
-import AlertsListView from './AlertsListView';
+import WidgetDashboard from '../WidgetDashboard';
 import CreateAlertModal from './CreateAlertModal';
+
+// 사용 가능한 위젯 목록
+const AVAILABLE_WIDGETS = [
+  { id: 'alerts-list', name: '기술적 알림 목록', description: '기술적 알림 리스트', defaultSize: { w: 12, h: 12 } },
+];
+
+// 기본 위젯 구성
+const DEFAULT_WIDGETS = [
+  { id: 'technical-alerts-list-1', type: 'alerts-list' },
+];
+
+// 기본 레이아웃
+const DEFAULT_LAYOUT = [
+  { i: 'technical-alerts-list-1', x: 0, y: 0, w: 12, h: 12, minW: 6, minH: 6 },
+];
 
 export default function TechnicalAlertsTab() {
   const { technicalAlerts, toggleAlert, deleteAlert, testAlert, createAlert } = useAlertsContext();
@@ -30,23 +45,30 @@ export default function TechnicalAlertsTab() {
     }
   };
 
+  // 알림 목록 위젯에 전달할 props를 포함한 위젯 구성
+  const widgetsWithProps = DEFAULT_WIDGETS.map(widget => ({
+    ...widget,
+    alerts: technicalAlerts,
+    onToggle: handleToggle,
+    onDelete: handleDelete,
+    onTest: handleTest,
+    onCreateClick: () => setShowCreateModal(true),
+    title: '기술적 알림',
+    subtitle: '기술 지표 조건 충족 시 알림을 받으세요',
+    emptyMessage: '기술적 알림이 없습니다',
+    emptySubMessage: 'RSI, MACD 등 기술 지표 기반 알림을 설정하세요',
+  }));
+
   return (
-    <div className="h-full">
-      <div className="grid grid-cols-12 gap-1 h-[calc(100vh-180px)]">
-        <div className="col-span-12 min-h-[280px]">
-          <AlertsListView
-            alerts={technicalAlerts}
-            onToggle={handleToggle}
-            onDelete={handleDelete}
-            onTest={handleTest}
-            onCreateClick={() => setShowCreateModal(true)}
-            title="기술적 알림"
-            subtitle="기술 지표 조건 충족 시 알림을 받으세요"
-            emptyMessage="기술적 알림이 없습니다"
-            emptySubMessage="RSI, MACD 등 기술 지표 기반 알림을 설정하세요"
-          />
-        </div>
-      </div>
+    <>
+      <WidgetDashboard
+        dashboardId="technical-alerts-dashboard"
+        title="기술적 알림"
+        subtitle="기술 지표 기반 알림 관리"
+        availableWidgets={AVAILABLE_WIDGETS}
+        defaultWidgets={widgetsWithProps}
+        defaultLayout={DEFAULT_LAYOUT}
+      />
 
       {showCreateModal && (
         <CreateAlertModal
@@ -55,6 +77,6 @@ export default function TechnicalAlertsTab() {
           initialAlertType="technical"
         />
       )}
-    </div>
+    </>
   );
 }

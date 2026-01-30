@@ -62,7 +62,7 @@ export default function FedPolicyGauge() {
     return (
       <div className="space-y-6">
         {[1, 2, 3].map(i => (
-          <div key={i} className="bg-[#1a1a1a] rounded-lg p-6 border border-gray-800 animate-pulse">
+          <div key={i} className="bg-[#0d0d12] rounded-lg p-6 border border-gray-800 animate-pulse">
             <div className="h-4 bg-gray-700 rounded w-1/4 mb-4"></div>
             <div className="h-8 bg-gray-700 rounded w-1/2"></div>
           </div>
@@ -73,7 +73,7 @@ export default function FedPolicyGauge() {
 
   if (!policyData || !config) {
     return (
-      <div className="bg-[#1a1a1a] rounded-lg border border-gray-800 p-12 text-center">
+      <div className="bg-[#0d0d12] rounded-lg border border-gray-800 p-12 text-center">
         <p className="text-gray-400">Unable to load Fed policy data</p>
         <button onClick={fetchPolicyData} className="mt-4 text-cyan-400 hover:underline">
           Retry
@@ -85,7 +85,7 @@ export default function FedPolicyGauge() {
   return (
     <div className="space-y-6">
       {/* Current Stance */}
-      <div className="bg-[#1a1a1a] rounded-lg border border-gray-800">
+      <div className="bg-[#0d0d12] rounded-lg border border-gray-800">
         <div className="p-4 border-b border-gray-800 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-white">Current Fed Policy Stance</h3>
           <button onClick={fetchPolicyData} className="text-gray-400 hover:text-white">
@@ -128,7 +128,7 @@ export default function FedPolicyGauge() {
       </div>
 
       {/* Fed Funds Rate */}
-      <div className="bg-[#1a1a1a] rounded-lg border border-gray-800">
+      <div className="bg-[#0d0d12] rounded-lg border border-gray-800">
         <div className="p-4 border-b border-gray-800">
           <h3 className="text-lg font-semibold text-white">Fed Funds Rate</h3>
         </div>
@@ -167,7 +167,7 @@ export default function FedPolicyGauge() {
       </div>
 
       {/* FOMC Meeting Probabilities */}
-      <div className="bg-[#1a1a1a] rounded-lg border border-gray-800">
+      <div className="bg-[#0d0d12] rounded-lg border border-gray-800">
         <div className="p-4 border-b border-gray-800">
           <h3 className="text-lg font-semibold text-white">Next FOMC Meeting Probabilities</h3>
         </div>
@@ -226,7 +226,7 @@ export default function FedPolicyGauge() {
       </div>
 
       {/* Historical Context */}
-      <div className="bg-[#1a1a1a] rounded-lg border border-gray-800">
+      <div className="bg-[#0d0d12] rounded-lg border border-gray-800">
         <div className="p-4 border-b border-gray-800">
           <h3 className="text-lg font-semibold text-white">Historical Context</h3>
         </div>

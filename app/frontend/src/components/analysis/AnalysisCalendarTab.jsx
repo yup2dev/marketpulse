@@ -1,19 +1,19 @@
 /**
- * Analysis Calendar Tab - Static Grid Layout
+ * Analysis Calendar Tab - WidgetDashboard 기반 동적 레이아웃
  */
 import { useState, useEffect } from 'react';
-import { Calendar, DollarSign, TrendingUp, Clock, AlertCircle } from 'lucide-react';
+import { Calendar, DollarSign, TrendingUp, Clock, AlertCircle, GripVertical } from 'lucide-react';
 import { useStockContext } from './AnalysisDashboard';
+import WidgetDashboard from '../WidgetDashboard';
 import { API_BASE } from '../../config/api';
 
-export default function AnalysisCalendarTab() {
-  const { symbol } = useStockContext();
+function CalendarContentWidget({ symbol, onRemove }) {
   const [calendarData, setCalendarData] = useState(null);
   const [earningsHistory, setEarningsHistory] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadCalendarData();
+    if (symbol) loadCalendarData();
   }, [symbol]);
 
   const loadCalendarData = async () => {
@@ -24,11 +24,7 @@ export default function AnalysisCalendarTab() {
         fetch(`${API_BASE}/stock/earnings/${symbol}?limit=8`)
       ]);
 
-      if (calendarRes.ok) {
-        const data = await calendarRes.json();
-        setCalendarData(data);
-      }
-
+      if (calendarRes.ok) setCalendarData(await calendarRes.json());
       if (earningsRes.ok) {
         const data = await earningsRes.json();
         setEarningsHistory(data.earnings || []);
@@ -42,12 +38,7 @@ export default function AnalysisCalendarTab() {
 
   const formatDate = (dateStr) => {
     if (!dateStr) return 'N/A';
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('ko-KR', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
+    return new Date(dateStr).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
   };
 
   const formatNumber = (value, type = 'number') => {
@@ -62,11 +53,7 @@ export default function AnalysisCalendarTab() {
 
   const getDaysUntil = (dateStr) => {
     if (!dateStr) return null;
-    const date = new Date(dateStr);
-    const today = new Date();
-    const diffTime = date - today;
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
+    return Math.ceil((new Date(dateStr) - new Date()) / (1000 * 60 * 60 * 24));
   };
 
   const getSurpriseColor = (surprise) => {
@@ -78,12 +65,8 @@ export default function AnalysisCalendarTab() {
 
   if (loading) {
     return (
-      <div className="h-full">
-        <div className="grid grid-cols-12 gap-1 h-[calc(100vh-180px)]">
-          <div className="col-span-12 flex items-center justify-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
-          </div>
-        </div>
+      <div className="bg-[#1a1f2e] rounded-xl border border-gray-700 h-full flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
       </div>
     );
   }
@@ -94,190 +77,146 @@ export default function AnalysisCalendarTab() {
   const dividendDaysUntil = getDaysUntil(dividend.ex_date);
 
   return (
-    <div className="h-full">
-      <div className="grid grid-cols-12 gap-1 h-[calc(100vh-180px)]">
-        {/* Header */}
-        <div className="col-span-12 min-h-[60px]">
-          <div className="bg-[#1a1f2e] rounded-xl border border-gray-700 p-4 h-full">
-            <div className="flex items-center gap-3">
-              <Calendar className="text-purple-500" size={28} />
-              <div>
-                <h2 className="text-xl font-bold text-white">회사 일정</h2>
-                <p className="text-gray-400 text-sm mt-0.5">실적 발표 및 배당 일정을 확인하세요</p>
-              </div>
-            </div>
-          </div>
+    <div className="bg-[#1a1f2e] rounded-xl border border-gray-700 h-full overflow-hidden flex flex-col">
+      {/* Header */}
+      <div className="p-4 border-b border-gray-700 flex items-center gap-3 shrink-0">
+        <div className="drag-handle-area cursor-move p-1 hover:bg-gray-700 rounded">
+          <GripVertical size={14} className="text-gray-500" />
         </div>
-
-        {/* Earnings Card */}
-        <div className="col-span-6 min-h-[280px]">
-          <div className="bg-[#1a1f2e] rounded-xl border border-gray-700 p-6 h-full">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-blue-600/20 rounded-lg">
-                <TrendingUp className="text-blue-400" size={20} />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-white">실적 발표</h3>
-                <p className="text-gray-400 text-sm">Earnings Announcement</p>
-              </div>
-            </div>
-
-            {earnings.date ? (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-400">발표일</span>
-                  <div className="text-right">
-                    <span className="text-white font-medium">{formatDate(earnings.date)}</span>
-                    {earnings.date_end && earnings.date !== earnings.date_end && (
-                      <span className="text-gray-400 text-sm ml-1">~ {formatDate(earnings.date_end)}</span>
-                    )}
-                  </div>
-                </div>
-
-                {earningsDaysUntil !== null && (
-                  <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${
-                    earningsDaysUntil <= 7 ? 'bg-yellow-600/20' : 'bg-gray-800'
-                  }`}>
-                    <Clock size={16} className={earningsDaysUntil <= 7 ? 'text-yellow-400' : 'text-gray-400'} />
-                    <span className={earningsDaysUntil <= 7 ? 'text-yellow-400' : 'text-gray-300'}>
-                      {earningsDaysUntil > 0 ? `${earningsDaysUntil}일 후` : earningsDaysUntil === 0 ? '오늘' : '지남'}
-                    </span>
-                  </div>
-                )}
-
-                {(earnings.eps_average || earnings.eps_low || earnings.eps_high) && (
-                  <div className="border-t border-gray-700 pt-4">
-                    <h4 className="text-sm font-medium text-gray-400 mb-2">EPS 추정치</h4>
-                    <div className="grid grid-cols-3 gap-2 text-center">
-                      <div className="bg-gray-800 rounded-lg p-2">
-                        <div className="text-xs text-gray-500">Low</div>
-                        <div className="text-white font-medium">{formatNumber(earnings.eps_low)}</div>
-                      </div>
-                      <div className="bg-purple-600/20 rounded-lg p-2">
-                        <div className="text-xs text-purple-400">Avg</div>
-                        <div className="text-white font-bold">{formatNumber(earnings.eps_average)}</div>
-                      </div>
-                      <div className="bg-gray-800 rounded-lg p-2">
-                        <div className="text-xs text-gray-500">High</div>
-                        <div className="text-white font-medium">{formatNumber(earnings.eps_high)}</div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 text-gray-400">
-                <AlertCircle size={16} />
-                <span>예정된 실적 발표 일정이 없습니다</span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Dividend Card */}
-        <div className="col-span-6 min-h-[280px]">
-          <div className="bg-[#1a1f2e] rounded-xl border border-gray-700 p-6 h-full">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-green-600/20 rounded-lg">
-                <DollarSign className="text-green-400" size={20} />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-white">배당</h3>
-                <p className="text-gray-400 text-sm">Dividend</p>
-              </div>
-            </div>
-
-            {dividend.ex_date || dividend.pay_date ? (
-              <div className="space-y-4">
-                {dividend.ex_date && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-400">배당락일 (Ex-Date)</span>
-                    <div className="text-right">
-                      <span className="text-white font-medium">{formatDate(dividend.ex_date)}</span>
-                    </div>
-                  </div>
-                )}
-
-                {dividend.pay_date && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-400">지급일 (Pay Date)</span>
-                    <div className="text-right">
-                      <span className="text-white font-medium">{formatDate(dividend.pay_date)}</span>
-                    </div>
-                  </div>
-                )}
-
-                {dividendDaysUntil !== null && dividend.ex_date && (
-                  <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${
-                    dividendDaysUntil <= 7 && dividendDaysUntil > 0 ? 'bg-green-600/20' : 'bg-gray-800'
-                  }`}>
-                    <Clock size={16} className={dividendDaysUntil <= 7 && dividendDaysUntil > 0 ? 'text-green-400' : 'text-gray-400'} />
-                    <span className={dividendDaysUntil <= 7 && dividendDaysUntil > 0 ? 'text-green-400' : 'text-gray-300'}>
-                      배당락일까지 {dividendDaysUntil > 0 ? `${dividendDaysUntil}일` : dividendDaysUntil === 0 ? '오늘' : '지남'}
-                    </span>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 text-gray-400">
-                <AlertCircle size={16} />
-                <span>예정된 배당 일정이 없습니다</span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Earnings History Table */}
-        <div className="col-span-12 min-h-[280px]">
-          {earningsHistory.length > 0 && (
-            <div className="bg-[#1a1f2e] rounded-xl border border-gray-700 overflow-hidden h-full">
-              <div className="p-4 border-b border-gray-700">
-                <h3 className="text-lg font-semibold text-white">실적 발표 이력</h3>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-700 bg-gray-800/50">
-                      <th className="text-left py-3 px-4 text-gray-400 font-medium">기간</th>
-                      <th className="text-center py-3 px-4 text-gray-400 font-medium">발표일</th>
-                      <th className="text-center py-3 px-4 text-gray-400 font-medium">EPS 실제</th>
-                      <th className="text-center py-3 px-4 text-gray-400 font-medium">EPS 예상</th>
-                      <th className="text-center py-3 px-4 text-gray-400 font-medium">Surprise</th>
-                      <th className="text-center py-3 px-4 text-gray-400 font-medium">매출</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {earningsHistory.map((earning, index) => (
-                      <tr key={index} className="border-b border-gray-800 hover:bg-gray-800/30">
-                        <td className="py-3 px-4 text-white font-medium">
-                          {earning.fiscal_year} {earning.fiscal_period}
-                        </td>
-                        <td className="text-center py-3 px-4 text-gray-300">
-                          {formatDate(earning.report_date)}
-                        </td>
-                        <td className="text-center py-3 px-4 text-white font-medium">
-                          {formatNumber(earning.eps_actual)}
-                        </td>
-                        <td className="text-center py-3 px-4 text-gray-400">
-                          {formatNumber(earning.eps_estimated)}
-                        </td>
-                        <td className={`text-center py-3 px-4 font-medium ${getSurpriseColor(earning.eps_surprise_percent)}`}>
-                          {earning.eps_surprise_percent != null
-                            ? `${earning.eps_surprise_percent > 0 ? '+' : ''}${earning.eps_surprise_percent.toFixed(2)}%`
-                            : 'N/A'}
-                        </td>
-                        <td className="text-center py-3 px-4 text-gray-300">
-                          {formatNumber(earning.revenue_actual, 'currency')}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
+        <Calendar className="text-purple-500" size={24} />
+        <div>
+          <h2 className="text-lg font-bold text-white">회사 일정</h2>
+          <p className="text-gray-400 text-xs">실적 발표 및 배당 일정</p>
         </div>
       </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-auto p-4 space-y-4">
+        {/* Earnings & Dividend Cards */}
+        <div className="grid grid-cols-2 gap-4">
+          {/* Earnings Card */}
+          <div className="bg-gray-800/30 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <TrendingUp className="text-blue-400" size={16} />
+              <h3 className="text-sm font-semibold text-white">실적 발표</h3>
+            </div>
+            {earnings.date ? (
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">발표일</span>
+                  <span className="text-white">{formatDate(earnings.date)}</span>
+                </div>
+                {earningsDaysUntil !== null && (
+                  <div className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${
+                    earningsDaysUntil <= 7 ? 'bg-yellow-600/20 text-yellow-400' : 'bg-gray-800 text-gray-300'
+                  }`}>
+                    <Clock size={12} />
+                    {earningsDaysUntil > 0 ? `${earningsDaysUntil}일 후` : earningsDaysUntil === 0 ? '오늘' : '지남'}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center gap-1 text-gray-400 text-xs">
+                <AlertCircle size={12} />
+                예정 일정 없음
+              </div>
+            )}
+          </div>
+
+          {/* Dividend Card */}
+          <div className="bg-gray-800/30 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <DollarSign className="text-green-400" size={16} />
+              <h3 className="text-sm font-semibold text-white">배당</h3>
+            </div>
+            {dividend.ex_date || dividend.pay_date ? (
+              <div className="space-y-2">
+                {dividend.ex_date && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">배당락일</span>
+                    <span className="text-white">{formatDate(dividend.ex_date)}</span>
+                  </div>
+                )}
+                {dividend.pay_date && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">지급일</span>
+                    <span className="text-white">{formatDate(dividend.pay_date)}</span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center gap-1 text-gray-400 text-xs">
+                <AlertCircle size={12} />
+                예정 일정 없음
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Earnings History */}
+        {earningsHistory.length > 0 && (
+          <div className="bg-gray-800/30 rounded-lg overflow-hidden">
+            <div className="p-3 border-b border-gray-700">
+              <h3 className="text-sm font-semibold text-white">실적 발표 이력</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-gray-700 bg-gray-800/50">
+                    <th className="text-left py-2 px-3 text-gray-400 font-medium">기간</th>
+                    <th className="text-center py-2 px-3 text-gray-400 font-medium">EPS 실제</th>
+                    <th className="text-center py-2 px-3 text-gray-400 font-medium">EPS 예상</th>
+                    <th className="text-center py-2 px-3 text-gray-400 font-medium">Surprise</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {earningsHistory.slice(0, 6).map((earning, idx) => (
+                    <tr key={idx} className="border-b border-gray-800">
+                      <td className="py-2 px-3 text-white">{earning.fiscal_year} {earning.fiscal_period}</td>
+                      <td className="text-center py-2 px-3 text-white font-medium">{formatNumber(earning.eps_actual)}</td>
+                      <td className="text-center py-2 px-3 text-gray-400">{formatNumber(earning.eps_estimated)}</td>
+                      <td className={`text-center py-2 px-3 font-medium ${getSurpriseColor(earning.eps_surprise_percent)}`}>
+                        {earning.eps_surprise_percent != null
+                          ? `${earning.eps_surprise_percent > 0 ? '+' : ''}${earning.eps_surprise_percent.toFixed(2)}%`
+                          : 'N/A'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
+  );
+}
+
+export { CalendarContentWidget };
+
+const AVAILABLE_WIDGETS = [
+  { id: 'calendar-content', name: '회사 일정', description: '실적/배당 일정', defaultSize: { w: 12, h: 12 } },
+];
+
+export default function AnalysisCalendarTab() {
+  const { symbol } = useStockContext();
+
+  const DEFAULT_WIDGETS = [
+    { id: 'calendar-content-1', type: 'calendar-content', symbol },
+  ];
+
+  const DEFAULT_LAYOUT = [
+    { i: 'calendar-content-1', x: 0, y: 0, w: 12, h: 12, minW: 6, minH: 8 },
+  ];
+
+  return (
+    <WidgetDashboard
+      dashboardId={`analysis-calendar-${symbol}`}
+      title="회사 일정"
+      subtitle={symbol}
+      availableWidgets={AVAILABLE_WIDGETS}
+      defaultWidgets={DEFAULT_WIDGETS}
+      defaultLayout={DEFAULT_LAYOUT}
+    />
   );
 }

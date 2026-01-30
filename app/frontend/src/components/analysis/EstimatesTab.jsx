@@ -1,5 +1,5 @@
 /**
- * Estimates Tab - Static Grid Layout
+ * Estimates Tab - WidgetDashboard 기반 동적 레이아웃
  */
 import { useState, useEffect } from 'react';
 import {
@@ -8,21 +8,20 @@ import {
 } from 'recharts';
 import {
   TrendingUp, TrendingDown, Target, Users, Star,
-  RefreshCw, ChevronUp, ChevronDown, DollarSign, BarChart3
+  RefreshCw, DollarSign, BarChart3, GripVertical
 } from 'lucide-react';
+import WidgetDashboard from '../WidgetDashboard';
 import { API_BASE } from '../../config/api';
 import { formatCurrency } from '../../utils/widgetUtils';
 
-const EstimatesTab = ({ symbol }) => {
+function EstimatesTabWidget({ symbol, onRemove }) {
   const [estimatesData, setEstimatesData] = useState(null);
   const [analystData, setAnalystData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [currentPrice, setCurrentPrice] = useState(null);
 
   useEffect(() => {
-    if (symbol) {
-      loadEstimatesData();
-    }
+    if (symbol) loadEstimatesData();
   }, [symbol]);
 
   const loadEstimatesData = async () => {
@@ -34,16 +33,8 @@ const EstimatesTab = ({ symbol }) => {
         fetch(`${API_BASE}/stock/quote/${symbol}`)
       ]);
 
-      if (estimatesRes.ok) {
-        const data = await estimatesRes.json();
-        setEstimatesData(data);
-      }
-
-      if (analystRes.ok) {
-        const data = await analystRes.json();
-        setAnalystData(data);
-      }
-
+      if (estimatesRes.ok) setEstimatesData(await estimatesRes.json());
+      if (analystRes.ok) setAnalystData(await analystRes.json());
       if (quoteRes.ok) {
         const data = await quoteRes.json();
         setCurrentPrice(data.price);
@@ -64,12 +55,8 @@ const EstimatesTab = ({ symbol }) => {
 
   if (loading) {
     return (
-      <div className="h-full">
-        <div className="grid grid-cols-12 gap-1 h-[calc(100vh-180px)]">
-          <div className="col-span-12 flex items-center justify-center">
-            <RefreshCw className="animate-spin text-blue-500" size={32} />
-          </div>
-        </div>
+      <div className="bg-[#0d0d12] rounded-lg border border-gray-800 h-full flex items-center justify-center">
+        <RefreshCw className="animate-spin text-blue-500" size={32} />
       </div>
     );
   }
@@ -97,242 +84,146 @@ const EstimatesTab = ({ symbol }) => {
   };
   const consensusRating = getConsensusRating();
 
-  const epsChartData = estimatesData?.eps
-    ? Object.entries(estimatesData.eps).map(([period, data]) => ({
-        period,
-        estimate: data.estimate,
-        low: data.low,
-        high: data.high
-      }))
-    : [];
-
-  const revenueChartData = estimatesData?.revenue
-    ? Object.entries(estimatesData.revenue).map(([period, data]) => ({
-        period,
-        estimate: data.estimate,
-        low: data.low,
-        high: data.high
-      }))
-    : [];
-
   return (
-    <div className="h-full">
-      <div className="grid grid-cols-12 gap-1 h-[calc(100vh-180px)]">
-        {/* Header */}
-        <div className="col-span-12 min-h-[60px]">
-          <div className="bg-[#1a1a1a] rounded-lg p-4 border border-gray-800 h-full">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-xl font-semibold text-white flex items-center gap-2">
-                  <Target className="text-blue-500" size={24} />
-                  Analyst Estimates - {symbol}
-                </h3>
-                <p className="text-gray-400 text-sm mt-1">EPS, revenue estimates, and price targets</p>
-              </div>
-              <button
-                onClick={loadEstimatesData}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors text-white text-sm"
-              >
-                <RefreshCw size={16} />
-                Refresh
-              </button>
-            </div>
+    <div className="bg-[#0d0d12] rounded-lg border border-gray-800 h-full overflow-hidden flex flex-col">
+      {/* Header */}
+      <div className="p-4 border-b border-gray-800 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="drag-handle-area cursor-move p-1 hover:bg-gray-700 rounded">
+            <GripVertical size={14} className="text-gray-500" />
+          </div>
+          <Target className="text-blue-500" size={24} />
+          <div>
+            <h3 className="text-lg font-semibold text-white">Analyst Estimates - {symbol}</h3>
+            <p className="text-gray-400 text-xs">EPS, revenue estimates, and price targets</p>
           </div>
         </div>
+        <button
+          onClick={loadEstimatesData}
+          className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-white text-xs"
+        >
+          <RefreshCw size={14} />
+          Refresh
+        </button>
+      </div>
 
-        {/* Consensus Rating */}
-        <div className="col-span-6 min-h-[280px]">
-          <div className="bg-[#1a1a1a] rounded-lg p-6 border border-gray-800 h-full">
-            <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-              <Star className="text-yellow-500" size={20} />
+      {/* Content */}
+      <div className="flex-1 overflow-auto p-4 space-y-4">
+        {/* Consensus Rating & Price Target */}
+        <div className="grid grid-cols-2 gap-4">
+          {/* Consensus Rating */}
+          <div className="bg-gray-800/30 rounded-lg p-4">
+            <h4 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+              <Star className="text-yellow-500" size={16} />
               Analyst Consensus
             </h4>
-
             {totalRatings > 0 || analystData ? (
-              <>
-                <div className="text-center mb-6">
-                  <div className={`text-4xl font-bold mb-2 ${getRatingColor(consensusRating)}`}>
-                    {consensusRating}
-                  </div>
-                  <div className="text-gray-400 text-sm">
+              <div className="space-y-3">
+                <div className="text-center">
+                  <div className={`text-2xl font-bold ${getRatingColor(consensusRating)}`}>{consensusRating}</div>
+                  <div className="text-gray-400 text-xs">
                     Based on {totalRatings > 0 ? totalRatings : analystData?.number_of_analysts || 0} analysts
                   </div>
                 </div>
-
                 {totalRatings > 0 && (
-                  <div className="mb-4">
-                    <div className="flex h-8 rounded-lg overflow-hidden">
-                      {buyCount > 0 && (
-                        <div
-                          className="bg-green-600 flex items-center justify-center text-xs font-medium text-white"
-                          style={{ width: `${(buyCount / totalRatings) * 100}%` }}
-                        >
-                          {buyCount}
-                        </div>
-                      )}
-                      {holdCount > 0 && (
-                        <div
-                          className="bg-yellow-500 flex items-center justify-center text-xs font-medium text-white"
-                          style={{ width: `${(holdCount / totalRatings) * 100}%` }}
-                        >
-                          {holdCount}
-                        </div>
-                      )}
-                      {sellCount > 0 && (
-                        <div
-                          className="bg-red-500 flex items-center justify-center text-xs font-medium text-white"
-                          style={{ width: `${(sellCount / totalRatings) * 100}%` }}
-                        >
-                          {sellCount}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex justify-between mt-2 text-xs text-gray-400">
-                      <span>Strong Buy / Buy</span>
-                      <span>Hold</span>
-                      <span>Sell / Strong Sell</span>
-                    </div>
+                  <div className="flex h-4 rounded overflow-hidden">
+                    {buyCount > 0 && (
+                      <div className="bg-green-600 flex items-center justify-center text-[10px] text-white"
+                        style={{ width: `${(buyCount / totalRatings) * 100}%` }}>{buyCount}</div>
+                    )}
+                    {holdCount > 0 && (
+                      <div className="bg-yellow-500 flex items-center justify-center text-[10px] text-white"
+                        style={{ width: `${(holdCount / totalRatings) * 100}%` }}>{holdCount}</div>
+                    )}
+                    {sellCount > 0 && (
+                      <div className="bg-red-500 flex items-center justify-center text-[10px] text-white"
+                        style={{ width: `${(sellCount / totalRatings) * 100}%` }}>{sellCount}</div>
+                    )}
                   </div>
                 )}
-
-                <div className="grid grid-cols-5 gap-2 text-center text-xs">
-                  <div className="p-2 bg-green-500/10 rounded">
-                    <div className="text-green-400 font-bold">{ratings.strong_buy || 0}</div>
-                    <div className="text-gray-500">Strong Buy</div>
-                  </div>
-                  <div className="p-2 bg-green-500/10 rounded">
-                    <div className="text-green-400 font-bold">{ratings.buy || 0}</div>
-                    <div className="text-gray-500">Buy</div>
-                  </div>
-                  <div className="p-2 bg-yellow-500/10 rounded">
-                    <div className="text-yellow-400 font-bold">{ratings.hold || 0}</div>
-                    <div className="text-gray-500">Hold</div>
-                  </div>
-                  <div className="p-2 bg-red-500/10 rounded">
-                    <div className="text-red-400 font-bold">{ratings.sell || 0}</div>
-                    <div className="text-gray-500">Sell</div>
-                  </div>
-                  <div className="p-2 bg-red-500/10 rounded">
-                    <div className="text-red-400 font-bold">{ratings.strong_sell || 0}</div>
-                    <div className="text-gray-500">Strong Sell</div>
-                  </div>
-                </div>
-              </>
+              </div>
             ) : (
-              <div className="text-center py-8 text-gray-400">No analyst data available</div>
+              <div className="text-center py-4 text-gray-400 text-sm">No analyst data available</div>
             )}
           </div>
-        </div>
 
-        {/* Price Target */}
-        <div className="col-span-6 min-h-[280px]">
-          <div className="bg-[#1a1a1a] rounded-lg p-6 border border-gray-800 h-full">
-            <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-              <Target className="text-blue-500" size={20} />
+          {/* Price Target */}
+          <div className="bg-gray-800/30 rounded-lg p-4">
+            <h4 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+              <Target className="text-blue-500" size={16} />
               Price Target
             </h4>
-
             {targetPrice ? (
-              <>
-                <div className="text-center mb-4">
-                  <div className="text-gray-400 text-sm mb-1">Average Target</div>
-                  <div className="text-4xl font-bold text-white">
-                    ${targetPrice?.toFixed(2) || '-'}
-                  </div>
+              <div className="space-y-3">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-white">${targetPrice?.toFixed(2) || '-'}</div>
                   {upsidePct && (
-                    <div className={`text-lg font-medium mt-1 ${parseFloat(upsidePct) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    <div className={`text-sm font-medium ${parseFloat(upsidePct) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                       {parseFloat(upsidePct) >= 0 ? '+' : ''}{upsidePct}% upside
                     </div>
                   )}
                 </div>
-
-                <div className="grid grid-cols-3 gap-4 mb-4">
-                  <div className="text-center p-3 bg-red-500/10 rounded-lg">
-                    <div className="text-red-400 text-sm">Low</div>
-                    <div className="text-white font-bold">${priceTarget.low?.toFixed(2) || '-'}</div>
+                <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                  <div className="bg-red-500/10 rounded p-2">
+                    <div className="text-red-400">Low</div>
+                    <div className="text-white font-medium">${priceTarget.low?.toFixed(2) || '-'}</div>
                   </div>
-                  <div className="text-center p-3 bg-blue-500/10 rounded-lg">
-                    <div className="text-blue-400 text-sm">Current</div>
-                    <div className="text-white font-bold">${currentPrice?.toFixed(2) || '-'}</div>
+                  <div className="bg-blue-500/10 rounded p-2">
+                    <div className="text-blue-400">Current</div>
+                    <div className="text-white font-medium">${currentPrice?.toFixed(2) || '-'}</div>
                   </div>
-                  <div className="text-center p-3 bg-green-500/10 rounded-lg">
-                    <div className="text-green-400 text-sm">High</div>
-                    <div className="text-white font-bold">${priceTarget.high?.toFixed(2) || '-'}</div>
+                  <div className="bg-green-500/10 rounded p-2">
+                    <div className="text-green-400">High</div>
+                    <div className="text-white font-medium">${priceTarget.high?.toFixed(2) || '-'}</div>
                   </div>
                 </div>
-
-                {priceTarget.low && priceTarget.high && currentPrice && (
-                  <div className="relative h-4 bg-gray-700 rounded-full overflow-hidden">
-                    <div
-                      className="absolute h-full bg-gradient-to-r from-red-500 via-yellow-500 to-green-500"
-                      style={{ width: '100%' }}
-                    />
-                    <div
-                      className="absolute top-0 w-1 h-full bg-white"
-                      style={{
-                        left: `${Math.min(100, Math.max(0,
-                          ((currentPrice - priceTarget.low) /
-                          (priceTarget.high - priceTarget.low)) * 100
-                        ))}%`
-                      }}
-                    />
-                  </div>
-                )}
-              </>
+              </div>
             ) : (
-              <div className="text-center py-8 text-gray-400">No price target data available</div>
+              <div className="text-center py-4 text-gray-400 text-sm">No price target data available</div>
             )}
           </div>
         </div>
 
-        {/* EPS Estimates */}
-        {estimatesData && Object.keys(estimatesData.eps || {}).length > 0 && (
-          <div className="col-span-6 min-h-[280px]">
-            <div className="bg-[#1a1a1a] rounded-lg p-6 border border-gray-800 h-full">
-              <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                <DollarSign className="text-green-500" size={20} />
+        {/* EPS & Revenue Estimates */}
+        <div className="grid grid-cols-2 gap-4">
+          {estimatesData && Object.keys(estimatesData.eps || {}).length > 0 && (
+            <div className="bg-gray-800/30 rounded-lg p-4">
+              <h4 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                <DollarSign className="text-green-500" size={16} />
                 EPS Estimates
               </h4>
-
-              <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="grid grid-cols-2 gap-2">
                 {Object.entries(estimatesData.eps).slice(0, 4).map(([period, data]) => (
-                  <div key={period} className="bg-gray-800/30 rounded-lg p-3">
-                    <div className="text-gray-400 text-sm mb-1">{period}</div>
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-xl font-bold text-white">${data.estimate?.toFixed(2) || '-'}</span>
+                  <div key={period} className="bg-gray-800/50 rounded p-2">
+                    <div className="text-gray-400 text-[10px] mb-1">{period}</div>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-sm font-bold text-white">${data.estimate?.toFixed(2) || '-'}</span>
                       {data.growth && (
-                        <span className={`text-xs font-medium ${data.growth >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        <span className={`text-[10px] ${data.growth >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                           {data.growth >= 0 ? '+' : ''}{(data.growth * 100).toFixed(1)}%
                         </span>
                       )}
-                    </div>
-                    <div className="text-gray-500 text-xs mt-1">
-                      Range: ${data.low?.toFixed(2) || '-'} - ${data.high?.toFixed(2) || '-'}
                     </div>
                   </div>
                 ))}
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Revenue Estimates */}
-        {estimatesData && Object.keys(estimatesData.revenue || {}).length > 0 && (
-          <div className="col-span-6 min-h-[280px]">
-            <div className="bg-[#1a1a1a] rounded-lg p-6 border border-gray-800 h-full">
-              <h4 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                <BarChart3 className="text-blue-500" size={20} />
+          {estimatesData && Object.keys(estimatesData.revenue || {}).length > 0 && (
+            <div className="bg-gray-800/30 rounded-lg p-4">
+              <h4 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                <BarChart3 className="text-blue-500" size={16} />
                 Revenue Estimates
               </h4>
-
-              <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="grid grid-cols-2 gap-2">
                 {Object.entries(estimatesData.revenue).slice(0, 4).map(([period, data]) => (
-                  <div key={period} className="bg-gray-800/30 rounded-lg p-3">
-                    <div className="text-gray-400 text-sm mb-1">{period}</div>
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-xl font-bold text-white">{formatCurrency(data.estimate)}</span>
+                  <div key={period} className="bg-gray-800/50 rounded p-2">
+                    <div className="text-gray-400 text-[10px] mb-1">{period}</div>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-sm font-bold text-white">{formatCurrency(data.estimate)}</span>
                       {data.growth && (
-                        <span className={`text-xs font-medium ${data.growth >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        <span className={`text-[10px] ${data.growth >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                           {data.growth >= 0 ? '+' : ''}{(data.growth * 100).toFixed(1)}%
                         </span>
                       )}
@@ -341,20 +232,45 @@ const EstimatesTab = ({ symbol }) => {
                 ))}
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Empty State */}
         {!estimatesData && !analystData && !loading && (
-          <div className="col-span-12 min-h-[200px]">
-            <div className="bg-[#1a1a1a] rounded-lg p-12 text-center border border-gray-800 h-full flex flex-col items-center justify-center">
-              <Target className="mb-4 text-gray-600" size={48} />
-              <div className="text-gray-400 text-lg">No estimates data available for {symbol}</div>
-            </div>
+          <div className="bg-gray-800/30 rounded-lg p-8 text-center">
+            <Target className="mx-auto mb-3 text-gray-600" size={40} />
+            <div className="text-gray-400">No estimates data available for {symbol}</div>
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+export { EstimatesTabWidget };
+
+const AVAILABLE_WIDGETS = [
+  { id: 'estimates-tab', name: 'Estimates', description: 'Analyst estimates', defaultSize: { w: 12, h: 12 } },
+];
+
+const EstimatesTab = ({ symbol }) => {
+  const DEFAULT_WIDGETS = [
+    { id: 'estimates-tab-1', type: 'estimates-tab', symbol },
+  ];
+
+  const DEFAULT_LAYOUT = [
+    { i: 'estimates-tab-1', x: 0, y: 0, w: 12, h: 12, minW: 6, minH: 8 },
+  ];
+
+  return (
+    <WidgetDashboard
+      dashboardId={`estimates-tab-${symbol}`}
+      title="Estimates"
+      subtitle={symbol}
+      availableWidgets={AVAILABLE_WIDGETS}
+      defaultWidgets={DEFAULT_WIDGETS}
+      defaultLayout={DEFAULT_LAYOUT}
+    />
   );
 };
 
