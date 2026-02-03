@@ -1,17 +1,369 @@
 /**
- * Comparison Analysis Tab - Static Grid Layout
+ * Comparison Analysis Tab - Data-Focused Layout with Standard Widget Controls
+ * Standard Controls: Close, Refresh, Corner Resize
  */
-import { useState, useEffect } from 'react';
-import {
-  RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
-  Tooltip, Legend, ResponsiveContainer
-} from 'recharts';
-import { Plus, X, Search, RefreshCw, GitCompare } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Plus, X, Search, RefreshCw, TrendingUp, TrendingDown, BarChart3, Table2 } from 'lucide-react';
 import { API_BASE } from '../../config/api';
-import { formatCurrency } from '../../utils/widgetUtils';
 import ChartWidget from '../widgets/ChartWidget';
+import { WidgetHeader, AddWidgetPlaceholder, ResizeHandle } from '../common/WidgetHeader';
 
 const COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
+
+// Resizable Widget Wrapper
+function ResizableWidgetWrapper({ children, minWidth = 300, minHeight = 200, defaultHeight = 400 }) {
+  const containerRef = useRef(null);
+  const [size, setSize] = useState({ width: 'auto', height: defaultHeight });
+
+  const handleResize = useCallback((deltaX, deltaY) => {
+    setSize(prev => ({
+      width: prev.width === 'auto' ? 'auto' : Math.max(minWidth, prev.width + deltaX),
+      height: Math.max(minHeight, (prev.height || defaultHeight) + deltaY)
+    }));
+  }, [minWidth, minHeight, defaultHeight]);
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative"
+      style={{
+        height: size.height === 'auto' ? 'auto' : `${size.height}px`,
+        minHeight: `${minHeight}px`,
+      }}
+    >
+      {children}
+      <ResizeHandle onResize={handleResize} />
+    </div>
+  );
+}
+
+// Key Metrics Widget
+function KeyMetricsWidget({ symbols, stocksData, loading, onRefresh, onClose }) {
+  const formatNumber = (value) => {
+    if (value === null || value === undefined) return '-';
+    if (Math.abs(value) >= 1e12) return `$${(value / 1e12).toFixed(2)}T`;
+    if (Math.abs(value) >= 1e9) return `$${(value / 1e9).toFixed(2)}B`;
+    if (Math.abs(value) >= 1e6) return `$${(value / 1e6).toFixed(2)}M`;
+    return value.toLocaleString();
+  };
+
+  const formatPercent = (value) => {
+    if (value === null || value === undefined) return '-';
+    return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
+  };
+
+  const formatRatio = (value) => {
+    if (value === null || value === undefined) return '-';
+    return value.toFixed(2);
+  };
+
+  const MetricRow = ({ label, getValue, format = 'value', higherIsBetter = true }) => {
+    const values = symbols.map(sym => ({
+      sym,
+      value: getValue(sym)
+    }));
+
+    const validValues = values.filter(v => v.value !== null && v.value !== undefined && v.value !== '-');
+    let best = null, worst = null;
+
+    if (validValues.length > 1) {
+      const sorted = [...validValues].sort((a, b) =>
+        higherIsBetter ? b.value - a.value : a.value - b.value
+      );
+      best = sorted[0]?.sym;
+      worst = sorted[sorted.length - 1]?.sym;
+    }
+
+    return (
+      <tr className="border-b border-gray-800/50">
+        <td className="py-3 px-4 text-gray-400 text-sm">{label}</td>
+        {symbols.map((sym, idx) => {
+          const v = values.find(x => x.sym === sym);
+          const isBest = sym === best;
+          const isWorst = sym === worst;
+
+          let displayValue = '-';
+          if (v?.value !== null && v?.value !== undefined) {
+            if (format === 'percent') displayValue = formatPercent(v.value);
+            else if (format === 'ratio') displayValue = formatRatio(v.value);
+            else if (format === 'number') displayValue = formatNumber(v.value);
+            else if (format === 'price') displayValue = `$${v.value.toFixed(2)}`;
+            else displayValue = v.value;
+          }
+
+          return (
+            <td key={sym} className="py-3 px-4 text-right">
+              <div className="flex items-center justify-end gap-1">
+                {isBest && <TrendingUp size={12} className="text-green-500" />}
+                {isWorst && <TrendingDown size={12} className="text-red-500" />}
+                <span className={`font-medium ${
+                  isBest ? 'text-green-400' : isWorst ? 'text-red-400' : 'text-white'
+                }`}>
+                  {displayValue}
+                </span>
+              </div>
+            </td>
+          );
+        })}
+      </tr>
+    );
+  };
+
+  return (
+    <div className="bg-[#0d0d12] rounded-lg border border-gray-800 overflow-hidden h-full flex flex-col">
+      <WidgetHeader
+        title="Key Metrics"
+        icon={BarChart3}
+        iconColor="text-blue-400"
+        onRefresh={onRefresh}
+        onClose={onClose}
+        loading={loading}
+      />
+      <div className="flex-1 overflow-auto">
+        {loading ? (
+          <div className="h-[200px] flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+          </div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-[#0a0a0f]">
+              <tr className="border-b border-gray-800">
+                <th className="text-left py-2 px-4 text-gray-500 text-xs font-medium">Metric</th>
+                {symbols.map((sym, idx) => (
+                  <th key={sym} className="text-right py-2 px-4 text-xs font-medium" style={{ color: COLORS[idx] }}>
+                    {sym}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              <MetricRow
+                label="Price"
+                getValue={(sym) => stocksData[sym]?.quote?.price}
+                format="price"
+                higherIsBetter={false}
+              />
+              <MetricRow
+                label="Change"
+                getValue={(sym) => stocksData[sym]?.quote?.change_percent}
+                format="percent"
+              />
+              <MetricRow
+                label="Market Cap"
+                getValue={(sym) => stocksData[sym]?.info?.market_cap}
+                format="number"
+              />
+              <MetricRow
+                label="P/E"
+                getValue={(sym) => stocksData[sym]?.info?.pe_ratio}
+                format="ratio"
+                higherIsBetter={false}
+              />
+              <MetricRow
+                label="P/B"
+                getValue={(sym) => stocksData[sym]?.info?.price_to_book}
+                format="ratio"
+                higherIsBetter={false}
+              />
+              <MetricRow
+                label="EPS"
+                getValue={(sym) => stocksData[sym]?.info?.eps}
+                format="price"
+              />
+              <MetricRow
+                label="Dividend"
+                getValue={(sym) => stocksData[sym]?.info?.dividend_yield ? stocksData[sym].info.dividend_yield * 100 : null}
+                format="percent"
+              />
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Financial Metrics Widget
+function FinancialMetricsWidget({ symbols, stocksData, loading, onRefresh, onClose }) {
+  const formatNumber = (value) => {
+    if (value === null || value === undefined) return '-';
+    if (Math.abs(value) >= 1e12) return `$${(value / 1e12).toFixed(2)}T`;
+    if (Math.abs(value) >= 1e9) return `$${(value / 1e9).toFixed(2)}B`;
+    if (Math.abs(value) >= 1e6) return `$${(value / 1e6).toFixed(2)}M`;
+    return value.toLocaleString();
+  };
+
+  const formatPercent = (value) => {
+    if (value === null || value === undefined) return '-';
+    return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
+  };
+
+  const formatRatio = (value) => {
+    if (value === null || value === undefined) return '-';
+    return value.toFixed(2);
+  };
+
+  const getMetrics = (sym) => {
+    const data = stocksData[sym];
+    if (!data) return {};
+
+    const financials = data.financials;
+    const latest = financials?.periods?.[0];
+    const previous = financials?.periods?.[1];
+
+    const incomeStatement = latest?.income_statement || {};
+    const balanceSheet = latest?.balance_sheet || {};
+    const prevIncomeStatement = previous?.income_statement || {};
+
+    const roe = balanceSheet.total_equity && incomeStatement.net_income
+      ? (incomeStatement.net_income / balanceSheet.total_equity * 100)
+      : null;
+    const roa = balanceSheet.total_assets && incomeStatement.net_income
+      ? (incomeStatement.net_income / balanceSheet.total_assets * 100)
+      : null;
+    const netMargin = incomeStatement.revenue && incomeStatement.net_income
+      ? (incomeStatement.net_income / incomeStatement.revenue * 100)
+      : null;
+    const debtToEquity = balanceSheet.total_equity && balanceSheet.total_debt
+      ? (balanceSheet.total_debt / balanceSheet.total_equity)
+      : null;
+    const revenueGrowth = prevIncomeStatement.revenue && incomeStatement.revenue
+      ? ((incomeStatement.revenue - prevIncomeStatement.revenue) / prevIncomeStatement.revenue * 100)
+      : null;
+
+    return { roe, roa, netMargin, debtToEquity, revenueGrowth };
+  };
+
+  const MetricRow = ({ label, getValue, format = 'value', higherIsBetter = true }) => {
+    const values = symbols.map(sym => ({
+      sym,
+      value: getValue(sym)
+    }));
+
+    const validValues = values.filter(v => v.value !== null && v.value !== undefined && v.value !== '-');
+    let best = null, worst = null;
+
+    if (validValues.length > 1) {
+      const sorted = [...validValues].sort((a, b) =>
+        higherIsBetter ? b.value - a.value : a.value - b.value
+      );
+      best = sorted[0]?.sym;
+      worst = sorted[sorted.length - 1]?.sym;
+    }
+
+    return (
+      <tr className="border-b border-gray-800/50">
+        <td className="py-3 px-4 text-gray-400 text-sm">{label}</td>
+        {symbols.map((sym, idx) => {
+          const v = values.find(x => x.sym === sym);
+          const isBest = sym === best;
+          const isWorst = sym === worst;
+
+          let displayValue = '-';
+          if (v?.value !== null && v?.value !== undefined) {
+            if (format === 'percent') displayValue = formatPercent(v.value);
+            else if (format === 'ratio') displayValue = formatRatio(v.value);
+            else if (format === 'number') displayValue = formatNumber(v.value);
+            else if (format === 'price') displayValue = `$${v.value.toFixed(2)}`;
+            else displayValue = v.value;
+          }
+
+          return (
+            <td key={sym} className="py-3 px-4 text-right">
+              <div className="flex items-center justify-end gap-1">
+                {isBest && <TrendingUp size={12} className="text-green-500" />}
+                {isWorst && <TrendingDown size={12} className="text-red-500" />}
+                <span className={`font-medium ${
+                  isBest ? 'text-green-400' : isWorst ? 'text-red-400' : 'text-white'
+                }`}>
+                  {displayValue}
+                </span>
+              </div>
+            </td>
+          );
+        })}
+      </tr>
+    );
+  };
+
+  return (
+    <div className="bg-[#0d0d12] rounded-lg border border-gray-800 overflow-hidden h-full flex flex-col">
+      <WidgetHeader
+        title="Financial Comparison"
+        icon={Table2}
+        iconColor="text-purple-400"
+        onRefresh={onRefresh}
+        onClose={onClose}
+        loading={loading}
+      />
+      <div className="flex-1 overflow-auto">
+        {loading ? (
+          <div className="h-[200px] flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500" />
+          </div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-[#0a0a0f]">
+              <tr className="border-b border-gray-800">
+                <th className="text-left py-2 px-4 text-gray-500 text-xs font-medium">Metric</th>
+                {symbols.map((sym, idx) => (
+                  <th key={sym} className="text-right py-2 px-4 text-xs font-medium" style={{ color: COLORS[idx] }}>
+                    {sym}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              <MetricRow
+                label="ROE"
+                getValue={(sym) => getMetrics(sym).roe}
+                format="percent"
+              />
+              <MetricRow
+                label="ROA"
+                getValue={(sym) => getMetrics(sym).roa}
+                format="percent"
+              />
+              <MetricRow
+                label="Net Margin"
+                getValue={(sym) => getMetrics(sym).netMargin}
+                format="percent"
+              />
+              <MetricRow
+                label="D/E Ratio"
+                getValue={(sym) => getMetrics(sym).debtToEquity}
+                format="ratio"
+                higherIsBetter={false}
+              />
+              <MetricRow
+                label="Revenue Growth"
+                getValue={(sym) => getMetrics(sym).revenueGrowth}
+                format="percent"
+              />
+              <MetricRow
+                label="Beta"
+                getValue={(sym) => stocksData[sym]?.info?.beta}
+                format="ratio"
+                higherIsBetter={false}
+              />
+              <MetricRow
+                label="52W High"
+                getValue={(sym) => stocksData[sym]?.info?.fifty_two_week_high}
+                format="price"
+              />
+              <MetricRow
+                label="52W Low"
+                getValue={(sym) => stocksData[sym]?.info?.fifty_two_week_low}
+                format="price"
+                higherIsBetter={false}
+              />
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
 
 const ComparisonAnalysisTab = ({ symbol }) => {
   const [symbols, setSymbols] = useState([symbol]);
@@ -20,6 +372,21 @@ const ComparisonAnalysisTab = ({ symbol }) => {
   const [showSearch, setShowSearch] = useState(false);
   const [stocksData, setStocksData] = useState({});
   const [loading, setLoading] = useState(false);
+
+  // Widget visibility state
+  const [visibleWidgets, setVisibleWidgets] = useState({
+    chart: true,
+    keyMetrics: true,
+    financialMetrics: true
+  });
+
+  const handleCloseWidget = (widgetId) => {
+    setVisibleWidgets(prev => ({ ...prev, [widgetId]: false }));
+  };
+
+  const handleAddWidget = (widgetId) => {
+    setVisibleWidgets(prev => ({ ...prev, [widgetId]: true }));
+  };
 
   useEffect(() => {
     if (symbol && !symbols.includes(symbol)) {
@@ -37,15 +404,17 @@ const ComparisonAnalysisTab = ({ symbol }) => {
     setLoading(true);
     try {
       const dataPromises = symbols.map(async (sym) => {
-        const [quoteRes, infoRes] = await Promise.all([
+        const [quoteRes, infoRes, financialsRes] = await Promise.all([
           fetch(`${API_BASE}/stock/quote/${sym}`),
-          fetch(`${API_BASE}/stock/info/${sym}`)
+          fetch(`${API_BASE}/stock/info/${sym}`),
+          fetch(`${API_BASE}/stock/financials/${sym}?freq=annual&limit=2`)
         ]);
 
         const quote = quoteRes.ok ? await quoteRes.json() : null;
         const info = infoRes.ok ? await infoRes.json() : null;
+        const financials = financialsRes.ok ? await financialsRes.json() : null;
 
-        return { symbol: sym, quote, info };
+        return { symbol: sym, quote, info, financials };
       });
 
       const results = await Promise.all(dataPromises);
@@ -54,7 +423,8 @@ const ComparisonAnalysisTab = ({ symbol }) => {
       results.forEach(result => {
         newStocksData[result.symbol] = {
           quote: result.quote,
-          info: result.info
+          info: result.info,
+          financials: result.financials
         };
       });
 
@@ -98,233 +468,139 @@ const ComparisonAnalysisTab = ({ symbol }) => {
     }
   };
 
-  const prepareRadarData = () => {
-    const metrics = ['profitMargin', 'operatingMargin', 'returnOnEquity', 'returnOnAssets', 'debtToEquity'];
-    const labels = ['Profit Margin', 'Operating Margin', 'ROE', 'ROA', 'D/E Ratio'];
-
-    return labels.map((label, idx) => {
-      const dataPoint = { metric: label };
-      symbols.forEach(sym => {
-        const info = stocksData[sym]?.info;
-        if (info) {
-          let value = 0;
-          switch(metrics[idx]) {
-            case 'profitMargin': value = (info.profit_margin || 0) * 100; break;
-            case 'operatingMargin': value = (info.operating_margin || 0) * 100; break;
-            case 'returnOnEquity': value = (info.roe || 0) * 100; break;
-            case 'returnOnAssets': value = (info.roa || 0) * 100; break;
-            case 'debtToEquity': value = info.debt_to_equity || 0; break;
-          }
-          dataPoint[sym] = Math.abs(value);
-        }
-      });
-      return dataPoint;
-    });
-  };
-
   return (
-    <div className="h-full">
-      <div className="grid grid-cols-12 gap-1 h-[calc(100vh-180px)]">
-        {/* Header */}
-        <div className="col-span-12 min-h-[80px]">
-          <div className="bg-[#0d0d12] rounded-lg p-4 border border-gray-800 h-full">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-xl font-semibold text-white flex items-center gap-2">
-                  <GitCompare className="text-blue-500" size={24} />
-                  Comparison Analysis
-                </h3>
-                <p className="text-gray-400 text-sm mt-1">Compare up to 6 stocks side by side</p>
-              </div>
-              <button
-                onClick={loadComparisonData}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors text-white text-sm"
-              >
-                <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-                Refresh
-              </button>
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold text-white">Stock Comparison</h3>
+        <button
+          onClick={loadComparisonData}
+          className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded text-sm text-gray-300"
+        >
+          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+          Refresh All
+        </button>
+      </div>
+
+      {/* Symbol Selector Bar */}
+      <div className="bg-[#0d0d12] rounded-lg p-4 border border-gray-800">
+        <div className="flex flex-wrap items-center gap-2">
+          {symbols.map((sym, idx) => (
+            <div
+              key={sym}
+              className="flex items-center gap-2 px-3 py-1.5 rounded text-sm font-medium"
+              style={{ backgroundColor: `${COLORS[idx]}15`, color: COLORS[idx], border: `1px solid ${COLORS[idx]}30` }}
+            >
+              <span>{sym}</span>
+              {symbols.length > 1 && (
+                <button onClick={() => removeSymbol(sym)} className="hover:opacity-70">
+                  <X size={14} />
+                </button>
+              )}
             </div>
+          ))}
 
-            {/* Selected Symbols */}
-            <div className="flex flex-wrap items-center gap-2">
-              {symbols.map((sym, idx) => (
-                <div
-                  key={sym}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium"
-                  style={{ backgroundColor: `${COLORS[idx]}20`, color: COLORS[idx], border: `1px solid ${COLORS[idx]}40` }}
-                >
-                  <span>{sym}</span>
-                  {symbols.length > 1 && (
-                    <button
-                      onClick={() => removeSymbol(sym)}
-                      className="hover:opacity-70 transition-opacity"
-                    >
-                      <X size={14} />
-                    </button>
-                  )}
-                </div>
-              ))}
+          {symbols.length < 6 && (
+            <div className="relative">
+              <button
+                onClick={() => setShowSearch(!showSearch)}
+                className="flex items-center gap-1 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded text-sm text-gray-300"
+              >
+                <Plus size={14} />
+                Add Stock
+              </button>
 
-              {symbols.length < 6 && (
-                <div className="relative">
-                  <button
-                    onClick={() => setShowSearch(!showSearch)}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm text-gray-300 transition-colors"
-                  >
-                    <Plus size={14} />
-                    Add Stock
-                  </button>
-
-                  {showSearch && (
-                    <div className="absolute top-full left-0 mt-2 w-72 bg-[#0d0d12] border border-gray-700 rounded-lg shadow-xl z-50">
-                      <div className="p-2">
-                        <div className="relative">
-                          <Search className="absolute left-3 top-2.5 text-gray-400" size={16} />
-                          <input
-                            type="text"
-                            value={searchInput}
-                            onChange={(e) => {
-                              setSearchInput(e.target.value);
-                              searchStocks(e.target.value);
-                            }}
-                            className="w-full pl-9 pr-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
-                            placeholder="Search by symbol or name..."
-                            autoFocus
-                          />
-                        </div>
-                      </div>
-                      {searchResults.length > 0 && (
-                        <div className="max-h-60 overflow-y-auto border-t border-gray-700">
-                          {searchResults.map((result) => (
-                            <button
-                              key={result.symbol}
-                              onClick={() => addSymbol(result.symbol)}
-                              disabled={symbols.includes(result.symbol)}
-                              className="w-full px-4 py-2 text-left hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              <div className="font-medium text-white">{result.symbol}</div>
-                              <div className="text-xs text-gray-400 truncate">{result.name}</div>
-                            </button>
-                          ))}
-                        </div>
-                      )}
+              {showSearch && (
+                <div className="absolute top-full left-0 mt-2 w-64 bg-[#0d0d12] border border-gray-700 rounded-lg shadow-xl z-50">
+                  <div className="p-2">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-2.5 text-gray-400" size={14} />
+                      <input
+                        type="text"
+                        value={searchInput}
+                        onChange={(e) => {
+                          setSearchInput(e.target.value);
+                          searchStocks(e.target.value);
+                        }}
+                        className="w-full pl-9 pr-3 py-2 bg-gray-800 border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-blue-500"
+                        placeholder="Search symbol..."
+                        autoFocus
+                      />
+                    </div>
+                  </div>
+                  {searchResults.length > 0 && (
+                    <div className="max-h-48 overflow-y-auto border-t border-gray-700">
+                      {searchResults.map((result) => (
+                        <button
+                          key={result.symbol}
+                          onClick={() => addSymbol(result.symbol)}
+                          disabled={symbols.includes(result.symbol)}
+                          className="w-full px-3 py-2 text-left hover:bg-gray-800 disabled:opacity-50"
+                        >
+                          <div className="text-sm font-medium text-white">{result.symbol}</div>
+                          <div className="text-xs text-gray-400 truncate">{result.name}</div>
+                        </button>
+                      ))}
                     </div>
                   )}
                 </div>
               )}
             </div>
-          </div>
+          )}
         </div>
+      </div>
 
-        {/* Chart */}
-        <div className="col-span-12 min-h-[400px]">
-          <div className="bg-[#0d0d12] rounded-lg border border-gray-800 h-full relative overflow-visible">
-            <ChartWidget
-              widgetId={`comparison-${symbol}`}
-              initialSymbols={symbols}
-            />
-          </div>
-        </div>
-
-        {/* Metrics Table */}
-        <div className="col-span-7 min-h-[280px]">
-          <div className="bg-[#0d0d12] rounded-lg p-6 border border-gray-800 h-full">
-            <h4 className="text-lg font-semibold text-white mb-4">Key Metrics Comparison</h4>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-700">
-                    <th className="text-left py-3 px-4 text-gray-400 font-medium">Metric</th>
-                    {symbols.map((sym, idx) => (
-                      <th key={sym} className="text-right py-3 px-4 font-medium" style={{ color: COLORS[idx] }}>
-                        {sym}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="border-b border-gray-800 hover:bg-gray-800/30">
-                    <td className="py-3 px-4 text-gray-300">Current Price</td>
-                    {symbols.map((sym) => (
-                      <td key={sym} className="text-right py-3 px-4 text-white font-medium">
-                        ${stocksData[sym]?.quote?.price?.toFixed(2) || '-'}
-                      </td>
-                    ))}
-                  </tr>
-                  <tr className="border-b border-gray-800 hover:bg-gray-800/30">
-                    <td className="py-3 px-4 text-gray-300">Day Change</td>
-                    {symbols.map((sym) => {
-                      const change = stocksData[sym]?.quote?.change_percent;
-                      return (
-                        <td key={sym} className={`text-right py-3 px-4 font-medium ${change >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          {change ? `${change >= 0 ? '+' : ''}${change.toFixed(2)}%` : '-'}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                  <tr className="border-b border-gray-800 hover:bg-gray-800/30">
-                    <td className="py-3 px-4 text-gray-300">Market Cap</td>
-                    {symbols.map((sym) => (
-                      <td key={sym} className="text-right py-3 px-4 text-white">
-                        {formatCurrency(stocksData[sym]?.info?.market_cap)}
-                      </td>
-                    ))}
-                  </tr>
-                  <tr className="border-b border-gray-800 hover:bg-gray-800/30">
-                    <td className="py-3 px-4 text-gray-300">P/E Ratio</td>
-                    {symbols.map((sym) => (
-                      <td key={sym} className="text-right py-3 px-4 text-white">
-                        {stocksData[sym]?.info?.pe_ratio?.toFixed(2) || '-'}
-                      </td>
-                    ))}
-                  </tr>
-                  <tr className="border-b border-gray-800 hover:bg-gray-800/30">
-                    <td className="py-3 px-4 text-gray-300">Dividend Yield</td>
-                    {symbols.map((sym) => (
-                      <td key={sym} className="text-right py-3 px-4 text-white">
-                        {stocksData[sym]?.info?.dividend_yield ? `${(stocksData[sym].info.dividend_yield * 100).toFixed(2)}%` : '-'}
-                      </td>
-                    ))}
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        {/* Radar Chart */}
-        {symbols.length > 1 && (
-          <div className="col-span-5 min-h-[280px]">
-            <div className="bg-[#0d0d12] rounded-lg p-6 border border-gray-800 h-full">
-              <h4 className="text-lg font-semibold text-white mb-4">Financial Metrics Radar</h4>
-              <div className="h-48">
-                <ResponsiveContainer width="100%" height="100%">
-                  <RadarChart data={prepareRadarData()}>
-                    <PolarGrid stroke="#333" />
-                    <PolarAngleAxis dataKey="metric" tick={{ fill: '#666', fontSize: 10 }} />
-                    <PolarRadiusAxis tick={{ fill: '#666' }} />
-                    {symbols.map((sym, idx) => (
-                      <Radar
-                        key={sym}
-                        name={sym}
-                        dataKey={sym}
-                        stroke={COLORS[idx]}
-                        fill={COLORS[idx]}
-                        fillOpacity={0.2}
-                      />
-                    ))}
-                    <Legend />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333' }}
-                      labelStyle={{ color: '#fff' }}
-                    />
-                  </RadarChart>
-                </ResponsiveContainer>
+      {/* Widget Grid */}
+      <div className="grid grid-cols-12 gap-4">
+        {/* Chart Widget */}
+        <div className="col-span-8">
+          {visibleWidgets.chart ? (
+            <ResizableWidgetWrapper minHeight={350} defaultHeight={400}>
+              <div className="bg-[#0d0d12] rounded-lg border border-gray-800 h-full">
+                <ChartWidget
+                  widgetId={`comparison-${symbol}`}
+                  initialSymbols={symbols}
+                />
               </div>
-            </div>
-          </div>
-        )}
+            </ResizableWidgetWrapper>
+          ) : (
+            <AddWidgetPlaceholder onAdd={() => handleAddWidget('chart')} widgetType="chart" label="Add Chart Widget" />
+          )}
+        </div>
+
+        {/* Key Metrics Widget */}
+        <div className="col-span-4">
+          {visibleWidgets.keyMetrics ? (
+            <ResizableWidgetWrapper minHeight={350} defaultHeight={400}>
+              <KeyMetricsWidget
+                symbols={symbols}
+                stocksData={stocksData}
+                loading={loading}
+                onRefresh={loadComparisonData}
+                onClose={() => handleCloseWidget('keyMetrics')}
+              />
+            </ResizableWidgetWrapper>
+          ) : (
+            <AddWidgetPlaceholder onAdd={() => handleAddWidget('keyMetrics')} widgetType="keyMetrics" label="Add Key Metrics Widget" />
+          )}
+        </div>
+
+        {/* Financial Metrics Widget - Full Width */}
+        <div className="col-span-12">
+          {visibleWidgets.financialMetrics ? (
+            <ResizableWidgetWrapper minHeight={300} defaultHeight={400}>
+              <FinancialMetricsWidget
+                symbols={symbols}
+                stocksData={stocksData}
+                loading={loading}
+                onRefresh={loadComparisonData}
+                onClose={() => handleCloseWidget('financialMetrics')}
+              />
+            </ResizableWidgetWrapper>
+          ) : (
+            <AddWidgetPlaceholder onAdd={() => handleAddWidget('financialMetrics')} widgetType="financialMetrics" label="Add Financial Metrics Widget" />
+          )}
+        </div>
       </div>
     </div>
   );

@@ -1,272 +1,378 @@
 /**
- * Analysis 비교 분석 탭 - WidgetDashboard 기반 동적 레이아웃
+ * Analysis Comparison Tab - Data-Focused Layout
  */
 import { useState, useEffect } from 'react';
-import { GitCompare, Plus, X, TrendingUp, TrendingDown, GripVertical } from 'lucide-react';
+import { Plus, X, Search, RefreshCw, TrendingUp, TrendingDown } from 'lucide-react';
 import { useStockContext } from './AnalysisDashboard';
-import WidgetDashboard from '../WidgetDashboard';
 import ChartWidget from '../widgets/ChartWidget';
 import StockSelectorModal from '../StockSelectorModal';
 import { API_BASE } from '../../config/api';
 
-const COMPARISON_METRICS = [
-  { key: 'market_cap', label: '시가총액', format: 'number' },
-  { key: 'pe_ratio', label: 'P/E', format: 'ratio' },
-  { key: 'price_to_book', label: 'P/B', format: 'ratio' },
-  { key: 'price_to_sales', label: 'P/S', format: 'ratio' },
-  { key: 'roe', label: 'ROE', format: 'percent' },
-  { key: 'roa', label: 'ROA', format: 'percent' },
-  { key: 'profit_margin', label: '이익률', format: 'percent' },
-  { key: 'debt_to_equity', label: 'D/E', format: 'ratio' },
-  { key: 'revenue_growth', label: '매출성장률', format: 'percent' },
-  { key: 'dividend_yield', label: '배당수익률', format: 'percent' },
-];
+const COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 
-// 비교 분석 위젯 컴포넌트
-function ComparisonContentWidget({ symbol, onRemove }) {
-  const [compareSymbols, setCompareSymbols] = useState([symbol]);
-  const [showAddStock, setShowAddStock] = useState(false);
-  const [stockData, setStockData] = useState({});
+export default function AnalysisComparisonTab() {
+  const { symbol } = useStockContext();
+  const [symbols, setSymbols] = useState([symbol]);
+  const [stocksData, setStocksData] = useState({});
   const [loading, setLoading] = useState(false);
+  const [showStockSelector, setShowStockSelector] = useState(false);
 
   useEffect(() => {
-    if (!compareSymbols.includes(symbol)) {
-      setCompareSymbols([symbol]);
+    if (symbol && !symbols.includes(symbol)) {
+      setSymbols([symbol]);
     }
   }, [symbol]);
 
   useEffect(() => {
-    loadAllStockData();
-  }, [compareSymbols]);
+    loadComparisonData();
+  }, [symbols]);
 
-  const loadAllStockData = async () => {
+  const loadComparisonData = async () => {
+    if (symbols.length === 0) return;
+
     setLoading(true);
-    const newData = {};
+    try {
+      const dataPromises = symbols.map(async (sym) => {
+        const [quoteRes, infoRes, financialsRes] = await Promise.all([
+          fetch(`${API_BASE}/stock/quote/${sym}`),
+          fetch(`${API_BASE}/stock/info/${sym}`),
+          fetch(`${API_BASE}/stock/financials/${sym}?freq=annual&limit=2`)
+        ]);
 
-    await Promise.all(
-      compareSymbols.map(async (sym) => {
-        try {
-          const [infoRes, financialsRes] = await Promise.all([
-            fetch(`${API_BASE}/stock/info/${sym}`),
-            fetch(`${API_BASE}/stock/financials/${sym}?freq=annual&limit=2`)
-          ]);
+        const quote = quoteRes.ok ? await quoteRes.json() : null;
+        const info = infoRes.ok ? await infoRes.json() : null;
+        const financials = financialsRes.ok ? await financialsRes.json() : null;
 
-          const info = infoRes.ok ? await infoRes.json() : {};
-          const financials = financialsRes.ok ? await financialsRes.json() : {};
+        return { symbol: sym, quote, info, financials };
+      });
 
-          let roe = null, roa = null, profitMargin = null, debtToEquity = null, revenueGrowth = null;
+      const results = await Promise.all(dataPromises);
 
-          if (financials?.periods?.length > 0) {
-            const latest = financials.periods[0];
-            const previous = financials.periods[1];
-            const inc = latest.income_statement || {};
-            const bal = latest.balance_sheet || {};
-            const prevInc = previous?.income_statement || {};
+      const newStocksData = {};
+      results.forEach(result => {
+        newStocksData[result.symbol] = {
+          quote: result.quote,
+          info: result.info,
+          financials: result.financials
+        };
+      });
 
-            roe = bal.total_equity && inc.net_income ? (inc.net_income / bal.total_equity * 100) : null;
-            roa = bal.total_assets && inc.net_income ? (inc.net_income / bal.total_assets * 100) : null;
-            profitMargin = inc.revenue && inc.net_income ? (inc.net_income / inc.revenue * 100) : null;
-            debtToEquity = bal.total_equity && bal.total_debt ? (bal.total_debt / bal.total_equity) : null;
-            revenueGrowth = prevInc.revenue && inc.revenue ? ((inc.revenue - prevInc.revenue) / prevInc.revenue * 100) : null;
+      setStocksData(newStocksData);
+    } catch (error) {
+      console.error('Error loading comparison data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addSymbol = (stock) => {
+    if (!symbols.includes(stock.symbol) && symbols.length < 6) {
+      setSymbols([...symbols, stock.symbol]);
+    }
+    setShowStockSelector(false);
+  };
+
+  const removeSymbol = (sym) => {
+    if (symbols.length > 1) {
+      setSymbols(symbols.filter(s => s !== sym));
+    }
+  };
+
+  const formatNumber = (value) => {
+    if (value === null || value === undefined) return '-';
+    if (Math.abs(value) >= 1e12) return `$${(value / 1e12).toFixed(2)}T`;
+    if (Math.abs(value) >= 1e9) return `$${(value / 1e9).toFixed(2)}B`;
+    if (Math.abs(value) >= 1e6) return `$${(value / 1e6).toFixed(2)}M`;
+    return value.toLocaleString();
+  };
+
+  const formatPercent = (value) => {
+    if (value === null || value === undefined) return '-';
+    return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
+  };
+
+  const formatRatio = (value) => {
+    if (value === null || value === undefined) return '-';
+    return value.toFixed(2);
+  };
+
+  const getMetrics = (sym) => {
+    const data = stocksData[sym];
+    if (!data) return {};
+
+    const financials = data.financials;
+    const latest = financials?.periods?.[0];
+    const previous = financials?.periods?.[1];
+
+    const incomeStatement = latest?.income_statement || {};
+    const balanceSheet = latest?.balance_sheet || {};
+    const prevIncomeStatement = previous?.income_statement || {};
+
+    const roe = balanceSheet.total_equity && incomeStatement.net_income
+      ? (incomeStatement.net_income / balanceSheet.total_equity * 100)
+      : null;
+    const roa = balanceSheet.total_assets && incomeStatement.net_income
+      ? (incomeStatement.net_income / balanceSheet.total_assets * 100)
+      : null;
+    const netMargin = incomeStatement.revenue && incomeStatement.net_income
+      ? (incomeStatement.net_income / incomeStatement.revenue * 100)
+      : null;
+    const debtToEquity = balanceSheet.total_equity && balanceSheet.total_debt
+      ? (balanceSheet.total_debt / balanceSheet.total_equity)
+      : null;
+    const revenueGrowth = prevIncomeStatement.revenue && incomeStatement.revenue
+      ? ((incomeStatement.revenue - prevIncomeStatement.revenue) / prevIncomeStatement.revenue * 100)
+      : null;
+
+    return { roe, roa, netMargin, debtToEquity, revenueGrowth };
+  };
+
+  const MetricRow = ({ label, getValue, format = 'value', higherIsBetter = true }) => {
+    const values = symbols.map(sym => ({
+      sym,
+      value: getValue(sym)
+    }));
+
+    const validValues = values.filter(v => v.value !== null && v.value !== undefined && v.value !== '-');
+    let best = null, worst = null;
+
+    if (validValues.length > 1) {
+      const sorted = [...validValues].sort((a, b) =>
+        higherIsBetter ? b.value - a.value : a.value - b.value
+      );
+      best = sorted[0]?.sym;
+      worst = sorted[sorted.length - 1]?.sym;
+    }
+
+    return (
+      <tr className="border-b border-gray-800/50">
+        <td className="py-3 px-4 text-gray-400 text-sm">{label}</td>
+        {symbols.map((sym) => {
+          const v = values.find(x => x.sym === sym);
+          const isBest = sym === best;
+          const isWorst = sym === worst;
+
+          let displayValue = '-';
+          if (v?.value !== null && v?.value !== undefined) {
+            if (format === 'percent') displayValue = formatPercent(v.value);
+            else if (format === 'ratio') displayValue = formatRatio(v.value);
+            else if (format === 'number') displayValue = formatNumber(v.value);
+            else if (format === 'price') displayValue = `$${v.value.toFixed(2)}`;
+            else displayValue = v.value;
           }
 
-          newData[sym] = {
-            ...info,
-            roe, roa,
-            profit_margin: profitMargin,
-            debt_to_equity: debtToEquity,
-            revenue_growth: revenueGrowth,
-            dividend_yield: info.dividend_yield ? info.dividend_yield * 100 : null
-          };
-        } catch (error) {
-          console.error(`Error loading data for ${sym}:`, error);
-          newData[sym] = {};
-        }
-      })
+          return (
+            <td key={sym} className="py-3 px-4 text-right">
+              <div className="flex items-center justify-end gap-1">
+                {isBest && <TrendingUp size={12} className="text-green-500" />}
+                {isWorst && <TrendingDown size={12} className="text-red-500" />}
+                <span className={`font-medium ${
+                  isBest ? 'text-green-400' : isWorst ? 'text-red-400' : 'text-white'
+                }`}>
+                  {displayValue}
+                </span>
+              </div>
+            </td>
+          );
+        })}
+      </tr>
     );
-
-    setStockData(newData);
-    setLoading(false);
-  };
-
-  const handleAddStock = (stock) => {
-    if (!compareSymbols.includes(stock.symbol)) {
-      setCompareSymbols([...compareSymbols, stock.symbol]);
-    }
-    setShowAddStock(false);
-  };
-
-  const handleRemoveStock = (sym) => {
-    if (compareSymbols.length > 1) {
-      setCompareSymbols(compareSymbols.filter(s => s !== sym));
-    }
-  };
-
-  const formatValue = (value, format) => {
-    if (value === null || value === undefined) return 'N/A';
-    switch (format) {
-      case 'number':
-        if (Math.abs(value) >= 1e12) return `${(value / 1e12).toFixed(2)}T`;
-        if (Math.abs(value) >= 1e9) return `${(value / 1e9).toFixed(2)}B`;
-        if (Math.abs(value) >= 1e6) return `${(value / 1e6).toFixed(2)}M`;
-        return value.toLocaleString();
-      case 'ratio': return value.toFixed(2);
-      case 'percent': return `${value.toFixed(2)}%`;
-      default: return value;
-    }
-  };
-
-  const getBestWorst = (metricKey) => {
-    const values = compareSymbols
-      .map(sym => ({ sym, value: stockData[sym]?.[metricKey] }))
-      .filter(item => item.value !== null && item.value !== undefined);
-    if (values.length === 0) return { best: null, worst: null };
-    const sorted = [...values].sort((a, b) => b.value - a.value);
-    return { best: sorted[0]?.sym, worst: sorted[sorted.length - 1]?.sym };
   };
 
   return (
-    <div className="bg-[#1a1f2e] rounded-xl border border-gray-700 h-full overflow-hidden flex flex-col">
-      {/* Header */}
-      <div className="p-4 border-b border-gray-700 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="drag-handle-area cursor-move p-1 hover:bg-gray-700 rounded">
-            <GripVertical size={14} className="text-gray-500" />
-          </div>
-          <GitCompare className="text-purple-500" size={24} />
-          <div>
-            <h2 className="text-lg font-bold text-white">비교 분석</h2>
-            <p className="text-gray-400 text-xs">여러 종목 비교</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {compareSymbols.map((sym) => (
-            <div key={sym} className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${
-              sym === symbol ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-300'
-            }`}>
-              <span>{sym}</span>
-              {compareSymbols.length > 1 && (
-                <button onClick={() => handleRemoveStock(sym)} className="hover:text-red-400">
-                  <X size={12} />
-                </button>
-              )}
-            </div>
-          ))}
-          <button
-            onClick={() => setShowAddStock(true)}
-            className="flex items-center gap-1 px-2 py-1 bg-purple-600 hover:bg-purple-700 rounded text-xs text-white"
-          >
-            <Plus size={12} />
-            추가
-          </button>
-        </div>
-      </div>
+    <div className="max-w-7xl mx-auto px-6">
+      <div className="grid grid-cols-12 gap-4">
+        {/* Symbol Selector Bar */}
+        <div className="col-span-12">
+          <div className="bg-[#0d0d12] rounded-lg p-4 border border-gray-800">
+            <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center gap-2">
+                {symbols.map((sym, idx) => (
+                  <div
+                    key={sym}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded text-sm font-medium"
+                    style={{ backgroundColor: `${COLORS[idx]}15`, color: COLORS[idx], border: `1px solid ${COLORS[idx]}30` }}
+                  >
+                    <span>{sym}</span>
+                    {symbols.length > 1 && (
+                      <button onClick={() => removeSymbol(sym)} className="hover:opacity-70">
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+                ))}
 
-      {/* Content */}
-      <div className="flex-1 overflow-auto p-4 space-y-4">
-        {compareSymbols.length > 1 && (
-          <div className="bg-gray-800/30 rounded-lg overflow-hidden">
-            <div className="p-3 border-b border-gray-700">
-              <h3 className="text-sm font-semibold text-white">핵심 지표 비교</h3>
+                {symbols.length < 6 && (
+                  <button
+                    onClick={() => setShowStockSelector(true)}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded text-sm text-gray-300"
+                  >
+                    <Plus size={14} />
+                    Add
+                  </button>
+                )}
+              </div>
+
+              <button
+                onClick={loadComparisonData}
+                className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded text-sm text-gray-300"
+              >
+                <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+                Refresh
+              </button>
             </div>
-            {loading ? (
-              <div className="flex items-center justify-center h-32">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-gray-700 bg-gray-800/50">
-                      <th className="text-left py-2 px-3 text-gray-400 font-medium">지표</th>
-                      {compareSymbols.map(sym => (
-                        <th key={sym} className="text-center py-2 px-3 text-white font-semibold min-w-[80px]">
-                          {sym}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {COMPARISON_METRICS.map(metric => {
-                      const { best, worst } = getBestWorst(metric.key);
-                      return (
-                        <tr key={metric.key} className="border-b border-gray-800 hover:bg-gray-800/30">
-                          <td className="py-2 px-3 text-gray-300">{metric.label}</td>
-                          {compareSymbols.map(sym => {
-                            const value = stockData[sym]?.[metric.key];
-                            const isBest = sym === best && compareSymbols.length > 1;
-                            const isWorst = sym === worst && compareSymbols.length > 1;
-                            return (
-                              <td key={sym} className="text-center py-2 px-3">
-                                <div className="flex items-center justify-center gap-1">
-                                  {isBest && <TrendingUp size={12} className="text-green-400" />}
-                                  {isWorst && <TrendingDown size={12} className="text-red-400" />}
-                                  <span className={`font-medium ${
-                                    isBest ? 'text-green-400' : isWorst ? 'text-red-400' : 'text-white'
-                                  }`}>
-                                    {formatValue(value, metric.format)}
-                                  </span>
-                                </div>
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
           </div>
-        )}
+        </div>
 
         {/* Chart */}
-        <div className="bg-gray-800/30 rounded-lg h-[300px]">
-          <ChartWidget
-            widgetId="comparison-chart"
-            initialSymbols={compareSymbols}
-            onRemove={() => {}}
-          />
+        <div className="col-span-8">
+          <div className="bg-[#0d0d12] rounded-lg border border-gray-800 h-[400px]">
+            <ChartWidget
+              widgetId={`comparison-${symbol}`}
+              initialSymbols={symbols}
+            />
+          </div>
+        </div>
+
+        {/* Key Metrics */}
+        <div className="col-span-4">
+          <div className="bg-[#0d0d12] rounded-lg border border-gray-800 h-[400px] overflow-hidden">
+            <div className="p-4 border-b border-gray-800">
+              <h4 className="text-sm font-semibold text-white">Key Metrics</h4>
+            </div>
+            <div className="overflow-auto h-[calc(100%-52px)]">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-[#0d0d12]">
+                  <tr className="border-b border-gray-800">
+                    <th className="text-left py-2 px-4 text-gray-500 text-xs font-medium">Metric</th>
+                    {symbols.map((sym, idx) => (
+                      <th key={sym} className="text-right py-2 px-4 text-xs font-medium" style={{ color: COLORS[idx] }}>
+                        {sym}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <MetricRow
+                    label="Price"
+                    getValue={(sym) => stocksData[sym]?.quote?.price}
+                    format="price"
+                    higherIsBetter={false}
+                  />
+                  <MetricRow
+                    label="Change"
+                    getValue={(sym) => stocksData[sym]?.quote?.change_percent}
+                    format="percent"
+                  />
+                  <MetricRow
+                    label="Market Cap"
+                    getValue={(sym) => stocksData[sym]?.info?.market_cap}
+                    format="number"
+                  />
+                  <MetricRow
+                    label="P/E"
+                    getValue={(sym) => stocksData[sym]?.info?.pe_ratio}
+                    format="ratio"
+                    higherIsBetter={false}
+                  />
+                  <MetricRow
+                    label="P/B"
+                    getValue={(sym) => stocksData[sym]?.info?.price_to_book}
+                    format="ratio"
+                    higherIsBetter={false}
+                  />
+                  <MetricRow
+                    label="EPS"
+                    getValue={(sym) => stocksData[sym]?.info?.eps}
+                    format="price"
+                  />
+                  <MetricRow
+                    label="Dividend"
+                    getValue={(sym) => stocksData[sym]?.info?.dividend_yield ? stocksData[sym].info.dividend_yield * 100 : null}
+                    format="percent"
+                  />
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        {/* Financial Metrics Table */}
+        <div className="col-span-12">
+          <div className="bg-[#0d0d12] rounded-lg border border-gray-800">
+            <div className="p-4 border-b border-gray-800">
+              <h4 className="text-sm font-semibold text-white">Financial Comparison</h4>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-800">
+                    <th className="text-left py-3 px-4 text-gray-500 text-xs font-medium">Metric</th>
+                    {symbols.map((sym, idx) => (
+                      <th key={sym} className="text-right py-3 px-4 text-xs font-medium" style={{ color: COLORS[idx] }}>
+                        {sym}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <MetricRow
+                    label="ROE"
+                    getValue={(sym) => getMetrics(sym).roe}
+                    format="percent"
+                  />
+                  <MetricRow
+                    label="ROA"
+                    getValue={(sym) => getMetrics(sym).roa}
+                    format="percent"
+                  />
+                  <MetricRow
+                    label="Net Margin"
+                    getValue={(sym) => getMetrics(sym).netMargin}
+                    format="percent"
+                  />
+                  <MetricRow
+                    label="D/E Ratio"
+                    getValue={(sym) => getMetrics(sym).debtToEquity}
+                    format="ratio"
+                    higherIsBetter={false}
+                  />
+                  <MetricRow
+                    label="Revenue Growth"
+                    getValue={(sym) => getMetrics(sym).revenueGrowth}
+                    format="percent"
+                  />
+                  <MetricRow
+                    label="Beta"
+                    getValue={(sym) => stocksData[sym]?.info?.beta}
+                    format="ratio"
+                    higherIsBetter={false}
+                  />
+                  <MetricRow
+                    label="52W High"
+                    getValue={(sym) => stocksData[sym]?.info?.fifty_two_week_high}
+                    format="price"
+                  />
+                  <MetricRow
+                    label="52W Low"
+                    getValue={(sym) => stocksData[sym]?.info?.fifty_two_week_low}
+                    format="price"
+                    higherIsBetter={false}
+                  />
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Add Stock Modal */}
-      {showAddStock && (
+      {/* Stock Selector Modal */}
+      {showStockSelector && (
         <StockSelectorModal
-          onSelect={handleAddStock}
-          onClose={() => setShowAddStock(false)}
+          onSelect={addSymbol}
+          onClose={() => setShowStockSelector(false)}
         />
       )}
     </div>
-  );
-}
-
-export { ComparisonContentWidget };
-
-// 사용 가능한 위젯 목록
-const AVAILABLE_WIDGETS = [
-  { id: 'comparison-content', name: '비교 분석', description: '종목 비교 분석', defaultSize: { w: 12, h: 12 } },
-];
-
-export default function AnalysisComparisonTab() {
-  const { symbol } = useStockContext();
-
-  const DEFAULT_WIDGETS = [
-    { id: 'comparison-content-1', type: 'comparison-content', symbol },
-  ];
-
-  const DEFAULT_LAYOUT = [
-    { i: 'comparison-content-1', x: 0, y: 0, w: 12, h: 12, minW: 6, minH: 8 },
-  ];
-
-  return (
-    <WidgetDashboard
-      dashboardId={`analysis-comparison-${symbol}`}
-      title="비교 분석"
-      subtitle={symbol}
-      availableWidgets={AVAILABLE_WIDGETS}
-      defaultWidgets={DEFAULT_WIDGETS}
-      defaultLayout={DEFAULT_LAYOUT}
-    />
   );
 }

@@ -1,47 +1,56 @@
 /**
- * Analysis 재무제표 탭 - WidgetDashboard 기반 동적 레이아웃
+ * Analysis Financials Tab - Data-Focused Layout
  */
 import { useState, useEffect } from 'react';
-import { FileText, TrendingUp, TrendingDown, Table2, BarChart3, GripVertical } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { RefreshCw, TrendingUp, TrendingDown } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { useStockContext } from './AnalysisDashboard';
-import WidgetDashboard from '../WidgetDashboard';
 import { API_BASE } from '../../config/api';
-import { formatNumber } from '../../utils/widgetUtils';
 
 const FINANCIAL_TABS = [
-  { id: 'income', name: '손익계산서' },
-  { id: 'balance', name: '재무상태표' },
-  { id: 'cashflow', name: '현금흐름표' },
-  { id: 'margins', name: 'Margin 분석' }
+  { id: 'income', name: 'Income' },
+  { id: 'balance', name: 'Balance' },
+  { id: 'cashflow', name: 'Cash Flow' }
 ];
 
 const METRIC_LABELS = {
-  revenue: '매출액', cost_of_revenue: '매출원가', gross_profit: '매출총이익',
-  operating_expenses: '영업비용', operating_income: '영업이익', net_income: '순이익',
-  ebitda: 'EBITDA', basic_eps: '기본 EPS', diluted_eps: '희석 EPS',
-  total_assets: '총자산', current_assets: '유동자산', cash: '현금',
-  total_liabilities: '총부채', current_liabilities: '유동부채', total_equity: '자본총계',
-  total_debt: '총차입금', operating_cash_flow: '영업현금흐름', investing_cash_flow: '투자현금흐름',
-  financing_cash_flow: '재무현금흐름', free_cash_flow: '잉여현금흐름', capital_expenditure: '자본적지출'
+  revenue: 'Revenue',
+  cost_of_revenue: 'Cost of Revenue',
+  gross_profit: 'Gross Profit',
+  operating_expenses: 'Operating Expenses',
+  operating_income: 'Operating Income',
+  net_income: 'Net Income',
+  ebitda: 'EBITDA',
+  basic_eps: 'Basic EPS',
+  diluted_eps: 'Diluted EPS',
+  total_assets: 'Total Assets',
+  current_assets: 'Current Assets',
+  cash: 'Cash',
+  total_liabilities: 'Total Liabilities',
+  current_liabilities: 'Current Liabilities',
+  total_equity: 'Total Equity',
+  total_debt: 'Total Debt',
+  operating_cash_flow: 'Operating Cash Flow',
+  investing_cash_flow: 'Investing Cash Flow',
+  financing_cash_flow: 'Financing Cash Flow',
+  free_cash_flow: 'Free Cash Flow',
+  capital_expenditure: 'CapEx'
 };
 
-const CHART_COLORS = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444'];
-
-function FinancialsContentWidget({ symbol, onRemove }) {
+export default function AnalysisFinancialsTab() {
+  const { symbol } = useStockContext();
   const [financials, setFinancials] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [activeFinTab, setActiveFinTab] = useState('income');
-  const [period, setPeriod] = useState('quarterly');
-  const [viewMode, setViewMode] = useState('table');
+  const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('income');
+  const [period, setPeriod] = useState('annual');
 
   useEffect(() => {
     if (symbol) loadFinancials();
   }, [symbol, period]);
 
   const loadFinancials = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
       const res = await fetch(`${API_BASE}/stock/financials/${symbol}?freq=${period}&limit=8`);
       if (res.ok) setFinancials(await res.json());
     } catch (error) {
@@ -49,6 +58,15 @@ function FinancialsContentWidget({ symbol, onRemove }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const formatNumber = (value) => {
+    if (value === null || value === undefined) return '-';
+    if (Math.abs(value) >= 1e12) return `$${(value / 1e12).toFixed(2)}T`;
+    if (Math.abs(value) >= 1e9) return `$${(value / 1e9).toFixed(2)}B`;
+    if (Math.abs(value) >= 1e6) return `$${(value / 1e6).toFixed(2)}M`;
+    if (Math.abs(value) >= 1e3) return `$${(value / 1e3).toFixed(2)}K`;
+    return `$${value.toFixed(2)}`;
   };
 
   const getChartData = () => {
@@ -62,199 +80,218 @@ function FinancialsContentWidget({ symbol, onRemove }) {
       const netMargin = inc.revenue && inc.net_income ? (inc.net_income / inc.revenue * 100) : 0;
       return {
         date: p.date?.substring(0, 7) || 'N/A',
-        revenue: inc.revenue, grossProfit: inc.gross_profit, operatingIncome: inc.operating_income,
-        netIncome: inc.net_income, ebitda: inc.ebitda, totalAssets: bal.total_assets,
-        totalLiabilities: bal.total_liabilities, totalEquity: bal.total_equity, cash: bal.cash,
-        totalDebt: bal.total_debt, operatingCashFlow: cf.operating_cash_flow, freeCashFlow: cf.free_cash_flow,
-        grossMargin, operatingMargin, netMargin
+        revenue: inc.revenue,
+        netIncome: inc.net_income,
+        totalAssets: bal.total_assets,
+        totalEquity: bal.total_equity,
+        operatingCashFlow: cf.operating_cash_flow,
+        freeCashFlow: cf.free_cash_flow,
+        grossMargin,
+        operatingMargin,
+        netMargin
       };
     }).reverse();
   };
 
-  const renderChartView = () => {
-    const chartData = getChartData();
-    if (chartData.length === 0) return <div className="text-center text-gray-500 py-12">데이터가 없습니다</div>;
-
-    const formatYAxis = (value) => {
-      if (Math.abs(value) >= 1e9) return `${(value / 1e9).toFixed(1)}B`;
-      if (Math.abs(value) >= 1e6) return `${(value / 1e6).toFixed(1)}M`;
-      if (Math.abs(value) >= 1e3) return `${(value / 1e3).toFixed(1)}K`;
-      return value?.toFixed(1) || '0';
-    };
-
-    if (activeFinTab === 'margins') {
-      return (
-        <div className="p-4 h-full">
-          <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis dataKey="date" stroke="#9ca3af" fontSize={10} />
-              <YAxis stroke="#9ca3af" fontSize={10} tickFormatter={(v) => `${v.toFixed(1)}%`} />
-              <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px' }} />
-              <Legend />
-              <Line type="monotone" dataKey="grossMargin" name="매출총이익률" stroke="#10b981" strokeWidth={2} />
-              <Line type="monotone" dataKey="operatingMargin" name="영업이익률" stroke="#3b82f6" strokeWidth={2} />
-              <Line type="monotone" dataKey="netMargin" name="순이익률" stroke="#8b5cf6" strokeWidth={2} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      );
+  const getData = (period, type) => {
+    switch (type) {
+      case 'income': return period.income_statement || {};
+      case 'balance': return period.balance_sheet || {};
+      case 'cashflow': return period.cash_flow || {};
+      default: return {};
     }
-
-    const chartConfig = {
-      income: { bars: [{ dataKey: 'revenue', name: '매출액', fill: CHART_COLORS[0] }, { dataKey: 'netIncome', name: '순이익', fill: CHART_COLORS[3] }] },
-      balance: { bars: [{ dataKey: 'totalAssets', name: '총자산', fill: CHART_COLORS[0] }, { dataKey: 'totalEquity', name: '자본총계', fill: CHART_COLORS[2] }] },
-      cashflow: { bars: [{ dataKey: 'operatingCashFlow', name: '영업현금흐름', fill: CHART_COLORS[2] }, { dataKey: 'freeCashFlow', name: '잉여현금흐름', fill: CHART_COLORS[1] }] }
-    };
-    const config = chartConfig[activeFinTab];
-
-    return (
-      <div className="p-4 h-full">
-        <ResponsiveContainer width="100%" height={250}>
-          <BarChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-            <XAxis dataKey="date" stroke="#9ca3af" fontSize={10} />
-            <YAxis stroke="#9ca3af" fontSize={10} tickFormatter={formatYAxis} />
-            <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px' }} />
-            <Legend />
-            {config.bars.map((bar, idx) => (
-              <Bar key={idx} dataKey={bar.dataKey} name={bar.name} fill={bar.fill} />
-            ))}
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-    );
   };
 
-  const renderFinancialTable = (periods, type) => {
-    if (!periods || periods.length === 0) return <div className="text-center text-gray-500 py-12">데이터가 없습니다</div>;
-
-    const getData = (period) => {
-      switch (type) {
-        case 'income': return period.income_statement || {};
-        case 'balance': return period.balance_sheet || {};
-        case 'cashflow': return period.cash_flow || {};
-        default: return {};
-      }
-    };
-
-    const firstData = getData(periods[0]);
-    const metricKeys = Object.keys(firstData).filter(k => firstData[k] !== null);
-
-    return (
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="border-b border-gray-700">
-              <th className="text-left py-2 px-3 text-gray-400 font-medium sticky left-0 bg-[#1a1f2e]">항목</th>
-              {periods.map((period, idx) => (
-                <th key={idx} className="text-right py-2 px-3 text-gray-400 font-medium min-w-[100px]">
-                  {period.date?.substring(0, 7) || 'N/A'}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {metricKeys.map((key) => (
-              <tr key={key} className="border-b border-gray-800 hover:bg-gray-800/50">
-                <td className="py-2 px-3 text-gray-300 sticky left-0 bg-[#1a1f2e]">
-                  {METRIC_LABELS[key] || key.replace(/_/g, ' ')}
-                </td>
-                {periods.map((period, idx) => {
-                  const data = getData(period);
-                  const value = data[key];
-                  return (
-                    <td key={idx} className="text-right py-2 px-3 text-white font-medium">
-                      {typeof value === 'number' ? formatNumber(value) : value || '-'}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  };
+  const chartData = getChartData();
 
   return (
-    <div className="bg-[#1a1f2e] rounded-xl border border-gray-700 h-full overflow-hidden flex flex-col">
-      {/* Header */}
-      <div className="p-4 border-b border-gray-700 shrink-0">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-3">
-            <div className="drag-handle-area cursor-move p-1 hover:bg-gray-700 rounded">
-              <GripVertical size={14} className="text-gray-500" />
-            </div>
-            <FileText className="text-purple-500" size={24} />
-            <div>
-              <h2 className="text-lg font-bold text-white">재무제표</h2>
-              <p className="text-gray-400 text-xs">{symbol}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="flex bg-gray-800 rounded p-0.5">
-              <button onClick={() => setPeriod('quarterly')} className={`px-2 py-1 text-xs rounded ${period === 'quarterly' ? 'bg-purple-600 text-white' : 'text-gray-400'}`}>분기</button>
-              <button onClick={() => setPeriod('annual')} className={`px-2 py-1 text-xs rounded ${period === 'annual' ? 'bg-purple-600 text-white' : 'text-gray-400'}`}>연간</button>
-            </div>
-            <div className="flex bg-gray-800 rounded p-0.5">
-              <button onClick={() => setViewMode('table')} className={`p-1 rounded ${viewMode === 'table' ? 'bg-purple-600 text-white' : 'text-gray-400'}`}><Table2 size={14} /></button>
-              <button onClick={() => setViewMode('chart')} className={`p-1 rounded ${viewMode === 'chart' ? 'bg-purple-600 text-white' : 'text-gray-400'}`}><BarChart3 size={14} /></button>
+    <div className="max-w-7xl mx-auto px-6">
+      <div className="grid grid-cols-12 gap-4">
+        {/* Header Controls */}
+        <div className="col-span-12">
+          <div className="bg-[#0d0d12] rounded-lg p-4 border border-gray-800">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="flex bg-gray-800 rounded p-0.5">
+                  {FINANCIAL_TABS.map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`px-4 py-1.5 text-sm rounded ${
+                        activeTab === tab.id ? 'bg-blue-600 text-white' : 'text-gray-400'
+                      }`}
+                    >
+                      {tab.name}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex bg-gray-800 rounded p-0.5">
+                  <button
+                    onClick={() => setPeriod('quarterly')}
+                    className={`px-3 py-1.5 text-sm rounded ${period === 'quarterly' ? 'bg-blue-600 text-white' : 'text-gray-400'}`}
+                  >
+                    Quarterly
+                  </button>
+                  <button
+                    onClick={() => setPeriod('annual')}
+                    className={`px-3 py-1.5 text-sm rounded ${period === 'annual' ? 'bg-blue-600 text-white' : 'text-gray-400'}`}
+                  >
+                    Annual
+                  </button>
+                </div>
+              </div>
+              <button
+                onClick={loadFinancials}
+                className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded text-sm text-gray-300"
+              >
+                <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+                Refresh
+              </button>
             </div>
           </div>
         </div>
-        <div className="flex gap-1">
-          {FINANCIAL_TABS.map((tab) => (
-            <button key={tab.id} onClick={() => setActiveFinTab(tab.id)}
-              className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                activeFinTab === tab.id ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
-              }`}
-            >{tab.name}</button>
-          ))}
-        </div>
-      </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-auto">
-        {loading ? (
-          <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
+        {/* Revenue & Income Chart */}
+        <div className="col-span-8">
+          <div className="bg-[#0d0d12] rounded-lg border border-gray-800 h-[300px]">
+            <div className="p-4 border-b border-gray-800">
+              <h4 className="text-sm font-semibold text-white">
+                {activeTab === 'income' ? 'Revenue & Net Income' : activeTab === 'balance' ? 'Assets & Equity' : 'Cash Flows'}
+              </h4>
+            </div>
+            <div className="p-4 h-[calc(100%-52px)]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                  <XAxis dataKey="date" stroke="#666" fontSize={11} />
+                  <YAxis stroke="#666" fontSize={11} tickFormatter={(v) => {
+                    if (Math.abs(v) >= 1e9) return `${(v / 1e9).toFixed(0)}B`;
+                    if (Math.abs(v) >= 1e6) return `${(v / 1e6).toFixed(0)}M`;
+                    return v;
+                  }} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333' }}
+                    formatter={(value) => formatNumber(value)}
+                  />
+                  {activeTab === 'income' && (
+                    <>
+                      <Bar dataKey="revenue" name="Revenue" fill="#3b82f6" />
+                      <Bar dataKey="netIncome" name="Net Income" fill="#22c55e" />
+                    </>
+                  )}
+                  {activeTab === 'balance' && (
+                    <>
+                      <Bar dataKey="totalAssets" name="Total Assets" fill="#3b82f6" />
+                      <Bar dataKey="totalEquity" name="Total Equity" fill="#22c55e" />
+                    </>
+                  )}
+                  {activeTab === 'cashflow' && (
+                    <>
+                      <Bar dataKey="operatingCashFlow" name="Operating CF" fill="#3b82f6" />
+                      <Bar dataKey="freeCashFlow" name="Free CF" fill="#22c55e" />
+                    </>
+                  )}
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
-        ) : viewMode === 'chart' || activeFinTab === 'margins' ? (
-          renderChartView()
-        ) : (
-          renderFinancialTable(financials?.periods || [], activeFinTab)
-        )}
+        </div>
+
+        {/* Margin Trends */}
+        <div className="col-span-4">
+          <div className="bg-[#0d0d12] rounded-lg border border-gray-800 h-[300px]">
+            <div className="p-4 border-b border-gray-800">
+              <h4 className="text-sm font-semibold text-white">Profit Margins</h4>
+            </div>
+            <div className="p-4 h-[calc(100%-52px)]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                  <XAxis dataKey="date" stroke="#666" fontSize={10} />
+                  <YAxis stroke="#666" fontSize={10} tickFormatter={(v) => `${v.toFixed(0)}%`} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333' }}
+                    formatter={(value) => `${value.toFixed(2)}%`}
+                  />
+                  <Line type="monotone" dataKey="grossMargin" name="Gross" stroke="#22c55e" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="operatingMargin" name="Operating" stroke="#3b82f6" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="netMargin" name="Net" stroke="#8b5cf6" strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+
+        {/* Financial Data Table */}
+        <div className="col-span-12">
+          <div className="bg-[#0d0d12] rounded-lg border border-gray-800">
+            <div className="p-4 border-b border-gray-800">
+              <h4 className="text-sm font-semibold text-white">
+                {activeTab === 'income' ? 'Income Statement' : activeTab === 'balance' ? 'Balance Sheet' : 'Cash Flow Statement'}
+              </h4>
+            </div>
+            <div className="overflow-x-auto">
+              {loading ? (
+                <div className="flex items-center justify-center h-32">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
+                </div>
+              ) : financials?.periods?.length > 0 ? (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-800">
+                      <th className="text-left py-3 px-4 text-gray-500 text-xs font-medium sticky left-0 bg-[#0d0d12]">Metric</th>
+                      {financials.periods.map((period, idx) => (
+                        <th key={idx} className="text-right py-3 px-4 text-gray-400 text-xs font-medium min-w-[100px]">
+                          {period.date?.substring(0, 7) || 'N/A'}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.keys(getData(financials.periods[0], activeTab))
+                      .filter(key => getData(financials.periods[0], activeTab)[key] !== null)
+                      .map((key) => {
+                        const values = financials.periods.map(p => getData(p, activeTab)[key]);
+                        const trend = values.length >= 2 && values[0] !== null && values[1] !== null
+                          ? values[0] - values[1]
+                          : null;
+
+                        return (
+                          <tr key={key} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                            <td className="py-3 px-4 text-gray-300 sticky left-0 bg-[#0d0d12]">
+                              {METRIC_LABELS[key] || key.replace(/_/g, ' ')}
+                            </td>
+                            {financials.periods.map((period, idx) => {
+                              const data = getData(period, activeTab);
+                              const value = data[key];
+                              const showTrend = idx === 0 && trend !== null;
+                              return (
+                                <td key={idx} className="text-right py-3 px-4">
+                                  <div className="flex items-center justify-end gap-1">
+                                    {showTrend && (
+                                      trend > 0
+                                        ? <TrendingUp size={12} className="text-green-500" />
+                                        : <TrendingDown size={12} className="text-red-500" />
+                                    )}
+                                    <span className="text-white font-medium">
+                                      {typeof value === 'number' ? formatNumber(value) : value || '-'}
+                                    </span>
+                                  </div>
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="text-center text-gray-500 py-12">No data available</div>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
-  );
-}
-
-export { FinancialsContentWidget };
-
-const AVAILABLE_WIDGETS = [
-  { id: 'financials-content', name: '재무제표', description: '재무제표 분석', defaultSize: { w: 12, h: 12 } },
-];
-
-export default function AnalysisFinancialsTab() {
-  const { symbol } = useStockContext();
-
-  const DEFAULT_WIDGETS = [
-    { id: 'financials-content-1', type: 'financials-content', symbol },
-  ];
-
-  const DEFAULT_LAYOUT = [
-    { i: 'financials-content-1', x: 0, y: 0, w: 12, h: 12, minW: 6, minH: 8 },
-  ];
-
-  return (
-    <WidgetDashboard
-      dashboardId={`analysis-financials-${symbol}`}
-      title="재무제표"
-      subtitle={symbol}
-      availableWidgets={AVAILABLE_WIDGETS}
-      defaultWidgets={DEFAULT_WIDGETS}
-      defaultLayout={DEFAULT_LAYOUT}
-    />
   );
 }

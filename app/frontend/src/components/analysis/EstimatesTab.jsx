@@ -1,24 +1,268 @@
 /**
- * Estimates Tab - WidgetDashboard 기반 동적 레이아웃
+ * Estimates Tab - Data-Focused Layout with Standard Widget Controls
+ * Standard Controls: Close, Refresh, Symbol Selector, Corner Resize
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ResponsiveContainer
+  Tooltip, ResponsiveContainer
 } from 'recharts';
 import {
   TrendingUp, TrendingDown, Target, Users, Star,
-  RefreshCw, DollarSign, BarChart3, GripVertical
+  RefreshCw, DollarSign, BarChart3
 } from 'lucide-react';
-import WidgetDashboard from '../WidgetDashboard';
 import { API_BASE } from '../../config/api';
 import { formatCurrency } from '../../utils/widgetUtils';
+import { WidgetHeader, AddWidgetPlaceholder, ResizeHandle } from '../common/WidgetHeader';
 
-function EstimatesTabWidget({ symbol, onRemove }) {
+// Resizable Widget Wrapper
+function ResizableWidgetWrapper({ children, minWidth = 300, minHeight = 200, defaultHeight = 400 }) {
+  const containerRef = useRef(null);
+  const [size, setSize] = useState({ width: 'auto', height: defaultHeight });
+
+  const handleResize = useCallback((deltaX, deltaY) => {
+    setSize(prev => ({
+      width: prev.width === 'auto' ? 'auto' : Math.max(minWidth, prev.width + deltaX),
+      height: Math.max(minHeight, (prev.height || defaultHeight) + deltaY)
+    }));
+  }, [minWidth, minHeight, defaultHeight]);
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative"
+      style={{
+        height: size.height === 'auto' ? 'auto' : `${size.height}px`,
+        minHeight: `${minHeight}px`,
+      }}
+    >
+      {children}
+      <ResizeHandle onResize={handleResize} />
+    </div>
+  );
+}
+
+const getRatingColor = (rating) => {
+  const lowerRating = (rating || '').toLowerCase();
+  if (lowerRating.includes('buy') || lowerRating.includes('overweight')) return 'text-green-400';
+  if (lowerRating.includes('sell') || lowerRating.includes('underweight')) return 'text-red-400';
+  return 'text-yellow-400';
+};
+
+// Consensus Rating Widget
+function ConsensusRatingWidget({ estimatesData, analystData, totalRatings, buyCount, sellCount, holdCount, consensusRating, loading, symbol, onSymbolChange, onRefresh, onClose }) {
+  return (
+    <div className="bg-[#0d0d12] rounded-lg border border-gray-800 overflow-hidden h-full flex flex-col">
+      <WidgetHeader
+        title="Analyst Consensus"
+        icon={Star}
+        iconColor="text-yellow-400"
+        symbol={symbol}
+        onSymbolChange={onSymbolChange}
+        onRefresh={onRefresh}
+        onClose={onClose}
+        loading={loading}
+      />
+      <div className="flex-1 overflow-auto p-4">
+        {loading ? (
+          <div className="h-[200px] flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-500" />
+          </div>
+        ) : totalRatings > 0 || analystData ? (
+          <div className="space-y-4">
+            <div className="text-center">
+              <div className={`text-3xl font-bold ${getRatingColor(consensusRating)}`}>{consensusRating}</div>
+              <div className="text-gray-400 text-sm mt-1">
+                Based on {totalRatings > 0 ? totalRatings : analystData?.number_of_analysts || 0} analysts
+              </div>
+            </div>
+            {totalRatings > 0 && (
+              <>
+                <div className="flex h-6 rounded-lg overflow-hidden">
+                  {buyCount > 0 && (
+                    <div className="bg-green-600 flex items-center justify-center text-xs text-white font-medium"
+                      style={{ width: `${(buyCount / totalRatings) * 100}%` }}>{buyCount}</div>
+                  )}
+                  {holdCount > 0 && (
+                    <div className="bg-yellow-500 flex items-center justify-center text-xs text-white font-medium"
+                      style={{ width: `${(holdCount / totalRatings) * 100}%` }}>{holdCount}</div>
+                  )}
+                  {sellCount > 0 && (
+                    <div className="bg-red-500 flex items-center justify-center text-xs text-white font-medium"
+                      style={{ width: `${(sellCount / totalRatings) * 100}%` }}>{sellCount}</div>
+                  )}
+                </div>
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>Buy ({buyCount})</span>
+                  <span>Hold ({holdCount})</span>
+                  <span>Sell ({sellCount})</span>
+                </div>
+              </>
+            )}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-400 text-sm">No analyst data available</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Price Target Widget
+function PriceTargetWidget({ priceTarget, currentPrice, upsidePct, loading, symbol, onSymbolChange, onRefresh, onClose }) {
+  const targetPrice = priceTarget?.mean || priceTarget?.average;
+
+  return (
+    <div className="bg-[#0d0d12] rounded-lg border border-gray-800 overflow-hidden h-full flex flex-col">
+      <WidgetHeader
+        title="Price Target"
+        icon={Target}
+        iconColor="text-blue-400"
+        symbol={symbol}
+        onSymbolChange={onSymbolChange}
+        onRefresh={onRefresh}
+        onClose={onClose}
+        loading={loading}
+      />
+      <div className="flex-1 overflow-auto p-4">
+        {loading ? (
+          <div className="h-[200px] flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+          </div>
+        ) : targetPrice ? (
+          <div className="space-y-4">
+            <div className="text-center">
+              <div className="text-3xl font-bold text-white">${targetPrice?.toFixed(2) || '-'}</div>
+              {upsidePct && (
+                <div className={`text-lg font-medium mt-1 ${parseFloat(upsidePct) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {parseFloat(upsidePct) >= 0 ? '+' : ''}{upsidePct}% upside
+                </div>
+              )}
+            </div>
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div className="bg-red-500/10 rounded-lg p-3">
+                <div className="text-red-400 text-xs mb-1">Low</div>
+                <div className="text-white font-bold">${priceTarget?.low?.toFixed(2) || '-'}</div>
+              </div>
+              <div className="bg-blue-500/10 rounded-lg p-3">
+                <div className="text-blue-400 text-xs mb-1">Current</div>
+                <div className="text-white font-bold">${currentPrice?.toFixed(2) || '-'}</div>
+              </div>
+              <div className="bg-green-500/10 rounded-lg p-3">
+                <div className="text-green-400 text-xs mb-1">High</div>
+                <div className="text-white font-bold">${priceTarget?.high?.toFixed(2) || '-'}</div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-400 text-sm">No price target data available</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// EPS Estimates Widget
+function EPSEstimatesWidget({ epsEstimates, loading, symbol, onSymbolChange, onRefresh, onClose }) {
+  return (
+    <div className="bg-[#0d0d12] rounded-lg border border-gray-800 overflow-hidden h-full flex flex-col">
+      <WidgetHeader
+        title="EPS Estimates"
+        icon={DollarSign}
+        iconColor="text-green-400"
+        symbol={symbol}
+        onSymbolChange={onSymbolChange}
+        onRefresh={onRefresh}
+        onClose={onClose}
+        loading={loading}
+      />
+      <div className="flex-1 overflow-auto p-4">
+        {loading ? (
+          <div className="h-[200px] flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500" />
+          </div>
+        ) : epsEstimates && Object.keys(epsEstimates).length > 0 ? (
+          <div className="grid grid-cols-2 gap-3">
+            {Object.entries(epsEstimates).slice(0, 4).map(([period, data]) => (
+              <div key={period} className="bg-gray-800/30 rounded-lg p-3">
+                <div className="text-gray-400 text-xs mb-1">{period}</div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-lg font-bold text-white">${data.estimate?.toFixed(2) || '-'}</span>
+                  {data.growth && (
+                    <span className={`text-xs ${data.growth >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {data.growth >= 0 ? '+' : ''}{(data.growth * 100).toFixed(1)}%
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-400 text-sm">No EPS estimates available</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Revenue Estimates Widget
+function RevenueEstimatesWidget({ revenueEstimates, loading, symbol, onSymbolChange, onRefresh, onClose }) {
+  return (
+    <div className="bg-[#0d0d12] rounded-lg border border-gray-800 overflow-hidden h-full flex flex-col">
+      <WidgetHeader
+        title="Revenue Estimates"
+        icon={BarChart3}
+        iconColor="text-blue-400"
+        symbol={symbol}
+        onSymbolChange={onSymbolChange}
+        onRefresh={onRefresh}
+        onClose={onClose}
+        loading={loading}
+      />
+      <div className="flex-1 overflow-auto p-4">
+        {loading ? (
+          <div className="h-[200px] flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+          </div>
+        ) : revenueEstimates && Object.keys(revenueEstimates).length > 0 ? (
+          <div className="grid grid-cols-2 gap-3">
+            {Object.entries(revenueEstimates).slice(0, 4).map(([period, data]) => (
+              <div key={period} className="bg-gray-800/30 rounded-lg p-3">
+                <div className="text-gray-400 text-xs mb-1">{period}</div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-lg font-bold text-white">{formatCurrency(data.estimate)}</span>
+                  {data.growth && (
+                    <span className={`text-xs ${data.growth >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {data.growth >= 0 ? '+' : ''}{(data.growth * 100).toFixed(1)}%
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-400 text-sm">No revenue estimates available</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Main EstimatesTab Component
+const EstimatesTab = ({ symbol: initialSymbol }) => {
+  const [symbol, setSymbol] = useState(initialSymbol || 'AAPL');
   const [estimatesData, setEstimatesData] = useState(null);
   const [analystData, setAnalystData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [currentPrice, setCurrentPrice] = useState(null);
+
+  // Widget visibility state
+  const [visibleWidgets, setVisibleWidgets] = useState({
+    consensus: true,
+    priceTarget: true,
+    eps: true,
+    revenue: true
+  });
 
   useEffect(() => {
     if (symbol) loadEstimatesData();
@@ -46,20 +290,17 @@ function EstimatesTabWidget({ symbol, onRemove }) {
     }
   };
 
-  const getRatingColor = (rating) => {
-    const lowerRating = (rating || '').toLowerCase();
-    if (lowerRating.includes('buy') || lowerRating.includes('overweight')) return 'text-green-400';
-    if (lowerRating.includes('sell') || lowerRating.includes('underweight')) return 'text-red-400';
-    return 'text-yellow-400';
+  const handleSymbolChange = (newSymbol) => {
+    setSymbol(newSymbol);
   };
 
-  if (loading) {
-    return (
-      <div className="bg-[#0d0d12] rounded-lg border border-gray-800 h-full flex items-center justify-center">
-        <RefreshCw className="animate-spin text-blue-500" size={32} />
-      </div>
-    );
-  }
+  const handleCloseWidget = (widgetId) => {
+    setVisibleWidgets(prev => ({ ...prev, [widgetId]: false }));
+  };
+
+  const handleAddWidget = (widgetId) => {
+    setVisibleWidgets(prev => ({ ...prev, [widgetId]: true }));
+  };
 
   const ratings = estimatesData?.recommendations || analystData?.ratings || {};
   const totalRatings = (ratings.strong_buy || 0) + (ratings.buy || 0) +
@@ -85,193 +326,108 @@ function EstimatesTabWidget({ symbol, onRemove }) {
   const consensusRating = getConsensusRating();
 
   return (
-    <div className="bg-[#0d0d12] rounded-lg border border-gray-800 h-full overflow-hidden flex flex-col">
+    <div className="space-y-4">
       {/* Header */}
-      <div className="p-4 border-b border-gray-800 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="drag-handle-area cursor-move p-1 hover:bg-gray-700 rounded">
-            <GripVertical size={14} className="text-gray-500" />
-          </div>
-          <Target className="text-blue-500" size={24} />
-          <div>
-            <h3 className="text-lg font-semibold text-white">Analyst Estimates - {symbol}</h3>
-            <p className="text-gray-400 text-xs">EPS, revenue estimates, and price targets</p>
-          </div>
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold text-white">Analyst Estimates - {symbol}</h3>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={loadEstimatesData}
+            className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded text-sm text-gray-300"
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            Refresh All
+          </button>
         </div>
-        <button
-          onClick={loadEstimatesData}
-          className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-white text-xs"
-        >
-          <RefreshCw size={14} />
-          Refresh
-        </button>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-auto p-4 space-y-4">
-        {/* Consensus Rating & Price Target */}
-        <div className="grid grid-cols-2 gap-4">
-          {/* Consensus Rating */}
-          <div className="bg-gray-800/30 rounded-lg p-4">
-            <h4 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-              <Star className="text-yellow-500" size={16} />
-              Analyst Consensus
-            </h4>
-            {totalRatings > 0 || analystData ? (
-              <div className="space-y-3">
-                <div className="text-center">
-                  <div className={`text-2xl font-bold ${getRatingColor(consensusRating)}`}>{consensusRating}</div>
-                  <div className="text-gray-400 text-xs">
-                    Based on {totalRatings > 0 ? totalRatings : analystData?.number_of_analysts || 0} analysts
-                  </div>
-                </div>
-                {totalRatings > 0 && (
-                  <div className="flex h-4 rounded overflow-hidden">
-                    {buyCount > 0 && (
-                      <div className="bg-green-600 flex items-center justify-center text-[10px] text-white"
-                        style={{ width: `${(buyCount / totalRatings) * 100}%` }}>{buyCount}</div>
-                    )}
-                    {holdCount > 0 && (
-                      <div className="bg-yellow-500 flex items-center justify-center text-[10px] text-white"
-                        style={{ width: `${(holdCount / totalRatings) * 100}%` }}>{holdCount}</div>
-                    )}
-                    {sellCount > 0 && (
-                      <div className="bg-red-500 flex items-center justify-center text-[10px] text-white"
-                        style={{ width: `${(sellCount / totalRatings) * 100}%` }}>{sellCount}</div>
-                    )}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="text-center py-4 text-gray-400 text-sm">No analyst data available</div>
-            )}
-          </div>
-
-          {/* Price Target */}
-          <div className="bg-gray-800/30 rounded-lg p-4">
-            <h4 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-              <Target className="text-blue-500" size={16} />
-              Price Target
-            </h4>
-            {targetPrice ? (
-              <div className="space-y-3">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-white">${targetPrice?.toFixed(2) || '-'}</div>
-                  {upsidePct && (
-                    <div className={`text-sm font-medium ${parseFloat(upsidePct) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      {parseFloat(upsidePct) >= 0 ? '+' : ''}{upsidePct}% upside
-                    </div>
-                  )}
-                </div>
-                <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                  <div className="bg-red-500/10 rounded p-2">
-                    <div className="text-red-400">Low</div>
-                    <div className="text-white font-medium">${priceTarget.low?.toFixed(2) || '-'}</div>
-                  </div>
-                  <div className="bg-blue-500/10 rounded p-2">
-                    <div className="text-blue-400">Current</div>
-                    <div className="text-white font-medium">${currentPrice?.toFixed(2) || '-'}</div>
-                  </div>
-                  <div className="bg-green-500/10 rounded p-2">
-                    <div className="text-green-400">High</div>
-                    <div className="text-white font-medium">${priceTarget.high?.toFixed(2) || '-'}</div>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-4 text-gray-400 text-sm">No price target data available</div>
-            )}
-          </div>
-        </div>
-
-        {/* EPS & Revenue Estimates */}
-        <div className="grid grid-cols-2 gap-4">
-          {estimatesData && Object.keys(estimatesData.eps || {}).length > 0 && (
-            <div className="bg-gray-800/30 rounded-lg p-4">
-              <h4 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-                <DollarSign className="text-green-500" size={16} />
-                EPS Estimates
-              </h4>
-              <div className="grid grid-cols-2 gap-2">
-                {Object.entries(estimatesData.eps).slice(0, 4).map(([period, data]) => (
-                  <div key={period} className="bg-gray-800/50 rounded p-2">
-                    <div className="text-gray-400 text-[10px] mb-1">{period}</div>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-sm font-bold text-white">${data.estimate?.toFixed(2) || '-'}</span>
-                      {data.growth && (
-                        <span className={`text-[10px] ${data.growth >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          {data.growth >= 0 ? '+' : ''}{(data.growth * 100).toFixed(1)}%
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {estimatesData && Object.keys(estimatesData.revenue || {}).length > 0 && (
-            <div className="bg-gray-800/30 rounded-lg p-4">
-              <h4 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-                <BarChart3 className="text-blue-500" size={16} />
-                Revenue Estimates
-              </h4>
-              <div className="grid grid-cols-2 gap-2">
-                {Object.entries(estimatesData.revenue).slice(0, 4).map(([period, data]) => (
-                  <div key={period} className="bg-gray-800/50 rounded p-2">
-                    <div className="text-gray-400 text-[10px] mb-1">{period}</div>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-sm font-bold text-white">{formatCurrency(data.estimate)}</span>
-                      {data.growth && (
-                        <span className={`text-[10px] ${data.growth >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          {data.growth >= 0 ? '+' : ''}{(data.growth * 100).toFixed(1)}%
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+      {/* Widget Grid */}
+      <div className="grid grid-cols-12 gap-4">
+        {/* Consensus Rating Widget */}
+        <div className="col-span-6">
+          {visibleWidgets.consensus ? (
+            <ResizableWidgetWrapper minHeight={200} defaultHeight={280}>
+              <ConsensusRatingWidget
+                estimatesData={estimatesData}
+                analystData={analystData}
+                totalRatings={totalRatings}
+                buyCount={buyCount}
+                sellCount={sellCount}
+                holdCount={holdCount}
+                consensusRating={consensusRating}
+                loading={loading}
+                symbol={symbol}
+                onSymbolChange={handleSymbolChange}
+                onRefresh={loadEstimatesData}
+                onClose={() => handleCloseWidget('consensus')}
+              />
+            </ResizableWidgetWrapper>
+          ) : (
+            <AddWidgetPlaceholder onAdd={() => handleAddWidget('consensus')} widgetType="consensus" label="Add Consensus Widget" />
           )}
         </div>
 
-        {/* Empty State */}
-        {!estimatesData && !analystData && !loading && (
-          <div className="bg-gray-800/30 rounded-lg p-8 text-center">
-            <Target className="mx-auto mb-3 text-gray-600" size={40} />
-            <div className="text-gray-400">No estimates data available for {symbol}</div>
-          </div>
-        )}
+        {/* Price Target Widget */}
+        <div className="col-span-6">
+          {visibleWidgets.priceTarget ? (
+            <ResizableWidgetWrapper minHeight={200} defaultHeight={280}>
+              <PriceTargetWidget
+                priceTarget={priceTarget}
+                currentPrice={currentPrice}
+                upsidePct={upsidePct}
+                loading={loading}
+                symbol={symbol}
+                onSymbolChange={handleSymbolChange}
+                onRefresh={loadEstimatesData}
+                onClose={() => handleCloseWidget('priceTarget')}
+              />
+            </ResizableWidgetWrapper>
+          ) : (
+            <AddWidgetPlaceholder onAdd={() => handleAddWidget('priceTarget')} widgetType="priceTarget" label="Add Price Target Widget" />
+          )}
+        </div>
+
+        {/* EPS Estimates Widget */}
+        <div className="col-span-6">
+          {visibleWidgets.eps ? (
+            <ResizableWidgetWrapper minHeight={200} defaultHeight={250}>
+              <EPSEstimatesWidget
+                epsEstimates={estimatesData?.eps}
+                loading={loading}
+                symbol={symbol}
+                onSymbolChange={handleSymbolChange}
+                onRefresh={loadEstimatesData}
+                onClose={() => handleCloseWidget('eps')}
+              />
+            </ResizableWidgetWrapper>
+          ) : (
+            <AddWidgetPlaceholder onAdd={() => handleAddWidget('eps')} widgetType="eps" label="Add EPS Widget" />
+          )}
+        </div>
+
+        {/* Revenue Estimates Widget */}
+        <div className="col-span-6">
+          {visibleWidgets.revenue ? (
+            <ResizableWidgetWrapper minHeight={200} defaultHeight={250}>
+              <RevenueEstimatesWidget
+                revenueEstimates={estimatesData?.revenue}
+                loading={loading}
+                symbol={symbol}
+                onSymbolChange={handleSymbolChange}
+                onRefresh={loadEstimatesData}
+                onClose={() => handleCloseWidget('revenue')}
+              />
+            </ResizableWidgetWrapper>
+          ) : (
+            <AddWidgetPlaceholder onAdd={() => handleAddWidget('revenue')} widgetType="revenue" label="Add Revenue Widget" />
+          )}
+        </div>
       </div>
     </div>
-  );
-}
-
-export { EstimatesTabWidget };
-
-const AVAILABLE_WIDGETS = [
-  { id: 'estimates-tab', name: 'Estimates', description: 'Analyst estimates', defaultSize: { w: 12, h: 12 } },
-];
-
-const EstimatesTab = ({ symbol }) => {
-  const DEFAULT_WIDGETS = [
-    { id: 'estimates-tab-1', type: 'estimates-tab', symbol },
-  ];
-
-  const DEFAULT_LAYOUT = [
-    { i: 'estimates-tab-1', x: 0, y: 0, w: 12, h: 12, minW: 6, minH: 8 },
-  ];
-
-  return (
-    <WidgetDashboard
-      dashboardId={`estimates-tab-${symbol}`}
-      title="Estimates"
-      subtitle={symbol}
-      availableWidgets={AVAILABLE_WIDGETS}
-      defaultWidgets={DEFAULT_WIDGETS}
-      defaultLayout={DEFAULT_LAYOUT}
-    />
   );
 };
 
 export default EstimatesTab;
+
+// Export for backward compatibility
+export { EstimatesTab as EstimatesTabWidget };

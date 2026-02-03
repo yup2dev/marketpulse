@@ -1,36 +1,191 @@
 /**
- * 뉴스 알림 탭 컴포넌트 - WidgetDashboard 기반 동적 레이아웃
+ * News Alerts Tab - Data-Focused Layout with Standard Widget Controls
+ * Standard Controls: Close, Refresh, Corner Resize
  */
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
+import { Newspaper, Plus, PowerOff, Power, Trash2, Play, RefreshCw } from 'lucide-react';
 import { useAlertsContext } from '../../contexts/AlertsContext';
-import WidgetDashboard from '../WidgetDashboard';
 import CreateAlertModal from './CreateAlertModal';
+import { WidgetHeader, AddWidgetPlaceholder, ResizeHandle } from '../common/WidgetHeader';
 
-// 사용 가능한 위젯 목록
-const AVAILABLE_WIDGETS = [
-  { id: 'alerts-list', name: '뉴스 알림 목록', description: '뉴스 알림 리스트', defaultSize: { w: 12, h: 12 } },
-];
+// Resizable Widget Wrapper
+function ResizableWidgetWrapper({ children, minWidth = 300, minHeight = 200, defaultHeight = 400 }) {
+  const containerRef = useRef(null);
+  const [size, setSize] = useState({ width: 'auto', height: defaultHeight });
 
-// 기본 위젯 구성
-const DEFAULT_WIDGETS = [
-  { id: 'news-alerts-list-1', type: 'alerts-list' },
-];
+  const handleResize = useCallback((deltaX, deltaY) => {
+    setSize(prev => ({
+      width: prev.width === 'auto' ? 'auto' : Math.max(minWidth, prev.width + deltaX),
+      height: Math.max(minHeight, (prev.height || defaultHeight) + deltaY)
+    }));
+  }, [minWidth, minHeight, defaultHeight]);
 
-// 기본 레이아웃
-const DEFAULT_LAYOUT = [
-  { i: 'news-alerts-list-1', x: 0, y: 0, w: 12, h: 12, minW: 6, minH: 6 },
-];
+  return (
+    <div
+      ref={containerRef}
+      className="relative"
+      style={{
+        height: size.height === 'auto' ? 'auto' : `${size.height}px`,
+        minHeight: `${minHeight}px`,
+      }}
+    >
+      {children}
+      <ResizeHandle onResize={handleResize} />
+    </div>
+  );
+}
 
+// News Alerts List Widget
+function NewsAlertsListWidget({ alerts, onToggle, onDelete, onTest, onCreateClick, loading, onRefresh, onClose }) {
+  return (
+    <div className="bg-[#0d0d12] rounded-lg border border-gray-800 overflow-hidden h-full flex flex-col">
+      <WidgetHeader
+        title="News Alerts"
+        icon={Newspaper}
+        iconColor="text-green-400"
+        subtitle={`${alerts.length} alerts`}
+        onRefresh={onRefresh}
+        onClose={onClose}
+        loading={loading}
+      />
+      <div className="flex-1 overflow-auto">
+        {loading ? (
+          <div className="h-[200px] flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500" />
+          </div>
+        ) : alerts.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-gray-500 p-8">
+            <Newspaper size={48} className="mb-3 opacity-50" />
+            <p className="text-sm mb-1">No news alerts</p>
+            <p className="text-xs text-gray-600 mb-4">Get notified when important news breaks</p>
+            <button
+              onClick={onCreateClick}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 rounded text-sm text-white"
+            >
+              <Plus size={16} />
+              Create Alert
+            </button>
+          </div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-[#0a0a0f]">
+              <tr className="border-b border-gray-800">
+                <th className="text-left py-2 px-4 text-gray-400 text-xs font-medium">Symbol</th>
+                <th className="text-left py-2 px-4 text-gray-400 text-xs font-medium">Keywords</th>
+                <th className="text-left py-2 px-4 text-gray-400 text-xs font-medium">Sentiment</th>
+                <th className="text-center py-2 px-4 text-gray-400 text-xs font-medium">Status</th>
+                <th className="text-right py-2 px-4 text-gray-400 text-xs font-medium">Triggers</th>
+                <th className="text-right py-2 px-4 text-gray-400 text-xs font-medium">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {alerts.map((alert) => (
+                <tr key={alert.alert_id} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                  <td className="py-3 px-4">
+                    <span className="font-semibold text-white">{alert.ticker_cd || 'All'}</span>
+                  </td>
+                  <td className="py-3 px-4 text-gray-400">
+                    {alert.keywords ? (
+                      <div className="flex flex-wrap gap-1">
+                        {alert.keywords.split(',').slice(0, 3).map((kw, idx) => (
+                          <span key={idx} className="text-xs bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded">
+                            {kw.trim()}
+                          </span>
+                        ))}
+                        {alert.keywords.split(',').length > 3 && (
+                          <span className="text-xs text-gray-500">+{alert.keywords.split(',').length - 3}</span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-gray-500">Any</span>
+                    )}
+                  </td>
+                  <td className="py-3 px-4">
+                    <span className={`text-xs px-2 py-0.5 rounded ${
+                      alert.sentiment_filter === 'positive' ? 'bg-green-500/20 text-green-400' :
+                      alert.sentiment_filter === 'negative' ? 'bg-red-500/20 text-red-400' :
+                      'bg-gray-700 text-gray-400'
+                    }`}>
+                      {alert.sentiment_filter || 'Any'}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-center">
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${
+                      alert.is_active
+                        ? 'bg-green-500/20 text-green-400'
+                        : 'bg-gray-700 text-gray-400'
+                    }`}>
+                      {alert.is_active ? 'Active' : 'Inactive'}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-right text-gray-400">{alert.trigger_count || 0}</td>
+                  <td className="py-3 px-4 text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => onTest(alert.alert_id)}
+                        className="p-1.5 text-gray-500 hover:text-green-400 hover:bg-green-500/20 rounded transition-colors"
+                        title="Test Alert"
+                      >
+                        <Play size={14} />
+                      </button>
+                      <button
+                        onClick={() => onToggle(alert.alert_id, alert.is_active)}
+                        className={`p-1.5 rounded transition-colors ${
+                          alert.is_active
+                            ? 'text-gray-500 hover:text-red-400 hover:bg-red-500/20'
+                            : 'text-gray-500 hover:text-green-400 hover:bg-green-500/20'
+                        }`}
+                        title={alert.is_active ? 'Deactivate' : 'Activate'}
+                      >
+                        {alert.is_active ? <PowerOff size={14} /> : <Power size={14} />}
+                      </button>
+                      <button
+                        onClick={() => onDelete(alert.alert_id)}
+                        className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/20 rounded transition-colors"
+                        title="Delete"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+      {alerts.length > 0 && (
+        <div className="p-3 border-t border-gray-800 shrink-0">
+          <button
+            onClick={onCreateClick}
+            className="flex items-center gap-2 px-3 py-1.5 bg-green-600 hover:bg-green-500 rounded text-sm text-white"
+          >
+            <Plus size={14} />
+            Create Alert
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Main NewsAlertsTab Component
 export default function NewsAlertsTab() {
-  const { newsAlerts, toggleAlert, deleteAlert, testAlert, createAlert } = useAlertsContext();
+  const { newsAlerts, toggleAlert, deleteAlert, testAlert, createAlert, refreshAlerts, isLoading } = useAlertsContext();
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  // Widget visibility state
+  const [visibleWidgets, setVisibleWidgets] = useState({
+    alertsList: true
+  });
 
   const handleToggle = async (alertId, currentStatus) => {
     await toggleAlert(alertId, currentStatus);
   };
 
   const handleDelete = async (alertId) => {
-    if (!confirm('정말 이 알림을 삭제하시겠습니까?')) return;
+    if (!confirm('Are you sure you want to delete this alert?')) return;
     await deleteAlert(alertId);
   };
 
@@ -45,30 +200,60 @@ export default function NewsAlertsTab() {
     }
   };
 
-  // 알림 목록 위젯에 전달할 props를 포함한 위젯 구성
-  const widgetsWithProps = DEFAULT_WIDGETS.map(widget => ({
-    ...widget,
-    alerts: newsAlerts,
-    onToggle: handleToggle,
-    onDelete: handleDelete,
-    onTest: handleTest,
-    onCreateClick: () => setShowCreateModal(true),
-    title: '뉴스 알림',
-    subtitle: '중요 뉴스 발생 시 알림을 받으세요',
-    emptyMessage: '뉴스 알림이 없습니다',
-    emptySubMessage: '관심 종목의 중요 뉴스를 놓치지 마세요',
-  }));
+  const handleRefresh = async () => {
+    setLoading(true);
+    await refreshAlerts();
+    setLoading(false);
+  };
+
+  const handleCloseWidget = (widgetId) => {
+    setVisibleWidgets(prev => ({ ...prev, [widgetId]: false }));
+  };
+
+  const handleAddWidget = (widgetId) => {
+    setVisibleWidgets(prev => ({ ...prev, [widgetId]: true }));
+  };
 
   return (
     <>
-      <WidgetDashboard
-        dashboardId="news-alerts-dashboard"
-        title="뉴스 알림"
-        subtitle="뉴스 기반 알림 관리"
-        availableWidgets={AVAILABLE_WIDGETS}
-        defaultWidgets={widgetsWithProps}
-        defaultLayout={DEFAULT_LAYOUT}
-      />
+      <div className="space-y-4">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-white">News Alerts</h3>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleRefresh}
+              className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded text-sm text-gray-300"
+            >
+              <RefreshCw size={14} className={loading || isLoading ? 'animate-spin' : ''} />
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        {/* Widget Grid */}
+        <div className="grid grid-cols-12 gap-4">
+          {/* News Alerts List Widget - Full Width */}
+          <div className="col-span-12">
+            {visibleWidgets.alertsList ? (
+              <ResizableWidgetWrapper minHeight={300} defaultHeight={500}>
+                <NewsAlertsListWidget
+                  alerts={newsAlerts}
+                  onToggle={handleToggle}
+                  onDelete={handleDelete}
+                  onTest={handleTest}
+                  onCreateClick={() => setShowCreateModal(true)}
+                  loading={loading || isLoading}
+                  onRefresh={handleRefresh}
+                  onClose={() => handleCloseWidget('alertsList')}
+                />
+              </ResizableWidgetWrapper>
+            ) : (
+              <AddWidgetPlaceholder onAdd={() => handleAddWidget('alertsList')} widgetType="alertsList" label="Add News Alerts Widget" />
+            )}
+          </div>
+        </div>
+      </div>
 
       {showCreateModal && (
         <CreateAlertModal
