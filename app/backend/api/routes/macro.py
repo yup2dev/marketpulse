@@ -625,3 +625,79 @@ async def get_sentiment_history(period: str = "5y"):
     except Exception as e:
         log.error(f"Error fetching sentiment history: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/overview/gdp-forecast")
+async def get_gdp_forecast(period: str = "1y"):
+    """
+    Get GDP forecast/nowcast data for overview widget
+
+    Args:
+        period: Time period (3mo, 6mo, 1y, 2y)
+
+    Returns:
+        Historical GDP growth data with forecast
+    """
+    try:
+        data = await macro_service.get_gdp_forecast_data(period)
+        return data
+    except Exception as e:
+        log.error(f"Error fetching GDP forecast: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/overview/inflation-momentum")
+async def get_inflation_momentum(period: str = "3y"):
+    """
+    Get inflation momentum data (12M, 6M, 3M rates)
+
+    Args:
+        period: Time period (1y, 2y, 3y, 5y)
+
+    Returns:
+        Inflation rates at different momentum timeframes
+    """
+    try:
+        data = await macro_service.get_inflation_momentum_data(period)
+        return data
+    except Exception as e:
+        log.error(f"Error fetching inflation momentum: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/overview/initial-claims")
+async def get_initial_claims(period: str = "2y"):
+    """
+    Get initial unemployment claims data with 4-week MA
+
+    Args:
+        period: Time period (6mo, 1y, 2y, 5y)
+
+    Returns:
+        Weekly initial claims and 4-week moving average
+    """
+    try:
+        data = await macro_service.get_initial_claims_data(period)
+        return data
+    except Exception as e:
+        log.error(f"Error fetching initial claims: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/overview/jobs-breakdown")
+async def get_jobs_breakdown(period: str = "5y"):
+    """
+    Get employment breakdown (Private vs Government)
+
+    Args:
+        period: Time period (1y, 3y, 5y, 10y)
+
+    Returns:
+        Monthly private and government employment data
+    """
+    try:
+        data = await macro_service.get_jobs_breakdown_data(period)
+        return data
+    except Exception as e:
+        log.error(f"Error fetching jobs breakdown: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

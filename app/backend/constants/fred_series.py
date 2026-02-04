@@ -66,3 +66,37 @@ Daily, Not Seasonally Adjusted, Percent"""
 TREASURY_2Y = 'DGS2'
 """2-Year Treasury Constant Maturity Rate
 Daily, Not Seasonally Adjusted, Percent"""
+
+# =============================================================================
+# Employment Data
+# =============================================================================
+INITIAL_CLAIMS = 'ICSA'
+"""Initial Claims
+Weekly, Seasonally Adjusted, Number"""
+
+CONTINUED_CLAIMS = 'CCSA'
+"""Continued Claims (Insured Unemployment)
+Weekly, Seasonally Adjusted, Number"""
+
+PRIVATE_EMPLOYMENT = 'USPRIV'
+"""All Employees, Total Private
+Monthly, Seasonally Adjusted, Thousands of Persons"""
+
+GOVERNMENT_EMPLOYMENT = 'USGOVT'
+"""All Employees, Government
+Monthly, Seasonally Adjusted, Thousands of Persons"""
+
+NONFARM_PAYROLLS = 'PAYEMS'
+"""All Employees, Total Nonfarm
+Monthly, Seasonally Adjusted, Thousands of Persons"""
+
+# =============================================================================
+# GDP Forecasts / Nowcasts
+# =============================================================================
+GDP_NOWCAST_ATLANTA = 'GDPNOW'
+"""Atlanta Fed GDPNow
+Real GDP Forecast"""
+
+REAL_GDP = 'GDPC1'
+"""Real Gross Domestic Product
+Quarterly, Seasonally Adjusted Annual Rate, Billions of Chained 2017 Dollars"""

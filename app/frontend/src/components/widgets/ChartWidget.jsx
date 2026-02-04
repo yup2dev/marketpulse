@@ -731,9 +731,11 @@ const ChartWidget = ({
     return Array.from(dateMap.values()).sort((a, b) => a.timestamp - b.timestamp);
   };
 
+  // Load data when key dependencies change (not on every loadData reference change)
   useEffect(() => {
     loadData();
-  }, [loadData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tickers.length, timeRange, chartType, pairMode]);
 
   const handleAddTicker = (stock) => {
     if (tickers.length >= WIDGET_CONSTRAINTS.maxTickers) {

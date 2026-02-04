@@ -2313,5 +2313,270 @@ class MacroService:
             raise
 
 
+    async def get_gdp_forecast_data(self, period: str = "1y") -> Dict[str, Any]:
+        """
+        Get GDP forecast/contribution data for overview widget
+
+        Args:
+            period: Time period (3mo, 6mo, 1y, 2y)
+
+        Returns:
+            Historical GDP growth data
+        """
+        try:
+            start_date, end_date = parse_period_to_dates(period)
+            api_key = get_api_key(
+                credentials=None,
+                api_name="FRED",
+                env_var="FRED_API_KEY"
+            )
+
+            # Fetch Real GDP growth rate data
+            gdp_obs = FredSeriesFetcher.fetch_series(
+                series_id='A191RL1Q225SBEA',  # Real GDP % change from preceding period
+                api_key=api_key,
+                start_date=start_date,
+                end_date=end_date,
+                sort_order='asc'
+            )
+
+            history = [
+                {
+                    'date': obs['date'],
+                    'value': float(obs['value'])
+                }
+                for obs in gdp_obs
+                if obs['value'] != '.'
+            ]
+
+            return {
+                'title': 'Evolution of Latest GDP Forecast',
+                'subtitle': 'GDP Contribution',
+                'unit': '% Change',
+                'history': history,
+                'source': 'FRED, Macrodispatch'
+            }
+
+        except Exception as e:
+            log.error(f"Error fetching GDP forecast data: {e}")
+            raise
+
+    async def get_inflation_momentum_data(self, period: str = "3y") -> Dict[str, Any]:
+        """
+        Get inflation momentum data with 12M, 6M, 3M rates
+
+        Args:
+            period: Time period (1y, 2y, 3y, 5y)
+
+        Returns:
+            Inflation rates at different momentum timeframes
+        """
+        try:
+            start_date, end_date = parse_period_to_dates(period)
+            api_key = get_api_key(
+                credentials=None,
+                api_name="FRED",
+                env_var="FRED_API_KEY"
+            )
+
+            # Fetch CPI All Items
+            cpi_obs = FredSeriesFetcher.fetch_series(
+                series_id='CPIAUCSL',  # CPI All Urban Consumers
+                api_key=api_key,
+                start_date=start_date,
+                end_date=end_date,
+                sort_order='asc'
+            )
+
+            cpi_data = [
+                {'date': obs['date'], 'value': float(obs['value'])}
+                for obs in cpi_obs
+                if obs['value'] != '.'
+            ]
+
+            # Calculate momentum at different timeframes
+            history = []
+            for i in range(len(cpi_data)):
+                point = {'date': cpi_data[i]['date']}
+
+                # 12-month YoY
+                if i >= 12:
+                    yoy_12m = ((cpi_data[i]['value'] - cpi_data[i-12]['value']) / cpi_data[i-12]['value']) * 100
+                    point['yoy_12m'] = round(yoy_12m, 2)
+
+                # 6-month annualized
+                if i >= 6:
+                    change_6m = ((cpi_data[i]['value'] - cpi_data[i-6]['value']) / cpi_data[i-6]['value'])
+                    annualized_6m = ((1 + change_6m) ** 2 - 1) * 100
+                    point['yoy_6m'] = round(annualized_6m, 2)
+
+                # 3-month annualized
+                if i >= 3:
+                    change_3m = ((cpi_data[i]['value'] - cpi_data[i-3]['value']) / cpi_data[i-3]['value'])
+                    annualized_3m = ((1 + change_3m) ** 4 - 1) * 100
+                    point['yoy_3m'] = round(annualized_3m, 2)
+
+                if 'yoy_12m' in point:
+                    history.append(point)
+
+            return {
+                'title': 'Inflation Momentum',
+                'subtitle': 'YoY %',
+                'fed_target': 2.0,
+                'history': history,
+                'source': 'FRED, Macrodispatch'
+            }
+
+        except Exception as e:
+            log.error(f"Error fetching inflation momentum data: {e}")
+            raise
+
+    async def get_initial_claims_data(self, period: str = "2y") -> Dict[str, Any]:
+        """
+        Get initial unemployment claims data with 4-week MA
+
+        Args:
+            period: Time period (6mo, 1y, 2y, 5y)
+
+        Returns:
+            Weekly initial claims and 4-week moving average
+        """
+        try:
+            start_date, end_date = parse_period_to_dates(period)
+            api_key = get_api_key(
+                credentials=None,
+                api_name="FRED",
+                env_var="FRED_API_KEY"
+            )
+
+            # Fetch Initial Claims
+            claims_obs = FredSeriesFetcher.fetch_series(
+                series_id='ICSA',  # Initial Claims
+                api_key=api_key,
+                start_date=start_date,
+                end_date=end_date,
+                sort_order='asc'
+            )
+
+            claims_data = [
+                {'date': obs['date'], 'value': float(obs['value'])}
+                for obs in claims_obs
+                if obs['value'] != '.'
+            ]
+
+            # Calculate 4-week moving average
+            history = []
+            for i in range(len(claims_data)):
+                point = {
+                    'date': claims_data[i]['date'],
+                    'claims': claims_data[i]['value'] / 1000  # Convert to thousands
+                }
+
+                if i >= 3:
+                    ma_4w = sum(d['value'] for d in claims_data[i-3:i+1]) / 4 / 1000
+                    point['ma_4w'] = round(ma_4w, 1)
+
+                history.append(point)
+
+            return {
+                'title': 'Initial Claims',
+                'subtitle': 'Thousands',
+                'history': history,
+                'source': 'FRED, Macrodispatch'
+            }
+
+        except Exception as e:
+            log.error(f"Error fetching initial claims data: {e}")
+            raise
+
+    async def get_jobs_breakdown_data(self, period: str = "5y") -> Dict[str, Any]:
+        """
+        Get employment breakdown (Private vs Government)
+
+        Args:
+            period: Time period (1y, 3y, 5y, 10y)
+
+        Returns:
+            Monthly private and government employment data
+        """
+        try:
+            start_date, end_date = parse_period_to_dates(period)
+            api_key = get_api_key(
+                credentials=None,
+                api_name="FRED",
+                env_var="FRED_API_KEY"
+            )
+
+            # Fetch Private Employment
+            private_obs = FredSeriesFetcher.fetch_series(
+                series_id='USPRIV',  # All Employees, Total Private
+                api_key=api_key,
+                start_date=start_date,
+                end_date=end_date,
+                sort_order='asc'
+            )
+
+            # Fetch Government Employment
+            govt_obs = FredSeriesFetcher.fetch_series(
+                series_id='USGOVT',  # All Employees, Government
+                api_key=api_key,
+                start_date=start_date,
+                end_date=end_date,
+                sort_order='asc'
+            )
+
+            private_dict = {
+                obs['date']: float(obs['value'])
+                for obs in private_obs
+                if obs['value'] != '.'
+            }
+
+            govt_dict = {
+                obs['date']: float(obs['value'])
+                for obs in govt_obs
+                if obs['value'] != '.'
+            }
+
+            # Merge by date
+            all_dates = sorted(set(list(private_dict.keys()) + list(govt_dict.keys())))
+
+            # Get baseline for change calculation
+            baseline_private = None
+            baseline_govt = None
+
+            history = []
+            for date in all_dates:
+                private_val = private_dict.get(date)
+                govt_val = govt_dict.get(date)
+
+                if private_val is not None and govt_val is not None:
+                    if baseline_private is None:
+                        baseline_private = private_val
+                        baseline_govt = govt_val
+
+                    # Calculate change from baseline (in thousands)
+                    private_change = private_val - baseline_private
+                    govt_change = govt_val - baseline_govt
+
+                    history.append({
+                        'date': date,
+                        'private': round(private_change, 0),
+                        'government': round(govt_change, 0),
+                        'private_level': round(private_val, 0),
+                        'government_level': round(govt_val, 0)
+                    })
+
+            return {
+                'title': 'Jobs: Private vs Government',
+                'subtitle': 'Change in Thousands',
+                'history': history,
+                'source': 'FRED, Macrodispatch'
+            }
+
+        except Exception as e:
+            log.error(f"Error fetching jobs breakdown data: {e}")
+            raise
+
+
 # Global instance
 macro_service = MacroService()

@@ -133,7 +133,8 @@ const ProfessionalDashboard = () => {
         globalContext.unregisterWidgets();
       }
     };
-  }, [handleSelectWidgetFromMenu, globalContext]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Update grid width on resize
   useEffect(() => {

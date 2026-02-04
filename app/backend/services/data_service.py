@@ -178,6 +178,80 @@ class DataService:
 
         return {}
 
+    async def get_key_metrics(self, symbol: str) -> Dict[str, Any]:
+        """
+        Get key financial metrics and ratios for a company using yfinance
+
+        Args:
+            symbol: Stock symbol
+
+        Returns:
+            Dictionary with valuation, profitability, and other key metrics
+        """
+        try:
+            import yfinance as yf
+            ticker = yf.Ticker(symbol)
+            info = ticker.info
+
+            return {
+                'symbol': symbol,
+                # Valuation Multiples
+                'pe_ratio': info.get('trailingPE'),
+                'forward_pe': info.get('forwardPE'),
+                'peg_ratio': info.get('pegRatio'),
+                'ps_ratio': info.get('priceToSalesTrailing12Months'),
+                'pb_ratio': info.get('priceToBook'),
+                'ev_ebitda': info.get('enterpriseToEbitda'),
+                'ev_revenue': info.get('enterpriseToRevenue'),
+                'price_to_fcf': info.get('priceToFreeCashflow') if info.get('priceToFreeCashflow') else None,
+                # Profitability
+                'gross_margin': info.get('grossMargins'),
+                'operating_margin': info.get('operatingMargins'),
+                'net_margin': info.get('profitMargins'),
+                'roe': info.get('returnOnEquity'),
+                'roa': info.get('returnOnAssets'),
+                # Liquidity & Leverage
+                'current_ratio': info.get('currentRatio'),
+                'quick_ratio': info.get('quickRatio'),
+                'debt_to_equity': info.get('debtToEquity'),
+                # Cash Flow
+                'operating_cash_flow': info.get('operatingCashflow'),
+                'free_cash_flow': info.get('freeCashflow'),
+                # Per Share Data
+                'eps_trailing': info.get('trailingEps'),
+                'eps_forward': info.get('forwardEps'),
+                'book_value': info.get('bookValue'),
+                'revenue_per_share': info.get('revenuePerShare'),
+                # Dividend
+                'dividend_yield': info.get('dividendYield'),
+                'payout_ratio': info.get('payoutRatio'),
+                # Growth
+                'revenue_growth': info.get('revenueGrowth'),
+                'earnings_growth': info.get('earningsGrowth'),
+                'earnings_quarterly_growth': info.get('earningsQuarterlyGrowth'),
+                # Market Data
+                'market_cap': info.get('marketCap'),
+                'enterprise_value': info.get('enterpriseValue'),
+                'beta': info.get('beta'),
+                '52_week_high': info.get('fiftyTwoWeekHigh'),
+                '52_week_low': info.get('fiftyTwoWeekLow'),
+                '50_day_ma': info.get('fiftyDayAverage'),
+                '200_day_ma': info.get('twoHundredDayAverage'),
+                # Share Statistics
+                'shares_outstanding': info.get('sharesOutstanding'),
+                'float_shares': info.get('floatShares'),
+                'short_ratio': info.get('shortRatio'),
+                'short_percent_of_float': info.get('shortPercentOfFloat'),
+                # Coverage Ratios
+                'interest_coverage': info.get('interestCoverage') if info.get('interestCoverage') else None,
+                # Additional efficiency metrics (if available)
+                'asset_turnover': info.get('assetTurnover') if info.get('assetTurnover') else None,
+                'inventory_turnover': info.get('inventoryTurnover') if info.get('inventoryTurnover') else None,
+            }
+        except Exception as e:
+            log.error(f"Error fetching key metrics for {symbol}: {e}")
+            return {'symbol': symbol}
+
     async def get_economic_indicators(self) -> Dict[str, Any]:
         """Get key economic indicators"""
         indicators = {}

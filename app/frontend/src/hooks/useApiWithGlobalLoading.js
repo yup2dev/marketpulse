@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { apiClient } from '../config/api';
 import { useLoading } from '../contexts/LoadingContext';
 
@@ -16,6 +16,12 @@ export const useApiWithGlobalLoading = (url, options = {}) => {
   const [error, setError] = useState(null);
   const { showLoading, hideLoading } = useLoading();
 
+  // Use refs for stable references to avoid infinite loops
+  const showLoadingRef = useRef(showLoading);
+  const hideLoadingRef = useRef(hideLoading);
+  showLoadingRef.current = showLoading;
+  hideLoadingRef.current = hideLoading;
+
   const {
     useGlobalLoading = false,
     loadingMessage = '데이터를 불러오는 중...',
@@ -29,7 +35,7 @@ export const useApiWithGlobalLoading = (url, options = {}) => {
     setError(null);
 
     if (useGlobalLoading) {
-      showLoading(loadingMessage);
+      showLoadingRef.current(loadingMessage);
     }
 
     try {
@@ -41,15 +47,16 @@ export const useApiWithGlobalLoading = (url, options = {}) => {
     } finally {
       setLoading(false);
       if (useGlobalLoading) {
-        hideLoading();
+        hideLoadingRef.current();
       }
     }
-  }, [url, useGlobalLoading, loadingMessage, showLoading, hideLoading]);
+  }, [url, useGlobalLoading, loadingMessage]);
 
   useEffect(() => {
     if (manual) return;
     fetchData();
-  }, [fetchData, manual]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [url, manual]);
 
   const refetch = useCallback(() => {
     fetchData();
@@ -66,6 +73,12 @@ export const useApiMutationWithGlobalLoading = (options = {}) => {
   const [error, setError] = useState(null);
   const { showLoading, hideLoading } = useLoading();
 
+  // Use refs for stable references
+  const showLoadingRef = useRef(showLoading);
+  const hideLoadingRef = useRef(hideLoading);
+  showLoadingRef.current = showLoading;
+  hideLoadingRef.current = hideLoading;
+
   const {
     useGlobalLoading = false,
     loadingMessage = '처리 중...'
@@ -76,25 +89,25 @@ export const useApiMutationWithGlobalLoading = (options = {}) => {
     setError(null);
 
     if (useGlobalLoading) {
-      showLoading(loadingMessage);
+      showLoadingRef.current(loadingMessage);
     }
 
     try {
       const result = await apiClient.post(url, data);
       setLoading(false);
       if (useGlobalLoading) {
-        hideLoading();
+        hideLoadingRef.current();
       }
       return result;
     } catch (err) {
       setError(err.message);
       setLoading(false);
       if (useGlobalLoading) {
-        hideLoading();
+        hideLoadingRef.current();
       }
       throw err;
     }
-  }, [useGlobalLoading, loadingMessage, showLoading, hideLoading]);
+  }, [useGlobalLoading, loadingMessage]);
 
   return { mutate, loading, error };
 };

@@ -2,10 +2,11 @@
  * Financial Table Widget - Clean table design like img.png
  * Displays financial statements in a compact, professional format
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 import { FileText, Table2, BarChart3 } from 'lucide-react';
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { WidgetHeader, WIDGET_STYLES, LoadingSpinner, formatNumber, API_BASE } from './common';
+import ErrorBoundary from '../common/ErrorBoundary';
 
 const STATEMENT_TABS = [
   { id: 'income', label: 'Income Statement' },
@@ -210,10 +211,11 @@ export default function FinancialTableWidget({ symbol = 'AAPL', onRemove }) {
               contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px' }}
               labelStyle={{ color: '#fff' }}
               formatter={(value) => formatNumber(value)}
+              isAnimationActive={false}
             />
             <Legend />
             {config.map((item, idx) => (
-              <Bar key={idx} dataKey={item.dataKey} name={item.name} fill={item.fill} />
+              <Bar key={idx} dataKey={item.dataKey} name={item.name} fill={item.fill} isAnimationActive={false} />
             ))}
           </BarChart>
         </ResponsiveContainer>
@@ -295,7 +297,9 @@ export default function FinancialTableWidget({ symbol = 'AAPL', onRemove }) {
         ) : viewMode === 'table' ? (
           renderTable()
         ) : (
-          renderChart()
+          <ErrorBoundary>
+            {renderChart()}
+          </ErrorBoundary>
         )}
       </div>
     </div>

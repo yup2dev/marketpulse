@@ -1,609 +1,619 @@
 /**
- * Comparison Analysis Tab - Data-Focused Layout with Standard Widget Controls
- * Standard Controls: Close, Refresh, Corner Resize
+ * Comparison Analysis Tab - Multi-stock comparison with financial metrics
+ * Design based on professional trading terminal style
  */
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, X, Search, RefreshCw, TrendingUp, TrendingDown, BarChart3, Table2 } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Plus, X, RefreshCw, Copy, MoreVertical } from 'lucide-react';
 import { API_BASE } from '../../config/api';
-import ChartWidget from '../widgets/ChartWidget';
-import { WidgetHeader, AddWidgetPlaceholder, ResizeHandle } from '../common/WidgetHeader';
+import TickerSearch from '../TickerSearch';
 
-const COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
+// Category tabs with their metrics
+const CATEGORIES = [
+  {
+    id: 'valuation',
+    name: 'Valuation Multiples',
+    metrics: [
+      { key: 'pe_ratio', label: 'P/E Ratio' },
+      { key: 'forward_pe', label: 'Forward P/E' },
+      { key: 'peg_ratio', label: 'PEG Ratio' },
+      { key: 'ps_ratio', label: 'P/S Ratio' },
+      { key: 'pb_ratio', label: 'P/B Ratio' },
+      { key: 'ev_ebitda', label: 'EV/EBITDA' },
+      { key: 'ev_revenue', label: 'EV/Revenue' },
+      { key: 'price_to_fcf', label: 'Price/FCF' },
+    ]
+  },
+  {
+    id: 'financial',
+    name: 'Financial Ratios',
+    metrics: [
+      { key: 'current_ratio', label: 'Current Ratio' },
+      { key: 'quick_ratio', label: 'Quick Ratio' },
+      { key: 'debt_to_equity', label: 'Debt/Equity' },
+      { key: 'debt_to_assets', label: 'Debt/Assets' },
+      { key: 'interest_coverage', label: 'Interest Coverage' },
+    ]
+  },
+  {
+    id: 'liquidity',
+    name: 'Liquidity',
+    metrics: [
+      { key: 'current_ratio', label: 'Current Ratio' },
+      { key: 'quick_ratio', label: 'Quick Ratio' },
+      { key: 'cash_ratio', label: 'Cash Ratio' },
+      { key: 'working_capital', label: 'Working Capital' },
+    ]
+  },
+  {
+    id: 'efficiency',
+    name: 'Efficiency',
+    metrics: [
+      { key: 'days_sales_outstanding', label: 'Days of Sales Outstanding' },
+      { key: 'days_inventory_outstanding', label: 'Days of Inventory Outstanding' },
+      { key: 'operating_cycle', label: 'Operating Cycle' },
+      { key: 'days_payables_outstanding', label: 'Days of Payables Outstanding' },
+      { key: 'cash_conversion_cycle', label: 'Cash Conversion Cycle' },
+      { key: 'receivables_turnover', label: 'Receivables Turnover' },
+      { key: 'inventory_turnover', label: 'Inventory Turnover' },
+      { key: 'asset_turnover', label: 'Asset Turnover' },
+    ]
+  },
+  {
+    id: 'profitability',
+    name: 'Profitability',
+    metrics: [
+      { key: 'gross_margin', label: 'Gross Margin' },
+      { key: 'operating_margin', label: 'Operating Margin' },
+      { key: 'net_margin', label: 'Net Margin' },
+      { key: 'roe', label: 'ROE' },
+      { key: 'roa', label: 'ROA' },
+      { key: 'roic', label: 'ROIC' },
+    ]
+  },
+  {
+    id: 'leverage',
+    name: 'Leverage',
+    metrics: [
+      { key: 'debt_to_equity', label: 'Debt/Equity' },
+      { key: 'debt_to_assets', label: 'Debt/Assets' },
+      { key: 'long_term_debt_to_equity', label: 'LT Debt/Equity' },
+      { key: 'financial_leverage', label: 'Financial Leverage' },
+    ]
+  },
+  {
+    id: 'coverage',
+    name: 'Coverage',
+    metrics: [
+      { key: 'interest_coverage', label: 'Interest Coverage' },
+      { key: 'debt_service_coverage', label: 'Debt Service Coverage' },
+      { key: 'fixed_charge_coverage', label: 'Fixed Charge Coverage' },
+    ]
+  },
+  {
+    id: 'cashflow',
+    name: 'Operating Cash Flow',
+    metrics: [
+      { key: 'operating_cash_flow', label: 'Operating CF' },
+      { key: 'free_cash_flow', label: 'Free Cash Flow' },
+      { key: 'fcf_margin', label: 'FCF Margin' },
+      { key: 'ocf_to_debt', label: 'OCF/Debt' },
+      { key: 'capex_to_revenue', label: 'CapEx/Revenue' },
+    ]
+  },
+];
 
-// Resizable Widget Wrapper
-function ResizableWidgetWrapper({ children, minWidth = 300, minHeight = 200, defaultHeight = 400 }) {
-  const containerRef = useRef(null);
-  const [size, setSize] = useState({ width: 'auto', height: defaultHeight });
+const PERIODS = [
+  { id: 'FY', label: 'FY' },
+  { id: 'Q1', label: 'Q1' },
+  { id: 'Q2', label: 'Q2' },
+  { id: 'Q3', label: 'Q3' },
+  { id: 'Q4', label: 'Q4' },
+  { id: 'TTM', label: 'TTM' },
+];
 
-  const handleResize = useCallback((deltaX, deltaY) => {
-    setSize(prev => ({
-      width: prev.width === 'auto' ? 'auto' : Math.max(minWidth, prev.width + deltaX),
-      height: Math.max(minHeight, (prev.height || defaultHeight) + deltaY)
-    }));
-  }, [minWidth, minHeight, defaultHeight]);
+const YEARS = ['2025', '2024', '2023', '2022', '2021'];
 
-  return (
-    <div
-      ref={containerRef}
-      className="relative"
-      style={{
-        height: size.height === 'auto' ? 'auto' : `${size.height}px`,
-        minHeight: `${minHeight}px`,
-      }}
-    >
-      {children}
-      <ResizeHandle onResize={handleResize} />
-    </div>
-  );
-}
-
-// Key Metrics Widget
-function KeyMetricsWidget({ symbols, stocksData, loading, onRefresh, onClose }) {
-  const formatNumber = (value) => {
-    if (value === null || value === undefined) return '-';
-    if (Math.abs(value) >= 1e12) return `$${(value / 1e12).toFixed(2)}T`;
-    if (Math.abs(value) >= 1e9) return `$${(value / 1e9).toFixed(2)}B`;
-    if (Math.abs(value) >= 1e6) return `$${(value / 1e6).toFixed(2)}M`;
-    return value.toLocaleString();
-  };
-
-  const formatPercent = (value) => {
-    if (value === null || value === undefined) return '-';
-    return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
-  };
-
-  const formatRatio = (value) => {
-    if (value === null || value === undefined) return '-';
-    return value.toFixed(2);
-  };
-
-  const MetricRow = ({ label, getValue, format = 'value', higherIsBetter = true }) => {
-    const values = symbols.map(sym => ({
-      sym,
-      value: getValue(sym)
-    }));
-
-    const validValues = values.filter(v => v.value !== null && v.value !== undefined && v.value !== '-');
-    let best = null, worst = null;
-
-    if (validValues.length > 1) {
-      const sorted = [...validValues].sort((a, b) =>
-        higherIsBetter ? b.value - a.value : a.value - b.value
-      );
-      best = sorted[0]?.sym;
-      worst = sorted[sorted.length - 1]?.sym;
-    }
-
-    return (
-      <tr className="border-b border-gray-800/50">
-        <td className="py-3 px-4 text-gray-400 text-sm">{label}</td>
-        {symbols.map((sym, idx) => {
-          const v = values.find(x => x.sym === sym);
-          const isBest = sym === best;
-          const isWorst = sym === worst;
-
-          let displayValue = '-';
-          if (v?.value !== null && v?.value !== undefined) {
-            if (format === 'percent') displayValue = formatPercent(v.value);
-            else if (format === 'ratio') displayValue = formatRatio(v.value);
-            else if (format === 'number') displayValue = formatNumber(v.value);
-            else if (format === 'price') displayValue = `$${v.value.toFixed(2)}`;
-            else displayValue = v.value;
-          }
-
-          return (
-            <td key={sym} className="py-3 px-4 text-right">
-              <div className="flex items-center justify-end gap-1">
-                {isBest && <TrendingUp size={12} className="text-green-500" />}
-                {isWorst && <TrendingDown size={12} className="text-red-500" />}
-                <span className={`font-medium ${
-                  isBest ? 'text-green-400' : isWorst ? 'text-red-400' : 'text-white'
-                }`}>
-                  {displayValue}
-                </span>
-              </div>
-            </td>
-          );
-        })}
-      </tr>
-    );
-  };
-
-  return (
-    <div className="bg-[#0d0d12] rounded-lg border border-gray-800 overflow-hidden h-full flex flex-col">
-      <WidgetHeader
-        title="Key Metrics"
-        icon={BarChart3}
-        iconColor="text-blue-400"
-        onRefresh={onRefresh}
-        onClose={onClose}
-        loading={loading}
-      />
-      <div className="flex-1 overflow-auto">
-        {loading ? (
-          <div className="h-[200px] flex items-center justify-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
-          </div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-[#0a0a0f]">
-              <tr className="border-b border-gray-800">
-                <th className="text-left py-2 px-4 text-gray-500 text-xs font-medium">Metric</th>
-                {symbols.map((sym, idx) => (
-                  <th key={sym} className="text-right py-2 px-4 text-xs font-medium" style={{ color: COLORS[idx] }}>
-                    {sym}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              <MetricRow
-                label="Price"
-                getValue={(sym) => stocksData[sym]?.quote?.price}
-                format="price"
-                higherIsBetter={false}
-              />
-              <MetricRow
-                label="Change"
-                getValue={(sym) => stocksData[sym]?.quote?.change_percent}
-                format="percent"
-              />
-              <MetricRow
-                label="Market Cap"
-                getValue={(sym) => stocksData[sym]?.info?.market_cap}
-                format="number"
-              />
-              <MetricRow
-                label="P/E"
-                getValue={(sym) => stocksData[sym]?.info?.pe_ratio}
-                format="ratio"
-                higherIsBetter={false}
-              />
-              <MetricRow
-                label="P/B"
-                getValue={(sym) => stocksData[sym]?.info?.price_to_book}
-                format="ratio"
-                higherIsBetter={false}
-              />
-              <MetricRow
-                label="EPS"
-                getValue={(sym) => stocksData[sym]?.info?.eps}
-                format="price"
-              />
-              <MetricRow
-                label="Dividend"
-                getValue={(sym) => stocksData[sym]?.info?.dividend_yield ? stocksData[sym].info.dividend_yield * 100 : null}
-                format="percent"
-              />
-            </tbody>
-          </table>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// Financial Metrics Widget
-function FinancialMetricsWidget({ symbols, stocksData, loading, onRefresh, onClose }) {
-  const formatNumber = (value) => {
-    if (value === null || value === undefined) return '-';
-    if (Math.abs(value) >= 1e12) return `$${(value / 1e12).toFixed(2)}T`;
-    if (Math.abs(value) >= 1e9) return `$${(value / 1e9).toFixed(2)}B`;
-    if (Math.abs(value) >= 1e6) return `$${(value / 1e6).toFixed(2)}M`;
-    return value.toLocaleString();
-  };
-
-  const formatPercent = (value) => {
-    if (value === null || value === undefined) return '-';
-    return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
-  };
-
-  const formatRatio = (value) => {
-    if (value === null || value === undefined) return '-';
-    return value.toFixed(2);
-  };
-
-  const getMetrics = (sym) => {
-    const data = stocksData[sym];
-    if (!data) return {};
-
-    const financials = data.financials;
-    const latest = financials?.periods?.[0];
-    const previous = financials?.periods?.[1];
-
-    const incomeStatement = latest?.income_statement || {};
-    const balanceSheet = latest?.balance_sheet || {};
-    const prevIncomeStatement = previous?.income_statement || {};
-
-    const roe = balanceSheet.total_equity && incomeStatement.net_income
-      ? (incomeStatement.net_income / balanceSheet.total_equity * 100)
-      : null;
-    const roa = balanceSheet.total_assets && incomeStatement.net_income
-      ? (incomeStatement.net_income / balanceSheet.total_assets * 100)
-      : null;
-    const netMargin = incomeStatement.revenue && incomeStatement.net_income
-      ? (incomeStatement.net_income / incomeStatement.revenue * 100)
-      : null;
-    const debtToEquity = balanceSheet.total_equity && balanceSheet.total_debt
-      ? (balanceSheet.total_debt / balanceSheet.total_equity)
-      : null;
-    const revenueGrowth = prevIncomeStatement.revenue && incomeStatement.revenue
-      ? ((incomeStatement.revenue - prevIncomeStatement.revenue) / prevIncomeStatement.revenue * 100)
-      : null;
-
-    return { roe, roa, netMargin, debtToEquity, revenueGrowth };
-  };
-
-  const MetricRow = ({ label, getValue, format = 'value', higherIsBetter = true }) => {
-    const values = symbols.map(sym => ({
-      sym,
-      value: getValue(sym)
-    }));
-
-    const validValues = values.filter(v => v.value !== null && v.value !== undefined && v.value !== '-');
-    let best = null, worst = null;
-
-    if (validValues.length > 1) {
-      const sorted = [...validValues].sort((a, b) =>
-        higherIsBetter ? b.value - a.value : a.value - b.value
-      );
-      best = sorted[0]?.sym;
-      worst = sorted[sorted.length - 1]?.sym;
-    }
-
-    return (
-      <tr className="border-b border-gray-800/50">
-        <td className="py-3 px-4 text-gray-400 text-sm">{label}</td>
-        {symbols.map((sym, idx) => {
-          const v = values.find(x => x.sym === sym);
-          const isBest = sym === best;
-          const isWorst = sym === worst;
-
-          let displayValue = '-';
-          if (v?.value !== null && v?.value !== undefined) {
-            if (format === 'percent') displayValue = formatPercent(v.value);
-            else if (format === 'ratio') displayValue = formatRatio(v.value);
-            else if (format === 'number') displayValue = formatNumber(v.value);
-            else if (format === 'price') displayValue = `$${v.value.toFixed(2)}`;
-            else displayValue = v.value;
-          }
-
-          return (
-            <td key={sym} className="py-3 px-4 text-right">
-              <div className="flex items-center justify-end gap-1">
-                {isBest && <TrendingUp size={12} className="text-green-500" />}
-                {isWorst && <TrendingDown size={12} className="text-red-500" />}
-                <span className={`font-medium ${
-                  isBest ? 'text-green-400' : isWorst ? 'text-red-400' : 'text-white'
-                }`}>
-                  {displayValue}
-                </span>
-              </div>
-            </td>
-          );
-        })}
-      </tr>
-    );
-  };
-
-  return (
-    <div className="bg-[#0d0d12] rounded-lg border border-gray-800 overflow-hidden h-full flex flex-col">
-      <WidgetHeader
-        title="Financial Comparison"
-        icon={Table2}
-        iconColor="text-purple-400"
-        onRefresh={onRefresh}
-        onClose={onClose}
-        loading={loading}
-      />
-      <div className="flex-1 overflow-auto">
-        {loading ? (
-          <div className="h-[200px] flex items-center justify-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500" />
-          </div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-[#0a0a0f]">
-              <tr className="border-b border-gray-800">
-                <th className="text-left py-2 px-4 text-gray-500 text-xs font-medium">Metric</th>
-                {symbols.map((sym, idx) => (
-                  <th key={sym} className="text-right py-2 px-4 text-xs font-medium" style={{ color: COLORS[idx] }}>
-                    {sym}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              <MetricRow
-                label="ROE"
-                getValue={(sym) => getMetrics(sym).roe}
-                format="percent"
-              />
-              <MetricRow
-                label="ROA"
-                getValue={(sym) => getMetrics(sym).roa}
-                format="percent"
-              />
-              <MetricRow
-                label="Net Margin"
-                getValue={(sym) => getMetrics(sym).netMargin}
-                format="percent"
-              />
-              <MetricRow
-                label="D/E Ratio"
-                getValue={(sym) => getMetrics(sym).debtToEquity}
-                format="ratio"
-                higherIsBetter={false}
-              />
-              <MetricRow
-                label="Revenue Growth"
-                getValue={(sym) => getMetrics(sym).revenueGrowth}
-                format="percent"
-              />
-              <MetricRow
-                label="Beta"
-                getValue={(sym) => stocksData[sym]?.info?.beta}
-                format="ratio"
-                higherIsBetter={false}
-              />
-              <MetricRow
-                label="52W High"
-                getValue={(sym) => stocksData[sym]?.info?.fifty_two_week_high}
-                format="price"
-              />
-              <MetricRow
-                label="52W Low"
-                getValue={(sym) => stocksData[sym]?.info?.fifty_two_week_low}
-                format="price"
-                higherIsBetter={false}
-              />
-            </tbody>
-          </table>
-        )}
-      </div>
-    </div>
-  );
-}
-
-const ComparisonAnalysisTab = ({ symbol }) => {
-  const [symbols, setSymbols] = useState([symbol]);
-  const [searchInput, setSearchInput] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [showSearch, setShowSearch] = useState(false);
-  const [stocksData, setStocksData] = useState({});
+export default function ComparisonAnalysisTab({ symbol: initialSymbol = 'AAPL' }) {
+  const [symbols, setSymbols] = useState([initialSymbol]);
+  const [stockData, setStockData] = useState({});
   const [loading, setLoading] = useState(false);
+  const [activeCategory, setActiveCategory] = useState('valuation');
+  const [period, setPeriod] = useState('FY');
+  const [year, setYear] = useState('2025);
+  const [showAddTicker, setShowAddTicker] = useState(false);
+  const addTickerRef = useRef(null);
 
-  // Widget visibility state
-  const [visibleWidgets, setVisibleWidgets] = useState({
-    chart: true,
-    keyMetrics: true,
-    financialMetrics: true
-  });
-
-  const handleCloseWidget = (widgetId) => {
-    setVisibleWidgets(prev => ({ ...prev, [widgetId]: false }));
-  };
-
-  const handleAddWidget = (widgetId) => {
-    setVisibleWidgets(prev => ({ ...prev, [widgetId]: true }));
-  };
-
+  // Close add ticker dropdown when clicking outside
   useEffect(() => {
-    if (symbol && !symbols.includes(symbol)) {
-      setSymbols([symbol]);
-    }
-  }, [symbol]);
+    const handleClickOutside = (event) => {
+      if (addTickerRef.current && !addTickerRef.current.contains(event.target)) {
+        setShowAddTicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
-  useEffect(() => {
-    loadComparisonData();
-  }, [symbols]);
-
-  const loadComparisonData = async () => {
+  // Load data for all symbols
+  const loadData = useCallback(async () => {
     if (symbols.length === 0) return;
 
     setLoading(true);
     try {
       const dataPromises = symbols.map(async (sym) => {
-        const [quoteRes, infoRes, financialsRes] = await Promise.all([
-          fetch(`${API_BASE}/stock/quote/${sym}`),
+        const [infoRes, metricsRes, financialsRes] = await Promise.all([
           fetch(`${API_BASE}/stock/info/${sym}`),
-          fetch(`${API_BASE}/stock/financials/${sym}?freq=annual&limit=2`)
+          fetch(`${API_BASE}/stock/metrics/${sym}`),
+          fetch(`${API_BASE}/stock/financials/${sym}?freq=annual&limit=1`),
         ]);
 
-        const quote = quoteRes.ok ? await quoteRes.json() : null;
-        const info = infoRes.ok ? await infoRes.json() : null;
-        const financials = financialsRes.ok ? await financialsRes.json() : null;
+        const info = infoRes.ok ? await infoRes.json() : {};
+        const metrics = metricsRes.ok ? await metricsRes.json() : {};
+        const financials = financialsRes.ok ? await financialsRes.json() : {};
 
-        return { symbol: sym, quote, info, financials };
-      });
-
-      const results = await Promise.all(dataPromises);
-
-      const newStocksData = {};
-      results.forEach(result => {
-        newStocksData[result.symbol] = {
-          quote: result.quote,
-          info: result.info,
-          financials: result.financials
+        return {
+          symbol: sym,
+          info,
+          metrics,
+          financials,
         };
       });
 
-      setStocksData(newStocksData);
+      const results = await Promise.all(dataPromises);
+      const dataMap = {};
+      results.forEach(r => {
+        dataMap[r.symbol] = r;
+      });
+      setStockData(dataMap);
     } catch (error) {
       console.error('Error loading comparison data:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [symbols]);
 
-  const searchStocks = async (query) => {
-    if (!query || query.length < 1) {
-      setSearchResults([]);
-      return;
-    }
+  useEffect(() => {
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [symbols.length]);
 
-    try {
-      const res = await fetch(`${API_BASE}/stock/search?q=${encodeURIComponent(query)}`);
-      if (res.ok) {
-        const data = await res.json();
-        setSearchResults(data.slice(0, 10));
-      }
-    } catch (error) {
-      console.error('Error searching stocks:', error);
+  // Add symbol from TickerSearch
+  const addSymbol = (stock) => {
+    const sym = stock.symbol;
+    if (!symbols.includes(sym) && symbols.length < 10) {
+      setSymbols(prev => [...prev, sym]);
     }
-  };
-
-  const addSymbol = (sym) => {
-    if (!symbols.includes(sym) && symbols.length < 6) {
-      setSymbols([...symbols, sym]);
-    }
-    setSearchInput('');
-    setSearchResults([]);
-    setShowSearch(false);
+    setShowAddTicker(false);
   };
 
   const removeSymbol = (sym) => {
     if (symbols.length > 1) {
-      setSymbols(symbols.filter(s => s !== sym));
+      setSymbols(prev => prev.filter(s => s !== sym));
+      setStockData(prev => {
+        const newData = { ...prev };
+        delete newData[sym];
+        return newData;
+      });
+    }
+  };
+
+  const currentCategory = CATEGORIES.find(c => c.id === activeCategory);
+
+  // Format large numbers
+  const formatLargeNumber = (num) => {
+    if (num === null || num === undefined) return '-';
+    if (Math.abs(num) >= 1e12) return (num / 1e12).toFixed(2) + 'T';
+    if (Math.abs(num) >= 1e9) return (num / 1e9).toFixed(2) + 'B';
+    if (Math.abs(num) >= 1e6) return (num / 1e6).toFixed(2) + 'M';
+    if (Math.abs(num) >= 1e3) return (num / 1e3).toFixed(2) + 'K';
+    return num.toFixed(2);
+  };
+
+  // Format percentage (values from API are in decimal form, e.g., 0.42 for 42%)
+  const formatPercent = (val) => {
+    if (val === null || val === undefined) return '-';
+    return (val * 100).toFixed(2) + '%';
+  };
+
+  // Format ratio (simple decimal)
+  const formatRatio = (val) => {
+    if (val === null || val === undefined) return '-';
+    return val.toFixed(2);
+  };
+
+  // Metrics that should be displayed as percentages
+  const PERCENT_METRICS = [
+    'gross_margin', 'operating_margin', 'net_margin',
+    'roe', 'roa', 'roic', 'fcf_margin',
+    'dividend_yield', 'payout_ratio', 'revenue_growth',
+    'earnings_growth', 'earnings_quarterly_growth'
+  ];
+
+  // Metrics that should be displayed as large numbers
+  const LARGE_NUMBER_METRICS = [
+    'operating_cash_flow', 'free_cash_flow', 'working_capital',
+    'market_cap', 'enterprise_value'
+  ];
+
+  // Get metric value from stock data
+  const getMetricValue = (sym, metricKey) => {
+    const data = stockData[sym];
+    if (!data) return '-';
+
+    const metrics = data.metrics || {};
+    const fin = data.financials?.periods?.[0];
+    const income = fin?.income_statement || {};
+    const balance = fin?.balance_sheet || {};
+    const cashflow = fin?.cash_flow || {};
+
+    let val = null;
+
+    // First try to get from metrics API
+    if (metrics[metricKey] !== undefined && metrics[metricKey] !== null) {
+      val = metrics[metricKey];
+    } else {
+      // Calculate from financials if not available in metrics
+      switch (metricKey) {
+        // Profitability from financials
+        case 'gross_margin':
+          val = income.revenue && income.gross_profit
+            ? income.gross_profit / income.revenue
+            : null;
+          break;
+        case 'operating_margin':
+          val = income.revenue && income.operating_income
+            ? income.operating_income / income.revenue
+            : null;
+          break;
+        case 'net_margin':
+          val = income.revenue && income.net_income
+            ? income.net_income / income.revenue
+            : null;
+          break;
+        case 'fcf_margin':
+          val = income.revenue && cashflow.free_cash_flow
+            ? cashflow.free_cash_flow / income.revenue
+            : null;
+          break;
+        // Liquidity from financials
+        case 'current_ratio':
+          val = balance.current_assets && balance.current_liabilities
+            ? balance.current_assets / balance.current_liabilities
+            : null;
+          break;
+        case 'quick_ratio':
+          val = balance.current_assets && balance.current_liabilities
+            ? (balance.current_assets - (balance.inventory || 0)) / balance.current_liabilities
+            : null;
+          break;
+        case 'cash_ratio':
+          val = balance.cash && balance.current_liabilities
+            ? balance.cash / balance.current_liabilities
+            : null;
+          break;
+        case 'working_capital':
+          val = balance.current_assets && balance.current_liabilities
+            ? balance.current_assets - balance.current_liabilities
+            : null;
+          break;
+        // Leverage from financials
+        case 'debt_to_equity':
+          val = balance.total_debt && balance.total_equity
+            ? balance.total_debt / balance.total_equity
+            : null;
+          break;
+        case 'debt_to_assets':
+          val = balance.total_debt && balance.total_assets
+            ? balance.total_debt / balance.total_assets
+            : null;
+          break;
+        case 'long_term_debt_to_equity':
+          val = balance.total_debt && balance.total_equity
+            ? balance.total_debt / balance.total_equity
+            : null;
+          break;
+        case 'financial_leverage':
+          val = balance.total_assets && balance.total_equity
+            ? balance.total_assets / balance.total_equity
+            : null;
+          break;
+        // Cash Flow from financials
+        case 'operating_cash_flow':
+          val = cashflow.operating_cash_flow;
+          break;
+        case 'free_cash_flow':
+          val = cashflow.free_cash_flow;
+          break;
+        case 'ocf_to_debt':
+          val = cashflow.operating_cash_flow && balance.total_debt
+            ? cashflow.operating_cash_flow / balance.total_debt
+            : null;
+          break;
+        case 'capex_to_revenue':
+          val = cashflow.capital_expenditure && income.revenue
+            ? Math.abs(cashflow.capital_expenditure) / income.revenue
+            : null;
+          break;
+        // Coverage metrics
+        case 'interest_coverage':
+          val = income.operating_income && income.interest_expense
+            ? income.operating_income / Math.abs(income.interest_expense)
+            : null;
+          break;
+        case 'debt_service_coverage':
+          val = null; // Requires detailed debt info not typically available
+          break;
+        case 'fixed_charge_coverage':
+          val = null; // Requires detailed fixed charges info
+          break;
+        // Efficiency metrics
+        case 'asset_turnover':
+          val = income.revenue && balance.total_assets
+            ? income.revenue / balance.total_assets
+            : null;
+          break;
+        case 'receivables_turnover':
+          val = income.revenue && balance.receivables
+            ? income.revenue / balance.receivables
+            : null;
+          break;
+        case 'inventory_turnover':
+          val = income.cost_of_revenue && balance.inventory
+            ? income.cost_of_revenue / balance.inventory
+            : null;
+          break;
+        // Days metrics (require inventory/receivables turnover)
+        case 'days_sales_outstanding':
+          // DSO = (Receivables / Revenue) * 365
+          val = balance.receivables && income.revenue
+            ? (balance.receivables / income.revenue) * 365
+            : null;
+          break;
+        case 'days_inventory_outstanding':
+          // DIO = (Inventory / COGS) * 365
+          val = balance.inventory && income.cost_of_revenue
+            ? (balance.inventory / income.cost_of_revenue) * 365
+            : null;
+          break;
+        case 'days_payables_outstanding':
+          // DPO = (Payables / COGS) * 365
+          val = balance.payables && income.cost_of_revenue
+            ? (balance.payables / income.cost_of_revenue) * 365
+            : null;
+          break;
+        case 'operating_cycle':
+          // Operating Cycle = DSO + DIO
+          const dso = balance.receivables && income.revenue
+            ? (balance.receivables / income.revenue) * 365
+            : null;
+          const dio = balance.inventory && income.cost_of_revenue
+            ? (balance.inventory / income.cost_of_revenue) * 365
+            : null;
+          val = dso && dio ? dso + dio : null;
+          break;
+        case 'cash_conversion_cycle':
+          // CCC = DSO + DIO - DPO
+          const dso2 = balance.receivables && income.revenue
+            ? (balance.receivables / income.revenue) * 365
+            : null;
+          const dio2 = balance.inventory && income.cost_of_revenue
+            ? (balance.inventory / income.cost_of_revenue) * 365
+            : null;
+          const dpo = balance.payables && income.cost_of_revenue
+            ? (balance.payables / income.cost_of_revenue) * 365
+            : null;
+          val = dso2 && dio2 && dpo ? dso2 + dio2 - dpo : null;
+          break;
+        // ROE, ROA from financials
+        case 'roe':
+          val = income.net_income && balance.total_equity
+            ? income.net_income / balance.total_equity
+            : null;
+          break;
+        case 'roa':
+          val = income.net_income && balance.total_assets
+            ? income.net_income / balance.total_assets
+            : null;
+          break;
+        case 'roic':
+          val = income.operating_income && balance.total_equity && balance.total_debt
+            ? income.operating_income / (balance.total_equity + balance.total_debt)
+            : null;
+          break;
+        default:
+          val = null;
+      }
+    }
+
+    if (val === null || val === undefined) return '-';
+
+    // Format based on metric type
+    if (PERCENT_METRICS.includes(metricKey)) {
+      return formatPercent(val);
+    } else if (LARGE_NUMBER_METRICS.includes(metricKey)) {
+      return formatLargeNumber(val);
+    } else {
+      return formatRatio(val);
     }
   };
 
   return (
-    <div className="space-y-4">
+    <div className="h-full flex flex-col bg-[#0a0a0f]">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-white">Stock Comparison</h3>
-        <button
-          onClick={loadComparisonData}
-          className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded text-sm text-gray-300"
-        >
-          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-          Refresh All
-        </button>
-      </div>
-
-      {/* Symbol Selector Bar */}
-      <div className="bg-[#0d0d12] rounded-lg p-4 border border-gray-800">
-        <div className="flex flex-wrap items-center gap-2">
-          {symbols.map((sym, idx) => (
-            <div
-              key={sym}
-              className="flex items-center gap-2 px-3 py-1.5 rounded text-sm font-medium"
-              style={{ backgroundColor: `${COLORS[idx]}15`, color: COLORS[idx], border: `1px solid ${COLORS[idx]}30` }}
-            >
-              <span>{sym}</span>
-              {symbols.length > 1 && (
-                <button onClick={() => removeSymbol(sym)} className="hover:opacity-70">
-                  <X size={14} />
-                </button>
-              )}
-            </div>
-          ))}
-
-          {symbols.length < 6 && (
-            <div className="relative">
-              <button
-                onClick={() => setShowSearch(!showSearch)}
-                className="flex items-center gap-1 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded text-sm text-gray-300"
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Symbol chips */}
+          <div className="flex items-center gap-1 flex-wrap">
+            {symbols.map((sym, idx) => (
+              <div
+                key={sym}
+                className="flex items-center gap-1 px-2 py-1 bg-gray-800 rounded text-xs"
               >
-                <Plus size={14} />
-                Add Stock
-              </button>
+                <span className="text-cyan-400 font-medium">{idx + 1}</span>
+                <span className="text-white">{sym}</span>
+                {symbols.length > 1 && (
+                  <button
+                    onClick={() => removeSymbol(sym)}
+                    className="ml-1 text-gray-500 hover:text-red-400"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
 
-              {showSearch && (
-                <div className="absolute top-full left-0 mt-2 w-64 bg-[#0d0d12] border border-gray-700 rounded-lg shadow-xl z-50">
-                  <div className="p-2">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-2.5 text-gray-400" size={14} />
-                      <input
-                        type="text"
-                        value={searchInput}
-                        onChange={(e) => {
-                          setSearchInput(e.target.value);
-                          searchStocks(e.target.value);
-                        }}
-                        className="w-full pl-9 pr-3 py-2 bg-gray-800 border border-gray-700 rounded text-white text-sm focus:outline-none focus:border-blue-500"
-                        placeholder="Search symbol..."
-                        autoFocus
-                      />
-                    </div>
-                  </div>
-                  {searchResults.length > 0 && (
-                    <div className="max-h-48 overflow-y-auto border-t border-gray-700">
-                      {searchResults.map((result) => (
-                        <button
-                          key={result.symbol}
-                          onClick={() => addSymbol(result.symbol)}
-                          disabled={symbols.includes(result.symbol)}
-                          className="w-full px-3 py-2 text-left hover:bg-gray-800 disabled:opacity-50"
-                        >
-                          <div className="text-sm font-medium text-white">{result.symbol}</div>
-                          <div className="text-xs text-gray-400 truncate">{result.name}</div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+          {/* Add ticker */}
+          <div className="relative" ref={addTickerRef}>
+            <button
+              onClick={() => setShowAddTicker(!showAddTicker)}
+              className="flex items-center gap-1 px-2 py-1 text-xs text-cyan-400 hover:bg-gray-800 rounded"
+            >
+              <Plus size={14} />
+              Add Additional Ticker
+            </button>
+
+            {showAddTicker && (
+              <div className="absolute top-full left-0 mt-1 w-72 bg-[#1a1a1f] border border-gray-700 rounded-lg shadow-xl z-50 p-2">
+                <TickerSearch
+                  onSelect={addSymbol}
+                  placeholder="Search ticker (e.g., MSFT, Tesla)..."
+                />
+                {symbols.length >= 10 && (
+                  <p className="text-xs text-yellow-500 mt-2 px-1">Maximum 10 tickers allowed</p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Year selector */}
+          <select
+            value={year}
+            onChange={(e) => setYear(e.target.value)}
+            className="px-2 py-1 bg-gray-800 border border-gray-700 rounded text-xs text-white"
+          >
+            {YEARS.map(y => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+
+          {/* Period tabs */}
+          <div className="flex items-center gap-0.5 bg-gray-800 rounded p-0.5">
+            {PERIODS.map(p => (
+              <button
+                key={p.id}
+                onClick={() => setPeriod(p.id)}
+                className={`px-2 py-1 text-xs rounded transition-colors ${
+                  period === p.id
+                    ? 'bg-gray-700 text-white'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Right actions */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={loadData}
+            className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded"
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+          </button>
+          <button className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded">
+            <Copy size={14} />
+          </button>
+          <button className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded">
+            <MoreVertical size={14} />
+          </button>
         </div>
       </div>
 
-      {/* Widget Grid */}
-      <div className="grid grid-cols-12 gap-4">
-        {/* Chart Widget */}
-        <div className="col-span-8">
-          {visibleWidgets.chart ? (
-            <ResizableWidgetWrapper minHeight={350} defaultHeight={400}>
-              <div className="bg-[#0d0d12] rounded-lg border border-gray-800 h-full">
-                <ChartWidget
-                  widgetId={`comparison-${symbol}`}
-                  initialSymbols={symbols}
-                />
-              </div>
-            </ResizableWidgetWrapper>
-          ) : (
-            <AddWidgetPlaceholder onAdd={() => handleAddWidget('chart')} widgetType="chart" label="Add Chart Widget" />
-          )}
-        </div>
+      {/* Category tabs */}
+      <div className="flex items-center gap-1 px-4 py-2 border-b border-gray-800 overflow-x-auto">
+        {CATEGORIES.map(cat => (
+          <button
+            key={cat.id}
+            onClick={() => setActiveCategory(cat.id)}
+            className={`px-3 py-1.5 text-xs font-medium whitespace-nowrap rounded transition-colors ${
+              activeCategory === cat.id
+                ? 'text-cyan-400 bg-cyan-400/10'
+                : 'text-gray-400 hover:text-white hover:bg-gray-800'
+            }`}
+          >
+            {cat.name}
+          </button>
+        ))}
+      </div>
 
-        {/* Key Metrics Widget */}
-        <div className="col-span-4">
-          {visibleWidgets.keyMetrics ? (
-            <ResizableWidgetWrapper minHeight={350} defaultHeight={400}>
-              <KeyMetricsWidget
-                symbols={symbols}
-                stocksData={stocksData}
-                loading={loading}
-                onRefresh={loadComparisonData}
-                onClose={() => handleCloseWidget('keyMetrics')}
-              />
-            </ResizableWidgetWrapper>
-          ) : (
-            <AddWidgetPlaceholder onAdd={() => handleAddWidget('keyMetrics')} widgetType="keyMetrics" label="Add Key Metrics Widget" />
-          )}
-        </div>
+      {/* Table */}
+      <div className="flex-1 overflow-auto">
+        <table className="w-full text-sm">
+          <thead className="sticky top-0 bg-[#0d0d12] z-10">
+            <tr className="border-b border-gray-800">
+              <th className="text-left py-3 px-4 text-gray-400 font-medium min-w-[200px]">Name</th>
+              {currentCategory?.metrics.map(metric => (
+                <th key={metric.key} className="text-right py-3 px-4 text-gray-400 font-medium min-w-[150px]">
+                  {metric.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {symbols.map((sym, idx) => {
+              const data = stockData[sym];
+              const info = data?.info || {};
 
-        {/* Financial Metrics Widget - Full Width */}
-        <div className="col-span-12">
-          {visibleWidgets.financialMetrics ? (
-            <ResizableWidgetWrapper minHeight={300} defaultHeight={400}>
-              <FinancialMetricsWidget
-                symbols={symbols}
-                stocksData={stocksData}
-                loading={loading}
-                onRefresh={loadComparisonData}
-                onClose={() => handleCloseWidget('financialMetrics')}
-              />
-            </ResizableWidgetWrapper>
-          ) : (
-            <AddWidgetPlaceholder onAdd={() => handleAddWidget('financialMetrics')} widgetType="financialMetrics" label="Add Financial Metrics Widget" />
-          )}
-        </div>
+              return (
+                <tr
+                  key={sym}
+                  className="border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors"
+                >
+                  <td className="py-3 px-4">
+                    <div className="flex items-center gap-3">
+                      {/* Color indicator */}
+                      <div
+                        className="w-1 h-10 rounded"
+                        style={{ backgroundColor: ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'][idx % 8] }}
+                      />
+                      {/* Logo placeholder */}
+                      <div className="w-8 h-8 bg-gray-700 rounded flex items-center justify-center text-xs font-bold text-white">
+                        {sym.slice(0, 2)}
+                      </div>
+                      {/* Name */}
+                      <div>
+                        <div className="font-semibold text-white">{sym}</div>
+                        <div className="text-xs text-gray-400 truncate max-w-[150px]">
+                          {info.name || info.shortName || sym}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  {currentCategory?.metrics.map(metric => (
+                    <td key={metric.key} className="text-right py-3 px-4 text-white tabular-nums">
+                      {loading ? (
+                        <div className="h-4 w-16 bg-gray-700 rounded animate-pulse ml-auto" />
+                      ) : (
+                        getMetricValue(sym, metric.key)
+                      )}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+
+        {symbols.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-20 text-gray-500">
+            <p>No stocks selected</p>
+            <p className="text-sm">Add tickers to compare</p>
+          </div>
+        )}
       </div>
     </div>
   );
-};
-
-export default ComparisonAnalysisTab;
+}

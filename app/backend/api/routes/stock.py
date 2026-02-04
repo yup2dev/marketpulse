@@ -68,6 +68,22 @@ async def get_company_info(symbol: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/metrics/{symbol}")
+async def get_key_metrics(symbol: str):
+    """
+    Get key financial metrics and ratios for a stock
+
+    Returns valuation multiples, profitability ratios, liquidity metrics, and more
+    """
+    try:
+        metrics = await data_service.get_key_metrics(symbol.upper())
+        if not metrics:
+            raise HTTPException(status_code=404, detail=f"Metrics for {symbol} not found")
+        return metrics
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/financials/{symbol}")
 async def get_financials(symbol: str, freq: str = "quarterly", limit: int = 4):
     """

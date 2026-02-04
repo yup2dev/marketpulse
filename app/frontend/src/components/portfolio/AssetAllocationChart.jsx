@@ -103,12 +103,13 @@ export default function AssetAllocationChart({ portfolioId }) {
             outerRadius={100}
             fill="#8884d8"
             dataKey="value"
+            isAnimationActive={false}
           >
             {chartData.map((entry, index) => (
               <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
             ))}
           </Pie>
-          <Tooltip content={<CustomTooltip />} />
+          <Tooltip content={<CustomTooltip />} isAnimationActive={false} />
           <Legend />
         </PieChart>
       </ResponsiveContainer>

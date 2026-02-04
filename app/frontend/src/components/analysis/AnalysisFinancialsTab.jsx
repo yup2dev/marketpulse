@@ -172,23 +172,24 @@ export default function AnalysisFinancialsTab() {
                   <Tooltip
                     contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333' }}
                     formatter={(value) => formatNumber(value)}
+                    isAnimationActive={false}
                   />
                   {activeTab === 'income' && (
                     <>
-                      <Bar dataKey="revenue" name="Revenue" fill="#3b82f6" />
-                      <Bar dataKey="netIncome" name="Net Income" fill="#22c55e" />
+                      <Bar dataKey="revenue" name="Revenue" fill="#3b82f6" isAnimationActive={false} />
+                      <Bar dataKey="netIncome" name="Net Income" fill="#22c55e" isAnimationActive={false} />
                     </>
                   )}
                   {activeTab === 'balance' && (
                     <>
-                      <Bar dataKey="totalAssets" name="Total Assets" fill="#3b82f6" />
-                      <Bar dataKey="totalEquity" name="Total Equity" fill="#22c55e" />
+                      <Bar dataKey="totalAssets" name="Total Assets" fill="#3b82f6" isAnimationActive={false} />
+                      <Bar dataKey="totalEquity" name="Total Equity" fill="#22c55e" isAnimationActive={false} />
                     </>
                   )}
                   {activeTab === 'cashflow' && (
                     <>
-                      <Bar dataKey="operatingCashFlow" name="Operating CF" fill="#3b82f6" />
-                      <Bar dataKey="freeCashFlow" name="Free CF" fill="#22c55e" />
+                      <Bar dataKey="operatingCashFlow" name="Operating CF" fill="#3b82f6" isAnimationActive={false} />
+                      <Bar dataKey="freeCashFlow" name="Free CF" fill="#22c55e" isAnimationActive={false} />
                     </>
                   )}
                 </BarChart>

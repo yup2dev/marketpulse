@@ -131,13 +131,13 @@ function OwnershipOverviewWidget({ ownershipData, loading, symbol, onSymbolChang
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie data={ownershipBreakdown} cx="50%" cy="50%" innerRadius={35} outerRadius={55}
-                          paddingAngle={2} dataKey="value">
+                          paddingAngle={2} dataKey="value" isAnimationActive={false}>
                           {ownershipBreakdown.map((entry, idx) => (
                             <Cell key={`cell-${idx}`} fill={entry.color} />
                           ))}
                         </Pie>
                         <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', fontSize: '12px' }}
-                          formatter={(value) => `${value.toFixed(1)}%`} />
+                          formatter={(value) => `${value.toFixed(1)}%`} isAnimationActive={false} />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>

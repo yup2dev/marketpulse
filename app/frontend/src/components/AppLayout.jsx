@@ -3,7 +3,7 @@
  * Hyperliquid-style header with left-aligned navigation
  * Supports right-click context menu for widget addition on all pages
  */
-import { useState, useCallback, createContext, useContext } from 'react';
+import { useState, useCallback, createContext, useContext, useMemo } from 'react';
 import {
   TrendingUp, Grid3x3, LayoutDashboard, BarChart3, Briefcase,
   Globe, Bell, LogOut, User, Settings, ChevronDown
@@ -168,11 +168,11 @@ const AppLayout = () => {
     return false;
   };
 
-  // Context value for child pages
-  const contextValue = {
+  // Context value for child pages - memoized to prevent unnecessary re-renders
+  const contextValue = useMemo(() => ({
     registerWidgets,
     unregisterWidgets,
-  };
+  }), [registerWidgets, unregisterWidgets]);
 
   return (
     <GlobalWidgetContext.Provider value={contextValue}>

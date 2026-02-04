@@ -8,9 +8,11 @@ import DashboardContent from './pages/DashboardContent';
 import PortfolioDashboard from './pages/PortfolioDashboard';
 import PortfolioDetail from './pages/PortfolioDetail';
 import AlertsPage from './pages/AlertsPage';
+import ErrorBoundary from './components/common/ErrorBoundary';
 
 function App() {
   return (
+    <ErrorBoundary>
     <Router>
       <Toaster
         position="top-right"
@@ -61,6 +63,7 @@ function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
+    </ErrorBoundary>
   );
 }
 
