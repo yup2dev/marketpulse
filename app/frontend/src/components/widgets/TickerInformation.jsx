@@ -1,11 +1,11 @@
 /**
- * Ticker Information Widget - Real-time ticker info with chart
+ * Ticker Information Widget - Real-time ticker info with chart using BaseWidget
  */
 import { useState, useEffect, useCallback } from 'react';
 import { TrendingUp, TrendingDown, Info, Search } from 'lucide-react';
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import { API_BASE } from '../../config/api';
-import WidgetHeader from './common/WidgetHeader';
+import BaseWidget from './common/BaseWidget';
 import StockSelectorModal from '../StockSelectorModal';
 
 export default function TickerInformation({ symbol = 'AAPL', onSymbolChange, onRemove }) {
@@ -62,32 +62,33 @@ export default function TickerInformation({ symbol = 'AAPL', onSymbolChange, onR
     setShowStockSelector(false);
   };
 
+  // Custom header button for ticker selection
+  const headerExtra = (
+    <button
+      onClick={() => setShowStockSelector(true)}
+      className="flex items-center gap-1 px-2 py-1 bg-gray-800 hover:bg-gray-700 text-cyan-400 text-xs font-medium border border-gray-700 rounded transition-colors"
+    >
+      <Search size={10} />
+      {symbol}
+    </button>
+  );
+
   return (
     <>
-      <div className="bg-[#0d0d12] border border-gray-800 rounded-lg overflow-hidden h-full flex flex-col">
-        {/* Header */}
-        <WidgetHeader
-          icon={Info}
-          iconColor="text-purple-400"
-          title="Ticker Information"
-          loading={loading}
-          onRefresh={fetchData}
-          onRemove={onRemove}
-        >
-          {/* Ticker selector button */}
-          <button
-            onClick={() => setShowStockSelector(true)}
-            className="flex items-center gap-1 px-2 py-1 bg-gray-800 hover:bg-gray-700 text-cyan-400 text-xs font-medium border border-gray-700 rounded transition-colors"
-          >
-            <Search size={12} />
-            {symbol}
-          </button>
-        </WidgetHeader>
-
-        {/* Content */}
-        <div className="flex-1 p-4 flex gap-4">
-          {/* Chart */}
-          <div className="w-32 h-20">
+      <BaseWidget
+        title="Ticker Information"
+        icon={Info}
+        iconColor="text-purple-400"
+        loading={loading}
+        onRefresh={fetchData}
+        onRemove={onRemove}
+        showViewToggle={false}
+        showPeriodSelector={false}
+        headerExtra={headerExtra}
+      >
+        <div className="flex-1 p-3 flex gap-3">
+          {/* Mini Chart */}
+          <div className="w-28 h-16">
             {history.length > 0 && (
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={history}>
@@ -110,36 +111,36 @@ export default function TickerInformation({ symbol = 'AAPL', onSymbolChange, onR
           </div>
 
           {/* Info */}
-          <div className="flex-1">
-            <div className="flex items-baseline gap-4 mb-2">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-baseline gap-3 mb-1">
               <div>
-                <span className="text-xs text-gray-500">Price</span>
-                <div className="text-xl font-bold text-white">
+                <span className="text-[10px] text-gray-500">Price</span>
+                <div className="text-lg font-bold text-white">
                   ${price?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
               </div>
               <div>
-                <span className="text-xs text-gray-500">Day's Change</span>
-                <div className={`text-lg font-bold flex items-center gap-1 ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
-                  {isPositive ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
+                <span className="text-[10px] text-gray-500">Change</span>
+                <div className={`text-sm font-bold flex items-center gap-1 ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
+                  {isPositive ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
                   {change?.toFixed(2)} ({isPositive ? '+' : ''}{changePercent?.toFixed(2)}%)
                 </div>
               </div>
             </div>
 
-            <div className="text-sm text-gray-400">
-              <span className="text-gray-500">Volume: </span>
+            <div className="text-xs text-gray-400">
+              <span className="text-gray-500">Vol: </span>
               <span className="text-white font-medium">{formatVolume(volume)}</span>
             </div>
 
             {info && (
-              <div className="text-xs text-gray-500 mt-1">
+              <div className="text-[10px] text-gray-500 truncate mt-0.5">
                 {info.sector} | {info.country || 'US'} | {info.exchange}
               </div>
             )}
           </div>
         </div>
-      </div>
+      </BaseWidget>
 
       {/* Stock Selector Modal */}
       <StockSelectorModal

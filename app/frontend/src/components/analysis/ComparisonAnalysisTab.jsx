@@ -119,7 +119,7 @@ export default function ComparisonAnalysisTab({ symbol: initialSymbol = 'AAPL' }
   const [loading, setLoading] = useState(false);
   const [activeCategory, setActiveCategory] = useState('valuation');
   const [period, setPeriod] = useState('FY');
-  const [year, setYear] = useState('2025);
+  const [year, setYear] = useState('2024');
   const [showAddTicker, setShowAddTicker] = useState(false);
   const addTickerRef = useRef(null);
 
@@ -361,48 +361,6 @@ export default function ComparisonAnalysisTab({ symbol: initialSymbol = 'AAPL' }
           val = income.cost_of_revenue && balance.inventory
             ? income.cost_of_revenue / balance.inventory
             : null;
-          break;
-        // Days metrics (require inventory/receivables turnover)
-        case 'days_sales_outstanding':
-          // DSO = (Receivables / Revenue) * 365
-          val = balance.receivables && income.revenue
-            ? (balance.receivables / income.revenue) * 365
-            : null;
-          break;
-        case 'days_inventory_outstanding':
-          // DIO = (Inventory / COGS) * 365
-          val = balance.inventory && income.cost_of_revenue
-            ? (balance.inventory / income.cost_of_revenue) * 365
-            : null;
-          break;
-        case 'days_payables_outstanding':
-          // DPO = (Payables / COGS) * 365
-          val = balance.payables && income.cost_of_revenue
-            ? (balance.payables / income.cost_of_revenue) * 365
-            : null;
-          break;
-        case 'operating_cycle':
-          // Operating Cycle = DSO + DIO
-          const dso = balance.receivables && income.revenue
-            ? (balance.receivables / income.revenue) * 365
-            : null;
-          const dio = balance.inventory && income.cost_of_revenue
-            ? (balance.inventory / income.cost_of_revenue) * 365
-            : null;
-          val = dso && dio ? dso + dio : null;
-          break;
-        case 'cash_conversion_cycle':
-          // CCC = DSO + DIO - DPO
-          const dso2 = balance.receivables && income.revenue
-            ? (balance.receivables / income.revenue) * 365
-            : null;
-          const dio2 = balance.inventory && income.cost_of_revenue
-            ? (balance.inventory / income.cost_of_revenue) * 365
-            : null;
-          const dpo = balance.payables && income.cost_of_revenue
-            ? (balance.payables / income.cost_of_revenue) * 365
-            : null;
-          val = dso2 && dio2 && dpo ? dso2 + dio2 - dpo : null;
           break;
         // ROE, ROA from financials
         case 'roe':

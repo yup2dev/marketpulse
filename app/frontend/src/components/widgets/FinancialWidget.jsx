@@ -1,43 +1,33 @@
-import { useState, useEffect } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { BarChart3, Table2 } from 'lucide-react';
-import useTheme from '../../hooks/useTheme';
-import {
-  WidgetHeader,
-  LoadingSpinner,
-  NoDataState,
-  formatNumber,
-  API_BASE,
-  WIDGET_STYLES,
-  WIDGET_ICON_COLORS,
-  LOADING_COLORS,
-} from './common';
+/**
+ * FinancialWidget - Displays key financial data using BaseWidget
+ */
+import { useState, useEffect, useCallback } from 'react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart3 } from 'lucide-react';
+import BaseWidget from './common/BaseWidget';
+import { formatNumber, API_BASE } from './common';
 
 const FinancialWidget = ({ symbol, onRemove }) => {
-  const { chartTheme } = useTheme();
   const [financials, setFinancials] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [viewMode, setViewMode] = useState('table'); // 'table' or 'chart'
+  const [viewMode, setViewMode] = useState('table');
 
-  useEffect(() => {
-    if (symbol) {
-      loadData();
-    }
-  }, [symbol]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
+    if (!symbol) return;
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE}/stock/financials/${symbol}`);
-      if (res.ok) {
-        setFinancials(await res.json());
-      }
+      if (res.ok) setFinancials(await res.json());
     } catch (error) {
       console.error('Error loading financials:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [symbol]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const formatFinancialNumber = (num) => {
     const formatted = formatNumber(num);
@@ -46,195 +36,96 @@ const FinancialWidget = ({ symbol, onRemove }) => {
 
   const getChartData = () => {
     if (!financials) return [];
-
     const income = financials.income_statement || {};
-    const balance = financials.balance_sheet || {};
-
     return [
       { name: 'Revenue', value: income.revenue || 0 },
       { name: 'Gross Profit', value: income.gross_profit || 0 },
-      { name: 'Operating Income', value: income.operating_income || 0 },
+      { name: 'Op. Income', value: income.operating_income || 0 },
       { name: 'Net Income', value: income.net_income || 0 },
       { name: 'EBITDA', value: income.ebitda || 0 },
     ];
   };
 
-  return (
-    <div className={WIDGET_STYLES.container}>
-      <WidgetHeader
-        icon={BarChart3}
-        iconColor={WIDGET_ICON_COLORS.financial}
-        title={`${symbol} - Financials`}
-        loading={loading}
-        onRefresh={loadData}
-        onRemove={onRemove}
-      >
-        {/* View Toggle */}
-        <div className="flex bg-gray-800/50 rounded p-0.5 mr-2">
-          <button
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={(e) => {
-              e.stopPropagation();
-              setViewMode('table');
-            }}
-            className={`p-1.5 rounded transition-colors ${
-              viewMode === 'table' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
-            }`}
-            title="Table View"
-          >
-            <Table2 size={14} />
-          </button>
-          <button
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={(e) => {
-              e.stopPropagation();
-              setViewMode('chart');
-            }}
-            className={`p-1.5 rounded transition-colors ${
-              viewMode === 'chart' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
-            }`}
-            title="Chart View"
-          >
-            <BarChart3 size={14} />
-          </button>
-        </div>
-      </WidgetHeader>
+  const renderChart = () => {
+    const chartData = getChartData();
+    if (chartData.length === 0) return <div className="flex items-center justify-center h-full text-gray-500">No data</div>;
 
-      <div className={`${WIDGET_STYLES.content} p-3`}>
-        {loading ? (
-          <LoadingSpinner color={LOADING_COLORS.financial} />
-        ) : viewMode === 'table' && financials ? (
-          <div className="overflow-auto">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-[#0d0d12]">
-                <tr className="border-b border-gray-800">
-                  <th className="text-left py-2 text-gray-400 font-medium">Metric</th>
-                  <th className="text-right py-2 text-gray-400 font-medium">Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                {/* Income Statement */}
-                <tr className="border-b border-gray-700">
-                  <td colSpan="2" className="py-2 text-blue-400 font-semibold text-xs uppercase">Income Statement</td>
-                </tr>
-                <tr className="border-b border-gray-800 hover:bg-gray-800/30">
-                  <td className="py-2 text-white">Revenue</td>
-                  <td className="text-right text-white">{formatFinancialNumber(financials.income_statement?.revenue)}</td>
-                </tr>
-                <tr className="border-b border-gray-800 hover:bg-gray-800/30">
-                  <td className="py-2 text-white">Cost of Revenue</td>
-                  <td className="text-right text-white">{formatFinancialNumber(financials.income_statement?.cost_of_revenue)}</td>
-                </tr>
-                <tr className="border-b border-gray-800 hover:bg-gray-800/30">
-                  <td className="py-2 text-white">Gross Profit</td>
-                  <td className="text-right text-white">{formatFinancialNumber(financials.income_statement?.gross_profit)}</td>
-                </tr>
-                <tr className="border-b border-gray-800 hover:bg-gray-800/30">
-                  <td className="py-2 text-white">Operating Expenses</td>
-                  <td className="text-right text-white">{formatFinancialNumber(financials.income_statement?.operating_expenses)}</td>
-                </tr>
-                <tr className="border-b border-gray-800 hover:bg-gray-800/30">
-                  <td className="py-2 text-white">Operating Income</td>
-                  <td className="text-right text-white">{formatFinancialNumber(financials.income_statement?.operating_income)}</td>
-                </tr>
-                <tr className="border-b border-gray-800 hover:bg-gray-800/30">
-                  <td className="py-2 text-white">Net Income</td>
-                  <td className="text-right text-green-500 font-semibold">{formatFinancialNumber(financials.income_statement?.net_income)}</td>
-                </tr>
-                <tr className="border-b border-gray-800 hover:bg-gray-800/30">
-                  <td className="py-2 text-white">EBITDA</td>
-                  <td className="text-right text-white">{formatFinancialNumber(financials.income_statement?.ebitda)}</td>
-                </tr>
-                <tr className="border-b border-gray-800 hover:bg-gray-800/30">
-                  <td className="py-2 text-white">Basic EPS</td>
-                  <td className="text-right text-white">{formatFinancialNumber(financials.income_statement?.basic_eps)}</td>
-                </tr>
-                <tr className="border-b border-gray-800 hover:bg-gray-800/30">
-                  <td className="py-2 text-white">Diluted EPS</td>
-                  <td className="text-right text-white">{formatFinancialNumber(financials.income_statement?.diluted_eps)}</td>
-                </tr>
+    return (
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 40 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+          <XAxis dataKey="name" tick={{ fill: '#6b7280', fontSize: 9 }} angle={-45} textAnchor="end" height={60} axisLine={{ stroke: '#374151' }} />
+          <YAxis tick={{ fill: '#6b7280', fontSize: 9 }} axisLine={{ stroke: '#374151' }} tickFormatter={(v) => formatFinancialNumber(v)} />
+          <Tooltip contentStyle={{ backgroundColor: '#1a1a1f', border: '1px solid #374151', borderRadius: '8px' }} formatter={(v) => formatFinancialNumber(v)} />
+          <Bar dataKey="value" fill="#3b82f6" />
+        </BarChart>
+      </ResponsiveContainer>
+    );
+  };
 
-                {/* Balance Sheet */}
-                <tr className="border-b border-gray-700">
-                  <td colSpan="2" className="py-2 text-blue-400 font-semibold text-xs uppercase pt-4">Balance Sheet</td>
-                </tr>
-                <tr className="border-b border-gray-800 hover:bg-gray-800/30">
-                  <td className="py-2 text-white">Total Assets</td>
-                  <td className="text-right text-white">{formatFinancialNumber(financials.balance_sheet?.total_assets)}</td>
-                </tr>
-                <tr className="border-b border-gray-800 hover:bg-gray-800/30">
-                  <td className="py-2 text-white">Current Assets</td>
-                  <td className="text-right text-white">{formatFinancialNumber(financials.balance_sheet?.current_assets)}</td>
-                </tr>
-                <tr className="border-b border-gray-800 hover:bg-gray-800/30">
-                  <td className="py-2 text-white">Cash</td>
-                  <td className="text-right text-white">{formatFinancialNumber(financials.balance_sheet?.cash)}</td>
-                </tr>
-                <tr className="border-b border-gray-800 hover:bg-gray-800/30">
-                  <td className="py-2 text-white">Total Liabilities</td>
-                  <td className="text-right text-white">{formatFinancialNumber(financials.balance_sheet?.total_liabilities)}</td>
-                </tr>
-                <tr className="border-b border-gray-800 hover:bg-gray-800/30">
-                  <td className="py-2 text-white">Current Liabilities</td>
-                  <td className="text-right text-white">{formatFinancialNumber(financials.balance_sheet?.current_liabilities)}</td>
-                </tr>
-                <tr className="border-b border-gray-800 hover:bg-gray-800/30">
-                  <td className="py-2 text-white">Total Equity</td>
-                  <td className="text-right text-white">{formatFinancialNumber(financials.balance_sheet?.total_equity)}</td>
-                </tr>
-                <tr className="border-b border-gray-800 hover:bg-gray-800/30">
-                  <td className="py-2 text-white">Total Debt</td>
-                  <td className="text-right text-white">{formatFinancialNumber(financials.balance_sheet?.total_debt)}</td>
-                </tr>
+  const renderTable = () => {
+    if (!financials) return <div className="flex items-center justify-center h-full text-gray-500">No data</div>;
 
-                {/* Cash Flow */}
-                <tr className="border-b border-gray-700">
-                  <td colSpan="2" className="py-2 text-blue-400 font-semibold text-xs uppercase pt-4">Cash Flow</td>
-                </tr>
-                <tr className="border-b border-gray-800 hover:bg-gray-800/30">
-                  <td className="py-2 text-white">Operating Cash Flow</td>
-                  <td className="text-right text-white">{formatFinancialNumber(financials.cash_flow?.operating_cash_flow)}</td>
-                </tr>
-                <tr className="border-b border-gray-800 hover:bg-gray-800/30">
-                  <td className="py-2 text-white">Investing Cash Flow</td>
-                  <td className="text-right text-white">{formatFinancialNumber(financials.cash_flow?.investing_cash_flow)}</td>
-                </tr>
-                <tr className="border-b border-gray-800 hover:bg-gray-800/30">
-                  <td className="py-2 text-white">Financing Cash Flow</td>
-                  <td className="text-right text-white">{formatFinancialNumber(financials.cash_flow?.financing_cash_flow)}</td>
-                </tr>
-                <tr className="border-b border-gray-800 hover:bg-gray-800/30">
-                  <td className="py-2 text-white">Free Cash Flow</td>
-                  <td className="text-right text-green-500 font-semibold">{formatFinancialNumber(financials.cash_flow?.free_cash_flow)}</td>
-                </tr>
-                <tr className="border-b border-gray-800 hover:bg-gray-800/30">
-                  <td className="py-2 text-white">Capital Expenditure</td>
-                  <td className="text-right text-white">{formatFinancialNumber(financials.cash_flow?.capital_expenditure)}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        ) : viewMode === 'chart' && financials ? (
-          <div className="h-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={getChartData()}>
-                <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
-                <XAxis dataKey="name" tick={{ fill: chartTheme.text, fontSize: 11 }} angle={-45} textAnchor="end" height={80} />
-                <YAxis tick={{ fill: chartTheme.text, fontSize: 11 }} tickFormatter={(value) => formatFinancialNumber(value)} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: chartTheme.tooltip.background, border: `1px solid ${chartTheme.tooltip.border}` }}
-                  labelStyle={{ color: chartTheme.tooltip.text }}
-                  formatter={(value) => formatFinancialNumber(value)}
-                />
-                <Bar dataKey="value" fill="#3b82f6" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        ) : (
-          <NoDataState message="No financial data available" />
-        )}
+    const MetricRow = ({ label, value, highlight = false }) => (
+      <tr className="border-b border-gray-800 hover:bg-gray-800/30">
+        <td className="py-1.5 text-gray-300 text-xs">{label}</td>
+        <td className={`text-right py-1.5 text-xs font-medium ${highlight ? 'text-green-400' : 'text-white'}`}>{value}</td>
+      </tr>
+    );
+
+    const SectionHeader = ({ title }) => (
+      <tr className="border-b border-gray-700">
+        <td colSpan="2" className="py-1.5 text-blue-400 font-semibold text-[10px] uppercase">{title}</td>
+      </tr>
+    );
+
+    return (
+      <div className="overflow-auto h-full">
+        <table className="w-full text-xs">
+          <tbody>
+            <SectionHeader title="Income Statement" />
+            <MetricRow label="Revenue" value={formatFinancialNumber(financials.income_statement?.revenue)} />
+            <MetricRow label="Cost of Revenue" value={formatFinancialNumber(financials.income_statement?.cost_of_revenue)} />
+            <MetricRow label="Gross Profit" value={formatFinancialNumber(financials.income_statement?.gross_profit)} />
+            <MetricRow label="Operating Income" value={formatFinancialNumber(financials.income_statement?.operating_income)} />
+            <MetricRow label="Net Income" value={formatFinancialNumber(financials.income_statement?.net_income)} highlight />
+            <MetricRow label="EBITDA" value={formatFinancialNumber(financials.income_statement?.ebitda)} />
+            <MetricRow label="EPS (Basic)" value={formatFinancialNumber(financials.income_statement?.basic_eps)} />
+
+            <SectionHeader title="Balance Sheet" />
+            <MetricRow label="Total Assets" value={formatFinancialNumber(financials.balance_sheet?.total_assets)} />
+            <MetricRow label="Current Assets" value={formatFinancialNumber(financials.balance_sheet?.current_assets)} />
+            <MetricRow label="Cash" value={formatFinancialNumber(financials.balance_sheet?.cash)} />
+            <MetricRow label="Total Liabilities" value={formatFinancialNumber(financials.balance_sheet?.total_liabilities)} />
+            <MetricRow label="Total Equity" value={formatFinancialNumber(financials.balance_sheet?.total_equity)} />
+            <MetricRow label="Total Debt" value={formatFinancialNumber(financials.balance_sheet?.total_debt)} />
+
+            <SectionHeader title="Cash Flow" />
+            <MetricRow label="Operating CF" value={formatFinancialNumber(financials.cash_flow?.operating_cash_flow)} />
+            <MetricRow label="Free Cash Flow" value={formatFinancialNumber(financials.cash_flow?.free_cash_flow)} highlight />
+            <MetricRow label="CapEx" value={formatFinancialNumber(financials.cash_flow?.capital_expenditure)} />
+          </tbody>
+        </table>
       </div>
-    </div>
+    );
+  };
+
+  return (
+    <BaseWidget
+      title={`${symbol} - Financials`}
+      icon={BarChart3}
+      iconColor="text-blue-400"
+      loading={loading}
+      onRefresh={loadData}
+      onRemove={onRemove}
+      viewMode={viewMode}
+      onViewModeChange={setViewMode}
+      showPeriodSelector={false}
+    >
+      <div className="h-full p-3">
+        {viewMode === 'chart' ? renderChart() : renderTable()}
+      </div>
+    </BaseWidget>
   );
 };
 

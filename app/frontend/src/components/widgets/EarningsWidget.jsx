@@ -1,140 +1,147 @@
 /**
- * EarningsWidget - Displays quarterly earnings data with EPS beat/miss
+ * EarningsWidget - Displays quarterly earnings data using BaseWidget
  */
-import { useState, useEffect } from 'react';
-import { Calendar, TrendingUp, TrendingDown } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Calendar, TrendingUp, TrendingDown, BarChart2, Table } from 'lucide-react';
 import {
-  WidgetHeader,
-  LoadingSpinner,
-  NoDataState,
-  formatNumber,
-  formatPrice,
-  API_BASE,
-  WIDGET_STYLES,
-} from './common';
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ResponsiveContainer, ReferenceLine
+} from 'recharts';
+import BaseWidget from './common/BaseWidget';
+import { formatNumber, formatPrice, API_BASE } from './common';
+
+const CustomTooltip = ({ active, payload, label }) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-[#1a1a1f] border border-gray-700 rounded px-3 py-2 shadow-lg">
+        <p className="text-gray-400 text-xs mb-1">{label}</p>
+        {payload.map((entry, index) => (
+          <p key={index} className="text-xs" style={{ color: entry.color }}>
+            {entry.name}: ${entry.value?.toFixed(2)}
+          </p>
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
 
 const EarningsWidget = ({ symbol, onRemove }) => {
   const [earnings, setEarnings] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [viewMode, setViewMode] = useState('table');
 
-  useEffect(() => {
-    if (symbol) {
-      loadData();
-    }
-  }, [symbol]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
+    if (!symbol) return;
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE}/stock/earnings/${symbol}`);
-      if (res.ok) {
-        setEarnings(await res.json());
-      }
+      if (res.ok) setEarnings(await res.json());
     } catch (error) {
       console.error('Error loading earnings:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [symbol]);
 
-  const getSurpriseColor = (surprise) => {
-    if (surprise === null || surprise === undefined) return 'text-gray-400';
-    if (surprise > 0) return 'text-green-400';
-    if (surprise < 0) return 'text-red-400';
-    return 'text-gray-400';
-  };
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const getSurpriseBadge = (surprise) => {
     if (surprise === null || surprise === undefined) return null;
     const isPositive = surprise > 0;
     return (
-      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
+      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${
         isPositive ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
       }`}>
-        {isPositive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+        {isPositive ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
         {isPositive ? '+' : ''}{surprise?.toFixed(2)}%
       </span>
     );
   };
 
-  return (
-    <div className={WIDGET_STYLES.container}>
-      <WidgetHeader
-        icon={Calendar}
-        iconColor="text-amber-400"
-        title={`${symbol} - Earnings`}
-        loading={loading}
-        onRefresh={loadData}
-        onRemove={onRemove}
-      />
+  const getChartData = () => {
+    if (!earnings?.earnings) return [];
+    return earnings.earnings.slice(0, 8).reverse().map(item => ({
+      period: item.fiscal_period || `Q${item.fiscal_quarter} ${item.fiscal_year}`,
+      actual: item.eps_actual,
+      estimated: item.eps_estimated,
+    }));
+  };
 
-      <div className={`${WIDGET_STYLES.content} p-3`}>
-        {loading ? (
-          <LoadingSpinner color="border-amber-500" />
-        ) : earnings?.earnings?.length > 0 ? (
-          <div className="space-y-3">
-            {/* Header */}
-            <div className="grid grid-cols-4 gap-2 text-xs text-gray-500 font-medium pb-2 border-b border-gray-800">
-              <div>Period</div>
-              <div className="text-right">EPS Actual</div>
-              <div className="text-right">EPS Est.</div>
-              <div className="text-right">Surprise</div>
-            </div>
+  const renderChart = () => {
+    const chartData = getChartData();
+    if (chartData.length === 0) return <div className="flex items-center justify-center h-full text-gray-500">No data</div>;
 
-            {/* Earnings List */}
+    return (
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+          <XAxis dataKey="period" tick={{ fill: '#6b7280', fontSize: 9 }} axisLine={{ stroke: '#374151' }} />
+          <YAxis tick={{ fill: '#6b7280', fontSize: 9 }} axisLine={{ stroke: '#374151' }} tickFormatter={(v) => `$${v}`} />
+          <Tooltip content={<CustomTooltip />} />
+          <Legend wrapperStyle={{ fontSize: '10px' }} />
+          <ReferenceLine y={0} stroke="#4b5563" />
+          <Bar dataKey="estimated" fill="#6b7280" name="Estimated" />
+          <Bar dataKey="actual" fill="#22c55e" name="Actual" />
+        </BarChart>
+      </ResponsiveContainer>
+    );
+  };
+
+  const renderTable = () => {
+    if (!earnings?.earnings?.length) return <div className="flex items-center justify-center h-full text-gray-500">No data</div>;
+
+    return (
+      <div className="overflow-auto h-full">
+        <table className="w-full text-xs">
+          <thead className="sticky top-0 bg-[#0d0d12]">
+            <tr className="border-b border-gray-800">
+              <th className="text-left py-2 px-2 text-gray-400 font-medium">Period</th>
+              <th className="text-right py-2 px-2 text-gray-400 font-medium">Actual</th>
+              <th className="text-right py-2 px-2 text-gray-400 font-medium">Est.</th>
+              <th className="text-right py-2 px-2 text-gray-400 font-medium">Surprise</th>
+            </tr>
+          </thead>
+          <tbody>
             {earnings.earnings.slice(0, 8).map((item, idx) => (
-              <div
-                key={idx}
-                className="grid grid-cols-4 gap-2 py-2 border-b border-gray-800/50 last:border-0 hover:bg-gray-800/30 rounded transition-colors"
-              >
-                <div>
-                  <div className="text-white text-sm font-medium">
-                    {item.fiscal_period || `Q${item.fiscal_quarter}`}
-                  </div>
-                  <div className="text-xs text-gray-500">{item.fiscal_year}</div>
-                </div>
-                <div className="text-right">
-                  <span className="text-white font-medium">
-                    {item.eps_actual !== null ? formatPrice(item.eps_actual) : 'N/A'}
-                  </span>
-                </div>
-                <div className="text-right">
-                  <span className="text-gray-400">
-                    {item.eps_estimated !== null ? formatPrice(item.eps_estimated) : 'N/A'}
-                  </span>
-                </div>
-                <div className="text-right">
-                  {getSurpriseBadge(item.eps_surprise_percent)}
-                </div>
-              </div>
+              <tr key={idx} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                <td className="py-2 px-2">
+                  <div className="text-white text-xs font-medium">{item.fiscal_period || `Q${item.fiscal_quarter}`}</div>
+                  <div className="text-[10px] text-gray-500">{item.fiscal_year}</div>
+                </td>
+                <td className="text-right py-2 px-2 text-white font-medium">
+                  {item.eps_actual !== null ? formatPrice(item.eps_actual) : 'N/A'}
+                </td>
+                <td className="text-right py-2 px-2 text-gray-400">
+                  {item.eps_estimated !== null ? formatPrice(item.eps_estimated) : 'N/A'}
+                </td>
+                <td className="text-right py-2 px-2">{getSurpriseBadge(item.eps_surprise_percent)}</td>
+              </tr>
             ))}
-
-            {/* Revenue Summary */}
-            {earnings.earnings[0]?.revenue_actual && (
-              <div className="mt-4 pt-3 border-t border-gray-700">
-                <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Latest Revenue</h4>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-400 text-sm">Revenue</span>
-                  <span className="text-white font-medium">
-                    {formatNumber(earnings.earnings[0].revenue_actual)}
-                  </span>
-                </div>
-                {earnings.earnings[0].net_income && (
-                  <div className="flex justify-between items-center mt-1">
-                    <span className="text-gray-400 text-sm">Net Income</span>
-                    <span className="text-white font-medium">
-                      {formatNumber(earnings.earnings[0].net_income)}
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        ) : (
-          <NoDataState message="No earnings data available" />
-        )}
+          </tbody>
+        </table>
       </div>
-    </div>
+    );
+  };
+
+  return (
+    <BaseWidget
+      title={`${symbol} - Earnings`}
+      icon={Calendar}
+      iconColor="text-amber-400"
+      loading={loading}
+      onRefresh={loadData}
+      onRemove={onRemove}
+      viewMode={viewMode}
+      onViewModeChange={setViewMode}
+      showPeriodSelector={false}
+    >
+      <div className="h-full p-3">
+        {viewMode === 'chart' ? renderChart() : renderTable()}
+      </div>
+    </BaseWidget>
   );
 };
 

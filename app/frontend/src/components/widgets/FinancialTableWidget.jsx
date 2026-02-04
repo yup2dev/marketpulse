@@ -1,25 +1,25 @@
 /**
- * Financial Table Widget - Clean table design like img.png
- * Displays financial statements in a compact, professional format
+ * Financial Table Widget - Clean table design using BaseWidget
  */
-import { useState, useEffect, memo } from 'react';
-import { FileText, Table2, BarChart3 } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { FileText } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { WidgetHeader, WIDGET_STYLES, LoadingSpinner, formatNumber, API_BASE } from './common';
+import BaseWidget from './common/BaseWidget';
+import { formatNumber, API_BASE } from './common';
 import ErrorBoundary from '../common/ErrorBoundary';
 
 const STATEMENT_TABS = [
-  { id: 'income', label: 'Income Statement' },
-  { id: 'balance', label: 'Balance Sheet' },
-  { id: 'cashflow', label: 'Cash Flow Statement' },
+  { id: 'income', label: 'Income' },
+  { id: 'balance', label: 'Balance' },
+  { id: 'cashflow', label: 'Cash Flow' },
 ];
 
 const INCOME_METRICS = [
   { key: 'revenue', label: 'Revenue' },
   { key: 'cost_of_revenue', label: 'Cost Of Revenue' },
   { key: 'gross_profit', label: 'Gross Profit' },
-  { key: 'research_and_development', label: 'Research And Development Expenses' },
-  { key: 'selling_general_administrative', label: 'Selling General And Administrative Expenses' },
+  { key: 'research_and_development', label: 'R&D Expenses' },
+  { key: 'selling_general_administrative', label: 'SG&A Expenses' },
   { key: 'operating_expenses', label: 'Operating Expenses' },
   { key: 'operating_income', label: 'Operating Income' },
   { key: 'interest_expense', label: 'Interest Expense' },
@@ -64,11 +64,8 @@ export default function FinancialTableWidget({ symbol = 'AAPL', onRemove }) {
   const [period, setPeriod] = useState('quarterly');
   const [viewMode, setViewMode] = useState('table');
 
-  useEffect(() => {
-    if (symbol) loadFinancials();
-  }, [symbol, period]);
-
-  const loadFinancials = async () => {
+  const loadFinancials = useCallback(async () => {
+    if (!symbol) return;
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE}/stock/financials/${symbol}?freq=${period}&limit=6`);
@@ -78,7 +75,11 @@ export default function FinancialTableWidget({ symbol = 'AAPL', onRemove }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [symbol, period]);
+
+  useEffect(() => {
+    loadFinancials();
+  }, [loadFinancials]);
 
   const getMetrics = () => {
     switch (activeTab) {
@@ -134,15 +135,13 @@ export default function FinancialTableWidget({ symbol = 'AAPL', onRemove }) {
     }
 
     return (
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto h-full">
         <table className="w-full text-xs">
-          <thead>
+          <thead className="sticky top-0 bg-[#0d0d12]">
             <tr className="border-b border-gray-800">
-              <th className="text-left py-2 px-3 text-gray-400 font-medium sticky left-0 bg-[#0d0d12] min-w-[200px]">
-                Metric
-              </th>
+              <th className="text-left py-2 px-3 text-gray-400 font-medium sticky left-0 bg-[#0d0d12] min-w-[180px]">Metric</th>
               {periods.map((p, idx) => (
-                <th key={idx} className="text-right py-2 px-3 text-gray-400 font-medium min-w-[90px]">
+                <th key={idx} className="text-right py-2 px-3 text-gray-400 font-medium min-w-[80px]">
                   {formatPeriodLabel(p.date)}
                 </th>
               ))}
@@ -156,9 +155,9 @@ export default function FinancialTableWidget({ symbol = 'AAPL', onRemove }) {
 
               return (
                 <tr key={key} className="border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors">
-                  <td className="py-2 px-3 text-gray-300 sticky left-0 bg-[#0d0d12]">{label}</td>
+                  <td className="py-1.5 px-3 text-gray-300 sticky left-0 bg-[#0d0d12]">{label}</td>
                   {values.map((value, idx) => (
-                    <td key={idx} className="text-right py-2 px-3 text-white font-medium tabular-nums">
+                    <td key={idx} className="text-right py-1.5 px-3 text-white font-medium tabular-nums">
                       {typeof value === 'number' ? formatNumber(value) : '-'}
                     </td>
                   ))}
@@ -201,7 +200,7 @@ export default function FinancialTableWidget({ symbol = 'AAPL', onRemove }) {
     const config = chartConfig[activeTab];
 
     return (
-      <div className="p-4 h-[250px]">
+      <div className="p-4 h-full">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" stroke="#333" />
@@ -213,7 +212,7 @@ export default function FinancialTableWidget({ symbol = 'AAPL', onRemove }) {
               formatter={(value) => formatNumber(value)}
               isAnimationActive={false}
             />
-            <Legend />
+            <Legend wrapperStyle={{ fontSize: '10px' }} />
             {config.map((item, idx) => (
               <Bar key={idx} dataKey={item.dataKey} name={item.name} fill={item.fill} isAnimationActive={false} />
             ))}
@@ -223,85 +222,73 @@ export default function FinancialTableWidget({ symbol = 'AAPL', onRemove }) {
     );
   };
 
+  // Custom header extra content for period and statement tabs
+  const headerExtra = (
+    <>
+      {/* Period Toggle */}
+      <div className="flex bg-gray-800 rounded p-0.5 mr-1">
+        <button
+          onClick={() => setPeriod('quarterly')}
+          className={`px-2 py-0.5 text-[10px] rounded transition-colors ${
+            period === 'quarterly' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'
+          }`}
+        >
+          QTR
+        </button>
+        <button
+          onClick={() => setPeriod('annual')}
+          className={`px-2 py-0.5 text-[10px] rounded transition-colors ${
+            period === 'annual' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'
+          }`}
+        >
+          Annual
+        </button>
+      </div>
+    </>
+  );
+
   return (
-    <div className={WIDGET_STYLES.container}>
-      <WidgetHeader
-        icon={FileText}
-        iconColor="text-purple-400"
-        title={`Financial Statement`}
-        loading={loading}
-        onRefresh={loadFinancials}
-        onRemove={onRemove}
-      >
-        {/* Period Toggle */}
-        <div className="flex bg-gray-800 rounded p-0.5 mr-1">
-          <button
-            onClick={() => setPeriod('quarterly')}
-            className={`px-2 py-0.5 text-[10px] rounded transition-colors ${
-              period === 'quarterly' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'
-            }`}
-          >
-            QTR
-          </button>
-          <button
-            onClick={() => setPeriod('annual')}
-            className={`px-2 py-0.5 text-[10px] rounded transition-colors ${
-              period === 'annual' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'
-            }`}
-          >
-            Annual
-          </button>
+    <BaseWidget
+      title={`${symbol} - Financials`}
+      icon={FileText}
+      iconColor="text-purple-400"
+      loading={loading}
+      onRefresh={loadFinancials}
+      onRemove={onRemove}
+      viewMode={viewMode}
+      onViewModeChange={setViewMode}
+      showPeriodSelector={false}
+      headerExtra={headerExtra}
+    >
+      <div className="h-full flex flex-col">
+        {/* Statement Tabs */}
+        <div className="flex border-b border-gray-800 px-3 flex-shrink-0">
+          {STATEMENT_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-3 py-2 text-xs font-medium transition-colors border-b-2 -mb-px ${
+                activeTab === tab.id
+                  ? 'text-purple-400 border-purple-400'
+                  : 'text-gray-500 border-transparent hover:text-gray-300'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
-        {/* View Mode Toggle */}
-        <div className="flex bg-gray-800 rounded p-0.5">
-          <button
-            onClick={() => setViewMode('table')}
-            className={`p-1 rounded transition-colors ${
-              viewMode === 'table' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'
-            }`}
-          >
-            <Table2 size={12} />
-          </button>
-          <button
-            onClick={() => setViewMode('chart')}
-            className={`p-1 rounded transition-colors ${
-              viewMode === 'chart' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'
-            }`}
-          >
-            <BarChart3 size={12} />
-          </button>
+
+        {/* Content */}
+        <div className="flex-1 min-h-0 overflow-auto">
+          {viewMode === 'table' ? (
+            renderTable()
+          ) : (
+            <ErrorBoundary>
+              {renderChart()}
+            </ErrorBoundary>
+          )}
         </div>
-      </WidgetHeader>
-
-      {/* Statement Tabs */}
-      <div className="flex border-b border-gray-800 px-3">
-        {STATEMENT_TABS.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`px-3 py-2 text-xs font-medium transition-colors border-b-2 -mb-px ${
-              activeTab === tab.id
-                ? 'text-purple-400 border-purple-400'
-                : 'text-gray-500 border-transparent hover:text-gray-300'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
       </div>
-
-      {/* Content */}
-      <div className={WIDGET_STYLES.content}>
-        {loading ? (
-          <LoadingSpinner color="border-purple-500" />
-        ) : viewMode === 'table' ? (
-          renderTable()
-        ) : (
-          <ErrorBoundary>
-            {renderChart()}
-          </ErrorBoundary>
-        )}
-      </div>
-    </div>
+    </BaseWidget>
   );
 }

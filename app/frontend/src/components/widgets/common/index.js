@@ -5,6 +5,7 @@
 
 // Components
 export { default as WidgetHeader } from './WidgetHeader';
+export { default as BaseWidget, PERIOD_OPTIONS } from './BaseWidget';
 
 // Utilities
 export * from '../../../utils/widgetUtils';

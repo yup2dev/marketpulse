@@ -4,7 +4,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import GridLayout from 'react-grid-layout';
-import MacroChartWidget from '../widgets/macro/MacroChartWidget';
+// Individual macro widgets using BaseWidget
+import GDPForecastWidget from '../widgets/macro/GDPForecastWidget';
+import InflationMomentumWidget from '../widgets/macro/InflationMomentumWidget';
+import InitialClaimsWidget from '../widgets/macro/InitialClaimsWidget';
+import JobsBreakdownWidget from '../widgets/macro/JobsBreakdownWidget';
+// Tab components
 import MacroRegimeTab from './MacroRegimeTab';
 import MacroFedPolicyTab from './MacroFedPolicyTab';
 import MacroYieldCurveTab from './MacroYieldCurveTab';
@@ -234,10 +239,13 @@ export default function MacroDashboard() {
 
     switch (widget.type) {
       case 'gdp-forecast':
+        return <GDPForecastWidget onRemove={onRemove} />;
       case 'inflation-momentum':
+        return <InflationMomentumWidget onRemove={onRemove} />;
       case 'initial-claims':
+        return <InitialClaimsWidget onRemove={onRemove} />;
       case 'jobs-breakdown':
-        return <MacroChartWidget chartType={widget.type} onRemove={onRemove} />;
+        return <JobsBreakdownWidget onRemove={onRemove} />;
       case 'regime-tab':
         return (
           <TabWidgetWrapper title="Economic Regime" onRemove={onRemove}>
@@ -334,7 +342,7 @@ export default function MacroDashboard() {
           rowHeight={50}
           width={gridWidth - 32}
           onLayoutChange={handleLayoutChange}
-          draggableHandle=".drag-handle"
+          draggableHandle=".drag-handle-area"
           compactType="vertical"
           preventCollision={false}
           isResizable={true}
