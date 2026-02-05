@@ -210,6 +210,21 @@ class SEC13FFetcher(Fetcher[InstitutionalHoldingsQueryParams, InstitutionalHoldi
     @staticmethod
     def _get_latest_filing(cik: str, headers: Dict) -> Optional[str]:
         """Get URL of latest 13F-HR filing"""
+        urls = SEC13FFetcher._get_filing_urls(cik, headers, count=1)
+        return urls[0] if urls else None
+
+    @staticmethod
+    def _get_filing_urls(cik: str, headers: Dict, count: int = 2) -> List[str]:
+        """Get URLs of the most recent 13F-HR filings
+
+        Args:
+            cik: SEC CIK number
+            headers: HTTP headers for SEC requests
+            count: Number of filings to retrieve (default 2 for QoQ comparison)
+
+        Returns:
+            List of filing URLs, most recent first
+        """
         url = "https://www.sec.gov/cgi-bin/browse-edgar"
         params = {
             'action': 'getcompany',
@@ -217,9 +232,10 @@ class SEC13FFetcher(Fetcher[InstitutionalHoldingsQueryParams, InstitutionalHoldi
             'type': '13F-HR',
             'dateb': '',
             'owner': 'exclude',
-            'count': '1'
+            'count': str(count)
         }
 
+        filing_urls = []
         try:
             response = requests.get(url, params=params, headers=headers, timeout=30)
             response.raise_for_status()
@@ -232,12 +248,14 @@ class SEC13FFetcher(Fetcher[InstitutionalHoldingsQueryParams, InstitutionalHoldi
                 if len(cols) >= 4 and cols[0].text.strip() == '13F-HR':
                     doc_link = cols[1].find('a')
                     if doc_link:
-                        return "https://www.sec.gov" + doc_link['href']
+                        filing_urls.append("https://www.sec.gov" + doc_link['href'])
+                        if len(filing_urls) >= count:
+                            break
 
         except Exception as e:
-            log.error(f"Error getting filing URL: {e}")
+            log.error(f"Error getting filing URLs: {e}")
 
-        return None
+        return filing_urls
 
     @staticmethod
     def _parse_filing(filing_url: str, headers: Dict) -> tuple[List[Dict], Optional[str]]:

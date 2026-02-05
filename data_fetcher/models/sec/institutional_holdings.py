@@ -27,6 +27,15 @@ class HoldingData(BaseModel):
     weight: float = Field(default=0.0, description="Portfolio weight percentage")
     share_type: str = Field(default="SH", description="Share type (SH=Shares, PRN=Principal)")
 
+    # QoQ comparison fields
+    prev_shares: Optional[int] = Field(None, description="Previous quarter shares")
+    prev_value: Optional[float] = Field(None, description="Previous quarter value")
+    share_change: Optional[int] = Field(None, description="Share change from previous quarter")
+    share_change_pct: Optional[float] = Field(None, description="Share change percentage")
+    value_change: Optional[float] = Field(None, description="Value change from previous quarter")
+    value_change_pct: Optional[float] = Field(None, description="Value change percentage")
+    status: Optional[str] = Field(None, description="Position status: new/increased/decreased/unchanged/sold")
+
 
 class InstitutionInfo(BaseModel):
     """Institution information"""
@@ -53,6 +62,8 @@ class InstitutionalHoldingsData(BaseModel):
     total_value: float = Field(description="Total portfolio value")
     num_holdings: int = Field(description="Number of holdings")
     stocks: List[HoldingData] = Field(default_factory=list, description="List of stock holdings")
+    sold_positions: List[HoldingData] = Field(default_factory=list, description="Positions sold out this quarter")
+    previous_filing_date: Optional[str] = Field(None, description="Previous quarter filing date")
 
     # Optional performance metrics (estimates or calculated)
     previous_value: Optional[float] = Field(None, description="Previous quarter value")

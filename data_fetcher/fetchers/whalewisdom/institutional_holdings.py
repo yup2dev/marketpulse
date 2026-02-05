@@ -10,6 +10,7 @@ from data_fetcher.fetchers.sec.institutional_13f import SEC13FFetcher, INSTITUTI
 from data_fetcher.models.sec.institutional_holdings import (
     InstitutionalHoldingsQueryParams,
     InstitutionalHoldingsData,
+    HoldingData,
     InstitutionInfo
 )
 
@@ -32,7 +33,7 @@ class WhaleWisdomFetcher(Fetcher[InstitutionalHoldingsQueryParams, Institutional
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any
     ) -> Dict[str, Any]:
-        """Extract 13F institutional holdings from SEC EDGAR
+        """Extract 13F institutional holdings from SEC EDGAR (2 quarters for QoQ)
 
         Args:
             query: Query parameters with institution_key
@@ -40,7 +41,7 @@ class WhaleWisdomFetcher(Fetcher[InstitutionalHoldingsQueryParams, Institutional
             **kwargs: Additional parameters
 
         Returns:
-            Raw data dictionary
+            Raw data dictionary with current and previous quarter holdings
         """
         institution_key = query.institution_key
 
@@ -50,11 +51,50 @@ class WhaleWisdomFetcher(Fetcher[InstitutionalHoldingsQueryParams, Institutional
                 f"Available: {list(INSTITUTIONS.keys())}"
             )
 
-        log.info(f"Fetching 13F holdings for {institution_key}")
+        inst_info = INSTITUTIONS[institution_key]
+        cik = inst_info['cik']
+
+        log.info(f"Fetching 2-quarter 13F holdings for {institution_key}")
+
+        headers = {
+            'User-Agent': 'MarketPulse research@marketpulse.com',
+            'Accept-Encoding': 'gzip, deflate',
+            'Host': 'www.sec.gov'
+        }
 
         try:
-            sec_fetcher = SEC13FFetcher()
-            return sec_fetcher.extract_data(query, credentials, **kwargs)
+            filing_urls = SEC13FFetcher._get_filing_urls(cik, headers, count=2)
+
+            if not filing_urls:
+                log.error(f"No 13F filings found for {inst_info['name']}")
+                return {
+                    'institution': inst_info,
+                    'holdings': [],
+                    'filing_date': None,
+                    'previous_holdings': [],
+                    'previous_filing_date': None
+                }
+
+            # Parse current quarter
+            current_holdings, current_filing_date = SEC13FFetcher._parse_filing(filing_urls[0], headers)
+            log.info(f"Current quarter: {len(current_holdings)} holdings, filed {current_filing_date}")
+
+            # Parse previous quarter if available
+            previous_holdings = []
+            previous_filing_date = None
+            if len(filing_urls) >= 2:
+                import time
+                time.sleep(0.2)  # SEC rate limiting
+                previous_holdings, previous_filing_date = SEC13FFetcher._parse_filing(filing_urls[1], headers)
+                log.info(f"Previous quarter: {len(previous_holdings)} holdings, filed {previous_filing_date}")
+
+            return {
+                'institution': inst_info,
+                'holdings': current_holdings,
+                'filing_date': current_filing_date,
+                'previous_holdings': previous_holdings,
+                'previous_filing_date': previous_filing_date
+            }
 
         except Exception as e:
             log.error(f"Error extracting data for {institution_key}: {e}")
@@ -66,80 +106,203 @@ class WhaleWisdomFetcher(Fetcher[InstitutionalHoldingsQueryParams, Institutional
         data: Dict[str, Any],
         **kwargs: Any
     ) -> List[InstitutionalHoldingsData]:
-        """Transform raw SEC data to WhaleWisdom-style format
+        """Transform raw SEC data to WhaleWisdom-style format with QoQ comparison
 
         Args:
             query: Query parameters
-            data: Raw data from SEC EDGAR
+            data: Raw data from SEC EDGAR (current + previous quarter)
             **kwargs: Additional parameters
 
         Returns:
-            List of InstitutionalHoldingsData
+            List of InstitutionalHoldingsData with per-stock QoQ changes
         """
         try:
-            sec_fetcher = SEC13FFetcher()
-            portfolio_list = sec_fetcher.transform_data(query, data, **kwargs)
+            inst_info = data['institution']
+            current_holdings_raw = data['holdings']
+            filing_date = data.get('filing_date', '2024-12-31')
+            previous_holdings_raw = data.get('previous_holdings', [])
+            previous_filing_date = data.get('previous_filing_date')
 
-            if not portfolio_list:
-                log.warning(f"No data transformed for {query.institution_key}")
+            if not current_holdings_raw:
+                log.warning(f"No holdings found for {inst_info['name']}")
                 return []
 
-            # Calculate metrics from real historical data
-            for i, portfolio in enumerate(portfolio_list):
-                # If we have previous quarter data, calculate real changes
-                if i < len(portfolio_list) - 1:
-                    previous_portfolio = portfolio_list[i + 1]
+            # Build previous quarter lookup: CUSIP -> holding dict
+            prev_by_cusip = {}
+            prev_by_symbol = {}
+            for h in previous_holdings_raw:
+                if h.get('share_type') == 'SH':
+                    cusip = h.get('cusip', '')
+                    symbol = h.get('symbol', '')
+                    if cusip:
+                        prev_by_cusip[cusip] = h
+                    if symbol:
+                        prev_by_symbol[symbol] = h
 
-                    # Real value change from previous quarter
-                    portfolio.previous_value = previous_portfolio.total_value
-                    portfolio.value_change = portfolio.total_value - previous_portfolio.total_value
-                    portfolio.value_change_pct = (
-                        (portfolio.value_change / previous_portfolio.total_value * 100)
-                        if previous_portfolio.total_value else 0
+            has_previous = len(prev_by_cusip) > 0 or len(prev_by_symbol) > 0
+
+            # Calculate total values
+            total_value = sum(h['value'] for h in current_holdings_raw if h.get('share_type') == 'SH')
+            prev_total_value = sum(h['value'] for h in previous_holdings_raw if h.get('share_type') == 'SH')
+
+            # Sort by value
+            holdings_sorted = sorted(current_holdings_raw, key=lambda x: x['value'], reverse=True)
+
+            # Track which previous positions were matched
+            matched_prev_cusips = set()
+            matched_prev_symbols = set()
+
+            # Convert to HoldingData with QoQ comparison
+            stock_holdings = []
+            num_new = 0
+            num_increased = 0
+            num_decreased = 0
+            turnover_value = 0.0
+
+            for holding in holdings_sorted[:query.limit]:
+                if holding.get('share_type') != 'SH':
+                    continue
+
+                weight = (holding['value'] / total_value * 100) if total_value > 0 else 0
+                cusip = holding.get('cusip', '')
+                symbol = holding.get('symbol', '') or cusip[:6]
+
+                # Match to previous quarter: CUSIP first, then symbol fallback
+                prev = None
+                if cusip and cusip in prev_by_cusip:
+                    prev = prev_by_cusip[cusip]
+                    matched_prev_cusips.add(cusip)
+                elif symbol and symbol in prev_by_symbol:
+                    prev = prev_by_symbol[symbol]
+                    matched_prev_symbols.add(symbol)
+
+                # Compute QoQ fields
+                prev_shares = None
+                prev_value = None
+                share_change = None
+                share_change_pct = None
+                h_value_change = None
+                h_value_change_pct = None
+                status = None
+
+                if has_previous:
+                    if prev:
+                        prev_shares = prev['shares']
+                        prev_value = prev['value']
+                        share_change = holding['shares'] - prev_shares
+                        share_change_pct = (share_change / prev_shares * 100) if prev_shares > 0 else None
+                        h_value_change = holding['value'] - prev_value
+                        h_value_change_pct = (h_value_change / prev_value * 100) if prev_value > 0 else None
+
+                        if share_change > 0:
+                            status = 'increased'
+                            num_increased += 1
+                        elif share_change < 0:
+                            status = 'decreased'
+                            num_decreased += 1
+                        else:
+                            status = 'unchanged'
+
+                        # Turnover
+                        current_price = (holding['value'] / holding['shares']) if holding['shares'] > 0 else 0
+                        turnover_value += abs(share_change * current_price)
+                    else:
+                        status = 'new'
+                        num_new += 1
+
+                stock_holdings.append(HoldingData(
+                    symbol=symbol,
+                    name=holding['name'],
+                    cusip=cusip,
+                    value=holding['value'],
+                    shares=holding['shares'],
+                    weight=round(weight, 2),
+                    share_type=holding['share_type'],
+                    prev_shares=prev_shares,
+                    prev_value=prev_value,
+                    share_change=share_change,
+                    share_change_pct=round(share_change_pct, 2) if share_change_pct is not None else None,
+                    value_change=h_value_change,
+                    value_change_pct=round(h_value_change_pct, 2) if h_value_change_pct is not None else None,
+                    status=status
+                ))
+
+            # Build sold_positions list from previous holdings not matched
+            sold_positions = []
+            if has_previous:
+                for h in previous_holdings_raw:
+                    if h.get('share_type') != 'SH':
+                        continue
+                    cusip = h.get('cusip', '')
+                    symbol = h.get('symbol', '') or cusip[:6]
+                    if cusip and cusip in matched_prev_cusips:
+                        continue
+                    if symbol and symbol in matched_prev_symbols:
+                        continue
+                    # Check if this CUSIP/symbol exists in current holdings at all
+                    in_current = any(
+                        (cusip and ch.get('cusip') == cusip) or (symbol and ch.get('symbol') == symbol)
+                        for ch in current_holdings_raw if ch.get('share_type') == 'SH'
                     )
+                    if not in_current:
+                        sold_positions.append(HoldingData(
+                            symbol=symbol,
+                            name=h['name'],
+                            cusip=cusip,
+                            value=h['value'],
+                            shares=h['shares'],
+                            weight=0.0,
+                            share_type=h.get('share_type', 'SH'),
+                            prev_shares=h['shares'],
+                            prev_value=h['value'],
+                            share_change=-h['shares'],
+                            share_change_pct=-100.0,
+                            value_change=-h['value'],
+                            value_change_pct=-100.0,
+                            status='sold'
+                        ))
 
-                    # Calculate position changes by comparing holdings
-                    current_holdings = {h.symbol: h for h in portfolio.stocks}
-                    previous_holdings = {h.symbol: h for h in previous_portfolio.stocks}
+            num_sold = len(sold_positions)
 
-                    portfolio.num_new_positions = len(set(current_holdings.keys()) - set(previous_holdings.keys()))
-                    portfolio.num_sold_out = len(set(previous_holdings.keys()) - set(current_holdings.keys()))
+            # Portfolio-level value change
+            portfolio_value_change = total_value - prev_total_value if has_previous else 0
+            portfolio_value_change_pct = (
+                (portfolio_value_change / prev_total_value * 100) if prev_total_value > 0 else 0
+            ) if has_previous else 0
 
-                    # Calculate increased/decreased positions
-                    portfolio.num_increased = 0
-                    portfolio.num_decreased = 0
-                    portfolio.turnover = 0.0
+            turnover_pct = (turnover_value / total_value * 100) if total_value > 0 else 0.0
 
-                    for ticker in set(current_holdings.keys()) & set(previous_holdings.keys()):
-                        current_shares = current_holdings[ticker].shares
-                        previous_shares = previous_holdings[ticker].shares
+            all_current_sh = len([h for h in current_holdings_raw if h.get('share_type') == 'SH'])
 
-                        if current_shares > previous_shares:
-                            portfolio.num_increased += 1
-                        elif current_shares < previous_shares:
-                            portfolio.num_decreased += 1
+            portfolio = InstitutionalHoldingsData(
+                id=f"13f_{query.institution_key}",
+                institution_key=query.institution_key,
+                name=inst_info['name'],
+                manager=inst_info['manager'],
+                description=f"13F Holdings - {inst_info['name']}",
+                category='13f',
+                source='SEC EDGAR',
+                filing_date=filing_date or '2024-12-31',
+                period_end=filing_date or '2024-12-31',
+                total_value=total_value,
+                num_holdings=all_current_sh,
+                stocks=stock_holdings,
+                sold_positions=sold_positions,
+                previous_filing_date=previous_filing_date,
+                previous_value=prev_total_value if has_previous else None,
+                value_change=portfolio_value_change if has_previous else None,
+                value_change_pct=round(portfolio_value_change_pct, 2) if has_previous else None,
+                num_new_positions=num_new,
+                num_sold_out=num_sold,
+                num_increased=num_increased,
+                num_decreased=num_decreased,
+                turnover=round(turnover_pct, 2)
+            )
 
-                        # Turnover calculation (sum of absolute changes / total value)
-                        # Calculate price from value/shares
-                        current_price = (current_holdings[ticker].value / current_holdings[ticker].shares) if current_holdings[ticker].shares > 0 else 0
-                        change_value = abs((current_shares - previous_shares) * current_price)
-                        portfolio.turnover += change_value
+            log.info(f"Transformed {len(stock_holdings)} holdings for {inst_info['name']} "
+                     f"(new={num_new}, sold={num_sold}, up={num_increased}, down={num_decreased})")
 
-                    if portfolio.total_value > 0:
-                        portfolio.turnover = (portfolio.turnover / portfolio.total_value) * 100
-                else:
-                    # For the oldest portfolio (no previous data), set defaults
-                    portfolio.previous_value = portfolio.total_value
-                    portfolio.value_change = 0
-                    portfolio.value_change_pct = 0
-                    portfolio.num_new_positions = len(portfolio.stocks)
-                    portfolio.num_sold_out = 0
-                    portfolio.num_increased = 0
-                    portfolio.num_decreased = 0
-                    portfolio.turnover = 0.0
-
-            log.info(f"Transformed {len(portfolio_list)} portfolios for {query.institution_key}")
-            return portfolio_list
+            return [portfolio]
 
         except Exception as e:
             log.error(f"Error transforming data: {e}")

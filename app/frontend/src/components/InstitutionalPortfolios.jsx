@@ -1,98 +1,98 @@
-import { useState, useEffect } from 'react';
+/**
+ * Institutional Portfolios - 13F Institutional Holdings
+ * Design based on ComparisonAnalysisTab terminal style
+ */
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
+  Plus,
+  X,
+  RefreshCw,
+  Copy,
+  MoreVertical,
   Building2,
   TrendingUp,
   TrendingDown,
-  Search,
   ChevronDown,
   ChevronUp,
-  BarChart3,
-  PieChart,
-  Activity,
-  Filter,
-  ChevronLeft,
-  ChevronRight,
-  X
+  Search,
+  ArrowUpRight,
+  ArrowDownRight,
 } from 'lucide-react';
-import Card from './widgets/common/Card';
-import MetricCard from './widgets/common/MetricCard';
-import SectionHeader from './widgets/common/SectionHeader';
-import { useLoading } from '../contexts/LoadingContext';
 import { API_BASE } from '../config/api';
 
-/**
- * InstitutionalPortfolios Component
- * Displays 13F institutional holdings with pagination and filtering
- * @param {string} symbol - Optional stock symbol to filter institutions by holdings
- */
+// Category tabs for different data views
+const CATEGORIES = [
+  { id: 'overview', name: 'Overview' },
+  { id: 'holdings', name: 'Top Holdings' },
+  { id: 'activity', name: 'Portfolio Activity' },
+];
+
+// Sort options
+const SORT_OPTIONS = [
+  { id: 'total_value', label: 'AUM' },
+  { id: 'num_holdings', label: 'Holdings' },
+  { id: 'value_change_pct', label: 'Change %' },
+];
+
+// Colors for institution indicators
+const INST_COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
+
 const InstitutionalPortfolios = ({ symbol = null }) => {
-  const { showLoading, hideLoading } = useLoading();
-
-  // State management
   const [institutions, setInstitutions] = useState([]);
+  const [selectedInstitutions, setSelectedInstitutions] = useState([]);
   const [portfolios, setPortfolios] = useState([]);
-  const [filteredPortfolios, setFilteredPortfolios] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [initialLoading, setInitialLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [expandedPortfolio, setExpandedPortfolio] = useState(null);
+  const [loadingKeys, setLoadingKeys] = useState(new Set());
+  const [activeCategory, setActiveCategory] = useState('overview');
   const [sortBy, setSortBy] = useState('total_value');
-  const [sortOrder, setSortOrder] = useState('desc');
-  const [selectedInstitution, setSelectedInstitution] = useState('');
   const [symbolFilter, setSymbolFilter] = useState(symbol || '');
+  const [showAddInst, setShowAddInst] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [expandedId, setExpandedId] = useState(null);
+  const addInstRef = useRef(null);
 
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (addInstRef.current && !addInstRef.current.contains(event.target)) {
+        setShowAddInst(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
-  // Load institutions list only on mount (no portfolio data)
+  // Load featured institutions list on mount (use_dynamic=false for the 20 supported institutions)
   useEffect(() => {
     fetchInstitutions();
   }, []);
 
-  // Filter and sort portfolios when search or sort changes
-  useEffect(() => {
-    filterAndSortPortfolios();
-  }, [portfolios, searchTerm, sortBy, sortOrder, symbolFilter]);
-
   // Update symbolFilter when symbol prop changes
   useEffect(() => {
-    if (symbol) {
-      setSymbolFilter(symbol);
-    }
+    if (symbol) setSymbolFilter(symbol);
   }, [symbol]);
 
-  // Reset to first page when filter changes
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [filteredPortfolios]);
-
   const fetchInstitutions = async () => {
-    setInitialLoading(true);
-    showLoading('기관 목록을 불러오는 중...');
+    setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/portfolio/13f/institutions`);
-      if (response.ok) {
-        const data = await response.json();
+      const res = await fetch(`${API_BASE}/portfolio/13f/institutions?use_dynamic=false`);
+      if (res.ok) {
+        const data = await res.json();
         setInstitutions(data.institutions || []);
       }
     } catch (error) {
       console.error('Error fetching institutions:', error);
     } finally {
-      setInitialLoading(false);
-      hideLoading();
+      setLoading(false);
     }
   };
 
-  const fetchPortfolio = async (institutionKey) => {
-    setLoading(true);
-    showLoading('포트폴리오 데이터를 불러오는 중...');
+  const fetchPortfolio = useCallback(async (instKey) => {
+    setLoadingKeys(prev => new Set([...prev, instKey]));
     try {
-      const response = await fetch(`${API_BASE}/portfolio/13f/${institutionKey}`);
-      if (response.ok) {
-        const data = await response.json();
-
-        // Add or update portfolio in list
+      const res = await fetch(`${API_BASE}/portfolio/13f/${instKey}`);
+      if (res.ok) {
+        const data = await res.json();
         setPortfolios(prev => {
           const filtered = prev.filter(p => p.id !== data.id);
           return [...filtered, data];
@@ -101,562 +101,667 @@ const InstitutionalPortfolios = ({ symbol = null }) => {
     } catch (error) {
       console.error('Error fetching portfolio:', error);
     } finally {
-      setLoading(false);
-      hideLoading();
+      setLoadingKeys(prev => {
+        const next = new Set(prev);
+        next.delete(instKey);
+        return next;
+      });
     }
+  }, []);
+
+  const addInstitution = (inst) => {
+    if (!selectedInstitutions.find(s => s.key === inst.key) && selectedInstitutions.length < 10) {
+      setSelectedInstitutions(prev => [...prev, inst]);
+      fetchPortfolio(inst.key);
+    }
+    setShowAddInst(false);
+    setSearchTerm('');
   };
 
-  const filterAndSortPortfolios = () => {
-    let result = [...portfolios];
+  const removeInstitution = (instKey) => {
+    setSelectedInstitutions(prev => prev.filter(s => s.key !== instKey));
+    setPortfolios(prev => prev.filter(p => p.institution_key !== instKey));
+  };
 
-    // Apply search filter
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      result = result.filter(p =>
-        p.name?.toLowerCase().includes(term) ||
-        p.manager?.toLowerCase().includes(term) ||
-        p.institution_key?.toLowerCase().includes(term)
-      );
-    }
+  const formatNumber = (value) => {
+    if (value === null || value === undefined) return '-';
+    if (Math.abs(value) >= 1e12) return `$${(value / 1e12).toFixed(2)}T`;
+    if (Math.abs(value) >= 1e9) return `$${(value / 1e9).toFixed(2)}B`;
+    if (Math.abs(value) >= 1e6) return `$${(value / 1e6).toFixed(2)}M`;
+    if (Math.abs(value) >= 1e3) return `$${(value / 1e3).toFixed(2)}K`;
+    return `$${value.toLocaleString()}`;
+  };
 
-    // Apply symbol filter - only show institutions that hold the specified stock
-    if (symbolFilter) {
-      const symUpper = symbolFilter.toUpperCase();
-      result = result.filter(p =>
-        p.stocks?.some(stock =>
-          stock.symbol?.toUpperCase() === symUpper ||
-          stock.cusip?.toUpperCase() === symUpper
-        )
-      );
-    }
+  const formatShares = (val) => {
+    if (!val) return '-';
+    if (val >= 1e6) return (val / 1e6).toFixed(2) + 'M';
+    if (val >= 1e3) return (val / 1e3).toFixed(1) + 'K';
+    return val.toLocaleString();
+  };
 
-    // Apply sorting
-    result.sort((a, b) => {
-      let aVal = a[sortBy] || 0;
-      let bVal = b[sortBy] || 0;
+  // Filter institutions search
+  const filteredInstitutions = institutions.filter(inst => {
+    const term = searchTerm.toLowerCase();
+    if (!term) return true;
+    return (
+      inst.manager?.toLowerCase().includes(term) ||
+      inst.name?.toLowerCase().includes(term) ||
+      inst.key?.toLowerCase().includes(term)
+    );
+  });
 
-      if (sortOrder === 'asc') {
-        return aVal > bVal ? 1 : -1;
-      } else {
-        return aVal < bVal ? 1 : -1;
-      }
+  // Filter portfolios by symbol if symbolFilter is set
+  const displayPortfolios = symbolFilter
+    ? portfolios.filter(p =>
+        p.stocks?.some(s => s.symbol?.toUpperCase() === symbolFilter.toUpperCase())
+      )
+    : portfolios;
+
+  // Sort portfolios
+  const sortedPortfolios = [...displayPortfolios].sort((a, b) => {
+    const aVal = a[sortBy] || 0;
+    const bVal = b[sortBy] || 0;
+    return bVal - aVal;
+  });
+
+  // Get all unique holdings across portfolios for the "holdings" view
+  const getAllHoldings = () => {
+    const holdingsMap = {};
+    sortedPortfolios.forEach((portfolio) => {
+      (portfolio.stocks || []).forEach(stock => {
+        const sym = stock.symbol?.toUpperCase();
+        if (!sym) return;
+        if (!holdingsMap[sym]) {
+          holdingsMap[sym] = {
+            symbol: sym,
+            name: stock.name,
+            totalValue: 0,
+            totalShares: 0,
+            holders: 0,
+            weights: [],
+            institutions: [],
+          };
+        }
+        holdingsMap[sym].totalValue += stock.value || 0;
+        holdingsMap[sym].totalShares += stock.shares || 0;
+        holdingsMap[sym].holders += 1;
+        holdingsMap[sym].weights.push(stock.weight || 0);
+        holdingsMap[sym].institutions.push(portfolio.manager);
+      });
     });
 
-    setFilteredPortfolios(result);
+    return Object.values(holdingsMap)
+      .map(h => ({
+        ...h,
+        avgWeight: h.weights.length ? (h.weights.reduce((a, b) => a + b, 0) / h.weights.length) : 0,
+      }))
+      .sort((a, b) => b.totalValue - a.totalValue)
+      .slice(0, 50);
   };
 
-  const togglePortfolio = (portfolioId) => {
-    setExpandedPortfolio(expandedPortfolio === portfolioId ? null : portfolioId);
-  };
-
-  const handleSort = (field) => {
-    if (sortBy === field) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortBy(field);
-      setSortOrder('desc');
-    }
-  };
-
-  // Pagination calculations
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentPortfolios = filteredPortfolios.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(filteredPortfolios.length / itemsPerPage);
-
-  const goToPage = (page) => {
-    setCurrentPage(Math.min(Math.max(1, page), totalPages));
-  };
+  const isAnyLoading = loadingKeys.size > 0 || loading;
 
   return (
-    <div className="flex flex-col h-full gap-6 p-6 bg-[#0a0e14]">
+    <div className="h-full flex flex-col bg-[#0a0a0f]">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-white flex items-center gap-3">
-            <Building2 className="text-blue-500" size={32} />
-            Institutional Holdings
-          </h1>
-          <p className="text-sm text-gray-400 mt-2">
-            Track the portfolios of top institutional investors
-          </p>
-        </div>
-        <div className="text-right">
-          <div className="text-2xl font-bold text-white">
-            {institutions.length}
-          </div>
-          <div className="text-xs text-gray-400">Institutions Available</div>
-        </div>
-      </div>
-
-      {/* Institution Selector */}
-      <Card>
-        <div className="p-4">
-          <div className="flex items-center gap-4">
-            <label className="text-sm font-medium text-gray-300 whitespace-nowrap">Select Institution:</label>
-            <select
-              value={selectedInstitution}
-              onChange={(e) => {
-                setSelectedInstitution(e.target.value);
-                if (e.target.value) {
-                  fetchPortfolio(e.target.value);
-                }
-              }}
-              className="flex-1 px-3 py-2 bg-[#0a0e14] border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500 hover:border-gray-600 transition-colors"
-              disabled={loading || initialLoading}
-            >
-              <option value="">Choose from {institutions.length} institutions...</option>
-              {institutions.map(inst => (
-                <option key={inst.key} value={inst.key}>
-                  {inst.manager} - {inst.name}
-                </option>
-              ))}
-            </select>
-            {loading && (
-              <div className="flex items-center gap-2 text-blue-400">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400"></div>
-                <span className="text-sm">Loading...</span>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Institution chips */}
+          <div className="flex items-center gap-1 flex-wrap">
+            {selectedInstitutions.length === 0 && (
+              <div className="flex items-center gap-2 px-2 py-1 text-xs text-gray-500">
+                <Building2 size={14} />
+                <span>No institution selected</span>
               </div>
             )}
-          </div>
-        </div>
-      </Card>
-
-      {/* Search and Filter Bar */}
-      {portfolios.length > 0 && (
-        <Card>
-          <div className="p-4">
-            <div className="flex gap-4">
-              {/* Search */}
-              <div className="flex-1">
-                <div className="relative">
-                  <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-3 py-2 bg-[#0a0e14] border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500 hover:border-gray-600 transition-colors"
-                    placeholder="Search by manager or institution name..."
-                  />
-                </div>
-              </div>
-
-              {/* Symbol Filter */}
-              <div className="w-40">
-                <div className="relative">
-                  <Filter className="absolute left-3 top-2.5 text-gray-400" size={18} />
-                  <input
-                    type="text"
-                    value={symbolFilter}
-                    onChange={(e) => setSymbolFilter(e.target.value.toUpperCase())}
-                    className="w-full pl-10 pr-3 py-2 bg-[#0a0e14] border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500 hover:border-gray-600 transition-colors uppercase"
-                    placeholder="Symbol"
-                  />
-                </div>
-              </div>
-
-              {/* Sort */}
-              <div className="w-52">
-                <select
-                  value={sortBy}
-                  onChange={(e) => handleSort(e.target.value)}
-                  className="w-full px-3 py-2 bg-[#0a0e14] border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500 hover:border-gray-600 transition-colors"
+            {selectedInstitutions.map((inst, idx) => (
+              <div
+                key={inst.key}
+                className="flex items-center gap-1 px-2 py-1 bg-gray-800 rounded text-xs"
+              >
+                <span className="text-cyan-400 font-medium">{idx + 1}</span>
+                <span className="text-white truncate max-w-[120px]" title={inst.manager}>
+                  {inst.manager}
+                </span>
+                {loadingKeys.has(inst.key) && (
+                  <RefreshCw size={10} className="animate-spin text-cyan-400 ml-1" />
+                )}
+                <button
+                  onClick={(e) => { e.stopPropagation(); removeInstitution(inst.key); }}
+                  className="ml-1 text-gray-500 hover:text-red-400"
                 >
-                  <option value="total_value">Sort by Total Value</option>
-                  <option value="num_holdings">Sort by Holdings Count</option>
-                  <option value="value_change_pct">Sort by Change %</option>
-                </select>
+                  <X size={12} />
+                </button>
               </div>
-            </div>
-            {symbolFilter && (
-              <div className="mt-2 flex items-center gap-2">
-                <span className="text-sm text-gray-400">
-                  Filtering by holders of:
-                </span>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded text-sm font-medium">
-                  {symbolFilter}
-                  <button
-                    onClick={() => setSymbolFilter('')}
-                    className="hover:text-red-400 transition-colors ml-1"
-                  >
-                    <X size={14} />
-                  </button>
-                </span>
-                <span className="text-sm text-gray-500">
-                  ({filteredPortfolios.length} institutions)
-                </span>
+            ))}
+          </div>
+
+          {/* Add institution */}
+          <div className="relative" ref={addInstRef}>
+            <button
+              onClick={() => setShowAddInst(!showAddInst)}
+              className="flex items-center gap-1 px-2 py-1 text-xs text-cyan-400 hover:bg-gray-800 rounded"
+            >
+              <Plus size={14} />
+              Add Institution
+            </button>
+
+            {showAddInst && (
+              <div className="absolute top-full left-0 mt-1 w-80 bg-[#1a1a1f] border border-gray-700 rounded-lg shadow-xl z-50">
+                <div className="p-2 border-b border-gray-700">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-2 text-gray-500" size={14} />
+                    <input
+                      type="text"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      placeholder="Search institutions..."
+                      className="w-full pl-8 pr-3 py-1.5 bg-gray-800 border border-gray-700 rounded text-xs text-white placeholder-gray-500 focus:outline-none focus:border-cyan-400"
+                      autoFocus
+                    />
+                  </div>
+                </div>
+                <div className="max-h-60 overflow-y-auto">
+                  {filteredInstitutions.map(inst => {
+                    const isSelected = !!selectedInstitutions.find(s => s.key === inst.key);
+                    return (
+                      <button
+                        key={inst.key}
+                        onClick={() => !isSelected && addInstitution(inst)}
+                        className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-800 transition-colors ${
+                          isSelected ? 'opacity-40 cursor-not-allowed' : ''
+                        }`}
+                        disabled={isSelected}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="min-w-0 flex-1">
+                            <div className="text-white font-medium truncate">{inst.manager}</div>
+                            <div className="text-gray-500 truncate">{inst.name}</div>
+                          </div>
+                          {isSelected && (
+                            <span className="text-cyan-400 text-[10px] ml-2 shrink-0">Added</span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                  {filteredInstitutions.length === 0 && (
+                    <div className="px-3 py-4 text-xs text-gray-500 text-center">No institutions found</div>
+                  )}
+                </div>
+                {selectedInstitutions.length >= 10 && (
+                  <div className="p-2 border-t border-gray-700">
+                    <p className="text-xs text-yellow-500 text-center">Maximum 10 institutions</p>
+                  </div>
+                )}
               </div>
             )}
           </div>
-        </Card>
-      )}
 
-      {/* Initial Loading State */}
-      {initialLoading && (
-        <div className="flex items-center justify-center py-20">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-500 mx-auto mb-4"></div>
-            <p className="text-white text-lg font-semibold">Loading Institutions</p>
-            <p className="text-gray-400 text-sm mt-2">Please wait...</p>
-          </div>
-        </div>
-      )}
-
-      {/* Portfolios List */}
-      {!initialLoading && (
-        <div className="flex-1 overflow-y-auto space-y-4">
-          {portfolios.length === 0 ? (
-            <div className="text-center py-16 text-gray-400">
-              <Building2 size={48} className="mx-auto mb-4 opacity-50" />
-              <p className="mb-2">No portfolios loaded yet</p>
-              <p className="text-sm">Select an institution from the dropdown above to view their holdings</p>
+          {/* Symbol filter */}
+          {symbolFilter && (
+            <div className="flex items-center gap-1 px-2 py-1 bg-blue-900/30 border border-blue-800/50 rounded text-xs">
+              <span className="text-gray-400">Holding:</span>
+              <span className="text-blue-400 font-medium">{symbolFilter}</span>
+              <button
+                onClick={() => setSymbolFilter('')}
+                className="ml-1 text-gray-500 hover:text-red-400"
+              >
+                <X size={12} />
+              </button>
             </div>
-          ) : currentPortfolios.length === 0 ? (
-            <div className="text-center py-16 text-gray-400">
-              <Building2 size={48} className="mx-auto mb-4 opacity-50" />
-              <p className="mb-2">No portfolios found</p>
-              <p className="text-sm">Try adjusting your search criteria</p>
-            </div>
-          ) : (
-            currentPortfolios.map(portfolio => (
-              <PortfolioCard
-                key={portfolio.id}
-                portfolio={portfolio}
-                isExpanded={expandedPortfolio === portfolio.id}
-                onToggle={() => togglePortfolio(portfolio.id)}
-              />
-            ))
           )}
-        </div>
-      )}
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <Card>
-          <div className="flex items-center justify-between p-4">
-            <div className="text-sm text-gray-400">
-              Showing {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, filteredPortfolios.length)} of {filteredPortfolios.length}
-            </div>
-            <div className="flex items-center gap-2">
+          {/* Sort selector */}
+          <div className="flex items-center gap-0.5 bg-gray-800 rounded p-0.5">
+            {SORT_OPTIONS.map(opt => (
               <button
-                onClick={() => goToPage(currentPage - 1)}
-                disabled={currentPage === 1}
-                className="px-3 py-2 bg-[#0a0e14] text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                key={opt.id}
+                onClick={() => setSortBy(opt.id)}
+                className={`px-2 py-1 text-xs rounded transition-colors ${
+                  sortBy === opt.id
+                    ? 'bg-gray-700 text-white'
+                    : 'text-gray-400 hover:text-white'
+                }`}
               >
-                <ChevronLeft size={18} />
+                {opt.label}
               </button>
-              {[...Array(Math.min(totalPages, 5))].map((_, i) => {
-                let pageNum;
-                if (totalPages <= 5) {
-                  pageNum = i + 1;
-                } else if (currentPage <= 3) {
-                  pageNum = i + 1;
-                } else if (currentPage >= totalPages - 2) {
-                  pageNum = totalPages - 4 + i;
-                } else {
-                  pageNum = currentPage - 2 + i;
-                }
-                return (
-                  <button
-                    key={i}
-                    onClick={() => goToPage(pageNum)}
-                    className={`px-3 py-2 rounded-lg transition-colors ${
-                      currentPage === pageNum
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-[#0a0e14] text-gray-400 hover:bg-gray-700'
-                    }`}
-                  >
-                    {pageNum}
-                  </button>
-                );
-              })}
-              <button
-                onClick={() => goToPage(currentPage + 1)}
-                disabled={currentPage === totalPages}
-                className="px-3 py-2 bg-[#0a0e14] text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                <ChevronRight size={18} />
-              </button>
-            </div>
-          </div>
-        </Card>
-      )}
-    </div>
-  );
-};
-
-/**
- * Portfolio Card Component
- * Displays individual portfolio with expandable holdings
- */
-const PortfolioCard = ({ portfolio, isExpanded, onToggle }) => {
-  return (
-    <Card hover gradient={isExpanded}>
-      {/* Header */}
-      <div className="p-6 border-b border-gray-700">
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex-1">
-            <div className="flex items-center gap-3 mb-2">
-              <h3 className="text-2xl font-bold text-white">{portfolio.manager}</h3>
-              <span className="text-xs bg-purple-900/30 text-purple-400 px-3 py-1 rounded-full">
-                13F Filing
-              </span>
-            </div>
-            <p className="text-sm text-gray-300 mb-1">{portfolio.name}</p>
-            <p className="text-xs text-gray-400">{portfolio.description}</p>
-          </div>
-          <div className="text-right">
-            <div className="text-3xl font-bold text-white">
-              ${(portfolio.total_value / 1000000000).toFixed(1)}B
-            </div>
-            <div className="text-xs text-gray-400">Total Value</div>
-            {portfolio.value_change_pct !== undefined && (
-              <div className={`flex items-center justify-end gap-1 mt-1 text-sm ${
-                portfolio.value_change_pct > 0 ? 'text-green-400' : 'text-red-400'
-              }`}>
-                {portfolio.value_change_pct > 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
-                {portfolio.value_change_pct > 0 ? '+' : ''}{portfolio.value_change_pct.toFixed(1)}% QoQ
-              </div>
-            )}
+            ))}
           </div>
         </div>
 
-        <div className="flex items-center gap-4 text-xs text-gray-400">
-          <span>Filed: {portfolio.filing_date}</span>
-          <span>•</span>
-          <span>Period: {portfolio.period_end}</span>
-          <span>•</span>
-          <span>{portfolio.num_holdings} Holdings</span>
+        {/* Right actions */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-500">{institutions.length} available</span>
+          <button
+            onClick={fetchInstitutions}
+            className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded"
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+          </button>
+          <button className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded">
+            <Copy size={14} />
+          </button>
+          <button className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded">
+            <MoreVertical size={14} />
+          </button>
         </div>
       </div>
 
-      {/* Performance Metrics */}
-      {portfolio.performance && (
-        <PerformanceSection performance={portfolio.performance} />
-      )}
+      {/* Category tabs */}
+      <div className="flex items-center gap-1 px-4 py-2 border-b border-gray-800 overflow-x-auto">
+        {CATEGORIES.map(cat => (
+          <button
+            key={cat.id}
+            onClick={() => setActiveCategory(cat.id)}
+            className={`px-3 py-1.5 text-xs font-medium whitespace-nowrap rounded transition-colors ${
+              activeCategory === cat.id
+                ? 'text-cyan-400 bg-cyan-400/10'
+                : 'text-gray-400 hover:text-white hover:bg-gray-800'
+            }`}
+          >
+            {cat.name}
+          </button>
+        ))}
 
-      {/* Sector Allocation */}
-      {portfolio.top_sectors && (
-        <SectorAllocation sectors={portfolio.top_sectors} />
-      )}
-
-      {/* Toggle Holdings Button */}
-      <div className="p-6">
-        <button
-          onClick={onToggle}
-          className="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all font-semibold flex items-center justify-center gap-2"
-        >
-          {isExpanded ? (
-            <>
-              <ChevronUp size={18} />
-              Hide Holdings
-            </>
-          ) : (
-            <>
-              <ChevronDown size={18} />
-              View Top Holdings ({portfolio.stocks?.length || 0})
-            </>
-          )}
-        </button>
-
-        {/* Holdings Table */}
-        {isExpanded && portfolio.stocks && portfolio.stocks.length > 0 && (
-          <HoldingsTable stocks={portfolio.stocks} />
+        {/* Loading indicator */}
+        {isAnyLoading && (
+          <div className="flex items-center gap-1.5 ml-2 px-2 py-1 text-xs text-cyan-400">
+            <RefreshCw size={12} className="animate-spin" />
+            <span>Loading...</span>
+          </div>
         )}
       </div>
-    </Card>
-  );
-};
 
-/**
- * Performance Section Component
- */
-const PerformanceSection = ({ performance }) => {
-  if (!performance) return null;
-
-  return (
-    <div className="p-6 border-b border-gray-700 bg-gradient-to-r from-blue-900/10 to-purple-900/10">
-      <SectionHeader
-        icon={BarChart3}
-        title="Performance Metrics"
-        iconColor="text-blue-400"
-      />
-
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-        <MetricCard
-          label="YTD Return"
-          value={performance.ytd_return || 0}
-          suffix="%"
-          showTrend
-          size="md"
-        />
-        <MetricCard
-          label="1 Year"
-          value={performance.return_1y || 0}
-          suffix="%"
-          showTrend
-          size="md"
-        />
-        <MetricCard
-          label="3 Year"
-          value={performance.return_3y || 0}
-          suffix="%"
-          showTrend
-          size="md"
-        />
-        <MetricCard
-          label="5 Year"
-          value={performance.return_5y || 0}
-          suffix="%"
-          showTrend
-          size="md"
-        />
-        <MetricCard
-          label="Sharpe Ratio"
-          value={performance.sharpe_ratio || 0}
-          size="md"
-          color="text-white"
-        />
-        <MetricCard
-          label="Volatility"
-          value={performance.volatility || 0}
-          suffix="%"
-          icon={Activity}
-          size="md"
-          color="text-white"
-        />
-      </div>
-
-      <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-gray-700/50">
-        <MetricCard
-          label="Alpha"
-          value={performance.alpha || 0}
-          showTrend
-          size="sm"
-        />
-        <MetricCard
-          label="Beta"
-          value={performance.beta || 0}
-          size="sm"
-          color="text-white"
-        />
-        <MetricCard
-          label="Max Drawdown"
-          value={performance.max_drawdown || 0}
-          suffix="%"
-          size="sm"
-          color="text-red-400"
-        />
-      </div>
-    </div>
-  );
-};
-
-/**
- * Sector Allocation Component
- */
-const SectorAllocation = ({ sectors }) => {
-  if (!sectors || sectors.length === 0) return null;
-
-  const sectorColors = [
-    'bg-blue-500',
-    'bg-purple-500',
-    'bg-green-500',
-    'bg-yellow-500',
-    'bg-red-500',
-    'bg-pink-500',
-    'bg-indigo-500',
-    'bg-cyan-500'
-  ];
-
-  return (
-    <div className="p-6 border-b border-gray-700">
-      <SectionHeader
-        icon={PieChart}
-        title="Sector Allocation"
-        iconColor="text-blue-400"
-      />
-      <div className="space-y-3">
-        {sectors.map((sector, idx) => (
-          <div key={idx} className="flex items-center justify-between group">
-            <div className="flex items-center gap-3 flex-1">
-              <div className="text-sm text-gray-300 w-32 font-medium">{sector.name}</div>
-              <div className="flex-1 bg-gray-700/50 rounded-full h-2.5 overflow-hidden">
-                <div
-                  className={`${sectorColors[idx % sectorColors.length]} h-2.5 rounded-full transition-all duration-500 group-hover:opacity-80`}
-                  style={{ width: `${sector.weight}%` }}
-                ></div>
-              </div>
-            </div>
-            <div className="text-sm font-bold text-white ml-4 w-16 text-right">
-              {sector.weight}%
-            </div>
+      {/* Content */}
+      <div className="flex-1 overflow-auto">
+        {sortedPortfolios.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-gray-500">
+            <Building2 size={32} className="mb-3 opacity-50" />
+            {isAnyLoading ? (
+              <>
+                <p className="text-sm text-cyan-400">Fetching portfolio data from SEC EDGAR...</p>
+                <p className="text-xs mt-1 text-gray-600">This may take a few seconds</p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm">No institutions loaded</p>
+                <p className="text-xs mt-1 text-gray-600">Click "+ Add Institution" to view 13F holdings</p>
+              </>
+            )}
           </div>
-        ))}
+        ) : activeCategory === 'overview' ? (
+          <OverviewTable
+            portfolios={sortedPortfolios}
+            expandedId={expandedId}
+            setExpandedId={setExpandedId}
+            formatNumber={formatNumber}
+            formatShares={formatShares}
+            symbolFilter={symbolFilter}
+          />
+        ) : activeCategory === 'holdings' ? (
+          <HoldingsTable
+            holdings={getAllHoldings()}
+            formatNumber={formatNumber}
+            formatShares={formatShares}
+            portfolios={sortedPortfolios}
+          />
+        ) : activeCategory === 'activity' ? (
+          <ActivityTable
+            portfolios={sortedPortfolios}
+            formatNumber={formatNumber}
+          />
+        ) : null}
       </div>
     </div>
   );
 };
 
 /**
- * Holdings Table Component
+ * Overview Table - Institutions list with expandable holdings
  */
-const HoldingsTable = ({ stocks }) => {
-  if (!stocks || stocks.length === 0) return null;
+const OverviewTable = ({ portfolios, expandedId, setExpandedId, formatNumber, formatShares, symbolFilter }) => (
+  <div>
+    <table className="w-full text-sm">
+      <thead className="sticky top-0 bg-[#0d0d12] z-10">
+        <tr className="border-b border-gray-800">
+          <th className="text-left py-3 px-4 text-gray-400 font-medium min-w-[250px]">Institution</th>
+          <th className="text-right py-3 px-4 text-gray-400 font-medium min-w-[120px]">Total Value</th>
+          <th className="text-right py-3 px-4 text-gray-400 font-medium min-w-[100px]">Holdings</th>
+          <th className="text-right py-3 px-4 text-gray-400 font-medium min-w-[100px]">Change QoQ</th>
+          <th className="text-right py-3 px-4 text-gray-400 font-medium min-w-[100px]">Turnover</th>
+          <th className="text-right py-3 px-4 text-gray-400 font-medium min-w-[120px]">Filing Date</th>
+          <th className="text-center py-3 px-4 text-gray-400 font-medium w-[60px]"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {portfolios.map((portfolio, idx) => (
+          <OverviewRow
+            key={portfolio.id}
+            portfolio={portfolio}
+            idx={idx}
+            isExpanded={expandedId === portfolio.id}
+            onToggle={() => setExpandedId(expandedId === portfolio.id ? null : portfolio.id)}
+            formatNumber={formatNumber}
+            formatShares={formatShares}
+            symbolFilter={symbolFilter}
+          />
+        ))}
+      </tbody>
+    </table>
+  </div>
+);
 
-  return (
-    <div className="mt-4 bg-[#0a0e14] rounded-lg overflow-hidden border border-gray-700">
-      <div className="grid grid-cols-12 gap-2 px-4 py-3 bg-gradient-to-r from-gray-800 to-gray-800/80 text-xs font-semibold text-gray-300">
-        <div className="col-span-1">#</div>
-        <div className="col-span-4">Symbol / Name</div>
-        <div className="col-span-2 text-right">Value</div>
-        <div className="col-span-2 text-right">Shares</div>
-        <div className="col-span-1 text-right">Weight</div>
-        <div className="col-span-1 text-right">Change</div>
-        <div className="col-span-1 text-right">YTD</div>
-      </div>
-      <div className="max-h-96 overflow-y-auto custom-scrollbar">
-        {stocks.map((stock, idx) => (
+const OverviewRow = ({ portfolio, idx, isExpanded, onToggle, formatNumber, formatShares, symbolFilter }) => (
+  <>
+    <tr
+      className="border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors cursor-pointer"
+      onClick={onToggle}
+    >
+      <td className="py-3 px-4">
+        <div className="flex items-center gap-3">
           <div
-            key={stock.symbol || stock.cusip || idx}
-            className="grid grid-cols-12 gap-2 px-4 py-3 hover:bg-gradient-to-r hover:from-gray-800/30 hover:to-blue-900/10 transition-all border-b border-gray-800/50 text-sm group"
-          >
-            <div className="col-span-1 text-gray-500 font-mono text-xs">{idx + 1}</div>
-            <div className="col-span-4">
-              <div className="font-semibold text-white group-hover:text-blue-400 transition-colors">
-                {stock.symbol || stock.cusip}
-              </div>
-              <div className="text-xs text-gray-400 truncate">{stock.name}</div>
-            </div>
-            <div className="col-span-2 text-right text-white font-medium">
-              ${stock.value ? (stock.value / 1000000).toFixed(1) : '0.0'}M
-            </div>
-            <div className="col-span-2 text-right text-gray-300">
-              {stock.shares ? (stock.shares / 1000000).toFixed(1) : '0.0'}M
-            </div>
-            <div className="col-span-1 text-right text-blue-400 font-bold">
-              {stock.weight || 0}%
-            </div>
-            <div className={`col-span-1 text-right font-medium flex items-center justify-end gap-1 ${
-              (stock.change_pct || 0) > 0 ? 'text-green-400' :
-              (stock.change_pct || 0) < 0 ? 'text-red-400' : 'text-gray-400'
-            }`}>
-              {(stock.change_pct || 0) > 0 && <TrendingUp size={12} />}
-              {(stock.change_pct || 0) < 0 && <TrendingDown size={12} />}
-              {(stock.change_pct || 0) > 0 ? '+' : ''}{stock.change_pct || 0}%
-            </div>
-            <div className={`col-span-1 text-right font-medium flex items-center justify-end gap-1 ${
-              (stock.return_ytd || 0) > 0 ? 'text-green-400' : 'text-red-400'
-            }`}>
-              {(stock.return_ytd || 0) > 0 && <TrendingUp size={12} />}
-              {(stock.return_ytd || 0) < 0 && <TrendingDown size={12} />}
-              {(stock.return_ytd || 0) > 0 ? '+' : ''}{stock.return_ytd || 0}%
-            </div>
+            className="w-1 h-10 rounded"
+            style={{ backgroundColor: INST_COLORS[idx % INST_COLORS.length] }}
+          />
+          <div className="w-8 h-8 bg-gray-700 rounded flex items-center justify-center">
+            <Building2 size={14} className="text-gray-400" />
           </div>
-        ))}
-      </div>
-    </div>
-  );
-};
+          <div>
+            <div className="font-semibold text-white">{portfolio.manager}</div>
+            <div className="text-xs text-gray-400 truncate max-w-[180px]">{portfolio.name}</div>
+          </div>
+        </div>
+      </td>
+      <td className="text-right py-3 px-4 text-white tabular-nums font-medium">
+        {formatNumber(portfolio.total_value)}
+      </td>
+      <td className="text-right py-3 px-4 text-white tabular-nums">
+        {portfolio.num_holdings || '-'}
+      </td>
+      <td className="text-right py-3 px-4 tabular-nums">
+        {portfolio.value_change_pct != null ? (
+          <span className={`flex items-center justify-end gap-1 ${
+            portfolio.value_change_pct > 0 ? 'text-green-400' : portfolio.value_change_pct < 0 ? 'text-red-400' : 'text-gray-400'
+          }`}>
+            {portfolio.value_change_pct > 0 && <TrendingUp size={12} />}
+            {portfolio.value_change_pct < 0 && <TrendingDown size={12} />}
+            {portfolio.value_change_pct > 0 ? '+' : ''}{portfolio.value_change_pct.toFixed(1)}%
+          </span>
+        ) : (
+          <span className="text-gray-500">-</span>
+        )}
+      </td>
+      <td className="text-right py-3 px-4 text-gray-300 tabular-nums text-xs">
+        {portfolio.turnover != null ? `${portfolio.turnover.toFixed(1)}%` : '-'}
+      </td>
+      <td className="text-right py-3 px-4 text-gray-400 text-xs tabular-nums">
+        {portfolio.filing_date || '-'}
+      </td>
+      <td className="text-center py-3 px-4">
+        {isExpanded ? (
+          <ChevronUp size={14} className="text-gray-400 mx-auto" />
+        ) : (
+          <ChevronDown size={14} className="text-gray-400 mx-auto" />
+        )}
+      </td>
+    </tr>
+
+    {/* Expanded holdings sub-table */}
+    {isExpanded && portfolio.stocks && (
+      <tr>
+        <td colSpan={7} className="p-0">
+          <div className="bg-[#08080d] border-b border-gray-800">
+            {/* Position summary bar */}
+            <div className="flex items-center gap-4 px-4 py-2 bg-gray-800/20 text-xs border-b border-gray-800/50">
+              <span className="text-gray-400">
+                Period: <span className="text-white">{portfolio.period_end || '-'}</span>
+              </span>
+              {portfolio.num_new_positions > 0 && (
+                <span className="text-green-400">+{portfolio.num_new_positions} new</span>
+              )}
+              {portfolio.num_sold_out > 0 && (
+                <span className="text-red-400">-{portfolio.num_sold_out} sold</span>
+              )}
+              {portfolio.num_increased > 0 && (
+                <span className="text-cyan-400">{portfolio.num_increased} increased</span>
+              )}
+              {portfolio.num_decreased > 0 && (
+                <span className="text-yellow-400">{portfolio.num_decreased} decreased</span>
+              )}
+            </div>
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-gray-800/40">
+                  <th className="text-left py-2 px-4 text-gray-500 font-medium w-10">#</th>
+                  <th className="text-left py-2 px-4 text-gray-500 font-medium">Symbol</th>
+                  <th className="text-left py-2 px-4 text-gray-500 font-medium">Name</th>
+                  <th className="text-right py-2 px-4 text-gray-500 font-medium">Value</th>
+                  <th className="text-right py-2 px-4 text-gray-500 font-medium">Shares</th>
+                  <th className="text-right py-2 px-4 text-gray-500 font-medium">Weight</th>
+                </tr>
+              </thead>
+              <tbody>
+                {portfolio.stocks.slice(0, 30).map((stock, sIdx) => {
+                  const isCurrentSymbol = symbolFilter && stock.symbol?.toUpperCase() === symbolFilter.toUpperCase();
+                  return (
+                    <tr
+                      key={stock.symbol || stock.cusip || sIdx}
+                      className={`border-b border-gray-800/30 hover:bg-gray-800/20 transition-colors ${
+                        isCurrentSymbol ? 'bg-cyan-900/10' : ''
+                      }`}
+                    >
+                      <td className="py-2 px-4 text-gray-600 tabular-nums">{sIdx + 1}</td>
+                      <td className="py-2 px-4">
+                        <span className={`font-medium ${isCurrentSymbol ? 'text-cyan-400' : 'text-white'}`}>
+                          {stock.symbol || stock.cusip}
+                        </span>
+                      </td>
+                      <td className="py-2 px-4 text-gray-400 truncate max-w-[200px]">{stock.name}</td>
+                      <td className="py-2 px-4 text-right text-white tabular-nums">{formatNumber(stock.value)}</td>
+                      <td className="py-2 px-4 text-right text-gray-300 tabular-nums">{formatShares(stock.shares)}</td>
+                      <td className="py-2 px-4 text-right text-cyan-400 font-medium tabular-nums">{stock.weight || 0}%</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {portfolio.stocks.length > 30 && (
+              <div className="px-4 py-2 text-center text-xs text-gray-600">
+                Showing top 30 of {portfolio.stocks.length} holdings
+              </div>
+            )}
+          </div>
+        </td>
+      </tr>
+    )}
+  </>
+);
+
+/**
+ * Holdings Table - Aggregated holdings across all loaded institutions
+ */
+const HoldingsTable = ({ holdings, formatNumber, formatShares, portfolios }) => (
+  <table className="w-full text-sm">
+    <thead className="sticky top-0 bg-[#0d0d12] z-10">
+      <tr className="border-b border-gray-800">
+        <th className="text-left py-3 px-4 text-gray-400 font-medium w-10">#</th>
+        <th className="text-left py-3 px-4 text-gray-400 font-medium min-w-[200px]">Stock</th>
+        <th className="text-right py-3 px-4 text-gray-400 font-medium min-w-[130px]">Total Value</th>
+        <th className="text-right py-3 px-4 text-gray-400 font-medium min-w-[120px]">Total Shares</th>
+        <th className="text-right py-3 px-4 text-gray-400 font-medium min-w-[90px]">Holders</th>
+        <th className="text-right py-3 px-4 text-gray-400 font-medium min-w-[100px]">Avg Weight</th>
+        <th className="text-left py-3 px-4 text-gray-400 font-medium min-w-[150px]">Held By</th>
+      </tr>
+    </thead>
+    <tbody>
+      {holdings.map((h, idx) => (
+        <tr
+          key={h.symbol}
+          className="border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors"
+        >
+          <td className="py-3 px-4 text-gray-600 text-xs tabular-nums">{idx + 1}</td>
+          <td className="py-3 px-4">
+            <div className="flex items-center gap-3">
+              <div
+                className="w-1 h-10 rounded"
+                style={{ backgroundColor: INST_COLORS[idx % INST_COLORS.length] }}
+              />
+              <div className="w-8 h-8 bg-gray-700 rounded flex items-center justify-center text-xs font-bold text-white">
+                {h.symbol.slice(0, 2)}
+              </div>
+              <div>
+                <div className="font-semibold text-white">{h.symbol}</div>
+                <div className="text-xs text-gray-400 truncate max-w-[150px]">{h.name}</div>
+              </div>
+            </div>
+          </td>
+          <td className="text-right py-3 px-4 text-white tabular-nums font-medium">{formatNumber(h.totalValue)}</td>
+          <td className="text-right py-3 px-4 text-white tabular-nums">{formatShares(h.totalShares)}</td>
+          <td className="text-right py-3 px-4 text-cyan-400 tabular-nums font-medium">
+            {h.holders}/{portfolios.length}
+          </td>
+          <td className="text-right py-3 px-4 text-white tabular-nums">{h.avgWeight.toFixed(1)}%</td>
+          <td className="py-3 px-4">
+            <div className="flex items-center gap-1 flex-wrap">
+              {h.institutions.slice(0, 3).map((inst, i) => (
+                <span key={i} className="px-1.5 py-0.5 bg-gray-800 rounded text-[10px] text-gray-400 truncate max-w-[80px]">
+                  {inst}
+                </span>
+              ))}
+              {h.institutions.length > 3 && (
+                <span className="text-[10px] text-gray-500">+{h.institutions.length - 3}</span>
+              )}
+            </div>
+          </td>
+        </tr>
+      ))}
+      {holdings.length === 0 && (
+        <tr>
+          <td colSpan={7} className="py-12 text-center text-gray-500 text-sm">
+            No holdings data available
+          </td>
+        </tr>
+      )}
+    </tbody>
+  </table>
+);
+
+/**
+ * Activity Table - Portfolio-level position changes and activity metrics
+ */
+const ActivityTable = ({ portfolios, formatNumber }) => (
+  <table className="w-full text-sm">
+    <thead className="sticky top-0 bg-[#0d0d12] z-10">
+      <tr className="border-b border-gray-800">
+        <th className="text-left py-3 px-4 text-gray-400 font-medium min-w-[250px]">Institution</th>
+        <th className="text-right py-3 px-4 text-gray-400 font-medium min-w-[110px]">Value Change</th>
+        <th className="text-right py-3 px-4 text-gray-400 font-medium min-w-[90px]">Change %</th>
+        <th className="text-right py-3 px-4 text-gray-400 font-medium min-w-[80px]">New</th>
+        <th className="text-right py-3 px-4 text-gray-400 font-medium min-w-[80px]">Sold</th>
+        <th className="text-right py-3 px-4 text-gray-400 font-medium min-w-[90px]">Increased</th>
+        <th className="text-right py-3 px-4 text-gray-400 font-medium min-w-[90px]">Decreased</th>
+        <th className="text-right py-3 px-4 text-gray-400 font-medium min-w-[90px]">Turnover</th>
+      </tr>
+    </thead>
+    <tbody>
+      {portfolios.map((p, idx) => {
+        const valueChange = p.value_change || (p.previous_value ? p.total_value - p.previous_value : null);
+        return (
+          <tr
+            key={p.id}
+            className="border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors"
+          >
+            <td className="py-3 px-4">
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-1 h-10 rounded"
+                  style={{ backgroundColor: INST_COLORS[idx % INST_COLORS.length] }}
+                />
+                <div className="w-8 h-8 bg-gray-700 rounded flex items-center justify-center">
+                  <Building2 size={14} className="text-gray-400" />
+                </div>
+                <div>
+                  <div className="font-semibold text-white">{p.manager}</div>
+                  <div className="text-xs text-gray-400">{p.filing_date || ''}</div>
+                </div>
+              </div>
+            </td>
+            <td className="text-right py-3 px-4 tabular-nums">
+              {valueChange != null ? (
+                <span className={valueChange > 0 ? 'text-green-400' : valueChange < 0 ? 'text-red-400' : 'text-gray-400'}>
+                  {valueChange > 0 ? '+' : ''}{formatNumber(valueChange)}
+                </span>
+              ) : (
+                <span className="text-gray-500">-</span>
+              )}
+            </td>
+            <td className="text-right py-3 px-4 tabular-nums">
+              {p.value_change_pct != null ? (
+                <span className={`flex items-center justify-end gap-1 font-medium ${
+                  p.value_change_pct > 0 ? 'text-green-400' : p.value_change_pct < 0 ? 'text-red-400' : 'text-gray-400'
+                }`}>
+                  {p.value_change_pct > 0 && <TrendingUp size={12} />}
+                  {p.value_change_pct < 0 && <TrendingDown size={12} />}
+                  {p.value_change_pct > 0 ? '+' : ''}{p.value_change_pct.toFixed(1)}%
+                </span>
+              ) : (
+                <span className="text-gray-500">-</span>
+              )}
+            </td>
+            <td className="text-right py-3 px-4 tabular-nums">
+              {p.num_new_positions > 0 ? (
+                <span className="flex items-center justify-end gap-1 text-green-400">
+                  <ArrowUpRight size={12} />
+                  {p.num_new_positions}
+                </span>
+              ) : (
+                <span className="text-gray-500">{p.num_new_positions || 0}</span>
+              )}
+            </td>
+            <td className="text-right py-3 px-4 tabular-nums">
+              {p.num_sold_out > 0 ? (
+                <span className="flex items-center justify-end gap-1 text-red-400">
+                  <ArrowDownRight size={12} />
+                  {p.num_sold_out}
+                </span>
+              ) : (
+                <span className="text-gray-500">{p.num_sold_out || 0}</span>
+              )}
+            </td>
+            <td className="text-right py-3 px-4 tabular-nums">
+              {p.num_increased > 0 ? (
+                <span className="text-cyan-400 font-medium">{p.num_increased}</span>
+              ) : (
+                <span className="text-gray-500">{p.num_increased || 0}</span>
+              )}
+            </td>
+            <td className="text-right py-3 px-4 tabular-nums">
+              {p.num_decreased > 0 ? (
+                <span className="text-yellow-400 font-medium">{p.num_decreased}</span>
+              ) : (
+                <span className="text-gray-500">{p.num_decreased || 0}</span>
+              )}
+            </td>
+            <td className="text-right py-3 px-4 tabular-nums">
+              {p.turnover != null ? (
+                <span className="text-white">{p.turnover.toFixed(1)}%</span>
+              ) : (
+                <span className="text-gray-500">-</span>
+              )}
+            </td>
+          </tr>
+        );
+      })}
+      {portfolios.length === 0 && (
+        <tr>
+          <td colSpan={8} className="py-12 text-center text-gray-500 text-sm">
+            No activity data available
+          </td>
+        </tr>
+      )}
+    </tbody>
+  </table>
+);
 
 export default InstitutionalPortfolios;
