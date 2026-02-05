@@ -440,6 +440,8 @@ const OVERVIEW_COLUMNS = [
     key: 'institution',
     header: 'Institution',
     minWidth: '250px',
+    sortable: true,
+    sortValue: (row) => row.manager?.toLowerCase(),
     render: (row) => (
       <div className="flex items-center gap-3">
         <div
@@ -461,6 +463,8 @@ const OVERVIEW_COLUMNS = [
     header: 'Total Value',
     align: 'right',
     minWidth: '120px',
+    sortable: true,
+    sortValue: (row) => row.total_value,
     render: (row) => <span className="text-white font-medium">{row._fmt.totalValue}</span>,
   },
   {
@@ -468,6 +472,8 @@ const OVERVIEW_COLUMNS = [
     header: 'Holdings',
     align: 'right',
     minWidth: '100px',
+    sortable: true,
+    sortValue: (row) => row.num_holdings,
     render: (row) => <span className="text-white">{row.num_holdings || '-'}</span>,
   },
   {
@@ -475,6 +481,8 @@ const OVERVIEW_COLUMNS = [
     header: 'Change QoQ',
     align: 'right',
     minWidth: '100px',
+    sortable: true,
+    sortValue: (row) => row.value_change_pct,
     render: (row) => {
       const pct = row.value_change_pct;
       if (pct == null) return <span className="text-gray-500">-</span>;
@@ -493,6 +501,8 @@ const OVERVIEW_COLUMNS = [
     header: 'Turnover',
     align: 'right',
     minWidth: '100px',
+    sortable: true,
+    sortValue: (row) => row.turnover,
     className: 'text-gray-300 text-xs',
     render: (row) => row.turnover != null ? `${row.turnover.toFixed(1)}%` : '-',
   },
@@ -501,6 +511,8 @@ const OVERVIEW_COLUMNS = [
     header: 'Filing Date',
     align: 'right',
     minWidth: '120px',
+    sortable: true,
+    sortValue: (row) => row.filing_date,
     className: 'text-gray-400 text-xs',
     render: (row) => row.filing_date || '-',
   },
@@ -516,6 +528,17 @@ const OVERVIEW_COLUMNS = [
 ];
 
 const OverviewTable = ({ portfolios, expandedId, setExpandedId, formatNumber, formatShares, symbolFilter }) => {
+  const [sortConfig, setSortConfig] = useState({ key: 'total_value', direction: 'desc' });
+
+  const handleSort = useCallback((col) => {
+    if (!col.sortable) return;
+    setSortConfig((prev) => {
+      if (prev.key !== col.key) return { key: col.key, direction: 'desc' };
+      if (prev.direction === 'desc') return { key: col.key, direction: 'asc' };
+      return { key: null, direction: null };
+    });
+  }, []);
+
   const data = portfolios.map((p, idx) => ({
     ...p,
     _key: p.id,
@@ -524,24 +547,58 @@ const OverviewTable = ({ portfolios, expandedId, setExpandedId, formatNumber, fo
     _fmt: { totalValue: formatNumber(p.total_value) },
   }));
 
+  const sortedData = useMemo(() => {
+    if (!sortConfig.key || !sortConfig.direction) return data;
+    const col = OVERVIEW_COLUMNS.find((c) => c.key === sortConfig.key);
+    if (!col || !col.sortValue) return data;
+
+    return [...data].sort((a, b) => {
+      const aVal = col.sortValue(a);
+      const bVal = col.sortValue(b);
+      if (aVal == null && bVal == null) return 0;
+      if (aVal == null) return 1;
+      if (bVal == null) return -1;
+
+      let cmp;
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        cmp = aVal.localeCompare(bVal);
+      } else {
+        cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+      }
+      return sortConfig.direction === 'asc' ? cmp : -cmp;
+    });
+  }, [data, sortConfig]);
+
   return (
     <div>
       <table className="w-full text-sm">
-        <thead className="sticky top-0 bg-[#0d0d12] z-10">
+        <thead className="sticky top-0 bg-[#0d0d12] z-20">
           <tr className="border-b border-gray-800">
-            {OVERVIEW_COLUMNS.map((col) => (
-              <th
-                key={col.key}
-                className={`${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'} py-3 px-4 text-gray-400 font-medium ${col.headerClassName || ''}`}
-                style={{ width: col.width, minWidth: col.minWidth }}
-              >
-                {col.header}
-              </th>
-            ))}
+            {OVERVIEW_COLUMNS.map((col) => {
+              const isSortable = !!col.sortable;
+              const isActive = sortConfig.key === col.key && sortConfig.direction;
+              return (
+                <th
+                  key={col.key}
+                  className={`${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'} py-3 px-4 text-gray-400 font-medium ${col.headerClassName || ''} ${isSortable ? 'group/sortable cursor-pointer select-none hover:text-gray-200 transition-colors' : ''}`}
+                  style={{ width: col.width, minWidth: col.minWidth }}
+                  onClick={isSortable ? () => handleSort(col) : undefined}
+                >
+                  <span className="inline-flex items-center">
+                    {col.header}
+                    {isSortable && (
+                      isActive
+                        ? <span className="text-cyan-400 ml-1 text-[10px] leading-none select-none">{sortConfig.direction === 'asc' ? '▲' : '▼'}</span>
+                        : <span className="text-gray-600 ml-1 text-[10px] leading-none opacity-0 group-hover/sortable:opacity-100 transition-opacity select-none">▼</span>
+                    )}
+                  </span>
+                </th>
+              );
+            })}
           </tr>
         </thead>
         <tbody>
-          {data.map((row) => (
+          {sortedData.map((row) => (
             <OverviewRow
               key={row._key}
               portfolio={row}
@@ -605,12 +662,16 @@ const OverviewRow = ({ portfolio, idx, isExpanded, onToggle, formatNumber, forma
     return [...filtered].sort((a, b) => (b.value || 0) - (a.value || 0));
   }, [allPositions, statusFilter]);
 
+  // Status sort priority: new > increased > decreased > unchanged > sold
+  const STATUS_ORDER = { new: 0, increased: 1, decreased: 2, unchanged: 3, sold: 4 };
+
   // Build expanded sub-table columns
   const subColumns = useMemo(() => {
     const cols = [
       {
         key: 'symbol',
         header: 'Symbol',
+        minWidth: '80px',
         sortable: true,
         sortValue: (row) => row.symbol,
         render: (row) => {
@@ -625,8 +686,9 @@ const OverviewRow = ({ portfolio, idx, isExpanded, onToggle, formatNumber, forma
       {
         key: 'name',
         header: 'Name',
+        minWidth: '120px',
         sortable: true,
-        sortValue: (row) => row.name,
+        sortValue: (row) => row.name?.toLowerCase(),
         render: (row) => (
           <span className={`truncate max-w-[200px] inline-block ${row._isSold ? 'text-gray-500' : 'text-gray-400'}`}>
             {row.name}
@@ -637,6 +699,7 @@ const OverviewRow = ({ portfolio, idx, isExpanded, onToggle, formatNumber, forma
         key: 'value',
         header: 'Value',
         align: 'right',
+        minWidth: '90px',
         sortable: true,
         sortValue: (row) => row.value,
         render: (row) => (
@@ -649,6 +712,7 @@ const OverviewRow = ({ portfolio, idx, isExpanded, onToggle, formatNumber, forma
         key: 'shares',
         header: 'Shares',
         align: 'right',
+        minWidth: '80px',
         sortable: true,
         sortValue: (row) => row.shares,
         render: (row) => (
@@ -661,6 +725,7 @@ const OverviewRow = ({ portfolio, idx, isExpanded, onToggle, formatNumber, forma
         key: 'weight',
         header: 'Weight',
         align: 'right',
+        minWidth: '70px',
         sortable: true,
         sortValue: (row) => row.weight,
         render: (row) => (
@@ -677,6 +742,7 @@ const OverviewRow = ({ portfolio, idx, isExpanded, onToggle, formatNumber, forma
           key: 'share_change',
           header: 'Share Chg',
           align: 'right',
+          minWidth: '90px',
           sortable: true,
           sortValue: (row) => row.share_change,
           render: (row) => {
@@ -696,6 +762,7 @@ const OverviewRow = ({ portfolio, idx, isExpanded, onToggle, formatNumber, forma
           key: 'value_change',
           header: 'Value Chg',
           align: 'right',
+          minWidth: '90px',
           sortable: true,
           sortValue: (row) => row.value_change,
           render: (row) => {
@@ -712,6 +779,9 @@ const OverviewRow = ({ portfolio, idx, isExpanded, onToggle, formatNumber, forma
           key: 'status',
           header: 'Status',
           align: 'center',
+          minWidth: '70px',
+          sortable: true,
+          sortValue: (row) => STATUS_ORDER[row.status] ?? 99,
           render: (row) => {
             const badge = row.status ? STATUS_BADGE[row.status] : null;
             if (!badge) return <span className="text-gray-600">-</span>;
@@ -747,7 +817,7 @@ const OverviewRow = ({ portfolio, idx, isExpanded, onToggle, formatNumber, forma
 
       {/* Expanded holdings sub-table */}
       {isExpanded && portfolio.stocks && (
-        <tr>
+        <tr className="relative z-0">
           <td colSpan={columns.length} className="p-0">
             <div className="bg-[#08080d] border-b border-gray-800">
               {/* Position summary bar */}
@@ -794,10 +864,11 @@ const OverviewRow = ({ portfolio, idx, isExpanded, onToggle, formatNumber, forma
               )}
 
               <WidgetTable
+                key={statusFilter}
                 columns={subColumns}
                 data={filteredPositions.slice(0, 30).map((s, i) => ({
                   ...s,
-                  _key: s.symbol || s.cusip || i,
+                  _key: `${s.symbol || s.cusip || 'pos'}-${i}`,
                 }))}
                 size="compact"
                 showRowNumbers
