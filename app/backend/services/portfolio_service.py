@@ -92,6 +92,31 @@ class PortfolioService:
             sys.stderr.flush()
 
             # Build response with actual fetcher data
+            def serialize_holding(stock):
+                d = {
+                    "symbol": stock.symbol,
+                    "name": stock.name,
+                    "cusip": stock.cusip,
+                    "value": stock.value,
+                    "shares": stock.shares,
+                    "weight": stock.weight,
+                }
+                if stock.prev_shares is not None:
+                    d["prev_shares"] = stock.prev_shares
+                if stock.prev_value is not None:
+                    d["prev_value"] = stock.prev_value
+                if stock.share_change is not None:
+                    d["share_change"] = stock.share_change
+                if stock.share_change_pct is not None:
+                    d["share_change_pct"] = stock.share_change_pct
+                if stock.value_change is not None:
+                    d["value_change"] = stock.value_change
+                if stock.value_change_pct is not None:
+                    d["value_change_pct"] = stock.value_change_pct
+                if stock.status is not None:
+                    d["status"] = stock.status
+                return d
+
             holding = {
                 "id": portfolio.id,
                 "institution_key": portfolio.institution_key,
@@ -103,23 +128,17 @@ class PortfolioService:
                 "filing_date": portfolio.filing_date,
                 "period_end": portfolio.period_end,
                 "category": portfolio.category,
+                "previous_filing_date": portfolio.previous_filing_date,
+                "previous_value": portfolio.previous_value,
+                "value_change": portfolio.value_change,
                 "value_change_pct": portfolio.value_change_pct,
                 "num_new_positions": portfolio.num_new_positions,
                 "num_sold_out": portfolio.num_sold_out,
                 "num_increased": portfolio.num_increased,
                 "num_decreased": portfolio.num_decreased,
                 "turnover": portfolio.turnover,
-                "stocks": [
-                    {
-                        "symbol": stock.symbol,
-                        "name": stock.name,
-                        "cusip": stock.cusip,
-                        "value": stock.value,
-                        "shares": stock.shares,
-                        "weight": stock.weight
-                    }
-                    for stock in portfolio.stocks
-                ]
+                "stocks": [serialize_holding(stock) for stock in portfolio.stocks],
+                "sold_positions": [serialize_holding(stock) for stock in portfolio.sold_positions],
             }
 
             # Add optional fields if available from fetcher

@@ -412,9 +412,35 @@ class WhaleWisdomFetcher(Fetcher[InstitutionalHoldingsQueryParams, Institutional
                     "value": stock.value,
                     "shares": stock.shares,
                     "weight": stock.weight,
-                    "change_pct": 0.0,
-                    "return_ytd": 0.0
+                    "prev_shares": stock.prev_shares,
+                    "prev_value": stock.prev_value,
+                    "share_change": stock.share_change,
+                    "share_change_pct": stock.share_change_pct,
+                    "value_change": stock.value_change,
+                    "value_change_pct": stock.value_change_pct,
+                    "status": stock.status,
                 }
                 for stock in portfolio.stocks
-            ]
+            ],
+            "sold_positions": [
+                {
+                    "symbol": stock.symbol,
+                    "name": stock.name,
+                    "cusip": stock.cusip,
+                    "value": stock.value,
+                    "shares": stock.shares,
+                    "weight": stock.weight,
+                    "prev_shares": stock.prev_shares,
+                    "prev_value": stock.prev_value,
+                    "share_change": stock.share_change,
+                    "share_change_pct": stock.share_change_pct,
+                    "value_change": stock.value_change,
+                    "value_change_pct": stock.value_change_pct,
+                    "status": stock.status,
+                }
+                for stock in portfolio.sold_positions
+            ],
+            "previous_filing_date": portfolio.previous_filing_date,
+            "previous_value": portfolio.previous_value,
+            "value_change": portfolio.value_change
         }

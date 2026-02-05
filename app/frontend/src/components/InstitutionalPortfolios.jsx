@@ -2,7 +2,7 @@
  * Institutional Portfolios - 13F Institutional Holdings
  * Design based on ComparisonAnalysisTab terminal style
  */
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   Plus,
   X,
@@ -19,6 +19,7 @@ import {
   ArrowDownRight,
 } from 'lucide-react';
 import { API_BASE } from '../config/api';
+import WidgetTable from './widgets/common/WidgetTable';
 
 // Category tabs for different data views
 const CATEGORIES = [
@@ -133,9 +134,11 @@ const InstitutionalPortfolios = ({ symbol = null }) => {
   };
 
   const formatShares = (val) => {
-    if (!val) return '-';
-    if (val >= 1e6) return (val / 1e6).toFixed(2) + 'M';
-    if (val >= 1e3) return (val / 1e3).toFixed(1) + 'K';
+    if (val === null || val === undefined) return '-';
+    const abs = Math.abs(val);
+    const sign = val < 0 ? '-' : '';
+    if (abs >= 1e6) return sign + (abs / 1e6).toFixed(2) + 'M';
+    if (abs >= 1e3) return sign + (abs / 1e3).toFixed(1) + 'K';
     return val.toLocaleString();
   };
 
@@ -168,13 +171,24 @@ const InstitutionalPortfolios = ({ symbol = null }) => {
   const getAllHoldings = () => {
     const holdingsMap = {};
     sortedPortfolios.forEach((portfolio) => {
+      // Aggregate per-symbol within this portfolio first to avoid duplicates
+      const perSymbol = {};
       (portfolio.stocks || []).forEach(stock => {
         const sym = stock.symbol?.toUpperCase();
         if (!sym) return;
+        if (!perSymbol[sym]) {
+          perSymbol[sym] = { value: 0, shares: 0, weight: 0, name: stock.name };
+        }
+        perSymbol[sym].value += stock.value || 0;
+        perSymbol[sym].shares += stock.shares || 0;
+        perSymbol[sym].weight += stock.weight || 0;
+      });
+
+      Object.entries(perSymbol).forEach(([sym, agg]) => {
         if (!holdingsMap[sym]) {
           holdingsMap[sym] = {
             symbol: sym,
-            name: stock.name,
+            name: agg.name,
             totalValue: 0,
             totalShares: 0,
             holders: 0,
@@ -182,10 +196,10 @@ const InstitutionalPortfolios = ({ symbol = null }) => {
             institutions: [],
           };
         }
-        holdingsMap[sym].totalValue += stock.value || 0;
-        holdingsMap[sym].totalShares += stock.shares || 0;
+        holdingsMap[sym].totalValue += agg.value;
+        holdingsMap[sym].totalShares += agg.shares;
         holdingsMap[sym].holders += 1;
-        holdingsMap[sym].weights.push(stock.weight || 0);
+        holdingsMap[sym].weights.push(agg.weight);
         holdingsMap[sym].institutions.push(portfolio.manager);
       });
     });
@@ -193,6 +207,7 @@ const InstitutionalPortfolios = ({ symbol = null }) => {
     return Object.values(holdingsMap)
       .map(h => ({
         ...h,
+        _key: h.symbol,
         avgWeight: h.weights.length ? (h.weights.reduce((a, b) => a + b, 0) / h.weights.length) : 0,
       }))
       .sort((a, b) => b.totalValue - a.totalValue)
@@ -420,45 +435,504 @@ const InstitutionalPortfolios = ({ symbol = null }) => {
 /**
  * Overview Table - Institutions list with expandable holdings
  */
-const OverviewTable = ({ portfolios, expandedId, setExpandedId, formatNumber, formatShares, symbolFilter }) => (
-  <div>
-    <table className="w-full text-sm">
-      <thead className="sticky top-0 bg-[#0d0d12] z-10">
-        <tr className="border-b border-gray-800">
-          <th className="text-left py-3 px-4 text-gray-400 font-medium min-w-[250px]">Institution</th>
-          <th className="text-right py-3 px-4 text-gray-400 font-medium min-w-[120px]">Total Value</th>
-          <th className="text-right py-3 px-4 text-gray-400 font-medium min-w-[100px]">Holdings</th>
-          <th className="text-right py-3 px-4 text-gray-400 font-medium min-w-[100px]">Change QoQ</th>
-          <th className="text-right py-3 px-4 text-gray-400 font-medium min-w-[100px]">Turnover</th>
-          <th className="text-right py-3 px-4 text-gray-400 font-medium min-w-[120px]">Filing Date</th>
-          <th className="text-center py-3 px-4 text-gray-400 font-medium w-[60px]"></th>
-        </tr>
-      </thead>
-      <tbody>
-        {portfolios.map((portfolio, idx) => (
-          <OverviewRow
-            key={portfolio.id}
-            portfolio={portfolio}
-            idx={idx}
-            isExpanded={expandedId === portfolio.id}
-            onToggle={() => setExpandedId(expandedId === portfolio.id ? null : portfolio.id)}
-            formatNumber={formatNumber}
-            formatShares={formatShares}
-            symbolFilter={symbolFilter}
-          />
-        ))}
-      </tbody>
-    </table>
-  </div>
-);
+const OVERVIEW_COLUMNS = [
+  {
+    key: 'institution',
+    header: 'Institution',
+    minWidth: '250px',
+    render: (row) => (
+      <div className="flex items-center gap-3">
+        <div
+          className="w-1 h-10 rounded"
+          style={{ backgroundColor: INST_COLORS[row._idx % INST_COLORS.length] }}
+        />
+        <div className="w-8 h-8 bg-gray-700 rounded flex items-center justify-center">
+          <Building2 size={14} className="text-gray-400" />
+        </div>
+        <div>
+          <div className="font-semibold text-white">{row.manager}</div>
+          <div className="text-xs text-gray-400 truncate max-w-[180px]">{row.name}</div>
+        </div>
+      </div>
+    ),
+  },
+  {
+    key: 'total_value',
+    header: 'Total Value',
+    align: 'right',
+    minWidth: '120px',
+    render: (row) => <span className="text-white font-medium">{row._fmt.totalValue}</span>,
+  },
+  {
+    key: 'num_holdings',
+    header: 'Holdings',
+    align: 'right',
+    minWidth: '100px',
+    render: (row) => <span className="text-white">{row.num_holdings || '-'}</span>,
+  },
+  {
+    key: 'change_qoq',
+    header: 'Change QoQ',
+    align: 'right',
+    minWidth: '100px',
+    render: (row) => {
+      const pct = row.value_change_pct;
+      if (pct == null) return <span className="text-gray-500">-</span>;
+      const color = pct > 0 ? 'text-green-400' : pct < 0 ? 'text-red-400' : 'text-gray-400';
+      return (
+        <span className={`flex items-center justify-end gap-1 ${color}`}>
+          {pct > 0 && <TrendingUp size={12} />}
+          {pct < 0 && <TrendingDown size={12} />}
+          {pct > 0 ? '+' : ''}{pct.toFixed(1)}%
+        </span>
+      );
+    },
+  },
+  {
+    key: 'turnover',
+    header: 'Turnover',
+    align: 'right',
+    minWidth: '100px',
+    className: 'text-gray-300 text-xs',
+    render: (row) => row.turnover != null ? `${row.turnover.toFixed(1)}%` : '-',
+  },
+  {
+    key: 'filing_date',
+    header: 'Filing Date',
+    align: 'right',
+    minWidth: '120px',
+    className: 'text-gray-400 text-xs',
+    render: (row) => row.filing_date || '-',
+  },
+  {
+    key: 'expand',
+    header: '',
+    align: 'center',
+    width: '60px',
+    render: (row) => row._isExpanded
+      ? <ChevronUp size={14} className="text-gray-400 mx-auto" />
+      : <ChevronDown size={14} className="text-gray-400 mx-auto" />,
+  },
+];
 
-const OverviewRow = ({ portfolio, idx, isExpanded, onToggle, formatNumber, formatShares, symbolFilter }) => (
-  <>
-    <tr
-      className="border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors cursor-pointer"
-      onClick={onToggle}
-    >
-      <td className="py-3 px-4">
+const OverviewTable = ({ portfolios, expandedId, setExpandedId, formatNumber, formatShares, symbolFilter }) => {
+  const data = portfolios.map((p, idx) => ({
+    ...p,
+    _key: p.id,
+    _idx: idx,
+    _isExpanded: expandedId === p.id,
+    _fmt: { totalValue: formatNumber(p.total_value) },
+  }));
+
+  return (
+    <div>
+      <table className="w-full text-sm">
+        <thead className="sticky top-0 bg-[#0d0d12] z-10">
+          <tr className="border-b border-gray-800">
+            {OVERVIEW_COLUMNS.map((col) => (
+              <th
+                key={col.key}
+                className={`${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'} py-3 px-4 text-gray-400 font-medium ${col.headerClassName || ''}`}
+                style={{ width: col.width, minWidth: col.minWidth }}
+              >
+                {col.header}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((row) => (
+            <OverviewRow
+              key={row._key}
+              portfolio={row}
+              idx={row._idx}
+              isExpanded={row._isExpanded}
+              onToggle={() => setExpandedId(expandedId === row.id ? null : row.id)}
+              formatNumber={formatNumber}
+              formatShares={formatShares}
+              symbolFilter={symbolFilter}
+              columns={OVERVIEW_COLUMNS}
+            />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+const STATUS_BADGE = {
+  new: { label: 'NEW', cls: 'bg-green-500/20 text-green-400 border-green-500/30' },
+  increased: { label: 'ADD', cls: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30' },
+  decreased: { label: 'TRIM', cls: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' },
+  unchanged: { label: 'UNCH', cls: 'bg-gray-500/20 text-gray-400 border-gray-500/30' },
+  sold: { label: 'SOLD', cls: 'bg-red-500/20 text-red-400 border-red-500/30' },
+};
+
+const STATUS_FILTERS = [
+  { id: 'all', label: 'All' },
+  { id: 'new', label: 'New' },
+  { id: 'increased', label: 'Increased' },
+  { id: 'decreased', label: 'Decreased' },
+  { id: 'sold', label: 'Sold' },
+];
+
+const OverviewRow = ({ portfolio, idx, isExpanded, onToggle, formatNumber, formatShares, symbolFilter, columns }) => {
+  const [statusFilter, setStatusFilter] = useState('all');
+  const hasPrevious = portfolio.previous_filing_date != null;
+
+  // Merge stocks + normalized sold positions into a unified list
+  const allPositions = useMemo(() => {
+    const stocks = portfolio.stocks || [];
+    const soldPositions = (portfolio.sold_positions || []).map(sp => ({
+      symbol: sp.symbol,
+      cusip: sp.cusip,
+      name: sp.name,
+      value: sp.prev_value || 0,
+      shares: sp.prev_shares || 0,
+      weight: 0,
+      share_change: -(sp.prev_shares || 0),
+      value_change: -(sp.prev_value || 0),
+      status: 'sold',
+      _isSold: true,
+    }));
+    return [...stocks, ...soldPositions];
+  }, [portfolio.stocks, portfolio.sold_positions]);
+
+  const filteredPositions = useMemo(() => {
+    const filtered = statusFilter === 'all'
+      ? allPositions
+      : allPositions.filter(s => s.status === statusFilter);
+    return [...filtered].sort((a, b) => (b.value || 0) - (a.value || 0));
+  }, [allPositions, statusFilter]);
+
+  // Build expanded sub-table columns
+  const subColumns = useMemo(() => {
+    const cols = [
+      {
+        key: 'symbol',
+        header: 'Symbol',
+        sortable: true,
+        sortValue: (row) => row.symbol,
+        render: (row) => {
+          const isCurrentSymbol = symbolFilter && row.symbol?.toUpperCase() === symbolFilter.toUpperCase();
+          return (
+            <span className={`font-medium ${row._isSold ? 'text-gray-400' : isCurrentSymbol ? 'text-cyan-400' : 'text-white'}`}>
+              {row.symbol || row.cusip}
+            </span>
+          );
+        },
+      },
+      {
+        key: 'name',
+        header: 'Name',
+        sortable: true,
+        sortValue: (row) => row.name,
+        render: (row) => (
+          <span className={`truncate max-w-[200px] inline-block ${row._isSold ? 'text-gray-500' : 'text-gray-400'}`}>
+            {row.name}
+          </span>
+        ),
+      },
+      {
+        key: 'value',
+        header: 'Value',
+        align: 'right',
+        sortable: true,
+        sortValue: (row) => row.value,
+        render: (row) => (
+          <span className={row._isSold ? 'text-gray-500' : 'text-white'}>
+            {formatNumber(row.value)}
+          </span>
+        ),
+      },
+      {
+        key: 'shares',
+        header: 'Shares',
+        align: 'right',
+        sortable: true,
+        sortValue: (row) => row.shares,
+        render: (row) => (
+          <span className={row._isSold ? 'text-gray-500' : 'text-gray-300'}>
+            {formatShares(row.shares)}
+          </span>
+        ),
+      },
+      {
+        key: 'weight',
+        header: 'Weight',
+        align: 'right',
+        sortable: true,
+        sortValue: (row) => row.weight,
+        render: (row) => (
+          <span className={row._isSold ? 'text-gray-600' : 'text-cyan-400 font-medium'}>
+            {row._isSold ? '-' : `${row.weight || 0}%`}
+          </span>
+        ),
+      },
+    ];
+
+    if (hasPrevious) {
+      cols.push(
+        {
+          key: 'share_change',
+          header: 'Share Chg',
+          align: 'right',
+          sortable: true,
+          sortValue: (row) => row.share_change,
+          render: (row) => {
+            if (row.share_change == null) return <span className="text-gray-600">-</span>;
+            const color = row.share_change > 0 ? 'text-green-400' : row.share_change < 0 ? 'text-red-400' : 'text-gray-500';
+            return (
+              <span className={color}>
+                {row.share_change > 0 ? '+' : ''}{formatShares(row.share_change)}
+                {row.share_change_pct != null && (
+                  <span className="text-gray-500 ml-1">({row.share_change_pct > 0 ? '+' : ''}{row.share_change_pct.toFixed(1)}%)</span>
+                )}
+              </span>
+            );
+          },
+        },
+        {
+          key: 'value_change',
+          header: 'Value Chg',
+          align: 'right',
+          sortable: true,
+          sortValue: (row) => row.value_change,
+          render: (row) => {
+            if (row.value_change == null) return <span className="text-gray-600">-</span>;
+            const color = row.value_change > 0 ? 'text-green-400' : row.value_change < 0 ? 'text-red-400' : 'text-gray-500';
+            return (
+              <span className={color}>
+                {row.value_change > 0 ? '+' : ''}{formatNumber(row.value_change)}
+              </span>
+            );
+          },
+        },
+        {
+          key: 'status',
+          header: 'Status',
+          align: 'center',
+          render: (row) => {
+            const badge = row.status ? STATUS_BADGE[row.status] : null;
+            if (!badge) return <span className="text-gray-600">-</span>;
+            return (
+              <span className={`inline-block px-1.5 py-0.5 text-[10px] font-medium rounded border ${badge.cls}`}>
+                {badge.label}
+              </span>
+            );
+          },
+        },
+      );
+    }
+
+    return cols;
+  }, [hasPrevious, symbolFilter, formatNumber, formatShares]);
+
+  return (
+    <>
+      <tr
+        className="border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors cursor-pointer"
+        onClick={onToggle}
+      >
+        {columns.map((col) => {
+          const alignCls = col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left';
+          const tabNums = col.align === 'right' ? 'tabular-nums' : '';
+          return (
+            <td key={col.key} className={`py-3 px-4 ${alignCls} ${tabNums} ${col.className || ''}`}>
+              {col.render(portfolio)}
+            </td>
+          );
+        })}
+      </tr>
+
+      {/* Expanded holdings sub-table */}
+      {isExpanded && portfolio.stocks && (
+        <tr>
+          <td colSpan={columns.length} className="p-0">
+            <div className="bg-[#08080d] border-b border-gray-800">
+              {/* Position summary bar */}
+              <div className="flex items-center gap-4 px-4 py-2 bg-gray-800/20 text-xs border-b border-gray-800/50">
+                <span className="text-gray-400">
+                  Period: <span className="text-white">{portfolio.period_end || '-'}</span>
+                </span>
+                {hasPrevious && (
+                  <span className="text-gray-400">
+                    vs <span className="text-gray-300">{portfolio.previous_filing_date}</span>
+                  </span>
+                )}
+                {portfolio.num_new_positions > 0 && (
+                  <span className="text-green-400">+{portfolio.num_new_positions} new</span>
+                )}
+                {portfolio.num_sold_out > 0 && (
+                  <span className="text-red-400">-{portfolio.num_sold_out} sold</span>
+                )}
+                {portfolio.num_increased > 0 && (
+                  <span className="text-cyan-400">{portfolio.num_increased} increased</span>
+                )}
+                {portfolio.num_decreased > 0 && (
+                  <span className="text-yellow-400">{portfolio.num_decreased} decreased</span>
+                )}
+              </div>
+
+              {/* Status filter bar */}
+              {hasPrevious && (
+                <div className="flex items-center gap-1 px-4 py-1.5 border-b border-gray-800/50">
+                  {STATUS_FILTERS.map(f => (
+                    <button
+                      key={f.id}
+                      onClick={() => setStatusFilter(f.id)}
+                      className={`px-2 py-0.5 text-[10px] rounded transition-colors ${
+                        statusFilter === f.id
+                          ? 'bg-gray-700 text-white'
+                          : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <WidgetTable
+                columns={subColumns}
+                data={filteredPositions.slice(0, 30).map((s, i) => ({
+                  ...s,
+                  _key: s.symbol || s.cusip || i,
+                }))}
+                size="compact"
+                showRowNumbers
+                stickyHeader={false}
+                emptyMessage="No positions match this filter"
+                defaultSortKey="value"
+                defaultSortDirection="desc"
+                resizable
+                rowClassName={(row) => {
+                  const isCurrentSymbol = symbolFilter && row.symbol?.toUpperCase() === symbolFilter.toUpperCase();
+                  return `${row._isSold ? 'opacity-70' : ''} ${isCurrentSymbol ? 'bg-cyan-900/10' : ''}`;
+                }}
+              />
+              {filteredPositions.length > 30 && (
+                <div className="px-4 py-2 text-center text-xs text-gray-600">
+                  Showing top 30 of {filteredPositions.length} positions
+                </div>
+              )}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+};
+
+/**
+ * Holdings Table - Aggregated holdings across all loaded institutions
+ */
+const HoldingsTable = ({ holdings, formatNumber, formatShares, portfolios }) => {
+  const columns = useMemo(() => [
+    {
+      key: 'stock',
+      header: 'Stock',
+      minWidth: '200px',
+      sortable: true,
+      sortValue: (row) => row.symbol,
+      render: (row, idx) => (
+        <div className="flex items-center gap-3">
+          <div
+            className="w-1 h-10 rounded"
+            style={{ backgroundColor: INST_COLORS[idx % INST_COLORS.length] }}
+          />
+          <div className="w-8 h-8 bg-gray-700 rounded flex items-center justify-center text-xs font-bold text-white">
+            {row.symbol.slice(0, 2)}
+          </div>
+          <div>
+            <div className="font-semibold text-white">{row.symbol}</div>
+            <div className="text-xs text-gray-400 truncate max-w-[150px]">{row.name}</div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'totalValue',
+      header: 'Total Value',
+      align: 'right',
+      minWidth: '130px',
+      sortable: true,
+      sortValue: (row) => row.totalValue,
+      render: (row) => <span className="text-white font-medium">{formatNumber(row.totalValue)}</span>,
+    },
+    {
+      key: 'totalShares',
+      header: 'Total Shares',
+      align: 'right',
+      minWidth: '120px',
+      sortable: true,
+      sortValue: (row) => row.totalShares,
+      render: (row) => <span className="text-white">{formatShares(row.totalShares)}</span>,
+    },
+    {
+      key: 'holders',
+      header: 'Holders',
+      align: 'right',
+      minWidth: '90px',
+      sortable: true,
+      sortValue: (row) => row.holders,
+      render: (row) => (
+        <span className="text-cyan-400 font-medium">{row.holders}/{portfolios.length}</span>
+      ),
+    },
+    {
+      key: 'avgWeight',
+      header: 'Avg Weight',
+      align: 'right',
+      minWidth: '100px',
+      sortable: true,
+      sortValue: (row) => row.avgWeight,
+      render: (row) => <span className="text-white">{row.avgWeight.toFixed(1)}%</span>,
+    },
+    {
+      key: 'heldBy',
+      header: 'Held By',
+      minWidth: '150px',
+      render: (row) => (
+        <div className="flex items-center gap-1 flex-wrap">
+          {row.institutions.slice(0, 3).map((inst, i) => (
+            <span key={i} className="px-1.5 py-0.5 bg-gray-800 rounded text-[10px] text-gray-400 truncate max-w-[80px]">
+              {inst}
+            </span>
+          ))}
+          {row.institutions.length > 3 && (
+            <span className="text-[10px] text-gray-500">+{row.institutions.length - 3}</span>
+          )}
+        </div>
+      ),
+    },
+  ], [formatNumber, formatShares, portfolios.length]);
+
+  return (
+    <WidgetTable
+      columns={columns}
+      data={holdings}
+      showRowNumbers
+      emptyMessage="No holdings data available"
+      defaultSortKey="totalValue"
+      defaultSortDirection="desc"
+      resizable
+    />
+  );
+};
+
+/**
+ * Activity Table - Portfolio-level position changes and activity metrics
+ */
+const ActivityTable = ({ portfolios, formatNumber }) => {
+  const columns = useMemo(() => [
+    {
+      key: 'institution',
+      header: 'Institution',
+      minWidth: '250px',
+      sortable: true,
+      sortValue: (row) => row.manager,
+      render: (row, idx) => (
         <div className="flex items-center gap-3">
           <div
             className="w-1 h-10 rounded"
@@ -468,300 +942,113 @@ const OverviewRow = ({ portfolio, idx, isExpanded, onToggle, formatNumber, forma
             <Building2 size={14} className="text-gray-400" />
           </div>
           <div>
-            <div className="font-semibold text-white">{portfolio.manager}</div>
-            <div className="text-xs text-gray-400 truncate max-w-[180px]">{portfolio.name}</div>
+            <div className="font-semibold text-white">{row.manager}</div>
+            <div className="text-xs text-gray-400">{row.filing_date || ''}</div>
           </div>
         </div>
-      </td>
-      <td className="text-right py-3 px-4 text-white tabular-nums font-medium">
-        {formatNumber(portfolio.total_value)}
-      </td>
-      <td className="text-right py-3 px-4 text-white tabular-nums">
-        {portfolio.num_holdings || '-'}
-      </td>
-      <td className="text-right py-3 px-4 tabular-nums">
-        {portfolio.value_change_pct != null ? (
-          <span className={`flex items-center justify-end gap-1 ${
-            portfolio.value_change_pct > 0 ? 'text-green-400' : portfolio.value_change_pct < 0 ? 'text-red-400' : 'text-gray-400'
-          }`}>
-            {portfolio.value_change_pct > 0 && <TrendingUp size={12} />}
-            {portfolio.value_change_pct < 0 && <TrendingDown size={12} />}
-            {portfolio.value_change_pct > 0 ? '+' : ''}{portfolio.value_change_pct.toFixed(1)}%
-          </span>
-        ) : (
-          <span className="text-gray-500">-</span>
-        )}
-      </td>
-      <td className="text-right py-3 px-4 text-gray-300 tabular-nums text-xs">
-        {portfolio.turnover != null ? `${portfolio.turnover.toFixed(1)}%` : '-'}
-      </td>
-      <td className="text-right py-3 px-4 text-gray-400 text-xs tabular-nums">
-        {portfolio.filing_date || '-'}
-      </td>
-      <td className="text-center py-3 px-4">
-        {isExpanded ? (
-          <ChevronUp size={14} className="text-gray-400 mx-auto" />
-        ) : (
-          <ChevronDown size={14} className="text-gray-400 mx-auto" />
-        )}
-      </td>
-    </tr>
-
-    {/* Expanded holdings sub-table */}
-    {isExpanded && portfolio.stocks && (
-      <tr>
-        <td colSpan={7} className="p-0">
-          <div className="bg-[#08080d] border-b border-gray-800">
-            {/* Position summary bar */}
-            <div className="flex items-center gap-4 px-4 py-2 bg-gray-800/20 text-xs border-b border-gray-800/50">
-              <span className="text-gray-400">
-                Period: <span className="text-white">{portfolio.period_end || '-'}</span>
-              </span>
-              {portfolio.num_new_positions > 0 && (
-                <span className="text-green-400">+{portfolio.num_new_positions} new</span>
-              )}
-              {portfolio.num_sold_out > 0 && (
-                <span className="text-red-400">-{portfolio.num_sold_out} sold</span>
-              )}
-              {portfolio.num_increased > 0 && (
-                <span className="text-cyan-400">{portfolio.num_increased} increased</span>
-              )}
-              {portfolio.num_decreased > 0 && (
-                <span className="text-yellow-400">{portfolio.num_decreased} decreased</span>
-              )}
-            </div>
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="bg-gray-800/40">
-                  <th className="text-left py-2 px-4 text-gray-500 font-medium w-10">#</th>
-                  <th className="text-left py-2 px-4 text-gray-500 font-medium">Symbol</th>
-                  <th className="text-left py-2 px-4 text-gray-500 font-medium">Name</th>
-                  <th className="text-right py-2 px-4 text-gray-500 font-medium">Value</th>
-                  <th className="text-right py-2 px-4 text-gray-500 font-medium">Shares</th>
-                  <th className="text-right py-2 px-4 text-gray-500 font-medium">Weight</th>
-                </tr>
-              </thead>
-              <tbody>
-                {portfolio.stocks.slice(0, 30).map((stock, sIdx) => {
-                  const isCurrentSymbol = symbolFilter && stock.symbol?.toUpperCase() === symbolFilter.toUpperCase();
-                  return (
-                    <tr
-                      key={stock.symbol || stock.cusip || sIdx}
-                      className={`border-b border-gray-800/30 hover:bg-gray-800/20 transition-colors ${
-                        isCurrentSymbol ? 'bg-cyan-900/10' : ''
-                      }`}
-                    >
-                      <td className="py-2 px-4 text-gray-600 tabular-nums">{sIdx + 1}</td>
-                      <td className="py-2 px-4">
-                        <span className={`font-medium ${isCurrentSymbol ? 'text-cyan-400' : 'text-white'}`}>
-                          {stock.symbol || stock.cusip}
-                        </span>
-                      </td>
-                      <td className="py-2 px-4 text-gray-400 truncate max-w-[200px]">{stock.name}</td>
-                      <td className="py-2 px-4 text-right text-white tabular-nums">{formatNumber(stock.value)}</td>
-                      <td className="py-2 px-4 text-right text-gray-300 tabular-nums">{formatShares(stock.shares)}</td>
-                      <td className="py-2 px-4 text-right text-cyan-400 font-medium tabular-nums">{stock.weight || 0}%</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            {portfolio.stocks.length > 30 && (
-              <div className="px-4 py-2 text-center text-xs text-gray-600">
-                Showing top 30 of {portfolio.stocks.length} holdings
-              </div>
-            )}
-          </div>
-        </td>
-      </tr>
-    )}
-  </>
-);
-
-/**
- * Holdings Table - Aggregated holdings across all loaded institutions
- */
-const HoldingsTable = ({ holdings, formatNumber, formatShares, portfolios }) => (
-  <table className="w-full text-sm">
-    <thead className="sticky top-0 bg-[#0d0d12] z-10">
-      <tr className="border-b border-gray-800">
-        <th className="text-left py-3 px-4 text-gray-400 font-medium w-10">#</th>
-        <th className="text-left py-3 px-4 text-gray-400 font-medium min-w-[200px]">Stock</th>
-        <th className="text-right py-3 px-4 text-gray-400 font-medium min-w-[130px]">Total Value</th>
-        <th className="text-right py-3 px-4 text-gray-400 font-medium min-w-[120px]">Total Shares</th>
-        <th className="text-right py-3 px-4 text-gray-400 font-medium min-w-[90px]">Holders</th>
-        <th className="text-right py-3 px-4 text-gray-400 font-medium min-w-[100px]">Avg Weight</th>
-        <th className="text-left py-3 px-4 text-gray-400 font-medium min-w-[150px]">Held By</th>
-      </tr>
-    </thead>
-    <tbody>
-      {holdings.map((h, idx) => (
-        <tr
-          key={h.symbol}
-          className="border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors"
-        >
-          <td className="py-3 px-4 text-gray-600 text-xs tabular-nums">{idx + 1}</td>
-          <td className="py-3 px-4">
-            <div className="flex items-center gap-3">
-              <div
-                className="w-1 h-10 rounded"
-                style={{ backgroundColor: INST_COLORS[idx % INST_COLORS.length] }}
-              />
-              <div className="w-8 h-8 bg-gray-700 rounded flex items-center justify-center text-xs font-bold text-white">
-                {h.symbol.slice(0, 2)}
-              </div>
-              <div>
-                <div className="font-semibold text-white">{h.symbol}</div>
-                <div className="text-xs text-gray-400 truncate max-w-[150px]">{h.name}</div>
-              </div>
-            </div>
-          </td>
-          <td className="text-right py-3 px-4 text-white tabular-nums font-medium">{formatNumber(h.totalValue)}</td>
-          <td className="text-right py-3 px-4 text-white tabular-nums">{formatShares(h.totalShares)}</td>
-          <td className="text-right py-3 px-4 text-cyan-400 tabular-nums font-medium">
-            {h.holders}/{portfolios.length}
-          </td>
-          <td className="text-right py-3 px-4 text-white tabular-nums">{h.avgWeight.toFixed(1)}%</td>
-          <td className="py-3 px-4">
-            <div className="flex items-center gap-1 flex-wrap">
-              {h.institutions.slice(0, 3).map((inst, i) => (
-                <span key={i} className="px-1.5 py-0.5 bg-gray-800 rounded text-[10px] text-gray-400 truncate max-w-[80px]">
-                  {inst}
-                </span>
-              ))}
-              {h.institutions.length > 3 && (
-                <span className="text-[10px] text-gray-500">+{h.institutions.length - 3}</span>
-              )}
-            </div>
-          </td>
-        </tr>
-      ))}
-      {holdings.length === 0 && (
-        <tr>
-          <td colSpan={7} className="py-12 text-center text-gray-500 text-sm">
-            No holdings data available
-          </td>
-        </tr>
-      )}
-    </tbody>
-  </table>
-);
-
-/**
- * Activity Table - Portfolio-level position changes and activity metrics
- */
-const ActivityTable = ({ portfolios, formatNumber }) => (
-  <table className="w-full text-sm">
-    <thead className="sticky top-0 bg-[#0d0d12] z-10">
-      <tr className="border-b border-gray-800">
-        <th className="text-left py-3 px-4 text-gray-400 font-medium min-w-[250px]">Institution</th>
-        <th className="text-right py-3 px-4 text-gray-400 font-medium min-w-[110px]">Value Change</th>
-        <th className="text-right py-3 px-4 text-gray-400 font-medium min-w-[90px]">Change %</th>
-        <th className="text-right py-3 px-4 text-gray-400 font-medium min-w-[80px]">New</th>
-        <th className="text-right py-3 px-4 text-gray-400 font-medium min-w-[80px]">Sold</th>
-        <th className="text-right py-3 px-4 text-gray-400 font-medium min-w-[90px]">Increased</th>
-        <th className="text-right py-3 px-4 text-gray-400 font-medium min-w-[90px]">Decreased</th>
-        <th className="text-right py-3 px-4 text-gray-400 font-medium min-w-[90px]">Turnover</th>
-      </tr>
-    </thead>
-    <tbody>
-      {portfolios.map((p, idx) => {
-        const valueChange = p.value_change || (p.previous_value ? p.total_value - p.previous_value : null);
+      ),
+    },
+    {
+      key: 'value_change',
+      header: 'Value Change',
+      align: 'right',
+      minWidth: '110px',
+      sortable: true,
+      sortValue: (row) => row.value_change || (row.previous_value ? row.total_value - row.previous_value : 0),
+      render: (row) => {
+        const valueChange = row.value_change || (row.previous_value ? row.total_value - row.previous_value : null);
+        if (valueChange == null) return <span className="text-gray-500">-</span>;
+        const color = valueChange > 0 ? 'text-green-400' : valueChange < 0 ? 'text-red-400' : 'text-gray-400';
+        return <span className={color}>{valueChange > 0 ? '+' : ''}{formatNumber(valueChange)}</span>;
+      },
+    },
+    {
+      key: 'change_pct',
+      header: 'Change %',
+      align: 'right',
+      minWidth: '90px',
+      sortable: true,
+      sortValue: (row) => row.value_change_pct,
+      render: (row) => {
+        const pct = row.value_change_pct;
+        if (pct == null) return <span className="text-gray-500">-</span>;
+        const color = pct > 0 ? 'text-green-400' : pct < 0 ? 'text-red-400' : 'text-gray-400';
         return (
-          <tr
-            key={p.id}
-            className="border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors"
-          >
-            <td className="py-3 px-4">
-              <div className="flex items-center gap-3">
-                <div
-                  className="w-1 h-10 rounded"
-                  style={{ backgroundColor: INST_COLORS[idx % INST_COLORS.length] }}
-                />
-                <div className="w-8 h-8 bg-gray-700 rounded flex items-center justify-center">
-                  <Building2 size={14} className="text-gray-400" />
-                </div>
-                <div>
-                  <div className="font-semibold text-white">{p.manager}</div>
-                  <div className="text-xs text-gray-400">{p.filing_date || ''}</div>
-                </div>
-              </div>
-            </td>
-            <td className="text-right py-3 px-4 tabular-nums">
-              {valueChange != null ? (
-                <span className={valueChange > 0 ? 'text-green-400' : valueChange < 0 ? 'text-red-400' : 'text-gray-400'}>
-                  {valueChange > 0 ? '+' : ''}{formatNumber(valueChange)}
-                </span>
-              ) : (
-                <span className="text-gray-500">-</span>
-              )}
-            </td>
-            <td className="text-right py-3 px-4 tabular-nums">
-              {p.value_change_pct != null ? (
-                <span className={`flex items-center justify-end gap-1 font-medium ${
-                  p.value_change_pct > 0 ? 'text-green-400' : p.value_change_pct < 0 ? 'text-red-400' : 'text-gray-400'
-                }`}>
-                  {p.value_change_pct > 0 && <TrendingUp size={12} />}
-                  {p.value_change_pct < 0 && <TrendingDown size={12} />}
-                  {p.value_change_pct > 0 ? '+' : ''}{p.value_change_pct.toFixed(1)}%
-                </span>
-              ) : (
-                <span className="text-gray-500">-</span>
-              )}
-            </td>
-            <td className="text-right py-3 px-4 tabular-nums">
-              {p.num_new_positions > 0 ? (
-                <span className="flex items-center justify-end gap-1 text-green-400">
-                  <ArrowUpRight size={12} />
-                  {p.num_new_positions}
-                </span>
-              ) : (
-                <span className="text-gray-500">{p.num_new_positions || 0}</span>
-              )}
-            </td>
-            <td className="text-right py-3 px-4 tabular-nums">
-              {p.num_sold_out > 0 ? (
-                <span className="flex items-center justify-end gap-1 text-red-400">
-                  <ArrowDownRight size={12} />
-                  {p.num_sold_out}
-                </span>
-              ) : (
-                <span className="text-gray-500">{p.num_sold_out || 0}</span>
-              )}
-            </td>
-            <td className="text-right py-3 px-4 tabular-nums">
-              {p.num_increased > 0 ? (
-                <span className="text-cyan-400 font-medium">{p.num_increased}</span>
-              ) : (
-                <span className="text-gray-500">{p.num_increased || 0}</span>
-              )}
-            </td>
-            <td className="text-right py-3 px-4 tabular-nums">
-              {p.num_decreased > 0 ? (
-                <span className="text-yellow-400 font-medium">{p.num_decreased}</span>
-              ) : (
-                <span className="text-gray-500">{p.num_decreased || 0}</span>
-              )}
-            </td>
-            <td className="text-right py-3 px-4 tabular-nums">
-              {p.turnover != null ? (
-                <span className="text-white">{p.turnover.toFixed(1)}%</span>
-              ) : (
-                <span className="text-gray-500">-</span>
-              )}
-            </td>
-          </tr>
+          <span className={`flex items-center justify-end gap-1 font-medium ${color}`}>
+            {pct > 0 && <TrendingUp size={12} />}
+            {pct < 0 && <TrendingDown size={12} />}
+            {pct > 0 ? '+' : ''}{pct.toFixed(1)}%
+          </span>
         );
-      })}
-      {portfolios.length === 0 && (
-        <tr>
-          <td colSpan={8} className="py-12 text-center text-gray-500 text-sm">
-            No activity data available
-          </td>
-        </tr>
-      )}
-    </tbody>
-  </table>
-);
+      },
+    },
+    {
+      key: 'new',
+      header: 'New',
+      align: 'right',
+      minWidth: '80px',
+      sortable: true,
+      sortValue: (row) => row.num_new_positions,
+      render: (row) => row.num_new_positions > 0
+        ? <span className="flex items-center justify-end gap-1 text-green-400"><ArrowUpRight size={12} />{row.num_new_positions}</span>
+        : <span className="text-gray-500">{row.num_new_positions || 0}</span>,
+    },
+    {
+      key: 'sold',
+      header: 'Sold',
+      align: 'right',
+      minWidth: '80px',
+      sortable: true,
+      sortValue: (row) => row.num_sold_out,
+      render: (row) => row.num_sold_out > 0
+        ? <span className="flex items-center justify-end gap-1 text-red-400"><ArrowDownRight size={12} />{row.num_sold_out}</span>
+        : <span className="text-gray-500">{row.num_sold_out || 0}</span>,
+    },
+    {
+      key: 'increased',
+      header: 'Increased',
+      align: 'right',
+      minWidth: '90px',
+      sortable: true,
+      sortValue: (row) => row.num_increased,
+      render: (row) => row.num_increased > 0
+        ? <span className="text-cyan-400 font-medium">{row.num_increased}</span>
+        : <span className="text-gray-500">{row.num_increased || 0}</span>,
+    },
+    {
+      key: 'decreased',
+      header: 'Decreased',
+      align: 'right',
+      minWidth: '90px',
+      sortable: true,
+      sortValue: (row) => row.num_decreased,
+      render: (row) => row.num_decreased > 0
+        ? <span className="text-yellow-400 font-medium">{row.num_decreased}</span>
+        : <span className="text-gray-500">{row.num_decreased || 0}</span>,
+    },
+    {
+      key: 'turnover',
+      header: 'Turnover',
+      align: 'right',
+      minWidth: '90px',
+      sortable: true,
+      sortValue: (row) => row.turnover,
+      render: (row) => row.turnover != null
+        ? <span className="text-white">{row.turnover.toFixed(1)}%</span>
+        : <span className="text-gray-500">-</span>,
+    },
+  ], [formatNumber]);
+
+  const data = portfolios.map(p => ({ ...p, _key: p.id }));
+
+  return (
+    <WidgetTable
+      columns={columns}
+      data={data}
+      emptyMessage="No activity data available"
+      resizable
+    />
+  );
+};
 
 export default InstitutionalPortfolios;

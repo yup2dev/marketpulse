@@ -10,7 +10,6 @@ import InflationMomentumWidget from '../widgets/macro/InflationMomentumWidget';
 import InitialClaimsWidget from '../widgets/macro/InitialClaimsWidget';
 import JobsBreakdownWidget from '../widgets/macro/JobsBreakdownWidget';
 // Tab components
-import MacroRegimeTab from './MacroRegimeTab';
 import MacroFedPolicyTab from './MacroFedPolicyTab';
 import MacroYieldCurveTab from './MacroYieldCurveTab';
 import MacroInflationTab from './MacroInflationTab';
@@ -26,7 +25,6 @@ import 'react-grid-layout/css/styles.css';
 // Tab configuration
 const MACRO_TABS = [
   { id: 'overview', label: 'Overview' },
-  { id: 'economic-regime', label: 'Economic Regime' },
   { id: 'fed-policy', label: 'Fed Policy' },
   { id: 'yield-curve', label: 'Yield Curve' },
   { id: 'inflation', label: 'Inflation' },
@@ -43,9 +41,6 @@ const TAB_WIDGETS = {
     { id: 'inflation-momentum', name: 'Inflation Momentum', description: '12M, 6M, 3M momentum', defaultSize: { w: 6, h: 6 } },
     { id: 'initial-claims', name: 'Initial Claims', description: 'Weekly claims with 4-week MA', defaultSize: { w: 6, h: 6 } },
     { id: 'jobs-breakdown', name: 'Jobs Breakdown', description: 'Private vs Government jobs', defaultSize: { w: 6, h: 6 } },
-  ],
-  'economic-regime': [
-    { id: 'regime-tab', name: 'Economic Regime', description: 'Current regime analysis', defaultSize: { w: 12, h: 8 } },
   ],
   'fed-policy': [
     { id: 'fed-policy-tab', name: 'Fed Policy', description: 'Fed policy stance', defaultSize: { w: 12, h: 8 } },
@@ -78,7 +73,6 @@ const DEFAULT_TAB_WIDGETS = {
     { id: 'claims-1', type: 'initial-claims' },
     { id: 'jobs-1', type: 'jobs-breakdown' },
   ],
-  'economic-regime': [{ id: 'regime-1', type: 'regime-tab' }],
   'fed-policy': [{ id: 'fed-1', type: 'fed-policy-tab' }],
   'yield-curve': [{ id: 'yield-1', type: 'yield-curve-tab' }],
   inflation: [{ id: 'inflation-tab-1', type: 'inflation-tab' }],
@@ -96,7 +90,6 @@ const DEFAULT_TAB_LAYOUTS = {
     { i: 'claims-1', x: 0, y: 6, w: 6, h: 6, minW: 4, minH: 4 },
     { i: 'jobs-1', x: 6, y: 6, w: 6, h: 6, minW: 4, minH: 4 },
   ],
-  'economic-regime': [{ i: 'regime-1', x: 0, y: 0, w: 12, h: 8, minW: 6, minH: 5 }],
   'fed-policy': [{ i: 'fed-1', x: 0, y: 0, w: 12, h: 8, minW: 6, minH: 5 }],
   'yield-curve': [{ i: 'yield-1', x: 0, y: 0, w: 12, h: 8, minW: 6, minH: 5 }],
   inflation: [{ i: 'inflation-tab-1', x: 0, y: 0, w: 12, h: 8, minW: 6, minH: 5 }],
@@ -246,12 +239,6 @@ export default function MacroDashboard() {
         return <InitialClaimsWidget onRemove={onRemove} />;
       case 'jobs-breakdown':
         return <JobsBreakdownWidget onRemove={onRemove} />;
-      case 'regime-tab':
-        return (
-          <TabWidgetWrapper title="Economic Regime" onRemove={onRemove}>
-            <MacroRegimeTab />
-          </TabWidgetWrapper>
-        );
       case 'fed-policy-tab':
         return (
           <TabWidgetWrapper title="Fed Policy" onRemove={onRemove}>
