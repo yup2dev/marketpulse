@@ -15,7 +15,10 @@ import AnalystWidget from './widgets/AnalystWidget';
 import InsiderWidget from './widgets/InsiderWidget';
 import InstitutionalPortfolios from './InstitutionalPortfolios';
 import ComparisonAnalysisTab from './analysis/ComparisonAnalysisTab';
-import OwnershipTab from './analysis/OwnershipTab';
+// Individual ownership widgets
+import OwnershipOverviewWidget from './widgets/stock/OwnershipOverviewWidget';
+import OwnershipInstitutionalWidget from './widgets/stock/OwnershipInstitutionalWidget';
+import OwnershipInsiderWidget from './widgets/stock/OwnershipInsiderWidget';
 import CompanyCalendarTab from './analysis/CompanyCalendarTab';
 import EstimatesTab from './analysis/EstimatesTab';
 // Individual estimate widgets
@@ -66,8 +69,9 @@ const TAB_WIDGETS = {
     { id: 'advanced-chart', name: 'Price Chart', description: 'Stock price chart', defaultSize: { w: 6, h: 5 } },
   ],
   ownership: [
-    { id: 'ownership', name: 'Ownership Breakdown', description: 'Insider & institutional ownership', defaultSize: { w: 12, h: 8 } },
-    { id: 'insider', name: 'Insider Trading', description: 'Recent insider transactions', defaultSize: { w: 6, h: 6 } },
+    { id: 'ownership-overview', name: 'Ownership Overview', description: 'Ownership breakdown pie chart', defaultSize: { w: 12, h: 6 } },
+    { id: 'ownership-institutional', name: 'Institutional Holders', description: 'Top institutional holders', defaultSize: { w: 6, h: 6 } },
+    { id: 'ownership-insider', name: 'Insider Activity', description: 'Insider trading activity', defaultSize: { w: 6, h: 6 } },
   ],
   'company-calendar': [
     { id: 'company-calendar', name: 'Company Calendar', description: 'Earnings, dividends, events', defaultSize: { w: 12, h: 8 } },
@@ -101,7 +105,9 @@ const DEFAULT_TAB_WIDGETS = {
     { id: 'comparison-1', type: 'comparison-analysis' },
   ],
   ownership: [
-    { id: 'ownership-1', type: 'ownership' },
+    { id: 'ownership-overview-1', type: 'ownership-overview' },
+    { id: 'ownership-institutional-1', type: 'ownership-institutional' },
+    { id: 'ownership-insider-1', type: 'ownership-insider' },
   ],
   'company-calendar': [
     { id: 'calendar-1', type: 'company-calendar' },
@@ -133,7 +139,9 @@ const DEFAULT_TAB_LAYOUTS = {
     { i: 'comparison-1', x: 0, y: 0, w: 12, h: 10, minW: 8, minH: 6 },
   ],
   ownership: [
-    { i: 'ownership-1', x: 0, y: 0, w: 12, h: 8, minW: 6, minH: 5 },
+    { i: 'ownership-overview-1', x: 0, y: 0, w: 12, h: 6, minW: 6, minH: 4 },
+    { i: 'ownership-institutional-1', x: 0, y: 6, w: 6, h: 6, minW: 4, minH: 4 },
+    { i: 'ownership-insider-1', x: 6, y: 6, w: 6, h: 6, minW: 4, minH: 4 },
   ],
   'company-calendar': [
     { i: 'calendar-1', x: 0, y: 0, w: 12, h: 8, minW: 6, minH: 5 },
@@ -369,12 +377,12 @@ function ImprovedStockDashboard() {
             <ComparisonAnalysisTab symbol={widgetSymbol} />
           </TabWidgetWrapper>
         );
-      case 'ownership':
-        return (
-          <TabWidgetWrapper title="Ownership" onRemove={onRemove}>
-            <OwnershipTab symbol={widgetSymbol} />
-          </TabWidgetWrapper>
-        );
+      case 'ownership-overview':
+        return <OwnershipOverviewWidget symbol={widgetSymbol} onRemove={onRemove} />;
+      case 'ownership-institutional':
+        return <OwnershipInstitutionalWidget symbol={widgetSymbol} onRemove={onRemove} />;
+      case 'ownership-insider':
+        return <OwnershipInsiderWidget symbol={widgetSymbol} onRemove={onRemove} />;
       case 'company-calendar':
         return (
           <TabWidgetWrapper title="Company Calendar" onRemove={onRemove}>
