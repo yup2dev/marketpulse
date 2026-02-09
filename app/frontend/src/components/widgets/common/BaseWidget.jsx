@@ -2,6 +2,7 @@
  * BaseWidget - Common widget wrapper with shared functionality
  * Features:
  * - Drag handle for GridLayout
+ * - Symbol selector with search
  * - View mode toggle (chart/table)
  * - Period selector
  * - Refresh button
@@ -9,8 +10,113 @@
  * - Loading state
  * - Source footer
  */
-import { useState } from 'react';
-import { GripVertical, X, RefreshCw, BarChart2, Table, Calendar, ChevronDown } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { GripVertical, X, RefreshCw, BarChart2, Table, Calendar, ChevronDown, Search } from 'lucide-react';
+import { API_BASE } from '../../../config/api';
+
+// Symbol Selector Component
+function SymbolSelector({ symbol, onSymbolChange }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const inputRef = useRef(null);
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    if (isOpen && inputRef.current) {
+      inputRef.current.focus();
+      setSearch('');
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSearch = async (query) => {
+    setSearch(query);
+    if (query.length < 1) {
+      setResults([]);
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/stock/search?query=${encodeURIComponent(query)}&limit=8`);
+      if (res.ok) {
+        const data = await res.json();
+        setResults(data.results || data || []);
+      }
+    } catch (e) {
+      const common = ['AAPL', 'MSFT', 'NVDA', 'GOOGL', 'META', 'TSLA', 'AMZN', 'AMD'];
+      setResults(common.filter(s => s.toLowerCase().includes(query.toLowerCase())).map(s => ({ symbol: s })));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const selectSymbol = (sym) => {
+    onSymbolChange?.(sym);
+    setIsOpen(false);
+    setSearch('');
+  };
+
+  return (
+    <div ref={containerRef} className="relative" onMouseDown={(e) => e.stopPropagation()}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-1 bg-cyan-900/30 text-[11px] text-cyan-400 border border-cyan-800/50 rounded px-2 py-0.5 hover:bg-cyan-900/50 transition-colors font-medium"
+      >
+        {symbol}
+        <ChevronDown size={10} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 mt-1 w-52 bg-[#1a1a1f] border border-gray-700 rounded shadow-xl z-50">
+          <div className="p-2 border-b border-gray-700">
+            <div className="flex items-center gap-2 bg-gray-800 rounded px-2 py-1.5">
+              <Search size={12} className="text-gray-500" />
+              <input
+                ref={inputRef}
+                type="text"
+                value={search}
+                onChange={(e) => handleSearch(e.target.value)}
+                placeholder="Search symbol..."
+                className="flex-1 bg-transparent text-xs text-white outline-none placeholder-gray-500"
+              />
+            </div>
+          </div>
+          <div className="max-h-48 overflow-y-auto">
+            {loading ? (
+              <div className="p-3 text-center text-xs text-gray-500">Searching...</div>
+            ) : results.length > 0 ? (
+              results.map((item, i) => (
+                <button
+                  key={i}
+                  onClick={() => selectSymbol(item.symbol || item)}
+                  className="w-full px-3 py-2 text-left hover:bg-gray-800 transition-colors flex items-center justify-between"
+                >
+                  <span className="text-xs text-white font-medium">{item.symbol || item}</span>
+                  <span className="text-[10px] text-gray-500 truncate ml-2 max-w-[100px]">{item.name || ''}</span>
+                </button>
+              ))
+            ) : search ? (
+              <div className="p-3 text-center text-xs text-gray-500">No results</div>
+            ) : (
+              <div className="p-3 text-center text-xs text-gray-500">Type to search</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Period options for different data types
 export const PERIOD_OPTIONS = {
@@ -49,6 +155,9 @@ export default function BaseWidget({
   loading = false,
   onRefresh,
   onRemove,
+  // Symbol selector
+  symbol,
+  onSymbolChange,
   // View mode
   viewMode = 'chart',
   onViewModeChange,
@@ -70,7 +179,7 @@ export default function BaseWidget({
     <div className="bg-[#0d0d12] rounded-lg border border-gray-800 h-full flex flex-col overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-gray-800 bg-[#0d0d12] gap-2">
-        {/* Left: Drag handle + Title */}
+        {/* Left: Drag handle + Title + Symbol */}
         <div className="flex items-center gap-2 cursor-move drag-handle-area flex-1 min-w-0">
           <GripVertical size={14} className="text-gray-600 flex-shrink-0" />
           {Icon && <Icon size={14} className={`${iconColor} flex-shrink-0`} />}
@@ -78,6 +187,10 @@ export default function BaseWidget({
             <span className="text-sm font-medium text-white truncate block">{title}</span>
             {subtitle && <span className="text-xs text-gray-500 truncate block">{subtitle}</span>}
           </div>
+          {/* Symbol Selector */}
+          {symbol && onSymbolChange && (
+            <SymbolSelector symbol={symbol} onSymbolChange={onSymbolChange} />
+          )}
         </div>
 
         {/* Center: Controls */}

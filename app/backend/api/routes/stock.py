@@ -233,6 +233,34 @@ async def get_dividends(symbol: str, limit: int = 20):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/splits/{symbol}")
+async def get_splits(symbol: str, limit: int = 20):
+    """
+    Get stock split history
+
+    Returns historical stock splits with dates and ratios
+    """
+    try:
+        splits = await data_service.get_splits(symbol.upper(), limit)
+        return splits
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/filings/{symbol}")
+async def get_filings(symbol: str, limit: int = 20):
+    """
+    Get SEC filings for a stock
+
+    Returns recent SEC filings with links to EDGAR
+    """
+    try:
+        filings = await data_service.get_filings(symbol.upper(), limit)
+        return filings
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/estimates/{symbol}")
 async def get_estimates(symbol: str):
     """

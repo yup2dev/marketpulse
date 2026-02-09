@@ -1,14 +1,20 @@
 /**
- * Company Filings Widget - SEC filings display
+ * Company Filings Widget - Uses common WidgetTable & BaseWidget
  */
 import { useState, useEffect, useCallback } from 'react';
-import CompactWidget, { CompactTable } from './CompactWidget';
+import { FileText } from 'lucide-react';
+import WidgetTable from './common/WidgetTable';
+import BaseWidget from './common/BaseWidget';
 import { API_BASE } from '../../config/api';
 
 export default function CompanyFilingsWidget({ symbol: initialSymbol = 'AAPL', onClose }) {
   const [symbol, setSymbol] = useState(initialSymbol);
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setSymbol(initialSymbol);
+  }, [initialSymbol]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -18,15 +24,7 @@ export default function CompanyFilingsWidget({ symbol: initialSymbol = 'AAPL', o
         const result = await res.json();
         setData(result.filings || []);
       } else {
-        // Mock data
-        setData([
-          { date: '2025-11-05', cik: '0001973239', type: '6-K', source: 'SEC' },
-          { date: '2025-09-18', cik: '0001973239', type: '6-K', source: 'SEC' },
-          { date: '2025-08-11', cik: '0001973239', type: '6-K', source: 'SEC' },
-          { date: '2025-07-30', cik: '0001973239', type: '6-K', source: 'SEC' },
-          { date: '2025-05-28', cik: '0001973239', type: 'S-8', source: 'SEC' },
-          { date: '2025-05-28', cik: '0001973239', type: '20-F', source: 'SEC' },
-        ]);
+        setData([]);
       }
     } catch (e) {
       console.error('Failed to fetch filings:', e);
@@ -41,28 +39,63 @@ export default function CompanyFilingsWidget({ symbol: initialSymbol = 'AAPL', o
   }, [fetchData]);
 
   const columns = [
-    { key: 'date', header: 'Date', width: '80px', className: 'text-gray-300' },
-    { key: 'cik', header: 'CIK', className: 'text-gray-400' },
-    { key: 'type', header: 'Type', className: 'text-white' },
     {
-      key: 'source',
-      header: 'Source',
+      key: 'date',
+      header: 'Date',
+      width: '90px',
+      render: (row) => <span className="text-gray-300">{row.date}</span>
+    },
+    {
+      key: 'type',
+      header: 'Type',
+      width: '70px',
+      render: (row) => <span className="text-cyan-400 font-medium">{row.type}</span>
+    },
+    {
+      key: 'title',
+      header: 'Description',
+      className: 'text-[10px]',
+      render: (row) => <span className="text-gray-400 truncate block max-w-[200px]">{row.title}</span>
+    },
+    {
+      key: 'url',
+      header: '',
+      width: '50px',
       align: 'right',
-      render: () => <a href="#" className="text-cyan-500 hover:text-cyan-400">Link</a>
+      render: (row) => row.url ? (
+        <a
+          href={row.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-cyan-500 hover:text-cyan-400"
+          onClick={(e) => e.stopPropagation()}
+        >
+          View
+        </a>
+      ) : <span className="text-gray-500">-</span>
     },
   ];
 
   return (
-    <CompactWidget
-      title="Company Filings"
+    <BaseWidget
+      title="SEC Filings"
+      icon={FileText}
+      iconColor="text-blue-400"
       symbol={symbol}
       onSymbolChange={setSymbol}
-      onRefresh={fetchData}
-      onClose={onClose}
       loading={loading}
-      noPadding
+      onRefresh={fetchData}
+      onRemove={onClose}
+      showViewToggle={false}
+      showPeriodSelector={false}
     >
-      <CompactTable columns={columns} data={data} loading={loading} />
-    </CompactWidget>
+      <WidgetTable
+        columns={columns}
+        data={data}
+        loading={loading}
+        size="compact"
+        emptyMessage="No SEC filings"
+      />
+    </BaseWidget>
   );
 }

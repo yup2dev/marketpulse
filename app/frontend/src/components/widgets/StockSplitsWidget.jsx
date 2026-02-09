@@ -1,14 +1,20 @@
 /**
- * Stock Splits Widget
+ * Stock Splits Widget - Uses common WidgetTable & BaseWidget
  */
 import { useState, useEffect, useCallback } from 'react';
-import CompactWidget, { CompactTable } from './CompactWidget';
+import { Scissors } from 'lucide-react';
+import WidgetTable from './common/WidgetTable';
+import BaseWidget from './common/BaseWidget';
 import { API_BASE } from '../../config/api';
 
 export default function StockSplitsWidget({ symbol: initialSymbol = 'AAPL', onClose }) {
   const [symbol, setSymbol] = useState(initialSymbol);
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setSymbol(initialSymbol);
+  }, [initialSymbol]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -33,21 +39,47 @@ export default function StockSplitsWidget({ symbol: initialSymbol = 'AAPL', onCl
   }, [fetchData]);
 
   const columns = [
-    { key: 'date', header: 'Date', width: '100px', className: 'text-gray-300' },
-    { key: 'ratio', header: 'Ratio', align: 'right', className: 'text-white' },
+    {
+      key: 'date',
+      header: 'Date',
+      width: '100px',
+      render: (row) => <span className="text-gray-300">{row.date}</span>
+    },
+    {
+      key: 'description',
+      header: 'Split',
+      render: (row) => <span className="text-cyan-400">{row.description}</span>
+    },
+    {
+      key: 'ratio',
+      header: 'Ratio',
+      align: 'right',
+      sortable: true,
+      sortValue: (row) => row.ratio,
+      render: (row) => <span className="text-white font-medium">{row.ratio}:1</span>
+    },
   ];
 
   return (
-    <CompactWidget
-      title="Stock Splits"
+    <BaseWidget
+      title="Splits"
+      icon={Scissors}
+      iconColor="text-purple-400"
       symbol={symbol}
       onSymbolChange={setSymbol}
-      onRefresh={fetchData}
-      onClose={onClose}
       loading={loading}
-      noPadding
+      onRefresh={fetchData}
+      onRemove={onClose}
+      showViewToggle={false}
+      showPeriodSelector={false}
     >
-      <CompactTable columns={columns} data={data} loading={loading} />
-    </CompactWidget>
+      <WidgetTable
+        columns={columns}
+        data={data}
+        loading={loading}
+        size="compact"
+        emptyMessage="No stock splits"
+      />
+    </BaseWidget>
   );
 }

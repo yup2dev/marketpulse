@@ -15,10 +15,15 @@ const formatCurrency = (value) => {
   return `$${value.toLocaleString()}`;
 };
 
-export default function RevenueEstimatesWidget({ symbol, onRemove }) {
+export default function RevenueEstimatesWidget({ symbol: initialSymbol = 'AAPL', onRemove }) {
+  const [symbol, setSymbol] = useState(initialSymbol);
   const [revenueEstimates, setRevenueEstimates] = useState(null);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('table');
+
+  useEffect(() => {
+    setSymbol(initialSymbol);
+  }, [initialSymbol]);
 
   const loadData = useCallback(async () => {
     if (!symbol) return;
@@ -98,9 +103,11 @@ export default function RevenueEstimatesWidget({ symbol, onRemove }) {
 
   return (
     <BaseWidget
-      title={`${symbol} - Revenue Est.`}
+      title="Revenue Est."
       icon={BarChart3}
       iconColor="text-blue-400"
+      symbol={symbol}
+      onSymbolChange={setSymbol}
       loading={loading}
       onRefresh={loadData}
       onRemove={onRemove}

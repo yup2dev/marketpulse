@@ -132,8 +132,8 @@ export default function CompactWidget({
 
   return (
     <div className={`bg-[#0d0d12] border border-gray-800 rounded flex flex-col h-full ${className}`}>
-      {/* Compact Header */}
-      <div className="flex items-center justify-between px-2 py-1.5 border-b border-gray-800 bg-[#101016]">
+      {/* Compact Header - drag-handle-area for GridLayout */}
+      <div className="flex items-center justify-between px-2 py-1.5 border-b border-gray-800 bg-[#101016] drag-handle-area cursor-move">
         <div className="flex items-center gap-2">
           <RefreshCw
             size={12}

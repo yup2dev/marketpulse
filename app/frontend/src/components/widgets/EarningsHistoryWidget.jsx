@@ -1,8 +1,10 @@
 /**
- * Earnings History Widget - Compact earnings data display
+ * Earnings History Widget - Uses common WidgetTable & BaseWidget
  */
 import { useState, useEffect, useCallback } from 'react';
-import CompactWidget, { CompactTable, ColoredValue } from './CompactWidget';
+import { Calendar } from 'lucide-react';
+import WidgetTable from './common/WidgetTable';
+import BaseWidget from './common/BaseWidget';
 import { API_BASE } from '../../config/api';
 
 export default function EarningsHistoryWidget({ symbol: initialSymbol = 'AAPL', onClose }) {
@@ -10,22 +12,27 @@ export default function EarningsHistoryWidget({ symbol: initialSymbol = 'AAPL', 
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    setSymbol(initialSymbol);
+  }, [initialSymbol]);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE}/stock/earnings/${symbol}`);
       if (res.ok) {
         const result = await res.json();
-        setData(result.earnings || result.history || []);
+        const mapped = (result.earnings || []).map(item => ({
+          period: item.fiscal_period,
+          year: item.fiscal_year,
+          date: item.report_date || item.period_end_date,
+          eps: item.eps_actual,
+          epsEst: item.eps_estimated,
+          revenue: item.revenue_actual,
+        }));
+        setData(mapped);
       } else {
-        // Mock data for demo
-        setData([
-          { date: '2026-02-04', eps: null, epsEstimate: 0.41, revenue: null, revenueEstimate: 1.23e9 },
-          { date: '2025-11-05', eps: 0.15, epsEstimate: 0.3574, revenue: 1.135e9, revenueEstimate: 1.12e9 },
-          { date: '2025-07-30', eps: 0.35, epsEstimate: 0.34, revenue: 1.053e9, revenueEstimate: 1.06e9 },
-          { date: '2025-05-07', eps: 0.55, epsEstimate: 0.52, revenue: 1.241e9, revenueEstimate: 1.06e9 },
-          { date: '2025-02-05', eps: 0.40, epsEstimate: 0.34, revenue: 983e6, revenueEstimate: 1.23e9 },
-        ]);
+        setData([]);
       }
     } catch (e) {
       console.error('Failed to fetch earnings:', e);
@@ -40,59 +47,73 @@ export default function EarningsHistoryWidget({ symbol: initialSymbol = 'AAPL', 
   }, [fetchData]);
 
   const columns = [
-    { key: 'date', header: 'Date', width: '80px', className: 'text-gray-300' },
+    {
+      key: 'period',
+      header: 'Period',
+      width: '90px',
+      sortValue: (row) => row.period,
+      render: (row) => (
+        <div>
+          <span className="text-white font-medium">{row.period}</span>
+          {row.year && <span className="text-gray-500 ml-1">{row.year}</span>}
+        </div>
+      )
+    },
     {
       key: 'eps',
       header: 'EPS',
-      align: 'right',
-      render: (v, row) => {
-        if (v === null || v === undefined) return <span className="text-gray-500">-</span>;
-        const beat = row.epsEstimate && v > row.epsEstimate;
-        const miss = row.epsEstimate && v < row.epsEstimate;
-        return <span className={beat ? 'text-green-500' : miss ? 'text-red-500' : 'text-white'}>{v?.toFixed(4)}</span>;
+      align: 'center',
+      sortable: true,
+      sortValue: (row) => row.eps,
+      render: (row) => {
+        if (row.eps === null || row.eps === undefined) return <span className="text-gray-500">-</span>;
+        const beat = row.epsEst && row.eps > row.epsEst;
+        const miss = row.epsEst && row.eps < row.epsEst;
+        return <span className={beat ? 'text-green-500' : miss ? 'text-red-500' : 'text-white'}>{row.eps.toFixed(2)}</span>;
       }
     },
     {
-      key: 'epsEstimate',
-      header: 'EPS Est.',
+      key: 'epsEst',
+      header: 'Est.',
       align: 'right',
-      render: (v) => <span className="text-gray-400">{v?.toFixed(4) || '-'}</span>
+      render: (row) => <span className="text-gray-400">{row.epsEst?.toFixed(2) || '-'}</span>
     },
     {
       key: 'revenue',
       header: 'Revenue',
       align: 'right',
-      render: (v) => {
-        if (!v) return <span className="text-gray-500">-</span>;
-        return <ColoredValue value={v} format="compact" neutral />;
+      sortable: true,
+      sortValue: (row) => row.revenue,
+      render: (row) => {
+        if (!row.revenue) return <span className="text-gray-500">-</span>;
+        const val = row.revenue;
+        if (val >= 1e9) return <span className="text-white">{(val / 1e9).toFixed(2)}B</span>;
+        if (val >= 1e6) return <span className="text-white">{(val / 1e6).toFixed(2)}M</span>;
+        return <span className="text-white">{val.toFixed(2)}</span>;
       }
-    },
-    {
-      key: 'revenueEstimate',
-      header: 'Rev Est.',
-      align: 'right',
-      render: (v) => <span className="text-gray-400">{v ? `${(v / 1e9).toFixed(2)}B` : '-'}</span>
-    },
-    {
-      key: 'transcript',
-      header: '',
-      align: 'right',
-      width: '70px',
-      render: () => <a href="#" className="text-cyan-500 hover:text-cyan-400">View</a>
     },
   ];
 
   return (
-    <CompactWidget
-      title="Earnings History"
+    <BaseWidget
+      title="Earnings"
+      icon={Calendar}
+      iconColor="text-amber-400"
       symbol={symbol}
       onSymbolChange={setSymbol}
-      onRefresh={fetchData}
-      onClose={onClose}
       loading={loading}
-      noPadding
+      onRefresh={fetchData}
+      onRemove={onClose}
+      showViewToggle={false}
+      showPeriodSelector={false}
     >
-      <CompactTable columns={columns} data={data} loading={loading} />
-    </CompactWidget>
+      <WidgetTable
+        columns={columns}
+        data={data}
+        loading={loading}
+        size="compact"
+        emptyMessage="No earnings data"
+      />
+    </BaseWidget>
   );
 }

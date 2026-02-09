@@ -13,11 +13,16 @@ const COLORS = {
   sell: '#ef4444'
 };
 
-export default function ConsensusRatingWidget({ symbol, onRemove }) {
+export default function ConsensusRatingWidget({ symbol: initialSymbol = 'AAPL', onRemove }) {
+  const [symbol, setSymbol] = useState(initialSymbol);
   const [estimatesData, setEstimatesData] = useState(null);
   const [analystData, setAnalystData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('table');
+
+  useEffect(() => {
+    setSymbol(initialSymbol);
+  }, [initialSymbol]);
 
   const loadData = useCallback(async () => {
     if (!symbol) return;
@@ -147,9 +152,11 @@ export default function ConsensusRatingWidget({ symbol, onRemove }) {
 
   return (
     <BaseWidget
-      title={`${symbol} - Consensus`}
+      title="Consensus"
       icon={Star}
       iconColor="text-yellow-400"
+      symbol={symbol}
+      onSymbolChange={setSymbol}
       loading={loading}
       onRefresh={loadData}
       onRemove={onRemove}

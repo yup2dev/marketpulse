@@ -57,12 +57,17 @@ const CASHFLOW_METRICS = [
 
 const CHART_COLORS = ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b'];
 
-export default function FinancialTableWidget({ symbol = 'AAPL', onRemove }) {
+export default function FinancialTableWidget({ symbol: initialSymbol = 'AAPL', onRemove }) {
+  const [symbol, setSymbol] = useState(initialSymbol);
   const [financials, setFinancials] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('income');
   const [period, setPeriod] = useState('quarterly');
   const [viewMode, setViewMode] = useState('table');
+
+  useEffect(() => {
+    setSymbol(initialSymbol);
+  }, [initialSymbol]);
 
   const loadFinancials = useCallback(async () => {
     if (!symbol) return;
@@ -249,9 +254,11 @@ export default function FinancialTableWidget({ symbol = 'AAPL', onRemove }) {
 
   return (
     <BaseWidget
-      title={`${symbol} - Financials`}
+      title="Financials"
       icon={FileText}
       iconColor="text-purple-400"
+      symbol={symbol}
+      onSymbolChange={setSymbol}
       loading={loading}
       onRefresh={loadFinancials}
       onRemove={onRemove}

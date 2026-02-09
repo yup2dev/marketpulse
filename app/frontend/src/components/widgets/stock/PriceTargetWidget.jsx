@@ -7,11 +7,16 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import BaseWidget from '../common/BaseWidget';
 import { API_BASE } from '../../../config/api';
 
-export default function PriceTargetWidget({ symbol, onRemove }) {
+export default function PriceTargetWidget({ symbol: initialSymbol = 'AAPL', onRemove }) {
+  const [symbol, setSymbol] = useState(initialSymbol);
   const [priceTarget, setPriceTarget] = useState(null);
   const [currentPrice, setCurrentPrice] = useState(null);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('table');
+
+  useEffect(() => {
+    setSymbol(initialSymbol);
+  }, [initialSymbol]);
 
   const loadData = useCallback(async () => {
     if (!symbol) return;
@@ -116,9 +121,11 @@ export default function PriceTargetWidget({ symbol, onRemove }) {
 
   return (
     <BaseWidget
-      title={`${symbol} - Price Target`}
+      title="Price Target"
       icon={Target}
       iconColor="text-blue-400"
+      symbol={symbol}
+      onSymbolChange={setSymbol}
       loading={loading}
       onRefresh={loadData}
       onRemove={onRemove}

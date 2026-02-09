@@ -1001,6 +1001,82 @@ class DataService:
 
         return {'symbol': symbol, 'history': []}
 
+    async def get_splits(self, symbol: str, limit: int = 20) -> Dict[str, Any]:
+        """
+        Get stock split history for a company
+
+        Args:
+            symbol: Stock symbol
+            limit: Number of split records to return
+
+        Returns:
+            Split history with dates and ratios
+        """
+        try:
+            import yfinance as yf
+            ticker = yf.Ticker(symbol)
+            splits = ticker.splits
+
+            if splits is not None and not splits.empty:
+                split_list = []
+                for date_idx, ratio in splits.items():
+                    split_list.append({
+                        'date': date_idx.strftime('%Y-%m-%d') if hasattr(date_idx, 'strftime') else str(date_idx)[:10],
+                        'ratio': float(ratio),
+                        'description': f"{int(ratio)}:1 split" if ratio > 1 else f"1:{int(1/ratio)} reverse split"
+                    })
+
+                # Sort by date descending and limit
+                split_list.sort(key=lambda x: x['date'], reverse=True)
+                return {
+                    'symbol': symbol,
+                    'splits': split_list[:limit]
+                }
+        except Exception as e:
+            log.error(f"Error fetching splits for {symbol}: {e}")
+
+        return {'symbol': symbol, 'splits': []}
+
+    async def get_filings(self, symbol: str, limit: int = 20) -> Dict[str, Any]:
+        """
+        Get SEC filings for a company
+
+        Args:
+            symbol: Stock symbol
+            limit: Number of filings to return
+
+        Returns:
+            Recent SEC filings with links
+        """
+        try:
+            import yfinance as yf
+            ticker = yf.Ticker(symbol)
+            info = ticker.info
+
+            # Get SEC filings from yfinance
+            sec_filings = ticker.sec_filings
+
+            filings = []
+            if sec_filings is not None and len(sec_filings) > 0:
+                for filing in sec_filings[:limit]:
+                    filings.append({
+                        'type': filing.get('type', ''),
+                        'title': filing.get('title', ''),
+                        'date': filing.get('date', ''),
+                        'url': filing.get('edgarUrl', '') or filing.get('url', ''),
+                        'exhibits': filing.get('exhibits', {})
+                    })
+
+            return {
+                'symbol': symbol,
+                'cik': info.get('cik'),
+                'filings': filings
+            }
+        except Exception as e:
+            log.error(f"Error fetching filings for {symbol}: {e}")
+
+        return {'symbol': symbol, 'filings': []}
+
     async def get_estimates(self, symbol: str) -> Dict[str, Any]:
         """
         Get analyst estimates for EPS and revenue

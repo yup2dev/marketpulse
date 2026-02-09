@@ -149,10 +149,19 @@ class PolygonEarningsFetcher(
                     except (ValueError, IndexError):
                         pass
 
+                # 회계연도 파싱 (빈 문자열 처리)
+                fiscal_year_raw = item.get("fiscal_year")
+                fiscal_year = None
+                if fiscal_year_raw not in (None, '', 0):
+                    try:
+                        fiscal_year = int(fiscal_year_raw)
+                    except (ValueError, TypeError):
+                        fiscal_year = None
+
                 earnings_data = EarningsData(
                     ticker=query.ticker,
                     fiscal_period=fiscal_period,
-                    fiscal_year=item.get("fiscal_year", 0),
+                    fiscal_year=fiscal_year,
                     fiscal_quarter=fiscal_quarter,
                     report_date=report_date,
                     period_end_date=period_end_date,

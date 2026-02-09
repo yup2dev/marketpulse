@@ -7,10 +7,15 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import BaseWidget from '../common/BaseWidget';
 import { API_BASE } from '../../../config/api';
 
-export default function EPSEstimatesWidget({ symbol, onRemove }) {
+export default function EPSEstimatesWidget({ symbol: initialSymbol = 'AAPL', onRemove }) {
+  const [symbol, setSymbol] = useState(initialSymbol);
   const [epsEstimates, setEpsEstimates] = useState(null);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('table');
+
+  useEffect(() => {
+    setSymbol(initialSymbol);
+  }, [initialSymbol]);
 
   const loadData = useCallback(async () => {
     if (!symbol) return;
@@ -90,9 +95,11 @@ export default function EPSEstimatesWidget({ symbol, onRemove }) {
 
   return (
     <BaseWidget
-      title={`${symbol} - EPS Estimates`}
+      title="EPS Estimates"
       icon={DollarSign}
       iconColor="text-green-400"
+      symbol={symbol}
+      onSymbolChange={setSymbol}
       loading={loading}
       onRefresh={loadData}
       onRemove={onRemove}

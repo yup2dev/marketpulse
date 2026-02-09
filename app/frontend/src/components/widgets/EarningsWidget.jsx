@@ -36,7 +36,13 @@ const EarningsWidget = ({ symbol, onRemove }) => {
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE}/stock/earnings/${symbol}`);
-      if (res.ok) setEarnings(await res.json());
+      if (res.ok) {
+        const data = await res.json();
+        console.log('Earnings data loaded:', data);
+        setEarnings(data);
+      } else {
+        console.error('Earnings fetch failed:', res.status);
+      }
     } catch (error) {
       console.error('Error loading earnings:', error);
     } finally {

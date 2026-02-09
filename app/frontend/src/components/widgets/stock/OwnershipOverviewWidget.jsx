@@ -21,10 +21,15 @@ const formatNumber = (value) => {
   return value.toLocaleString();
 };
 
-export default function OwnershipOverviewWidget({ symbol, onRemove }) {
+export default function OwnershipOverviewWidget({ symbol: initialSymbol = 'AAPL', onRemove }) {
+  const [symbol, setSymbol] = useState(initialSymbol);
   const [ownershipData, setOwnershipData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('chart');
+
+  useEffect(() => {
+    setSymbol(initialSymbol);
+  }, [initialSymbol]);
 
   const loadData = useCallback(async () => {
     if (!symbol) return;
@@ -185,9 +190,11 @@ export default function OwnershipOverviewWidget({ symbol, onRemove }) {
 
   return (
     <BaseWidget
-      title={`${symbol} - Ownership Overview`}
+      title="Ownership Overview"
       icon={Users}
       iconColor="text-blue-400"
+      symbol={symbol}
+      onSymbolChange={setSymbol}
       loading={loading}
       onRefresh={loadData}
       onRemove={onRemove}

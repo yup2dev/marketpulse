@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { TrendingUp, TrendingDown, BarChart3, Table2 } from 'lucide-react';
+import { TrendingUp, TrendingDown, BarChart3, Table2, RefreshCw } from 'lucide-react';
 import useTheme from '../hooks/useTheme';
 import { formatNumber, formatPrice, formatPercent } from '../utils/widgetUtils';
 import { API_BASE } from '../config/api';

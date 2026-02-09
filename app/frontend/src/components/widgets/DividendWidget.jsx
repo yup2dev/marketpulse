@@ -1,8 +1,10 @@
 /**
- * Dividend Payment Widget
+ * Dividend Widget - Uses common WidgetTable & BaseWidget
  */
 import { useState, useEffect, useCallback } from 'react';
-import CompactWidget, { CompactTable, ColoredValue } from './CompactWidget';
+import { DollarSign } from 'lucide-react';
+import WidgetTable from './common/WidgetTable';
+import BaseWidget from './common/BaseWidget';
 import { API_BASE } from '../../config/api';
 
 export default function DividendWidget({ symbol: initialSymbol = 'AAPL', onClose }) {
@@ -10,13 +12,23 @@ export default function DividendWidget({ symbol: initialSymbol = 'AAPL', onClose
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    setSymbol(initialSymbol);
+  }, [initialSymbol]);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE}/stock/dividends/${symbol}`);
       if (res.ok) {
         const result = await res.json();
-        setData(result.dividends || []);
+        const mapped = (result.history || result.dividends || []).map(item => ({
+          date: item.date,
+          amount: item.amount,
+          yield: item.dividend_yield,
+          growth: item.yoy_growth,
+        }));
+        setData(mapped);
       } else {
         setData([]);
       }
@@ -33,33 +45,58 @@ export default function DividendWidget({ symbol: initialSymbol = 'AAPL', onClose
   }, [fetchData]);
 
   const columns = [
-    { key: 'exDate', header: 'Ex-Date', width: '80px', className: 'text-gray-300' },
-    { key: 'payDate', header: 'Pay Date', width: '80px', className: 'text-gray-400' },
+    {
+      key: 'date',
+      header: 'Date',
+      width: '100px',
+      render: (row) => <span className="text-gray-300">{row.date}</span>
+    },
     {
       key: 'amount',
       header: 'Amount',
       align: 'right',
-      render: (v) => <ColoredValue value={v} format="currency" neutral />
+      sortable: true,
+      sortValue: (row) => row.amount,
+      render: (row) => row.amount ? <span className="text-white">${row.amount.toFixed(4)}</span> : <span className="text-gray-500">-</span>
     },
     {
       key: 'yield',
       header: 'Yield',
       align: 'right',
-      render: (v) => v ? <span className="text-green-500">{v.toFixed(2)}%</span> : '-'
+      render: (row) => row.yield ? <span className="text-green-500">{(row.yield * 100).toFixed(2)}%</span> : <span className="text-gray-500">-</span>
+    },
+    {
+      key: 'growth',
+      header: 'YoY',
+      align: 'right',
+      render: (row) => {
+        if (!row.growth) return <span className="text-gray-500">-</span>;
+        const isPos = row.growth >= 0;
+        return <span className={isPos ? 'text-green-500' : 'text-red-500'}>{isPos ? '+' : ''}{(row.growth * 100).toFixed(1)}%</span>;
+      }
     },
   ];
 
   return (
-    <CompactWidget
-      title="Dividend Payment"
+    <BaseWidget
+      title="Dividends"
+      icon={DollarSign}
+      iconColor="text-green-400"
       symbol={symbol}
       onSymbolChange={setSymbol}
-      onRefresh={fetchData}
-      onClose={onClose}
       loading={loading}
-      noPadding
+      onRefresh={fetchData}
+      onRemove={onClose}
+      showViewToggle={false}
+      showPeriodSelector={false}
     >
-      <CompactTable columns={columns} data={data} loading={loading} />
-    </CompactWidget>
+      <WidgetTable
+        columns={columns}
+        data={data}
+        loading={loading}
+        size="compact"
+        emptyMessage="No dividend history"
+      />
+    </BaseWidget>
   );
 }

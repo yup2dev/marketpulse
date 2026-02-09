@@ -10,7 +10,11 @@ import ChartWidget from './widgets/ChartWidget';
 import TickerInfoWidget from './widgets/TickerInfoWidget';
 import KeyMetricsWidget from './widgets/KeyMetricsWidget';
 import TickerInformation from './widgets/TickerInformation';
-import EarningsWidget from './widgets/EarningsWidget';
+// Company Calendar widgets
+import EarningsHistoryWidget from './widgets/EarningsHistoryWidget';
+import StockSplitsWidget from './widgets/StockSplitsWidget';
+import DividendWidget from './widgets/DividendWidget';
+import CompanyFilingsWidget from './widgets/CompanyFilingsWidget';
 import AnalystWidget from './widgets/AnalystWidget';
 import InsiderWidget from './widgets/InsiderWidget';
 import InstitutionalPortfolios from './InstitutionalPortfolios';
@@ -19,7 +23,6 @@ import ComparisonAnalysisTab from './analysis/ComparisonAnalysisTab';
 import OwnershipOverviewWidget from './widgets/stock/OwnershipOverviewWidget';
 import OwnershipInstitutionalWidget from './widgets/stock/OwnershipInstitutionalWidget';
 import OwnershipInsiderWidget from './widgets/stock/OwnershipInsiderWidget';
-import CompanyCalendarTab from './analysis/CompanyCalendarTab';
 import EstimatesTab from './analysis/EstimatesTab';
 // Individual estimate widgets
 import ConsensusRatingWidget from './widgets/stock/ConsensusRatingWidget';
@@ -50,7 +53,7 @@ const TAB_WIDGETS = {
     { id: 'ticker-info', name: 'Ticker Info', description: 'Company details & price', defaultSize: { w: 4, h: 7 } },
     { id: 'key-metrics', name: 'Key Metrics', description: 'Valuation & profitability', defaultSize: { w: 4, h: 8 } },
     { id: 'advanced-chart', name: 'Advanced Chart', description: 'Price chart with indicators', defaultSize: { w: 8, h: 7 } },
-    { id: 'earnings', name: 'Earnings', description: 'EPS history & surprises', defaultSize: { w: 4, h: 6 } },
+    { id: 'earnings-history', name: 'Earnings History', description: 'EPS history & surprises', defaultSize: { w: 4, h: 6 } },
     { id: 'analyst', name: 'Analyst', description: 'Ratings & price targets', defaultSize: { w: 4, h: 7 } },
     { id: 'insider', name: 'Insider', description: 'Insider trading activity', defaultSize: { w: 4, h: 6 } },
   ],
@@ -74,8 +77,10 @@ const TAB_WIDGETS = {
     { id: 'ownership-insider', name: 'Insider Activity', description: 'Insider trading activity', defaultSize: { w: 6, h: 6 } },
   ],
   'company-calendar': [
-    { id: 'company-calendar', name: 'Company Calendar', description: 'Earnings, dividends, events', defaultSize: { w: 12, h: 8 } },
-    { id: 'earnings', name: 'Earnings History', description: 'EPS history & surprises', defaultSize: { w: 6, h: 6 } },
+    { id: 'earnings-history', name: 'Earnings History', description: 'EPS history & surprises', defaultSize: { w: 6, h: 6 } },
+    { id: 'stock-splits', name: 'Stock Splits', description: 'Split history', defaultSize: { w: 6, h: 6 } },
+    { id: 'dividends', name: 'Dividends', description: 'Dividend payments', defaultSize: { w: 6, h: 6 } },
+    { id: 'company-filings', name: 'SEC Filings', description: 'SEC filings & reports', defaultSize: { w: 6, h: 6 } },
   ],
   estimates: [
     { id: 'consensus-rating', name: 'Consensus Rating', description: 'Analyst consensus', defaultSize: { w: 6, h: 5 } },
@@ -93,7 +98,7 @@ const DEFAULT_TAB_WIDGETS = {
     { id: 'key-metrics-1', type: 'key-metrics' },
     { id: 'analyst-1', type: 'analyst' },
     { id: 'chart-1', type: 'advanced-chart' },
-    { id: 'earnings-1', type: 'earnings' },
+    { id: 'earnings-history-1', type: 'earnings-history' },
   ],
   financials: [
     { id: 'financial-table-1', type: 'financial-table' },
@@ -110,7 +115,10 @@ const DEFAULT_TAB_WIDGETS = {
     { id: 'ownership-insider-1', type: 'ownership-insider' },
   ],
   'company-calendar': [
-    { id: 'calendar-1', type: 'company-calendar' },
+    { id: 'earnings-history-1', type: 'earnings-history' },
+    { id: 'stock-splits-1', type: 'stock-splits' },
+    { id: 'dividends-1', type: 'dividends' },
+    { id: 'company-filings-1', type: 'company-filings' },
   ],
   estimates: [
     { id: 'consensus-1', type: 'consensus-rating' },
@@ -127,7 +135,7 @@ const DEFAULT_TAB_LAYOUTS = {
     { i: 'key-metrics-1', x: 4, y: 0, w: 4, h: 8, minW: 3, minH: 5 },
     { i: 'analyst-1', x: 8, y: 0, w: 4, h: 8, minW: 3, minH: 5 },
     { i: 'chart-1', x: 0, y: 4, w: 4, h: 5, minW: 4, minH: 4 },
-    { i: 'earnings-1', x: 0, y: 9, w: 12, h: 5, minW: 6, minH: 4 },
+    { i: 'earnings-history-1', x: 0, y: 9, w: 12, h: 5, minW: 6, minH: 4 },
   ],
   financials: [
     { i: 'financial-table-1', x: 0, y: 0, w: 12, h: 8, minW: 6, minH: 5 },
@@ -144,7 +152,10 @@ const DEFAULT_TAB_LAYOUTS = {
     { i: 'ownership-insider-1', x: 6, y: 6, w: 6, h: 6, minW: 4, minH: 4 },
   ],
   'company-calendar': [
-    { i: 'calendar-1', x: 0, y: 0, w: 12, h: 8, minW: 6, minH: 5 },
+    { i: 'earnings-history-1', x: 0, y: 0, w: 7, h: 5, minW: 4, minH: 4 },
+    { i: 'stock-splits-1', x: 7, y: 0, w: 5, h: 5, minW: 4, minH: 4 },
+    { i: 'dividends-1', x: 0, y: 5, w: 7, h: 5, minW: 4, minH: 4 },
+    { i: 'company-filings-1', x: 7, y: 5, w: 5, h: 5, minW: 4, minH: 4 },
   ],
   estimates: [
     { i: 'consensus-1', x: 0, y: 0, w: 6, h: 5, minW: 4, minH: 4 },
@@ -355,8 +366,14 @@ function ImprovedStockDashboard() {
         return <KeyMetricsWidget symbol={widgetSymbol} onRemove={onRemove} />;
       case 'advanced-chart':
         return <ChartWidget widgetId={widget.id} initialSymbols={[widgetSymbol]} onRemove={onRemove} />;
-      case 'earnings':
-        return <EarningsWidget symbol={widgetSymbol} onRemove={onRemove} />;
+      case 'earnings-history':
+        return <EarningsHistoryWidget symbol={widgetSymbol} onClose={onRemove} />;
+      case 'stock-splits':
+        return <StockSplitsWidget symbol={widgetSymbol} onClose={onRemove} />;
+      case 'dividends':
+        return <DividendWidget symbol={widgetSymbol} onClose={onRemove} />;
+      case 'company-filings':
+        return <CompanyFilingsWidget symbol={widgetSymbol} onClose={onRemove} />;
       case 'analyst':
         return <AnalystWidget symbol={widgetSymbol} onRemove={onRemove} />;
       case 'insider':
@@ -383,12 +400,6 @@ function ImprovedStockDashboard() {
         return <OwnershipInstitutionalWidget symbol={widgetSymbol} onRemove={onRemove} />;
       case 'ownership-insider':
         return <OwnershipInsiderWidget symbol={widgetSymbol} onRemove={onRemove} />;
-      case 'company-calendar':
-        return (
-          <TabWidgetWrapper title="Company Calendar" onRemove={onRemove}>
-            <CompanyCalendarTab symbol={widgetSymbol} />
-          </TabWidgetWrapper>
-        );
       case 'estimates':
         return (
           <TabWidgetWrapper title="Estimates" onRemove={onRemove}>
