@@ -1,18 +1,23 @@
 /**
- * Macro Fed Policy Tab - Data-Focused Layout
+ * Macro Fed Policy Tab - Terminal/WidgetTable design
+ * API: /macro/fed-policy/stance
  */
-import { useState, useEffect } from 'react';
-import { RefreshCw, TrendingUp, TrendingDown, ArrowUp, ArrowDown } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, ReferenceLine } from 'recharts';
+import { useState, useEffect, useMemo } from 'react';
+import { RefreshCw, TrendingUp, TrendingDown } from 'lucide-react';
 import { API_BASE } from '../../config/api';
+import WidgetTable from '../widgets/common/WidgetTable';
+
+const STANCE_BADGE = {
+  hawkish: { label: 'HAWKISH', cls: 'bg-red-500/20 text-red-400 border-red-500/30' },
+  dovish: { label: 'DOVISH', cls: 'bg-green-500/20 text-green-400 border-green-500/30' },
+  neutral: { label: 'NEUTRAL', cls: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' },
+};
 
 export default function MacroFedPolicyTab() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     setLoading(true);
@@ -26,202 +31,207 @@ export default function MacroFedPolicyTab() {
     }
   };
 
-  const getStanceColor = (stance) => {
-    const colors = {
-      hawkish: 'text-red-400',
-      dovish: 'text-green-400',
-      neutral: 'text-yellow-400'
-    };
-    return colors[stance] || 'text-gray-400';
-  };
+  const targetRange = data?.fed_funds_target_range || data?.target_range;
+  const nextMeeting = data?.next_meeting;
+  const probabilities = nextMeeting?.probabilities;
+  const historicalCtx = data?.historical_context;
+  const stanceBadge = STANCE_BADGE[data?.stance] || STANCE_BADGE.neutral;
 
-  const getStanceDescription = (stance) => {
-    const descriptions = {
-      hawkish: 'Tightening bias - fighting inflation',
-      dovish: 'Easing bias - supporting growth',
-      neutral: 'Data dependent - balanced approach'
-    };
-    return descriptions[stance] || 'Unknown';
-  };
+  // Key factors table
+  const factorsColumns = useMemo(() => [
+    {
+      key: 'factor',
+      header: 'Factor',
+      minWidth: '200px',
+      render: (row) => <span className="text-white">{row.label}</span>,
+    },
+    {
+      key: 'impact',
+      header: 'Impact',
+      align: 'right',
+      minWidth: '100px',
+      render: (row) => {
+        if (!row.impact) return <span className="text-gray-500">-</span>;
+        const color = row.impact === 'hawkish' || row.impact === 'tightening'
+          ? 'text-red-400' : row.impact === 'dovish' || row.impact === 'easing'
+          ? 'text-green-400' : 'text-yellow-400';
+        return <span className={color}>{row.impact}</span>;
+      },
+    },
+  ], []);
+
+  const factorsData = useMemo(() => {
+    if (!data?.key_factors) return [];
+    return data.key_factors.map((f, idx) => ({
+      _key: `factor-${idx}`,
+      label: typeof f === 'string' ? f : f.name || f.factor || '-',
+      impact: typeof f === 'object' ? (f.impact || f.direction || '') : '',
+    }));
+  }, [data?.key_factors]);
+
+  // Signals table - build from available data
+  const signalsColumns = useMemo(() => [
+    {
+      key: 'metric',
+      header: 'Metric',
+      minWidth: '180px',
+      render: (row) => <span className="text-white">{row.metric}</span>,
+    },
+    {
+      key: 'value',
+      header: 'Value',
+      align: 'right',
+      minWidth: '100px',
+      sortable: true,
+      sortValue: (row) => row.rawValue,
+      render: (row) => <span className="text-white tabular-nums">{row.display}</span>,
+    },
+    {
+      key: 'signal',
+      header: 'Signal',
+      align: 'right',
+      minWidth: '100px',
+      render: (row) => {
+        if (!row.signal) return <span className="text-gray-500">-</span>;
+        const badge = STANCE_BADGE[row.signal] || { label: row.signal.toUpperCase(), cls: 'bg-gray-500/20 text-gray-400 border-gray-500/30' };
+        return (
+          <span className={`inline-block px-1.5 py-0.5 text-[10px] font-medium rounded border ${badge.cls}`}>
+            {badge.label}
+          </span>
+        );
+      },
+    },
+  ], []);
+
+  const signalsData = useMemo(() => {
+    if (!data) return [];
+    const rows = [];
+    if (data.fed_funds_rate != null) {
+      rows.push({
+        _key: 'ffr',
+        metric: 'Fed Funds Rate',
+        rawValue: data.fed_funds_rate,
+        display: `${data.fed_funds_rate.toFixed(2)}%`,
+      });
+    }
+    if (targetRange) {
+      rows.push({
+        _key: 'target',
+        metric: 'Target Range',
+        rawValue: targetRange.upper,
+        display: `${targetRange.lower?.toFixed(2) || '-'}% - ${targetRange.upper?.toFixed(2) || '-'}%`,
+      });
+    }
+    if (nextMeeting?.date) {
+      rows.push({
+        _key: 'meeting',
+        metric: 'Next FOMC Meeting',
+        rawValue: 0,
+        display: nextMeeting.date,
+      });
+    }
+    if (probabilities) {
+      if (probabilities.hike != null) {
+        rows.push({ _key: 'prob-hike', metric: 'Hike Probability', rawValue: probabilities.hike, display: `${(probabilities.hike * 100).toFixed(0)}%`, signal: 'hawkish' });
+      }
+      if (probabilities.hold != null) {
+        rows.push({ _key: 'prob-hold', metric: 'Hold Probability', rawValue: probabilities.hold, display: `${(probabilities.hold * 100).toFixed(0)}%`, signal: 'neutral' });
+      }
+      if (probabilities.cut != null) {
+        rows.push({ _key: 'prob-cut', metric: 'Cut Probability', rawValue: probabilities.cut, display: `${(probabilities.cut * 100).toFixed(0)}%`, signal: 'dovish' });
+      }
+    }
+    if (historicalCtx) {
+      if (historicalCtx.rate_changes_12m != null) {
+        rows.push({ _key: 'rc12m', metric: 'Rate Changes (12M)', rawValue: historicalCtx.rate_changes_12m, display: String(historicalCtx.rate_changes_12m) });
+      }
+      if (historicalCtx.peak_rate != null) {
+        rows.push({ _key: 'peak', metric: 'Peak Rate (Cycle)', rawValue: historicalCtx.peak_rate, display: `${Number(historicalCtx.peak_rate).toFixed(2)}%` });
+      }
+      if (historicalCtx.trough_rate != null) {
+        rows.push({ _key: 'trough', metric: 'Trough Rate (Cycle)', rawValue: historicalCtx.trough_rate, display: `${Number(historicalCtx.trough_rate).toFixed(2)}%` });
+      }
+    }
+    return rows;
+  }, [data, targetRange, nextMeeting, probabilities, historicalCtx]);
 
   return (
-    <div className="space-y-4">
+    <div className="h-full flex flex-col bg-[#0a0a0f]">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-white">Federal Reserve Policy</h3>
-        <button onClick={loadData} className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded text-sm text-gray-300">
-          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-          Refresh
-        </button>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
+        <div className="flex items-center gap-3">
+          <h3 className="text-sm font-medium text-white">Federal Reserve Policy</h3>
+          {data?.stance && (
+            <span className={`inline-block px-1.5 py-0.5 text-[10px] font-medium rounded border ${stanceBadge.cls}`}>
+              {stanceBadge.label}
+            </span>
+          )}
+          {data?.fed_funds_rate != null && (
+            <span className="text-xs text-gray-400">
+              FFR: <span className="text-white font-medium">{data.fed_funds_rate.toFixed(2)}%</span>
+            </span>
+          )}
+          {nextMeeting?.date && (
+            <span className="text-xs text-gray-400">
+              Next: <span className="text-white">{nextMeeting.date}</span>
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={loadData}
+            className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded"
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+          </button>
+        </div>
       </div>
 
-      {loading ? (
-        <div className="h-64 flex items-center justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+      {/* Forward Guidance */}
+      {data?.forward_guidance && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-gray-800/20 text-xs border-b border-gray-800/50">
+          <span className="text-gray-400">Guidance:</span>
+          <span className="text-gray-300">{data.forward_guidance}</span>
         </div>
-      ) : data ? (
-        <div className="grid grid-cols-12 gap-4">
-          {/* Current Stance */}
-          <div className="col-span-4">
-            <div className="bg-[#0d0d12] rounded-lg border border-gray-800 p-4">
-              <div className="text-gray-400 text-xs mb-1">Policy Stance</div>
-              <div className={`text-3xl font-bold capitalize ${getStanceColor(data.stance)}`}>
-                {data.stance || 'Unknown'}
-              </div>
-              <div className="text-gray-500 text-xs mt-1">{getStanceDescription(data.stance)}</div>
-            </div>
-          </div>
-
-          {/* Fed Funds Rate */}
-          <div className="col-span-4">
-            <div className="bg-[#0d0d12] rounded-lg border border-gray-800 p-4">
-              <div className="text-gray-400 text-xs mb-1">Fed Funds Rate</div>
-              <div className="text-3xl font-bold text-white">
-                {data.fed_funds_rate?.toFixed(2) || '-'}%
-              </div>
-              <div className="flex items-center gap-2 mt-2">
-                <span className="text-gray-500 text-xs">Target:</span>
-                <span className="text-white text-xs">
-                  {data.target_range?.lower?.toFixed(2) || '-'}% - {data.target_range?.upper?.toFixed(2) || '-'}%
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Next Meeting */}
-          <div className="col-span-4">
-            <div className="bg-[#0d0d12] rounded-lg border border-gray-800 p-4">
-              <div className="text-gray-400 text-xs mb-1">Next FOMC Meeting</div>
-              <div className="text-xl font-bold text-white">{data.next_meeting || '-'}</div>
-              {data.market_expectation && (
-                <div className="mt-2">
-                  <div className="text-gray-500 text-xs">Market Expectation</div>
-                  <div className={`text-sm font-medium ${data.market_expectation.direction === 'hike' ? 'text-red-400' : data.market_expectation.direction === 'cut' ? 'text-green-400' : 'text-yellow-400'}`}>
-                    {data.market_expectation.probability?.toFixed(0)}% prob. of {data.market_expectation.direction || 'hold'}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Rate Path Chart */}
-          <div className="col-span-8">
-            <div className="bg-[#0d0d12] rounded-lg border border-gray-800 p-4">
-              <div className="text-gray-400 text-xs mb-3">Fed Funds Rate History & Projections</div>
-              {data.rate_history ? (
-                <div className="h-[250px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={data.rate_history}>
-                      <defs>
-                        <linearGradient id="rateGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
-                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                      <XAxis dataKey="date" stroke="#666" fontSize={10} />
-                      <YAxis stroke="#666" fontSize={10} tickFormatter={(v) => `${v}%`} />
-                      <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333' }} />
-                      <ReferenceLine y={2} stroke="#22c55e" strokeDasharray="3 3" label={{ value: '2% Target', position: 'right', fontSize: 10, fill: '#22c55e' }} />
-                      <Area type="monotone" dataKey="rate" stroke="#3b82f6" strokeWidth={2} fill="url(#rateGradient)" />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <div className="h-[250px] flex items-center justify-center text-gray-500">No history data</div>
-              )}
-            </div>
-          </div>
-
-          {/* Dot Plot Summary */}
-          <div className="col-span-4">
-            <div className="bg-[#0d0d12] rounded-lg border border-gray-800 p-4">
-              <div className="text-gray-400 text-xs mb-3">FOMC Dot Plot Median</div>
-              <div className="space-y-3">
-                {data.dot_plot?.map((year, idx) => (
-                  <div key={idx} className="flex items-center justify-between">
-                    <span className="text-gray-400 text-sm">{year.year}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-white font-bold">{year.median?.toFixed(2)}%</span>
-                      {year.change !== 0 && (
-                        <span className={`text-xs flex items-center ${year.change > 0 ? 'text-red-400' : 'text-green-400'}`}>
-                          {year.change > 0 ? <ArrowUp size={10} /> : <ArrowDown size={10} />}
-                          {Math.abs(year.change).toFixed(2)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )) || (
-                  <div className="text-gray-500 text-sm">No dot plot data</div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Policy Signals Table */}
-          <div className="col-span-12">
-            <div className="bg-[#0d0d12] rounded-lg border border-gray-800 overflow-hidden">
-              <div className="p-3 border-b border-gray-800">
-                <span className="text-gray-400 text-xs">Policy Signals & Indicators</span>
-              </div>
-              <table className="w-full">
-                <thead className="bg-[#0a0a0f]">
-                  <tr className="text-[10px] text-gray-500">
-                    <th className="py-2 px-4 text-left font-medium">Indicator</th>
-                    <th className="py-2 px-4 text-right font-medium">Current</th>
-                    <th className="py-2 px-4 text-right font-medium">Target/Threshold</th>
-                    <th className="py-2 px-4 text-right font-medium">Signal</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="border-b border-gray-800/30 hover:bg-gray-800/20">
-                    <td className="py-2 px-4 text-sm text-white">Core PCE (YoY)</td>
-                    <td className="py-2 px-4 text-right text-sm text-white">{data.core_pce?.toFixed(2) || '-'}%</td>
-                    <td className="py-2 px-4 text-right text-sm text-gray-400">2.00%</td>
-                    <td className="py-2 px-4 text-right">
-                      <span className={`text-sm ${(data.core_pce || 0) > 2.5 ? 'text-red-400' : (data.core_pce || 0) < 1.5 ? 'text-blue-400' : 'text-green-400'}`}>
-                        {(data.core_pce || 0) > 2.5 ? 'Hawkish' : (data.core_pce || 0) < 1.5 ? 'Dovish' : 'Neutral'}
-                      </span>
-                    </td>
-                  </tr>
-                  <tr className="border-b border-gray-800/30 hover:bg-gray-800/20">
-                    <td className="py-2 px-4 text-sm text-white">Unemployment Rate</td>
-                    <td className="py-2 px-4 text-right text-sm text-white">{data.unemployment?.toFixed(1) || '-'}%</td>
-                    <td className="py-2 px-4 text-right text-sm text-gray-400">4.0-4.5%</td>
-                    <td className="py-2 px-4 text-right">
-                      <span className={`text-sm ${(data.unemployment || 0) < 4 ? 'text-red-400' : (data.unemployment || 0) > 5 ? 'text-green-400' : 'text-yellow-400'}`}>
-                        {(data.unemployment || 0) < 4 ? 'Hawkish' : (data.unemployment || 0) > 5 ? 'Dovish' : 'Neutral'}
-                      </span>
-                    </td>
-                  </tr>
-                  <tr className="border-b border-gray-800/30 hover:bg-gray-800/20">
-                    <td className="py-2 px-4 text-sm text-white">Real GDP Growth</td>
-                    <td className="py-2 px-4 text-right text-sm text-white">{data.gdp_growth?.toFixed(1) || '-'}%</td>
-                    <td className="py-2 px-4 text-right text-sm text-gray-400">1.8-2.0%</td>
-                    <td className="py-2 px-4 text-right">
-                      <span className={`text-sm ${(data.gdp_growth || 0) > 3 ? 'text-red-400' : (data.gdp_growth || 0) < 1 ? 'text-green-400' : 'text-yellow-400'}`}>
-                        {(data.gdp_growth || 0) > 3 ? 'Hawkish' : (data.gdp_growth || 0) < 1 ? 'Dovish' : 'Neutral'}
-                      </span>
-                    </td>
-                  </tr>
-                  <tr className="border-b border-gray-800/30 hover:bg-gray-800/20">
-                    <td className="py-2 px-4 text-sm text-white">Balance Sheet (Trillions)</td>
-                    <td className="py-2 px-4 text-right text-sm text-white">${data.balance_sheet?.toFixed(2) || '-'}T</td>
-                    <td className="py-2 px-4 text-right text-sm text-gray-400">QT Pace</td>
-                    <td className="py-2 px-4 text-right">
-                      <span className={`text-sm ${data.qt_active ? 'text-red-400' : 'text-green-400'}`}>
-                        {data.qt_active ? 'Tightening' : 'Stable'}
-                      </span>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="text-center text-gray-500 py-8">No data available</div>
       )}
+
+      {/* Content */}
+      <div className="flex-1 overflow-auto">
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <RefreshCw size={20} className="animate-spin text-cyan-400" />
+          </div>
+        ) : !data ? (
+          <div className="flex items-center justify-center py-20 text-gray-500 text-sm">No data available</div>
+        ) : (
+          <div>
+            {/* Signals table */}
+            {signalsData.length > 0 && (
+              <WidgetTable
+                columns={signalsColumns}
+                data={signalsData}
+                size="compact"
+                emptyMessage="No signals data"
+                stickyHeader
+              />
+            )}
+
+            {/* Key Factors table */}
+            {factorsData.length > 0 && (
+              <div className="border-t border-gray-800">
+                <div className="px-4 py-2 text-xs text-gray-400 border-b border-gray-800/50">Key Factors</div>
+                <WidgetTable
+                  columns={factorsColumns}
+                  data={factorsData}
+                  size="compact"
+                  emptyMessage="No factors data"
+                  stickyHeader={false}
+                />
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

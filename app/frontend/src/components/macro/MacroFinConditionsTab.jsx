@@ -1,18 +1,30 @@
 /**
- * Macro Financial Conditions Tab - Data-Focused Layout
+ * Macro Financial Conditions Tab - Terminal/WidgetTable design
+ * API: /macro/financial-conditions (nested), /macro/financial-conditions/history
  */
-import { useState, useEffect } from 'react';
-import { RefreshCw, TrendingUp, TrendingDown } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, ReferenceLine, BarChart, Bar, Cell } from 'recharts';
+import { useState, useEffect, useMemo } from 'react';
+import { RefreshCw } from 'lucide-react';
 import { API_BASE } from '../../config/api';
+import WidgetTable from '../widgets/common/WidgetTable';
+
+const CONDITION_BADGE = {
+  tight: { label: 'TIGHT', cls: 'bg-red-500/20 text-red-400 border-red-500/30' },
+  loose: { label: 'LOOSE', cls: 'bg-green-500/20 text-green-400 border-green-500/30' },
+  neutral: { label: 'NEUTRAL', cls: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' },
+};
+
+const SUB_TABS = [
+  { id: 'overview', name: 'Overview' },
+  { id: 'consumer', name: 'Consumer Health' },
+  { id: 'corporate', name: 'Corporate Health' },
+];
 
 export default function MacroFinConditionsTab() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('overview');
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     setLoading(true);
@@ -26,229 +38,243 @@ export default function MacroFinConditionsTab() {
     }
   };
 
-  const getConditionColor = (value) => {
-    if (value > 0.5) return 'text-red-400';
-    if (value < -0.5) return 'text-green-400';
-    return 'text-yellow-400';
-  };
+  // Extract nested values with fallbacks
+  const fciValue = data?.fci_composite?.value ?? data?.fci_index;
+  const fciChange = data?.fci_composite?.change ?? data?.fci_change;
+  const igSpread = data?.credit_spreads?.investment_grade?.spread ?? data?.ig_spread;
+  const igChange = data?.credit_spreads?.investment_grade?.change ?? data?.ig_spread_change;
+  const hySpread = data?.credit_spreads?.high_yield?.spread ?? data?.hy_spread;
+  const hyChange = data?.credit_spreads?.high_yield?.change ?? data?.hy_spread_change;
+  const tedSpread = data?.liquidity?.ted_spread ?? data?.ted_spread;
+  const vixValue = data?.volatility?.vix ?? data?.vix;
 
   const getConditionLabel = (value) => {
-    if (value > 1) return 'Very Tight';
-    if (value > 0.5) return 'Tight';
-    if (value > -0.5) return 'Neutral';
-    if (value > -1) return 'Loose';
-    return 'Very Loose';
+    if (value == null) return 'neutral';
+    if (value > 0.5) return 'tight';
+    if (value < -0.5) return 'loose';
+    return 'neutral';
   };
 
+  const condBadge = CONDITION_BADGE[getConditionLabel(fciValue)] || CONDITION_BADGE.neutral;
+
+  // Overview columns
+  const overviewColumns = useMemo(() => [
+    {
+      key: 'metric',
+      header: 'Metric',
+      minWidth: '180px',
+      render: (row) => <span className="text-white">{row.metric}</span>,
+    },
+    {
+      key: 'value',
+      header: 'Value',
+      align: 'right',
+      minWidth: '100px',
+      sortable: true,
+      sortValue: (row) => row.rawValue,
+      render: (row) => <span className="text-white tabular-nums font-medium">{row.display}</span>,
+    },
+    {
+      key: 'change',
+      header: 'Change',
+      align: 'right',
+      minWidth: '100px',
+      sortable: true,
+      sortValue: (row) => row.changeValue,
+      render: (row) => {
+        if (row.changeValue == null) return <span className="text-gray-500">-</span>;
+        const color = row.changeValue > 0 ? 'text-red-400' : row.changeValue < 0 ? 'text-green-400' : 'text-gray-400';
+        return <span className={`tabular-nums ${color}`}>{row.changeValue > 0 ? '+' : ''}{row.changeDisplay}</span>;
+      },
+    },
+    {
+      key: 'signal',
+      header: 'Signal',
+      align: 'right',
+      minWidth: '80px',
+      render: (row) => {
+        if (!row.signal) return <span className="text-gray-500">-</span>;
+        const badge = CONDITION_BADGE[row.signal] || CONDITION_BADGE.neutral;
+        return (
+          <span className={`inline-block px-1.5 py-0.5 text-[10px] font-medium rounded border ${badge.cls}`}>
+            {badge.label}
+          </span>
+        );
+      },
+    },
+  ], []);
+
+  const overviewData = useMemo(() => {
+    if (!data) return [];
+    const rows = [];
+    if (fciValue != null) {
+      rows.push({
+        _key: 'fci', metric: 'FCI Composite', rawValue: fciValue, display: fciValue.toFixed(2),
+        changeValue: fciChange, changeDisplay: fciChange?.toFixed(2) || '-',
+        signal: getConditionLabel(fciValue),
+      });
+    }
+    if (igSpread != null) {
+      rows.push({
+        _key: 'ig', metric: 'IG Spread', rawValue: igSpread, display: `${igSpread.toFixed(0)} bps`,
+        changeValue: igChange, changeDisplay: igChange != null ? `${igChange.toFixed(0)} bps` : '-',
+        signal: igSpread > 150 ? 'tight' : igSpread < 80 ? 'loose' : 'neutral',
+      });
+    }
+    if (hySpread != null) {
+      rows.push({
+        _key: 'hy', metric: 'HY Spread', rawValue: hySpread, display: `${hySpread.toFixed(0)} bps`,
+        changeValue: hyChange, changeDisplay: hyChange != null ? `${hyChange.toFixed(0)} bps` : '-',
+        signal: hySpread > 400 ? 'tight' : hySpread < 300 ? 'loose' : 'neutral',
+      });
+    }
+    if (tedSpread != null) {
+      rows.push({
+        _key: 'ted', metric: 'TED Spread', rawValue: tedSpread, display: `${tedSpread.toFixed(0)} bps`,
+        changeValue: null, changeDisplay: '-',
+        signal: tedSpread > 50 ? 'tight' : tedSpread < 20 ? 'loose' : 'neutral',
+      });
+    }
+    if (vixValue != null) {
+      rows.push({
+        _key: 'vix', metric: 'VIX', rawValue: vixValue, display: vixValue.toFixed(1),
+        changeValue: null, changeDisplay: '-',
+        signal: vixValue > 25 ? 'tight' : vixValue < 15 ? 'loose' : 'neutral',
+      });
+    }
+    return rows;
+  }, [data, fciValue, fciChange, igSpread, igChange, hySpread, hyChange, tedSpread, vixValue]);
+
+  // Generic key-value table columns for health sections
+  const healthColumns = useMemo(() => [
+    {
+      key: 'metric',
+      header: 'Metric',
+      minWidth: '200px',
+      sortable: true,
+      sortValue: (row) => row.metric,
+      render: (row) => <span className="text-white">{row.metric}</span>,
+    },
+    {
+      key: 'value',
+      header: 'Value',
+      align: 'right',
+      minWidth: '120px',
+      sortable: true,
+      sortValue: (row) => row.rawValue,
+      render: (row) => <span className="text-white tabular-nums">{row.display}</span>,
+    },
+  ], []);
+
+  const buildHealthData = (healthObj) => {
+    if (!healthObj || typeof healthObj !== 'object') return [];
+    return Object.entries(healthObj).map(([key, val]) => {
+      const label = key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      let display, rawValue;
+      if (typeof val === 'object' && val !== null) {
+        rawValue = val.value ?? 0;
+        display = val.value != null ? val.value.toFixed(2) : JSON.stringify(val);
+      } else if (typeof val === 'number') {
+        rawValue = val;
+        display = val.toFixed(2);
+      } else {
+        rawValue = 0;
+        display = String(val);
+      }
+      return { _key: key, metric: label, rawValue, display };
+    });
+  };
+
+  const consumerData = useMemo(() => buildHealthData(data?.consumer_health), [data?.consumer_health]);
+  const corporateData = useMemo(() => buildHealthData(data?.corporate_health), [data?.corporate_health]);
+
+  // Filter tabs that have data
+  const availableTabs = useMemo(() => {
+    const tabs = [SUB_TABS[0]]; // overview always shown
+    if (consumerData.length > 0) tabs.push(SUB_TABS[1]);
+    if (corporateData.length > 0) tabs.push(SUB_TABS[2]);
+    return tabs;
+  }, [consumerData, corporateData]);
+
   return (
-    <div className="space-y-4">
+    <div className="h-full flex flex-col bg-[#0a0a0f]">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-white">Financial Conditions</h3>
-        <button onClick={loadData} className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded text-sm text-gray-300">
-          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-          Refresh
-        </button>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
+        <div className="flex items-center gap-3">
+          <h3 className="text-sm font-medium text-white">Financial Conditions</h3>
+          {fciValue != null && (
+            <span className={`inline-block px-1.5 py-0.5 text-[10px] font-medium rounded border ${condBadge.cls}`}>
+              FCI {fciValue.toFixed(2)} - {condBadge.label}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={loadData} className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded">
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+          </button>
+        </div>
       </div>
 
-      {loading ? (
-        <div className="h-64 flex items-center justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+      {/* Sub-tabs */}
+      {availableTabs.length > 1 && (
+        <div className="flex items-center gap-1 px-4 py-2 border-b border-gray-800 overflow-x-auto">
+          {availableTabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-3 py-1.5 text-xs font-medium whitespace-nowrap rounded transition-colors ${
+                activeTab === tab.id
+                  ? 'text-cyan-400 bg-cyan-400/10'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-800'
+              }`}
+            >
+              {tab.name}
+            </button>
+          ))}
         </div>
-      ) : data ? (
-        <div className="grid grid-cols-12 gap-4">
-          {/* FCI Index */}
-          <div className="col-span-4">
-            <div className="bg-[#0d0d12] rounded-lg border border-gray-800 p-4">
-              <div className="text-gray-400 text-xs mb-1">Financial Conditions Index</div>
-              <div className={`text-4xl font-bold ${getConditionColor(data.fci_index)}`}>
-                {data.fci_index?.toFixed(2) || '-'}
-              </div>
-              <div className="text-gray-500 text-xs mt-1">{getConditionLabel(data.fci_index)}</div>
-              <div className="mt-3 pt-3 border-t border-gray-800">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-500 text-xs">vs Last Month</span>
-                  <span className={`text-sm flex items-center gap-1 ${(data.fci_change || 0) >= 0 ? 'text-red-400' : 'text-green-400'}`}>
-                    {(data.fci_change || 0) >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                    {data.fci_change > 0 ? '+' : ''}{data.fci_change?.toFixed(2) || '0.00'}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Credit Spreads */}
-          <div className="col-span-8">
-            <div className="bg-[#0d0d12] rounded-lg border border-gray-800 p-4">
-              <div className="text-gray-400 text-xs mb-3">Credit Spreads</div>
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <div className="text-gray-500 text-xs">IG Spread</div>
-                  <div className="text-xl font-bold text-white">{data.ig_spread?.toFixed(0) || '-'} bps</div>
-                  <div className={`text-xs mt-1 ${(data.ig_spread_change || 0) > 0 ? 'text-red-400' : 'text-green-400'}`}>
-                    {data.ig_spread_change > 0 ? '+' : ''}{data.ig_spread_change?.toFixed(0) || 0} bps
-                  </div>
-                </div>
-                <div>
-                  <div className="text-gray-500 text-xs">HY Spread</div>
-                  <div className="text-xl font-bold text-white">{data.hy_spread?.toFixed(0) || '-'} bps</div>
-                  <div className={`text-xs mt-1 ${(data.hy_spread_change || 0) > 0 ? 'text-red-400' : 'text-green-400'}`}>
-                    {data.hy_spread_change > 0 ? '+' : ''}{data.hy_spread_change?.toFixed(0) || 0} bps
-                  </div>
-                </div>
-                <div>
-                  <div className="text-gray-500 text-xs">TED Spread</div>
-                  <div className="text-xl font-bold text-white">{data.ted_spread?.toFixed(0) || '-'} bps</div>
-                  <div className={`text-xs mt-1 ${(data.ted_spread_change || 0) > 0 ? 'text-red-400' : 'text-green-400'}`}>
-                    {data.ted_spread_change > 0 ? '+' : ''}{data.ted_spread_change?.toFixed(0) || 0} bps
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* FCI History Chart */}
-          <div className="col-span-8">
-            <div className="bg-[#0d0d12] rounded-lg border border-gray-800 p-4">
-              <div className="text-gray-400 text-xs mb-3">FCI History</div>
-              {data.history ? (
-                <div className="h-[250px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={data.history}>
-                      <defs>
-                        <linearGradient id="fciGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
-                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                      <XAxis dataKey="date" stroke="#666" fontSize={10} />
-                      <YAxis stroke="#666" fontSize={10} />
-                      <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333' }} />
-                      <ReferenceLine y={0} stroke="#666" strokeDasharray="3 3" />
-                      <ReferenceLine y={0.5} stroke="#ef4444" strokeDasharray="3 3" label={{ value: 'Tight', position: 'right', fontSize: 10, fill: '#ef4444' }} />
-                      <ReferenceLine y={-0.5} stroke="#22c55e" strokeDasharray="3 3" label={{ value: 'Loose', position: 'right', fontSize: 10, fill: '#22c55e' }} />
-                      <Area type="monotone" dataKey="fci" stroke="#3b82f6" strokeWidth={2} fill="url(#fciGradient)" />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <div className="h-[250px] flex items-center justify-center text-gray-500">No history data</div>
-              )}
-            </div>
-          </div>
-
-          {/* Component Contribution */}
-          <div className="col-span-4">
-            <div className="bg-[#0d0d12] rounded-lg border border-gray-800 p-4">
-              <div className="text-gray-400 text-xs mb-3">Component Contributions</div>
-              {data.components ? (
-                <div className="h-[250px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={data.components} layout="vertical">
-                      <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                      <XAxis type="number" stroke="#666" fontSize={10} />
-                      <YAxis dataKey="name" type="category" stroke="#666" fontSize={9} width={80} />
-                      <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333' }} />
-                      <ReferenceLine x={0} stroke="#666" />
-                      <Bar dataKey="contribution" radius={[0, 4, 4, 0]}>
-                        {data.components.map((entry, idx) => (
-                          <Cell key={idx} fill={entry.contribution >= 0 ? '#ef4444' : '#22c55e'} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <div className="h-[250px] flex items-center justify-center text-gray-500">No component data</div>
-              )}
-            </div>
-          </div>
-
-          {/* Detailed Indicators Table */}
-          <div className="col-span-12">
-            <div className="bg-[#0d0d12] rounded-lg border border-gray-800 overflow-hidden">
-              <div className="p-3 border-b border-gray-800">
-                <span className="text-gray-400 text-xs">Detailed Indicators</span>
-              </div>
-              <table className="w-full">
-                <thead className="bg-[#0a0a0f]">
-                  <tr className="text-[10px] text-gray-500">
-                    <th className="py-2 px-4 text-left font-medium">Indicator</th>
-                    <th className="py-2 px-4 text-right font-medium">Current</th>
-                    <th className="py-2 px-4 text-right font-medium">1M Ago</th>
-                    <th className="py-2 px-4 text-right font-medium">Change</th>
-                    <th className="py-2 px-4 text-right font-medium">Signal</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.indicators?.map((indicator, idx) => (
-                    <tr key={idx} className="border-b border-gray-800/30 hover:bg-gray-800/20">
-                      <td className="py-2 px-4 text-sm text-white">{indicator.name}</td>
-                      <td className="py-2 px-4 text-right text-sm text-white">{indicator.current?.toFixed(2)}</td>
-                      <td className="py-2 px-4 text-right text-sm text-gray-400">{indicator.previous?.toFixed(2)}</td>
-                      <td className="py-2 px-4 text-right">
-                        <span className={`text-sm flex items-center justify-end gap-1 ${indicator.change >= 0 ? 'text-red-400' : 'text-green-400'}`}>
-                          {indicator.change >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                          {indicator.change > 0 ? '+' : ''}{indicator.change?.toFixed(2)}
-                        </span>
-                      </td>
-                      <td className="py-2 px-4 text-right">
-                        <span className={`text-xs px-2 py-0.5 rounded ${indicator.signal === 'tight' ? 'bg-red-900/50 text-red-400' : indicator.signal === 'loose' ? 'bg-green-900/50 text-green-400' : 'bg-yellow-900/50 text-yellow-400'}`}>
-                          {indicator.signal || 'neutral'}
-                        </span>
-                      </td>
-                    </tr>
-                  )) || (
-                    <tr>
-                      <td colSpan={5} className="py-4 text-center text-gray-500 text-sm">No indicator data available</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Volatility Metrics */}
-          <div className="col-span-12">
-            <div className="bg-[#0d0d12] rounded-lg border border-gray-800 p-4">
-              <div className="text-gray-400 text-xs mb-3">Volatility & Risk Metrics</div>
-              <div className="grid grid-cols-5 gap-4">
-                <div>
-                  <div className="text-gray-500 text-xs">VIX</div>
-                  <div className={`text-xl font-bold ${(data.vix || 0) > 25 ? 'text-red-400' : (data.vix || 0) > 18 ? 'text-yellow-400' : 'text-green-400'}`}>
-                    {data.vix?.toFixed(1) || '-'}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-gray-500 text-xs">MOVE Index</div>
-                  <div className={`text-xl font-bold ${(data.move || 0) > 120 ? 'text-red-400' : (data.move || 0) > 100 ? 'text-yellow-400' : 'text-green-400'}`}>
-                    {data.move?.toFixed(1) || '-'}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-gray-500 text-xs">Put/Call Ratio</div>
-                  <div className={`text-xl font-bold ${(data.put_call || 0) > 1.2 ? 'text-red-400' : (data.put_call || 0) < 0.8 ? 'text-yellow-400' : 'text-green-400'}`}>
-                    {data.put_call?.toFixed(2) || '-'}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-gray-500 text-xs">DXY (Dollar)</div>
-                  <div className="text-xl font-bold text-white">{data.dxy?.toFixed(2) || '-'}</div>
-                </div>
-                <div>
-                  <div className="text-gray-500 text-xs">10Y Real Rate</div>
-                  <div className={`text-xl font-bold ${(data.real_rate || 0) > 1.5 ? 'text-red-400' : 'text-green-400'}`}>
-                    {data.real_rate?.toFixed(2) || '-'}%
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="text-center text-gray-500 py-8">No data available</div>
       )}
+
+      {/* Content */}
+      <div className="flex-1 overflow-auto">
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <RefreshCw size={20} className="animate-spin text-cyan-400" />
+          </div>
+        ) : !data ? (
+          <div className="flex items-center justify-center py-20 text-gray-500 text-sm">No data available</div>
+        ) : activeTab === 'overview' ? (
+          <WidgetTable
+            columns={overviewColumns}
+            data={overviewData}
+            size="compact"
+            emptyMessage="No financial conditions data"
+            stickyHeader
+            resizable
+          />
+        ) : activeTab === 'consumer' ? (
+          <WidgetTable
+            columns={healthColumns}
+            data={consumerData}
+            size="compact"
+            emptyMessage="No consumer health data"
+            stickyHeader
+            resizable
+            defaultSortKey="value"
+            defaultSortDirection="desc"
+          />
+        ) : activeTab === 'corporate' ? (
+          <WidgetTable
+            columns={healthColumns}
+            data={corporateData}
+            size="compact"
+            emptyMessage="No corporate health data"
+            stickyHeader
+            resizable
+            defaultSortKey="value"
+            defaultSortDirection="desc"
+          />
+        ) : null}
+      </div>
     </div>
   );
 }
