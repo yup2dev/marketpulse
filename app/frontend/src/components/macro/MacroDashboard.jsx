@@ -9,11 +9,13 @@ import GDPForecastWidget from '../widgets/macro/GDPForecastWidget';
 import InflationMomentumWidget from '../widgets/macro/InflationMomentumWidget';
 import InitialClaimsWidget from '../widgets/macro/InitialClaimsWidget';
 import JobsBreakdownWidget from '../widgets/macro/JobsBreakdownWidget';
-// Tab components
-import MacroFedPolicyTab from './MacroFedPolicyTab';
-import MacroYieldCurveTab from './MacroYieldCurveTab';
-import MacroInflationTab from './MacroInflationTab';
-import MacroLaborTab from './MacroLaborTab';
+import FedPolicyStanceWidget from '../widgets/macro/FedPolicyStanceWidget';
+import YieldCurveSnapshotWidget from '../widgets/macro/YieldCurveSnapshotWidget';
+import YieldTrendsWidget from '../widgets/macro/YieldTrendsWidget';
+import InflationDecompWidget from '../widgets/macro/InflationDecompWidget';
+import InflationTrendsWidget from '../widgets/macro/InflationTrendsWidget';
+import LaborMarketWidget from '../widgets/macro/LaborMarketWidget';
+// Tab components (remaining tabs still use TabWidgetWrapper)
 import MacroFinConditionsTab from './MacroFinConditionsTab';
 import MacroSentimentTab from './MacroSentimentTab';
 import MacroCommoditiesTab from './MacroCommoditiesTab';
@@ -43,16 +45,18 @@ const TAB_WIDGETS = {
     { id: 'jobs-breakdown', name: 'Jobs Breakdown', description: 'Private vs Government jobs', defaultSize: { w: 6, h: 6 } },
   ],
   'fed-policy': [
-    { id: 'fed-policy-tab', name: 'Fed Policy', description: 'Fed policy stance', defaultSize: { w: 12, h: 8 } },
+    { id: 'fed-policy-stance', name: 'Fed Policy Stance', description: 'Fed stance, probabilities & signals', defaultSize: { w: 6, h: 6 } },
   ],
   'yield-curve': [
-    { id: 'yield-curve-tab', name: 'Yield Curve', description: 'Treasury yield curve', defaultSize: { w: 12, h: 8 } },
+    { id: 'yield-curve-snapshot', name: 'Yield Curve', description: 'Current yield curve shape', defaultSize: { w: 6, h: 6 } },
+    { id: 'yield-trends', name: 'Yield Trends', description: 'Historical yield trends & spreads', defaultSize: { w: 6, h: 6 } },
   ],
   inflation: [
-    { id: 'inflation-tab', name: 'Inflation Analysis', description: 'Inflation decomposition', defaultSize: { w: 12, h: 8 } },
+    { id: 'inflation-decomp', name: 'Inflation Decomposition', description: 'CPI components breakdown', defaultSize: { w: 6, h: 6 } },
+    { id: 'inflation-trends', name: 'Inflation Trends', description: 'Historical CPI sector trends', defaultSize: { w: 6, h: 6 } },
   ],
   'labor-market': [
-    { id: 'labor-tab', name: 'Labor Market', description: 'Employment metrics', defaultSize: { w: 12, h: 8 } },
+    { id: 'labor-market-dashboard', name: 'Labor Market', description: 'Employment metrics dashboard', defaultSize: { w: 6, h: 6 } },
   ],
   'financial-conditions': [
     { id: 'fin-conditions-tab', name: 'Financial Conditions', description: 'Credit spreads & liquidity', defaultSize: { w: 12, h: 8 } },
@@ -73,10 +77,16 @@ const DEFAULT_TAB_WIDGETS = {
     { id: 'claims-1', type: 'initial-claims' },
     { id: 'jobs-1', type: 'jobs-breakdown' },
   ],
-  'fed-policy': [{ id: 'fed-1', type: 'fed-policy-tab' }],
-  'yield-curve': [{ id: 'yield-1', type: 'yield-curve-tab' }],
-  inflation: [{ id: 'inflation-tab-1', type: 'inflation-tab' }],
-  'labor-market': [{ id: 'labor-1', type: 'labor-tab' }],
+  'fed-policy': [{ id: 'fed-1', type: 'fed-policy-stance' }],
+  'yield-curve': [
+    { id: 'yield-snap-1', type: 'yield-curve-snapshot' },
+    { id: 'yield-trends-1', type: 'yield-trends' },
+  ],
+  inflation: [
+    { id: 'inflation-decomp-1', type: 'inflation-decomp' },
+    { id: 'inflation-trends-1', type: 'inflation-trends' },
+  ],
+  'labor-market': [{ id: 'labor-dash-1', type: 'labor-market-dashboard' }],
   'financial-conditions': [{ id: 'fin-1', type: 'fin-conditions-tab' }],
   sentiment: [{ id: 'sentiment-1', type: 'sentiment-tab' }],
   commodities: [{ id: 'commodities-1', type: 'commodities-tab' }],
@@ -90,10 +100,16 @@ const DEFAULT_TAB_LAYOUTS = {
     { i: 'claims-1', x: 0, y: 6, w: 6, h: 6, minW: 4, minH: 4 },
     { i: 'jobs-1', x: 6, y: 6, w: 6, h: 6, minW: 4, minH: 4 },
   ],
-  'fed-policy': [{ i: 'fed-1', x: 0, y: 0, w: 12, h: 8, minW: 6, minH: 5 }],
-  'yield-curve': [{ i: 'yield-1', x: 0, y: 0, w: 12, h: 8, minW: 6, minH: 5 }],
-  inflation: [{ i: 'inflation-tab-1', x: 0, y: 0, w: 12, h: 8, minW: 6, minH: 5 }],
-  'labor-market': [{ i: 'labor-1', x: 0, y: 0, w: 12, h: 8, minW: 6, minH: 5 }],
+  'fed-policy': [{ i: 'fed-1', x: 0, y: 0, w: 6, h: 6, minW: 4, minH: 4 }],
+  'yield-curve': [
+    { i: 'yield-snap-1', x: 0, y: 0, w: 6, h: 6, minW: 4, minH: 4 },
+    { i: 'yield-trends-1', x: 6, y: 0, w: 6, h: 6, minW: 4, minH: 4 },
+  ],
+  inflation: [
+    { i: 'inflation-decomp-1', x: 0, y: 0, w: 6, h: 6, minW: 4, minH: 4 },
+    { i: 'inflation-trends-1', x: 6, y: 0, w: 6, h: 6, minW: 4, minH: 4 },
+  ],
+  'labor-market': [{ i: 'labor-dash-1', x: 0, y: 0, w: 6, h: 6, minW: 4, minH: 4 }],
   'financial-conditions': [{ i: 'fin-1', x: 0, y: 0, w: 12, h: 8, minW: 6, minH: 5 }],
   sentiment: [{ i: 'sentiment-1', x: 0, y: 0, w: 12, h: 8, minW: 6, minH: 5 }],
   commodities: [{ i: 'commodities-1', x: 0, y: 0, w: 12, h: 8, minW: 6, minH: 5 }],
@@ -123,6 +139,51 @@ export default function MacroDashboard() {
     });
     return layouts;
   });
+
+  // Migrate old widget types to new ones
+  useEffect(() => {
+    const OLD_TYPES = ['fed-policy-tab', 'yield-curve-tab', 'inflation-tab', 'labor-tab'];
+    const saved = localStorage.getItem('macro-tab-widgets');
+    if (!saved) return;
+    const parsed = JSON.parse(saved);
+    let needsMigration = false;
+    for (const tabId of Object.keys(parsed)) {
+      const widgets = parsed[tabId] || [];
+      if (widgets.some(w => OLD_TYPES.includes(w.type))) {
+        needsMigration = true;
+        break;
+      }
+    }
+    if (needsMigration) {
+      // Reset affected tabs to defaults
+      const migrated = { ...parsed };
+      if (migrated['fed-policy']?.some(w => w.type === 'fed-policy-tab')) {
+        migrated['fed-policy'] = DEFAULT_TAB_WIDGETS['fed-policy'];
+        localStorage.setItem('macro-fed-policy-layout', JSON.stringify(DEFAULT_TAB_LAYOUTS['fed-policy']));
+      }
+      if (migrated['yield-curve']?.some(w => w.type === 'yield-curve-tab')) {
+        migrated['yield-curve'] = DEFAULT_TAB_WIDGETS['yield-curve'];
+        localStorage.setItem('macro-yield-curve-layout', JSON.stringify(DEFAULT_TAB_LAYOUTS['yield-curve']));
+      }
+      if (migrated['inflation']?.some(w => w.type === 'inflation-tab')) {
+        migrated['inflation'] = DEFAULT_TAB_WIDGETS['inflation'];
+        localStorage.setItem('macro-inflation-layout', JSON.stringify(DEFAULT_TAB_LAYOUTS['inflation']));
+      }
+      if (migrated['labor-market']?.some(w => w.type === 'labor-tab')) {
+        migrated['labor-market'] = DEFAULT_TAB_WIDGETS['labor-market'];
+        localStorage.setItem('macro-labor-market-layout', JSON.stringify(DEFAULT_TAB_LAYOUTS['labor-market']));
+      }
+      localStorage.setItem('macro-tab-widgets', JSON.stringify(migrated));
+      setTabWidgets(migrated);
+      // Reload layouts for migrated tabs
+      const newLayouts = {};
+      MACRO_TABS.forEach(tab => {
+        const savedLayout = localStorage.getItem(`macro-${tab.id}-layout`);
+        newLayouts[tab.id] = savedLayout ? JSON.parse(savedLayout) : DEFAULT_TAB_LAYOUTS[tab.id] || [];
+      });
+      setTabLayouts(newLayouts);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Save to localStorage
   useEffect(() => {
@@ -239,30 +300,18 @@ export default function MacroDashboard() {
         return <InitialClaimsWidget onRemove={onRemove} />;
       case 'jobs-breakdown':
         return <JobsBreakdownWidget onRemove={onRemove} />;
-      case 'fed-policy-tab':
-        return (
-          <TabWidgetWrapper title="Fed Policy" onRemove={onRemove}>
-            <MacroFedPolicyTab />
-          </TabWidgetWrapper>
-        );
-      case 'yield-curve-tab':
-        return (
-          <TabWidgetWrapper title="Yield Curve" onRemove={onRemove}>
-            <MacroYieldCurveTab />
-          </TabWidgetWrapper>
-        );
-      case 'inflation-tab':
-        return (
-          <TabWidgetWrapper title="Inflation Analysis" onRemove={onRemove}>
-            <MacroInflationTab />
-          </TabWidgetWrapper>
-        );
-      case 'labor-tab':
-        return (
-          <TabWidgetWrapper title="Labor Market" onRemove={onRemove}>
-            <MacroLaborTab />
-          </TabWidgetWrapper>
-        );
+      case 'fed-policy-stance':
+        return <FedPolicyStanceWidget onRemove={onRemove} />;
+      case 'yield-curve-snapshot':
+        return <YieldCurveSnapshotWidget onRemove={onRemove} />;
+      case 'yield-trends':
+        return <YieldTrendsWidget onRemove={onRemove} />;
+      case 'inflation-decomp':
+        return <InflationDecompWidget onRemove={onRemove} />;
+      case 'inflation-trends':
+        return <InflationTrendsWidget onRemove={onRemove} />;
+      case 'labor-market-dashboard':
+        return <LaborMarketWidget onRemove={onRemove} />;
       case 'fin-conditions-tab':
         return (
           <TabWidgetWrapper title="Financial Conditions" onRemove={onRemove}>

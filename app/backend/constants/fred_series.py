@@ -100,3 +100,17 @@ Real GDP Forecast"""
 REAL_GDP = 'GDPC1'
 """Real Gross Domestic Product
 Quarterly, Seasonally Adjusted Annual Rate, Billions of Chained 2017 Dollars"""
+
+# =============================================================================
+# CPI Sector Series (for historical sector breakdown)
+# =============================================================================
+CPI_SECTOR_SERIES = {
+    'headline': {'id': 'CPIAUCSL',      'name': 'Headline CPI',  'color': '#6366f1'},
+    'core':     {'id': 'CPILFESL',      'name': 'Core CPI',      'color': '#06b6d4'},
+    'food':     {'id': 'CPIUFDSL',      'name': 'Food',          'color': '#f59e0b'},
+    'energy':   {'id': 'CPIENGSL',      'name': 'Energy',        'color': '#ef4444'},
+    'shelter':  {'id': 'CUSR0000SAH1',  'name': 'Shelter',       'color': '#8b5cf6'},
+    'medical':  {'id': 'CPIMEDSL',      'name': 'Medical Care',  'color': '#10b981'},
+    'apparel':  {'id': 'CPIAPPSL',      'name': 'Apparel',       'color': '#f97316'},
+    'vehicles': {'id': 'CUSR0000SETA01','name': 'New Vehicles',  'color': '#ec4899'},
+}

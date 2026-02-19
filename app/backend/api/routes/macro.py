@@ -413,6 +413,26 @@ async def get_inflation_decomposition():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/inflation/sector-history")
+async def get_inflation_sector_history(period: str = "5y"):
+    """
+    Get historical YoY CPI by sector for the specified period
+
+    Args:
+        period: Time period (1y, 3y, 5y, 10y, max)
+
+    Returns:
+        sectors: list of {key, name, color}
+        history: list of {date, headline, core, food, energy, shelter, medical, apparel, vehicles}
+    """
+    try:
+        data = await macro_service.get_inflation_sector_history(period)
+        return data
+    except Exception as e:
+        log.error(f"Error fetching inflation sector history: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/labor/dashboard")
 async def get_labor_dashboard():
     """

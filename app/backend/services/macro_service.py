@@ -29,7 +29,8 @@ from app.backend.constants.fred_series import (
     FLEXIBLE_CORE_CPI,
     BREAKEVEN_5Y,
     BREAKEVEN_10Y,
-    CORE_CPI
+    CORE_CPI,
+    CPI_SECTOR_SERIES
 )
 
 log = logging.getLogger(__name__)
@@ -2575,6 +2576,95 @@ class MacroService:
 
         except Exception as e:
             log.error(f"Error fetching jobs breakdown data: {e}")
+            raise
+
+    async def get_inflation_sector_history(self, period: str = "5y") -> Dict[str, Any]:
+        """
+        Get historical YoY CPI by sector (Food, Energy, Shelter, Medical, etc.)
+
+        Args:
+            period: Time period (1y, 3y, 5y, 10y, max)
+
+        Returns:
+            {
+                'sectors': [{'key': str, 'name': str, 'color': str}, ...],
+                'history': [{'date': str, 'headline': float, 'core': float, ...}, ...],
+                'source': str
+            }
+        """
+        try:
+            # Extra 13 months before period start to compute YoY
+            start_date, end_date = parse_period_to_dates(period)
+            extended_start = start_date - timedelta(days=395)
+
+            api_key = get_api_key(
+                credentials=None,
+                api_name="FRED",
+                env_var="FRED_API_KEY"
+            )
+
+            # Fetch each sector series
+            sector_raw: Dict[str, List[Dict]] = {}
+            for key, meta in CPI_SECTOR_SERIES.items():
+                try:
+                    obs = FredSeriesFetcher.fetch_series(
+                        series_id=meta['id'],
+                        api_key=api_key,
+                        start_date=extended_start,
+                        end_date=end_date,
+                        sort_order='asc'
+                    )
+                    sector_raw[key] = [
+                        {'date': o['date'], 'value': float(o['value'])}
+                        for o in obs if o['value'] != '.'
+                    ]
+                except Exception as e:
+                    log.warning(f"Could not fetch CPI sector {key}: {e}")
+                    sector_raw[key] = []
+
+            # Compute YoY % change and align by date
+            sector_yoy: Dict[str, Dict[str, float]] = {}  # key -> {date: yoy}
+            for key, series in sector_raw.items():
+                yoy_map: Dict[str, float] = {}
+                for i in range(12, len(series)):
+                    try:
+                        v_now = series[i]['value']
+                        v_year_ago = series[i - 12]['value']
+                        if v_year_ago != 0:
+                            yoy = round((v_now - v_year_ago) / v_year_ago * 100, 2)
+                            yoy_map[series[i]['date']] = yoy
+                    except Exception:
+                        pass
+                sector_yoy[key] = yoy_map
+
+            # Build aligned timeline using headline as anchor (most complete)
+            anchor_dates = sorted(sector_yoy.get('headline', {}).keys())
+            # Only dates within actual period range
+            period_start_str = start_date.isoformat()
+            anchor_dates = [d for d in anchor_dates if d >= period_start_str]
+
+            history = []
+            for date_str in anchor_dates:
+                point: Dict[str, Any] = {'date': date_str}
+                for key in CPI_SECTOR_SERIES:
+                    val = sector_yoy.get(key, {}).get(date_str)
+                    if val is not None:
+                        point[key] = val
+                history.append(point)
+
+            sectors_meta = [
+                {'key': k, 'name': v['name'], 'color': v['color']}
+                for k, v in CPI_SECTOR_SERIES.items()
+            ]
+
+            return {
+                'sectors': sectors_meta,
+                'history': history,
+                'source': 'FRED / BLS'
+            }
+
+        except Exception as e:
+            log.error(f"Error fetching inflation sector history: {e}")
             raise
 
 
