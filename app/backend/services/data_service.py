@@ -701,75 +701,120 @@ class DataService:
         Returns:
             Analyst consensus, price targets, and recommendations
         """
+        import requests as sync_requests
+        from data_fetcher.utils.api_keys import get_api_key
+
         try:
-            result = await FMPAnalystRecommendationsFetcher.fetch_data({
-                'symbol': symbol,
-                'limit': 50
-            })
+            api_key = get_api_key(api_name="FMP", env_var="FMP_API_KEY")
+            base = "https://financialmodelingprep.com/stable"
 
-            if result:
-                # Get latest recommendation
-                latest = result[0] if result else None
+            # Fetch grades (individual analyst ratings), consensus targets, and individual price targets
+            grades_res = sync_requests.get(
+                f"{base}/grades",
+                params={"symbol": symbol, "apikey": api_key, "limit": 30},
+                timeout=15
+            )
+            consensus_res = sync_requests.get(
+                f"{base}/price-target-consensus",
+                params={"symbol": symbol, "apikey": api_key},
+                timeout=15
+            )
+            pt_res = sync_requests.get(
+                f"{base}/price-target",
+                params={"symbol": symbol, "apikey": api_key, "limit": 30},
+                timeout=15
+            )
 
-                # Aggregate ratings from recent data
-                strong_buy = 0
-                buy = 0
-                hold = 0
-                sell = 0
-                strong_sell = 0
-                target_prices = []
+            grades_data = grades_res.json() if grades_res.ok else []
+            consensus_data = consensus_res.json() if consensus_res.ok else []
+            pt_data = pt_res.json() if pt_res.ok else []
 
-                for data in result[:20]:  # Consider last 20 recommendations
-                    consensus = (data.analyst_rating_consensus or '').lower()
-                    if 'strong buy' in consensus or consensus == 'buy':
+            # Build lookup: (company, date) -> target price from price-target data
+            pt_lookup = {}
+            if isinstance(pt_data, list):
+                for pt_item in pt_data:
+                    company = pt_item.get('analystCompany') or pt_item.get('analystName') or ''
+                    pt_date = (pt_item.get('publishedDate') or '')[:10]
+                    target = pt_item.get('priceTarget') or pt_item.get('adjPriceTarget')
+                    if company and pt_date and target:
+                        pt_lookup[(company.lower(), pt_date)] = target
+
+            # Parse consensus price targets
+            avg_target_price = None
+            min_target_price = None
+            max_target_price = None
+            if isinstance(consensus_data, list) and consensus_data:
+                ct = consensus_data[0]
+                avg_target_price = ct.get('targetConsensus') or ct.get('targetMedian')
+                min_target_price = ct.get('targetLow')
+                max_target_price = ct.get('targetHigh')
+
+            # Aggregate ratings from grades
+            strong_buy = 0
+            buy = 0
+            hold = 0
+            sell = 0
+            strong_sell = 0
+            analysts = []
+
+            if isinstance(grades_data, list):
+                for item in grades_data[:20]:
+                    grade = (item.get('newGrade') or '').lower()
+                    if 'strong buy' in grade or grade == 'buy':
                         strong_buy += 1
-                    elif 'buy' in consensus or consensus == 'outperform':
+                    elif 'buy' in grade or grade == 'outperform' or grade == 'overweight':
                         buy += 1
-                    elif 'hold' in consensus or consensus == 'neutral':
+                    elif 'hold' in grade or grade == 'neutral' or grade == 'equal-weight':
                         hold += 1
-                    elif 'sell' in consensus or consensus == 'underperform':
+                    elif 'sell' in grade or grade == 'underperform' or grade == 'underweight':
                         sell += 1
-                    elif 'strong sell' in consensus:
+                    elif 'strong sell' in grade:
                         strong_sell += 1
 
-                    if data.analyst_target_price:
-                        target_prices.append(data.analyst_target_price)
+                    company = item.get('gradingCompany')
+                    date_str = item.get('date')
+                    if company and date_str:
+                        # Match with price target by company name and date
+                        target = pt_lookup.get((company.lower(), date_str[:10]))
+                        analysts.append({
+                            'name': company,
+                            'rating': item.get('newGrade'),
+                            'prev_rating': item.get('previousGrade'),
+                            'action': item.get('action'),
+                            'date': date_str,
+                            'target_price': target,
+                        })
 
-                # Calculate average target price
-                avg_target_price = sum(target_prices) / len(target_prices) if target_prices else None
-                min_target_price = min(target_prices) if target_prices else None
-                max_target_price = max(target_prices) if target_prices else None
-
-                # Determine consensus rating
-                total_ratings = strong_buy + buy + hold + sell + strong_sell
-                if total_ratings > 0:
-                    if (strong_buy + buy) / total_ratings >= 0.6:
-                        consensus_rating = 'Buy'
-                    elif (sell + strong_sell) / total_ratings >= 0.6:
-                        consensus_rating = 'Sell'
-                    else:
-                        consensus_rating = 'Hold'
+            total_ratings = strong_buy + buy + hold + sell + strong_sell
+            if total_ratings > 0:
+                if (strong_buy + buy) / total_ratings >= 0.6:
+                    consensus_rating = 'Buy'
+                elif (sell + strong_sell) / total_ratings >= 0.6:
+                    consensus_rating = 'Sell'
                 else:
-                    consensus_rating = 'N/A'
+                    consensus_rating = 'Hold'
+            else:
+                consensus_rating = 'N/A'
 
-                return {
-                    'symbol': symbol,
-                    'consensus_rating': consensus_rating,
-                    'ratings': {
-                        'strong_buy': strong_buy,
-                        'buy': buy,
-                        'hold': hold,
-                        'sell': sell,
-                        'strong_sell': strong_sell,
-                        'total': total_ratings
-                    },
-                    'price_target': {
-                        'average': avg_target_price,
-                        'low': min_target_price,
-                        'high': max_target_price
-                    },
-                    'number_of_analysts': latest.number_of_analysts if latest else None
-                }
+            return {
+                'symbol': symbol,
+                'consensus_rating': consensus_rating,
+                'ratings': {
+                    'strong_buy': strong_buy,
+                    'buy': buy,
+                    'hold': hold,
+                    'sell': sell,
+                    'strong_sell': strong_sell,
+                    'total': total_ratings
+                },
+                'price_target': {
+                    'average': avg_target_price,
+                    'low': min_target_price,
+                    'high': max_target_price
+                },
+                'number_of_analysts': total_ratings,
+                'analysts': analysts,
+            }
         except Exception as e:
             log.error(f"Error fetching analyst data: {e}")
 
@@ -778,7 +823,8 @@ class DataService:
             'consensus_rating': 'N/A',
             'ratings': {},
             'price_target': {},
-            'number_of_analysts': None
+            'number_of_analysts': None,
+            'analysts': [],
         }
 
 

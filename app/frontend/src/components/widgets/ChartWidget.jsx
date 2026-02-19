@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { LineChart, Line, BarChart, Bar, ComposedChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, ReferenceArea, Cell, Rectangle } from 'recharts';
-import { Plus, TrendingUp, Percent, Activity, X, TrendingDown, GitCompare, Settings, ChevronDown, ChevronUp, BarChart2, Layers } from 'lucide-react';
+import { LineChart, Line, BarChart, Bar, ComposedChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, ReferenceArea, ReferenceDot, Cell, Rectangle, Customized } from 'recharts';
+import { Plus, TrendingUp, Percent, Activity, X, TrendingDown, GitCompare, Settings, ChevronDown, ChevronUp, BarChart2, Layers, Target } from 'lucide-react';
 import StockSelectorModal from '../StockSelectorModal';
 import useTheme from '../../hooks/useTheme';
 import useChartZoom from '../../hooks/useChartZoom';
@@ -191,6 +191,10 @@ const ChartWidget = ({
   onAddSeries,                     // Add series callback (series mode)
   // External state
   loading: externalLoading = false, // External loading state
+  // Custom reference lines (array of { y, color, label, dashed })
+  referenceLines: externalReferenceLines,
+  // Custom reference points (array of { x, y, color, label, tooltip })
+  referencePoints: externalReferencePoints,
 }) => {
   // Detect series mode: when series prop is provided and has data
   const isSeriesMode = series && series.length > 0;
@@ -224,6 +228,9 @@ const ChartWidget = ({
   const [tickerStats, setTickerStats] = useState({});
   const [chartType, setChartType] = useState(savedState?.chartType || 'line');
   const [showChartTypeSelectorDropdown, setShowChartTypeSelectorDropdown] = useState(false);
+  const [showTargets, setShowTargets] = useState(savedState?.showTargets || false);
+  const [priceTargets, setPriceTargets] = useState(null);
+  const [selectedDot, setSelectedDot] = useState(null); // { x, y, ...analyst info }
 
   // Zoom/Pan functionality via custom hook
   const {
@@ -458,32 +465,56 @@ const ChartWidget = ({
     });
   }, [displayChartData, chartType, normalized, tickers]);
 
-  // Calculate Y-axis domain for candlestick/OHLC charts (needs to include high/low)
+  // Calculate Y-axis domain — include reference lines so target prices are always visible
   const priceYDomain = useMemo(() => {
     if (!displayChartData || displayChartData.length === 0) return ['auto', 'auto'];
 
     const isOHLCChart = ['candlestick', 'ohlc', 'heikinashi'].includes(chartType) && !normalized;
+    const hasRefLines = !normalized && externalReferenceLines?.length > 0;
 
-    if (!isOHLCChart) return ['auto', 'auto'];
+    if (!isOHLCChart && !hasRefLines) return ['auto', 'auto'];
 
     let minPrice = Infinity;
     let maxPrice = -Infinity;
 
     displayChartData.forEach(item => {
       tickers.filter(t => t.type === 'stock' && t.visible).forEach(ticker => {
-        const high = item[`${ticker.symbol}_high`];
-        const low = item[`${ticker.symbol}_low`];
-        if (high !== undefined && high > maxPrice) maxPrice = high;
-        if (low !== undefined && low < minPrice) minPrice = low;
+        if (isOHLCChart) {
+          const high = item[`${ticker.symbol}_high`];
+          const low = item[`${ticker.symbol}_low`];
+          if (high !== undefined && high > maxPrice) maxPrice = high;
+          if (low !== undefined && low < minPrice) minPrice = low;
+        } else {
+          const val = item[ticker.symbol];
+          if (val !== undefined && val !== null) {
+            if (val > maxPrice) maxPrice = val;
+            if (val < minPrice) minPrice = val;
+          }
+        }
       });
     });
+
+    // Extend domain to include external reference lines (analyst targets)
+    // Cap expansion so extreme targets don't squash the stock price chart
+    if (hasRefLines) {
+      const priceRange = maxPrice - minPrice;
+      const maxExpansion = priceRange * 0.5; // allow up to 50% extension
+      externalReferenceLines.forEach(line => {
+        if (line.y != null) {
+          const cappedHigh = Math.min(line.y, maxPrice + maxExpansion);
+          const cappedLow = Math.max(line.y, minPrice - maxExpansion);
+          if (cappedHigh > maxPrice) maxPrice = cappedHigh;
+          if (cappedLow < minPrice) minPrice = cappedLow;
+        }
+      });
+    }
 
     if (minPrice === Infinity || maxPrice === -Infinity) return ['auto', 'auto'];
 
     // Add some padding (2%)
     const padding = (maxPrice - minPrice) * 0.02;
     return [minPrice - padding, maxPrice + padding];
-  }, [displayChartData, chartType, normalized, tickers]);
+  }, [displayChartData, chartType, normalized, tickers, externalReferenceLines]);
 
   // Save state to localStorage whenever key settings change
   useEffect(() => {
@@ -1431,7 +1462,7 @@ const ChartWidget = ({
                 onMouseDown={handleMouseDown}
               >
                 <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={chartDataWithCandles}>
+                  <ComposedChart data={chartDataWithCandles} onClick={() => setSelectedDot(null)}>
                     {/* Regime Background Areas */}
                     {pairMode && pairConfig.showRegime && regimePeriods.map((period, idx) => (
                       <ReferenceArea
@@ -1820,6 +1851,114 @@ const ChartWidget = ({
                     })}
 
                     {normalized && <ReferenceLine yAxisId="price" y={0} stroke={chartTheme.text} strokeDasharray="3 3" />}
+
+                    {/* External Reference Lines */}
+                    {!normalized && externalReferenceLines?.map((line, idx) => (
+                      <ReferenceLine
+                        key={`ext-ref-${idx}`}
+                        yAxisId="price"
+                        y={line.y}
+                        stroke={line.color}
+                        strokeDasharray={line.dashed ? '6 3' : '0'}
+                        strokeWidth={line.dashed ? 1 : 1.5}
+                        strokeOpacity={line.dashed ? 0.6 : 0.8}
+                        label={{ value: line.label, fill: line.color, fontSize: 10, position: 'right' }}
+                      />
+                    ))}
+
+                    {/* External Reference Points (analyst dots) */}
+                    {!normalized && externalReferencePoints?.length > 0 && (
+                      <Customized component={(props) => {
+                        const { xAxisMap, yAxisMap } = props;
+                        const yAxis = yAxisMap && (yAxisMap.price || yAxisMap[0] || Object.values(yAxisMap)[0]);
+                        const xAxis = xAxisMap && (xAxisMap[0] || Object.values(xAxisMap)[0]);
+                        if (!yAxis || !xAxis) return null;
+
+                        const yScale = yAxis.scale;
+                        const xScale = xAxis.scale;
+                        if (!yScale || !xScale) return null;
+
+                        // Build date→data lookup from chart data
+                        const dataByDate = {};
+                        (chartDataWithCandles || []).forEach(d => {
+                          if (d.date) dataByDate[d.date] = d;
+                        });
+                        const chartDates = Object.keys(dataByDate);
+                        if (chartDates.length === 0) return null;
+
+                        // Find the primary stock symbol for price lookup
+                        const primarySymbol = tickers.find(t => t.type === 'stock')?.symbol;
+
+                        const findClosestDate = (targetDate) => {
+                          if (!targetDate) return chartDates[chartDates.length - 1];
+                          const target = new Date(targetDate).getTime();
+                          let closest = chartDates[0];
+                          let minDiff = Math.abs(new Date(closest).getTime() - target);
+                          for (const d of chartDates) {
+                            const diff = Math.abs(new Date(d).getTime() - target);
+                            if (diff < minDiff) { minDiff = diff; closest = d; }
+                          }
+                          return closest;
+                        };
+
+                        return (
+                          <g className="analyst-dots">
+                            {externalReferencePoints.map((pt, idx) => {
+                              const snappedDate = findClosestDate(pt.x);
+                              const px = xScale(snappedDate);
+
+                              // Resolve y: use pt.y if given, otherwise look up stock price at that date
+                              let yVal = pt.y;
+                              if (yVal == null && primarySymbol && dataByDate[snappedDate]) {
+                                yVal = dataByDate[snappedDate][primarySymbol];
+                              }
+                              if (yVal == null) return null;
+                              const py = yScale(yVal);
+
+                              if (py == null || px == null || isNaN(py) || isNaN(px)) return null;
+                              const isSelected = selectedDot && selectedDot._idx === idx;
+                              return (
+                                <g key={`ref-pt-${idx}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedDot(isSelected ? null : { ...pt, _idx: idx, _px: px, _py: py });
+                                  }}
+                                >
+                                  <circle
+                                    cx={px}
+                                    cy={py}
+                                    r={isSelected ? 7 : 5}
+                                    fill={pt.color || '#a78bfa'}
+                                    fillOpacity={isSelected ? 1 : 0.85}
+                                    stroke={isSelected ? '#fff' : '#1a1a2e'}
+                                    strokeWidth={isSelected ? 2 : 1.5}
+                                    style={{ cursor: 'pointer' }}
+                                  />
+                                  {isSelected && (
+                                    <foreignObject
+                                      x={px + 12}
+                                      y={py - 50}
+                                      width={200}
+                                      height={80}
+                                      style={{ overflow: 'visible' }}
+                                    >
+                                      <div xmlns="http://www.w3.org/1999/xhtml"
+                                        className="bg-[#1a1a2e] border border-gray-600 rounded-lg px-3 py-2 text-xs shadow-xl"
+                                        style={{ whiteSpace: 'nowrap' }}
+                                      >
+                                        {(pt.tooltip || pt.label || '').split('\n').map((line, i) => (
+                                          <div key={i} className={i === 0 ? 'text-white font-medium' : 'text-gray-400'}>{line}</div>
+                                        ))}
+                                      </div>
+                                    </foreignObject>
+                                  )}
+                                </g>
+                              );
+                            })}
+                          </g>
+                        );
+                      }} />
+                    )}
 
                     {/* Pair Analysis Index Line (KOSPI) */}
                     {pairMode && pairConfig.showIndex && indexData.length > 0 && (

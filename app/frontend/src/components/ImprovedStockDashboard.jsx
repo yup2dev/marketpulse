@@ -24,11 +24,6 @@ import OwnershipOverviewWidget from './widgets/stock/OwnershipOverviewWidget';
 import OwnershipInstitutionalWidget from './widgets/stock/OwnershipInstitutionalWidget';
 import OwnershipInsiderWidget from './widgets/stock/OwnershipInsiderWidget';
 import EstimatesTab from './analysis/EstimatesTab';
-// Individual estimate widgets
-import ConsensusRatingWidget from './widgets/stock/ConsensusRatingWidget';
-import PriceTargetWidget from './widgets/stock/PriceTargetWidget';
-import EPSEstimatesWidget from './widgets/stock/EPSEstimatesWidget';
-import RevenueEstimatesWidget from './widgets/stock/RevenueEstimatesWidget';
 import WidgetContextMenu from './common/WidgetContextMenu';
 import TabWidgetWrapper from './widgets/TabWidgetWrapper';
 import { useGlobalWidgetContext } from './AppLayout';
@@ -83,11 +78,7 @@ const TAB_WIDGETS = {
     { id: 'company-filings', name: 'SEC Filings', description: 'SEC filings & reports', defaultSize: { w: 6, h: 6 } },
   ],
   estimates: [
-    { id: 'consensus-rating', name: 'Consensus Rating', description: 'Analyst consensus', defaultSize: { w: 6, h: 5 } },
-    { id: 'price-target', name: 'Price Target', description: 'Target price analysis', defaultSize: { w: 6, h: 5 } },
-    { id: 'eps-estimates', name: 'EPS Estimates', description: 'Earnings estimates', defaultSize: { w: 6, h: 5 } },
-    { id: 'revenue-estimates', name: 'Revenue Estimates', description: 'Revenue forecasts', defaultSize: { w: 6, h: 5 } },
-    { id: 'analyst', name: 'Analyst Ratings', description: 'Detailed ratings', defaultSize: { w: 6, h: 6 } },
+    { id: 'estimates', name: 'Analyst Estimates', description: 'Estimates overview with tabs', defaultSize: { w: 12, h: 10 } },
   ],
 };
 
@@ -121,10 +112,7 @@ const DEFAULT_TAB_WIDGETS = {
     { id: 'company-filings-1', type: 'company-filings' },
   ],
   estimates: [
-    { id: 'consensus-1', type: 'consensus-rating' },
-    { id: 'price-target-1', type: 'price-target' },
-    { id: 'eps-1', type: 'eps-estimates' },
-    { id: 'revenue-1', type: 'revenue-estimates' },
+    { id: 'estimates-1', type: 'estimates' },
   ],
 };
 
@@ -158,10 +146,7 @@ const DEFAULT_TAB_LAYOUTS = {
     { i: 'company-filings-1', x: 7, y: 5, w: 5, h: 5, minW: 4, minH: 4 },
   ],
   estimates: [
-    { i: 'consensus-1', x: 0, y: 0, w: 6, h: 5, minW: 4, minH: 4 },
-    { i: 'price-target-1', x: 6, y: 0, w: 6, h: 5, minW: 4, minH: 4 },
-    { i: 'eps-1', x: 0, y: 5, w: 6, h: 5, minW: 4, minH: 4 },
-    { i: 'revenue-1', x: 6, y: 5, w: 6, h: 5, minW: 4, minH: 4 },
+    { i: 'estimates-1', x: 0, y: 0, w: 12, h: 10, minW: 8, minH: 6 },
   ],
 };
 
@@ -406,14 +391,6 @@ function ImprovedStockDashboard() {
             <EstimatesTab symbol={widgetSymbol} />
           </TabWidgetWrapper>
         );
-      case 'consensus-rating':
-        return <ConsensusRatingWidget symbol={widgetSymbol} onRemove={onRemove} />;
-      case 'price-target':
-        return <PriceTargetWidget symbol={widgetSymbol} onRemove={onRemove} />;
-      case 'eps-estimates':
-        return <EPSEstimatesWidget symbol={widgetSymbol} onRemove={onRemove} />;
-      case 'revenue-estimates':
-        return <RevenueEstimatesWidget symbol={widgetSymbol} onRemove={onRemove} />;
       default:
         return <ResizableStockWidget symbol={widgetSymbol} onRemove={onRemove} />;
     }
