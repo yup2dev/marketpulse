@@ -1,241 +1,208 @@
 /**
- * 거래 추가 모달
+ * AddTransactionModal - Add buy/sell/dividend transaction (dark theme)
  */
-import { useForm } from 'react-hook-form';
-import { X } from 'lucide-react';
+import { useState } from 'react';
+import { X, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
+import SymbolAutocomplete from '../common/SymbolAutocomplete';
+
+const TYPE_OPTIONS = [
+  { id: 'buy',      label: 'Buy',      icon: TrendingUp,   color: 'text-green-400', activeBg: 'bg-green-500/20 border-green-500/50' },
+  { id: 'sell',     label: 'Sell',     icon: TrendingDown, color: 'text-red-400',   activeBg: 'bg-red-500/20 border-red-500/50' },
+  { id: 'dividend', label: 'Dividend', icon: DollarSign,   color: 'text-cyan-400',  activeBg: 'bg-cyan-500/20 border-cyan-500/50' },
+];
+
+const Field = ({ label, children }) => (
+  <div>
+    <label className="block text-xs text-gray-400 mb-1">{label}</label>
+    {children}
+  </div>
+);
+
+const Input = ({ ...props }) => (
+  <input
+    {...props}
+    className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500 transition-colors"
+  />
+);
 
 export default function AddTransactionModal({ onClose, onAdd }) {
-  const {
-    register,
-    handleSubmit,
-    watch,
-    formState: { errors, isSubmitting },
-  } = useForm({
-    defaultValues: {
-      transaction_type: 'buy',
-      commission: 0,
-      tax: 0,
-    },
+  const [form, setForm] = useState({
+    transaction_type: 'buy',
+    ticker_cd: '',
+    quantity: '',
+    price: '',
+    commission: '',
+    tax: '',
+    transaction_date: new Date().toISOString().slice(0, 16),
+    notes: '',
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const transactionType = watch('transaction_type');
+  const upd = (key, val) => setForm((prev) => ({ ...prev, [key]: val }));
 
-  const onSubmit = async (data) => {
-    // ISO datetime 형식으로 변환
-    const transactionData = {
-      ...data,
-      quantity: parseFloat(data.quantity),
-      price: parseFloat(data.price),
-      commission: parseFloat(data.commission || 0),
-      tax: parseFloat(data.tax || 0),
-      transaction_date: new Date(data.transaction_date).toISOString(),
-    };
-
-    await onAdd(transactionData);
+  const computeTotal = () => {
+    const qty = parseFloat(form.quantity) || 0;
+    const price = parseFloat(form.price) || 0;
+    const comm = parseFloat(form.commission) || 0;
+    const tax = parseFloat(form.tax) || 0;
+    if (!qty || !price) return null;
+    if (form.transaction_type === 'buy')  return qty * price + comm + tax;
+    if (form.transaction_type === 'sell') return qty * price - comm - tax;
+    return qty * price;
   };
 
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.ticker_cd.trim() || !form.quantity || !form.price) return;
+    setIsSubmitting(true);
+    try {
+      await onAdd({
+        ticker_cd:        form.ticker_cd.toUpperCase().trim(),
+        transaction_type: form.transaction_type,
+        quantity:         parseFloat(form.quantity),
+        price:            parseFloat(form.price),
+        commission:       parseFloat(form.commission) || 0,
+        tax:              parseFloat(form.tax) || 0,
+        transaction_date: new Date(form.transaction_date).toISOString(),
+        notes:            form.notes || null,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const total = computeTotal();
+  const fmt = (v) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(v);
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="bg-[#0d0d12] border border-gray-700 rounded-lg w-full max-w-md mx-4 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">거래 추가</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <X size={24} />
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
+          <h2 className="text-sm font-semibold text-white">Add Transaction</h2>
+          <button onClick={onClose} className="p-1 text-gray-500 hover:text-white rounded transition-colors">
+            <X size={16} />
           </button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          {/* 거래 유형 */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">거래 유형 *</label>
+        <form onSubmit={handleSubmit} className="p-4 space-y-3">
+
+          {/* Transaction type selector */}
+          <Field label="Type">
             <div className="grid grid-cols-3 gap-2">
-              <label className="flex items-center justify-center px-4 py-2 border rounded-lg cursor-pointer hover:bg-gray-50">
-                <input
-                  type="radio"
-                  value="buy"
-                  {...register('transaction_type')}
-                  className="mr-2"
-                />
-                <span>매수</span>
-              </label>
-              <label className="flex items-center justify-center px-4 py-2 border rounded-lg cursor-pointer hover:bg-gray-50">
-                <input
-                  type="radio"
-                  value="sell"
-                  {...register('transaction_type')}
-                  className="mr-2"
-                />
-                <span>매도</span>
-              </label>
-              <label className="flex items-center justify-center px-4 py-2 border rounded-lg cursor-pointer hover:bg-gray-50">
-                <input
-                  type="radio"
-                  value="dividend"
-                  {...register('transaction_type')}
-                  className="mr-2"
-                />
-                <span>배당</span>
-              </label>
+              {TYPE_OPTIONS.map((opt) => {
+                const Icon = opt.icon;
+                const active = form.transaction_type === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => upd('transaction_type', opt.id)}
+                    className={`flex items-center justify-center gap-1.5 py-2 rounded border text-xs font-medium transition-colors ${
+                      active ? opt.activeBg + ' ' + opt.color : 'border-gray-700 text-gray-400 hover:border-gray-600 hover:text-gray-300'
+                    }`}
+                  >
+                    <Icon size={12} />
+                    {opt.label}
+                  </button>
+                );
+              })}
             </div>
-          </div>
+          </Field>
 
-          {/* 종목 코드 */}
-          <div>
-            <label htmlFor="ticker_cd" className="block text-sm font-medium text-gray-700 mb-1">
-              종목 코드 *
-            </label>
-            <input
-              id="ticker_cd"
-              type="text"
-              {...register('ticker_cd', {
-                required: '종목 코드를 입력해주세요.',
-              })}
-              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                errors.ticker_cd ? 'border-red-500' : 'border-gray-300'
-              }`}
-              placeholder="예: AAPL"
+          {/* Symbol */}
+          <Field label="Symbol *">
+            <SymbolAutocomplete
+              value={form.ticker_cd}
+              onChange={(sym) => upd('ticker_cd', sym)}
+              placeholder="AAPL"
+              required
             />
-            {errors.ticker_cd && (
-              <p className="mt-1 text-sm text-red-600">{errors.ticker_cd.message}</p>
-            )}
-          </div>
+          </Field>
 
-          {/* 수량 */}
-          <div>
-            <label htmlFor="quantity" className="block text-sm font-medium text-gray-700 mb-1">
-              수량 *
-            </label>
-            <input
-              id="quantity"
-              type="number"
-              step="0.00000001"
-              {...register('quantity', {
-                required: '수량을 입력해주세요.',
-                min: { value: 0.00000001, message: '수량은 0보다 커야 합니다.' },
-              })}
-              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                errors.quantity ? 'border-red-500' : 'border-gray-300'
-              }`}
-              placeholder="예: 10"
-            />
-            {errors.quantity && (
-              <p className="mt-1 text-sm text-red-600">{errors.quantity.message}</p>
-            )}
-          </div>
-
-          {/* 가격 */}
-          <div>
-            <label htmlFor="price" className="block text-sm font-medium text-gray-700 mb-1">
-              {transactionType === 'dividend' ? '배당금 (주당)' : '가격 (주당)'} *
-            </label>
-            <input
-              id="price"
-              type="number"
-              step="0.0001"
-              {...register('price', {
-                required: '가격을 입력해주세요.',
-                min: { value: 0, message: '가격은 0 이상이어야 합니다.' },
-              })}
-              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                errors.price ? 'border-red-500' : 'border-gray-300'
-              }`}
-              placeholder="예: 150.50"
-            />
-            {errors.price && <p className="mt-1 text-sm text-red-600">{errors.price.message}</p>}
-          </div>
-
-          {/* 수수료 */}
-          {transactionType !== 'dividend' && (
-            <div>
-              <label htmlFor="commission" className="block text-sm font-medium text-gray-700 mb-1">
-                수수료
-              </label>
-              <input
-                id="commission"
-                type="number"
-                step="0.01"
-                {...register('commission')}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="예: 5.00"
+          {/* Qty + Price */}
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Quantity *">
+              <Input
+                type="number" step="any" min="0"
+                value={form.quantity}
+                onChange={(e) => upd('quantity', e.target.value)}
+                placeholder="100"
+                required
               />
+            </Field>
+            <Field label={form.transaction_type === 'dividend' ? 'Per-Share Dividend *' : 'Price (USD) *'}>
+              <Input
+                type="number" step="any" min="0"
+                value={form.price}
+                onChange={(e) => upd('price', e.target.value)}
+                placeholder="150.00"
+                required
+              />
+            </Field>
+          </div>
+
+          {/* Commission + Tax */}
+          {form.transaction_type !== 'dividend' && (
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Commission">
+                <Input type="number" step="any" min="0" value={form.commission} onChange={(e) => upd('commission', e.target.value)} placeholder="0.00" />
+              </Field>
+              <Field label="Tax">
+                <Input type="number" step="any" min="0" value={form.tax} onChange={(e) => upd('tax', e.target.value)} placeholder="0.00" />
+              </Field>
             </div>
           )}
 
-          {/* 세금 */}
-          {transactionType !== 'dividend' && (
-            <div>
-              <label htmlFor="tax" className="block text-sm font-medium text-gray-700 mb-1">
-                세금
-              </label>
-              <input
-                id="tax"
-                type="number"
-                step="0.01"
-                {...register('tax')}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="예: 2.00"
-              />
-            </div>
-          )}
-
-          {/* 거래 일시 */}
-          <div>
-            <label
-              htmlFor="transaction_date"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              거래 일시 *
-            </label>
-            <input
-              id="transaction_date"
+          {/* Date */}
+          <Field label="Date & Time *">
+            <Input
               type="datetime-local"
-              {...register('transaction_date', {
-                required: '거래 일시를 선택해주세요.',
-              })}
-              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                errors.transaction_date ? 'border-red-500' : 'border-gray-300'
-              }`}
-              defaultValue={new Date().toISOString().slice(0, 16)}
+              value={form.transaction_date}
+              onChange={(e) => upd('transaction_date', e.target.value)}
+              required
+              style={{ colorScheme: 'dark' }}
             />
-            {errors.transaction_date && (
-              <p className="mt-1 text-sm text-red-600">{errors.transaction_date.message}</p>
-            )}
-          </div>
+          </Field>
 
-          {/* 메모 */}
-          <div>
-            <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-1">
-              메모
-            </label>
-            <textarea
-              id="notes"
-              {...register('notes')}
-              rows={3}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="거래에 대한 메모 (선택)"
+          {/* Notes */}
+          <Field label="Notes">
+            <Input
+              type="text"
+              value={form.notes}
+              onChange={(e) => upd('notes', e.target.value)}
+              placeholder="Optional note..."
             />
-          </div>
+          </Field>
 
-          {/* Buttons */}
-          <div className="flex gap-3 pt-4">
+          {/* Total preview */}
+          {total !== null && (
+            <div className="flex items-center justify-between bg-gray-800/60 rounded px-3 py-2">
+              <span className="text-xs text-gray-400">Estimated Total</span>
+              <span className={`text-sm font-semibold tabular-nums ${form.transaction_type === 'buy' ? 'text-red-400' : 'text-green-400'}`}>
+                {form.transaction_type === 'buy' ? '-' : '+'}{fmt(total)}
+              </span>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex gap-3 pt-1">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              className="flex-1 py-2 text-sm text-gray-400 hover:text-white border border-gray-700 hover:border-gray-500 rounded transition-colors"
             >
-              취소
+              Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex-1 py-2 text-sm font-medium text-white bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed rounded transition-colors"
             >
-              {isSubmitting ? '추가 중...' : '추가'}
+              {isSubmitting ? 'Adding...' : 'Add Transaction'}
             </button>
           </div>
         </form>

@@ -7,15 +7,18 @@ from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
 from decimal import Decimal
+import asyncio
 
 try:
     from ...database.db_dependency import get_db
     from ...auth.dependencies import get_current_active_user
     from ...services.user_portfolio_service import UserPortfolioService
+    from ...services.data_service import data_service
 except ImportError:
     from database.db_dependency import get_db
     from auth.dependencies import get_current_active_user
     from services.user_portfolio_service import UserPortfolioService
+    from services.data_service import data_service
 from index_analyzer.models.database import User
 
 router = APIRouter(prefix="/user-portfolio", tags=["User Portfolio"])
@@ -304,6 +307,48 @@ def get_portfolio_allocation(
         )
 
     return {"allocation": allocation}
+
+
+@router.post("/portfolios/{portfolio_id}/refresh-prices")
+async def refresh_holding_prices(
+    portfolio_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    보유 종목의 현재가를 Yahoo Finance에서 가져와 업데이트
+    """
+    portfolio = UserPortfolioService.get_portfolio(db, portfolio_id, current_user.user_id)
+    if not portfolio:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Portfolio not found")
+
+    holdings = UserPortfolioService.get_portfolio_holdings(db, portfolio_id)
+    if not holdings:
+        return {"updated": 0, "failed": []}
+
+    # Fetch prices concurrently
+    tickers = list({h.ticker_cd for h in holdings})
+
+    async def fetch_price(ticker):
+        try:
+            quote = await data_service.get_stock_quote(ticker)
+            price = quote.get('price')
+            return (ticker, float(price)) if price else (ticker, None)
+        except Exception:
+            return (ticker, None)
+
+    results = await asyncio.gather(*[fetch_price(t) for t in tickers])
+    price_data = {ticker: price for ticker, price in results if price is not None}
+    failed = [ticker for ticker, price in results if price is None]
+
+    if price_data:
+        UserPortfolioService.update_holding_prices(db, portfolio_id, price_data)
+
+    return {
+        "updated": len(price_data),
+        "failed": failed,
+        "prices": price_data,
+    }
 
 
 # ==================== Watchlist Endpoints ====================

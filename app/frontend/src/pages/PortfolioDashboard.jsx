@@ -1,564 +1,533 @@
 /**
- * Portfolio Dashboard - Hyperliquid Style
- * Main portfolio management page with dark theme
+ * Portfolio Dashboard
+ * Grid-based layout — real API data + Add Transaction
  */
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import {
-  TrendingUp, TrendingDown, DollarSign, PieChart,
-  ArrowUpRight, RefreshCw, Filter, ChevronDown
-} from 'lucide-react';
-import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Area, AreaChart
-} from 'recharts';
 import toast from 'react-hot-toast';
+import GridLayout from 'react-grid-layout';
+import { ChevronDown, Plus, RefreshCw } from 'lucide-react';
 import { portfolioAPI } from '../config/api';
+import useAuthStore from '../store/authStore';
 import CreatePortfolioModal from '../components/portfolio/CreatePortfolioModal';
+import AddTransactionModal from '../components/portfolio/AddTransactionModal';
+import PortfolioStatsWidget from '../components/widgets/portfolio/PortfolioStatsWidget';
+import PortfolioPnLChartWidget from '../components/widgets/portfolio/PortfolioPnLChartWidget';
+import PortfolioHoldingsWidget from '../components/widgets/portfolio/PortfolioHoldingsWidget';
+import PortfolioBalancesWidget from '../components/widgets/portfolio/PortfolioBalancesWidget';
+import PortfolioPositionsWidget from '../components/widgets/portfolio/PortfolioPositionsWidget';
+import PortfolioTradeHistoryWidget from '../components/widgets/portfolio/PortfolioTradeHistoryWidget';
+import PortfolioEmptyWidget from '../components/widgets/portfolio/PortfolioEmptyWidget';
+import 'react-grid-layout/css/styles.css';
 
-// Tab configuration - Analysis style tabs
+// ─── Tab config ────────────────────────────────────────────────────────────────
 const PORTFOLIO_TABS = [
-  'Overview',
-  'Balances',
-  'Positions',
-  'Open Orders',
-  'Trade History',
-  'Dividends',
-  'Deposits & Withdrawals'
+  { id: 'overview',              label: 'Overview' },
+  { id: 'balances',              label: 'Balances' },
+  { id: 'positions',             label: 'Positions' },
+  { id: 'trade-history',         label: 'Trade History' },
+  { id: 'open-orders',           label: 'Open Orders' },
+  { id: 'dividends',             label: 'Dividends' },
+  { id: 'deposits-withdrawals',  label: 'Deposits & Withdrawals' },
 ];
 
-// Period options
-const PERIOD_OPTIONS = [
-  { id: '1D', label: '1D' },
-  { id: '7D', label: '7D' },
-  { id: '30D', label: '30D' },
-  { id: '90D', label: '90D' },
-  { id: '1Y', label: '1Y' },
-  { id: 'ALL', label: 'ALL' },
-];
+// ─── Widget definitions per tab ────────────────────────────────────────────────
+const TAB_WIDGET_DEFS = {
+  overview:              [{ id: 'stats-1', type: 'stats' }, { id: 'chart-1', type: 'chart' }, { id: 'holdings-1', type: 'holdings' }],
+  balances:              [{ id: 'balances-1', type: 'balances' }],
+  positions:             [{ id: 'positions-1', type: 'positions' }],
+  'trade-history':       [{ id: 'trade-history-1', type: 'trade-history' }],
+  'open-orders':         [{ id: 'open-orders-1',   type: 'empty', title: 'Open Orders',             message: 'No open orders' }],
+  dividends:             [{ id: 'dividends-1',      type: 'empty', title: 'Dividends',               message: 'No dividend records' }],
+  'deposits-withdrawals':[{ id: 'deposits-1',       type: 'empty', title: 'Deposits & Withdrawals',  message: 'No records' }],
+};
 
-// Account type options
-const ACCOUNT_TYPES = [
-  { id: 'all', label: 'All Accounts' },
-  { id: 'stock', label: 'Stock Account' },
-  { id: 'futures', label: 'Futures Account' },
-  { id: 'earn', label: 'Earn Account' },
-];
+// ─── Default grid layouts per tab ─────────────────────────────────────────────
+const DEFAULT_LAYOUTS = {
+  overview:             [{ i: 'stats-1', x: 0, y: 0, w: 5, h: 6, minW: 3, minH: 4 }, { i: 'chart-1', x: 5, y: 0, w: 7, h: 6, minW: 4, minH: 4 }, { i: 'holdings-1', x: 0, y: 6, w: 12, h: 6, minW: 6, minH: 4 }],
+  balances:             [{ i: 'balances-1',  x: 0, y: 0, w: 12, h: 10, minW: 6, minH: 5 }],
+  positions:            [{ i: 'positions-1', x: 0, y: 0, w: 12, h: 10, minW: 6, minH: 5 }],
+  'trade-history':      [{ i: 'trade-history-1', x: 0, y: 0, w: 12, h: 10, minW: 6, minH: 5 }],
+  'open-orders':        [{ i: 'open-orders-1',   x: 0, y: 0, w: 12, h: 8, minW: 6, minH: 4 }],
+  dividends:            [{ i: 'dividends-1',      x: 0, y: 0, w: 12, h: 8, minW: 6, minH: 4 }],
+  'deposits-withdrawals':[{ i: 'deposits-1',      x: 0, y: 0, w: 12, h: 8, minW: 6, minH: 4 }],
+};
 
+// ─── Formatters ────────────────────────────────────────────────────────────────
+const formatCurrency = (v, dec = 2) => {
+  if (v == null) return '$0.00';
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: dec, maximumFractionDigits: dec }).format(v);
+};
+const formatPercent = (v) => v == null ? '0.00%' : `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`;
+
+// ─── Map Holding API row → widget row ─────────────────────────────────────────
+// current_price / market_value are null until server refreshes live prices
+// Fall back to avg_cost / total_cost so the UI is useful even before price refresh
+const mapHolding = (h) => {
+  const hasMkt   = h.market_value != null && h.market_value > 0;
+  const value    = hasMkt ? h.market_value : (h.total_cost ?? (h.quantity ?? 0) * (h.avg_cost ?? 0));
+  const curPrice = (h.current_price && h.current_price > 0) ? h.current_price : (h.avg_cost ?? 0);
+  return {
+    symbol:        h.ticker_cd,
+    name:          h.ticker_cd,
+    quantity:      h.quantity ?? 0,
+    avgCost:       h.avg_cost ?? 0,
+    currentPrice:  curPrice,
+    value,
+    pnl:           hasMkt ? (h.unrealized_pnl ?? 0) : 0,
+    pnlPct:        hasMkt ? (h.unrealized_pnl_pct ?? 0) : 0,
+    _noPrices:     !hasMkt,
+    _raw:          h,
+  };
+};
+
+// ─── Component ─────────────────────────────────────────────────────────────────
 export default function PortfolioDashboard() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { isAuthenticated } = useAuthStore();
+
+  // ── Portfolio state ──────────────────────────────────────────────────────────
   const [portfolios, setPortfolios] = useState([]);
   const [selectedPortfolio, setSelectedPortfolio] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [loadingPortfolios, setLoadingPortfolios] = useState(false);
+  const [showPortfolioMenu, setShowPortfolioMenu] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+
+  // ── Holdings / transactions / stats ─────────────────────────────────────────
+  const [holdings, setHoldings] = useState([]);
+  const [transactions, setTransactions] = useState([]);
+  const [summary, setSummary] = useState(null);
+  const [loadingHoldings, setLoadingHoldings] = useState(false);
+  const [loadingTransactions, setLoadingTransactions] = useState(false);
+
+  // ── UI ───────────────────────────────────────────────────────────────────────
   const [selectedPeriod, setSelectedPeriod] = useState('30D');
   const [selectedAccountType, setSelectedAccountType] = useState('all');
   const [hideSmallBalances, setHideSmallBalances] = useState(false);
-  const [chartTab, setChartTab] = useState('value'); // 'value' or 'pnl'
+  const [chartTab, setChartTab] = useState('value');
+  const [showAddTransaction, setShowAddTransaction] = useState(false);
+  const [isSubmittingTransaction, setIsSubmittingTransaction] = useState(false);
+  const [isRefreshingPrices, setIsRefreshingPrices] = useState(false);
 
-  // Get active tab from URL (default to 'overview')
-  const activeTab = searchParams.get('tab') || 'overview';
-
-  // Tab change handler - updates URL (converts tab name to URL-friendly format)
-  const handleTabChange = (tabName) => {
-    const tabId = tabName.toLowerCase().replace(/ & /g, '-').replace(/ /g, '-');
-    navigate(`/portfolios?tab=${tabId}`, { replace: true });
-  };
-
-  // Check if tab is active
-  const isTabActive = (tabName) => {
-    const tabId = tabName.toLowerCase().replace(/ & /g, '-').replace(/ /g, '-');
-    return activeTab === tabId;
-  };
-
-  // Mock data for demonstration
-  const [stats, setStats] = useState({
-    pnl: 0,
-    volume: 0,
-    maxDrawdown: 0,
-    totalEquity: 0,
-    stockEquity: 0,
-    futuresEquity: 0,
-    earnBalance: 0,
+  // ── Grid ─────────────────────────────────────────────────────────────────────
+  const [tabLayouts, setTabLayouts] = useState(() => {
+    try { return { ...DEFAULT_LAYOUTS, ...JSON.parse(localStorage.getItem('portfolio-tab-layouts') || '{}') }; }
+    catch { return DEFAULT_LAYOUTS; }
   });
+  const [gridWidth, setGridWidth] = useState(1200);
+  const containerRef = useRef(null);
 
-  const [holdings, setHoldings] = useState([]);
-  const [pnlHistory, setPnlHistory] = useState([]);
+  const activeTab = searchParams.get('tab') || 'overview';
+  const handleTabChange = (id) => navigate(`/portfolios?tab=${id}`, { replace: true });
 
-  useEffect(() => {
-    loadPortfolios();
-    loadMockData();
+  // ── Load portfolios ──────────────────────────────────────────────────────────
+  const loadPortfolios = useCallback(async () => {
+    if (!isAuthenticated) return;
+    setLoadingPortfolios(true);
+    try {
+      const data = await portfolioAPI.getAll();
+      const list = Array.isArray(data) ? data : (data.data || []);
+      setPortfolios(list);
+      if (list.length > 0 && !selectedPortfolio) {
+        setSelectedPortfolio(list[0]);
+      }
+    } catch (err) {
+      console.error('Portfolio load error:', err);
+    } finally {
+      setLoadingPortfolios(false);
+    }
+  }, [isAuthenticated, selectedPortfolio]);
+
+  // ── Load holdings + summary ──────────────────────────────────────────────────
+  const loadHoldings = useCallback(async (portfolioId) => {
+    if (!portfolioId) return;
+    setLoadingHoldings(true);
+    try {
+      const [holdingsData, summaryData] = await Promise.allSettled([
+        portfolioAPI.getHoldings(portfolioId),
+        portfolioAPI.getSummary(portfolioId),
+      ]);
+      if (holdingsData.status === 'fulfilled') {
+        const raw = Array.isArray(holdingsData.value) ? holdingsData.value : (holdingsData.value?.data || []);
+        setHoldings(raw.map(mapHolding));
+      }
+      if (summaryData.status === 'fulfilled') {
+        setSummary(summaryData.value);
+      }
+    } catch (err) {
+      console.error('Holdings load error:', err);
+    } finally {
+      setLoadingHoldings(false);
+    }
   }, []);
 
-  const loadPortfolios = async () => {
+  // ── Load transactions ────────────────────────────────────────────────────────
+  const loadTransactions = useCallback(async (portfolioId) => {
+    if (!portfolioId) return;
+    setLoadingTransactions(true);
     try {
-      setIsLoading(true);
-      const response = await portfolioAPI.getAll();
-      setPortfolios(response.data || []);
-      if (response.data?.length > 0) {
-        setSelectedPortfolio(response.data[0]);
-      }
-    } catch (error) {
-      console.error('Portfolio loading error:', error);
+      const data = await portfolioAPI.getTransactions(portfolioId);
+      const list = Array.isArray(data) ? data : (data.data || []);
+      setTransactions(list);
+    } catch (err) {
+      console.error('Transactions load error:', err);
     } finally {
-      setIsLoading(false);
+      setLoadingTransactions(false);
     }
-  };
+  }, []);
 
-  const loadMockData = () => {
-    // Mock PNL history data
-    const mockPnlHistory = Array.from({ length: 30 }, (_, i) => ({
-      date: new Date(Date.now() - (29 - i) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      value: 10000 + Math.random() * 2000 - 500 + i * 50,
-      pnl: Math.random() * 200 - 50 + i * 5,
-    }));
-    setPnlHistory(mockPnlHistory);
+  // ── Effects ──────────────────────────────────────────────────────────────────
+  useEffect(() => { loadPortfolios(); }, [isAuthenticated]);
 
-    // Mock holdings
-    setHoldings([
-      { symbol: 'AAPL', name: 'Apple Inc.', quantity: 100, avgCost: 150, currentPrice: 175, value: 17500, pnl: 2500, pnlPct: 16.67 },
-      { symbol: 'NVDA', name: 'NVIDIA Corp.', quantity: 50, avgCost: 180, currentPrice: 240, value: 12000, pnl: 3000, pnlPct: 33.33 },
-      { symbol: 'MSFT', name: 'Microsoft Corp.', quantity: 30, avgCost: 280, currentPrice: 310, value: 9300, pnl: 900, pnlPct: 10.71 },
-      { symbol: 'GOOGL', name: 'Alphabet Inc.', quantity: 20, avgCost: 120, currentPrice: 140, value: 2800, pnl: 400, pnlPct: 16.67 },
-    ]);
+  useEffect(() => {
+    if (selectedPortfolio?.portfolio_id) {
+      loadHoldings(selectedPortfolio.portfolio_id);
+      loadTransactions(selectedPortfolio.portfolio_id);
+    }
+  }, [selectedPortfolio?.portfolio_id]);
 
-    // Calculate stats
-    setStats({
-      pnl: 6800,
-      volume: 45678,
-      maxDrawdown: -5.23,
-      totalEquity: 41600,
-      stockEquity: 41600,
-      futuresEquity: 0,
-      earnBalance: 0,
-    });
-  };
+  useEffect(() => {
+    const updateWidth = () => { if (containerRef.current) setGridWidth(containerRef.current.offsetWidth); };
+    updateWidth();
+    window.addEventListener('resize', updateWidth);
+    return () => window.removeEventListener('resize', updateWidth);
+  }, []);
 
+  // ── Portfolio actions ────────────────────────────────────────────────────────
   const handleCreatePortfolio = async (data) => {
     try {
-      await portfolioAPI.create(data);
-      toast.success('Portfolio created successfully');
+      const created = await portfolioAPI.create(data);
+      toast.success('Portfolio created');
       setShowCreateModal(false);
-      loadPortfolios();
-    } catch (error) {
+      await loadPortfolios();
+      setSelectedPortfolio(created);
+    } catch {
       toast.error('Failed to create portfolio');
-      console.error(error);
     }
   };
 
-  const filteredHoldings = useMemo(() => {
-    if (!hideSmallBalances) return holdings;
-    return holdings.filter(h => h.value >= 10);
-  }, [holdings, hideSmallBalances]);
-
-  const formatCurrency = (value, decimals = 2) => {
-    if (value === null || value === undefined) return '$0.00';
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: decimals,
-      maximumFractionDigits: decimals,
-    }).format(value);
+  const handleAddTransaction = async (txnData) => {
+    if (!selectedPortfolio?.portfolio_id) {
+      toast.error('No portfolio selected');
+      return;
+    }
+    setIsSubmittingTransaction(true);
+    try {
+      await portfolioAPI.addTransaction(selectedPortfolio.portfolio_id, txnData);
+      toast.success(`${txnData.transaction_type.toUpperCase()} ${txnData.ticker_cd} added`);
+      setShowAddTransaction(false);
+      await Promise.all([
+        loadHoldings(selectedPortfolio.portfolio_id),
+        loadTransactions(selectedPortfolio.portfolio_id),
+      ]);
+    } catch (err) {
+      toast.error(err.detail || 'Failed to add transaction');
+    } finally {
+      setIsSubmittingTransaction(false);
+    }
   };
 
-  const formatPercent = (value) => {
-    if (value === null || value === undefined) return '0.00%';
-    const sign = value >= 0 ? '+' : '';
-    return `${sign}${value.toFixed(2)}%`;
-  };
+  // ── Grid layout persist ──────────────────────────────────────────────────────
+  const handleLayoutChange = useCallback((newLayout) => {
+    setTabLayouts((prev) => {
+      const updated = { ...prev, [activeTab]: newLayout };
+      try { localStorage.setItem('portfolio-tab-layouts', JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+  }, [activeTab]);
+
+  // ── Derived data ─────────────────────────────────────────────────────────────
+  const filteredHoldings = useMemo(
+    () => hideSmallBalances ? holdings.filter((h) => h.value >= 10) : holdings,
+    [holdings, hideSmallBalances]
+  );
+
+  const dividendTransactions = useMemo(
+    () => transactions.filter((t) => t.transaction_type === 'dividend'),
+    [transactions]
+  );
+
+  // ── Stats from summary API ───────────────────────────────────────────────────
+  const stats = useMemo(() => ({
+    pnl:           summary?.total_unrealized_pnl ?? 0,
+    volume:        summary?.total_market_value ?? 0,
+    maxDrawdown:   0,
+    totalEquity:   summary?.total_market_value ?? 0,
+    stockEquity:   summary?.total_market_value ?? 0,
+    futuresEquity: 0,
+    earnBalance:   0,
+  }), [summary]);
+
+  // ── Mock PnL chart (until performance API returns time-series) ───────────────
+  const pnlHistory = useMemo(() => {
+    if (!summary) return [];
+    const base = summary.total_cost || 10000;
+    return Array.from({ length: 30 }, (_, i) => ({
+      date:  new Date(Date.now() - (29 - i) * 86400000).toISOString().split('T')[0],
+      value: base + (summary.total_unrealized_pnl || 0) * (i / 29),
+      pnl:   (summary.total_unrealized_pnl || 0) * (i / 29),
+    }));
+  }, [summary]);
+
+  // ── Widget renderer ──────────────────────────────────────────────────────────
+  const renderWidget = useCallback((widget) => {
+    switch (widget.type) {
+      case 'stats':
+        return (
+          <PortfolioStatsWidget
+            stats={stats}
+            selectedAccountType={selectedAccountType}
+            setSelectedAccountType={setSelectedAccountType}
+            selectedPeriod={selectedPeriod}
+            setSelectedPeriod={setSelectedPeriod}
+            formatCurrency={formatCurrency}
+            formatPercent={formatPercent}
+          />
+        );
+      case 'chart':
+        return (
+          <PortfolioPnLChartWidget
+            pnlHistory={pnlHistory}
+            chartTab={chartTab}
+            setChartTab={setChartTab}
+          />
+        );
+      case 'holdings':
+        return (
+          <PortfolioHoldingsWidget
+            holdings={filteredHoldings}
+            onViewAll={() => handleTabChange('balances')}
+          />
+        );
+      case 'balances':
+        return (
+          <PortfolioBalancesWidget
+            holdings={filteredHoldings}
+            hideSmallBalances={hideSmallBalances}
+            setHideSmallBalances={setHideSmallBalances}
+          />
+        );
+      case 'positions':
+        return <PortfolioPositionsWidget holdings={filteredHoldings} />;
+      case 'trade-history':
+        return (
+          <PortfolioTradeHistoryWidget
+            transactions={transactions}
+            loading={loadingTransactions}
+            onAddTransaction={() => setShowAddTransaction(true)}
+          />
+        );
+      case 'empty':
+        return <PortfolioEmptyWidget title={widget.title} message={widget.message} />;
+      default:
+        return null;
+    }
+  }, [stats, pnlHistory, filteredHoldings, chartTab, selectedAccountType, selectedPeriod, hideSmallBalances, transactions, loadingTransactions]);
+
+  const currentWidgets = TAB_WIDGET_DEFS[activeTab] || [];
+  const currentLayout  = tabLayouts[activeTab] || DEFAULT_LAYOUTS[activeTab] || [];
+
+  // ── Not logged in ────────────────────────────────────────────────────────────
+  if (!isAuthenticated) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-[#0a0a0f] text-gray-400 gap-3">
+        <p className="text-sm">Sign in to view your portfolio</p>
+        <button
+          onClick={() => navigate('/login')}
+          className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-sm rounded transition-colors"
+        >
+          Sign In
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="text-white bg-[#0a0a0f] min-h-screen">
-      <div className="w-full px-4 py-4">
-        {/* Page Header */}
-        <div className="mb-4">
-          <h2 className="text-xl font-bold text-white">Portfolio</h2>
-          <p className="text-sm text-gray-400">Manage your assets, positions, and trading history</p>
-        </div>
+      <div className="w-full px-2 py-2 text-[11px]">
 
-        {/* Tabs - Analysis Style */}
-        <div className="border-b border-gray-800 mb-6">
-          <div className="flex gap-6">
+        {/* ── Header bar ──────────────────────────────────────────────────────── */}
+        <div className="flex items-center justify-between border-b border-gray-800 mb-2 pb-2 gap-2">
+
+          {/* Tabs */}
+          <div className="flex items-center gap-0.5 flex-wrap flex-1 min-w-0">
             {PORTFOLIO_TABS.map((tab) => (
               <button
-                key={tab}
-                onClick={() => handleTabChange(tab)}
-                className={`pb-3 px-1 text-sm font-medium transition-colors relative ${
-                  isTabActive(tab)
-                    ? 'text-white'
-                    : 'text-gray-400 hover:text-gray-300'
+                key={tab.id}
+                onClick={() => handleTabChange(tab.id)}
+                className={`px-3 py-1.5 text-xs font-medium transition-colors rounded whitespace-nowrap ${
+                  activeTab === tab.id
+                    ? 'text-white bg-gray-800'
+                    : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
                 }`}
               >
-                {tab}
-                {isTabActive(tab) && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-cyan-500"></div>
-                )}
+                {tab.label}
               </button>
             ))}
           </div>
+
+          {/* Right: portfolio selector + actions */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {/* Refresh */}
+            <button
+              onClick={async () => {
+                if (!selectedPortfolio) return;
+                setIsRefreshingPrices(true);
+                try {
+                  const result = await portfolioAPI.refreshPrices(selectedPortfolio.portfolio_id);
+                  if (result.updated > 0) {
+                    toast.success(`Updated ${result.updated} price${result.updated > 1 ? 's' : ''}`);
+                  } else {
+                    toast('No prices updated', { icon: '⚠️' });
+                  }
+                } catch {
+                  toast.error('Price refresh failed');
+                } finally {
+                  setIsRefreshingPrices(false);
+                }
+                await Promise.all([
+                  loadHoldings(selectedPortfolio.portfolio_id),
+                  loadTransactions(selectedPortfolio.portfolio_id),
+                ]);
+              }}
+              disabled={isRefreshingPrices}
+              className="p-1.5 text-gray-500 hover:text-white hover:bg-gray-800 rounded transition-colors disabled:opacity-50"
+              title="Refresh prices"
+            >
+              <RefreshCw size={12} className={(loadingHoldings || loadingTransactions || isRefreshingPrices) ? 'animate-spin' : ''} />
+            </button>
+
+            {/* Add Transaction shortcut */}
+            {selectedPortfolio && (
+              <button
+                onClick={() => setShowAddTransaction(true)}
+                className="flex items-center gap-1 px-2 py-1 bg-cyan-900/40 hover:bg-cyan-900/60 text-cyan-400 text-xs rounded border border-cyan-800/40 transition-colors"
+              >
+                <Plus size={12} />
+                Trade
+              </button>
+            )}
+
+            {/* Portfolio selector */}
+            <div className="relative">
+              <button
+                onClick={() => setShowPortfolioMenu(!showPortfolioMenu)}
+                className="flex items-center gap-1 px-2 py-1 bg-gray-800 hover:bg-gray-700 text-white text-xs rounded transition-colors max-w-[160px]"
+              >
+                <span className="truncate">{selectedPortfolio?.name || 'Select Portfolio'}</span>
+                <ChevronDown size={10} className="flex-shrink-0" />
+              </button>
+
+              {showPortfolioMenu && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowPortfolioMenu(false)} />
+                  <div className="absolute right-0 top-full mt-1 bg-[#1a1a2e] border border-gray-700 rounded shadow-xl z-50 py-1 min-w-[180px]">
+                    {portfolios.length === 0 ? (
+                      <div className="px-3 py-2 text-xs text-gray-500">No portfolios</div>
+                    ) : (
+                      portfolios.map((p) => (
+                        <button
+                          key={p.portfolio_id}
+                          onClick={() => { setSelectedPortfolio(p); setShowPortfolioMenu(false); }}
+                          className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-800 transition-colors ${
+                            selectedPortfolio?.portfolio_id === p.portfolio_id ? 'text-cyan-400' : 'text-gray-300'
+                          }`}
+                        >
+                          {p.name}
+                          {p.description && <span className="text-gray-600 ml-1">· {p.description.slice(0, 20)}</span>}
+                        </button>
+                      ))
+                    )}
+                    <div className="border-t border-gray-800 mt-1 pt-1">
+                      <button
+                        onClick={() => { setShowPortfolioMenu(false); setShowCreateModal(true); }}
+                        className="w-full text-left px-3 py-2 text-xs text-cyan-400 hover:bg-gray-800 flex items-center gap-1 transition-colors"
+                      >
+                        <Plus size={11} />
+                        New Portfolio
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* Tab Content */}
-        {activeTab === 'overview' && (
-          <>
-            {/* Summary Cards Grid */}
-            <div className="grid grid-cols-12 gap-4 mb-6">
-              {/* Left Column - Volume & Fees */}
-              <div className="col-span-12 lg:col-span-2 space-y-4">
-                {/* Volume Card */}
-                <div className="bg-[#0d0d12] rounded-lg p-4 border border-gray-800">
-                  <div className="text-sm text-gray-400 mb-2">14 Day Volume</div>
-                  <div className="text-2xl font-bold">{formatCurrency(stats.volume)}</div>
-                  <button className="text-cyan-400 text-sm mt-2 hover:underline">
-                    View Volume
-                  </button>
+        {/* ── No portfolio state ───────────────────────────────────────────────── */}
+        {portfolios.length === 0 && !loadingPortfolios && (
+          <div className="flex flex-col items-center justify-center py-24 gap-3">
+            <p className="text-gray-500 text-sm">No portfolios yet</p>
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="flex items-center gap-1.5 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs rounded transition-colors"
+            >
+              <Plus size={14} />
+              Create Portfolio
+            </button>
+          </div>
+        )}
+
+        {/* ── Grid content ─────────────────────────────────────────────────────── */}
+        {(portfolios.length > 0 || selectedPortfolio) && (
+          <div ref={containerRef}>
+            <GridLayout
+              className="layout"
+              layout={currentLayout}
+              cols={12}
+              rowHeight={80}
+              width={Math.max(gridWidth - 16, 600)}
+              onLayoutChange={handleLayoutChange}
+              draggableHandle=".drag-handle-area"
+              isDraggable
+              isResizable
+              compactType="vertical"
+              preventCollision={false}
+              margin={[12, 12]}
+              containerPadding={[0, 0]}
+            >
+              {currentWidgets.map((widget) => (
+                <div key={widget.id} className="widget-container">
+                  {renderWidget(widget)}
                 </div>
-
-                {/* Fees Card */}
-                <div className="bg-[#0d0d12] rounded-lg p-4 border border-gray-800">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-gray-400">Fees (Taker / Maker)</span>
-                    <ChevronDown size={16} className="text-gray-400" />
-                  </div>
-                  <div className="text-xl font-bold">0.10% / 0.05%</div>
-                  <button className="text-cyan-400 text-sm mt-2 hover:underline">
-                    View Fee Schedule
-                  </button>
-                </div>
-              </div>
-
-              {/* Center Column - Stats */}
-              <div className="col-span-12 lg:col-span-4">
-                <div className="bg-[#0d0d12] rounded-lg p-4 border border-gray-800 h-full">
-                  {/* Header with dropdowns */}
-                  <div className="flex items-center justify-between mb-4">
-                    <select
-                      value={selectedAccountType}
-                      onChange={(e) => setSelectedAccountType(e.target.value)}
-                      className="bg-transparent text-white text-sm border border-gray-700 rounded px-2 py-1 focus:outline-none focus:border-cyan-500"
-                    >
-                      {ACCOUNT_TYPES.map(type => (
-                        <option key={type.id} value={type.id} className="bg-[#0d0d12]">
-                          {type.label}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      value={selectedPeriod}
-                      onChange={(e) => setSelectedPeriod(e.target.value)}
-                      className="bg-transparent text-white text-sm border border-gray-700 rounded px-2 py-1 focus:outline-none focus:border-cyan-500"
-                    >
-                      {PERIOD_OPTIONS.map(period => (
-                        <option key={period.id} value={period.id} className="bg-[#0d0d12]">
-                          {period.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Stats Grid */}
-                  <div className="space-y-3">
-                    <StatRow label="PNL" value={formatCurrency(stats.pnl)} positive={stats.pnl >= 0} />
-                    <StatRow label="Volume" value={formatCurrency(stats.volume)} />
-                    <StatRow label="Max Drawdown" value={formatPercent(stats.maxDrawdown)} negative={stats.maxDrawdown < 0} />
-                    <StatRow label="Total Equity" value={formatCurrency(stats.totalEquity)} />
-                    <StatRow label="Stock Equity" value={formatCurrency(stats.stockEquity)} />
-                    <StatRow label="Futures Equity" value={formatCurrency(stats.futuresEquity)} />
-                    <StatRow label="Earn Balance" value={formatCurrency(stats.earnBalance)} />
-                  </div>
-                </div>
-              </div>
-
-              {/* Right Column - Chart */}
-              <div className="col-span-12 lg:col-span-6">
-                <div className="bg-[#0d0d12] rounded-lg p-4 border border-gray-800 h-full">
-                  {/* Chart Tabs */}
-                  <div className="flex items-center gap-4 mb-4">
-                    <button
-                      onClick={() => setChartTab('value')}
-                      className={`text-sm font-medium pb-2 border-b-2 transition-colors ${
-                        chartTab === 'value'
-                          ? 'text-white border-cyan-500'
-                          : 'text-gray-400 border-transparent hover:text-gray-300'
-                      }`}
-                    >
-                      Account Value
-                    </button>
-                    <button
-                      onClick={() => setChartTab('pnl')}
-                      className={`text-sm font-medium pb-2 border-b-2 transition-colors ${
-                        chartTab === 'pnl'
-                          ? 'text-white border-cyan-500'
-                          : 'text-gray-400 border-transparent hover:text-gray-300'
-                      }`}
-                    >
-                      PNL
-                    </button>
-                  </div>
-
-                  {/* Chart */}
-                  <div className="h-48">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={pnlHistory}>
-                        <defs>
-                          <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
-                            <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                        <XAxis
-                          dataKey="date"
-                          tick={{ fill: '#666', fontSize: 11 }}
-                          tickFormatter={(date) => date.slice(5)}
-                        />
-                        <YAxis
-                          tick={{ fill: '#666', fontSize: 11 }}
-                          tickFormatter={(val) => `$${(val / 1000).toFixed(0)}k`}
-                        />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: '#1a1a1a',
-                            border: '1px solid #333',
-                            borderRadius: '8px',
-                          }}
-                          labelStyle={{ color: '#888' }}
-                        />
-                        <Area
-                          type="monotone"
-                          dataKey={chartTab === 'value' ? 'value' : 'pnl'}
-                          stroke="#22c55e"
-                          fill="url(#colorValue)"
-                          strokeWidth={2}
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Top Holdings */}
-            <div className="bg-[#0d0d12] rounded-lg p-4 border border-gray-800">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">Top Holdings</h3>
-                <button
-                  onClick={() => handleTabChange('Balances')}
-                  className="text-cyan-400 text-sm hover:underline"
-                >
-                  View All
-                </button>
-              </div>
-              <BalancesTable holdings={filteredHoldings.slice(0, 5)} formatCurrency={formatCurrency} formatPercent={formatPercent} />
-            </div>
-          </>
-        )}
-
-        {activeTab === 'balances' && (
-          <div className="bg-[#0d0d12] rounded-lg border border-gray-800">
-            <div className="flex items-center justify-between p-4 border-b border-gray-800">
-              <h3 className="text-lg font-semibold">Balances</h3>
-              <div className="flex items-center gap-3">
-                <button className="flex items-center gap-2 text-sm text-gray-400 hover:text-white">
-                  <Filter size={16} />
-                  Filter
-                </button>
-                <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={hideSmallBalances}
-                    onChange={(e) => setHideSmallBalances(e.target.checked)}
-                    className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-cyan-500 focus:ring-cyan-500"
-                  />
-                  Hide Small Balances
-                </label>
-              </div>
-            </div>
-            <div className="p-4">
-              <BalancesTable holdings={filteredHoldings} formatCurrency={formatCurrency} formatPercent={formatPercent} />
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'positions' && (
-          <div className="bg-[#0d0d12] rounded-lg border border-gray-800">
-            <div className="flex items-center justify-between p-4 border-b border-gray-800">
-              <h3 className="text-lg font-semibold">Positions</h3>
-              <button className="flex items-center gap-2 text-sm text-gray-400 hover:text-white">
-                <Filter size={16} />
-                Filter
-              </button>
-            </div>
-            <div className="p-4">
-              <PositionsTable holdings={filteredHoldings} formatCurrency={formatCurrency} formatPercent={formatPercent} />
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'open-orders' && (
-          <div className="bg-[#0d0d12] rounded-lg border border-gray-800 p-4">
-            <EmptyState message="No open orders" />
-          </div>
-        )}
-
-        {activeTab === 'trade-history' && (
-          <div className="bg-[#0d0d12] rounded-lg border border-gray-800 p-4">
-            <EmptyState message="No trade history" />
-          </div>
-        )}
-
-        {activeTab === 'dividends' && (
-          <div className="bg-[#0d0d12] rounded-lg border border-gray-800 p-4">
-            <EmptyState message="No dividend records" />
-          </div>
-        )}
-
-        {activeTab === 'deposits-withdrawals' && (
-          <div className="bg-[#0d0d12] rounded-lg border border-gray-800 p-4">
-            <EmptyState message="No deposit/withdrawal records" />
+              ))}
+            </GridLayout>
           </div>
         )}
       </div>
 
-      {/* Create Portfolio Modal */}
+      {/* ── Modals ──────────────────────────────────────────────────────────────── */}
       {showCreateModal && (
         <CreatePortfolioModal
           onClose={() => setShowCreateModal(false)}
           onCreate={handleCreatePortfolio}
         />
       )}
-    </div>
-  );
-}
 
-// Stat Row Component
-function StatRow({ label, value, positive, negative }) {
-  let valueClass = 'text-white';
-  if (positive) valueClass = 'text-green-400';
-  if (negative) valueClass = 'text-red-400';
+      {showAddTransaction && (
+        <AddTransactionModal
+          onClose={() => setShowAddTransaction(false)}
+          onAdd={handleAddTransaction}
+        />
+      )}
 
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-sm text-gray-400">{label}</span>
-      <span className={`text-sm font-medium ${valueClass}`}>{value}</span>
-    </div>
-  );
-}
-
-// Balances Table Component
-function BalancesTable({ holdings, formatCurrency, formatPercent }) {
-  if (holdings.length === 0) {
-    return <EmptyState message="No balances yet" />;
-  }
-
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full">
-        <thead>
-          <tr className="text-left text-sm text-gray-400 border-b border-gray-800">
-            <th className="pb-3 font-medium">Coin</th>
-            <th className="pb-3 font-medium text-right">Total Balance</th>
-            <th className="pb-3 font-medium text-right">Available Balance</th>
-            <th className="pb-3 font-medium text-right">USD Value</th>
-            <th className="pb-3 font-medium text-right">PNL (ROE %)</th>
-            <th className="pb-3 font-medium text-right">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {holdings.map((holding) => (
-            <tr key={holding.symbol} className="border-b border-gray-800/50 hover:bg-gray-800/30">
-              <td className="py-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-xs font-bold">
-                    {holding.symbol.slice(0, 2)}
-                  </div>
-                  <div>
-                    <div className="font-medium">{holding.symbol}</div>
-                    <div className="text-xs text-gray-400">{holding.name}</div>
-                  </div>
-                </div>
-              </td>
-              <td className="py-4 text-right">{holding.quantity}</td>
-              <td className="py-4 text-right">{holding.quantity}</td>
-              <td className="py-4 text-right">{formatCurrency(holding.value)}</td>
-              <td className="py-4 text-right">
-                <div className={holding.pnl >= 0 ? 'text-green-400' : 'text-red-400'}>
-                  {formatCurrency(holding.pnl)}
-                </div>
-                <div className={`text-xs ${holding.pnlPct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  ({formatPercent(holding.pnlPct)})
-                </div>
-              </td>
-              <td className="py-4 text-right">
-                <button className="text-cyan-400 hover:text-cyan-300 text-sm">
-                  Trade
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-// Positions Table Component
-function PositionsTable({ holdings, formatCurrency, formatPercent }) {
-  if (holdings.length === 0) {
-    return <EmptyState message="No open positions" />;
-  }
-
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full">
-        <thead>
-          <tr className="text-left text-sm text-gray-400 border-b border-gray-800">
-            <th className="pb-3 font-medium">Symbol</th>
-            <th className="pb-3 font-medium text-right">Entry Price</th>
-            <th className="pb-3 font-medium text-right">Current Price</th>
-            <th className="pb-3 font-medium text-right">Quantity</th>
-            <th className="pb-3 font-medium text-right">Unrealized PNL</th>
-            <th className="pb-3 font-medium text-right">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {holdings.map((holding) => (
-            <tr key={holding.symbol} className="border-b border-gray-800/50 hover:bg-gray-800/30">
-              <td className="py-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-xs font-bold">
-                    {holding.symbol.slice(0, 2)}
-                  </div>
-                  <div className="font-medium">{holding.symbol}</div>
-                </div>
-              </td>
-              <td className="py-4 text-right">{formatCurrency(holding.avgCost)}</td>
-              <td className="py-4 text-right">{formatCurrency(holding.currentPrice)}</td>
-              <td className="py-4 text-right">{holding.quantity}</td>
-              <td className="py-4 text-right">
-                <div className={holding.pnl >= 0 ? 'text-green-400' : 'text-red-400'}>
-                  {formatCurrency(holding.pnl)} ({formatPercent(holding.pnlPct)})
-                </div>
-              </td>
-              <td className="py-4 text-right">
-                <button className="text-red-400 hover:text-red-300 text-sm">
-                  Close
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-// Empty State Component
-function EmptyState({ message }) {
-  return (
-    <div className="text-center py-12">
-      <div className="text-gray-500">{message}</div>
+      {/* ── Grid styles ─────────────────────────────────────────────────────────── */}
+      <style>{`
+        .widget-container { height: 100%; }
+        .widget-container > div { height: 100%; }
+        .react-grid-item { transition: all 200ms ease; transition-property: left, top; }
+        .react-grid-item.cssTransforms { transition-property: transform; }
+        .react-grid-item.resizing { z-index: 1; will-change: width, height; }
+        .react-grid-item.react-draggable-dragging { transition: none; z-index: 3; will-change: transform; opacity: 0.9; }
+        .react-grid-item > .react-resizable-handle { position: absolute; width: 20px; height: 20px; }
+        .react-grid-item > .react-resizable-handle::after {
+          content: ""; position: absolute; right: 3px; bottom: 3px; width: 5px; height: 5px;
+          border-right: 2px solid rgba(255,255,255,0.2); border-bottom: 2px solid rgba(255,255,255,0.2);
+        }
+        .react-grid-item:hover > .react-resizable-handle::after { border-color: rgba(255,255,255,0.4); }
+        .react-grid-placeholder { background: #06b6d4; opacity: 0.15; border-radius: 8px; transition-duration: 100ms; z-index: 2; }
+      `}</style>
     </div>
   );
 }

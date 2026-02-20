@@ -32,11 +32,17 @@ export const API_ENDPOINTS = {
 };
 
 class ApiClient {
+  getAuthHeaders() {
+    const token = localStorage.getItem('access_token');
+    return token ? { 'Authorization': `Bearer ${token}` } : {};
+  }
+
   async request(url, options = {}) {
     try {
       const response = await fetch(url, {
         headers: {
           'Content-Type': 'application/json',
+          ...this.getAuthHeaders(),
           ...options.headers,
         },
         ...options,
@@ -81,16 +87,21 @@ export const authAPI = {
   verifyToken: () => apiClient.get(`${API_BASE}/auth/verify`),
 };
 
-// Portfolio API
+// Portfolio API (user-portfolio)
+const UP = `${API_BASE}/user-portfolio`;
 export const portfolioAPI = {
-  getAll: () => apiClient.get(`${API_BASE}/portfolios`),
-  getById: (id) => apiClient.get(`${API_BASE}/portfolios/${id}`),
-  create: (data) => apiClient.post(`${API_BASE}/portfolios`, data),
-  update: (id, data) => apiClient.post(`${API_BASE}/portfolios/${id}`, data),
-  delete: (id) => apiClient.request(`${API_BASE}/portfolios/${id}`, { method: 'DELETE' }),
-  getHoldings: (id) => apiClient.get(`${API_BASE}/portfolios/${id}/holdings`),
-  getTransactions: (id) => apiClient.get(`${API_BASE}/portfolios/${id}/transactions`),
-  addTransaction: (id, data) => apiClient.post(`${API_BASE}/portfolios/${id}/transactions`, data),
+  getAll: () => apiClient.get(`${UP}/portfolios`),
+  getById: (id) => apiClient.get(`${UP}/portfolios/${id}`),
+  create: (data) => apiClient.post(`${UP}/portfolios`, data),
+  update: (id, data) => apiClient.request(`${UP}/portfolios/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id) => apiClient.request(`${UP}/portfolios/${id}`, { method: 'DELETE' }),
+  getHoldings: (id) => apiClient.get(`${UP}/portfolios/${id}/holdings`),
+  getTransactions: (id) => apiClient.get(`${UP}/portfolios/${id}/transactions`),
+  addTransaction: (id, data) => apiClient.post(`${UP}/portfolios/${id}/transactions`, data),
+  getSummary: (id) => apiClient.get(`${UP}/portfolios/${id}/summary`),
+  getPerformance: (id, period = '1M') => apiClient.get(`${UP}/portfolios/${id}/performance?period=${period}`),
+  getAllocation: (id) => apiClient.get(`${UP}/portfolios/${id}/allocation`),
+  refreshPrices: (id) => apiClient.post(`${UP}/portfolios/${id}/refresh-prices`),
 };
 
 // Export API
