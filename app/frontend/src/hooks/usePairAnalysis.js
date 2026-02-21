@@ -8,7 +8,7 @@ import {
   mergeSpreadData,
   mergeRegimeData,
 } from '../utils/pairAnalysis';
-import { API_BASE } from '../components/widgets/common';
+import { API_BASE } from '../components/widgets/constants';
 
 /**
  * usePairAnalysis - Custom hook for pair trading analysis

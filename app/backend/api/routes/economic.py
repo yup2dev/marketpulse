@@ -3,10 +3,6 @@ Economic Indicators API Routes
 Endpoints for economic data like GDP, CPI, unemployment, etc.
 """
 from fastapi import APIRouter, HTTPException
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from app.backend.services.data_service import data_service
 

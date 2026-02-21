@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { Plus, X, Search, RefreshCw, TrendingUp, TrendingDown } from 'lucide-react';
 import { useStockContext } from './AnalysisDashboard';
 import ChartWidget from '../widgets/ChartWidget';
-import StockSelectorModal from '../StockSelectorModal';
+import StockSelectorModal from '../common/StockSelectorModal';
 import { API_BASE } from '../../config/api';
 
 const COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];

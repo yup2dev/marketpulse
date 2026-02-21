@@ -7,14 +7,9 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 
-try:
-    from ...database.db_dependency import get_db
-    from ...services.auth_service import AuthService
-    from ...auth.dependencies import get_current_user, get_current_active_user
-except ImportError:
-    from database.db_dependency import get_db
-    from services.auth_service import AuthService
-    from auth.dependencies import get_current_user, get_current_active_user
+from app.backend.database.db_dependency import get_db
+from app.backend.services.auth_service import AuthService
+from app.backend.auth.dependencies import get_current_user, get_current_active_user
 from index_analyzer.models.database import User
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])

@@ -8,7 +8,7 @@ import {
   ResponsiveContainer, Cell
 } from 'recharts';
 import BaseWidget from './common/BaseWidget';
-import { formatPrice, API_BASE } from './common';
+import { formatPrice, API_BASE } from './constants';
 
 const RATING_COLORS = {
   'Buy': 'bg-green-500',

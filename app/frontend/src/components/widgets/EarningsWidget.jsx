@@ -8,7 +8,7 @@ import {
   ResponsiveContainer, ReferenceLine
 } from 'recharts';
 import BaseWidget from './common/BaseWidget';
-import { formatNumber, formatPrice, API_BASE } from './common';
+import { formatNumber, formatPrice, API_BASE } from './constants';
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {

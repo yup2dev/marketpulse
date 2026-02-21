@@ -8,7 +8,7 @@ import {
   ResponsiveContainer
 } from 'recharts';
 import BaseWidget from './common/BaseWidget';
-import { formatNumber, formatPrice, API_BASE } from './common';
+import { formatNumber, formatPrice, API_BASE } from './constants';
 
 const InsiderWidget = ({ symbol, onRemove }) => {
   const [insider, setInsider] = useState(null);

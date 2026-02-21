@@ -9,16 +9,10 @@ from datetime import datetime
 from decimal import Decimal
 import asyncio
 
-try:
-    from ...database.db_dependency import get_db
-    from ...auth.dependencies import get_current_active_user
-    from ...services.user_portfolio_service import UserPortfolioService
-    from ...services.data_service import data_service
-except ImportError:
-    from database.db_dependency import get_db
-    from auth.dependencies import get_current_active_user
-    from services.user_portfolio_service import UserPortfolioService
-    from services.data_service import data_service
+from app.backend.database.db_dependency import get_db
+from app.backend.auth.dependencies import get_current_active_user
+from app.backend.services.user_portfolio_service import UserPortfolioService
+from app.backend.services.data_service import data_service
 from index_analyzer.models.database import User
 
 router = APIRouter(prefix="/user-portfolio", tags=["User Portfolio"])

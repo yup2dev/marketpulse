@@ -1,5 +1,5 @@
 import { GitMerge } from 'lucide-react';
-import { WidgetHeader, WIDGET_STYLES, WIDGET_ICON_COLORS } from '../common';
+import { WidgetHeader, WIDGET_STYLES, WIDGET_ICON_COLORS } from '../constants';
 import YieldCurveChart from '../../macro/YieldCurveChart';
 
 const YieldCurveWidget = ({ onRemove }) => {

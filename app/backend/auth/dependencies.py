@@ -6,11 +6,8 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from typing import Optional
 
-try:
-    from ..database.db_dependency import get_db
-except ImportError:
-    from database.db_dependency import get_db
-from .security import decode_token
+from app.backend.database.db_dependency import get_db
+from app.backend.auth.security import decode_token
 from index_analyzer.models.database import User
 
 security = HTTPBearer()

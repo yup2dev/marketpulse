@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { API_BASE } from '../../config/api';
 import { CARD_CLASSES } from '../../styles/designTokens';
-import { SkeletonLoader } from '../widgets/common.jsx';
+import { SkeletonLoader } from '../widgets/constants';
 
 const SHAPE_CONFIG = {
   normal: {

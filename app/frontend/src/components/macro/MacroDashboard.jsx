@@ -21,7 +21,7 @@ import MacroSentimentTab from './MacroSentimentTab';
 import MacroCommoditiesTab from './MacroCommoditiesTab';
 import TabWidgetWrapper from '../widgets/TabWidgetWrapper';
 import WidgetContextMenu from '../common/WidgetContextMenu';
-import { useGlobalWidgetContext } from '../AppLayout';
+import { useGlobalWidgetContext } from '../../contexts/GlobalWidgetContext';
 import 'react-grid-layout/css/styles.css';
 
 // Tab configuration
@@ -278,7 +278,7 @@ export default function MacroDashboard() {
   }, [activeTab, tabWidgets]);
 
   const handleTabChange = useCallback((newTabId) => {
-    navigate(`/?view=macro-analysis&tab=${newTabId}`, { replace: true });
+    navigate(`/macro?tab=${newTabId}`, { replace: true });
   }, [navigate]);
 
   const handleContextMenu = useCallback((e) => {

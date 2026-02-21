@@ -2,22 +2,13 @@
 Menu API Routes
 RESTful endpoints for menu management
 """
-import sys
-from pathlib import Path
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
-# Add project root to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
-
-try:
-    from app.backend.database.db_dependency import get_db
-    from app.backend.services.menu_service import MenuService
-except ModuleNotFoundError:
-    from database.db_dependency import get_db
-    from services.menu_service import MenuService
+from app.backend.database.db_dependency import get_db
+from app.backend.services.menu_service import MenuService
 
 router = APIRouter(prefix="/menu", tags=["menu"])
 

@@ -1,5 +1,5 @@
 import { BarChart3 } from 'lucide-react';
-import { WidgetHeader, WIDGET_STYLES, WIDGET_ICON_COLORS } from '../common';
+import { WidgetHeader, WIDGET_STYLES, WIDGET_ICON_COLORS } from '../constants';
 import RegimeDashboard from '../../macro/RegimeDashboard';
 
 const RegimeWidget = ({ onRemove }) => {

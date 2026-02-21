@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { API_BASE, TIME_RANGES, CHART_COLORS } from '../components/widgets/common';
+import { API_BASE, TIME_RANGES, CHART_COLORS } from '../components/widgets/constants';
 
 /**
  * useChartData - Custom hook for chart data loading and transformation

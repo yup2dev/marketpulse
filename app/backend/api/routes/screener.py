@@ -6,14 +6,9 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 
-try:
-    from ...database.db_dependency import get_db
-    from ...auth.dependencies import get_current_active_user, get_optional_user
-    from ...services.screener_service import ScreenerService
-except ImportError:
-    from database.db_dependency import get_db
-    from auth.dependencies import get_current_active_user, get_optional_user
-    from services.screener_service import ScreenerService
+from app.backend.database.db_dependency import get_db
+from app.backend.auth.dependencies import get_current_active_user, get_optional_user
+from app.backend.services.screener_service import ScreenerService
 from index_analyzer.models.database import User
 
 router = APIRouter(prefix="/screener", tags=["Screener"])

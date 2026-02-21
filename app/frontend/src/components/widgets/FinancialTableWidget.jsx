@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { FileText } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import BaseWidget from './common/BaseWidget';
-import { formatNumber, API_BASE } from './common';
+import { formatNumber, API_BASE } from './constants';
 import ErrorBoundary from '../common/ErrorBoundary';
 
 const STATEMENT_TABS = [

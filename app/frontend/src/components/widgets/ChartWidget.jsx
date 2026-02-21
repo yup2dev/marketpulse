@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { LineChart, Line, BarChart, Bar, ComposedChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, ReferenceArea, ReferenceDot, Cell, Rectangle, Customized } from 'recharts';
 import { Plus, TrendingUp, Percent, Activity, X, TrendingDown, GitCompare, Settings, ChevronDown, ChevronUp, BarChart2, Layers, Target } from 'lucide-react';
-import StockSelectorModal from '../StockSelectorModal';
+import StockSelectorModal from '../common/StockSelectorModal';
 import useTheme from '../../hooks/useTheme';
 import useChartZoom from '../../hooks/useChartZoom';
 import usePairAnalysis from '../../hooks/usePairAnalysis';
@@ -25,7 +25,7 @@ import {
   formatCurrency,
   CHART_TYPES,
   CANDLE_COLORS,
-} from './common';
+} from './constants';
 import { calculateIndicator } from '../../utils/technicalIndicators';
 import {
   getRegimeColor,

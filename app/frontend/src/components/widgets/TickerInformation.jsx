@@ -6,7 +6,7 @@ import { TrendingUp, TrendingDown, Info, Search } from 'lucide-react';
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import { API_BASE } from '../../config/api';
 import BaseWidget from './common/BaseWidget';
-import StockSelectorModal from '../StockSelectorModal';
+import StockSelectorModal from '../common/StockSelectorModal';
 
 export default function TickerInformation({ symbol = 'AAPL', onSymbolChange, onRemove }) {
   const [quote, setQuote] = useState(null);

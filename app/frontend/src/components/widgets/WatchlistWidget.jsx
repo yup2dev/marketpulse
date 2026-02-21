@@ -7,7 +7,7 @@ import {
   formatPrice,
   formatNumber,
   API_BASE,
-} from './common';
+} from './constants';
 import { useApi } from '../../hooks/useApi';
 
 /**

@@ -56,24 +56,15 @@ async def get_13f_portfolio(institution_key: str, limit: int = 50):
     Returns:
         Portfolio data including holdings, metrics, and optional performance data
     """
-    import sys
-
-    log.debug(f"DEBUG ROUTE START: institution_key={institution_key}, limit={limit}, file={sys.stderr}",)
-
     try:
-        print(f"DEBUG: About to call portfolio_service", file=sys.stderr)
-        sys.stderr.flush()
-
         holding = await portfolio_service.get_institution_portfolio(
             institution_key=institution_key,
             limit=limit
         )
-        log.debug(f"DEBUG: Got holding type: {type(holding)}")
-        log.debug(f"DEBUG: Got holding keys: {holding.keys() if isinstance(holding, dict) else 'NOT A DICT'}")
         return holding
 
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        log.error(f"DEBUG ERROR: {e}")
+        log.error(f"Error fetching 13F portfolio for {institution_key}: {e}")
         raise HTTPException(status_code=500, detail=str(e))

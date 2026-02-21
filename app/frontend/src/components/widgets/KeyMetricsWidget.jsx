@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { BarChart2 } from 'lucide-react';
 import BaseWidget from './common/BaseWidget';
-import { formatNumber, formatPrice, API_BASE } from './common';
+import { formatNumber, formatPrice, API_BASE } from './constants';
 
 const KeyMetricsWidget = ({ symbol, onRemove }) => {
   const [quote, setQuote] = useState(null);

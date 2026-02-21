@@ -8,7 +8,7 @@ import AnalysisOverviewTab from './AnalysisOverviewTab';
 import AnalysisFinancialsTab from './AnalysisFinancialsTab';
 import AnalysisInstitutionalTab from './AnalysisInstitutionalTab';
 import AnalysisComparisonTab from './AnalysisComparisonTab';
-import StockSelectorModal from '../StockSelectorModal';
+import StockSelectorModal from '../common/StockSelectorModal';
 
 // Stock Context for sharing selected stock across tabs
 const StockContext = createContext(null);

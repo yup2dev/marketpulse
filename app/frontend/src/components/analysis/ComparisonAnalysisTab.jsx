@@ -5,7 +5,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Plus, X, RefreshCw, Copy, MoreVertical } from 'lucide-react';
 import { API_BASE } from '../../config/api';
-import TickerSearch from '../TickerSearch';
+import TickerSearch from '../common/TickerSearch';
 
 // Category tabs with their metrics
 const CATEGORIES = [

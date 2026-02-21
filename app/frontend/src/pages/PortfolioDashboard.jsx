@@ -344,158 +344,156 @@ export default function PortfolioDashboard() {
   }
 
   return (
-    <div className="text-white bg-[#0a0a0f] min-h-screen">
-      <div className="w-full px-2 py-2 text-[11px]">
+    <div ref={containerRef} className="text-white bg-[#0a0a0f] h-[calc(100vh-56px)] flex flex-col">
 
-        {/* ── Header bar ──────────────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between border-b border-gray-800 mb-2 pb-2 gap-2">
+      {/* ── Header bar ──────────────────────────────────────────────────────── */}
+      <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between gap-2 flex-shrink-0">
 
-          {/* Tabs */}
-          <div className="flex items-center gap-0.5 flex-wrap flex-1 min-w-0">
-            {PORTFOLIO_TABS.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => handleTabChange(tab.id)}
-                className={`px-3 py-1.5 text-xs font-medium transition-colors rounded whitespace-nowrap ${
-                  activeTab === tab.id
-                    ? 'text-white bg-gray-800'
-                    : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Right: portfolio selector + actions */}
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {/* Refresh */}
+        {/* Tabs */}
+        <div className="flex items-center gap-0.5 flex-wrap flex-1 min-w-0">
+          {PORTFOLIO_TABS.map((tab) => (
             <button
-              onClick={async () => {
-                if (!selectedPortfolio) return;
-                setIsRefreshingPrices(true);
-                try {
-                  const result = await portfolioAPI.refreshPrices(selectedPortfolio.portfolio_id);
-                  if (result.updated > 0) {
-                    toast.success(`Updated ${result.updated} price${result.updated > 1 ? 's' : ''}`);
-                  } else {
-                    toast('No prices updated', { icon: '⚠️' });
-                  }
-                } catch {
-                  toast.error('Price refresh failed');
-                } finally {
-                  setIsRefreshingPrices(false);
-                }
-                await Promise.all([
-                  loadHoldings(selectedPortfolio.portfolio_id),
-                  loadTransactions(selectedPortfolio.portfolio_id),
-                ]);
-              }}
-              disabled={isRefreshingPrices}
-              className="p-1.5 text-gray-500 hover:text-white hover:bg-gray-800 rounded transition-colors disabled:opacity-50"
-              title="Refresh prices"
+              key={tab.id}
+              onClick={() => handleTabChange(tab.id)}
+              className={`px-3 py-1.5 text-xs font-medium transition-colors rounded whitespace-nowrap ${
+                activeTab === tab.id
+                  ? 'text-white bg-gray-800'
+                  : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
+              }`}
             >
-              <RefreshCw size={12} className={(loadingHoldings || loadingTransactions || isRefreshingPrices) ? 'animate-spin' : ''} />
+              {tab.label}
             </button>
-
-            {/* Add Transaction shortcut */}
-            {selectedPortfolio && (
-              <button
-                onClick={() => setShowAddTransaction(true)}
-                className="flex items-center gap-1 px-2 py-1 bg-cyan-900/40 hover:bg-cyan-900/60 text-cyan-400 text-xs rounded border border-cyan-800/40 transition-colors"
-              >
-                <Plus size={12} />
-                Trade
-              </button>
-            )}
-
-            {/* Portfolio selector */}
-            <div className="relative">
-              <button
-                onClick={() => setShowPortfolioMenu(!showPortfolioMenu)}
-                className="flex items-center gap-1 px-2 py-1 bg-gray-800 hover:bg-gray-700 text-white text-xs rounded transition-colors max-w-[160px]"
-              >
-                <span className="truncate">{selectedPortfolio?.name || 'Select Portfolio'}</span>
-                <ChevronDown size={10} className="flex-shrink-0" />
-              </button>
-
-              {showPortfolioMenu && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowPortfolioMenu(false)} />
-                  <div className="absolute right-0 top-full mt-1 bg-[#1a1a2e] border border-gray-700 rounded shadow-xl z-50 py-1 min-w-[180px]">
-                    {portfolios.length === 0 ? (
-                      <div className="px-3 py-2 text-xs text-gray-500">No portfolios</div>
-                    ) : (
-                      portfolios.map((p) => (
-                        <button
-                          key={p.portfolio_id}
-                          onClick={() => { setSelectedPortfolio(p); setShowPortfolioMenu(false); }}
-                          className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-800 transition-colors ${
-                            selectedPortfolio?.portfolio_id === p.portfolio_id ? 'text-cyan-400' : 'text-gray-300'
-                          }`}
-                        >
-                          {p.name}
-                          {p.description && <span className="text-gray-600 ml-1">· {p.description.slice(0, 20)}</span>}
-                        </button>
-                      ))
-                    )}
-                    <div className="border-t border-gray-800 mt-1 pt-1">
-                      <button
-                        onClick={() => { setShowPortfolioMenu(false); setShowCreateModal(true); }}
-                        className="w-full text-left px-3 py-2 text-xs text-cyan-400 hover:bg-gray-800 flex items-center gap-1 transition-colors"
-                      >
-                        <Plus size={11} />
-                        New Portfolio
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
+          ))}
         </div>
 
-        {/* ── No portfolio state ───────────────────────────────────────────────── */}
-        {portfolios.length === 0 && !loadingPortfolios && (
-          <div className="flex flex-col items-center justify-center py-24 gap-3">
-            <p className="text-gray-500 text-sm">No portfolios yet</p>
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-1.5 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs rounded transition-colors"
-            >
-              <Plus size={14} />
-              Create Portfolio
-            </button>
-          </div>
-        )}
+        {/* Right: portfolio selector + actions */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Refresh */}
+          <button
+            onClick={async () => {
+              if (!selectedPortfolio) return;
+              setIsRefreshingPrices(true);
+              try {
+                const result = await portfolioAPI.refreshPrices(selectedPortfolio.portfolio_id);
+                if (result.updated > 0) {
+                  toast.success(`Updated ${result.updated} price${result.updated > 1 ? 's' : ''}`);
+                } else {
+                  toast('No prices updated', { icon: '⚠️' });
+                }
+              } catch {
+                toast.error('Price refresh failed');
+              } finally {
+                setIsRefreshingPrices(false);
+              }
+              await Promise.all([
+                loadHoldings(selectedPortfolio.portfolio_id),
+                loadTransactions(selectedPortfolio.portfolio_id),
+              ]);
+            }}
+            disabled={isRefreshingPrices}
+            className="p-1.5 text-gray-500 hover:text-white hover:bg-gray-800 rounded transition-colors disabled:opacity-50"
+            title="Refresh prices"
+          >
+            <RefreshCw size={12} className={(loadingHoldings || loadingTransactions || isRefreshingPrices) ? 'animate-spin' : ''} />
+          </button>
 
-        {/* ── Grid content ─────────────────────────────────────────────────────── */}
-        {(portfolios.length > 0 || selectedPortfolio) && (
-          <div ref={containerRef}>
-            <GridLayout
-              className="layout"
-              layout={currentLayout}
-              cols={12}
-              rowHeight={80}
-              width={Math.max(gridWidth - 16, 600)}
-              onLayoutChange={handleLayoutChange}
-              draggableHandle=".drag-handle-area"
-              isDraggable
-              isResizable
-              compactType="vertical"
-              preventCollision={false}
-              margin={[12, 12]}
-              containerPadding={[0, 0]}
+          {/* Add Transaction shortcut */}
+          {selectedPortfolio && (
+            <button
+              onClick={() => setShowAddTransaction(true)}
+              className="flex items-center gap-1 px-2 py-1 bg-cyan-900/40 hover:bg-cyan-900/60 text-cyan-400 text-xs rounded border border-cyan-800/40 transition-colors"
             >
-              {currentWidgets.map((widget) => (
-                <div key={widget.id} className="widget-container">
-                  {renderWidget(widget)}
+              <Plus size={12} />
+              Trade
+            </button>
+          )}
+
+          {/* Portfolio selector */}
+          <div className="relative">
+            <button
+              onClick={() => setShowPortfolioMenu(!showPortfolioMenu)}
+              className="flex items-center gap-1 px-2 py-1 bg-gray-800 hover:bg-gray-700 text-white text-xs rounded transition-colors max-w-[160px]"
+            >
+              <span className="truncate">{selectedPortfolio?.name || 'Select Portfolio'}</span>
+              <ChevronDown size={10} className="flex-shrink-0" />
+            </button>
+
+            {showPortfolioMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowPortfolioMenu(false)} />
+                <div className="absolute right-0 top-full mt-1 bg-[#1a1a2e] border border-gray-700 rounded shadow-xl z-50 py-1 min-w-[180px]">
+                  {portfolios.length === 0 ? (
+                    <div className="px-3 py-2 text-xs text-gray-500">No portfolios</div>
+                  ) : (
+                    portfolios.map((p) => (
+                      <button
+                        key={p.portfolio_id}
+                        onClick={() => { setSelectedPortfolio(p); setShowPortfolioMenu(false); }}
+                        className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-800 transition-colors ${
+                          selectedPortfolio?.portfolio_id === p.portfolio_id ? 'text-cyan-400' : 'text-gray-300'
+                        }`}
+                      >
+                        {p.name}
+                        {p.description && <span className="text-gray-600 ml-1">· {p.description.slice(0, 20)}</span>}
+                      </button>
+                    ))
+                  )}
+                  <div className="border-t border-gray-800 mt-1 pt-1">
+                    <button
+                      onClick={() => { setShowPortfolioMenu(false); setShowCreateModal(true); }}
+                      className="w-full text-left px-3 py-2 text-xs text-cyan-400 hover:bg-gray-800 flex items-center gap-1 transition-colors"
+                    >
+                      <Plus size={11} />
+                      New Portfolio
+                    </button>
+                  </div>
                 </div>
-              ))}
-            </GridLayout>
+              </>
+            )}
           </div>
-        )}
+        </div>
       </div>
+
+      {/* ── No portfolio state ───────────────────────────────────────────────── */}
+      {portfolios.length === 0 && !loadingPortfolios && (
+        <div className="flex flex-col items-center justify-center flex-1 gap-3">
+          <p className="text-gray-500 text-sm">No portfolios yet</p>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-1.5 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs rounded transition-colors"
+          >
+            <Plus size={14} />
+            Create Portfolio
+          </button>
+        </div>
+      )}
+
+      {/* ── Grid content ─────────────────────────────────────────────────────── */}
+      {(portfolios.length > 0 || selectedPortfolio) && (
+        <div className="flex-1 overflow-auto p-4">
+          <GridLayout
+            className="layout"
+            layout={currentLayout}
+            cols={12}
+            rowHeight={80}
+            width={Math.max(gridWidth - 32, 600)}
+            onLayoutChange={handleLayoutChange}
+            draggableHandle=".drag-handle-area"
+            isDraggable
+            isResizable
+            compactType="vertical"
+            preventCollision={false}
+            margin={[12, 12]}
+            containerPadding={[0, 0]}
+          >
+            {currentWidgets.map((widget) => (
+              <div key={widget.id} className="widget-container">
+                {renderWidget(widget)}
+              </div>
+            ))}
+          </GridLayout>
+        </div>
+      )}
 
       {/* ── Modals ──────────────────────────────────────────────────────────────── */}
       {showCreateModal && (

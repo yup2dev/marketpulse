@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { BarChart3 } from 'lucide-react';
 import BaseWidget from './common/BaseWidget';
-import { formatNumber, API_BASE } from './common';
+import { formatNumber, API_BASE } from './constants';
 
 const FinancialWidget = ({ symbol, onRemove }) => {
   const [financials, setFinancials] = useState(null);

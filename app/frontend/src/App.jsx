@@ -1,13 +1,18 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-import ProtectedRoute from './components/ProtectedRoute';
-import AppLayout from './components/AppLayout';
+import ProtectedRoute from './components/common/ProtectedRoute';
+import AppLayout from './components/layout/AppLayout';
 import Login from './pages/Login';
 import Register from './pages/Register';
-import DashboardContent from './pages/DashboardContent';
+import ProfessionalDashboard from './components/dashboard/ProfessionalDashboard';
+import StockDashboard from './components/analysis/StockDashboard';
+import MacroDashboard from './components/macro/MacroDashboard';
+import UnifiedBacktest from './components/backtest/UnifiedBacktest';
 import PortfolioDashboard from './pages/PortfolioDashboard';
 import PortfolioDetail from './pages/PortfolioDetail';
 import AlertsPage from './pages/AlertsPage';
+import ScreenerPage from './pages/ScreenerPage';
+import WatchlistPage from './pages/WatchlistPage';
 import ErrorBoundary from './components/common/ErrorBoundary';
 
 function App() {
@@ -53,10 +58,15 @@ function App() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<DashboardContent />} />
+          <Route index element={<ProfessionalDashboard />} />
+          <Route path="stock" element={<StockDashboard />} />
+          <Route path="macro" element={<MacroDashboard />} />
+          <Route path="backtest" element={<UnifiedBacktest />} />
           <Route path="portfolios" element={<PortfolioDashboard />} />
           <Route path="portfolio/:portfolioId" element={<PortfolioDetail />} />
           <Route path="alerts" element={<AlertsPage />} />
+          <Route path="screener" element={<ScreenerPage />} />
+          <Route path="watchlist" element={<WatchlistPage />} />
         </Route>
 
         {/* Fallback */}

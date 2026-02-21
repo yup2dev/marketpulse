@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Activity } from 'lucide-react';
 import useTheme from '../../hooks/useTheme';
 import ChartWidget from '../widgets/ChartWidget';
-import { CHART_COLORS } from '../widgets/common';
+import { CHART_COLORS } from '../widgets/constants';
 
 /**
  * BacktestChartWidget - Enhanced chart for backtest results

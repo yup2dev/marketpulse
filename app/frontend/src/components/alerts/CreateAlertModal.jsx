@@ -3,7 +3,7 @@
  */
 import { useState } from 'react';
 import { X, Bell, TrendingUp, TrendingDown, Percent, DollarSign, Activity } from 'lucide-react';
-import StockSelector from '../StockSelector';
+import StockSelector from '../common/StockSelector';
 import { TECHNICAL_INDICATORS } from '../widgets/common/widgetConfig';
 
 export default function CreateAlertModal({ onClose, onCreate, initialAlertType = null }) {

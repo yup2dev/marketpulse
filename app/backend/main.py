@@ -4,53 +4,33 @@ FastAPI-based dashboard for financial data visualization
 """
 import sys
 from pathlib import Path
+from contextlib import asynccontextmanager
 
-# Add parent directories to path
+# Add project root to path (must be before app imports)
 project_root = str(Path(__file__).parent.parent.parent)
-backend_root = str(Path(__file__).parent)
 sys.path.insert(0, project_root)
-sys.path.insert(0, backend_root)
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 
-# Import routes
-try:
-    from app.backend.api.routes import (
-        stock, economic, news, dashboard, backtest, portfolio, macro,
-        auth, user_portfolio, screener, alerts, export, watchlist, menu
-    )
-except ModuleNotFoundError:
-    from api.routes import (
-        stock, economic, news, dashboard, backtest, portfolio, macro,
-        auth, user_portfolio, screener, alerts, export, watchlist, menu
-    )
-
-app = FastAPI(
-    title="MarketPulse Dashboard",
-    description="Financial data visualization dashboard",
-    version="1.0.0"
+from app.backend.core.config import settings
+from app.backend.api.routes import (
+    stock, economic, news, dashboard, backtest, portfolio, macro,
+    auth, user_portfolio, screener, alerts, export, watchlist, menu
 )
 
-@app.on_event("startup")
-async def startup_event():
-    """Initialize application on startup"""
+
+def _init_db():
+    """Initialize database tables on startup"""
     try:
         from index_analyzer.models.database import Base, get_sqlite_db
-        from pathlib import Path
 
-        # Initialize database and create tables
         db_path = Path(__file__).parent.parent.parent / "data" / "marketpulse.db"
         db_instance = get_sqlite_db(str(db_path))
-
-        # Create menu_management table if it doesn't exist
         Base.metadata.create_all(bind=db_instance.engine)
-
         print("✓ Database tables initialized successfully")
 
-        # Initialize menu data if needed
         try:
             from scripts.init_menu_data import init_menu_data
             init_menu_data()
@@ -61,21 +41,31 @@ async def startup_event():
     except Exception as e:
         print(f"✗ Startup initialization failed: {e}")
 
-# CORS middleware for frontend
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    _init_db()
+    yield
+
+
+app = FastAPI(
+    title="MarketPulse Dashboard",
+    description="Financial data visualization dashboard",
+    version=settings.APP_VERSION,
+    lifespan=lifespan,
+)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Get base directory
+# Static files
 BASE_DIR = Path(__file__).parent
-
-# Static files and templates
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 # Include routers
 app.include_router(auth.router, prefix="/api", tags=["auth"])
@@ -93,12 +83,13 @@ app.include_router(backtest.router, prefix="/api/backtest", tags=["backtest"])
 app.include_router(portfolio.router, prefix="/api/portfolio", tags=["portfolio"])
 app.include_router(macro.router, prefix="/api/macro", tags=["macro"])
 
+
 @app.get("/")
 async def root():
     """API root endpoint"""
     return {
         "app": "MarketPulse API",
-        "version": "1.0.0",
+        "version": settings.APP_VERSION,
         "endpoints": {
             "health": "/health",
             "docs": "/docs",
@@ -108,9 +99,10 @@ async def root():
             "dashboard": "/api/dashboard",
             "backtest": "/api/backtest",
             "portfolio": "/api/portfolio",
-            "macro": "/api/macro"
-        }
+            "macro": "/api/macro",
+        },
     }
+
 
 @app.get("/health")
 async def health_check():
@@ -118,8 +110,9 @@ async def health_check():
     return {
         "status": "healthy",
         "app": "MarketPulse Dashboard",
-        "version": "1.0.0"
+        "version": settings.APP_VERSION,
     }
+
 
 if __name__ == "__main__":
     import uvicorn

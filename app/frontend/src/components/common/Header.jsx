@@ -11,8 +11,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useAuthStore from '../../store/authStore';
 import useMenus from '../../hooks/useMenus';
-import ThemeToggle from '../ThemeToggle';
-import MenuDropdown from '../MenuDropdown';
+import ThemeToggle from './ThemeToggle';
+import MenuDropdown from './MenuDropdown';
 
 // Menu path to page route mapping
 const PAGE_ROUTES = {

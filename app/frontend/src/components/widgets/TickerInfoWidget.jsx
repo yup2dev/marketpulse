@@ -10,7 +10,7 @@ import {
   API_BASE,
   WIDGET_STYLES,
   LOADING_COLORS,
-} from './common';
+} from './constants';
 import useRefreshStore from '../../store/refreshStore';
 
 const TickerInfoWidget = ({ symbol, onRemove }) => {

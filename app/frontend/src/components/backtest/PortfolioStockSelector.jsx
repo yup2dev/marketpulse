@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Plus, DollarSign } from 'lucide-react';
-import TickerSearch from '../TickerSearch';
+import TickerSearch from '../common/TickerSearch';
 import { INPUT_CLASSES } from '../../styles/designTokens';
 
 /**
