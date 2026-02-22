@@ -5,7 +5,7 @@ Provides portfolio backtesting and performance analytics
 import sys
 import logging
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime, timedelta
 import numpy as np
 from collections import defaultdict
@@ -80,7 +80,8 @@ class BacktestService:
         end_date: str,
         rebalancing_period: str = 'monthly',
         initial_capital: float = 10000.0,
-        benchmark_symbol: str = 'SPY'
+        benchmark_symbol: str = 'SPY',
+        weights: Optional[Dict[str, float]] = None,  # symbol → weight_pct (0-100)
     ) -> Dict[str, Any]:
         """
         Run backtest on a portfolio of stocks
@@ -141,7 +142,7 @@ class BacktestService:
 
             # Create date-aligned portfolio
             portfolio_values = self._calculate_portfolio_performance(
-                stock_data, initial_capital, rebalancing_period
+                stock_data, initial_capital, rebalancing_period, weights
             )
 
             # Calculate benchmark performance using real benchmark symbol
@@ -180,15 +181,15 @@ class BacktestService:
         self,
         stock_data: Dict[str, List],
         initial_capital: float,
-        rebalancing_period: str
+        rebalancing_period: str,
+        weights: Optional[Dict[str, float]] = None,  # symbol → weight_pct (0-100)
     ) -> List[Dict[str, Any]]:
-        """Calculate portfolio performance with rebalancing"""
+        """Calculate portfolio performance with rebalancing and optional custom weights."""
         # Get all dates
         all_dates = set()
         for symbol, data in stock_data.items():
             for point in data:
                 if point.date:
-                    # Convert date to datetime if needed
                     if hasattr(point.date, 'tzinfo'):
                         date_obj = point.date.replace(tzinfo=None) if point.date.tzinfo else point.date
                     else:
@@ -206,7 +207,6 @@ class BacktestService:
         for symbol, data in stock_data.items():
             for point in data:
                 if point.date and point.close:
-                    # Convert date to datetime if needed
                     if hasattr(point.date, 'tzinfo'):
                         date_obj = point.date.replace(tzinfo=None) if point.date.tzinfo else point.date
                     else:
@@ -214,38 +214,40 @@ class BacktestService:
                         date_obj = dt.combine(point.date, dt.min.time())
                     prices[date_obj][symbol] = point.close
 
-        # Equal weight portfolio
-        num_stocks = len(stock_data)
-        portfolio_value = initial_capital
-        holdings = {symbol: 0.0 for symbol in stock_data.keys()}
+        # Resolve per-symbol weights (as fractions summing to 1)
+        symbols = list(stock_data.keys())
+        num_stocks = len(symbols)
+        if weights and any(weights.get(s, 0) > 0 for s in symbols):
+            raw = {s: weights.get(s, 0) for s in symbols}
+            total_w = sum(raw.values())
+            w_frac = {s: raw[s] / total_w for s in symbols} if total_w > 0 else {s: 1 / num_stocks for s in symbols}
+        else:
+            w_frac = {s: 1 / num_stocks for s in symbols}
+
+        holdings = {symbol: 0.0 for symbol in symbols}
 
         # Initial allocation
-        allocation_per_stock = initial_capital / num_stocks
-        for symbol in stock_data.keys():
+        for symbol in symbols:
             if all_dates[0] in prices and symbol in prices[all_dates[0]]:
-                holdings[symbol] = allocation_per_stock / prices[all_dates[0]][symbol]
+                holdings[symbol] = (initial_capital * w_frac[symbol]) / prices[all_dates[0]][symbol]
 
         portfolio_values = []
         last_rebalance = all_dates[0]
 
         for date in all_dates:
-            # Calculate current portfolio value
-            current_value = 0
-            for symbol, shares in holdings.items():
-                if symbol in prices[date]:
-                    current_value += shares * prices[date][symbol]
+            # Current portfolio value
+            current_value = sum(
+                holdings[s] * prices[date][s]
+                for s in symbols if s in prices[date]
+            )
 
-            portfolio_values.append({
-                'date': date.isoformat(),
-                'value': round(current_value, 2)
-            })
+            portfolio_values.append({'date': date.isoformat(), 'value': round(current_value, 2)})
 
             # Rebalance if needed
-            if self._should_rebalance(last_rebalance, date, rebalancing_period):
-                allocation_per_stock = current_value / num_stocks
-                for symbol in stock_data.keys():
+            if self._should_rebalance(last_rebalance, date, rebalancing_period) and current_value > 0:
+                for symbol in symbols:
                     if symbol in prices[date]:
-                        holdings[symbol] = allocation_per_stock / prices[date][symbol]
+                        holdings[symbol] = (current_value * w_frac[symbol]) / prices[date][symbol]
                 last_rebalance = date
 
         return portfolio_values

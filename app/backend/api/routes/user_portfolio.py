@@ -44,6 +44,17 @@ class TransactionCreate(BaseModel):
     notes: Optional[str] = None
 
 
+class TransactionUpdate(BaseModel):
+    ticker_cd: Optional[str] = None
+    transaction_type: Optional[str] = None
+    quantity: Optional[Decimal] = None
+    price: Optional[Decimal] = None
+    commission: Optional[Decimal] = None
+    tax: Optional[Decimal] = None
+    transaction_date: Optional[datetime] = None
+    notes: Optional[str] = None
+
+
 class WatchlistCreate(BaseModel):
     name: str
     tickers: List[str]
@@ -213,6 +224,62 @@ def get_transactions(
     return [t.to_dict() for t in transactions]
 
 
+@router.put("/portfolios/{portfolio_id}/transactions/{transaction_id}")
+def update_transaction(
+    portfolio_id: str,
+    transaction_id: str,
+    txn_data: TransactionUpdate,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    거래 수정 (수량·가격·날짜 등 변경 후 Holding 자동 재계산)
+    """
+    portfolio = UserPortfolioService.get_portfolio(db, portfolio_id, current_user.user_id)
+    if not portfolio:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Portfolio not found")
+
+    updated = UserPortfolioService.update_transaction(
+        db=db,
+        transaction_id=transaction_id,
+        portfolio_id=portfolio_id,
+        user_id=current_user.user_id,
+        **txn_data.dict(exclude_unset=True),
+    )
+
+    if not updated:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+
+    return updated.to_dict()
+
+
+@router.delete("/portfolios/{portfolio_id}/transactions/{transaction_id}", status_code=status.HTTP_200_OK)
+def delete_transaction(
+    portfolio_id: str,
+    transaction_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    거래 삭제 후 Holding 자동 재계산
+    """
+    portfolio = UserPortfolioService.get_portfolio(db, portfolio_id, current_user.user_id)
+    if not portfolio:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Portfolio not found")
+
+    success = UserPortfolioService.delete_transaction(
+        db=db,
+        transaction_id=transaction_id,
+        portfolio_id=portfolio_id,
+        user_id=current_user.user_id,
+    )
+
+    if not success:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+
+    return {"message": "Transaction deleted"}
+
+
 @router.get("/portfolios/{portfolio_id}/holdings")
 def get_holdings(
     portfolio_id: str,
@@ -303,6 +370,66 @@ def get_portfolio_allocation(
     return {"allocation": allocation}
 
 
+@router.get("/price-at-date")
+async def get_price_at_date(
+    ticker: str,
+    date: str,
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    특정 날짜의 주가 조회 (시가/종가/고가/저가)
+    date: YYYY-MM-DD
+    주말·공휴일이면 직전 거래일 기준으로 반환
+    """
+    from datetime import datetime as dt, timedelta
+    try:
+        target_date = dt.strptime(date[:10], '%Y-%m-%d')
+        # ±5일 윈도우로 주말·공휴일 처리
+        start = (target_date - timedelta(days=7)).strftime('%Y-%m-%d')
+        end   = (target_date + timedelta(days=2)).strftime('%Y-%m-%d')
+
+        history = await data_service.get_stock_history(
+            symbol=ticker,
+            start_date=start,
+            end_date=end,
+            interval='1d',
+        )
+
+        if not history:
+            raise HTTPException(status_code=404, detail=f"{ticker} 가격 데이터 없음")
+
+        # target_date 이하인 가장 최근 거래일 선택
+        target_d = target_date.date()
+        best = None
+        for bar in sorted(history, key=lambda b: b['date']):
+            bar_d = dt.fromisoformat(str(bar['date']).split('T')[0]).date()
+            if bar_d <= target_d:
+                best = bar
+
+        if not best:
+            best = history[0]
+
+        def safe_float(v):
+            try:
+                return round(float(v), 4) if v is not None else None
+            except Exception:
+                return None
+
+        return {
+            'ticker':  ticker.upper(),
+            'date':    str(best['date'])[:10],
+            'open':    safe_float(best.get('open')),
+            'high':    safe_float(best.get('high')),
+            'low':     safe_float(best.get('low')),
+            'close':   safe_float(best.get('close')),
+            'volume':  int(best['volume']) if best.get('volume') else None,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/portfolios/{portfolio_id}/refresh-prices")
 async def refresh_holding_prices(
     portfolio_id: str,
@@ -327,13 +454,24 @@ async def refresh_holding_prices(
         try:
             quote = await data_service.get_stock_quote(ticker)
             price = quote.get('price')
-            return (ticker, float(price)) if price else (ticker, None)
+            if price:
+                full_quote = {
+                    'price': float(price),
+                    'open': float(quote['open']) if quote.get('open') else float(price),
+                    'change': float(quote.get('change', 0)),
+                    'change_percent': float(quote.get('change_percent', 0)),
+                    'high': float(quote['high']) if quote.get('high') else float(price),
+                    'low': float(quote['low']) if quote.get('low') else float(price),
+                }
+                return (ticker, float(price), full_quote)
+            return (ticker, None, None)
         except Exception:
-            return (ticker, None)
+            return (ticker, None, None)
 
     results = await asyncio.gather(*[fetch_price(t) for t in tickers])
-    price_data = {ticker: price for ticker, price in results if price is not None}
-    failed = [ticker for ticker, price in results if price is None]
+    price_data = {ticker: price for ticker, price, _ in results if price is not None}
+    quotes_data = {ticker: q for ticker, _, q in results if q is not None}
+    failed = [ticker for ticker, price, _ in results if price is None]
 
     if price_data:
         UserPortfolioService.update_holding_prices(db, portfolio_id, price_data)
@@ -342,6 +480,7 @@ async def refresh_holding_prices(
         "updated": len(price_data),
         "failed": failed,
         "prices": price_data,
+        "quotes": quotes_data,
     }
 
 

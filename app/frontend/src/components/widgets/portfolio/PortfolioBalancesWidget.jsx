@@ -3,6 +3,41 @@ import BaseWidget from '../common/BaseWidget';
 import WidgetTable from '../common/WidgetTable';
 
 const fmt = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(val);
+const fmtCompact = (val) => {
+  if (val == null) return '—';
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val);
+};
+
+// Daily change cell: shows $ amount and % relative to open
+function DayChangeCell({ row }) {
+  if (row.dailyChange == null || row.openPrice == null) {
+    return <span className="text-gray-600 text-[11px]">—</span>;
+  }
+  const isUp = row.dailyChange >= 0;
+  return (
+    <div className={isUp ? 'text-green-400' : 'text-red-400'}>
+      <div className="tabular-nums text-[11px]">
+        {isUp ? '+' : ''}{fmt(row.dailyChange)}
+      </div>
+      <div className="tabular-nums text-[10px] opacity-80">
+        {isUp ? '+' : ''}{row.dailyChangePct?.toFixed(2)}%
+      </div>
+    </div>
+  );
+}
+
+// Today's portfolio impact: daily change × quantity
+function TodayPnlCell({ row }) {
+  if (row.todayPnl == null) {
+    return <span className="text-gray-600 text-[11px]">—</span>;
+  }
+  const isUp = row.todayPnl >= 0;
+  return (
+    <div className={isUp ? 'text-green-400' : 'text-red-400'}>
+      <div className="tabular-nums text-[11px]">{isUp ? '+' : ''}{fmt(row.todayPnl)}</div>
+    </div>
+  );
+}
 
 const COLUMNS = [
   {
@@ -15,36 +50,74 @@ const COLUMNS = [
         </div>
         <div className="min-w-0">
           <div className="text-[11px] font-medium text-white">{row.symbol}</div>
-          <div className="text-[10px] text-gray-500 truncate max-w-[120px]">{row.name}</div>
+          <div className="text-[10px] text-gray-500">{row.quantity} shares</div>
         </div>
       </div>
     ),
   },
   {
-    key: 'quantity',
-    header: 'Total Balance',
+    key: 'avgCost',
+    header: 'Avg Cost',
     align: 'right',
-    render: (row) => <span className="tabular-nums text-[11px]">{row.quantity}</span>,
+    render: (row) => <span className="tabular-nums text-[11px] text-gray-400">{fmtCompact(row.avgCost)}</span>,
     sortable: true,
-    sortValue: (row) => row.quantity,
+    sortValue: (row) => row.avgCost,
   },
   {
-    key: 'availableBalance',
-    header: 'Available',
+    key: 'openPrice',
+    header: '시가 (Open)',
     align: 'right',
-    render: (row) => <span className="tabular-nums text-[11px] text-gray-400">{row.quantity}</span>,
+    render: (row) => (
+      row.openPrice != null
+        ? <span className="tabular-nums text-[11px] text-gray-300">{fmtCompact(row.openPrice)}</span>
+        : <span className="text-gray-600 text-[11px]">—</span>
+    ),
+    sortable: true,
+    sortValue: (row) => row.openPrice ?? 0,
+  },
+  {
+    key: 'currentPrice',
+    header: '현재가',
+    align: 'right',
+    render: (row) => {
+      const isUp = row.openPrice != null && row.currentPrice >= row.openPrice;
+      const isDown = row.openPrice != null && row.currentPrice < row.openPrice;
+      return (
+        <span className={`tabular-nums text-[11px] font-medium ${isUp ? 'text-green-400' : isDown ? 'text-red-400' : 'text-white'}`}>
+          {fmtCompact(row.currentPrice)}
+        </span>
+      );
+    },
+    sortable: true,
+    sortValue: (row) => row.currentPrice,
+  },
+  {
+    key: 'dayChange',
+    header: '당일 변동',
+    align: 'right',
+    render: (row) => <DayChangeCell row={row} />,
+    sortable: true,
+    sortValue: (row) => row.dailyChange ?? 0,
+  },
+  {
+    key: 'todayPnl',
+    header: '오늘 손익',
+    align: 'right',
+    render: (row) => <TodayPnlCell row={row} />,
+    sortable: true,
+    sortValue: (row) => row.todayPnl ?? 0,
   },
   {
     key: 'value',
-    header: 'USD Value',
+    header: '평가금액',
     align: 'right',
-    render: (row) => <span className="tabular-nums text-[11px] text-white">{fmt(row.value)}</span>,
+    render: (row) => <span className="tabular-nums text-[11px] text-white font-medium">{fmt(row.value)}</span>,
     sortable: true,
     sortValue: (row) => row.value,
   },
   {
     key: 'pnl',
-    header: 'PNL (ROE %)',
+    header: '총 손익',
     align: 'right',
     render: (row) => {
       if (row._noPrices) return <span className="text-gray-600 text-[11px]">—</span>;
@@ -72,6 +145,7 @@ const COLUMNS = [
 
 export default function PortfolioBalancesWidget({ holdings, hideSmallBalances, setHideSmallBalances, onRemove }) {
   const data = holdings.map((h) => ({ ...h, _key: h.symbol }));
+  const hasPriceData = holdings.some(h => h.openPrice != null);
 
   return (
     <BaseWidget
@@ -82,15 +156,20 @@ export default function PortfolioBalancesWidget({ holdings, hideSmallBalances, s
       showPeriodSelector={false}
       onRemove={onRemove}
       headerExtra={
-        <label className="flex items-center gap-1.5 text-[11px] text-gray-400 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={hideSmallBalances}
-            onChange={(e) => setHideSmallBalances(e.target.checked)}
-            className="w-3 h-3 rounded border-gray-600 bg-gray-800 text-cyan-500 focus:ring-0 focus:ring-offset-0"
-          />
-          Hide small
-        </label>
+        <div className="flex items-center gap-3">
+          {!hasPriceData && (
+            <span className="text-[10px] text-yellow-600">시가/현재가: 새로고침 필요</span>
+          )}
+          <label className="flex items-center gap-1.5 text-[11px] text-gray-400 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={hideSmallBalances}
+              onChange={(e) => setHideSmallBalances(e.target.checked)}
+              className="w-3 h-3 rounded border-gray-600 bg-gray-800 text-cyan-500 focus:ring-0 focus:ring-offset-0"
+            />
+            Hide small
+          </label>
+        </div>
       }
     >
       <div className="overflow-auto h-full">

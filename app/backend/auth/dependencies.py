@@ -10,7 +10,8 @@ from app.backend.database.db_dependency import get_db
 from app.backend.auth.security import decode_token
 from index_analyzer.models.database import User
 
-security = HTTPBearer()
+security          = HTTPBearer()
+security_optional = HTTPBearer(auto_error=False)   # 인증 없어도 허용
 
 
 def get_current_user(
@@ -62,7 +63,7 @@ def get_current_active_user(
 
 
 def get_optional_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_optional),
     db: Session = Depends(get_db)
 ) -> Optional[User]:
     """

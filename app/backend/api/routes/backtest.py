@@ -5,7 +5,7 @@ Endpoints for portfolio backtesting and performance analytics
 import logging
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict
 from sqlalchemy.orm import Session
 
 from app.backend.services.backtest_service import backtest_service
@@ -18,6 +18,7 @@ router = APIRouter()
 class BacktestRequest(BaseModel):
     """Request model for running a backtest"""
     symbols: List[str]
+    weights: Optional[Dict[str, float]] = None  # symbol → weight_pct (0-100); if None → equal weight
     start_date: Optional[str] = None
     end_date: Optional[str] = None
     rebalancing_period: Optional[str] = 'monthly'
@@ -57,6 +58,7 @@ async def run_backtest(request: BacktestRequest):
 
         results = await backtest_service.run_backtest(
             symbols=request.symbols,
+            weights=request.weights,
             start_date=request.start_date,
             end_date=request.end_date,
             rebalancing_period=request.rebalancing_period,

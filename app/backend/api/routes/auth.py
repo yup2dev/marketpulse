@@ -143,3 +143,40 @@ def verify_token(current_user: User = Depends(get_current_active_user)):
         "valid": True,
         "user": current_user.to_dict()
     }
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+@router.post("/refresh")
+def refresh_access_token(
+    data: RefreshRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Refresh token으로 새 Access token 발급.
+    프론트엔드 401 인터셉터에서 자동으로 호출됨.
+    """
+    from app.backend.auth.security import decode_token
+
+    payload = decode_token(data.refresh_token)
+    if payload is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="만료되거나 유효하지 않은 refresh token")
+
+    if payload.get("type") != "refresh":
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="잘못된 token 타입")
+
+    user_id: str = payload.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
+
+    user = db.query(User).filter(User.user_id == user_id, User.is_active == True).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="사용자를 찾을 수 없거나 비활성 계정")
+
+    tokens = AuthService.generate_tokens(user)
+    return {
+        **tokens,
+        "user": user.to_dict(),
+    }

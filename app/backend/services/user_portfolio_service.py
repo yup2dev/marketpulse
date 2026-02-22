@@ -201,6 +201,158 @@ class UserPortfolioService:
                     holding.total_cost = holding.avg_cost * holding.quantity
 
     @staticmethod
+    def _rebuild_holding(db: Session, portfolio_id: str, ticker_cd: str):
+        """
+        특정 종목의 모든 buy/sell 거래를 순서대로 재계산하여 Holding 갱신.
+        수정·삭제 후 호출해 평균 매입가·수량·총비용을 정확히 유지한다.
+        """
+        transactions = db.query(Transaction).filter(
+            Transaction.portfolio_id == portfolio_id,
+            Transaction.ticker_cd == ticker_cd,
+            Transaction.transaction_type.in_(['buy', 'sell'])
+        ).order_by(Transaction.transaction_date.asc()).all()
+
+        holding = db.query(Holding).filter(
+            Holding.portfolio_id == portfolio_id,
+            Holding.ticker_cd == ticker_cd
+        ).first()
+
+        quantity   = Decimal('0')
+        total_cost = Decimal('0')
+
+        for txn in transactions:
+            qty   = Decimal(str(txn.quantity))
+            price = Decimal(str(txn.price))
+            if txn.transaction_type == 'buy':
+                total_cost += qty * price
+                quantity   += qty
+            elif txn.transaction_type == 'sell':
+                if quantity > 0:
+                    cost_per_share = total_cost / quantity
+                    total_cost -= cost_per_share * qty
+                    quantity   -= qty
+
+        # Fully sold or no transactions → remove holding
+        if quantity <= Decimal('0.00000001'):
+            if holding:
+                db.delete(holding)
+            return
+
+        avg_cost = total_cost / quantity
+
+        if holding:
+            holding.quantity   = quantity
+            holding.avg_cost   = avg_cost
+            holding.total_cost = total_cost
+            # market values will be refreshed on next price-refresh call
+            holding.market_value       = None
+            holding.current_price      = None
+            holding.unrealized_pnl     = None
+            holding.unrealized_pnl_pct = None
+        else:
+            holding = Holding(
+                holding_id=f"hold_{uuid.uuid4().hex[:16]}",
+                portfolio_id=portfolio_id,
+                ticker_cd=ticker_cd,
+                quantity=quantity,
+                avg_cost=avg_cost,
+                total_cost=total_cost,
+            )
+            db.add(holding)
+
+    @staticmethod
+    def update_transaction(
+        db: Session,
+        transaction_id: str,
+        portfolio_id: str,
+        user_id: str,
+        ticker_cd: Optional[str] = None,
+        transaction_type: Optional[str] = None,
+        quantity: Optional[Decimal] = None,
+        price: Optional[Decimal] = None,
+        commission: Optional[Decimal] = None,
+        tax: Optional[Decimal] = None,
+        transaction_date: Optional[datetime] = None,
+        notes: Optional[str] = None,
+    ) -> Optional[Transaction]:
+        """
+        거래 수정 후 관련 Holding 재계산
+        """
+        portfolio = UserPortfolioService.get_portfolio(db, portfolio_id, user_id)
+        if not portfolio:
+            return None
+
+        txn = db.query(Transaction).filter(
+            Transaction.transaction_id == transaction_id,
+            Transaction.portfolio_id == portfolio_id
+        ).first()
+        if not txn:
+            return None
+
+        old_ticker = txn.ticker_cd
+
+        if ticker_cd is not None:         txn.ticker_cd = ticker_cd
+        if transaction_type is not None:  txn.transaction_type = transaction_type
+        if quantity is not None:          txn.quantity = quantity
+        if price is not None:             txn.price = price
+        if commission is not None:        txn.commission = commission
+        if tax is not None:               txn.tax = tax
+        if transaction_date is not None:  txn.transaction_date = transaction_date
+        if notes is not None:             txn.notes = notes
+
+        # Recalculate total_amount
+        q = Decimal(str(txn.quantity))
+        p = Decimal(str(txn.price))
+        c = Decimal(str(txn.commission or 0))
+        t = Decimal(str(txn.tax or 0))
+        if txn.transaction_type == 'buy':
+            txn.total_amount = q * p + c + t
+        elif txn.transaction_type == 'sell':
+            txn.total_amount = q * p - c - t
+        else:
+            txn.total_amount = q * p
+
+        db.flush()
+
+        # Rebuild holding(s) from scratch
+        UserPortfolioService._rebuild_holding(db, portfolio_id, old_ticker)
+        if txn.ticker_cd != old_ticker:
+            UserPortfolioService._rebuild_holding(db, portfolio_id, txn.ticker_cd)
+
+        db.commit()
+        db.refresh(txn)
+        return txn
+
+    @staticmethod
+    def delete_transaction(
+        db: Session,
+        transaction_id: str,
+        portfolio_id: str,
+        user_id: str,
+    ) -> bool:
+        """
+        거래 삭제 후 관련 Holding 재계산
+        """
+        portfolio = UserPortfolioService.get_portfolio(db, portfolio_id, user_id)
+        if not portfolio:
+            return False
+
+        txn = db.query(Transaction).filter(
+            Transaction.transaction_id == transaction_id,
+            Transaction.portfolio_id == portfolio_id
+        ).first()
+        if not txn:
+            return False
+
+        ticker = txn.ticker_cd
+        db.delete(txn)
+        db.flush()
+
+        UserPortfolioService._rebuild_holding(db, portfolio_id, ticker)
+        db.commit()
+        return True
+
+    @staticmethod
     def get_portfolio_transactions(db: Session, portfolio_id: str) -> List[Transaction]:
         """
         포트폴리오의 모든 거래 내역 조회

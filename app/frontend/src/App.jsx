@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import ProtectedRoute from './components/common/ProtectedRoute';
@@ -14,8 +15,18 @@ import AlertsPage from './pages/AlertsPage';
 import ScreenerPage from './pages/ScreenerPage';
 import WatchlistPage from './pages/WatchlistPage';
 import ErrorBoundary from './components/common/ErrorBoundary';
+import useAuthStore from './store/authStore';
 
 function App() {
+  const initializeAuth = useAuthStore((s) => s.initializeAuth);
+
+  // 앱 최초 마운트 시 저장된 토큰 유효성 확인
+  // access token 만료 → apiClient가 자동으로 refresh → 문제 없음
+  // refresh token도 만료 → forceLogout 콜백 → /login 리다이렉트
+  useEffect(() => {
+    initializeAuth();
+  }, []);
+
   return (
     <ErrorBoundary>
     <Router>

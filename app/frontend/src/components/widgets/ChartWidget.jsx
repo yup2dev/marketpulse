@@ -1612,7 +1612,7 @@ const ChartWidget = ({
                     <Legend />
 
                     {/* Volume bars for stocks only */}
-                    {showVolume && tickers.filter(t => t.type === 'stock' && t.visible).map((ticker) => (
+                    {!isSeriesMode && showVolume && tickers.filter(t => t.type === 'stock' && t.visible).map((ticker) => (
                       <Bar
                         key={`${ticker.symbol}_volume`}
                         yAxisId="volume"

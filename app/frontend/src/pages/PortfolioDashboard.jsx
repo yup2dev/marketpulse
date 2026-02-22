@@ -60,24 +60,26 @@ const formatCurrency = (v, dec = 2) => {
 };
 const formatPercent = (v) => v == null ? '0.00%' : `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`;
 
-// ─── Map Holding API row → widget row ─────────────────────────────────────────
-// current_price / market_value are null until server refreshes live prices
-// Fall back to avg_cost / total_cost so the UI is useful even before price refresh
+// ─── Map raw DB holding → widget row ──────────────────────────────────────────
 const mapHolding = (h) => {
   const hasMkt   = h.market_value != null && h.market_value > 0;
   const value    = hasMkt ? h.market_value : (h.total_cost ?? (h.quantity ?? 0) * (h.avg_cost ?? 0));
   const curPrice = (h.current_price && h.current_price > 0) ? h.current_price : (h.avg_cost ?? 0);
   return {
-    symbol:        h.ticker_cd,
-    name:          h.ticker_cd,
-    quantity:      h.quantity ?? 0,
-    avgCost:       h.avg_cost ?? 0,
-    currentPrice:  curPrice,
+    symbol:       h.ticker_cd,
+    name:         h.ticker_cd,
+    quantity:     h.quantity ?? 0,
+    avgCost:      h.avg_cost ?? 0,
+    currentPrice: curPrice,
     value,
-    pnl:           hasMkt ? (h.unrealized_pnl ?? 0) : 0,
-    pnlPct:        hasMkt ? (h.unrealized_pnl_pct ?? 0) : 0,
-    _noPrices:     !hasMkt,
-    _raw:          h,
+    pnl:          hasMkt ? (h.unrealized_pnl ?? 0) : 0,
+    pnlPct:       hasMkt ? (h.unrealized_pnl_pct ?? 0) : 0,
+    openPrice:    null,
+    dailyChange:  null,
+    dailyChangePct: null,
+    todayPnl:     null,
+    _noPrices:    !hasMkt,
+    _raw:         h,
   };
 };
 
@@ -101,12 +103,18 @@ export default function PortfolioDashboard() {
   const [loadingHoldings, setLoadingHoldings] = useState(false);
   const [loadingTransactions, setLoadingTransactions] = useState(false);
 
+  // ── Live price data (from refresh-prices API) ────────────────────────────────
+  // { AAPL: { price, open, change, change_percent, high, low }, ... }
+  const [priceQuotes, setPriceQuotes] = useState({});
+  const [lastRefreshed, setLastRefreshed] = useState(null);
+
   // ── UI ───────────────────────────────────────────────────────────────────────
   const [selectedPeriod, setSelectedPeriod] = useState('30D');
   const [selectedAccountType, setSelectedAccountType] = useState('all');
   const [hideSmallBalances, setHideSmallBalances] = useState(false);
   const [chartTab, setChartTab] = useState('value');
   const [showAddTransaction, setShowAddTransaction] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState(null);  // transaction object being edited
   const [isSubmittingTransaction, setIsSubmittingTransaction] = useState(false);
   const [isRefreshingPrices, setIsRefreshingPrices] = useState(false);
 
@@ -177,14 +185,46 @@ export default function PortfolioDashboard() {
     }
   }, []);
 
+  // ── Refresh prices (silent or explicit) ─────────────────────────────────────
+  const doRefreshPrices = useCallback(async (portfolioId, silent = false) => {
+    if (!portfolioId) return;
+    setIsRefreshingPrices(true);
+    try {
+      const result = await portfolioAPI.refreshPrices(portfolioId);
+      if (result?.quotes) {
+        setPriceQuotes(result.quotes);
+        setLastRefreshed(new Date());
+      }
+      if (!silent) {
+        if (result?.updated > 0) {
+          toast.success(`Updated ${result.updated} price${result.updated > 1 ? 's' : ''}`);
+        } else {
+          toast('No prices updated', { icon: '⚠️' });
+        }
+      }
+      return result;
+    } catch (err) {
+      if (!silent) toast.error('Price refresh failed');
+      console.error('Price refresh error:', err);
+    } finally {
+      setIsRefreshingPrices(false);
+    }
+  }, []);
+
   // ── Effects ──────────────────────────────────────────────────────────────────
   useEffect(() => { loadPortfolios(); }, [isAuthenticated]);
 
   useEffect(() => {
-    if (selectedPortfolio?.portfolio_id) {
-      loadHoldings(selectedPortfolio.portfolio_id);
-      loadTransactions(selectedPortfolio.portfolio_id);
-    }
+    if (!selectedPortfolio?.portfolio_id) return;
+    const pid = selectedPortfolio.portfolio_id;
+
+    // Load data first, then auto-refresh prices in background
+    Promise.all([
+      loadHoldings(pid),
+      loadTransactions(pid),
+    ]).then(() => {
+      doRefreshPrices(pid, true); // silent auto-refresh
+    });
   }, [selectedPortfolio?.portfolio_id]);
 
   useEffect(() => {
@@ -221,10 +261,48 @@ export default function PortfolioDashboard() {
         loadHoldings(selectedPortfolio.portfolio_id),
         loadTransactions(selectedPortfolio.portfolio_id),
       ]);
+      // Refresh prices after new transaction
+      doRefreshPrices(selectedPortfolio.portfolio_id, true);
     } catch (err) {
       toast.error(err.detail || 'Failed to add transaction');
     } finally {
       setIsSubmittingTransaction(false);
+    }
+  };
+
+  // ── Edit transaction ─────────────────────────────────────────────────────────
+  const handleEditTransaction = async (transactionId, txnData) => {
+    if (!selectedPortfolio?.portfolio_id) return;
+    setIsSubmittingTransaction(true);
+    try {
+      await portfolioAPI.updateTransaction(selectedPortfolio.portfolio_id, transactionId, txnData);
+      toast.success('Transaction updated');
+      setEditingTransaction(null);
+      await Promise.all([
+        loadHoldings(selectedPortfolio.portfolio_id),
+        loadTransactions(selectedPortfolio.portfolio_id),
+      ]);
+      doRefreshPrices(selectedPortfolio.portfolio_id, true);
+    } catch (err) {
+      toast.error(err.detail || 'Failed to update transaction');
+    } finally {
+      setIsSubmittingTransaction(false);
+    }
+  };
+
+  // ── Delete transaction ────────────────────────────────────────────────────────
+  const handleDeleteTransaction = async (transaction) => {
+    if (!selectedPortfolio?.portfolio_id) return;
+    try {
+      await portfolioAPI.deleteTransaction(selectedPortfolio.portfolio_id, transaction.transaction_id);
+      toast.success(`${transaction.ticker_cd} transaction deleted`);
+      await Promise.all([
+        loadHoldings(selectedPortfolio.portfolio_id),
+        loadTransactions(selectedPortfolio.portfolio_id),
+      ]);
+      doRefreshPrices(selectedPortfolio.portfolio_id, true);
+    } catch (err) {
+      toast.error(err.detail || 'Failed to delete transaction');
     }
   };
 
@@ -237,10 +315,39 @@ export default function PortfolioDashboard() {
     });
   }, [activeTab]);
 
+  // ── Enrich holdings with live price data ─────────────────────────────────────
+  // Merges DB holdings with live quotes (open, change, etc.) from refresh API
+  const enrichedHoldings = useMemo(() => {
+    return holdings.map((h) => {
+      const q = priceQuotes[h.symbol] || {};
+      const hasLive = q.price != null;
+      const curPrice = hasLive ? q.price : h.currentPrice;
+      const totalCostBasis = h.quantity * h.avgCost;
+      const mktValue = curPrice * h.quantity;
+      const unrealPnl = hasLive ? mktValue - totalCostBasis : h.pnl;
+      const unrealPnlPct = hasLive && totalCostBasis > 0
+        ? ((mktValue - totalCostBasis) / totalCostBasis) * 100
+        : h.pnlPct;
+
+      return {
+        ...h,
+        currentPrice: curPrice,
+        value: hasLive ? mktValue : h.value,
+        pnl: unrealPnl,
+        pnlPct: unrealPnlPct,
+        openPrice: q.open ?? null,
+        dailyChange: q.change ?? null,
+        dailyChangePct: q.change_percent ?? null,
+        todayPnl: q.open != null ? (curPrice - q.open) * h.quantity : null,
+        _noPrices: !hasLive && h._noPrices,
+      };
+    });
+  }, [holdings, priceQuotes]);
+
   // ── Derived data ─────────────────────────────────────────────────────────────
   const filteredHoldings = useMemo(
-    () => hideSmallBalances ? holdings.filter((h) => h.value >= 10) : holdings,
-    [holdings, hideSmallBalances]
+    () => hideSmallBalances ? enrichedHoldings.filter((h) => h.value >= 10) : enrichedHoldings,
+    [enrichedHoldings, hideSmallBalances]
   );
 
   const dividendTransactions = useMemo(
@@ -248,16 +355,28 @@ export default function PortfolioDashboard() {
     [transactions]
   );
 
-  // ── Stats from summary API ───────────────────────────────────────────────────
-  const stats = useMemo(() => ({
-    pnl:           summary?.total_unrealized_pnl ?? 0,
-    volume:        summary?.total_market_value ?? 0,
-    maxDrawdown:   0,
-    totalEquity:   summary?.total_market_value ?? 0,
-    stockEquity:   summary?.total_market_value ?? 0,
-    futuresEquity: 0,
-    earnBalance:   0,
-  }), [summary]);
+  // ── Stats derived from enriched holdings ─────────────────────────────────────
+  const stats = useMemo(() => {
+    const totalMktValue = enrichedHoldings.reduce((s, h) => s + (h.value || 0), 0);
+    const totalCost = enrichedHoldings.reduce((s, h) => s + h.quantity * h.avgCost, 0);
+    const unrealPnl = totalMktValue - totalCost;
+    const returnPct = totalCost > 0 ? (unrealPnl / totalCost) * 100 : 0;
+    const todayPnl = enrichedHoldings.reduce((s, h) => s + (h.todayPnl || 0), 0);
+
+    return {
+      pnl: unrealPnl,
+      volume: totalMktValue,
+      maxDrawdown: 0,
+      totalEquity: totalMktValue,
+      totalCost,
+      returnPct,
+      todayPnl,
+      holdingsCount: enrichedHoldings.length,
+      stockEquity: totalMktValue,
+      futuresEquity: 0,
+      earnBalance: 0,
+    };
+  }, [enrichedHoldings]);
 
   // ── Mock PnL chart (until performance API returns time-series) ───────────────
   const pnlHistory = useMemo(() => {
@@ -265,10 +384,10 @@ export default function PortfolioDashboard() {
     const base = summary.total_cost || 10000;
     return Array.from({ length: 30 }, (_, i) => ({
       date:  new Date(Date.now() - (29 - i) * 86400000).toISOString().split('T')[0],
-      value: base + (summary.total_unrealized_pnl || 0) * (i / 29),
-      pnl:   (summary.total_unrealized_pnl || 0) * (i / 29),
+      value: base + (stats.pnl || 0) * (i / 29),
+      pnl:   (stats.pnl || 0) * (i / 29),
     }));
-  }, [summary]);
+  }, [summary, stats.pnl]);
 
   // ── Widget renderer ──────────────────────────────────────────────────────────
   const renderWidget = useCallback((widget) => {
@@ -283,6 +402,7 @@ export default function PortfolioDashboard() {
             setSelectedPeriod={setSelectedPeriod}
             formatCurrency={formatCurrency}
             formatPercent={formatPercent}
+            lastRefreshed={lastRefreshed}
           />
         );
       case 'chart':
@@ -316,6 +436,9 @@ export default function PortfolioDashboard() {
             transactions={transactions}
             loading={loadingTransactions}
             onAddTransaction={() => setShowAddTransaction(true)}
+            onEditTransaction={(txn) => setEditingTransaction(txn)}
+            onDeleteTransaction={handleDeleteTransaction}
+            priceQuotes={priceQuotes}
           />
         );
       case 'empty':
@@ -323,7 +446,7 @@ export default function PortfolioDashboard() {
       default:
         return null;
     }
-  }, [stats, pnlHistory, filteredHoldings, chartTab, selectedAccountType, selectedPeriod, hideSmallBalances, transactions, loadingTransactions]);
+  }, [stats, pnlHistory, filteredHoldings, chartTab, selectedAccountType, selectedPeriod, hideSmallBalances, transactions, loadingTransactions, lastRefreshed]);
 
   const currentWidgets = TAB_WIDGET_DEFS[activeTab] || [];
   const currentLayout  = tabLayouts[activeTab] || DEFAULT_LAYOUTS[activeTab] || [];
@@ -366,35 +489,23 @@ export default function PortfolioDashboard() {
           ))}
         </div>
 
-        {/* Right: portfolio selector + actions */}
+        {/* Right: last updated + portfolio selector + actions */}
         <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Last updated timestamp */}
+          {lastRefreshed && (
+            <span className="text-[10px] text-gray-600 whitespace-nowrap">
+              Updated {lastRefreshed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          )}
+
           {/* Refresh */}
           <button
-            onClick={async () => {
-              if (!selectedPortfolio) return;
-              setIsRefreshingPrices(true);
-              try {
-                const result = await portfolioAPI.refreshPrices(selectedPortfolio.portfolio_id);
-                if (result.updated > 0) {
-                  toast.success(`Updated ${result.updated} price${result.updated > 1 ? 's' : ''}`);
-                } else {
-                  toast('No prices updated', { icon: '⚠️' });
-                }
-              } catch {
-                toast.error('Price refresh failed');
-              } finally {
-                setIsRefreshingPrices(false);
-              }
-              await Promise.all([
-                loadHoldings(selectedPortfolio.portfolio_id),
-                loadTransactions(selectedPortfolio.portfolio_id),
-              ]);
-            }}
+            onClick={() => selectedPortfolio && doRefreshPrices(selectedPortfolio.portfolio_id, false)}
             disabled={isRefreshingPrices}
             className="p-1.5 text-gray-500 hover:text-white hover:bg-gray-800 rounded transition-colors disabled:opacity-50"
             title="Refresh prices"
           >
-            <RefreshCw size={12} className={(loadingHoldings || loadingTransactions || isRefreshingPrices) ? 'animate-spin' : ''} />
+            <RefreshCw size={12} className={isRefreshingPrices ? 'animate-spin' : ''} />
           </button>
 
           {/* Add Transaction shortcut */}
@@ -507,6 +618,15 @@ export default function PortfolioDashboard() {
         <AddTransactionModal
           onClose={() => setShowAddTransaction(false)}
           onAdd={handleAddTransaction}
+        />
+      )}
+
+      {editingTransaction && (
+        <AddTransactionModal
+          isEditing
+          initialValues={editingTransaction}
+          onClose={() => setEditingTransaction(null)}
+          onEdit={handleEditTransaction}
         />
       )}
 

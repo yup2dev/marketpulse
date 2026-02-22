@@ -3,6 +3,10 @@ import BaseWidget from '../common/BaseWidget';
 import WidgetTable from '../common/WidgetTable';
 
 const fmt = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(val);
+const fmtCompact = (val) => {
+  if (val == null) return '—';
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val);
+};
 
 const COLUMNS = [
   {
@@ -13,23 +17,53 @@ const COLUMNS = [
         <div className="w-6 h-6 rounded-full bg-gray-800 flex items-center justify-center text-[10px] font-bold flex-shrink-0 border border-gray-700">
           {row.symbol.slice(0, 2)}
         </div>
-        <span className="text-[11px] font-medium text-white">{row.symbol}</span>
+        <div className="min-w-0">
+          <div className="text-[11px] font-medium text-white">{row.symbol}</div>
+          <div className="text-[10px] text-gray-600">{row.quantity} shares</div>
+        </div>
       </div>
     ),
   },
   {
     key: 'avgCost',
-    header: 'Entry Price',
+    header: 'Avg Cost',
     align: 'right',
-    render: (row) => <span className="tabular-nums text-[11px]">{fmt(row.avgCost)}</span>,
+    render: (row) => <span className="tabular-nums text-[11px] text-gray-400">{fmtCompact(row.avgCost)}</span>,
     sortable: true,
     sortValue: (row) => row.avgCost,
   },
   {
-    key: 'currentPrice',
-    header: 'Mark Price',
+    key: 'openPrice',
+    header: '시가',
     align: 'right',
-    render: (row) => <span className="tabular-nums text-[11px] text-white">{fmt(row.currentPrice)}</span>,
+    render: (row) => (
+      row.openPrice != null
+        ? <span className="tabular-nums text-[11px] text-gray-300">{fmtCompact(row.openPrice)}</span>
+        : <span className="text-gray-600 text-[11px]">—</span>
+    ),
+    sortable: true,
+    sortValue: (row) => row.openPrice ?? 0,
+  },
+  {
+    key: 'currentPrice',
+    header: '현재가',
+    align: 'right',
+    render: (row) => {
+      const isUp = row.openPrice != null && row.currentPrice >= row.openPrice;
+      const isDown = row.openPrice != null && row.currentPrice < row.openPrice;
+      return (
+        <div>
+          <div className={`tabular-nums text-[11px] font-medium ${isUp ? 'text-green-400' : isDown ? 'text-red-400' : 'text-white'}`}>
+            {fmtCompact(row.currentPrice)}
+          </div>
+          {row.dailyChangePct != null && (
+            <div className={`tabular-nums text-[10px] ${row.dailyChangePct >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+              {row.dailyChangePct >= 0 ? '+' : ''}{row.dailyChangePct.toFixed(2)}%
+            </div>
+          )}
+        </div>
+      );
+    },
     sortable: true,
     sortValue: (row) => row.currentPrice,
   },
@@ -42,8 +76,24 @@ const COLUMNS = [
     sortValue: (row) => row.quantity,
   },
   {
+    key: 'todayPnl',
+    header: '오늘 손익',
+    align: 'right',
+    render: (row) => {
+      if (row.todayPnl == null) return <span className="text-gray-600 text-[11px]">—</span>;
+      const isUp = row.todayPnl >= 0;
+      return (
+        <span className={`tabular-nums text-[11px] font-medium ${isUp ? 'text-green-400' : 'text-red-400'}`}>
+          {isUp ? '+' : ''}{fmt(row.todayPnl)}
+        </span>
+      );
+    },
+    sortable: true,
+    sortValue: (row) => row.todayPnl ?? 0,
+  },
+  {
     key: 'value',
-    header: 'Position Value',
+    header: '평가금액',
     align: 'right',
     render: (row) => <span className="tabular-nums text-[11px] text-white">{fmt(row.value)}</span>,
     sortable: true,
@@ -51,7 +101,7 @@ const COLUMNS = [
   },
   {
     key: 'pnl',
-    header: 'Unrealized PNL',
+    header: '총 손익',
     align: 'right',
     render: (row) => {
       if (row._noPrices) return <span className="text-gray-600 text-[11px]" title="No live price">—</span>;
@@ -64,16 +114,6 @@ const COLUMNS = [
     },
     sortable: true,
     sortValue: (row) => row.pnl,
-  },
-  {
-    key: 'actions',
-    header: '',
-    align: 'right',
-    render: () => (
-      <button className="text-red-400 hover:text-red-300 text-[11px] px-1.5 py-0.5 rounded hover:bg-red-900/20 transition-colors">
-        Close
-      </button>
-    ),
   },
 ];
 
