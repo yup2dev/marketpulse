@@ -475,6 +475,76 @@ class DataService:
 
         return {}
 
+    async def get_quarterly_pnl(self, symbol: str, limit: int = 12) -> Dict[str, Any]:
+        """
+        Get quarterly P&L breakdown from yfinance:
+        Total Revenue, Cost of Revenue, Gross Profit, Operating Expenses,
+        Operating Income, Net Income — last `limit` quarters.
+        """
+        try:
+            import yfinance as yf
+            import numpy as np
+
+            ticker = yf.Ticker(symbol)
+            q = ticker.quarterly_income_stmt
+
+            if q is None or q.empty:
+                return {'symbol': symbol, 'quarters': [], 'history': []}
+
+            # Rows we want (order matters for stacked chart layers)
+            row_map = {
+                'revenue':   'Total Revenue',
+                'cogs':      'Cost Of Revenue',
+                'gross':     'Gross Profit',
+                'op_income': 'Operating Income',
+                'net':       'Net Income',
+                'rd':        'Research And Development',
+                'sga':       'Selling General And Administration',
+            }
+
+            # Sort columns ascending (oldest → newest), take last `limit`
+            cols = sorted(q.columns)[-limit:]
+
+            history = []
+            for col in cols:
+                date_str = str(col)[:10]
+                row: Dict[str, Any] = {'date': date_str}
+                for key, label in row_map.items():
+                    if label in q.index:
+                        val = q.loc[label, col]
+                        row[key] = round(float(val) / 1e9, 3) if (val is not None and not (isinstance(val, float) and np.isnan(val))) else None
+                    else:
+                        row[key] = None
+                # Derived margins (% of revenue)
+                rev = row.get('revenue')
+                if rev and rev > 0:
+                    row['gross_margin']  = round(row['gross']      / rev * 100, 1) if row.get('gross')      is not None else None
+                    row['op_margin']     = round(row['op_income']  / rev * 100, 1) if row.get('op_income')  is not None else None
+                    row['net_margin']    = round(row['net']        / rev * 100, 1) if row.get('net')        is not None else None
+                history.append(row)
+
+            # YoY per quarter (compare same quarter prior year)
+            yoy_revenue = {}
+            for i, row in enumerate(history):
+                prior_idx = i - 4  # same quarter last year
+                if prior_idx >= 0:
+                    cur = row.get('revenue')
+                    prv = history[prior_idx].get('revenue')
+                    if cur is not None and prv and prv != 0:
+                        yoy_revenue[row['date']] = round((cur - prv) / abs(prv) * 100, 1)
+
+            latest = history[-1] if history else {}
+            return {
+                'symbol': symbol,
+                'history': history,
+                'latest': latest,
+                'yoy_revenue': yoy_revenue,
+            }
+
+        except Exception as e:
+            log.error(f"Error fetching quarterly P&L for {symbol}: {e}")
+            return {'symbol': symbol, 'history': [], 'latest': {}}
+
     async def get_revenue_segments(self, symbol: str, limit: int = 8) -> Dict[str, Any]:
         """
         Get revenue breakdown by product segment and geographic region.

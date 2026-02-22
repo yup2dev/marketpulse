@@ -1,23 +1,20 @@
 /**
  * Revenue Segments Widget
- * Shows revenue breakdown by product segment and geographic region.
- * Data: FMP /stable/revenue-product-segmentation + geographic-segmentation
  *
- * Views:
- *   donut   – latest period pie/donut with legend
- *   trend   – stacked bar chart over years
- *   table   – detailed table with YoY % change
+ * Annual  (FMP):     Product segment + Geographic breakdown — donut / stacked trend / table
+ * Quarterly (yfinance): P&L decomposition per quarter — Revenue, COGS, Gross Profit, OpEx, Net Income
  */
 import { useState, useEffect, useCallback } from 'react';
 import { PieChart as PieIcon } from 'lucide-react';
 import {
   PieChart, Pie, Cell, Tooltip as PieTooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ComposedChart, Line,
 } from 'recharts';
 import BaseWidget from './common/BaseWidget';
 import { API_BASE } from '../../config/api';
 
-// ── Segment colour palette ────────────────────────────────────────────────────
+// ─── Colour palette ───────────────────────────────────────────────────────────
 const PALETTE = [
   '#06b6d4', '#22c55e', '#f59e0b', '#a78bfa', '#f87171',
   '#34d399', '#60a5fa', '#fb923c', '#e879f9', '#facc15',
@@ -25,17 +22,32 @@ const PALETTE = [
 ];
 const segColor = (i) => PALETTE[i % PALETTE.length];
 
-// ── Formatters ────────────────────────────────────────────────────────────────
-const fmtB  = (v) => (v == null ? '–' : `$${v.toFixed(1)}B`);
-const fmtPct = (v) => (v == null ? '–' : `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`);
-const fmtDate = (s) => s ? s.slice(0, 7) : s;
+// P&L layer config (stacked bar for quarterly view)
+const PNL_LAYERS = [
+  { key: 'cogs',      label: 'Cost of Revenue', color: '#ef4444' },
+  { key: 'sga',       label: 'SG&A',            color: '#f97316' },
+  { key: 'rd',        label: 'R&D',              color: '#eab308' },
+  { key: 'op_income', label: 'Operating Income', color: '#22c55e' },
+  { key: 'other',     label: 'Other / Tax',      color: '#6b7280' },
+];
 
-// ── Custom Pie Tooltip ────────────────────────────────────────────────────────
+// ─── Formatters ───────────────────────────────────────────────────────────────
+const fmtB   = (v) => (v == null ? '–' : `$${v.toFixed(1)}B`);
+const fmtPct = (v) => (v == null ? '–' : `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`);
+const fmtMrg = (v) => (v == null ? '–' : `${v.toFixed(1)}%`);
+const fmtDate = (s) => s ? s.slice(0, 7) : s;
+const fmtQtr  = (s) => {
+  if (!s) return s;
+  const d = new Date(s);
+  const q = Math.ceil((d.getMonth() + 1) / 3);
+  return `Q${q}'${String(d.getFullYear()).slice(2)}`;
+};
+
+// ─── Tooltip components ───────────────────────────────────────────────────────
 const PieTooltipContent = ({ active, payload }) => {
   if (!active || !payload?.length) return null;
   const { name, value, payload: p } = payload[0];
-  const total = p.total;
-  const pct = total ? ((value / total) * 100).toFixed(1) : '?';
+  const pct = p.total ? ((value / p.total) * 100).toFixed(1) : '?';
   return (
     <div className="bg-[#1a1a1f] border border-gray-700 rounded px-3 py-2 text-xs shadow-lg">
       <p className="text-white font-medium">{name}</p>
@@ -45,53 +57,90 @@ const PieTooltipContent = ({ active, payload }) => {
   );
 };
 
-// ── Custom Bar Tooltip ────────────────────────────────────────────────────────
 const BarTooltipContent = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
   const total = payload.reduce((s, p) => s + (p.value || 0), 0);
   return (
-    <div className="bg-[#1a1a1f] border border-gray-700 rounded px-3 py-2 text-xs shadow-lg max-w-[200px]">
+    <div className="bg-[#1a1a1f] border border-gray-700 rounded px-3 py-2 text-xs shadow-lg max-w-[210px]">
       <p className="text-gray-400 mb-1">{label}</p>
-      <p className="text-gray-300 mb-1">Total: {fmtB(total)}</p>
-      {payload.map((p, i) => (
-        <p key={i} style={{ color: p.fill }}>{p.name}: {fmtB(p.value)}</p>
+      <p className="text-gray-300 font-medium mb-1">Total {fmtB(total)}</p>
+      {[...payload].reverse().map((p, i) => (
+        <p key={i} style={{ color: p.fill || p.color }}>{p.name}: {fmtB(p.value)}</p>
       ))}
     </div>
   );
 };
 
-// ── Main Widget ───────────────────────────────────────────────────────────────
-export default function RevenueSegmentsWidget({ symbol: initialSymbol, onRemove }) {
-  const [symbol, setSymbol] = useState(initialSymbol || 'AAPL');
-  const [data,    setData]    = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState(null);
-  const [segType, setSegType] = useState('product'); // 'product' | 'geo'
-  const [view,    setView]    = useState('donut');   // 'donut' | 'trend' | 'table'
+const PnlTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null;
+  const rev = payload.find(p => p.dataKey === 'revenue')?.value;
+  return (
+    <div className="bg-[#1a1a1f] border border-gray-700 rounded px-3 py-2 text-xs shadow-lg max-w-[200px]">
+      <p className="text-gray-400 mb-1">{label}</p>
+      {payload.map((p, i) => p.value != null && (
+        <p key={i} style={{ color: p.color || p.fill }}>{p.name}: {fmtB(p.value)}</p>
+      ))}
+    </div>
+  );
+};
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+// ─── Main Widget ──────────────────────────────────────────────────────────────
+export default function RevenueSegmentsWidget({ symbol: initialSymbol, onRemove }) {
+  const [symbol,  setSymbol]  = useState(initialSymbol || 'AAPL');
+  const [freq,    setFreq]    = useState('annual');    // 'annual' | 'quarterly'
+  const [segType, setSegType] = useState('product');   // 'product' | 'geo'
+  const [view,    setView]    = useState('donut');     // 'donut'|'trend'|'table' (annual) / 'pnl'|'table' (quarterly)
+
+  const [annualData,    setAnnualData]    = useState(null);
+  const [quarterlyData, setQuarterlyData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState(null);
+
+  // ── Fetch helpers ─────────────────────────────────────────────────────────
+  const fetchAnnual = useCallback(async () => {
+    setLoading(true); setError(null);
     try {
-      const res = await fetch(`${API_BASE}/stock/revenue-segments/${symbol}?limit=8`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      setData(json);
-      // Auto-pick available type
-      if (!json.has_product && json.has_geo) setSegType('geo');
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
+      const r = await fetch(`${API_BASE}/stock/revenue-segments/${symbol}?limit=8`);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setAnnualData(await r.json());
+    } catch (e) { setError(e.message); }
+    finally { setLoading(false); }
   }, [symbol]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  const fetchQuarterly = useCallback(async () => {
+    setLoading(true); setError(null);
+    try {
+      const r = await fetch(`${API_BASE}/stock/quarterly-pnl/${symbol}?limit=12`);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setQuarterlyData(await r.json());
+    } catch (e) { setError(e.message); }
+    finally { setLoading(false); }
+  }, [symbol]);
 
-  // ── Derived data ─────────────────────────────────────────────────────────
-  const seg = data?.[segType];  // {segments, history, latest, yoy}
+  // Reload when symbol or freq changes
+  useEffect(() => {
+    if (freq === 'annual') {
+      if (!annualData || annualData.symbol !== symbol) fetchAnnual();
+    } else {
+      if (!quarterlyData || quarterlyData.symbol !== symbol) fetchQuarterly();
+    }
+  }, [symbol, freq]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Donut data for latest period
+  // Reset cached data on symbol change
+  useEffect(() => {
+    setAnnualData(null);
+    setQuarterlyData(null);
+  }, [symbol]);
+
+  // Sync view default on freq switch
+  const handleFreqChange = (f) => {
+    setFreq(f);
+    setView(f === 'annual' ? 'donut' : 'pnl');
+  };
+
+  // ── Annual derived data ───────────────────────────────────────────────────
+  const seg = annualData?.[segType];
+
   const donutData = seg
     ? seg.segments
         .filter(s => seg.latest[s] != null && seg.latest[s] > 0)
@@ -103,28 +152,47 @@ export default function RevenueSegmentsWidget({ symbol: initialSymbol, onRemove 
         }))
     : [];
 
-  // Trend: stacked bars keyed by date
-  const trendData = seg?.history || [];
+  // ── Quarterly derived data ────────────────────────────────────────────────
+  const qHistory = quarterlyData?.history || [];
 
-  // ── Renderers ─────────────────────────────────────────────────────────────
+  // Build P&L stacked layers from quarterly data
+  // Revenue = COGS + SGA + R&D + Operating Income + other (diff)
+  const qPnlData = qHistory.map(row => {
+    const rev   = row.revenue  ?? 0;
+    const cogs  = row.cogs     ?? 0;
+    const sga   = row.sga      ?? 0;
+    const rd    = row.rd       ?? 0;
+    const opinc = row.op_income ?? 0;
+    // Other = revenue - COGS - SGA - R&D - Operating Income (should be 0 ideally but accounting)
+    const other = Math.max(0, rev - cogs - sga - rd - opinc);
+    return {
+      date:   fmtQtr(row.date),
+      rawDate: row.date,
+      revenue: rev,
+      cogs,
+      sga,
+      rd,
+      op_income: opinc,
+      other,
+      gross_margin: row.gross_margin,
+      op_margin:    row.op_margin,
+      net_margin:   row.net_margin,
+      net:          row.net,
+    };
+  });
+
+  // ── Renderers: Annual ─────────────────────────────────────────────────────
   const renderDonut = () => {
-    if (!donutData.length) return <NoData />;
+    if (!donutData.length) return <NoData msg="No segment data for this symbol" />;
     const latest = seg.latest;
     return (
       <div className="flex h-full gap-2">
-        {/* Donut */}
         <div className="flex-1 min-w-0">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie
-                data={donutData}
-                cx="50%"
-                cy="50%"
-                innerRadius="52%"
-                outerRadius="78%"
-                paddingAngle={2}
-                dataKey="value"
-              >
+              <Pie data={donutData} cx="50%" cy="50%"
+                   innerRadius="52%" outerRadius="78%"
+                   paddingAngle={2} dataKey="value">
                 {donutData.map((d, i) => (
                   <Cell key={i} fill={d.color} stroke="none" />
                 ))}
@@ -133,9 +201,11 @@ export default function RevenueSegmentsWidget({ symbol: initialSymbol, onRemove 
             </PieChart>
           </ResponsiveContainer>
         </div>
-        {/* Legend + numbers */}
+        {/* Legend panel */}
         <div className="w-44 flex flex-col justify-center gap-1 pr-2 overflow-y-auto">
-          <p className="text-[9px] text-gray-500 mb-1">{fmtDate(latest.date)} · Total {fmtB(latest.total)}</p>
+          <p className="text-[9px] text-gray-500 mb-1">
+            {fmtDate(latest.date)} · Total {fmtB(latest.total)}
+          </p>
           {donutData.map((d, i) => {
             const pct = latest.total ? ((d.value / latest.total) * 100).toFixed(1) : '?';
             const yoy = seg.yoy[d.name];
@@ -143,8 +213,8 @@ export default function RevenueSegmentsWidget({ symbol: initialSymbol, onRemove 
               <div key={i} className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ background: d.color }} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-[10px] text-gray-300 truncate">{d.name}</p>
-                  <p className="text-[10px] tabular-nums">
+                  <p className="text-[10px] text-gray-300 truncate leading-tight">{d.name}</p>
+                  <p className="text-[10px] tabular-nums leading-tight">
                     <span className="text-white">{fmtB(d.value)}</span>
                     <span className="text-gray-500 ml-1">{pct}%</span>
                     {yoy != null && (
@@ -162,42 +232,29 @@ export default function RevenueSegmentsWidget({ symbol: initialSymbol, onRemove 
     );
   };
 
-  const renderTrend = () => {
-    if (!trendData.length) return <NoData />;
-    const segments = seg.segments;
+  const renderAnnualTrend = () => {
+    if (!seg?.history?.length) return <NoData msg="No segment data" />;
     return (
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={trendData} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+        <BarChart data={seg.history} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
-          <XAxis
-            dataKey="date"
-            tickFormatter={s => s?.slice(0, 4)}
-            tick={{ fill: '#6b7280', fontSize: 10 }}
-            axisLine={{ stroke: '#374151' }}
-          />
-          <YAxis
-            tickFormatter={v => `$${v.toFixed(0)}B`}
-            tick={{ fill: '#6b7280', fontSize: 10 }}
-            axisLine={{ stroke: '#374151' }}
-            width={44}
-          />
+          <XAxis dataKey="date" tickFormatter={s => s?.slice(0, 4)}
+            tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} />
+          <YAxis tickFormatter={v => `$${v.toFixed(0)}B`}
+            tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} width={44} />
           <Tooltip content={<BarTooltipContent />} />
-          <Legend
-            wrapperStyle={{ fontSize: 10, color: '#9ca3af', paddingTop: 4 }}
-            iconSize={8}
-          />
-          {segments.map((s, i) => (
-            <Bar key={s} dataKey={s} stackId="a" fill={segColor(i)} maxBarSize={48} />
+          <Legend wrapperStyle={{ fontSize: 10, color: '#9ca3af' }} iconSize={8} />
+          {seg.segments.map((s, i) => (
+            <Bar key={s} dataKey={s} stackId="a" fill={segColor(i)} maxBarSize={52} />
           ))}
         </BarChart>
       </ResponsiveContainer>
     );
   };
 
-  const renderTable = () => {
+  const renderAnnualTable = () => {
     if (!seg?.segments?.length) return <NoData />;
     const rows = [...(seg.history || [])].reverse();
-    const segments = seg.segments;
     return (
       <div className="overflow-auto h-full">
         <table className="w-full text-xs">
@@ -205,10 +262,8 @@ export default function RevenueSegmentsWidget({ symbol: initialSymbol, onRemove 
             <tr className="border-b border-gray-800">
               <th className="text-left py-2 px-3 text-gray-400 font-medium">Date</th>
               <th className="text-right py-2 px-3 text-gray-400 font-medium">Total</th>
-              {segments.map(s => (
-                <th key={s} className="text-right py-2 px-2 text-gray-400 font-medium whitespace-nowrap">
-                  {s}
-                </th>
+              {seg.segments.map(s => (
+                <th key={s} className="text-right py-2 px-2 text-gray-400 font-medium whitespace-nowrap">{s}</th>
               ))}
             </tr>
           </thead>
@@ -218,22 +273,16 @@ export default function RevenueSegmentsWidget({ symbol: initialSymbol, onRemove 
               return (
                 <tr key={row.date} className="border-b border-gray-800/50 hover:bg-gray-800/20">
                   <td className="py-1.5 px-3 text-gray-300 tabular-nums">{row.date?.slice(0, 10)}</td>
-                  <td className="py-1.5 px-3 text-right text-white tabular-nums font-medium">
-                    {fmtB(row.total)}
-                  </td>
-                  {segments.map((s, si) => {
-                    const val = row[s];
-                    const prv = prevRow?.[s];
-                    const yoy = (val != null && prv != null && prv !== 0)
-                      ? ((val - prv) / Math.abs(prv) * 100)
-                      : null;
-                    const pct = row.total ? ((val / row.total) * 100) : null;
+                  <td className="py-1.5 px-3 text-right text-white tabular-nums font-medium">{fmtB(row.total)}</td>
+                  {seg.segments.map((s, si) => {
+                    const val = row[s], prv = prevRow?.[s];
+                    const yoy = val != null && prv != null && prv !== 0
+                      ? ((val - prv) / Math.abs(prv) * 100) : null;
+                    const pct = row.total ? (val / row.total * 100) : null;
                     return (
                       <td key={s} className="py-1.5 px-2 text-right tabular-nums">
                         <span style={{ color: segColor(si) }}>{fmtB(val)}</span>
-                        {pct != null && (
-                          <span className="text-gray-600 text-[9px] ml-0.5">{pct.toFixed(0)}%</span>
-                        )}
+                        {pct != null && <span className="text-gray-600 text-[9px] ml-0.5">{pct.toFixed(0)}%</span>}
                         {yoy != null && (
                           <span className={`text-[9px] ml-1 ${yoy >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                             {fmtPct(yoy)}
@@ -251,15 +300,103 @@ export default function RevenueSegmentsWidget({ symbol: initialSymbol, onRemove 
     );
   };
 
-  // ── Subtitle ───────────────────────────────────────────────────────────────
-  const latestTotal = data?.[segType]?.latest?.total;
-  const latestDate  = data?.[segType]?.latest?.date;
-  const segCount    = data?.[segType]?.segments?.length;
-  const subtitle = data
-    ? latestTotal
-      ? `${fmtDate(latestDate)} · ${fmtB(latestTotal)} across ${segCount} segment${segCount !== 1 ? 's' : ''}`
-      : 'No segment data available'
-    : undefined;
+  // ── Renderers: Quarterly ──────────────────────────────────────────────────
+  const renderPnlChart = () => {
+    if (!qPnlData.length) return <NoData msg="No quarterly data" />;
+    return (
+      <ResponsiveContainer width="100%" height="100%">
+        <ComposedChart data={qPnlData} margin={{ top: 8, right: 40, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
+          <XAxis dataKey="date" tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} />
+          {/* Left: revenue in $B */}
+          <YAxis yAxisId="left"
+            tickFormatter={v => `$${v.toFixed(0)}B`}
+            tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} width={44} />
+          {/* Right: margin % */}
+          <YAxis yAxisId="right" orientation="right"
+            tickFormatter={v => `${v.toFixed(0)}%`}
+            tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} width={36} />
+          <Tooltip content={<PnlTooltip />} />
+          <Legend wrapperStyle={{ fontSize: 10, color: '#9ca3af' }} iconSize={8} />
+          {/* Stacked bars: COGS → SGA → R&D → Op Income → Other */}
+          <Bar yAxisId="left" dataKey="cogs"      name="Cost of Revenue" stackId="a" fill="#ef4444" maxBarSize={40} />
+          <Bar yAxisId="left" dataKey="sga"       name="SG&A"            stackId="a" fill="#f97316" maxBarSize={40} />
+          <Bar yAxisId="left" dataKey="rd"        name="R&D"             stackId="a" fill="#eab308" maxBarSize={40} />
+          <Bar yAxisId="left" dataKey="op_income" name="Op. Income"      stackId="a" fill="#22c55e" maxBarSize={40} />
+          {/* Margin lines */}
+          <Line yAxisId="right" type="monotone" dataKey="gross_margin" name="Gross Margin"
+            stroke="#60a5fa" strokeWidth={1.5} dot={false} strokeDasharray="4 4" connectNulls />
+          <Line yAxisId="right" type="monotone" dataKey="op_margin" name="Op. Margin"
+            stroke="#a78bfa" strokeWidth={1.5} dot={false} connectNulls />
+        </ComposedChart>
+      </ResponsiveContainer>
+    );
+  };
+
+  const renderQtrTable = () => {
+    if (!qHistory.length) return <NoData msg="No quarterly data" />;
+    const rows = [...qHistory].reverse();
+    const yoyMap = quarterlyData?.yoy_revenue || {};
+    return (
+      <div className="overflow-auto h-full">
+        <table className="w-full text-xs">
+          <thead className="sticky top-0 bg-[#0d0d12] z-10">
+            <tr className="border-b border-gray-800">
+              <th className="text-left py-2 px-3 text-gray-400 font-medium">Quarter</th>
+              <th className="text-right py-2 px-2 text-gray-400 font-medium">Revenue</th>
+              <th className="text-right py-2 px-2 text-gray-400 font-medium">YoY</th>
+              <th className="text-right py-2 px-2 text-gray-400 font-medium">COGS</th>
+              <th className="text-right py-2 px-2 text-gray-400 font-medium">Gross Profit</th>
+              <th className="text-right py-2 px-2 text-gray-400 font-medium">Gross %</th>
+              <th className="text-right py-2 px-2 text-gray-400 font-medium">R&D</th>
+              <th className="text-right py-2 px-2 text-gray-400 font-medium">SG&A</th>
+              <th className="text-right py-2 px-2 text-gray-400 font-medium">Op. Income</th>
+              <th className="text-right py-2 px-2 text-gray-400 font-medium">Op. %</th>
+              <th className="text-right py-2 px-2 text-gray-400 font-medium">Net Income</th>
+              <th className="text-right py-2 px-2 text-gray-400 font-medium">Net %</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => {
+              const yoy = yoyMap[row.date];
+              return (
+                <tr key={row.date} className="border-b border-gray-800/50 hover:bg-gray-800/20">
+                  <td className="py-1.5 px-3 text-gray-300 tabular-nums whitespace-nowrap">{fmtQtr(row.date)}</td>
+                  <td className="py-1.5 px-2 text-right text-white tabular-nums font-medium">{fmtB(row.revenue)}</td>
+                  <td className={`py-1.5 px-2 text-right tabular-nums text-[10px] ${yoy == null ? 'text-gray-600' : yoy >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {fmtPct(yoy)}
+                  </td>
+                  <td className="py-1.5 px-2 text-right text-red-400/80 tabular-nums">{fmtB(row.cogs)}</td>
+                  <td className="py-1.5 px-2 text-right text-cyan-400 tabular-nums">{fmtB(row.gross)}</td>
+                  <td className="py-1.5 px-2 text-right text-cyan-500/80 tabular-nums text-[10px]">{fmtMrg(row.gross_margin)}</td>
+                  <td className="py-1.5 px-2 text-right text-yellow-400/80 tabular-nums">{fmtB(row.rd)}</td>
+                  <td className="py-1.5 px-2 text-right text-orange-400/80 tabular-nums">{fmtB(row.sga)}</td>
+                  <td className="py-1.5 px-2 text-right text-green-400 tabular-nums font-medium">{fmtB(row.op_income)}</td>
+                  <td className="py-1.5 px-2 text-right text-green-500/80 tabular-nums text-[10px]">{fmtMrg(row.op_margin)}</td>
+                  <td className="py-1.5 px-2 text-right text-violet-400 tabular-nums">{fmtB(row.net)}</td>
+                  <td className="py-1.5 px-2 text-right text-violet-500/80 tabular-nums text-[10px]">{fmtMrg(row.net_margin)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
+  // ── Subtitle ──────────────────────────────────────────────────────────────
+  const subtitle = freq === 'annual'
+    ? (annualData?.has_product || annualData?.has_geo
+        ? `${annualData[segType]?.latest?.date?.slice(0,10) || ''} · ${fmtB(annualData[segType]?.latest?.total)} · ${annualData[segType]?.segments?.length} segments`
+        : 'No segment data')
+    : (quarterlyData?.latest?.date
+        ? `${fmtQtr(quarterlyData.latest.date)} · Revenue ${fmtB(quarterlyData.latest.revenue)}`
+        : undefined);
+
+  // ── View options per freq ─────────────────────────────────────────────────
+  const viewOptions = freq === 'annual'
+    ? [{ id: 'donut', label: 'Donut' }, { id: 'trend', label: 'Trend' }, { id: 'table', label: 'Table' }]
+    : [{ id: 'pnl',   label: 'P&L Chart' }, { id: 'table', label: 'Table' }];
 
   return (
     <BaseWidget
@@ -268,70 +405,80 @@ export default function RevenueSegmentsWidget({ symbol: initialSymbol, onRemove 
       icon={PieIcon}
       iconColor="text-cyan-400"
       loading={loading}
-      onRefresh={loadData}
+      onRefresh={freq === 'annual' ? fetchAnnual : fetchQuarterly}
       onRemove={onRemove}
       symbol={symbol}
-      onSymbolChange={setSymbol}
-      source="Financial Modeling Prep"
+      onSymbolChange={(s) => { setSymbol(s); }}
+      source={freq === 'annual' ? 'Financial Modeling Prep' : 'Yahoo Finance'}
     >
       <div className="h-full flex flex-col">
-        {/* Controls row */}
-        <div className="flex items-center gap-2 px-3 py-1.5 border-b border-gray-800/50">
-          {/* Segment type toggle */}
+
+        {/* ── Controls bar ─────────────────────────────────────────────── */}
+        <div className="flex items-center gap-2 px-3 py-1.5 border-b border-gray-800/50 flex-wrap">
+
+          {/* Freq toggle */}
           <div className="flex rounded overflow-hidden border border-gray-700 text-[10px]">
-            {[
-              { id: 'product', label: 'Product', disabled: !data?.has_product },
-              { id: 'geo',     label: 'Geographic', disabled: !data?.has_geo },
-            ].map(({ id, label, disabled }) => (
-              <button
-                key={id}
-                onClick={() => !disabled && setSegType(id)}
-                disabled={disabled}
-                className={`px-2 py-0.5 transition-colors ${
-                  segType === id
-                    ? 'bg-cyan-500/20 text-cyan-400'
-                    : disabled
-                      ? 'text-gray-700 cursor-not-allowed'
-                      : 'text-gray-400 hover:text-gray-200'
-                }`}
-              >
+            {[{ id: 'annual', label: 'Annual' }, { id: 'quarterly', label: 'Quarterly' }].map(({ id, label }) => (
+              <button key={id} onClick={() => handleFreqChange(id)}
+                className={`px-2.5 py-0.5 transition-colors ${
+                  freq === id ? 'bg-cyan-500/20 text-cyan-400' : 'text-gray-400 hover:text-gray-200'
+                }`}>
                 {label}
               </button>
             ))}
           </div>
 
+          {/* Segment type toggle — only in annual mode */}
+          {freq === 'annual' && (
+            <div className="flex rounded overflow-hidden border border-gray-700 text-[10px]">
+              {[
+                { id: 'product', label: 'Product',    disabled: !annualData?.has_product },
+                { id: 'geo',     label: 'Geographic', disabled: !annualData?.has_geo },
+              ].map(({ id, label, disabled }) => (
+                <button key={id} onClick={() => !disabled && setSegType(id)} disabled={disabled}
+                  className={`px-2 py-0.5 transition-colors ${
+                    segType === id ? 'bg-gray-600 text-white'
+                    : disabled ? 'text-gray-700 cursor-not-allowed'
+                    : 'text-gray-400 hover:text-gray-200'
+                  }`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* View toggle */}
           <div className="flex rounded overflow-hidden border border-gray-700 text-[10px] ml-auto">
-            {[
-              { id: 'donut', label: 'Donut' },
-              { id: 'trend', label: 'Trend' },
-              { id: 'table', label: 'Table' },
-            ].map(({ id, label }) => (
-              <button
-                key={id}
-                onClick={() => setView(id)}
+            {viewOptions.map(({ id, label }) => (
+              <button key={id} onClick={() => setView(id)}
                 className={`px-2 py-0.5 transition-colors ${
-                  view === id
-                    ? 'bg-gray-700 text-white'
-                    : 'text-gray-400 hover:text-gray-200'
-                }`}
-              >
+                  view === id ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-gray-200'
+                }`}>
                 {label}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Chart / table area */}
+        {/* Quarterly note */}
+        {freq === 'quarterly' && (
+          <div className="px-3 py-1 text-[9px] text-gray-600 border-b border-gray-800/30">
+            분기별 P&L 구성 · Revenue = COGS + SG&A + R&D + Operating Income · 우측 y축: 마진율
+          </div>
+        )}
+
+        {/* ── Content area ─────────────────────────────────────────────── */}
         <div className="flex-1 overflow-hidden p-2">
           {error ? (
             <div className="flex items-center justify-center h-full text-red-400 text-xs">{error}</div>
-          ) : !data || (!data.has_product && !data.has_geo) ? (
-            <NoData msg="No segment data available for this symbol" />
+          ) : freq === 'annual' ? (
+            !annualData || (!annualData.has_product && !annualData.has_geo)
+              ? <NoData msg="No segment data available for this symbol" />
+              : view === 'donut' ? renderDonut()
+              : view === 'trend' ? renderAnnualTrend()
+              : renderAnnualTable()
           ) : (
-            view === 'donut' ? renderDonut()
-            : view === 'trend' ? renderTrend()
-            : renderTable()
+            view === 'pnl' ? renderPnlChart() : renderQtrTable()
           )}
         </div>
       </div>

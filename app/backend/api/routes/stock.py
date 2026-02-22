@@ -261,6 +261,19 @@ async def get_filings(symbol: str, limit: int = 20):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/quarterly-pnl/{symbol}")
+async def get_quarterly_pnl(symbol: str, limit: int = 12):
+    """
+    Get quarterly P&L breakdown (Revenue, COGS, Gross Profit, OpEx, Net Income).
+    Source: yfinance quarterly income statement.
+    """
+    try:
+        data = await data_service.get_quarterly_pnl(symbol.upper(), limit=limit)
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/revenue-segments/{symbol}")
 async def get_revenue_segments(symbol: str, limit: int = 8):
     """
