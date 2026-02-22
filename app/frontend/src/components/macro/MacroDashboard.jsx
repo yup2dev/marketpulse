@@ -15,6 +15,9 @@ import YieldTrendsWidget from '../widgets/macro/YieldTrendsWidget';
 import InflationDecompWidget from '../widgets/macro/InflationDecompWidget';
 import InflationTrendsWidget from '../widgets/macro/InflationTrendsWidget';
 import LaborMarketWidget from '../widgets/macro/LaborMarketWidget';
+import PMIWidget from '../widgets/macro/PMIWidget';
+import FedBalanceSheetWidget from '../widgets/macro/FedBalanceSheetWidget';
+import RealRatesWidget from '../widgets/macro/RealRatesWidget';
 // Tab components (remaining tabs still use TabWidgetWrapper)
 import MacroFinConditionsTab from './MacroFinConditionsTab';
 import MacroSentimentTab from './MacroSentimentTab';
@@ -27,6 +30,7 @@ import 'react-grid-layout/css/styles.css';
 // Tab configuration
 const MACRO_TABS = [
   { id: 'overview', label: 'Overview' },
+  { id: 'business-cycle', label: 'Business Cycle' },
   { id: 'fed-policy', label: 'Fed Policy' },
   { id: 'yield-curve', label: 'Yield Curve' },
   { id: 'inflation', label: 'Inflation' },
@@ -44,12 +48,17 @@ const TAB_WIDGETS = {
     { id: 'initial-claims', name: 'Initial Claims', description: 'Weekly claims with 4-week MA', defaultSize: { w: 6, h: 6 } },
     { id: 'jobs-breakdown', name: 'Jobs Breakdown', description: 'Private vs Government jobs', defaultSize: { w: 6, h: 6 } },
   ],
+  'business-cycle': [
+    { id: 'pmi', name: 'ISM PMI / LEI', description: 'Manufacturing PMI & Leading Economic Index', defaultSize: { w: 8, h: 6 } },
+  ],
   'fed-policy': [
     { id: 'fed-policy-stance', name: 'Fed Policy Stance', description: 'Fed stance, probabilities & signals', defaultSize: { w: 6, h: 6 } },
+    { id: 'fed-balance-sheet', name: 'Fed Balance Sheet', description: 'QE/QT monitor — total assets', defaultSize: { w: 6, h: 6 } },
   ],
   'yield-curve': [
     { id: 'yield-curve-snapshot', name: 'Yield Curve', description: 'Current yield curve shape', defaultSize: { w: 6, h: 6 } },
     { id: 'yield-trends', name: 'Yield Trends', description: 'Historical yield trends & spreads', defaultSize: { w: 6, h: 6 } },
+    { id: 'real-rates', name: 'Real Rates (TIPS)', description: 'Nominal vs real yields vs breakeven inflation', defaultSize: { w: 6, h: 6 } },
   ],
   inflation: [
     { id: 'inflation-decomp', name: 'Inflation Decomposition', description: 'CPI components breakdown', defaultSize: { w: 6, h: 6 } },
@@ -77,10 +86,17 @@ const DEFAULT_TAB_WIDGETS = {
     { id: 'claims-1', type: 'initial-claims' },
     { id: 'jobs-1', type: 'jobs-breakdown' },
   ],
-  'fed-policy': [{ id: 'fed-1', type: 'fed-policy-stance' }],
+  'business-cycle': [
+    { id: 'pmi-1', type: 'pmi' },
+  ],
+  'fed-policy': [
+    { id: 'fed-1', type: 'fed-policy-stance' },
+    { id: 'fed-bs-1', type: 'fed-balance-sheet' },
+  ],
   'yield-curve': [
     { id: 'yield-snap-1', type: 'yield-curve-snapshot' },
     { id: 'yield-trends-1', type: 'yield-trends' },
+    { id: 'real-rates-1', type: 'real-rates' },
   ],
   inflation: [
     { id: 'inflation-decomp-1', type: 'inflation-decomp' },
@@ -100,10 +116,17 @@ const DEFAULT_TAB_LAYOUTS = {
     { i: 'claims-1', x: 0, y: 6, w: 6, h: 6, minW: 4, minH: 4 },
     { i: 'jobs-1', x: 6, y: 6, w: 6, h: 6, minW: 4, minH: 4 },
   ],
-  'fed-policy': [{ i: 'fed-1', x: 0, y: 0, w: 6, h: 6, minW: 4, minH: 4 }],
+  'business-cycle': [
+    { i: 'pmi-1', x: 0, y: 0, w: 8, h: 7, minW: 5, minH: 5 },
+  ],
+  'fed-policy': [
+    { i: 'fed-1', x: 0, y: 0, w: 6, h: 6, minW: 4, minH: 4 },
+    { i: 'fed-bs-1', x: 6, y: 0, w: 6, h: 6, minW: 4, minH: 4 },
+  ],
   'yield-curve': [
     { i: 'yield-snap-1', x: 0, y: 0, w: 6, h: 6, minW: 4, minH: 4 },
     { i: 'yield-trends-1', x: 6, y: 0, w: 6, h: 6, minW: 4, minH: 4 },
+    { i: 'real-rates-1', x: 0, y: 6, w: 8, h: 7, minW: 5, minH: 5 },
   ],
   inflation: [
     { i: 'inflation-decomp-1', x: 0, y: 0, w: 6, h: 6, minW: 4, minH: 4 },
@@ -125,10 +148,17 @@ export default function MacroDashboard() {
   const [contextMenu, setContextMenu] = useState(null);
   const containerRef = useRef(null);
 
-  // Load widgets and layouts from localStorage
+  // Load widgets and layouts from localStorage, merging defaults for any new tabs
   const [tabWidgets, setTabWidgets] = useState(() => {
     const saved = localStorage.getItem('macro-tab-widgets');
-    return saved ? JSON.parse(saved) : DEFAULT_TAB_WIDGETS;
+    if (!saved) return DEFAULT_TAB_WIDGETS;
+    const parsed = JSON.parse(saved);
+    // Merge: for any tab defined in defaults but missing from saved, add it
+    const merged = { ...parsed };
+    Object.entries(DEFAULT_TAB_WIDGETS).forEach(([tabId, widgets]) => {
+      if (!merged[tabId]) merged[tabId] = widgets;
+    });
+    return merged;
   });
 
   const [tabLayouts, setTabLayouts] = useState(() => {
@@ -136,6 +166,14 @@ export default function MacroDashboard() {
     MACRO_TABS.forEach(tab => {
       const saved = localStorage.getItem(`macro-${tab.id}-layout`);
       layouts[tab.id] = saved ? JSON.parse(saved) : DEFAULT_TAB_LAYOUTS[tab.id] || [];
+      // If saved layout is missing entries for new default widgets, reset to default
+      if (saved && DEFAULT_TAB_LAYOUTS[tab.id]) {
+        const savedIds = new Set(JSON.parse(saved).map(l => l.i));
+        const defaultIds = DEFAULT_TAB_LAYOUTS[tab.id].map(l => l.i);
+        if (defaultIds.some(id => !savedIds.has(id))) {
+          layouts[tab.id] = DEFAULT_TAB_LAYOUTS[tab.id];
+        }
+      }
     });
     return layouts;
   });
@@ -312,6 +350,12 @@ export default function MacroDashboard() {
         return <InflationTrendsWidget onRemove={onRemove} />;
       case 'labor-market-dashboard':
         return <LaborMarketWidget onRemove={onRemove} />;
+      case 'pmi':
+        return <PMIWidget onRemove={onRemove} />;
+      case 'fed-balance-sheet':
+        return <FedBalanceSheetWidget onRemove={onRemove} />;
+      case 'real-rates':
+        return <RealRatesWidget onRemove={onRemove} />;
       case 'fin-conditions-tab':
         return (
           <TabWidgetWrapper title="Financial Conditions" onRemove={onRemove}>

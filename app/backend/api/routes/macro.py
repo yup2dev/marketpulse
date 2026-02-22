@@ -721,3 +721,61 @@ async def get_jobs_breakdown(period: str = "5y"):
     except Exception as e:
         log.error(f"Error fetching jobs breakdown: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/business-cycle/pmi")
+async def get_pmi_data(period: str = "5y"):
+    """
+    Get ISM Manufacturing PMI and Conference Board Leading Economic Index (LEI).
+
+    Args:
+        period: Time period (1y, 3y, 5y, 10y, max)
+
+    Returns:
+        PMI series (expansion > 50, contraction < 50) and LEI series.
+    """
+    try:
+        data = await macro_service.get_pmi_data(period)
+        return data
+    except Exception as e:
+        log.error(f"Error fetching PMI data: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/fed-balance-sheet")
+async def get_fed_balance_sheet(period: str = "10y"):
+    """
+    Get Federal Reserve balance sheet (total assets) history.
+
+    Args:
+        period: Time period (3y, 5y, 10y, max)
+
+    Returns:
+        Weekly Fed total assets in trillions USD with QE/QT regime annotations.
+    """
+    try:
+        data = await macro_service.get_fed_balance_sheet(period)
+        return data
+    except Exception as e:
+        log.error(f"Error fetching Fed balance sheet: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/real-rates")
+async def get_real_rates(period: str = "5y"):
+    """
+    Get real (TIPS) Treasury yields and breakeven inflation rates.
+
+    Args:
+        period: Time period (1y, 3y, 5y, 10y, max)
+
+    Returns:
+        History of 5Y/10Y nominal, real, and breakeven yields.
+        Real rates > 0 tighten financial conditions; < 0 support risk assets.
+    """
+    try:
+        data = await macro_service.get_real_rates(period)
+        return data
+    except Exception as e:
+        log.error(f"Error fetching real rates: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

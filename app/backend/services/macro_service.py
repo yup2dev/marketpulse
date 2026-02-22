@@ -2667,6 +2667,264 @@ class MacroService:
             log.error(f"Error fetching inflation sector history: {e}")
             raise
 
+    # ------------------------------------------------------------------
+    # Business Cycle: CFNAI + OECD CLI + Sahm Rule
+    # ------------------------------------------------------------------
+    async def get_pmi_data(self, period: str = '5y') -> Dict[str, Any]:
+        """
+        Get Chicago Fed National Activity Index (CFNAI), OECD Composite Leading Indicator,
+        and Sahm Rule Recession Indicator — the best freely-available PMI proxies.
+
+        CFNAI:     composite of 85 monthly indicators, >0 = above-trend growth.
+        CFNAIDIFF: breadth — fraction of indicators contributing positively (>0 = majority expanding).
+        Sahm Rule: >0.5 = recession signal (highly accurate since 1970s).
+
+        FRED series:
+          CFNAI       - Chicago Fed National Activity Index (monthly)
+          CFNAIDIFF   - CFNAI Diffusion Index — breadth of 85 components (monthly)
+          SAHMCURRENT - Sahm Rule Real-time Recession Indicator (monthly)
+        """
+        try:
+            start_date, end_date = parse_period_to_dates(period)
+            api_key = get_api_key(credentials=None, api_name="FRED", env_var="FRED_API_KEY")
+
+            def _fetch(sid: str) -> List[Dict]:
+                return FredSeriesFetcher.fetch_series(
+                    series_id=sid, api_key=api_key,
+                    start_date=start_date, end_date=end_date,
+                    sort_order='asc'
+                )
+
+            def _parse(raw: List[Dict]) -> List[Dict]:
+                return [
+                    {'date': o['date'], 'value': round(float(o['value']), 4)}
+                    for o in raw if o['value'] not in ('.', '')
+                ]
+
+            cfnai_data = _parse(_fetch('CFNAI'))
+            diff_data  = _parse(_fetch('CFNAIDIFF'))
+            sahm_data  = _parse(_fetch('SAHMCURRENT'))
+
+            latest_cfnai = cfnai_data[-1] if cfnai_data else None
+            latest_diff  = diff_data[-1] if diff_data else None
+            latest_sahm  = sahm_data[-1] if sahm_data else None
+
+            # 3-month CFNAI trend
+            cfnai_trend = None
+            if len(cfnai_data) >= 3:
+                recent = [d['value'] for d in cfnai_data[-3:]]
+                cfnai_trend = round(recent[-1] - recent[0], 4)
+
+            # CFNAI 3-month moving average (reduce noise)
+            cfnai_ma3 = []
+            for i in range(2, len(cfnai_data)):
+                avg = round(sum(d['value'] for d in cfnai_data[i-2:i+1]) / 3, 4)
+                cfnai_ma3.append({'date': cfnai_data[i]['date'], 'value': avg})
+
+            return {
+                'cfnai': {
+                    'series': cfnai_data,
+                    'ma3': cfnai_ma3,
+                    'latest': latest_cfnai,
+                    'trend_3m': cfnai_trend,
+                    'status': 'expansion' if latest_cfnai and latest_cfnai['value'] >= 0 else 'contraction',
+                    'threshold': 0,
+                    'description': 'Chicago Fed CFNAI — 85-indicator composite (>0 = above-trend growth)',
+                },
+                'diff': {
+                    'series': diff_data,
+                    'latest': latest_diff,
+                    'threshold': 0,
+                    'description': 'CFNAI Diffusion Index — breadth of 85 components (>0 = majority expanding)',
+                },
+                'sahm': {
+                    'series': sahm_data,
+                    'latest': latest_sahm,
+                    'recession_signal': bool(latest_sahm and latest_sahm['value'] >= 0.5),
+                    'threshold': 0.5,
+                    'description': 'Sahm Rule Recession Indicator (≥0.5 = recession signal)',
+                },
+                'source': 'FRED / Chicago Fed / BLS',
+                'period': period,
+            }
+
+        except Exception as e:
+            log.error(f"Error fetching business cycle data: {e}")
+            raise
+
+    # ------------------------------------------------------------------
+    # Fed Balance Sheet / QT Monitor
+    # ------------------------------------------------------------------
+    async def get_fed_balance_sheet(self, period: str = '10y') -> Dict[str, Any]:
+        """
+        Get Federal Reserve total assets (balance sheet) history.
+
+        FRED series:
+          WALCL - Total Assets, Eliminations from Consolidation (weekly, billions)
+        """
+        try:
+            import asyncio
+            start_date, end_date = parse_period_to_dates(period)
+            api_key = get_api_key(credentials=None, api_name="FRED", env_var="FRED_API_KEY")
+
+            def _fetch(sid: str) -> List[Dict]:
+                return FredSeriesFetcher.fetch_series(
+                    series_id=sid, api_key=api_key,
+                    start_date=start_date, end_date=end_date,
+                    sort_order='asc'
+                )
+
+            loop = asyncio.get_event_loop()
+            # WALCL is in thousands of millions (= billions of dollars)
+            raw = await loop.run_in_executor(None, _fetch, 'WALCL')
+
+            data = [
+                {'date': o['date'], 'value': round(float(o['value']) / 1000, 2)}  # → trillions
+                for o in raw if o['value'] not in ('.', '')
+            ]
+
+            latest = data[-1] if data else None
+            peak = max(data, key=lambda x: x['value']) if data else None
+            trough_after_peak = None
+            if peak:
+                idx = next((i for i, d in enumerate(data) if d['date'] == peak['date']), None)
+                if idx is not None and idx < len(data) - 1:
+                    post_peak = data[idx:]
+                    trough_after_peak = min(post_peak, key=lambda x: x['value'])
+
+            # Detect QE/QT regimes (expanding vs contracting)
+            regimes: List[Dict] = []
+            if len(data) >= 2:
+                current_regime = 'expanding' if data[1]['value'] > data[0]['value'] else 'contracting'
+                regime_start = data[0]['date']
+                for i in range(1, len(data)):
+                    direction = 'expanding' if data[i]['value'] >= data[i - 1]['value'] else 'contracting'
+                    if direction != current_regime:
+                        regimes.append({'type': current_regime, 'start': regime_start, 'end': data[i - 1]['date']})
+                        current_regime = direction
+                        regime_start = data[i]['date']
+                regimes.append({'type': current_regime, 'start': regime_start, 'end': data[-1]['date']})
+
+            # Keep only significant regime changes (> 3 months)
+            significant_regimes = [
+                r for r in regimes
+                if r['start'] < r['end'] and (
+                    datetime.fromisoformat(r['end']) - datetime.fromisoformat(r['start'])
+                ).days > 90
+            ]
+
+            return {
+                'series': data,
+                'latest': latest,
+                'peak': peak,
+                'trough_after_peak': trough_after_peak,
+                'regimes': significant_regimes,
+                'unit': 'Trillions USD',
+                'source': 'FRED / Federal Reserve',
+                'period': period,
+            }
+
+        except Exception as e:
+            log.error(f"Error fetching Fed balance sheet: {e}")
+            raise
+
+    # ------------------------------------------------------------------
+    # Real Rates: TIPS Yields + Breakeven Inflation
+    # ------------------------------------------------------------------
+    async def get_real_rates(self, period: str = '5y') -> Dict[str, Any]:
+        """
+        Get real (inflation-adjusted) Treasury yields and breakeven inflation rates.
+
+        Real rates = nominal yield − inflation breakeven.
+        Rising real rates → headwind for gold, equities, crypto.
+        Falling real rates → tailwind for risk assets.
+
+        FRED series:
+          DGS10   - 10Y Nominal Treasury Yield
+          DGS5    - 5Y Nominal Treasury Yield
+          DFII10  - 10Y TIPS Real Yield
+          DFII5   - 5Y TIPS Real Yield
+          T5YIE   - 5Y Breakeven Inflation Rate
+          T10YIE  - 10Y Breakeven Inflation Rate
+        """
+        try:
+            import asyncio
+            start_date, end_date = parse_period_to_dates(period)
+            api_key = get_api_key(credentials=None, api_name="FRED", env_var="FRED_API_KEY")
+
+            series_map = {
+                'nominal_10y': 'DGS10',
+                'nominal_5y': 'DGS5',
+                'real_10y': 'DFII10',
+                'real_5y': 'DFII5',
+                'breakeven_5y': 'T5YIE',
+                'breakeven_10y': 'T10YIE',
+            }
+
+            def _fetch(sid: str) -> List[Dict]:
+                return FredSeriesFetcher.fetch_series(
+                    series_id=sid, api_key=api_key,
+                    start_date=start_date, end_date=end_date,
+                    sort_order='asc'
+                )
+
+            loop = asyncio.get_event_loop()
+            results = await asyncio.gather(*[
+                loop.run_in_executor(None, _fetch, sid)
+                for sid in series_map.values()
+            ])
+
+            series_data: Dict[str, Dict[str, float]] = {}
+            for key, raw in zip(series_map.keys(), results):
+                series_data[key] = {
+                    o['date']: round(float(o['value']), 3)
+                    for o in raw if o['value'] not in ('.', '')
+                }
+
+            # Build unified timeline (use nominal_10y as anchor)
+            anchor_dates = sorted(series_data.get('nominal_10y', {}).keys())
+
+            history = []
+            for date_str in anchor_dates:
+                point: Dict[str, Any] = {'date': date_str}
+                for key in series_map:
+                    val = series_data[key].get(date_str)
+                    if val is not None:
+                        point[key] = val
+                if len(point) > 1:
+                    history.append(point)
+
+            # Latest readings
+            latest = history[-1] if history else {}
+
+            # Real rate regime
+            real_10y_now = latest.get('real_10y')
+            regime = 'positive' if real_10y_now and real_10y_now > 0 else 'negative' if real_10y_now is not None else None
+
+            # 52-week context
+            wk52_high = None
+            wk52_low = None
+            if history:
+                recent_year = history[-min(252, len(history)):]
+                vals = [p['real_10y'] for p in recent_year if 'real_10y' in p]
+                if vals:
+                    wk52_high = round(max(vals), 3)
+                    wk52_low = round(min(vals), 3)
+
+            return {
+                'history': history,
+                'latest': latest,
+                'regime': regime,
+                '52w_high': wk52_high,
+                '52w_low': wk52_low,
+                'source': 'FRED / US Treasury',
+                'period': period,
+            }
+
+        except Exception as e:
+            log.error(f"Error fetching real rates: {e}")
+            raise
+
 
 # Global instance
 macro_service = MacroService()

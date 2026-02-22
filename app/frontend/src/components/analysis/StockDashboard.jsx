@@ -24,6 +24,7 @@ import OwnershipOverviewWidget from '../widgets/stock/OwnershipOverviewWidget';
 import OwnershipInstitutionalWidget from '../widgets/stock/OwnershipInstitutionalWidget';
 import OwnershipInsiderWidget from '../widgets/stock/OwnershipInsiderWidget';
 import EstimatesTab from './EstimatesTab';
+import RevenueSegmentsWidget from '../widgets/RevenueSegmentsWidget';
 import WidgetContextMenu from '../common/WidgetContextMenu';
 import TabWidgetWrapper from '../widgets/TabWidgetWrapper';
 import { useGlobalWidgetContext } from '../../contexts/GlobalWidgetContext';
@@ -34,6 +35,7 @@ import 'react-grid-layout/css/styles.css';
 const STOCK_TABS = [
   { id: 'overview', label: 'Overview' },
   { id: 'financials', label: 'Financials' },
+  { id: 'revenue-segments', label: 'Revenue Breakdown' },
   { id: 'institutional-holdings', label: 'Institutional Holdings' },
   { id: 'comparison-analysis', label: 'Comparison Analysis' },
   { id: 'ownership', label: 'Ownership' },
@@ -57,6 +59,10 @@ const TAB_WIDGETS = {
     { id: 'financials', name: 'Financial Summary', description: 'Key financial metrics', defaultSize: { w: 6, h: 6 } },
     { id: 'advanced-chart', name: 'Price Chart', description: 'Stock price chart', defaultSize: { w: 6, h: 5 } },
     { id: 'key-metrics', name: 'Key Metrics', description: 'Valuation metrics', defaultSize: { w: 4, h: 6 } },
+    { id: 'revenue-segments', name: 'Revenue Breakdown', description: 'Product & geographic segment revenue', defaultSize: { w: 8, h: 7 } },
+  ],
+  'revenue-segments': [
+    { id: 'revenue-segments', name: 'Revenue Breakdown', description: 'Product & geographic segment revenue', defaultSize: { w: 12, h: 8 } },
   ],
   'institutional-holdings': [
     { id: 'institutional-portfolios', name: 'Institutional Portfolios', description: 'Top institutional holders', defaultSize: { w: 12, h: 8 } },
@@ -94,6 +100,9 @@ const DEFAULT_TAB_WIDGETS = {
   financials: [
     { id: 'financial-table-1', type: 'financial-table' },
   ],
+  'revenue-segments': [
+    { id: 'revenue-segments-1', type: 'revenue-segments' },
+  ],
   'institutional-holdings': [
     { id: 'institutional-1', type: 'institutional-portfolios' },
   ],
@@ -127,6 +136,9 @@ const DEFAULT_TAB_LAYOUTS = {
   ],
   financials: [
     { i: 'financial-table-1', x: 0, y: 0, w: 12, h: 8, minW: 6, minH: 5 },
+  ],
+  'revenue-segments': [
+    { i: 'revenue-segments-1', x: 0, y: 0, w: 12, h: 9, minW: 6, minH: 6 },
   ],
   'institutional-holdings': [
     { i: 'institutional-1', x: 0, y: 0, w: 12, h: 8, minW: 6, minH: 5 },
@@ -391,6 +403,8 @@ function ImprovedStockDashboard() {
             <EstimatesTab symbol={widgetSymbol} />
           </TabWidgetWrapper>
         );
+      case 'revenue-segments':
+        return <RevenueSegmentsWidget symbol={widgetSymbol} onRemove={onRemove} />;
       default:
         return <ResizableStockWidget symbol={widgetSymbol} onRemove={onRemove} />;
     }

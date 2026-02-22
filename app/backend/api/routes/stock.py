@@ -261,6 +261,27 @@ async def get_filings(symbol: str, limit: int = 20):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/revenue-segments/{symbol}")
+async def get_revenue_segments(symbol: str, limit: int = 8):
+    """
+    Get revenue breakdown by product segment and geographic region.
+
+    Args:
+        symbol: Stock symbol (e.g. AAPL, MSFT, NVDA)
+        limit:  Number of annual periods to return (default 8)
+
+    Returns:
+        product: Revenue by business/product segment (iPhone, Mac, Services …)
+        geo:     Revenue by geography (Americas, Europe, China …)
+        has_product / has_geo: availability flags
+    """
+    try:
+        data = await data_service.get_revenue_segments(symbol.upper(), limit=limit)
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/estimates/{symbol}")
 async def get_estimates(symbol: str):
     """

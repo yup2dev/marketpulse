@@ -475,6 +475,118 @@ class DataService:
 
         return {}
 
+    async def get_revenue_segments(self, symbol: str, limit: int = 8) -> Dict[str, Any]:
+        """
+        Get revenue breakdown by product segment and geographic region.
+
+        Uses FMP /stable/revenue-product-segmentation and
+        /stable/revenue-geographic-segmentation endpoints.
+
+        Args:
+            symbol: Stock symbol (e.g. 'AAPL')
+            limit: Number of annual periods to return (default 8)
+
+        Returns:
+            {
+              'symbol': str,
+              'product': {
+                  'segments': ['iPhone', 'Mac', ...],   # all unique segment names
+                  'history': [
+                      {'date': '2024-09-28', 'total': float,
+                       'iPhone': float, 'Mac': float, ...},
+                      ...
+                  ],
+                  'latest': {'date': ..., 'iPhone': float, ...},
+                  'yoy': {'iPhone': float, ...}  # % change vs prior year
+              },
+              'geo': { ... same structure ... },
+              'has_product': bool,
+              'has_geo': bool
+            }
+        """
+        import requests as _requests
+
+        try:
+            from data_fetcher.utils.api_keys import get_api_key as _get_key
+            fmp_key = _get_key(credentials=None, api_name='FMP', env_var='FMP_API_KEY')
+        except Exception:
+            fmp_key = None
+
+        if not fmp_key:
+            log.warning("FMP API key not configured — cannot fetch revenue segments")
+            return {'symbol': symbol, 'has_product': False, 'has_geo': False}
+
+        base_url = 'https://financialmodelingprep.com/stable'
+        headers = {'User-Agent': 'MarketPulse/1.0'}
+
+        def _fetch_segment(endpoint: str) -> List[Dict]:
+            try:
+                r = _requests.get(
+                    f'{base_url}/{endpoint}',
+                    params={'symbol': symbol, 'period': 'annual', 'apikey': fmp_key},
+                    headers=headers, timeout=15
+                )
+                r.raise_for_status()
+                return r.json() or []
+            except Exception as e:
+                log.warning(f"FMP segment fetch failed ({endpoint}): {e}")
+                return []
+
+        def _normalize(raw: List[Dict], limit: int) -> Dict:
+            """Convert FMP list → {segments, history, latest, yoy}"""
+            # Sort ascending by date, take last `limit` periods
+            sorted_raw = sorted(raw, key=lambda x: x.get('date', ''))[-limit:]
+            if not sorted_raw:
+                return {'segments': [], 'history': [], 'latest': {}, 'yoy': {}}
+
+            # Collect all segment keys (consistent across years)
+            all_segs: set = set()
+            for rec in sorted_raw:
+                all_segs.update(rec.get('data', {}).keys())
+            segments = sorted(all_segs)
+
+            history = []
+            for rec in sorted_raw:
+                d = rec.get('data', {})
+                total = sum(v for v in d.values() if isinstance(v, (int, float)))
+                row: Dict[str, Any] = {
+                    'date': rec.get('date', ''),
+                    'total': round(total / 1e9, 3),  # → billions
+                }
+                for seg in segments:
+                    val = d.get(seg)
+                    row[seg] = round(val / 1e9, 3) if isinstance(val, (int, float)) else None
+                history.append(row)
+
+            latest = history[-1] if history else {}
+            prior  = history[-2] if len(history) >= 2 else {}
+
+            # YoY % change
+            yoy: Dict[str, Optional[float]] = {}
+            for seg in segments:
+                cur = latest.get(seg)
+                prv = prior.get(seg)
+                if cur is not None and prv and prv != 0:
+                    yoy[seg] = round((cur - prv) / abs(prv) * 100, 1)
+                else:
+                    yoy[seg] = None
+
+            return {'segments': segments, 'history': history, 'latest': latest, 'yoy': yoy}
+
+        product_raw = _fetch_segment('revenue-product-segmentation')
+        geo_raw     = _fetch_segment('revenue-geographic-segmentation')
+
+        product = _normalize(product_raw, limit)
+        geo     = _normalize(geo_raw, limit)
+
+        return {
+            'symbol': symbol,
+            'product': product if product['segments'] else None,
+            'geo':     geo     if geo['segments']     else None,
+            'has_product': bool(product['segments']),
+            'has_geo':     bool(geo['segments']),
+        }
+
     async def search_stocks(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
         """
         Search for stocks by symbol or company name
