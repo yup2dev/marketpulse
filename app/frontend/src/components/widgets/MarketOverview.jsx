@@ -43,7 +43,7 @@ const MiniSparkline = ({ data, isPositive }) => {
 const IndexCard = ({ symbol, name, shortName, quote, history }) => {
   const price = quote?.price || quote?.regularMarketPrice || 0;
   const change = quote?.change || quote?.regularMarketChange || 0;
-  const changePercent = quote?.changePercent || quote?.regularMarketChangePercent || 0;
+  const changePercent = quote?.change_percent ?? quote?.changePercent ?? quote?.regularMarketChangePercent ?? 0;
   const isPositive = change >= 0;
 
   return (

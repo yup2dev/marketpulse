@@ -57,7 +57,7 @@ const WatchlistRow = ({ item, onRemove }) => {
   const { symbol, name, category, quote, history } = item;
   const price = quote?.price || quote?.regularMarketPrice || 0;
   const change1h = quote?.change1h || 0;
-  const change24h = quote?.changePercent || quote?.regularMarketChangePercent || 0;
+  const change24h = quote?.change_percent ?? quote?.changePercent ?? quote?.regularMarketChangePercent ?? 0;
   const change7d = quote?.change7d || 0;
   const isPositive = change24h >= 0;
 
