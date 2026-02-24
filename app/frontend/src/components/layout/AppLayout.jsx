@@ -29,6 +29,7 @@ const ROUTE_MAP = {
   'alerts':             '/alerts',
   'screener':           '/screener',
   'watchlist':          '/watchlist',
+  'quant':              '/quant',
 };
 
 const AppLayout = () => {

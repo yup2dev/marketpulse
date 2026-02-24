@@ -136,6 +136,23 @@ def init_menu_data():
                 'reg_date': datetime.utcnow(),
                 'upd_date': datetime.utcnow()
             },
+            {
+                'menu_id': 'quant',
+                'pkg_type': 'MARKETPULSE',
+                'menu_name': 'Quant',
+                'menu_level': 1,
+                'menu_icon': 'BarChart3',
+                'menu_parent_id': None,
+                'menu_path': 'quant',
+                'menu_script': 'QuantStrategyPage',
+                'user_type_cd': None,
+                'menu_desc': 'Quant Strategy Builder — single-ticker backtesting',
+                'display_seq': 7,
+                'use_yn': 'Y',
+                'first_page_yn': 'N',
+                'reg_date': datetime.utcnow(),
+                'upd_date': datetime.utcnow()
+            },
 
             # Analysis sub-menus
             {

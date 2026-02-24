@@ -31,6 +31,9 @@ export default function PortfolioStatsWidget({
   formatPercent,
   lastRefreshed,
   onRemove,
+  displayCurrency = 'USD',
+  exchangeRate = null,
+  formatKRW,
 }) {
   const totalValue = stats.totalEquity || 0;
   const costBasis  = stats.totalCost || 0;
@@ -38,6 +41,9 @@ export default function PortfolioStatsWidget({
   const returnPct  = stats.returnPct || 0;
   const todayPnl   = stats.todayPnl || 0;
   const count      = stats.holdingsCount || 0;
+
+  const isKRW = displayCurrency === 'KRW' && exchangeRate && formatKRW;
+  const fmt = isKRW ? (v) => formatKRW(v * exchangeRate) : formatCurrency;
 
   // Weighted avg daily change % (todayPnl / totalValue)
   const todayReturnPct = totalValue > 0 ? (todayPnl / totalValue) * 100 : 0;
@@ -56,16 +62,21 @@ export default function PortfolioStatsWidget({
         {/* Total Portfolio Value */}
         <div className="bg-[#0a0a0f] rounded-lg p-3 border border-gray-800">
           <div className="text-[11px] text-gray-500 mb-0.5">Total Portfolio Value</div>
-          <div className="text-xl font-bold text-white tabular-nums">{formatCurrency(totalValue)}</div>
+          <div className="text-xl font-bold text-white tabular-nums">{fmt(totalValue)}</div>
+          {isKRW && (
+            <div className="text-[11px] text-gray-600 mt-0.5 tabular-nums">
+              = {formatCurrency(totalValue)}
+            </div>
+          )}
           <div className="text-[11px] text-gray-600 mt-0.5">
-            Cost Basis: <span className="text-gray-400">{formatCurrency(costBasis)}</span>
+            Cost Basis: <span className="text-gray-400">{fmt(costBasis)}</span>
           </div>
         </div>
 
         {/* Today's P&L */}
         <StatCard
           label="오늘 손익 (Today's P&L)"
-          value={`${todayPnl >= 0 ? '+' : ''}${formatCurrency(todayPnl)}`}
+          value={`${todayPnl >= 0 ? '+' : ''}${fmt(todayPnl)}`}
           subValue={todayReturnPct !== 0 ? `${todayReturnPct >= 0 ? '+' : ''}${todayReturnPct.toFixed(2)}%` : null}
           colorClass={todayPnl >= 0 ? 'text-green-400' : 'text-red-400'}
           isUp={todayPnl > 0 ? true : null}
@@ -75,7 +86,7 @@ export default function PortfolioStatsWidget({
         {/* Total Return */}
         <StatCard
           label="총 수익 (Total Return)"
-          value={`${totalPnl >= 0 ? '+' : ''}${formatCurrency(totalPnl)}`}
+          value={`${totalPnl >= 0 ? '+' : ''}${fmt(totalPnl)}`}
           subValue={formatPercent(returnPct)}
           colorClass={totalPnl >= 0 ? 'text-green-400' : 'text-red-400'}
           isUp={totalPnl > 0 ? true : null}

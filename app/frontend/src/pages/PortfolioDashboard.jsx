@@ -58,6 +58,10 @@ const formatCurrency = (v, dec = 2) => {
   if (v == null) return '$0.00';
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: dec, maximumFractionDigits: dec }).format(v);
 };
+const formatKRW = (v) => {
+  if (v == null) return '₩0';
+  return new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW', maximumFractionDigits: 0 }).format(Math.round(v));
+};
 const formatPercent = (v) => v == null ? '0.00%' : `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`;
 
 // ─── Map raw DB holding → widget row ──────────────────────────────────────────
@@ -107,6 +111,11 @@ export default function PortfolioDashboard() {
   // { AAPL: { price, open, change, change_percent, high, low }, ... }
   const [priceQuotes, setPriceQuotes] = useState({});
   const [lastRefreshed, setLastRefreshed] = useState(null);
+
+  // ── Currency display ─────────────────────────────────────────────────────────
+  const [displayCurrency, setDisplayCurrency] = useState('USD');   // 'USD' | 'KRW'
+  const [exchangeRate, setExchangeRate] = useState(null);          // USD→KRW rate
+  const [loadingRate, setLoadingRate] = useState(false);
 
   // ── UI ───────────────────────────────────────────────────────────────────────
   const [selectedPeriod, setSelectedPeriod] = useState('30D');
@@ -210,6 +219,27 @@ export default function PortfolioDashboard() {
       setIsRefreshingPrices(false);
     }
   }, []);
+
+  // ── Fetch USD/KRW exchange rate ───────────────────────────────────────────────
+  const fetchExchangeRate = useCallback(async () => {
+    setLoadingRate(true);
+    try {
+      const res = await fetch('https://api.frankfurter.app/latest?from=USD&to=KRW');
+      const data = await res.json();
+      setExchangeRate(data?.rates?.KRW ?? null);
+    } catch {
+      setExchangeRate(null);
+    } finally {
+      setLoadingRate(false);
+    }
+  }, []);
+
+  const handleCurrencyToggle = useCallback((currency) => {
+    setDisplayCurrency(currency);
+    if (currency === 'KRW' && !exchangeRate) {
+      fetchExchangeRate();
+    }
+  }, [exchangeRate, fetchExchangeRate]);
 
   // ── Effects ──────────────────────────────────────────────────────────────────
   useEffect(() => { loadPortfolios(); }, [isAuthenticated]);
@@ -391,6 +421,7 @@ export default function PortfolioDashboard() {
 
   // ── Widget renderer ──────────────────────────────────────────────────────────
   const renderWidget = useCallback((widget) => {
+    const currencyProps = { displayCurrency, exchangeRate, formatKRW };
     switch (widget.type) {
       case 'stats':
         return (
@@ -403,6 +434,7 @@ export default function PortfolioDashboard() {
             formatCurrency={formatCurrency}
             formatPercent={formatPercent}
             lastRefreshed={lastRefreshed}
+            {...currencyProps}
           />
         );
       case 'chart':
@@ -418,6 +450,7 @@ export default function PortfolioDashboard() {
           <PortfolioHoldingsWidget
             holdings={filteredHoldings}
             onViewAll={() => handleTabChange('balances')}
+            {...currencyProps}
           />
         );
       case 'balances':
@@ -426,10 +459,11 @@ export default function PortfolioDashboard() {
             holdings={filteredHoldings}
             hideSmallBalances={hideSmallBalances}
             setHideSmallBalances={setHideSmallBalances}
+            {...currencyProps}
           />
         );
       case 'positions':
-        return <PortfolioPositionsWidget holdings={filteredHoldings} />;
+        return <PortfolioPositionsWidget holdings={filteredHoldings} {...currencyProps} />;
       case 'trade-history':
         return (
           <PortfolioTradeHistoryWidget
@@ -439,6 +473,8 @@ export default function PortfolioDashboard() {
             onEditTransaction={(txn) => setEditingTransaction(txn)}
             onDeleteTransaction={handleDeleteTransaction}
             priceQuotes={priceQuotes}
+            exchangeRate={exchangeRate}
+            formatKRW={formatKRW}
           />
         );
       case 'empty':
@@ -446,7 +482,7 @@ export default function PortfolioDashboard() {
       default:
         return null;
     }
-  }, [stats, pnlHistory, filteredHoldings, chartTab, selectedAccountType, selectedPeriod, hideSmallBalances, transactions, loadingTransactions, lastRefreshed]);
+  }, [stats, pnlHistory, filteredHoldings, chartTab, selectedAccountType, selectedPeriod, hideSmallBalances, transactions, loadingTransactions, lastRefreshed, displayCurrency, exchangeRate]);
 
   const currentWidgets = TAB_WIDGET_DEFS[activeTab] || [];
   const currentLayout  = tabLayouts[activeTab] || DEFAULT_LAYOUTS[activeTab] || [];
@@ -495,6 +531,30 @@ export default function PortfolioDashboard() {
           {lastRefreshed && (
             <span className="text-[10px] text-gray-600 whitespace-nowrap">
               Updated {lastRefreshed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          )}
+
+          {/* Currency toggle */}
+          <div className="flex items-center rounded border border-gray-700 overflow-hidden">
+            {['USD', 'KRW'].map((cur) => (
+              <button
+                key={cur}
+                onClick={() => handleCurrencyToggle(cur)}
+                className={`px-2 py-1 text-[11px] font-medium transition-colors ${
+                  displayCurrency === cur
+                    ? 'bg-gray-700 text-white'
+                    : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'
+                }`}
+              >
+                {cur}
+              </button>
+            ))}
+          </div>
+
+          {/* Exchange rate display */}
+          {displayCurrency === 'KRW' && (
+            <span className="text-[10px] text-gray-600 whitespace-nowrap">
+              {loadingRate ? '환율 조회 중...' : exchangeRate ? `1$ = ₩${exchangeRate.toLocaleString('ko-KR')}` : '환율 없음'}
             </span>
           )}
 

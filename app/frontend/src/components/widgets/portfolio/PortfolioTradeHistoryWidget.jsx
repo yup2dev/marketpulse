@@ -5,6 +5,8 @@ import WidgetTable from '../common/WidgetTable';
 
 const fmt = (val, dec = 2) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: dec }).format(val ?? 0);
+const fmtKRWLocal = (val) =>
+  new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW', maximumFractionDigits: 0 }).format(Math.round(val ?? 0));
 
 const TYPE_BADGE = {
   buy:      { label: 'BUY',  cls: 'bg-green-500/20 text-green-400 border-green-500/30' },
@@ -12,7 +14,7 @@ const TYPE_BADGE = {
   dividend: { label: 'DIV',  cls: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30' },
 };
 
-function CurrentPnlCell({ row }) {
+function CurrentPnlCell({ row, exchangeRate }) {
   if (row.transaction_type !== 'buy') {
     if (row.transaction_type === 'sell') return <span className="text-[11px] text-gray-600 italic">realized</span>;
     return <span className="text-gray-700 text-[11px]">—</span>;
@@ -23,6 +25,11 @@ function CurrentPnlCell({ row }) {
     <div className={isUp ? 'text-green-400' : 'text-red-400'}>
       <div className="tabular-nums text-[11px] font-medium">{isUp ? '+' : ''}{fmt(row.currentPnl)}</div>
       <div className="tabular-nums text-[10px] opacity-75">{row.currentPnlPct >= 0 ? '+' : ''}{row.currentPnlPct?.toFixed(2)}%</div>
+      {exchangeRate && (
+        <div className="tabular-nums text-[10px] text-gray-500">
+          {isUp ? '+' : ''}{fmtKRWLocal(row.currentPnl * exchangeRate)}
+        </div>
+      )}
     </div>
   );
 }
@@ -51,7 +58,7 @@ function ActionCell({ row, onEdit, onDelete, deletingId }) {
   );
 }
 
-const buildColumns = (hasPriceData, onEdit, onDelete, deletingId) => [
+const buildColumns = (hasPriceData, onEdit, onDelete, deletingId, exchangeRate) => [
   {
     key: 'transaction_date',
     header: 'Date',
@@ -101,7 +108,14 @@ const buildColumns = (hasPriceData, onEdit, onDelete, deletingId) => [
     align: 'right',
     sortable: true,
     sortValue: (r) => r.price,
-    render: (r) => <span className="tabular-nums text-[11px]">{fmt(r.price)}</span>,
+    render: (r) => (
+      <div>
+        <div className="tabular-nums text-[11px]">{fmt(r.price)}</div>
+        {exchangeRate && (
+          <div className="tabular-nums text-[10px] text-gray-500">{fmtKRWLocal(r.price * exchangeRate)}</div>
+        )}
+      </div>
+    ),
   },
   ...(hasPriceData ? [{
     key: 'currentPrice',
@@ -110,7 +124,14 @@ const buildColumns = (hasPriceData, onEdit, onDelete, deletingId) => [
     render: (r) => {
       if (r.transaction_type !== 'buy' || r.currentPrice == null) return <span className="text-gray-700 text-[11px]">—</span>;
       const isUp = r.currentPrice >= r.price;
-      return <span className={`tabular-nums text-[11px] font-medium ${isUp ? 'text-green-400' : 'text-red-400'}`}>{fmt(r.currentPrice)}</span>;
+      return (
+        <div>
+          <div className={`tabular-nums text-[11px] font-medium ${isUp ? 'text-green-400' : 'text-red-400'}`}>{fmt(r.currentPrice)}</div>
+          {exchangeRate && (
+            <div className="tabular-nums text-[10px] text-gray-500">{fmtKRWLocal(r.currentPrice * exchangeRate)}</div>
+          )}
+        </div>
+      );
     },
   }] : []),
   {
@@ -119,7 +140,7 @@ const buildColumns = (hasPriceData, onEdit, onDelete, deletingId) => [
     align: 'right',
     sortable: hasPriceData,
     sortValue: (r) => r.currentPnl ?? -Infinity,
-    render: (r) => <CurrentPnlCell row={r} />,
+    render: (r) => <CurrentPnlCell row={r} exchangeRate={exchangeRate} />,
   },
   {
     key: 'total_amount',
@@ -130,9 +151,16 @@ const buildColumns = (hasPriceData, onEdit, onDelete, deletingId) => [
     render: (r) => {
       const isNeg = r.transaction_type === 'buy';
       return (
-        <span className={`tabular-nums text-[11px] font-medium ${isNeg ? 'text-red-400' : 'text-green-400'}`}>
-          {isNeg ? '-' : '+'}{fmt(r.total_amount)}
-        </span>
+        <div>
+          <div className={`tabular-nums text-[11px] font-medium ${isNeg ? 'text-red-400' : 'text-green-400'}`}>
+            {isNeg ? '-' : '+'}{fmt(r.total_amount)}
+          </div>
+          {exchangeRate && (
+            <div className="tabular-nums text-[10px] text-gray-500">
+              {isNeg ? '-' : '+'}{fmtKRWLocal(r.total_amount * exchangeRate)}
+            </div>
+          )}
+        </div>
       );
     },
   },
@@ -140,7 +168,14 @@ const buildColumns = (hasPriceData, onEdit, onDelete, deletingId) => [
     key: 'commission',
     header: 'Fee',
     align: 'right',
-    render: (r) => <span className="tabular-nums text-[11px] text-gray-500">{r.commission ? fmt(r.commission) : '-'}</span>,
+    render: (r) => (
+      <div>
+        <div className="tabular-nums text-[11px] text-gray-500">{r.commission ? fmt(r.commission) : '-'}</div>
+        {exchangeRate && r.commission ? (
+          <div className="tabular-nums text-[10px] text-gray-600">{fmtKRWLocal(r.commission * exchangeRate)}</div>
+        ) : null}
+      </div>
+    ),
   },
   {
     key: 'notes',
@@ -163,6 +198,8 @@ export default function PortfolioTradeHistoryWidget({
   onDeleteTransaction,  // (transaction) => void  — shows confirm + deletes
   priceQuotes = {},
   onRemove,
+  exchangeRate = null,  // USD→KRW rate (null = hide KRW column)
+  formatKRW,            // unused here — kept for API consistency; using local fmtKRWLocal
 }) {
   const [deletingId, setDeletingId] = useState(null);
   const hasPriceData = Object.keys(priceQuotes).length > 0;
@@ -188,7 +225,7 @@ export default function PortfolioTradeHistoryWidget({
     return { ...t, _key: t.transaction_id || `txn-${i}`, currentPrice, currentPnl, currentPnlPct };
   });
 
-  const COLUMNS = buildColumns(hasPriceData, onEditTransaction, handleDeleteClick, deletingId);
+  const COLUMNS = buildColumns(hasPriceData, onEditTransaction, handleDeleteClick, deletingId, exchangeRate);
 
   return (
     <BaseWidget

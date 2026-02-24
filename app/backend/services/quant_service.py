@@ -1,0 +1,679 @@
+"""
+Quant Strategy Service
+Single-stock strategy backtesting with signal generation and performance metrics.
+Supports: EMA Cross, RSI, MACD Cross, BB Breakout
+Uses numpy only — no additional dependencies.
+"""
+import sys
+import logging
+import numpy as np
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
+from data_fetcher.fetchers.yahoo.stock_price import YahooStockPriceFetcher
+
+log = logging.getLogger(__name__)
+
+
+# ─── Indicator Calculators ─────────────────────────────────────────────────────
+
+def _ema(prices: np.ndarray, period: int) -> np.ndarray:
+    """Exponential Moving Average"""
+    result = np.full(len(prices), np.nan)
+    if len(prices) < period:
+        return result
+    result[period - 1] = np.mean(prices[:period])
+    k = 2.0 / (period + 1)
+    for i in range(period, len(prices)):
+        result[i] = prices[i] * k + result[i - 1] * (1 - k)
+    return result
+
+
+def _sma(prices: np.ndarray, period: int) -> np.ndarray:
+    """Simple Moving Average"""
+    result = np.full(len(prices), np.nan)
+    for i in range(period - 1, len(prices)):
+        result[i] = np.mean(prices[i - period + 1 : i + 1])
+    return result
+
+
+def _rsi(prices: np.ndarray, period: int = 14) -> np.ndarray:
+    """Relative Strength Index"""
+    result = np.full(len(prices), np.nan)
+    if len(prices) <= period:
+        return result
+    deltas = np.diff(prices)
+    gains = np.where(deltas > 0, deltas, 0.0)
+    losses = np.where(deltas < 0, -deltas, 0.0)
+    avg_gain = np.mean(gains[:period])
+    avg_loss = np.mean(losses[:period])
+    for i in range(period, len(deltas)):
+        avg_gain = (avg_gain * (period - 1) + gains[i]) / period
+        avg_loss = (avg_loss * (period - 1) + losses[i]) / period
+        rs = avg_gain / avg_loss if avg_loss != 0 else 1e9
+        result[i + 1] = 100 - (100 / (1 + rs))
+    return result
+
+
+def _macd(prices: np.ndarray, fast: int = 12, slow: int = 26, signal: int = 9):
+    """MACD line, Signal line, Histogram"""
+    ema_fast = _ema(prices, fast)
+    ema_slow = _ema(prices, slow)
+    macd_line = ema_fast - ema_slow
+    valid = ~np.isnan(macd_line)
+    signal_line = np.full(len(prices), np.nan)
+    if valid.sum() >= signal:
+        idx = np.where(valid)[0]
+        sig = _ema(macd_line[idx], signal)
+        signal_line[idx] = sig
+    histogram = macd_line - signal_line
+    return macd_line, signal_line, histogram
+
+
+def _bollinger(prices: np.ndarray, period: int = 20, std_dev: float = 2.0):
+    """Upper band, Middle (SMA), Lower band"""
+    mid = _sma(prices, period)
+    upper = np.full(len(prices), np.nan)
+    lower = np.full(len(prices), np.nan)
+    for i in range(period - 1, len(prices)):
+        std = np.std(prices[i - period + 1 : i + 1], ddof=0)
+        upper[i] = mid[i] + std_dev * std
+        lower[i] = mid[i] - std_dev * std
+    return upper, mid, lower
+
+
+# ─── Strategy Engines ──────────────────────────────────────────────────────────
+
+def _run_ema_cross(closes: np.ndarray, dates: List[str], cfg: Dict) -> List[Dict]:
+    """Golden/Death cross on two EMAs"""
+    fast = cfg.get("fast", 20)
+    slow = cfg.get("slow", 50)
+    ema_fast = _ema(closes, fast)
+    ema_slow = _ema(closes, slow)
+
+    signals = []
+    in_position = False
+    for i in range(1, len(closes)):
+        if np.isnan(ema_fast[i]) or np.isnan(ema_slow[i]):
+            continue
+        if not in_position and ema_fast[i - 1] <= ema_slow[i - 1] and ema_fast[i] > ema_slow[i]:
+            signals.append({"date": dates[i], "type": "buy", "price": closes[i],
+                             "reason": f"EMA{fast} × EMA{slow} Golden Cross"})
+            in_position = True
+        elif in_position and ema_fast[i - 1] >= ema_slow[i - 1] and ema_fast[i] < ema_slow[i]:
+            signals.append({"date": dates[i], "type": "sell", "price": closes[i],
+                             "reason": f"EMA{fast} × EMA{slow} Death Cross"})
+            in_position = False
+    return signals
+
+
+def _run_rsi(closes: np.ndarray, dates: List[str], cfg: Dict) -> List[Dict]:
+    """RSI oversold/overbought strategy"""
+    period = cfg.get("rsi_period", 14)
+    oversold = cfg.get("oversold", 30)
+    overbought = cfg.get("overbought", 70)
+    rsi = _rsi(closes, period)
+
+    signals = []
+    in_position = False
+    for i in range(1, len(closes)):
+        if np.isnan(rsi[i]) or np.isnan(rsi[i - 1]):
+            continue
+        if not in_position and rsi[i - 1] <= oversold and rsi[i] > oversold:
+            signals.append({"date": dates[i], "type": "buy", "price": closes[i],
+                             "reason": f"RSI({period}) bounce from oversold ({oversold})"})
+            in_position = True
+        elif in_position and rsi[i - 1] >= overbought and rsi[i] < overbought:
+            signals.append({"date": dates[i], "type": "sell", "price": closes[i],
+                             "reason": f"RSI({period}) exit from overbought ({overbought})"})
+            in_position = False
+    return signals
+
+
+def _run_macd_cross(closes: np.ndarray, dates: List[str], cfg: Dict) -> List[Dict]:
+    """MACD line crossing signal line"""
+    fast = cfg.get("fast", 12)
+    slow = cfg.get("slow", 26)
+    signal = cfg.get("signal", 9)
+    macd_line, signal_line, _ = _macd(closes, fast, slow, signal)
+
+    signals = []
+    in_position = False
+    for i in range(1, len(closes)):
+        if np.isnan(macd_line[i]) or np.isnan(signal_line[i]):
+            continue
+        if not in_position and macd_line[i - 1] <= signal_line[i - 1] and macd_line[i] > signal_line[i]:
+            signals.append({"date": dates[i], "type": "buy", "price": closes[i],
+                             "reason": f"MACD({fast},{slow},{signal}) bullish crossover"})
+            in_position = True
+        elif in_position and macd_line[i - 1] >= signal_line[i - 1] and macd_line[i] < signal_line[i]:
+            signals.append({"date": dates[i], "type": "sell", "price": closes[i],
+                             "reason": f"MACD({fast},{slow},{signal}) bearish crossover"})
+            in_position = False
+    return signals
+
+
+def _run_bb_breakout(closes: np.ndarray, dates: List[str], cfg: Dict) -> List[Dict]:
+    """Bollinger Band breakout strategy"""
+    period = cfg.get("period", 20)
+    std_dev = cfg.get("std_dev", 2.0)
+    upper, mid, lower = _bollinger(closes, period, std_dev)
+
+    signals = []
+    in_position = False
+    for i in range(1, len(closes)):
+        if np.isnan(upper[i]) or np.isnan(lower[i]):
+            continue
+        if not in_position and closes[i - 1] <= lower[i - 1] and closes[i] > lower[i]:
+            signals.append({"date": dates[i], "type": "buy", "price": closes[i],
+                             "reason": f"BB({period},{std_dev}) bounce off lower band"})
+            in_position = True
+        elif in_position and closes[i - 1] >= upper[i - 1] and closes[i] < upper[i]:
+            signals.append({"date": dates[i], "type": "sell", "price": closes[i],
+                             "reason": f"BB({period},{std_dev}) rejected at upper band"})
+            in_position = False
+    return signals
+
+
+# ─── Additional Indicators ────────────────────────────────────────────────────
+
+def _atr(high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int = 14) -> np.ndarray:
+    """Average True Range (Wilder smoothing)"""
+    n = len(close)
+    result = np.full(n, np.nan)
+    if n < 2:
+        return result
+    tr = np.zeros(n)
+    tr[0] = high[0] - low[0]
+    for i in range(1, n):
+        tr[i] = max(high[i] - low[i], abs(high[i] - close[i - 1]), abs(low[i] - close[i - 1]))
+    if n < period:
+        return result
+    result[period - 1] = np.mean(tr[:period])
+    for i in range(period, n):
+        result[i] = (result[i - 1] * (period - 1) + tr[i]) / period
+    return result
+
+
+def _stochastic(high: np.ndarray, low: np.ndarray, close: np.ndarray,
+                k_period: int = 14, d_period: int = 3):
+    """Stochastic Oscillator %K and %D"""
+    n = len(close)
+    k = np.full(n, np.nan)
+    for i in range(k_period - 1, n):
+        hh = np.max(high[i - k_period + 1 : i + 1])
+        ll = np.min(low[i - k_period + 1 : i + 1])
+        k[i] = (close[i] - ll) / (hh - ll) * 100 if hh != ll else 50.0
+    d = _sma(k, d_period)
+    return k, d
+
+
+def _vwap(high: np.ndarray, low: np.ndarray, close: np.ndarray, volume: np.ndarray) -> np.ndarray:
+    """Cumulative VWAP using typical price"""
+    tp = (high + low + close) / 3.0
+    safe_vol = np.where(volume == 0, 1, volume)
+    return np.cumsum(tp * safe_vol) / np.cumsum(safe_vol)
+
+
+# ─── Custom Factor Engine ──────────────────────────────────────────────────────
+
+def _compute_factor(series: Dict, factor_def: Dict) -> np.ndarray:
+    """
+    Compute an indicator series from OHLCV data.
+    factor_def: {"factor": "EMA", "params": {"period": 20}}
+               {"factor": "VALUE", "value": 30}
+    """
+    factor = factor_def.get("factor", "CLOSE")
+    p = factor_def.get("params", {})
+    c = series["close"]
+    n = len(c)
+
+    if factor == "EMA":
+        return _ema(c, int(p.get("period", 20)))
+    if factor == "SMA":
+        return _sma(c, int(p.get("period", 50)))
+    if factor == "RSI":
+        return _rsi(c, int(p.get("period", 14)))
+    if factor in ("MACD_LINE", "MACD_SIGNAL", "MACD_HIST"):
+        ml, ms, mh = _macd(c, int(p.get("fast", 12)), int(p.get("slow", 26)), int(p.get("signal", 9)))
+        return {"MACD_LINE": ml, "MACD_SIGNAL": ms, "MACD_HIST": mh}[factor]
+    if factor == "BB_UPPER":
+        u, _, _ = _bollinger(c, int(p.get("period", 20)), float(p.get("std_dev", 2.0)))
+        return u
+    if factor == "BB_LOWER":
+        _, _, lo = _bollinger(c, int(p.get("period", 20)), float(p.get("std_dev", 2.0)))
+        return lo
+    if factor == "BB_MID":
+        _, m, _ = _bollinger(c, int(p.get("period", 20)), float(p.get("std_dev", 2.0)))
+        return m
+    if factor == "ATR":
+        return _atr(series["high"], series["low"], c, int(p.get("period", 14)))
+    if factor == "STOCH_K":
+        k, _ = _stochastic(series["high"], series["low"], c,
+                            int(p.get("k_period", 14)), int(p.get("d_period", 3)))
+        return k
+    if factor == "STOCH_D":
+        _, d = _stochastic(series["high"], series["low"], c,
+                            int(p.get("k_period", 14)), int(p.get("d_period", 3)))
+        return d
+    if factor == "VWAP":
+        return _vwap(series["high"], series["low"], c, series["volume"])
+    if factor == "CLOSE":
+        return c
+    if factor == "OPEN":
+        return series.get("open", c)
+    if factor == "HIGH":
+        return series["high"]
+    if factor == "LOW":
+        return series["low"]
+    if factor == "VOLUME":
+        return series.get("volume", np.zeros(n))
+    if factor == "VALUE":
+        return np.full(n, float(factor_def.get("value", 0)))
+    return c  # fallback
+
+
+def _eval_cond(ls: np.ndarray, op: str, rs: np.ndarray, i: int) -> bool:
+    """Evaluate a single condition at bar i."""
+    lv, rv = float(ls[i]), float(rs[i])
+    if np.isnan(lv) or np.isnan(rv):
+        return False
+    if op == ">":
+        return lv > rv
+    if op == "<":
+        return lv < rv
+    if op == ">=":
+        return lv >= rv
+    if op == "<=":
+        return lv <= rv
+    if op == "==":
+        return abs(lv - rv) < 1e-9
+    if op in ("crosses_above", "crosses_below") and i > 0:
+        lp, rp = float(ls[i - 1]), float(rs[i - 1])
+        if np.isnan(lp) or np.isnan(rp):
+            return False
+        if op == "crosses_above":
+            return lp <= rp and lv > rv
+        return lp >= rp and lv < rv
+    return False
+
+
+def _factor_label(factor_def: Dict) -> str:
+    f = factor_def.get("factor", "?")
+    p = factor_def.get("params", {})
+    if not p:
+        return f
+    vals = ",".join(str(v) for v in p.values())
+    return f"{f}({vals})"
+
+
+def _run_custom(closes: np.ndarray, dates: List[str], cfg: Dict,
+                series: Optional[Dict] = None) -> List[Dict]:
+    """
+    Custom block-based strategy engine.
+    Reads buy_conditions / sell_conditions from cfg dict.
+    buy_logic: "AND" | "OR"   sell_logic: "AND" | "OR"
+    """
+    buy_conds = cfg.get("buy_conditions", [])
+    sell_conds = cfg.get("sell_conditions", [])
+    buy_logic = cfg.get("buy_logic", "AND")
+    sell_logic = cfg.get("sell_logic", "OR")
+
+    if not buy_conds:
+        return []
+
+    if series is None:
+        series = {"close": closes, "high": closes, "low": closes,
+                  "open": closes, "volume": np.ones(len(closes))}
+
+    # Pre-compute all factor series
+    def build(cond_list):
+        out = []
+        for c in cond_list:
+            ls = _compute_factor(series, c["left"])
+            rs = _compute_factor(series, c["right"])
+            out.append((ls, c["op"], rs, c))
+        return out
+
+    buy_pre = build(buy_conds)
+    sell_pre = build(sell_conds)
+
+    def check(pre, logic, i):
+        results = [_eval_cond(ls, op, rs, i) for ls, op, rs, _ in pre]
+        if not results:
+            return False
+        return all(results) if logic == "AND" else any(results)
+
+    def make_reason(pre, sep):
+        return sep.join(
+            f"{_factor_label(c['left'])} {c['op']} {_factor_label(c['right'])}"
+            for _, _, _, c in pre
+        )
+
+    signals = []
+    in_pos = False
+    for i in range(1, len(closes)):
+        if not in_pos:
+            if check(buy_pre, buy_logic, i):
+                signals.append({"date": dates[i], "type": "buy", "price": closes[i],
+                                 "reason": make_reason(buy_pre, " AND " if buy_logic == "AND" else " OR ")})
+                in_pos = True
+        else:
+            if sell_pre and check(sell_pre, sell_logic, i):
+                signals.append({"date": dates[i], "type": "sell", "price": closes[i],
+                                 "reason": make_reason(sell_pre, " OR " if sell_logic == "OR" else " AND ")})
+                in_pos = False
+    return signals
+
+
+STRATEGY_ENGINES = {
+    "ema_cross": _run_ema_cross,
+    "rsi": _run_rsi,
+    "macd_cross": _run_macd_cross,
+    "bb_breakout": _run_bb_breakout,
+    "custom": _run_custom,
+}
+
+
+# ─── Risk Management ───────────────────────────────────────────────────────────
+
+def _apply_risk(raw_signals: List[Dict], closes: np.ndarray, dates: List[str],
+                stop_loss_pct: float, take_profit_pct: float) -> List[Dict]:
+    """
+    Walk through raw buy/sell signals; inject SL/TP exits when triggered
+    between the signal dates.
+    """
+    date_to_idx = {d: i for i, d in enumerate(dates)}
+    result = []
+    i = 0
+    while i < len(raw_signals):
+        sig = raw_signals[i]
+        if sig["type"] != "buy":
+            i += 1
+            continue
+        result.append(sig)
+        entry_price = sig["price"]
+        entry_idx = date_to_idx.get(sig["date"], -1)
+
+        # Find next sell signal from raw list
+        next_sell = None
+        for j in range(i + 1, len(raw_signals)):
+            if raw_signals[j]["type"] == "sell":
+                next_sell = raw_signals[j]
+                next_sell_idx = date_to_idx.get(next_sell["date"], len(dates))
+                break
+        else:
+            next_sell_idx = len(dates)
+
+        # Check SL/TP day-by-day between entry and next sell
+        exited = False
+        if entry_idx >= 0 and (stop_loss_pct > 0 or take_profit_pct > 0):
+            for k in range(entry_idx + 1, next_sell_idx):
+                p = closes[k]
+                pnl_pct = (p - entry_price) / entry_price * 100
+                if stop_loss_pct > 0 and pnl_pct <= -stop_loss_pct:
+                    result.append({"date": dates[k], "type": "sell", "price": p,
+                                   "reason": f"Stop Loss -{stop_loss_pct:.1f}%"})
+                    exited = True
+                    break
+                if take_profit_pct > 0 and pnl_pct >= take_profit_pct:
+                    result.append({"date": dates[k], "type": "sell", "price": p,
+                                   "reason": f"Take Profit +{take_profit_pct:.1f}%"})
+                    exited = True
+                    break
+
+        if not exited and next_sell is not None:
+            result.append(next_sell)
+            i = raw_signals.index(next_sell) + 1
+            continue
+        i += 1
+
+    return result
+
+
+# ─── Trade Builder & Performance ──────────────────────────────────────────────
+
+def _build_trades(signals: List[Dict], initial_capital: float) -> List[Dict]:
+    """Pair buy/sell signals into completed trades."""
+    trades = []
+    capital = initial_capital
+    buy_sig = None
+    for s in signals:
+        if s["type"] == "buy" and buy_sig is None:
+            buy_sig = s
+        elif s["type"] == "sell" and buy_sig is not None:
+            entry = buy_sig["price"]
+            exit_p = s["price"]
+            shares = capital / entry
+            pnl = (exit_p - entry) * shares
+            pnl_pct = (exit_p - entry) / entry * 100
+            capital += pnl
+            trades.append({
+                "entry_date": buy_sig["date"],
+                "exit_date": s["date"],
+                "entry_price": round(entry, 4),
+                "exit_price": round(exit_p, 4),
+                "pnl": round(pnl, 2),
+                "pnl_pct": round(pnl_pct, 2),
+                "reason": s["reason"],
+            })
+            buy_sig = None
+    return trades
+
+
+def _calc_performance(trades: List[Dict], initial_capital: float,
+                      closes: np.ndarray, dates: List[str]) -> Dict[str, Any]:
+    """Calculate aggregate performance metrics."""
+    if not trades:
+        return {
+            "total_return": 0.0, "annualized_return": 0.0,
+            "max_drawdown": 0.0, "sharpe": 0.0,
+            "win_rate": 0.0, "trade_count": 0,
+            "initial_capital": initial_capital, "final_capital": initial_capital,
+            "trades": [],
+        }
+
+    final_capital = initial_capital
+    for t in trades:
+        final_capital *= (1 + t["pnl_pct"] / 100)
+
+    total_return = (final_capital - initial_capital) / initial_capital * 100
+
+    # Annualized
+    try:
+        start_dt = _parse_date(trades[0]["entry_date"])
+        end_dt = _parse_date(trades[-1]["exit_date"])
+        years = max((end_dt - start_dt).days / 365.25, 1 / 12)
+    except Exception:
+        years = 1.0
+    annualized_return = ((final_capital / initial_capital) ** (1 / years) - 1) * 100
+
+    # Max drawdown on raw equity curve from daily closes
+    peak = closes[0]
+    max_dd = 0.0
+    for c in closes:
+        if c > peak:
+            peak = c
+        dd = (c - peak) / peak * 100
+        if dd < max_dd:
+            max_dd = dd
+
+    # Sharpe
+    daily_returns = np.diff(closes) / closes[:-1]
+    rf_daily = 0.02 / 252
+    excess = daily_returns - rf_daily
+    sharpe = (np.mean(excess) / np.std(excess) * np.sqrt(252)) if np.std(excess) > 0 else 0.0
+
+    # Win rate
+    wins = sum(1 for t in trades if t["pnl"] > 0)
+    win_rate = wins / len(trades) * 100
+
+    return {
+        "total_return": round(total_return, 2),
+        "annualized_return": round(annualized_return, 2),
+        "max_drawdown": round(max_dd, 2),
+        "sharpe": round(float(sharpe), 2),
+        "win_rate": round(win_rate, 2),
+        "trade_count": len(trades),
+        "initial_capital": round(initial_capital, 2),
+        "final_capital": round(final_capital, 2),
+        "trades": trades,
+    }
+
+
+def _parse_date(d: str):
+    from datetime import date, datetime
+    try:
+        return datetime.strptime(d[:10], "%Y-%m-%d").date()
+    except Exception:
+        return date.today()
+
+
+# ─── Public API ───────────────────────────────────────────────────────────────
+
+async def scan(
+    ticker: str,
+    start_date: str,
+    end_date: str,
+    strategy_type: str,
+    param_ranges: Dict[str, Any],
+    stop_loss_pct: float = 0.0,
+    take_profit_pct: float = 0.0,
+    initial_capital: float = 10000.0,
+) -> Dict[str, Any]:
+    """
+    Fetch price data ONCE, then run all parameter combinations.
+    param_ranges: { "fast": {"min":10,"max":30,"step":5}, "slow": {"min":40,"max":150,"step":10} }
+    """
+    engine = STRATEGY_ENGINES.get(strategy_type)
+    if engine is None:
+        raise ValueError(f"Unknown strategy type: {strategy_type}")
+
+    # Fetch price data once
+    raw = await YahooStockPriceFetcher.fetch_data({
+        "symbol": ticker,
+        "start_date": start_date,
+        "end_date": end_date,
+        "interval": "1d",
+    })
+    if not raw:
+        raise ValueError(f"No price data found for {ticker}")
+    raw.sort(key=lambda p: p.date if hasattr(p.date, "isoformat") else str(p.date))
+    dates = [str(p.date)[:10] for p in raw]
+    closes = np.array([float(p.close) for p in raw], dtype=float)
+    if len(closes) < 20:
+        raise ValueError(f"Insufficient data for {ticker}")
+
+    # Build combinations from ranges
+    import itertools
+
+    def make_values(spec):
+        mn = spec["min"]
+        mx = spec["max"]
+        st = spec.get("step", 1)
+        vals = []
+        v = mn
+        while v <= mx:
+            vals.append(round(v, 4))
+            v = round(v + st, 4)
+        return vals
+
+    keys = list(param_ranges.keys())
+    value_lists = [make_values(param_ranges[k]) for k in keys]
+    combinations = [dict(zip(keys, combo)) for combo in itertools.product(*value_lists)]
+
+    results = []
+    for combo in combinations:
+        raw_signals = engine(closes, dates, combo)
+        signals = _apply_risk(raw_signals, closes, dates, stop_loss_pct, take_profit_pct) \
+                  if (stop_loss_pct > 0 or take_profit_pct > 0) else raw_signals
+        trades = _build_trades(signals, initial_capital)
+        perf = _calc_performance(trades, initial_capital, closes, dates)
+        row = {**combo}
+        row["total_return"] = perf["total_return"]
+        row["annualized_return"] = perf["annualized_return"]
+        row["max_drawdown"] = perf["max_drawdown"]
+        row["sharpe"] = perf["sharpe"]
+        row["win_rate"] = perf["win_rate"]
+        row["trade_count"] = perf["trade_count"]
+        results.append(row)
+
+    results.sort(key=lambda r: r["sharpe"], reverse=True)
+    best = results[0] if results else None
+    return {"results": results, "best": best, "total_combinations": len(results)}
+
+
+async def analyze(
+    ticker: str,
+    start_date: str,
+    end_date: str,
+    strategy: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    Fetch OHLCV data, run strategy, apply risk management, return signals + performance.
+    """
+    strategy_type = strategy.get("type", "ema_cross")
+    stop_loss_pct = float(strategy.get("stop_loss_pct", 0.0))
+    take_profit_pct = float(strategy.get("take_profit_pct", 0.0))
+    initial_capital = float(strategy.get("initial_capital", 10000.0))
+
+    # ── Fetch price data ──────────────────────────────────────────────────────
+    raw = await YahooStockPriceFetcher.fetch_data({
+        "symbol": ticker,
+        "start_date": start_date,
+        "end_date": end_date,
+        "interval": "1d",
+    })
+    if not raw:
+        raise ValueError(f"No price data found for {ticker}")
+
+    # Sort by date ascending
+    raw.sort(key=lambda p: p.date if hasattr(p.date, "isoformat") else str(p.date))
+
+    dates = [str(p.date)[:10] for p in raw]
+    closes = np.array([float(p.close) for p in raw], dtype=float)
+
+    def _safe(arr, fallback=None):
+        if fallback is None:
+            fallback = closes
+        return arr if arr is not None else fallback
+
+    # Full OHLCV series for factor-based strategies
+    series = {
+        "close":  closes,
+        "open":   _safe(np.array([float(p.open)   if getattr(p, "open",   None) else p.close for p in raw])),
+        "high":   _safe(np.array([float(p.high)   if getattr(p, "high",   None) else p.close for p in raw])),
+        "low":    _safe(np.array([float(p.low)    if getattr(p, "low",    None) else p.close for p in raw])),
+        "volume": _safe(np.array([float(p.volume) if getattr(p, "volume", None) else 1.0      for p in raw])),
+    }
+
+    if len(closes) < 20:
+        raise ValueError(f"Insufficient data for {ticker}: only {len(closes)} bars")
+
+    # ── Run strategy ──────────────────────────────────────────────────────────
+    engine = STRATEGY_ENGINES.get(strategy_type)
+    if engine is None:
+        raise ValueError(f"Unknown strategy type: {strategy_type}")
+
+    if strategy_type == "custom":
+        raw_signals = engine(closes, dates, strategy, series)
+    else:
+        raw_signals = engine(closes, dates, strategy)
+
+    # ── Apply risk management ─────────────────────────────────────────────────
+    if stop_loss_pct > 0 or take_profit_pct > 0:
+        signals = _apply_risk(raw_signals, closes, dates, stop_loss_pct, take_profit_pct)
+    else:
+        signals = raw_signals
+
+    # ── Build trades & performance ────────────────────────────────────────────
+    trades = _build_trades(signals, initial_capital)
+    performance = _calc_performance(trades, initial_capital, closes, dates)
+
+    return {
+        "ticker": ticker.upper(),
+        "signals": signals,
+        "performance": performance,
+    }

@@ -111,6 +111,16 @@ class ApiClient {
 export const apiClient = new ApiClient();
 export default API_BASE_URL;
 
+// ─── Quant API ────────────────────────────────────────────────────────────────
+export const quantAPI = {
+  analyze:         (payload)       => apiClient.post(`${API_BASE}/quant/analyze`, payload),
+  scan:            (payload)       => apiClient.post(`${API_BASE}/quant/scan`, payload),
+  listStrategies:  ()              => apiClient.get(`${API_BASE}/quant/strategies`),
+  createStrategy:  (data)          => apiClient.post(`${API_BASE}/quant/strategies`, data),
+  updateStrategy:  (id, data)      => apiClient.request(`${API_BASE}/quant/strategies/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteStrategy:  (id)            => apiClient.request(`${API_BASE}/quant/strategies/${id}`, { method: 'DELETE' }),
+};
+
 // ─── Auth API ─────────────────────────────────────────────────────────────────
 export const authAPI = {
   login:       (data)  => apiClient.post(`${API_BASE}/auth/login`, data),

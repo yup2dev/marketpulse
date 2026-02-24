@@ -15,9 +15,11 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.backend.core.config import settings
+# Import new models so Base.metadata.create_all() picks them up
+import index_analyzer.models.quant_strategy  # noqa: F401
 from app.backend.api.routes import (
     stock, economic, news, dashboard, backtest, portfolio, macro,
-    auth, user_portfolio, screener, alerts, export, watchlist, menu
+    auth, user_portfolio, screener, alerts, export, watchlist, menu, quant
 )
 
 
@@ -82,6 +84,7 @@ app.include_router(dashboard.router, prefix="/api", tags=["dashboard"])
 app.include_router(backtest.router, prefix="/api/backtest", tags=["backtest"])
 app.include_router(portfolio.router, prefix="/api/portfolio", tags=["portfolio"])
 app.include_router(macro.router, prefix="/api/macro", tags=["macro"])
+app.include_router(quant.router, prefix="/api/quant", tags=["quant"])
 
 
 @app.get("/")
