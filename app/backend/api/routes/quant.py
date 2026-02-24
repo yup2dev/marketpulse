@@ -18,6 +18,7 @@ from app.backend.services import quant_service
 from app.backend.database.db_dependency import get_db
 from app.backend.auth.dependencies import get_current_user
 from index_analyzer.models.quant_strategy import QuantStrategy
+from index_analyzer.models.quant_factor import QuantFactor
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -201,5 +202,71 @@ def delete_strategy(
     if not strategy:
         raise HTTPException(status_code=404, detail="Strategy not found")
     db.delete(strategy)
+    db.commit()
+    return {"message": "deleted"}
+
+
+# ─── Factor CRUD ──────────────────────────────────────────────────────────────
+
+class FactorCreate(BaseModel):
+    name:        str
+    category:    str
+    factor_type: str
+    params:      Optional[str] = '{}'
+    formula:     Optional[str] = None
+    description: Optional[str] = None
+    status:      Optional[str] = 'available'
+
+
+@router.get("/factors")
+def list_factors(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    factors = (
+        db.query(QuantFactor)
+        .filter(QuantFactor.user_id == current_user.user_id)
+        .order_by(QuantFactor.created_at.desc())
+        .all()
+    )
+    return {"data": [f.to_dict() for f in factors]}
+
+
+@router.post("/factors")
+def create_factor(
+    body: FactorCreate,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    factor = QuantFactor(
+        user_id=current_user.user_id,
+        name=body.name,
+        category=body.category,
+        factor_type=body.factor_type,
+        params=body.params,
+        formula=body.formula,
+        description=body.description,
+        status=body.status,
+    )
+    db.add(factor)
+    db.commit()
+    db.refresh(factor)
+    return {"data": factor.to_dict()}
+
+
+@router.delete("/factors/{factor_id}")
+def delete_factor(
+    factor_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    factor = (
+        db.query(QuantFactor)
+        .filter(QuantFactor.id == factor_id, QuantFactor.user_id == current_user.user_id)
+        .first()
+    )
+    if not factor:
+        raise HTTPException(status_code=404, detail="Factor not found")
+    db.delete(factor)
     db.commit()
     return {"message": "deleted"}

@@ -21,6 +21,7 @@ log = logging.getLogger(__name__)
 
 def _ema(prices: np.ndarray, period: int) -> np.ndarray:
     """Exponential Moving Average"""
+    period = int(period)
     result = np.full(len(prices), np.nan)
     if len(prices) < period:
         return result
@@ -33,6 +34,7 @@ def _ema(prices: np.ndarray, period: int) -> np.ndarray:
 
 def _sma(prices: np.ndarray, period: int) -> np.ndarray:
     """Simple Moving Average"""
+    period = int(period)
     result = np.full(len(prices), np.nan)
     for i in range(period - 1, len(prices)):
         result[i] = np.mean(prices[i - period + 1 : i + 1])
@@ -41,6 +43,7 @@ def _sma(prices: np.ndarray, period: int) -> np.ndarray:
 
 def _rsi(prices: np.ndarray, period: int = 14) -> np.ndarray:
     """Relative Strength Index"""
+    period = int(period)
     result = np.full(len(prices), np.nan)
     if len(prices) <= period:
         return result
@@ -181,6 +184,7 @@ def _run_bb_breakout(closes: np.ndarray, dates: List[str], cfg: Dict) -> List[Di
 
 def _atr(high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int = 14) -> np.ndarray:
     """Average True Range (Wilder smoothing)"""
+    period = int(period)
     n = len(close)
     result = np.full(n, np.nan)
     if n < 2:
@@ -200,6 +204,7 @@ def _atr(high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int = 14)
 def _stochastic(high: np.ndarray, low: np.ndarray, close: np.ndarray,
                 k_period: int = 14, d_period: int = 3):
     """Stochastic Oscillator %K and %D"""
+    k_period, d_period = int(k_period), int(d_period)
     n = len(close)
     k = np.full(n, np.nan)
     for i in range(k_period - 1, n):
@@ -208,6 +213,28 @@ def _stochastic(high: np.ndarray, low: np.ndarray, close: np.ndarray,
         k[i] = (close[i] - ll) / (hh - ll) * 100 if hh != ll else 50.0
     d = _sma(k, d_period)
     return k, d
+
+
+def _zscore(prices: np.ndarray, window: int = 20) -> np.ndarray:
+    """Rolling Z-score: (price - SMA) / std"""
+    window = int(window)
+    result = np.full(len(prices), np.nan)
+    for i in range(window - 1, len(prices)):
+        window_data = prices[i - window + 1 : i + 1]
+        std = np.std(window_data, ddof=0)
+        if std > 0:
+            result[i] = (prices[i] - np.mean(window_data)) / std
+    return result
+
+
+def _percentile(prices: np.ndarray, window: int = 60) -> np.ndarray:
+    """Rolling percentile rank (0~100): how current price ranks within window"""
+    window = int(window)
+    result = np.full(len(prices), np.nan)
+    for i in range(window - 1, len(prices)):
+        window_data = prices[i - window + 1 : i + 1]
+        result[i] = (np.sum(window_data <= prices[i]) / window) * 100
+    return result
 
 
 def _vwap(high: np.ndarray, low: np.ndarray, close: np.ndarray, volume: np.ndarray) -> np.ndarray:
@@ -260,6 +287,15 @@ def _compute_factor(series: Dict, factor_def: Dict) -> np.ndarray:
         return d
     if factor == "VWAP":
         return _vwap(series["high"], series["low"], c, series["volume"])
+    if factor == "ZSCORE":
+        return _zscore(c, int(p.get("window", 20)))
+    if factor == "PERCENTILE":
+        return _percentile(c, int(p.get("window", 60)))
+    # External-data factors — return neutral series until backend integration
+    if factor in ("BETA", "CORR", "REL_STR"):
+        return np.ones(n)           # neutral: 1.0
+    if factor in ("NEWS_SENTIMENT", "NEWS_VOLUME", "SENTIMENT_DELTA"):
+        return np.zeros(n)          # neutral: 0.0
     if factor == "CLOSE":
         return c
     if factor == "OPEN":

@@ -1,19 +1,21 @@
-import React, { useState, useMemo } from 'react';
-import { BookOpen, FolderOpen, Search, Cpu } from 'lucide-react';
+import React, { useState, useMemo, lazy, Suspense } from 'react';
+import { BookOpen, FolderOpen, Search, Cpu, FlaskConical } from 'lucide-react';
 import ChartWidget from '../components/widgets/ChartWidget';
 import QuantPerformance from '../components/quant/QuantPerformance';
 import EncyclopediaTab from '../components/quant/EncyclopediaTab';
 import MyStrategiesTab from '../components/quant/MyStrategiesTab';
 import ScannerTab from '../components/quant/ScannerTab';
 import StrategyBuilderTab from '../components/quant/StrategyBuilderTab';
+import FactorBuilderTab from '../components/quant/FactorBuilderTab';
 import { quantAPI } from '../config/api';
 import toast from 'react-hot-toast';
 
 const TABS = [
-  { id: 'builder',      label: 'Builder',       Icon: Cpu },
-  { id: 'encyclopedia', label: 'Encyclopedia',  Icon: BookOpen },
+  { id: 'builder',      label: 'Builder',   Icon: Cpu },
+  { id: 'factors',      label: 'Factors',   Icon: FlaskConical },
+  { id: 'encyclopedia', label: 'Encyclopedia', Icon: BookOpen },
   { id: 'my',           label: 'My Strategies', Icon: FolderOpen },
-  { id: 'scanner',      label: 'Scanner',       Icon: Search },
+  { id: 'scanner',      label: 'Scanner',   Icon: Search },
 ];
 
 const QuantResearchPage = () => {
@@ -85,6 +87,7 @@ const QuantResearchPage = () => {
         {/* Tab Content */}
         <div className="flex-1 overflow-hidden">
           {activeTab === 'builder'      && <StrategyBuilderTab onRun={handleRun} />}
+          {activeTab === 'factors'      && <FactorBuilderTab />}
           {activeTab === 'encyclopedia' && <EncyclopediaTab onRun={handleRun} />}
           {activeTab === 'my'           && <MyStrategiesTab onRun={handleRun} />}
           {activeTab === 'scanner'      && <ScannerTab onRun={handleRun} />}

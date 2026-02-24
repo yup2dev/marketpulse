@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { Search, TrendingUp, TrendingDown, Star } from 'lucide-react';
+import { Search, TrendingUp, TrendingDown, Star, BarChart2 } from 'lucide-react';
 import { quantAPI } from '../../config/api';
 import toast from 'react-hot-toast';
+import { lazy, Suspense } from 'react';
+const ScanViz = lazy(() => import('./ScanViz'));
 
 const STRATEGY_SCANNER_CONFIG = {
   ema_cross: {
@@ -180,6 +182,7 @@ const ScannerTab = ({ onRun }) => {
   const [initialCapital, setInitialCapital] = useState(10000);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState(null);
+  const [showViz, setShowViz] = useState(true);
 
   const cfg = STRATEGY_SCANNER_CONFIG[strategyType];
 
@@ -348,18 +351,47 @@ const ScannerTab = ({ onRun }) => {
 
         {/* Results */}
         {results && (
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
-                Results — {results.total_combinations}개 조합
-              </div>
-              {results.best && (
-                <div className="flex items-center gap-1 text-[10px] text-yellow-400">
-                  <Star size={10} className="fill-yellow-400" />
-                  Best Sharpe: {results.best.sharpe?.toFixed(2)}
+          <div className="space-y-3">
+            {/* result header */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+                  Results — {results.total_combinations}개 조합
                 </div>
-              )}
+                {results.best && (
+                  <div className="flex items-center gap-1 text-[10px] text-yellow-400">
+                    <Star size={10} className="fill-yellow-400" />
+                    Best Sharpe: {results.best.sharpe?.toFixed(2)}
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => setShowViz(v => !v)}
+                className={`flex items-center gap-1.5 px-2.5 py-1 text-[10px] rounded border transition-colors ${
+                  showViz
+                    ? 'bg-cyan-900/40 border-cyan-600 text-cyan-300'
+                    : 'bg-transparent border-gray-700 text-gray-400 hover:border-gray-600'
+                }`}
+              >
+                <BarChart2 size={11} />
+                {cfg.params.length >= 3 ? '3D Viz' : '2D Heatmap'}
+              </button>
             </div>
+
+            {/* visualization */}
+            {showViz && (
+              <Suspense fallback={
+                <div className="h-32 flex items-center justify-center text-[11px] text-gray-500 border border-gray-800 rounded-lg">
+                  차트 로딩 중…
+                </div>
+              }>
+                <ScanViz
+                  results={results.results}
+                  paramKeys={cfg.params.map(p => p.name)}
+                />
+              </Suspense>
+            )}
+
             <ScanResults
               results={results.results}
               best={results.best}
