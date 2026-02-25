@@ -1917,12 +1917,89 @@ const ChartWidget = ({
 
                               if (py == null || px == null || isNaN(py) || isNaN(px)) return null;
                               const isSelected = selectedDot && selectedDot._idx === idx;
+                              const onClick = (e) => {
+                                e.stopPropagation();
+                                setSelectedDot(isSelected ? null : { ...pt, _idx: idx, _px: px, _py: py });
+                              };
+
+                              // ── Buy / Sell signal: triangle marker ──────────
+                              const isBuy  = pt.label === '▲';
+                              const isSell = pt.label === '▼';
+                              if (isBuy || isSell) {
+                                const sz      = isSelected ? 9 : 7;
+                                const stemLen = 14;
+                                // Buy marker sits below price (larger Y), Sell above (smaller Y)
+                                const markerCY = isBuy ? py + stemLen + sz : py - stemLen - sz;
+                                // Up-pointing triangle for buy, down-pointing for sell
+                                const triPts  = isBuy
+                                  ? `-${sz},${sz} ${sz},${sz} 0,-${sz}`
+                                  : `-${sz},-${sz} ${sz},-${sz} 0,${sz}`;
+                                const labelY  = isBuy ? markerCY + sz + 11 : markerCY - sz - 4;
+                                const stemY2  = isBuy ? py + stemLen : py - stemLen;
+                                const tooltipY = isBuy ? markerCY + sz + 4 : markerCY - sz - 76;
+
+                                return (
+                                  <g key={`ref-pt-${idx}`} onClick={onClick} style={{ cursor: 'pointer' }}>
+                                    {/* Vertical stem */}
+                                    <line
+                                      x1={px} y1={py}
+                                      x2={px} y2={stemY2}
+                                      stroke={pt.color}
+                                      strokeWidth={1.5}
+                                      strokeOpacity={0.65}
+                                    />
+                                    {/* Hit-area (invisible, larger) */}
+                                    <circle cx={px} cy={markerCY} r={sz + 4} fill="transparent" />
+                                    {/* Triangle */}
+                                    <polygon
+                                      points={triPts}
+                                      transform={`translate(${px},${markerCY})`}
+                                      fill={pt.color}
+                                      fillOpacity={isSelected ? 1 : 0.88}
+                                      stroke={isSelected ? '#ffffff' : '#0a0a0f'}
+                                      strokeWidth={isSelected ? 1.5 : 1}
+                                    />
+                                    {/* BUY / SELL label */}
+                                    <text
+                                      x={px} y={labelY}
+                                      textAnchor="middle"
+                                      fill={pt.color}
+                                      fontSize={8}
+                                      fontWeight="700"
+                                      style={{ letterSpacing: '0.5px', userSelect: 'none' }}
+                                    >
+                                      {isBuy ? 'BUY' : 'SELL'}
+                                    </text>
+                                    {/* Tooltip on click */}
+                                    {isSelected && (
+                                      <foreignObject
+                                        x={px + 14}
+                                        y={tooltipY}
+                                        width={210}
+                                        height={90}
+                                        style={{ overflow: 'visible' }}
+                                      >
+                                        <div xmlns="http://www.w3.org/1999/xhtml"
+                                          className="bg-[#1a1a2e] border border-gray-600 rounded-lg px-3 py-2 text-xs shadow-xl"
+                                          style={{ whiteSpace: 'nowrap' }}
+                                        >
+                                          {(pt.tooltip || '').split('\n').map((line, i) => (
+                                            <div key={i} className={i === 0 ? 'font-semibold' : 'text-gray-400'}
+                                              style={{ color: i === 0 ? pt.color : undefined }}>
+                                              {line}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </foreignObject>
+                                    )}
+                                  </g>
+                                );
+                              }
+
+                              // ── Default: circle (analyst targets, etc.) ─────
                               return (
                                 <g key={`ref-pt-${idx}`}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedDot(isSelected ? null : { ...pt, _idx: idx, _px: px, _py: py });
-                                  }}
+                                  onClick={onClick}
                                 >
                                   <circle
                                     cx={px}

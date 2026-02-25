@@ -62,7 +62,8 @@ const TradesTable = ({ trades }) => {
 };
 
 // ── Main Component ────────────────────────────────────────────────────────────
-const QuantPerformance = ({ performance, ticker }) => {
+// section: 'all' | 'metrics' | 'trades'  (default: 'all')
+const QuantPerformance = ({ performance, ticker, section = 'all' }) => {
   if (!performance) return null;
 
   const {
@@ -74,6 +75,9 @@ const QuantPerformance = ({ performance, ticker }) => {
   const totalPos = total_return >= 0;
   const mddPos = max_drawdown >= 0;
 
+  const showMetrics = section === 'all' || section === 'metrics';
+  const showTrades  = section === 'all' || section === 'trades';
+
   return (
     <div className="space-y-4">
       {/* Ticker header */}
@@ -84,60 +88,67 @@ const QuantPerformance = ({ performance, ticker }) => {
       )}
 
       {/* Metrics grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-        <MetricCard
-          label="Total Return"
-          value={`${totalPos ? '+' : ''}${total_return?.toFixed(2)}%`}
-          positive={totalPos}
-          negative={!totalPos}
-          icon={totalPos ? TrendingUp : TrendingDown}
-        />
-        <MetricCard
-          label="Ann. Return"
-          value={`${annualized_return >= 0 ? '+' : ''}${annualized_return?.toFixed(2)}%`}
-          positive={annualized_return >= 0}
-          negative={annualized_return < 0}
-          icon={Activity}
-        />
-        <MetricCard
-          label="Max Drawdown"
-          value={`${max_drawdown?.toFixed(2)}%`}
-          positive={mddPos}
-          negative={!mddPos}
-          icon={TrendingDown}
-        />
-        <MetricCard
-          label="Sharpe Ratio"
-          value={sharpe?.toFixed(2)}
-          positive={sharpe >= 1}
-          negative={sharpe < 0}
-          icon={BarChart2}
-        />
-        <MetricCard
-          label="Win Rate"
-          value={`${win_rate?.toFixed(1)}%`}
-          positive={win_rate >= 50}
-          negative={win_rate < 40}
-          icon={Target}
-        />
-        <MetricCard
-          label="Final Capital"
-          value={`$${final_capital?.toLocaleString('en-US', { maximumFractionDigits: 0 })}`}
-          sub={`${trade_count} trades`}
-          positive={final_capital >= initial_capital}
-          negative={final_capital < initial_capital}
-          icon={DollarSign}
-        />
-      </div>
+      {showMetrics && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+          <MetricCard
+            label="Total Return"
+            value={`${totalPos ? '+' : ''}${total_return?.toFixed(2)}%`}
+            positive={totalPos}
+            negative={!totalPos}
+            icon={totalPos ? TrendingUp : TrendingDown}
+          />
+          <MetricCard
+            label="Ann. Return"
+            value={`${annualized_return >= 0 ? '+' : ''}${annualized_return?.toFixed(2)}%`}
+            positive={annualized_return >= 0}
+            negative={annualized_return < 0}
+            icon={Activity}
+          />
+          <MetricCard
+            label="Max Drawdown"
+            value={`${max_drawdown?.toFixed(2)}%`}
+            positive={mddPos}
+            negative={!mddPos}
+            icon={TrendingDown}
+          />
+          <MetricCard
+            label="Sharpe Ratio"
+            value={sharpe?.toFixed(2)}
+            positive={sharpe >= 1}
+            negative={sharpe < 0}
+            icon={BarChart2}
+          />
+          <MetricCard
+            label="Win Rate"
+            value={`${win_rate?.toFixed(1)}%`}
+            positive={win_rate >= 50}
+            negative={win_rate < 40}
+            icon={Target}
+          />
+          <MetricCard
+            label="Final Capital"
+            value={`$${final_capital?.toLocaleString('en-US', { maximumFractionDigits: 0 })}`}
+            sub={`${trade_count} trades`}
+            positive={final_capital >= initial_capital}
+            negative={final_capital < initial_capital}
+            icon={DollarSign}
+          />
+        </div>
+      )}
 
       {/* Trades table */}
-      {trades?.length > 0 && (
+      {showTrades && trades?.length > 0 && (
         <div className="space-y-2">
           <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
             Trade History ({trades.length})
           </div>
           <TradesTable trades={trades} />
         </div>
+      )}
+
+      {/* Trades-only: empty state if no trades */}
+      {showTrades && !showMetrics && (!trades || trades.length === 0) && (
+        <div className="text-[11px] text-gray-600 text-center py-8">거래 내역이 없습니다</div>
       )}
     </div>
   );
