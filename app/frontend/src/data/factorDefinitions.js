@@ -235,15 +235,15 @@ export const FACTOR_STATUS = {
 };
 
 export const GROUP_META = {
-  'Trend':              { icon: '📈', color: 'text-cyan-400',   desc: '추세 추종 지표' },
-  'Momentum':           { icon: '⚡', color: 'text-yellow-400', desc: '모멘텀/속도 지표' },
-  'Volatility':         { icon: '🌊', color: 'text-purple-400', desc: '변동성/밴드 지표' },
-  'Statistical':        { icon: '📐', color: 'text-blue-400',   desc: '통계적 이격도 지표' },
-  'Market Sensitivity': { icon: '🏦', color: 'text-orange-400', desc: '시장 민감도 팩터' },
-  'Sentiment':          { icon: '📰', color: 'text-rose-400',   desc: '뉴스/감성 분석 팩터' },
-  'Price':              { icon: '💰', color: 'text-gray-400',   desc: '가격 원데이터' },
-  'Volume':             { icon: '📦', color: 'text-gray-400',   desc: '거래량 원데이터' },
-  'Constant':           { icon: '🔢', color: 'text-gray-500',   desc: '비교 상수값' },
+  'Trend':              { icon: '', color: 'text-cyan-400',   desc: '추세 추종 지표' },
+  'Momentum':           { icon: '', color: 'text-yellow-400', desc: '모멘텀/속도 지표' },
+  'Volatility':         { icon: '', color: 'text-purple-400', desc: '변동성/밴드 지표' },
+  'Statistical':        { icon: '', color: 'text-blue-400',   desc: '통계적 이격도 지표' },
+  'Market Sensitivity': { icon: '', color: 'text-orange-400', desc: '시장 민감도 팩터' },
+  'Sentiment':          { icon: '', color: 'text-rose-400',   desc: '뉴스/감성 분석 팩터' },
+  'Price':              { icon: '', color: 'text-gray-400',   desc: '가격 원데이터' },
+  'Volume':             { icon: '', color: 'text-gray-400',   desc: '거래량 원데이터' },
+  'Constant':           { icon: '', color: 'text-gray-500',   desc: '비교 상수값' },
 };
 
 export const OPERATORS = [
