@@ -77,11 +77,11 @@ const StrategyCard = ({ strategy, onRun }) => {
           {/* Buy/Sell Conditions */}
           <div className="grid grid-cols-2 gap-2">
             <div className="bg-green-900/10 border border-green-800/40 rounded-lg p-2.5">
-              <div className="text-[10px] text-green-400 font-semibold mb-1">▲ BUY Condition</div>
+              <div className="text-[10px] text-green-400 font-semibold mb-1">BUY</div>
               <div className="text-[11px] text-gray-300 leading-relaxed">{strategy.buy}</div>
             </div>
             <div className="bg-red-900/10 border border-red-800/40 rounded-lg p-2.5">
-              <div className="text-[10px] text-red-400 font-semibold mb-1">▼ SELL Condition</div>
+              <div className="text-[10px] text-red-400 font-semibold mb-1">SELL</div>
               <div className="text-[11px] text-gray-300 leading-relaxed">{strategy.sell}</div>
             </div>
           </div>
@@ -110,56 +110,58 @@ const StrategyCard = ({ strategy, onRun }) => {
             <div className="text-[10px] text-gray-500 italic bg-gray-800/20 rounded px-2 py-1">{strategy.note}</div>
           )}
 
-          {/* Inline Run Form */}
-          <div className="border-t border-gray-800 pt-3">
-            <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">Run Backtest</div>
-            <div className="flex flex-wrap gap-2 items-end">
-              {/* Ticker */}
-              <div className="flex flex-col gap-0.5">
-                <span className="text-[9px] text-gray-500 uppercase tracking-wide">Ticker</span>
-                <input
-                  value={ticker}
-                  onChange={e => setTicker(e.target.value.toUpperCase())}
-                  className="w-16 px-1.5 py-1 bg-[#0a0a0f] border border-gray-700 rounded text-[11px] text-white focus:outline-none focus:border-cyan-500 uppercase"
-                />
+          {/* Inline Run Form — only shown when onRun handler is provided */}
+          {onRun && (
+            <div className="border-t border-gray-800 pt-3">
+              <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">Run Backtest</div>
+              <div className="flex flex-wrap gap-2 items-end">
+                {/* Ticker */}
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[9px] text-gray-500 uppercase tracking-wide">Ticker</span>
+                  <input
+                    value={ticker}
+                    onChange={e => setTicker(e.target.value.toUpperCase())}
+                    className="w-16 px-1.5 py-1 bg-[#0a0a0f] border border-gray-700 rounded text-[11px] text-white focus:outline-none focus:border-cyan-500 uppercase"
+                  />
+                </div>
+                {/* Date range compact */}
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[9px] text-gray-500 uppercase tracking-wide">Start</span>
+                  <input type="date" value={start} onChange={e => setStart(e.target.value)}
+                    className="px-1.5 py-1 bg-[#0a0a0f] border border-gray-700 rounded text-[11px] text-white focus:outline-none focus:border-cyan-500" />
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[9px] text-gray-500 uppercase tracking-wide">End</span>
+                  <input type="date" value={end} onChange={e => setEnd(e.target.value)}
+                    className="px-1.5 py-1 bg-[#0a0a0f] border border-gray-700 rounded text-[11px] text-white focus:outline-none focus:border-cyan-500" />
+                </div>
+                {/* Strategy params */}
+                {strategy.variables.map(v => (
+                  <Num
+                    key={v.name}
+                    label={v.label.split(' ')[0]}
+                    value={params[v.name] ?? v.default}
+                    onChange={val => setParam(v.name, val)}
+                    step={typeof v.default === 'number' && v.default % 1 !== 0 ? 0.1 : 1}
+                  />
+                ))}
+                <Num label="SL%" value={params.stop_loss_pct ?? 5} onChange={v => setParam('stop_loss_pct', v)} step={0.5} />
+                <Num label="TP%" value={params.take_profit_pct ?? 15} onChange={v => setParam('take_profit_pct', v)} step={0.5} />
               </div>
-              {/* Date range compact */}
-              <div className="flex flex-col gap-0.5">
-                <span className="text-[9px] text-gray-500 uppercase tracking-wide">Start</span>
-                <input type="date" value={start} onChange={e => setStart(e.target.value)}
-                  className="px-1.5 py-1 bg-[#0a0a0f] border border-gray-700 rounded text-[11px] text-white focus:outline-none focus:border-cyan-500" />
-              </div>
-              <div className="flex flex-col gap-0.5">
-                <span className="text-[9px] text-gray-500 uppercase tracking-wide">End</span>
-                <input type="date" value={end} onChange={e => setEnd(e.target.value)}
-                  className="px-1.5 py-1 bg-[#0a0a0f] border border-gray-700 rounded text-[11px] text-white focus:outline-none focus:border-cyan-500" />
-              </div>
-              {/* Strategy params */}
-              {strategy.variables.map(v => (
-                <Num
-                  key={v.name}
-                  label={v.label.split(' ')[0]}
-                  value={params[v.name] ?? v.default}
-                  onChange={val => setParam(v.name, val)}
-                  step={typeof v.default === 'number' && v.default % 1 !== 0 ? 0.1 : 1}
-                />
-              ))}
-              <Num label="SL%" value={params.stop_loss_pct ?? 5} onChange={v => setParam('stop_loss_pct', v)} step={0.5} />
-              <Num label="TP%" value={params.take_profit_pct ?? 15} onChange={v => setParam('take_profit_pct', v)} step={0.5} />
-            </div>
 
-            <button
-              onClick={() => onRun({
-                ticker,
-                start_date: start,
-                end_date: end,
-                strategy: { ...params },
-              })}
-              className="mt-3 flex items-center gap-1.5 px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white text-[11px] font-semibold rounded transition-colors"
-            >
-              <Play size={11} /> Run Backtest
-            </button>
-          </div>
+              <button
+                onClick={() => onRun({
+                  ticker,
+                  start_date: start,
+                  end_date: end,
+                  strategy: { ...params },
+                })}
+                className="mt-3 flex items-center gap-1.5 px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white text-[11px] font-semibold rounded transition-colors"
+              >
+                <Play size={11} /> Run Backtest
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

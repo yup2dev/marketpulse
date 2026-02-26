@@ -6,7 +6,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import {
   TrendingUp, Grid3x3, LayoutDashboard, BarChart3, Briefcase,
-  Globe, Bell, LogOut, User, Settings, ChevronDown
+  Globe, Bell, LogOut, User, Settings, ChevronDown, FlaskConical,
 } from 'lucide-react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -30,6 +30,7 @@ const ROUTE_MAP = {
   'screener':           '/screener',
   'watchlist':          '/watchlist',
   'quant':              '/quant',
+  'strategy':           '/strategy',
 };
 
 const AppLayout = () => {
@@ -158,7 +159,8 @@ const AppLayout = () => {
                   ))}
                 </div>
               ) : (
-                menus.map((menu) => {
+                <>
+                {menus.map((menu) => {
                   const isActive = isMenuActive(menu.menu_path);
 
                   return (
@@ -201,7 +203,21 @@ const AppLayout = () => {
                       )}
                     </div>
                   );
-                })
+                })}
+
+                {/* Static: Strategy Lab */}
+                <button
+                  onClick={() => navigate('/strategy')}
+                  className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-colors ${
+                    location.pathname === '/strategy'
+                      ? 'text-cyan-400'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  <FlaskConical size={14} />
+                  <span>Strategy</span>
+                </button>
+                </>
               )}
             </nav>
 

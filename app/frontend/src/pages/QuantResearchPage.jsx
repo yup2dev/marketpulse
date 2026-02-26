@@ -1,84 +1,192 @@
-import React, { useState, useMemo, useRef } from 'react';
+/**
+ * QuantResearchPage — Strategy Execution
+ *
+ * Simplified page focused on running backtests.
+ * Strategy building/management → Strategy Lab (/strategy)
+ *
+ * Left panel  : strategy selector + execution settings + run
+ * Right panel : chart · performance · trades results
+ */
+import React, { useState, useMemo, useEffect } from 'react';
 import {
-  BookOpen, FolderOpen, Search, Cpu, FlaskConical,
-  BarChart2, Activity, Table2, ChevronLeft, ChevronRight,
-  GripVertical, X,
+  Play, RefreshCw, ChevronLeft, ChevronRight,
+  FlaskConical, ExternalLink, TrendingUp,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import ChartWidget from '../components/widgets/ChartWidget';
 import QuantPerformance from '../components/quant/QuantPerformance';
-import EncyclopediaTab from '../components/quant/EncyclopediaTab';
-import MyStrategiesTab from '../components/quant/MyStrategiesTab';
-import ScannerTab from '../components/quant/ScannerTab';
-import StrategyBuilderTab from '../components/quant/StrategyBuilderTab';
-import FactorBuilderTab from '../components/quant/FactorBuilderTab';
 import { quantAPI } from '../config/api';
-import toast from 'react-hot-toast';
 
-// ── Constants ────────────────────────────────────────────────────────────────
+// ── Constants ─────────────────────────────────────────────────────────────────
 
-const PANEL_WIDTH = 400;
-const SWIPE_THRESHOLD = 80;
-
-const LEFT_TABS = [
-  { id: 'builder',      label: 'Builder',       Icon: Cpu },
-  { id: 'factors',      label: 'Factors',       Icon: FlaskConical },
-  { id: 'encyclopedia', label: 'Encyclopedia',  Icon: BookOpen },
-  { id: 'my',           label: 'My Strategies', Icon: FolderOpen },
-  { id: 'scanner',      label: 'Scanner',       Icon: Search },
-];
-
-// Category tabs — styled like InstitutionalPortfolios CATEGORIES
 const RESULT_TABS = [
   { id: 'chart',   label: 'Chart' },
   { id: 'metrics', label: 'Performance' },
   { id: 'trades',  label: 'Trades' },
 ];
 
+const STRATEGY_TYPE_LABELS = {
+  ema_cross:   'EMA Cross',
+  rsi:         'RSI',
+  macd_cross:  'MACD',
+  bb_breakout: 'BB Breakout',
+  custom:      'Custom',
+};
+
+// ── Empty State ───────────────────────────────────────────────────────────────
+
+const EmptyState = ({ message }) => (
+  <div className="h-full flex flex-col items-center justify-center text-center px-8">
+    <TrendingUp size={36} className="text-gray-700 mb-3" />
+    <p className="text-xs text-gray-600 leading-relaxed max-w-xs">{message}</p>
+  </div>
+);
+
+// ── Field helpers ─────────────────────────────────────────────────────────────
+
+const FieldLabel = ({ children }) => (
+  <span className="text-[9px] text-gray-500 uppercase tracking-wider">{children}</span>
+);
+
+const TextInput = ({ value, onChange, className = '', ...rest }) => (
+  <input
+    value={value}
+    onChange={onChange}
+    className={`px-2 py-1.5 bg-[#0a0a0f] border border-gray-700 rounded text-[11px] text-white focus:outline-none focus:border-cyan-500 ${className}`}
+    {...rest}
+  />
+);
+
+// ── Saved Strategy Selector ───────────────────────────────────────────────────
+
+const SavedSelector = ({ strategies, selectedId, onSelect }) => {
+  if (!strategies.length) {
+    return (
+      <div className="text-[11px] text-gray-600 italic py-2">저장된 전략이 없습니다</div>
+    );
+  }
+  return (
+    <select
+      value={selectedId || ''}
+      onChange={e => onSelect(e.target.value)}
+      className="w-full px-2 py-1.5 bg-[#0a0a0f] border border-gray-700 rounded text-[11px] text-white focus:outline-none focus:border-cyan-500"
+    >
+      <option value="">— 전략 선택 —</option>
+      {strategies.map(s => (
+        <option key={s.id} value={s.id}>
+          {s.name}  [{STRATEGY_TYPE_LABELS[s.strategy_type] || s.strategy_type}]
+        </option>
+      ))}
+    </select>
+  );
+};
+
+// ── Execution Settings (Saved mode) ──────────────────────────────────────────
+
+const ExecutionSettings = ({
+  ticker, setTicker,
+  startDate, setStartDate,
+  endDate, setEndDate,
+  stopLoss, setStopLoss,
+  takeProfit, setTakeProfit,
+  capital, setCapital,
+}) => (
+  <div className="space-y-3">
+    {/* Ticker */}
+    <div className="flex flex-col gap-1">
+      <FieldLabel>Ticker</FieldLabel>
+      <TextInput
+        value={ticker}
+        onChange={e => setTicker(e.target.value.toUpperCase())}
+        placeholder="AAPL"
+        className="w-full uppercase"
+      />
+    </div>
+
+    {/* Date range */}
+    <div className="grid grid-cols-2 gap-2">
+      <div className="flex flex-col gap-1">
+        <FieldLabel>From</FieldLabel>
+        <TextInput type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full" />
+      </div>
+      <div className="flex flex-col gap-1">
+        <FieldLabel>To</FieldLabel>
+        <TextInput type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full" />
+      </div>
+    </div>
+
+    {/* Risk */}
+    <div className="space-y-1.5">
+      <FieldLabel>Risk Management</FieldLabel>
+      <div className="grid grid-cols-3 gap-2">
+        {[
+          { label: 'Stop Loss %', val: stopLoss,   set: setStopLoss,   step: 0.5 },
+          { label: 'Take Profit %', val: takeProfit, set: setTakeProfit, step: 0.5 },
+          { label: 'Capital $',   val: capital,    set: setCapital,    step: 1000 },
+        ].map(({ label, val, set, step }) => (
+          <div key={label} className="flex flex-col gap-1">
+            <span className="text-[8px] text-gray-600 uppercase leading-tight">{label}</span>
+            <input
+              type="number"
+              value={val}
+              onChange={e => set(Number(e.target.value))}
+              step={step}
+              className="w-full px-1.5 py-1 bg-[#0a0a0f] border border-gray-700 rounded text-[11px] text-white focus:outline-none focus:border-cyan-500 tabular-nums"
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+);
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
 const QuantResearchPage = () => {
-  const [activeLeftTab, setActiveLeftTab]   = useState('builder');
-  const [activeResult, setActiveResult]     = useState('chart');
-  const [loading, setLoading]               = useState(false);
-  const [signals, setSignals]               = useState([]);
-  const [performance, setPerformance]       = useState(null);
-  const [ticker, setTicker]                 = useState(null);
-  const [chartKey, setChartKey]             = useState(0);
-  const [chartSymbols, setChartSymbols]     = useState(['AAPL']);
+  const navigate = useNavigate();
 
-  // Left panel open/close + swipe ──────────────────────────────────────────
-  const [leftOpen, setLeftOpen]   = useState(true);
-  const [dragX, setDragX]         = useState(0);
-  const [dragging, setDragging]   = useState(false);
-  const dragStart                 = useRef(0);
+  // Panel
+  const [leftOpen, setLeftOpen] = useState(true);
 
-  const onSwipeStart = (e) => {
-    if (e.target.closest('button, input, select, textarea, a, [role="button"]')) return;
-    dragStart.current = e.clientX;
-    setDragging(true);
-    e.currentTarget.setPointerCapture(e.pointerId);
-  };
-  const onSwipeMove = (e) => {
-    if (!dragging) return;
-    const delta = e.clientX - dragStart.current;
-    setDragX(delta < 0 ? Math.max(delta, -PANEL_WIDTH) : 0);
-  };
-  const onSwipeEnd = () => {
-    if (!dragging) return;
-    if (dragX < -SWIPE_THRESHOLD) setLeftOpen(false);
-    setDragging(false);
-    setDragX(0);
-  };
+  // Results
+  const [activeResult, setActiveResult] = useState('chart');
+  const [loading,      setLoading]      = useState(false);
+  const [signals,      setSignals]      = useState([]);
+  const [performance,  setPerformance]  = useState(null);
+  const [ticker,       setResultTicker] = useState(null);
+  const [chartKey,     setChartKey]     = useState(0);
+  const [chartSymbols, setChartSymbols] = useState(['AAPL']);
 
-  // Run backtest ────────────────────────────────────────────────────────────
-  const handleRun = async (payload) => {
+  // Saved strategy state
+  const [strategies,    setStrategies]    = useState([]);
+  const [selectedId,    setSelectedId]    = useState('');
+
+  // Execution settings
+  const [ticker2,     setTicker2]     = useState('AAPL');
+  const [startDate,   setStartDate]   = useState('2022-01-01');
+  const [endDate,     setEndDate]     = useState('2024-12-31');
+  const [stopLoss,    setStopLoss]    = useState(5);
+  const [takeProfit,  setTakeProfit]  = useState(15);
+  const [capital,     setCapital]     = useState(10000);
+
+  // Load saved strategies
+  useEffect(() => {
+    quantAPI.listStrategies()
+      .then(res => setStrategies(res.data || []))
+      .catch(() => {});
+  }, []);
+
+  // ── Run handlers ──────────────────────────────────────────────────────────
+
+  const runBacktest = async (payload) => {
     setLoading(true);
     setSignals([]);
     setPerformance(null);
     try {
       const res = await quantAPI.analyze(payload);
       const { ticker: sym, signals: sigs, performance: perf } = res.data;
-      setTicker(sym);
+      setResultTicker(sym);
       setSignals(sigs || []);
       setPerformance(perf || null);
       if (sym !== chartSymbols[0]) {
@@ -93,6 +201,33 @@ const QuantResearchPage = () => {
     }
   };
 
+  /** Called from Saved tab Run button */
+  const handleSavedRun = () => {
+    const strategy = strategies.find(s => String(s.id) === String(selectedId));
+    if (!strategy) { toast.error('전략을 선택하세요'); return; }
+
+    let params = {};
+    try { params = JSON.parse(strategy.parameters || '{}'); } catch {}
+
+    // Destructure stored risk values so UI values take precedence
+    const { stop_loss_pct: _sl, take_profit_pct: _tp, initial_capital: _ic, factor_ids: _fi, ...condParams } = params;
+
+    runBacktest({
+      ticker:     ticker2,
+      start_date: startDate,
+      end_date:   endDate,
+      strategy: {
+        type:            strategy.strategy_type,
+        stop_loss_pct:   stopLoss,      // UI value wins
+        take_profit_pct: takeProfit,    // UI value wins
+        initial_capital: capital,       // UI value wins
+        ...condParams,                  // buy_conditions, sell_conditions, buy_logic, sell_logic, etc.
+      },
+    });
+  };
+
+  // ── Reference points ──────────────────────────────────────────────────────
+
   const referencePoints = useMemo(() =>
     signals.map(s => ({
       x: s.date,
@@ -101,107 +236,120 @@ const QuantResearchPage = () => {
       label: s.type === 'buy' ? '▲' : '▼',
       tooltip: `${s.type === 'buy' ? '▲ BUY' : '▼ SELL'}\n$${s.price.toFixed(2)}\n${s.reason}`,
     })),
-    [signals]
+    [signals],
   );
 
-  return (
-    <div
-      className="flex h-full bg-[#0a0a0f] overflow-hidden"
-      style={{ height: 'calc(100vh - 56px)' }}
-    >
+  // ── Selected strategy info ────────────────────────────────────────────────
+  const selectedStrategy = strategies.find(s => String(s.id) === String(selectedId));
 
-      {/* ── Left Panel (swipe-to-dismiss) ─────────────────────────────────── */}
+  return (
+    <div className="flex bg-[#0a0a0f] overflow-hidden" style={{ height: 'calc(100vh - 56px)' }}>
+
+      {/* ── Left Panel ─────────────────────────────────────────────────────── */}
       <div
-        className="flex-shrink-0 overflow-hidden"
+        className="flex-shrink-0 overflow-hidden border-r border-gray-800"
         style={{
-          width: leftOpen ? PANEL_WIDTH : 0,
-          transition: dragging ? 'none' : 'width 0.28s cubic-bezier(0.4,0,0.2,1)',
+          width: leftOpen ? 300 : 0,
+          transition: 'width 0.25s cubic-bezier(0.4,0,0.2,1)',
         }}
       >
-        <div
-          className="flex flex-col h-full border-r border-gray-800 bg-[#0d0d12]"
-          style={{
-            width: PANEL_WIDTH,
-            transform: `translateX(${dragging ? dragX : 0}px)`,
-            transition: dragging ? 'none' : 'transform 0.28s cubic-bezier(0.4,0,0.2,1)',
-          }}
-          onPointerDown={onSwipeStart}
-          onPointerMove={onSwipeMove}
-          onPointerUp={onSwipeEnd}
-          onPointerCancel={onSwipeEnd}
-        >
-          {/* ── Left panel header ── */}
-          <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-2">
-              <GripVertical size={14} className="text-gray-600" />
-              <span className="text-sm font-semibold text-white">Strategy Builder</span>
-            </div>
+        <div className="flex flex-col h-full bg-[#0d0d12]" style={{ width: 300 }}>
+
+          {/* Panel header */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800 shrink-0">
+            <span className="text-xs font-semibold text-white">Backtest</span>
             <button
-              onPointerDown={e => e.stopPropagation()}
-              onClick={() => setLeftOpen(false)}
-              className="p-1 rounded text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-              title="닫기 (왼쪽으로 밀어도 닫힘)"
+              onClick={() => navigate('/strategy')}
+              className="flex items-center gap-1 text-[10px] text-cyan-500 hover:text-cyan-300 transition-colors"
+              title="Strategy Lab으로 이동"
             >
-              <X size={13} />
+              <FlaskConical size={11} /> Strategy Lab
+              <ExternalLink size={10} className="ml-0.5" />
             </button>
           </div>
 
-          {/* ── Left panel category tabs (pill style) ── */}
-          <div className="flex items-center gap-1 px-4 py-2 border-b border-gray-800 overflow-x-auto shrink-0 cursor-grab active:cursor-grabbing select-none">
-            {LEFT_TABS.map(({ id, label, Icon }) => (
-              <button
-                key={id}
-                onPointerDown={e => e.stopPropagation()}
-                onClick={() => setActiveLeftTab(id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium whitespace-nowrap rounded transition-colors ${
-                  activeLeftTab === id
-                    ? 'text-cyan-400 bg-cyan-400/10'
-                    : 'text-gray-400 hover:text-white hover:bg-gray-800'
-                }`}
-              >
-                <Icon size={11} />
-                {label}
-              </button>
-            ))}
-          </div>
+          {/* ── Strategy execution ── */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-5">
 
-          {/* ── Tab content ── */}
-          <div className="flex-1 overflow-hidden">
-            {activeLeftTab === 'builder'      && <StrategyBuilderTab onRun={handleRun} />}
-            {activeLeftTab === 'factors'      && <FactorBuilderTab />}
-            {activeLeftTab === 'encyclopedia' && <EncyclopediaTab onRun={handleRun} />}
-            {activeLeftTab === 'my'           && <MyStrategiesTab onRun={handleRun} />}
-            {activeLeftTab === 'scanner'      && <ScannerTab onRun={handleRun} />}
-          </div>
+              {/* Strategy selector */}
+              <section className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <FieldLabel>Strategy</FieldLabel>
+                  <button
+                    onClick={() => { quantAPI.listStrategies().then(r => setStrategies(r.data || [])).catch(() => {}); }}
+                    className="p-1 text-gray-600 hover:text-gray-400 transition-colors"
+                    title="새로고침"
+                  >
+                    <RefreshCw size={10} />
+                  </button>
+                </div>
+                <SavedSelector
+                  strategies={strategies}
+                  selectedId={selectedId}
+                  onSelect={setSelectedId}
+                />
+
+                {/* Selected strategy preview */}
+                {selectedStrategy && (
+                  <div className="bg-[#060608] border border-gray-800 rounded-lg p-3 space-y-1.5">
+                    {selectedStrategy.buy_condition && (
+                      <div className="text-[10px]">
+                        <span className="text-green-400 font-mono">▲ </span>
+                        <span className="text-gray-400">{selectedStrategy.buy_condition}</span>
+                      </div>
+                    )}
+                    {selectedStrategy.sell_condition && (
+                      <div className="text-[10px]">
+                        <span className="text-red-400 font-mono">▼ </span>
+                        <span className="text-gray-400">{selectedStrategy.sell_condition}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </section>
+
+              {/* Execution settings */}
+              <section className="space-y-2">
+                <FieldLabel>Execution Settings</FieldLabel>
+                <ExecutionSettings
+                  ticker={ticker2}      setTicker={setTicker2}
+                  startDate={startDate} setStartDate={setStartDate}
+                  endDate={endDate}     setEndDate={setEndDate}
+                  stopLoss={stopLoss}   setStopLoss={setStopLoss}
+                  takeProfit={takeProfit} setTakeProfit={setTakeProfit}
+                  capital={capital}     setCapital={setCapital}
+                />
+              </section>
+
+              {/* Run button */}
+              <button
+                onClick={handleSavedRun}
+                disabled={loading || !selectedId}
+                className="w-full flex items-center justify-center gap-2 py-2.5 bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-xs font-semibold rounded transition-colors"
+              >
+                {loading
+                  ? <><span className="w-3.5 h-3.5 border border-white border-t-transparent rounded-full animate-spin" /> Running…</>
+                  : <><Play size={13} /> Run Backtest</>
+                }
+              </button>
+            </div>
         </div>
       </div>
 
-      {/* ── Right Widget ─────────────────────────────────────────────────────── */}
-      {/*  Matches InstitutionalPortfolios / TabWidgetWrapper pattern exactly  */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#0d0d12] border border-gray-800">
+      {/* ── Right Panel ────────────────────────────────────────────────────── */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#0d0d12]">
 
-        {/* Widget Header Row — title + controls */}
+        {/* Widget header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800 shrink-0">
           <div className="flex items-center gap-2">
-            {/* Re-open left panel button */}
-            {!leftOpen && (
-              <button
-                onClick={() => setLeftOpen(true)}
-                className="p-1 rounded text-gray-500 hover:text-cyan-400 hover:bg-gray-800 transition-colors"
-                title="패널 열기"
-              >
-                <ChevronRight size={14} />
-              </button>
-            )}
-            {leftOpen && (
-              <button
-                onClick={() => setLeftOpen(false)}
-                className="p-1 rounded text-gray-500 hover:text-gray-300 hover:bg-gray-800 transition-colors"
-                title="패널 닫기"
-              >
-                <ChevronLeft size={14} />
-              </button>
-            )}
+            {/* Panel toggle */}
+            <button
+              onClick={() => setLeftOpen(o => !o)}
+              className="p-1 rounded text-gray-500 hover:text-gray-300 hover:bg-gray-800 transition-colors"
+              title={leftOpen ? '패널 닫기' : '패널 열기'}
+            >
+              {leftOpen ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
+            </button>
 
             <span className="text-sm font-semibold text-white">Quant Research</span>
 
@@ -212,25 +360,28 @@ const QuantResearchPage = () => {
             )}
           </div>
 
-          {/* Right controls */}
-          <div className="flex items-center gap-1.5 text-xs text-gray-500">
-            {performance && (
-              <span className="text-[11px]">
-                {performance.trade_count} trades · {performance.total_return >= 0 ? '+' : ''}{performance.total_return?.toFixed(2)}% return
+          {/* Summary */}
+          <div className="flex items-center gap-3 text-[11px] text-gray-500">
+            {performance && !loading && (
+              <span>
+                {performance.trade_count} trades ·
+                <span className={performance.total_return >= 0 ? ' text-green-400' : ' text-red-400'}>
+                  {' '}{performance.total_return >= 0 ? '+' : ''}{performance.total_return?.toFixed(2)}%
+                </span>
               </span>
             )}
           </div>
         </div>
 
-        {/* Category Tab Row — LEFT-aligned pills, like InstitutionalPortfolios */}
-        <div className="flex items-center gap-1 px-4 py-2 border-b border-gray-800 overflow-x-auto shrink-0">
+        {/* Result tabs */}
+        <div className="flex items-center gap-1 px-4 py-2 border-b border-gray-800 shrink-0">
           {RESULT_TABS.map(({ id, label }) => {
             const disabled = id !== 'chart' && !performance;
             return (
               <button
                 key={id}
                 onClick={() => !disabled && setActiveResult(id)}
-                className={`px-3 py-1.5 text-xs font-medium whitespace-nowrap rounded transition-colors ${
+                className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
                   activeResult === id
                     ? 'text-cyan-400 bg-cyan-400/10'
                     : disabled
@@ -243,19 +394,18 @@ const QuantResearchPage = () => {
             );
           })}
 
-          {/* Loading indicator */}
           {loading && (
-            <div className="flex items-center gap-1.5 ml-2 text-xs text-cyan-400">
-              <div className="w-3 h-3 border border-cyan-500 border-t-transparent rounded-full animate-spin" />
-              <span>Running...</span>
+            <div className="flex items-center gap-1.5 ml-3 text-xs text-cyan-400">
+              <span className="w-3 h-3 border border-cyan-500 border-t-transparent rounded-full animate-spin" />
+              Running…
             </div>
           )}
         </div>
 
-        {/* Content Area */}
+        {/* Content area */}
         <div className="flex-1 min-h-0 overflow-hidden">
 
-          {/* Chart — always mounted to preserve state, hidden when not active */}
+          {/* Chart — always mounted */}
           <div className={`h-full ${activeResult === 'chart' ? '' : 'hidden'}`}>
             <ChartWidget
               key={chartKey}
@@ -267,24 +417,24 @@ const QuantResearchPage = () => {
             />
           </div>
 
-          {/* Performance Metrics */}
+          {/* Performance metrics */}
           {activeResult === 'metrics' && (
-            <div className="h-full overflow-y-auto p-4">
+            <div className="h-full overflow-y-auto p-5">
               {performance ? (
                 <QuantPerformance performance={performance} ticker={ticker} section="metrics" />
               ) : (
-                <EmptyState message="전략을 선택하고 ▶ Run Backtest를 클릭하면 성과 지표가 여기 표시됩니다" />
+                <EmptyState message="전략을 선택하고 ▶ Run Backtest를 클릭하면 성과 지표가 표시됩니다" />
               )}
             </div>
           )}
 
-          {/* Trades History */}
+          {/* Trades */}
           {activeResult === 'trades' && (
-            <div className="h-full overflow-y-auto p-4">
+            <div className="h-full overflow-y-auto p-5">
               {performance?.trades?.length > 0 ? (
                 <QuantPerformance performance={performance} ticker={ticker} section="trades" />
               ) : (
-                <EmptyState message="백테스트 실행 후 거래 내역이 여기 표시됩니다" />
+                <EmptyState message="백테스트 실행 후 거래 내역이 표시됩니다" />
               )}
             </div>
           )}
@@ -293,13 +443,5 @@ const QuantResearchPage = () => {
     </div>
   );
 };
-
-// ── Empty state ───────────────────────────────────────────────────────────────
-
-const EmptyState = ({ message }) => (
-  <div className="h-full flex items-center justify-center">
-    <p className="text-[11px] text-gray-600 text-center max-w-xs leading-relaxed">{message}</p>
-  </div>
-);
 
 export default QuantResearchPage;

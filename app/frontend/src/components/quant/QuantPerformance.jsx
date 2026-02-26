@@ -1,5 +1,6 @@
 import React from 'react';
 import { TrendingUp, TrendingDown, Activity, BarChart2, Target, DollarSign } from 'lucide-react';
+import WidgetTable from '../widgets/common/WidgetTable';
 
 // ── Metric Card ───────────────────────────────────────────────────────────────
 const MetricCard = ({ label, value, sub, positive, negative, icon: Icon }) => {
@@ -16,50 +17,76 @@ const MetricCard = ({ label, value, sub, positive, negative, icon: Icon }) => {
   );
 };
 
-// ── Trades Table ──────────────────────────────────────────────────────────────
-const TradesTable = ({ trades }) => {
-  if (!trades?.length) return null;
-  return (
-    <div className="border border-gray-800 rounded-lg overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full text-[11px]">
-          <thead>
-            <tr className="bg-[#0d0d12]">
-              {['Entry', 'Exit', 'Entry $', 'Exit $', 'P&L', 'P&L %', 'Reason'].map((h) => (
-                <th key={h} className="px-3 py-2 text-left text-gray-400 font-medium whitespace-nowrap">
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {trades.map((t, i) => {
-              const win = t.pnl >= 0;
-              return (
-                <tr
-                  key={i}
-                  className="border-t border-gray-800/50 hover:bg-gray-800/20 transition-colors"
-                >
-                  <td className="px-3 py-1.5 text-gray-300 tabular-nums whitespace-nowrap">{t.entry_date}</td>
-                  <td className="px-3 py-1.5 text-gray-300 tabular-nums whitespace-nowrap">{t.exit_date}</td>
-                  <td className="px-3 py-1.5 text-gray-200 tabular-nums">${t.entry_price.toFixed(2)}</td>
-                  <td className="px-3 py-1.5 text-gray-200 tabular-nums">${t.exit_price.toFixed(2)}</td>
-                  <td className={`px-3 py-1.5 tabular-nums font-medium ${win ? 'text-green-400' : 'text-red-400'}`}>
-                    {win ? '+' : ''}{t.pnl.toFixed(0)}
-                  </td>
-                  <td className={`px-3 py-1.5 tabular-nums font-medium ${win ? 'text-green-400' : 'text-red-400'}`}>
-                    {win ? '+' : ''}{t.pnl_pct.toFixed(2)}%
-                  </td>
-                  <td className="px-3 py-1.5 text-gray-400 whitespace-nowrap max-w-[180px] truncate">{t.reason}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-};
+// ── Trades columns for WidgetTable ────────────────────────────────────────────
+const TRADE_COLUMNS = [
+  {
+    key: 'entry_date',
+    header: 'Entry',
+    sortable: true,
+    sortValue: r => r.entry_date,
+    render: r => <span className="text-gray-300 tabular-nums whitespace-nowrap">{r.entry_date}</span>,
+  },
+  {
+    key: 'exit_date',
+    header: 'Exit',
+    sortable: true,
+    sortValue: r => r.exit_date,
+    render: r => <span className="text-gray-300 tabular-nums whitespace-nowrap">{r.exit_date}</span>,
+  },
+  {
+    key: 'entry_price',
+    header: 'Entry $',
+    align: 'right',
+    sortable: true,
+    sortValue: r => r.entry_price,
+    render: r => <span className="text-gray-200 tabular-nums">${r.entry_price?.toFixed(2)}</span>,
+  },
+  {
+    key: 'exit_price',
+    header: 'Exit $',
+    align: 'right',
+    sortable: true,
+    sortValue: r => r.exit_price,
+    render: r => <span className="text-gray-200 tabular-nums">${r.exit_price?.toFixed(2)}</span>,
+  },
+  {
+    key: 'pnl',
+    header: 'P&L',
+    align: 'right',
+    sortable: true,
+    sortValue: r => r.pnl,
+    render: r => {
+      const win = r.pnl >= 0;
+      return (
+        <span className={`tabular-nums font-medium ${win ? 'text-green-400' : 'text-red-400'}`}>
+          {win ? '+' : ''}{r.pnl?.toFixed(0)}
+        </span>
+      );
+    },
+  },
+  {
+    key: 'pnl_pct',
+    header: 'P&L %',
+    align: 'right',
+    sortable: true,
+    sortValue: r => r.pnl_pct,
+    render: r => {
+      const win = r.pnl_pct >= 0;
+      return (
+        <span className={`tabular-nums font-medium ${win ? 'text-green-400' : 'text-red-400'}`}>
+          {win ? '+' : ''}{r.pnl_pct?.toFixed(2)}%
+        </span>
+      );
+    },
+  },
+  {
+    key: 'reason',
+    header: 'Reason',
+    render: r => (
+      <span className="text-gray-400 truncate max-w-[200px] block" title={r.reason}>{r.reason}</span>
+    ),
+  },
+];
 
 // ── Main Component ────────────────────────────────────────────────────────────
 // section: 'all' | 'metrics' | 'trades'  (default: 'all')
@@ -142,7 +169,16 @@ const QuantPerformance = ({ performance, ticker, section = 'all' }) => {
           <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
             Trade History ({trades.length})
           </div>
-          <TradesTable trades={trades} />
+          <div className="border border-gray-800 rounded-lg overflow-hidden">
+            <WidgetTable
+              columns={TRADE_COLUMNS}
+              data={trades.map((t, i) => ({ ...t, _key: i }))}
+              size="compact"
+              defaultSortKey="entry_date"
+              defaultSortDirection="desc"
+              emptyMessage="거래 내역이 없습니다"
+            />
+          </div>
         </div>
       )}
 

@@ -15,6 +15,7 @@ import AlertsPage from './pages/AlertsPage';
 import ScreenerPage from './pages/ScreenerPage';
 import WatchlistPage from './pages/WatchlistPage';
 import QuantResearchPage from './pages/QuantResearchPage';
+import StrategyPage from './pages/StrategyPage';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import useAuthStore from './store/authStore';
 
@@ -80,6 +81,7 @@ function App() {
           <Route path="screener" element={<ScreenerPage />} />
           <Route path="watchlist" element={<WatchlistPage />} />
           <Route path="quant" element={<QuantResearchPage />} />
+          <Route path="strategy" element={<StrategyPage />} />
         </Route>
 
         {/* Fallback */}

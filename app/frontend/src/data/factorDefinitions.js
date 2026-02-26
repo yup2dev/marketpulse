@@ -252,8 +252,8 @@ export const OPERATORS = [
   { id: '>=',           label: '>=' },
   { id: '<=',           label: '<=' },
   { id: '==',           label: '==' },
-  { id: 'crosses_above', label: 'crosses above ↑' },
-  { id: 'crosses_below', label: 'crosses below ↓' },
+  { id: 'crosses_above', label: 'crosses above' },
+  { id: 'crosses_below', label: 'crosses below' },
 ];
 
 /** Build default factor state for a given factor ID */

@@ -303,11 +303,11 @@ const ConditionRow = ({ cond, variables, onChange, onRemove }) => (
 
 // ── Condition Section ─────────────────────────────────────────────────────────
 
-const ConditionSection = ({ title, color, dot, conditions, logic, variables, onAdd, onChange, onRemove, onLogicChange }) => (
+const ConditionSection = ({ title, color, conditions, logic, variables, onAdd, onChange, onRemove, onLogicChange }) => (
   <div className="space-y-2">
     <div className="flex items-center gap-2">
-      <span className={`text-[11px] font-semibold ${color} flex items-center gap-1`}>
-        <span>{dot}</span> {title}
+      <span className={`text-[11px] font-semibold ${color}`}>
+        {title}
       </span>
       <select value={logic} onChange={e => onLogicChange(e.target.value)}
         className="px-1.5 py-0.5 bg-[#0a0a0f] border border-gray-700 rounded text-[10px] text-gray-300 focus:outline-none">
@@ -587,13 +587,13 @@ const StrategyBuilderTab = ({ onRun }) => {
           <StepHeader step="2" title="Strategy Logic" sub="정의된 변수로 조건 구성" />
 
           <ConditionSection
-            title="매수 조건" color="text-green-400" dot="▲"
+            title="Buy" color="text-green-400"
             conditions={buyConds} logic={buyLogic} variables={variables}
             onAdd={addBuy} onChange={updBuy} onRemove={remBuy} onLogicChange={setBuyLogic}
           />
 
           <ConditionSection
-            title="매도 조건" color="text-red-400" dot="▼"
+            title="Sell" color="text-red-400"
             conditions={sellConds} logic={sellLogic} variables={variables}
             onAdd={addSell} onChange={updSell} onRemove={remSell} onLogicChange={setSellLogic}
           />
