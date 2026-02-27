@@ -3,19 +3,19 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { Toaster } from 'react-hot-toast';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import AppLayout from './components/layout/AppLayout';
-import Login from './pages/Login';
-import Register from './pages/Register';
+import Login from './components/auth/Login';
+import Register from './components/auth/Register';
 import ProfessionalDashboard from './components/dashboard/ProfessionalDashboard';
 import StockDashboard from './components/analysis/StockDashboard';
 import MacroDashboard from './components/macro/MacroDashboard';
 import UnifiedBacktest from './components/backtest/UnifiedBacktest';
-import PortfolioDashboard from './pages/PortfolioDashboard';
-import PortfolioDetail from './pages/PortfolioDetail';
-import AlertsPage from './pages/AlertsPage';
-import ScreenerPage from './pages/ScreenerPage';
-import WatchlistPage from './pages/WatchlistPage';
-import QuantResearchPage from './pages/QuantResearchPage';
-import StrategyPage from './pages/StrategyPage';
+import PortfolioDashboard from './components/portfolio/PortfolioDashboard';
+import PortfolioDetail from './components/portfolio/PortfolioDetail';
+import AlertsDashboard from './components/alerts/AlertsDashboard';
+import ScreenerDashboard from './components/screener/ScreenerDashboard';
+import WatchlistDashboard from './components/watchlist/WatchlistDashboard';
+import QuantResearchDashboard from './components/quant/QuantResearchDashboard';
+import StrategyBuilderDashboard from './components/strategy/StrategyBuilderDashboard';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import useAuthStore from './store/authStore';
 
@@ -77,11 +77,11 @@ function App() {
           <Route path="backtest" element={<UnifiedBacktest />} />
           <Route path="portfolios" element={<PortfolioDashboard />} />
           <Route path="portfolio/:portfolioId" element={<PortfolioDetail />} />
-          <Route path="alerts" element={<AlertsPage />} />
-          <Route path="screener" element={<ScreenerPage />} />
-          <Route path="watchlist" element={<WatchlistPage />} />
-          <Route path="quant" element={<QuantResearchPage />} />
-          <Route path="strategy" element={<StrategyPage />} />
+          <Route path="alerts" element={<AlertsDashboard />} />
+          <Route path="screener" element={<ScreenerDashboard />} />
+          <Route path="watchlist" element={<WatchlistDashboard />} />
+          <Route path="quant" element={<QuantResearchDashboard />} />
+          <Route path="strategy" element={<StrategyBuilderDashboard />} />
         </Route>
 
         {/* Fallback */}

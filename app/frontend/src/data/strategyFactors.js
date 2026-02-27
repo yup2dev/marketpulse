@@ -393,6 +393,46 @@ export const STRATEGY_FACTORS = [
     params: [],
     availability: 'available',
   },
+  // ── Options: Black-Scholes FFT ────────────────────────────────────────────
+  {
+    id: 'opt_bs',
+    name: 'Black-Scholes (FFT)',
+    nameKo: 'BS 옵션 (FFT)',
+    category: 'Options',
+    sub: '옵션 프라이싱',
+    desc: 'Carr-Madan FFT 기반 Black-Scholes 콜옵션 가격 및 그릭스. 고정 Moneyness 롤링 옵션.',
+    examples: 'Call Price, Delta, Gamma, Theta, Vega',
+    strategic: '옵션 그릭스 기반 방향성 신호 및 변동성 전략',
+    params: [
+      { name: 'r',         label: 'Rate %',      default: 5.0,  min: 0,    max: 20,  step: 0.1  },
+      { name: 'T',         label: 'Expiry (yr)', default: 0.25, min: 0.01, max: 5,   step: 0.01 },
+      { name: 'sigma',     label: 'Vol %',       default: 25.0, min: 1,    max: 200, step: 0.5  },
+      { name: 'moneyness', label: 'Moneyness %', default: 0.0,  min: -50,  max: 50,  step: 1    },
+    ],
+    availability: 'available',
+  },
+  // ── Options: Heston FFT ───────────────────────────────────────────────────
+  {
+    id: 'opt_heston',
+    name: 'Heston Model (FFT)',
+    nameKo: '헤스톤 모델 (FFT)',
+    category: 'Options',
+    sub: '옵션 프라이싱',
+    desc: '확률적 변동성 Heston 모델 FFT 옵션 가격. 분산 평균회귀(kappa·theta)·변동성의변동성(xi)·상관관계(rho) 파라미터.',
+    examples: 'Heston Call Price, Heston Delta',
+    strategic: '스토캐스틱 변동성 환경의 고급 옵션 신호 전략',
+    params: [
+      { name: 'r',         label: 'Rate %',      default: 5.0,  min: 0,    max: 20,   step: 0.1  },
+      { name: 'T',         label: 'Expiry (yr)', default: 0.25, min: 0.01, max: 5,    step: 0.01 },
+      { name: 'moneyness', label: 'Moneyness %', default: 0.0,  min: -50,  max: 50,   step: 1    },
+      { name: 'v0',        label: 'v₀ (%²)',     default: 4.0,  min: 0.01, max: 100,  step: 0.1  },
+      { name: 'kappa',     label: 'Kappa',       default: 2.0,  min: 0.01, max: 20,   step: 0.1  },
+      { name: 'theta',     label: 'Theta (%²)',  default: 4.0,  min: 0.01, max: 100,  step: 0.1  },
+      { name: 'xi',        label: 'Xi (VolVol)', default: 0.5,  min: 0.01, max: 5,    step: 0.05 },
+      { name: 'rho',       label: 'Rho',         default: -0.7, min: -0.99,max: 0.99, step: 0.05 },
+    ],
+    availability: 'available',
+  },
   // ── Alt Data: Sentiment ────────────────────────────────────────────────────
   {
     id: 'news_sentiment',
@@ -503,6 +543,11 @@ export const CATEGORY_META = {
     label: 'Alt Data',
     color: 'text-orange-400',
     subs: ['감성 분석', '검색어 트렌드', '소셜 미디어'],
+  },
+  Options: {
+    label: 'Options',
+    color: 'text-violet-400',
+    subs: ['옵션 프라이싱'],
   },
 };
 
