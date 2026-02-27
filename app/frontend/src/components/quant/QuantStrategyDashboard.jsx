@@ -1,11 +1,18 @@
 import React, { useState, useMemo } from 'react';
 import ChartWidget from '../widgets/ChartWidget';
 import StrategyBuilder from './StrategyBuilder';
+import HestonStrategyTab from './HestonStrategyTab';
 import QuantPerformance from './QuantPerformance';
 import { quantAPI } from '../../config/api';
 import toast from 'react-hot-toast';
 
+const MODES = [
+  { id: 'preset',  label: 'Preset' },
+  { id: 'heston',  label: 'Heston FFT' },
+];
+
 const QuantStrategyDashboard = () => {
+  const [mode, setMode]             = useState('preset');
   const [loading, setLoading]       = useState(false);
   const [signals, setSignals]       = useState([]);
   const [performance, setPerformance] = useState(null);
@@ -51,14 +58,38 @@ const QuantStrategyDashboard = () => {
     <div className="flex h-full bg-[#0a0a0f] overflow-hidden">
       {/* ── Left Panel: Strategy Builder ─────────────────────────────────── */}
       <div
-        className="w-[280px] min-w-[280px] border-r border-gray-800 bg-[#0d0d12] flex flex-col overflow-y-auto"
+        className="w-[280px] min-w-[280px] border-r border-gray-800 bg-[#0d0d12] flex flex-col overflow-hidden"
         style={{ height: '100%' }}
       >
-        <div className="px-4 pt-4 pb-2 border-b border-gray-800">
-          <div className="text-sm font-semibold text-white">Quant Strategy Builder</div>
-          <div className="text-[11px] text-gray-500 mt-0.5">Single-ticker backtesting</div>
+        {/* Mode switcher */}
+        <div className="px-4 pt-4 pb-2 border-b border-gray-800 shrink-0">
+          <div className="text-sm font-semibold text-white mb-2">Quant Strategy Builder</div>
+          <div className="flex gap-1">
+            {MODES.map(m => (
+              <button
+                key={m.id}
+                onClick={() => setMode(m.id)}
+                className={`flex-1 py-1 text-[10px] font-semibold rounded border transition-all ${
+                  mode === m.id
+                    ? m.id === 'heston'
+                      ? 'bg-violet-900/40 border-violet-600 text-violet-300'
+                      : 'bg-cyan-900/40 border-cyan-600 text-cyan-300'
+                    : 'bg-[#0a0a0f] border-gray-700 text-gray-500 hover:border-gray-600'
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
         </div>
-        <StrategyBuilder onRun={handleRun} loading={loading} />
+
+        {/* Tab content */}
+        <div className="flex-1 overflow-y-auto">
+          {mode === 'preset'
+            ? <StrategyBuilder onRun={handleRun} loading={loading} />
+            : <HestonStrategyTab onRun={handleRun} loading={loading} />
+          }
+        </div>
       </div>
 
       {/* ── Right Panel: Chart + Performance ─────────────────────────────── */}

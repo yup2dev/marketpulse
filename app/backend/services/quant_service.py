@@ -244,6 +244,18 @@ def _vwap(high: np.ndarray, low: np.ndarray, close: np.ndarray, volume: np.ndarr
     return np.cumsum(tp * safe_vol) / np.cumsum(safe_vol)
 
 
+# ─── Shared Volatility Helper ─────────────────────────────────────────────────
+
+def _rolling_realized_var(closes: np.ndarray, window: int) -> np.ndarray:
+    """Annualised realised variance via log-return std².  Used by both the
+    custom factor engine and the Heston strategy engines."""
+    log_rets = np.log(closes[1:] / np.maximum(closes[:-1], 1e-12))
+    rv = np.full(len(closes), np.nan)
+    for i in range(window, len(closes)):
+        rv[i] = np.var(log_rets[i - window: i], ddof=0) * 252
+    return rv
+
+
 # ─── Options Pricing: Carr-Madan FFT ──────────────────────────────────────────
 #
 # C(k) = (e^{-αk}/π) ∫₀^∞ Re[e^{-iuk} · e^{-rT}·φ(u−i(α+1)) / (α²+α−u²+i(2α+1)u)] du
@@ -453,13 +465,35 @@ def _compute_factor(series: Dict, factor_def: Dict) -> np.ndarray:
                 return g["vega"]
 
         if factor.startswith("OPT_HESTON"):
-            v0    = float(p.get("v0",    4.0))  / 100.0   # % -> decimal variance
             kappa = float(p.get("kappa", 2.0))
             theta = float(p.get("theta", 4.0))  / 100.0
             xi    = float(p.get("xi",    0.5))
             rho   = float(p.get("rho",  -0.7))
-            cf    = lambda u: _heston_cf_unit(u, r_pct, T_yr, v0, kappa, theta, xi, rho)  # noqa: E731
 
+            # OPT_HESTON_VOL: rolling realised annualised vol (no FFT needed)
+            if factor == "OPT_HESTON_VOL":
+                window = int(p.get("window", 30))
+                return np.sqrt(np.maximum(_rolling_realized_var(c, window), 0))
+
+            # For price/delta: use rolling realised variance as dynamic v0
+            if factor in ("OPT_HESTON_PRICE", "OPT_HESTON_DELTA"):
+                window   = int(p.get("window", 30))
+                rv_series = _rolling_realized_var(c, window)
+                out = np.full(n, np.nan)
+                for i in range(window, n):
+                    v0_i = float(np.clip(rv_series[i], 1e-6, 4.0))
+                    cf_i = lambda u, _v=v0_i: _heston_cf_unit(
+                        u, r_pct, T_yr, _v, kappa, theta, xi, rho
+                    )
+                    if factor == "OPT_HESTON_PRICE":
+                        out[i] = c[i] * _fft_call_unit(K_rel, r_pct, T_yr, cf_i)
+                    else:
+                        out[i] = _fft_delta_unit(K_rel, r_pct, T_yr, cf_i)
+                return out
+
+            # Legacy: static v0 from params (backwards-compat)
+            v0    = float(p.get("v0", 4.0)) / 100.0
+            cf    = lambda u: _heston_cf_unit(u, r_pct, T_yr, v0, kappa, theta, xi, rho)  # noqa: E731
             if factor == "OPT_HESTON_PRICE":
                 unit = _fft_call_unit(K_rel, r_pct, T_yr, cf)
                 return c * unit
@@ -563,12 +597,252 @@ def _run_custom(closes: np.ndarray, dates: List[str], cfg: Dict,
     return signals
 
 
+# ─── Heston Model FFT Strategy Engines ───────────────────────────────────────
+
+def _heston_vol_regime(closes: np.ndarray, dates: List[str], cfg: Dict) -> List[Dict]:
+    """
+    Heston Vol-Regime Strategy
+    ──────────────────────────────────────────────────────────────────────
+    Rationale  : Heston's mean-reverting variance implies that periods of
+                 realised vol *below* θ (long-run variance) are quiet
+                 regimes where breakouts are likely.  Vol spikes above a
+                 multiple of √θ signal risk-off exits.
+
+    Signal     :
+      BUY   when  rv_t / √θ  <  entry_mult  (vol compressed → long entry)
+      SELL  when  rv_t / √θ  >  exit_mult   (vol spike → risk-off exit)
+
+    Parameters : theta (%), lookback, entry_mult, exit_mult
+    """
+    theta      = float(cfg.get("theta",      4.0)) / 100.0   # % → variance
+    lookback   = int  (cfg.get("lookback",  30))
+    entry_mult = float(cfg.get("entry_mult", 0.80))
+    exit_mult  = float(cfg.get("exit_mult",  1.50))
+
+    theta_vol = np.sqrt(theta)           # long-run annualised vol
+    rv        = _rolling_realized_var(closes, lookback)
+    rv_vol    = np.sqrt(np.maximum(rv, 0))   # annualised realised vol
+
+    signals, in_pos = [], False
+    for i in range(1, len(closes)):
+        if np.isnan(rv_vol[i]):
+            continue
+        ratio = rv_vol[i] / max(theta_vol, 1e-9)
+        if not in_pos and ratio < entry_mult:
+            signals.append({
+                "date": dates[i], "type": "buy", "price": closes[i],
+                "reason": f"VolRatio={ratio:.2f} < θ_mult={entry_mult} — Low-Vol Regime Entry",
+            })
+            in_pos = True
+        elif in_pos and ratio > exit_mult:
+            signals.append({
+                "date": dates[i], "type": "sell", "price": closes[i],
+                "reason": f"VolRatio={ratio:.2f} > θ_mult={exit_mult} — Vol Spike Exit",
+            })
+            in_pos = False
+    return signals
+
+
+def _heston_delta_signal(closes: np.ndarray, dates: List[str], cfg: Dict) -> List[Dict]:
+    """
+    Heston Dynamic Delta Momentum
+    ──────────────────────────────────────────────────────────────────────
+    Rationale  : Use the Heston-model call delta as a directional indicator.
+                 Delta is recalculated each bar using the 30-day rolling
+                 realised variance as the instantaneous variance v₀ (instead
+                 of a fixed parameter), making it a *live* signal.
+
+                 A delta crossing above buy_thresh confirms bullish momentum
+                 priced by the stochastic-vol model (ρ, ξ adjust the smile).
+                 Delta crossing below sell_thresh signals bearish momentum.
+
+    Signal     :
+      BUY   when  delta_t-1 ≤ buy_thresh  AND  delta_t > buy_thresh
+      SELL  when  delta_t-1 ≥ sell_thresh AND  delta_t < sell_thresh
+
+    Parameters : r, T, moneyness, kappa, theta, xi, rho,
+                 lookback, delta_buy, delta_sell
+    """
+    r_pct      = float(cfg.get("r",         5.0))  / 100.0
+    T_yr       = float(cfg.get("T",         0.25))
+    mono       = float(cfg.get("moneyness", 0.0))  / 100.0
+    kappa      = float(cfg.get("kappa",     2.0))
+    theta      = float(cfg.get("theta",     4.0))  / 100.0
+    xi         = float(cfg.get("xi",        0.5))
+    rho        = float(cfg.get("rho",      -0.7))
+    lookback   = int  (cfg.get("lookback", 30))
+    delta_buy  = float(cfg.get("delta_buy",  0.60))
+    delta_sell = float(cfg.get("delta_sell", 0.40))
+
+    K_rel = 1.0 + mono
+    rv    = _rolling_realized_var(closes, lookback)
+
+    # Compute delta for each bar using rolling v0
+    delta_series = np.full(len(closes), np.nan)
+    for i in range(lookback, len(closes)):
+        v0_i = float(np.clip(rv[i], 1e-6, 4.0))   # cap at 400% variance
+        cf_i = lambda u, _v0=v0_i: _heston_cf_unit(
+            u, r_pct, T_yr, _v0, kappa, theta, xi, rho
+        )
+        delta_series[i] = _fft_delta_unit(K_rel, r_pct, T_yr, cf_i)
+
+    signals, in_pos = [], False
+    for i in range(1, len(closes)):
+        if np.isnan(delta_series[i]) or np.isnan(delta_series[i - 1]):
+            continue
+        dp, dc = delta_series[i - 1], delta_series[i]
+        if not in_pos and dp <= delta_buy and dc > delta_buy:
+            signals.append({
+                "date": dates[i], "type": "buy", "price": closes[i],
+                "reason": f"Heston Δ={dc:.3f} crosses above {delta_buy} — Bullish Momentum",
+            })
+            in_pos = True
+        elif in_pos and dp >= delta_sell and dc < delta_sell:
+            signals.append({
+                "date": dates[i], "type": "sell", "price": closes[i],
+                "reason": f"Heston Δ={dc:.3f} crosses below {delta_sell} — Momentum Fading",
+            })
+            in_pos = False
+    return signals
+
+
+def _heston_price_ratio(closes: np.ndarray, dates: List[str], cfg: Dict) -> List[Dict]:
+    """
+    Heston Option Premium Mean-Reversion
+    ──────────────────────────────────────────────────────────────────────
+    Rationale  : The ratio  Heston_call_price / spot  is a normalised vol
+                 premium.  When it deviates significantly from its rolling
+                 mean (Bollinger-style), a mean-reversion opportunity arises
+                 in the underlying:
+                   • Premium very HIGH → fear/vol overpriced → contrarian BUY
+                   • Premium very LOW  → complacency      → caution / SELL
+
+    Signal     :
+      BUY   when  z-score of premium_ratio > entry_z  (premium spike reversal)
+      SELL  when  z-score of premium_ratio < -exit_z  (premium collapse)
+
+    Parameters : r, T, moneyness, v0, kappa, theta, xi, rho,
+                 lookback, premium_lookback, entry_z, exit_z
+    """
+    r_pct   = float(cfg.get("r",         5.0)) / 100.0
+    T_yr    = float(cfg.get("T",         0.25))
+    mono    = float(cfg.get("moneyness", 0.0)) / 100.0
+    kappa   = float(cfg.get("kappa",     2.0))
+    theta   = float(cfg.get("theta",     4.0)) / 100.0
+    xi      = float(cfg.get("xi",        0.5))
+    rho     = float(cfg.get("rho",      -0.7))
+    lookback        = int  (cfg.get("lookback",         30))
+    premium_lookback= int  (cfg.get("premium_lookback", 60))
+    entry_z = float(cfg.get("entry_z",  1.5))
+    exit_z  = float(cfg.get("exit_z",   0.5))
+
+    K_rel = 1.0 + mono
+    rv    = _rolling_realized_var(closes, lookback)
+
+    # Build rolling Heston call price series
+    price_ratio = np.full(len(closes), np.nan)
+    for i in range(lookback, len(closes)):
+        v0_i = float(np.clip(rv[i], 1e-6, 4.0))
+        cf_i = lambda u, _v0=v0_i: _heston_cf_unit(
+            u, r_pct, T_yr, _v0, kappa, theta, xi, rho
+        )
+        unit_price = _fft_call_unit(K_rel, r_pct, T_yr, cf_i)
+        price_ratio[i] = unit_price   # already normalised: C(S=1, K=K_rel)
+
+    # Z-score of price_ratio over rolling premium_lookback window
+    zscore = np.full(len(closes), np.nan)
+    for i in range(premium_lookback, len(closes)):
+        window_data = price_ratio[i - premium_lookback: i]
+        valid = window_data[~np.isnan(window_data)]
+        if len(valid) < 10:
+            continue
+        mu, sigma = np.mean(valid), np.std(valid, ddof=0)
+        if sigma > 1e-12 and not np.isnan(price_ratio[i]):
+            zscore[i] = (price_ratio[i] - mu) / sigma
+
+    signals, in_pos = [], False
+    for i in range(1, len(closes)):
+        if np.isnan(zscore[i]):
+            continue
+        z = zscore[i]
+        # High premium → fear is priced in → contrarian long on underlying
+        if not in_pos and z > entry_z:
+            signals.append({
+                "date": dates[i], "type": "buy", "price": closes[i],
+                "reason": f"Heston Premium z={z:.2f} > {entry_z} — Fear Peak, Contrarian Entry",
+            })
+            in_pos = True
+        elif in_pos and z < -exit_z:
+            signals.append({
+                "date": dates[i], "type": "sell", "price": closes[i],
+                "reason": f"Heston Premium z={z:.2f} < {-exit_z} — Premium Collapsed, Exit",
+            })
+            in_pos = False
+    return signals
+
+
+def _heston_variance_gap(closes: np.ndarray, dates: List[str], cfg: Dict) -> List[Dict]:
+    """
+    Heston κ Mean-Reversion (Variance Gap)
+    ──────────────────────────────────────────────────────────────────────
+    Rationale  : The Heston SDE drives variance toward θ at speed κ.
+                 The variance gap  g_t = v0_t − θ  decays exponentially
+                 (EV[v_t] = θ + (v0−θ)·e^{−κt}).
+
+                 A large positive gap (v0 >> θ) means vol will compress →
+                 price uncertainty abates → BUY the underlying once the gap
+                 starts *contracting*.
+                 A negative gap (v0 << θ) means vol expansion is likely →
+                 SELL before the spike arrives.
+
+    Signal     :
+      BUY   when  gap_t-1 ≥ spike_thresh  AND  gap_t < spike_thresh  (gap contracting from high)
+      SELL  when  gap_t drops below -low_thresh  (variance below LR mean — spike imminent)
+
+    Parameters : theta, kappa (for display / half-life), lookback,
+                 spike_thresh_pct, low_thresh_pct
+    """
+    theta         = float(cfg.get("theta",         4.0)) / 100.0
+    lookback      = int  (cfg.get("lookback",       30))
+    spike_thresh  = float(cfg.get("spike_thresh",   1.5)) / 100.0  # % variance above theta
+    low_thresh    = float(cfg.get("low_thresh",     0.5)) / 100.0  # % variance below theta
+
+    rv  = _rolling_realized_var(closes, lookback)
+    gap = rv - theta   # g_t = v0_t - theta
+
+    signals, in_pos = [], False
+    for i in range(1, len(closes)):
+        if np.isnan(gap[i]) or np.isnan(gap[i - 1]):
+            continue
+        gp, gc = gap[i - 1], gap[i]
+        # Gap contracts from above spike_thresh → volatility compression → BUY
+        if not in_pos and gp >= spike_thresh and gc < spike_thresh:
+            signals.append({
+                "date": dates[i], "type": "buy", "price": closes[i],
+                "reason": f"VarGap={gc*100:.2f}% contracting from spike — Vol Compression Entry",
+            })
+            in_pos = True
+        # Gap falls deep below zero → variance below LR mean → vol spike risk → SELL
+        elif in_pos and gc < -low_thresh:
+            signals.append({
+                "date": dates[i], "type": "sell", "price": closes[i],
+                "reason": f"VarGap={gc*100:.2f}% < −{low_thresh*100:.1f}% — Vol Spike Risk, Exit",
+            })
+            in_pos = False
+    return signals
+
+
 STRATEGY_ENGINES = {
-    "ema_cross": _run_ema_cross,
-    "rsi": _run_rsi,
-    "macd_cross": _run_macd_cross,
-    "bb_breakout": _run_bb_breakout,
-    "custom": _run_custom,
+    "ema_cross":              _run_ema_cross,
+    "rsi":                    _run_rsi,
+    "macd_cross":             _run_macd_cross,
+    "bb_breakout":            _run_bb_breakout,
+    "custom":                 _run_custom,
+    # ── Heston Model FFT ──────────────────────────────────────────────────────
+    "heston_vol_regime":      _heston_vol_regime,
+    "heston_delta_signal":    _heston_delta_signal,
+    "heston_price_ratio":     _heston_price_ratio,
+    "heston_variance_gap":    _heston_variance_gap,
 }
 
 

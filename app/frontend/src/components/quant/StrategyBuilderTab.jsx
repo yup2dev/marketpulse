@@ -54,6 +54,7 @@ const PALETTE_GROUPS = [
   { group: 'Momentum',   factors: ['RSI', 'MACD_LINE', 'MACD_SIGNAL', 'STOCH_K', 'STOCH_D'] },
   { group: 'Volatility', factors: ['BB_UPPER', 'BB_LOWER', 'BB_MID', 'ATR'] },
   { group: 'Statistical',factors: ['ZSCORE', 'PERCENTILE'] },
+  { group: 'Options',    factors: ['OPT_HESTON_PRICE', 'OPT_HESTON_DELTA', 'OPT_HESTON_VOL'] },
   { group: 'Price',      factors: ['CLOSE', 'OPEN', 'HIGH', 'LOW'] },
 ];
 

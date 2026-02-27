@@ -205,6 +205,44 @@ export const FACTORS = {
     dataNote: 'MarketPulse 뉴스 분석 데이터 필요',
   },
 
+  // ── Options: Heston FFT ──────────────────────────────────────────────────
+  OPT_HESTON_PRICE: {
+    label: 'Heston Price', group: 'Options',
+    desc: 'Heston FFT 콜옵션 가격 (롤링 실현분산을 v₀로 사용)',
+    formula: 'C_Heston = S × fft_call_unit(K/S, r, T, v₀, κ, θ, ξ, ρ)',
+    params: [
+      { name: 'r',         label: 'Rate %',      default: 5.0,  min: 0,    max: 20,   step: 0.1  },
+      { name: 'T',         label: 'Expiry (yr)', default: 0.25, min: 0.05, max: 5,    step: 0.05 },
+      { name: 'moneyness', label: 'Moneyness %', default: 0.0,  min: -50,  max: 50,   step: 1    },
+      { name: 'kappa',     label: 'κ',           default: 2.0,  min: 0.01, max: 20,   step: 0.1  },
+      { name: 'theta',     label: 'θ (%²)',       default: 4.0,  min: 0.01, max: 100,  step: 0.1  },
+      { name: 'xi',        label: 'ξ VolVol',     default: 0.5,  min: 0.01, max: 5,    step: 0.05 },
+      { name: 'rho',       label: 'ρ',            default: -0.7, min: -0.99,max: 0.99, step: 0.05 },
+    ],
+  },
+  OPT_HESTON_DELTA: {
+    label: 'Heston Delta', group: 'Options',
+    desc: 'Heston FFT 콜옵션 델타 — 방향성 모멘텀 지표',
+    formula: 'Δ = ∂C/∂S  (finite-diff via FFT)',
+    params: [
+      { name: 'r',         label: 'Rate %',      default: 5.0,  min: 0,    max: 20,   step: 0.1  },
+      { name: 'T',         label: 'Expiry (yr)', default: 0.25, min: 0.05, max: 5,    step: 0.05 },
+      { name: 'moneyness', label: 'Moneyness %', default: 0.0,  min: -50,  max: 50,   step: 1    },
+      { name: 'kappa',     label: 'κ',           default: 2.0,  min: 0.01, max: 20,   step: 0.1  },
+      { name: 'theta',     label: 'θ (%²)',       default: 4.0,  min: 0.01, max: 100,  step: 0.1  },
+      { name: 'xi',        label: 'ξ VolVol',     default: 0.5,  min: 0.01, max: 5,    step: 0.05 },
+      { name: 'rho',       label: 'ρ',            default: -0.7, min: -0.99,max: 0.99, step: 0.05 },
+    ],
+  },
+  OPT_HESTON_VOL: {
+    label: 'Heston RealVol', group: 'Options',
+    desc: '롤링 실현 연환산변동성 — Heston v₀ 추정치로 사용',
+    formula: 'RV = √(252 × Var(log_ret, window))',
+    params: [
+      { name: 'window', label: 'Window (days)', default: 30, min: 5, max: 120, step: 1 },
+    ],
+  },
+
   // ── Price ────────────────────────────────────────────────────────────────
   CLOSE:  { label: 'Close',  group: 'Price', desc: '종가', formula: 'C', params: [] },
   OPEN:   { label: 'Open',   group: 'Price', desc: '시가', formula: 'O', params: [] },
@@ -225,6 +263,7 @@ export const FACTORS = {
 export const FACTOR_GROUPS = [
   'Trend', 'Momentum', 'Volatility', 'Statistical',
   'Market Sensitivity', 'Sentiment',
+  'Options',
   'Price', 'Volume', 'Constant',
 ];
 
@@ -241,6 +280,7 @@ export const GROUP_META = {
   'Statistical':        { icon: '', color: 'text-blue-400',   desc: '통계적 이격도 지표' },
   'Market Sensitivity': { icon: '', color: 'text-orange-400', desc: '시장 민감도 팩터' },
   'Sentiment':          { icon: '', color: 'text-rose-400',   desc: '뉴스/감성 분석 팩터' },
+  'Options':            { icon: '', color: 'text-violet-400', desc: 'Heston FFT 옵션 팩터' },
   'Price':              { icon: '', color: 'text-gray-400',   desc: '가격 원데이터' },
   'Volume':             { icon: '', color: 'text-gray-400',   desc: '거래량 원데이터' },
   'Constant':           { icon: '', color: 'text-gray-500',   desc: '비교 상수값' },
