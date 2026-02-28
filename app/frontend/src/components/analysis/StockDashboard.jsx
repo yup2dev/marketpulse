@@ -28,6 +28,7 @@ import RevenueSegmentsWidget from '../widgets/RevenueSegmentsWidget';
 import WidgetContextMenu from '../common/WidgetContextMenu';
 import TabWidgetWrapper from '../widgets/TabWidgetWrapper';
 import { useGlobalWidgetContext } from '../../contexts/GlobalWidgetContext';
+import { WidgetSyncProvider } from '../../contexts/WidgetSyncContext';
 import useRefreshStore from '../../store/refreshStore';
 import 'react-grid-layout/css/styles.css';
 
@@ -411,6 +412,7 @@ function ImprovedStockDashboard() {
   }, [symbol, tickerSymbols, handleRemoveWidget, handleTickerChange]);
 
   return (
+    <WidgetSyncProvider defaultSymbol={symbol}>
     <div className="w-full px-2 py-2 bg-[#0a0a0f] min-h-screen text-[11px]" onContextMenu={handleContextMenu}>
       {/* Header with Tabs */}
       <div className="flex items-center justify-between border-b border-gray-800 mb-2 pb-2">
@@ -560,6 +562,7 @@ function ImprovedStockDashboard() {
         }
       `}</style>
     </div>
+    </WidgetSyncProvider>
   );
 }
 

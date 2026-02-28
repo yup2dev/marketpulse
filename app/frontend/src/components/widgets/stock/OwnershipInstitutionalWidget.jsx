@@ -66,7 +66,8 @@ export default function OwnershipInstitutionalWidget({ symbol: initialSymbol = '
     {
       key: 'name',
       header: 'Institution',
-      render: (row) => <span className="text-white">{row.name}</span>
+      render: (row) => <span className="text-white">{row.name}</span>,
+      exportValue: (row) => row.name ?? '',
     },
     {
       key: 'shares',
@@ -74,15 +75,17 @@ export default function OwnershipInstitutionalWidget({ symbol: initialSymbol = '
       align: 'right',
       sortable: true,
       sortValue: (row) => row.shares,
-      render: (row) => <span className="text-gray-300">{formatNumber(row.shares)}</span>
+      render: (row) => <span className="text-gray-300">{formatNumber(row.shares)}</span>,
+      exportValue: (row) => row.shares ?? '',
     },
     {
       key: 'value',
-      header: 'Value',
+      header: 'Value ($)',
       align: 'right',
       sortable: true,
       sortValue: (row) => row.value,
-      render: (row) => <span className="text-white">{formatCurrency(row.value)}</span>
+      render: (row) => <span className="text-white">{formatCurrency(row.value)}</span>,
+      exportValue: (row) => row.value ?? '',
     },
     {
       key: 'pct_held',
@@ -90,7 +93,8 @@ export default function OwnershipInstitutionalWidget({ symbol: initialSymbol = '
       align: 'right',
       sortable: true,
       sortValue: (row) => row.pct_held,
-      render: (row) => <span className="text-blue-400">{row.pct_held?.toFixed(2)}%</span>
+      render: (row) => <span className="text-blue-400">{row.pct_held?.toFixed(2)}%</span>,
+      exportValue: (row) => row.pct_held?.toFixed(2) ?? '',
     },
   ];
 
@@ -147,11 +151,14 @@ export default function OwnershipInstitutionalWidget({ symbol: initialSymbol = '
       <div className="flex-1 overflow-auto px-3 pb-3">
         <WidgetTable
           columns={columns}
-          data={topHolders}
+          data={institutionalHolders}
           loading={loading}
           size="compact"
           showRowNumbers={true}
+          showFilters={true}
+          pageSize={10}
           emptyMessage="No institutional holder data"
+          exportFilename={`institutional-holders_${symbol}`}
         />
       </div>
     </div>
@@ -170,6 +177,7 @@ export default function OwnershipInstitutionalWidget({ symbol: initialSymbol = '
       viewMode={viewMode}
       onViewModeChange={setViewMode}
       showPeriodSelector={false}
+      syncable={true}
     >
       {viewMode === 'chart' ? renderChart() : renderTable()}
     </BaseWidget>

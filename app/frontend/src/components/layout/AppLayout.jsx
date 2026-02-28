@@ -6,7 +6,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import {
   TrendingUp, Grid3x3, LayoutDashboard, BarChart3, Briefcase,
-  Globe, Bell, LogOut, User, Settings, ChevronDown, FlaskConical,
+  Globe, Bell, LogOut, User, Settings, ChevronDown, FlaskConical, CandlestickChart,
 } from 'lucide-react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -216,6 +216,19 @@ const AppLayout = () => {
                 >
                   <FlaskConical size={14} />
                   <span>Strategy</span>
+                </button>
+
+                {/* Static: Trading Terminal */}
+                <button
+                  onClick={() => navigate('/trading')}
+                  className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-colors ${
+                    location.pathname === '/trading'
+                      ? 'text-cyan-400'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  <CandlestickChart size={14} />
+                  <span>Trading</span>
                 </button>
                 </>
               )}

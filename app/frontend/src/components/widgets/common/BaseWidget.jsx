@@ -11,8 +11,10 @@
  * - Source footer
  */
 import { useState, useRef, useEffect } from 'react';
-import { GripVertical, X, RefreshCw, BarChart2, Table, Calendar, ChevronDown, Search } from 'lucide-react';
+import { GripVertical, X, RefreshCw, BarChart2, Table, Calendar, ChevronDown, Search, Download, FileDown, FileSpreadsheet, Image, Link2, Link2Off } from 'lucide-react';
 import { API_BASE } from '../../../config/api';
+import { downloadCSV, downloadExcel, downloadChartPNG, makeFilename } from '../../../utils/exportUtils';
+import { useWidgetSync } from '../../../contexts/WidgetSyncContext';
 
 // Symbol Selector Component
 function SymbolSelector({ symbol, onSymbolChange }) {
@@ -165,15 +167,103 @@ export default function BaseWidget({
   // Period selector
   period,
   onPeriodChange,
-  periodType = 'macro', // 'short' | 'medium' | 'long' | 'macro'
+  periodType = 'macro',
   showPeriodSelector = true,
   // Source
   source,
   // Custom header content
   headerExtra,
+  // Export
+  exportData,    // () => { columns: [{key,header,exportValue?}], rows: [] }
+  chartRef,      // ref to chart container element for PNG export
+  // Sync (Phase 3)
+  syncable = false,  // opt-in: show sync chain icon
 }) {
   const [showPeriodDropdown, setShowPeriodDropdown] = useState(false);
+  const [showExportMenu,     setShowExportMenu]     = useState(false);
+  const exportMenuRef = useRef(null);
   const periodOptions = PERIOD_OPTIONS[periodType] || PERIOD_OPTIONS.macro;
+
+  // ── Widget Sync (Phase 3) ────────────────────────────────────────────────
+  const syncCtx = useWidgetSync();
+  const [isSynced, setIsSynced] = useState(false);
+  const canSync = syncable && syncCtx && (symbol ? !!onSymbolChange : false || (period ? !!onPeriodChange : false));
+
+  // When global symbol changes and this widget is synced → push to widget
+  useEffect(() => {
+    if (!isSynced || !syncCtx) return;
+    if (syncCtx.globalSymbol && symbol && syncCtx.globalSymbol !== symbol) {
+      onSymbolChange?.(syncCtx.globalSymbol);
+    }
+  }, [syncCtx?.globalSymbol, isSynced]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When global period changes and this widget is synced → push to widget
+  useEffect(() => {
+    if (!isSynced || !syncCtx) return;
+    if (syncCtx.globalPeriod && period && syncCtx.globalPeriod !== period) {
+      onPeriodChange?.(syncCtx.globalPeriod);
+    }
+  }, [syncCtx?.globalPeriod, isSynced]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Register / unregister with context when sync is toggled
+  useEffect(() => {
+    if (!syncCtx) return;
+    if (isSynced) syncCtx.registerSync?.();
+    return () => { if (isSynced) syncCtx.unregisterSync?.(); };
+  }, [isSynced]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Intercept symbol changes: if synced, also broadcast to context
+  const handleSymbolChange = (sym) => {
+    onSymbolChange?.(sym);
+    if (isSynced && syncCtx) syncCtx.setGlobalSymbol(sym);
+  };
+
+  // Intercept period changes: if synced, also broadcast to context
+  const handlePeriodChange = (p) => {
+    onPeriodChange?.(p);
+    if (isSynced && syncCtx) syncCtx.setGlobalPeriod(p);
+  };
+
+  const toggleSync = () => {
+    const willSync = !isSynced;
+    setIsSynced(willSync);
+    if (willSync && syncCtx) {
+      // When linking, immediately adopt global values
+      if (symbol && syncCtx.globalSymbol && syncCtx.globalSymbol !== symbol) {
+        onSymbolChange?.(syncCtx.globalSymbol);
+      }
+      if (period && syncCtx.globalPeriod && syncCtx.globalPeriod !== period) {
+        onPeriodChange?.(syncCtx.globalPeriod);
+      }
+    }
+  };
+
+  // Close export menu on outside click
+  useEffect(() => {
+    if (!showExportMenu) return;
+    const handler = (e) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target)) {
+        setShowExportMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showExportMenu]);
+
+  const handleExport = (format) => {
+    setShowExportMenu(false);
+    const fname = makeFilename(title || 'export', symbol);
+    if (format === 'png') {
+      const el = chartRef?.current;
+      if (el) downloadChartPNG(el, fname);
+      return;
+    }
+    if (!exportData) return;
+    const { columns, rows } = exportData();
+    if (!rows?.length) return;
+    if (format === 'csv')   downloadCSV(rows,   columns, fname);
+    if (format === 'excel') downloadExcel(rows, columns, fname);
+  };
 
   return (
     <div className="bg-[#0d0d12] rounded-lg border border-gray-800 h-full flex flex-col overflow-hidden">
@@ -189,7 +279,7 @@ export default function BaseWidget({
           </div>
           {/* Symbol Selector */}
           {symbol && onSymbolChange && (
-            <SymbolSelector symbol={symbol} onSymbolChange={onSymbolChange} />
+            <SymbolSelector symbol={symbol} onSymbolChange={handleSymbolChange} />
           )}
         </div>
 
@@ -241,7 +331,7 @@ export default function BaseWidget({
                       <button
                         key={opt.id}
                         onClick={() => {
-                          onPeriodChange(opt.id);
+                          handlePeriodChange(opt.id);
                           setShowPeriodDropdown(false);
                         }}
                         className={`w-full px-3 py-1.5 text-xs text-left hover:bg-gray-800 transition-colors ${
@@ -259,6 +349,65 @@ export default function BaseWidget({
 
           {/* Custom header content */}
           {headerExtra}
+
+          {/* Sync toggle (Phase 3) */}
+          {canSync && (
+            <button
+              onMouseDown={e => e.stopPropagation()}
+              onClick={toggleSync}
+              className={`p-1.5 rounded transition-colors ${
+                isSynced
+                  ? 'text-cyan-400 bg-cyan-500/15 hover:bg-cyan-500/25'
+                  : 'text-gray-600 hover:text-gray-300 hover:bg-gray-800'
+              }`}
+              title={isSynced ? 'Unlink from global sync' : 'Link to global sync'}
+            >
+              {isSynced ? <Link2 size={12} /> : <Link2Off size={12} />}
+            </button>
+          )}
+
+          {/* Export dropdown */}
+          {(exportData || chartRef) && (
+            <div ref={exportMenuRef} className="relative">
+              <button
+                onMouseDown={e => e.stopPropagation()}
+                onClick={() => setShowExportMenu(v => !v)}
+                className="p-1.5 text-gray-500 hover:text-cyan-400 hover:bg-gray-800 rounded transition-colors"
+                title="Export data"
+              >
+                <Download size={12} />
+              </button>
+
+              {showExportMenu && (
+                <div className="absolute right-0 top-full mt-1 bg-[#0d0d12] border border-gray-700 rounded shadow-xl z-[60] py-1 min-w-[140px]">
+                  {exportData && (
+                    <>
+                      <button
+                        onClick={() => handleExport('csv')}
+                        className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-gray-300 hover:text-white hover:bg-gray-800/50 transition-colors"
+                      >
+                        <FileDown size={11} className="text-cyan-400" /> CSV
+                      </button>
+                      <button
+                        onClick={() => handleExport('excel')}
+                        className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-gray-300 hover:text-white hover:bg-gray-800/50 transition-colors"
+                      >
+                        <FileSpreadsheet size={11} className="text-green-400" /> Excel (.xlsx)
+                      </button>
+                    </>
+                  )}
+                  {chartRef && (
+                    <button
+                      onClick={() => handleExport('png')}
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-gray-300 hover:text-white hover:bg-gray-800/50 transition-colors border-t border-gray-800 mt-0.5 pt-1.5"
+                    >
+                      <Image size={11} className="text-purple-400" /> PNG (Chart)
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Refresh */}
           {onRefresh && (

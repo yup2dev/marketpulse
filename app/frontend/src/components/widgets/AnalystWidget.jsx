@@ -175,6 +175,35 @@ const AnalystWidget = ({ symbol, onRemove }) => {
     );
   };
 
+  const getExportData = () => {
+    const rows = [];
+    if (analyst) {
+      rows.push({ category: 'Consensus', metric: 'Rating', value: analyst.consensus_rating || 'N/A' });
+      rows.push({ category: 'Consensus', metric: 'Analysts', value: analyst.number_of_analysts ?? '' });
+      if (analyst.ratings) {
+        rows.push({ category: 'Ratings', metric: 'Strong Buy', value: analyst.ratings.strong_buy ?? 0 });
+        rows.push({ category: 'Ratings', metric: 'Buy', value: analyst.ratings.buy ?? 0 });
+        rows.push({ category: 'Ratings', metric: 'Hold', value: analyst.ratings.hold ?? 0 });
+        rows.push({ category: 'Ratings', metric: 'Sell', value: analyst.ratings.sell ?? 0 });
+        rows.push({ category: 'Ratings', metric: 'Strong Sell', value: analyst.ratings.strong_sell ?? 0 });
+      }
+      if (analyst.price_target) {
+        rows.push({ category: 'Price Target', metric: 'Low', value: analyst.price_target.low ?? '' });
+        rows.push({ category: 'Price Target', metric: 'Average', value: analyst.price_target.average ?? '' });
+        rows.push({ category: 'Price Target', metric: 'High', value: analyst.price_target.high ?? '' });
+        if (upside !== null) rows.push({ category: 'Price Target', metric: 'Expected Return', value: upside.toFixed(2) + '%' });
+      }
+    }
+    return {
+      columns: [
+        { key: 'category', header: 'Category' },
+        { key: 'metric',   header: 'Metric'   },
+        { key: 'value',    header: 'Value'     },
+      ],
+      rows,
+    };
+  };
+
   return (
     <BaseWidget
       title={`${symbol} - Analyst`}
@@ -186,6 +215,8 @@ const AnalystWidget = ({ symbol, onRemove }) => {
       viewMode={viewMode}
       onViewModeChange={setViewMode}
       showPeriodSelector={false}
+      symbol={symbol}
+      exportData={analyst ? getExportData : undefined}
     >
       <div className="h-full p-3">
         {viewMode === 'chart' ? renderChart() : renderTable()}

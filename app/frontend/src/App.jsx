@@ -16,6 +16,7 @@ import ScreenerDashboard from './components/screener/ScreenerDashboard';
 import WatchlistDashboard from './components/watchlist/WatchlistDashboard';
 import QuantResearchDashboard from './components/quant/QuantResearchDashboard';
 import StrategyBuilderDashboard from './components/strategy/StrategyBuilderDashboard';
+import TradingTerminal from './components/trading/TradingTerminal';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import useAuthStore from './store/authStore';
 
@@ -82,6 +83,7 @@ function App() {
           <Route path="watchlist" element={<WatchlistDashboard />} />
           <Route path="quant" element={<QuantResearchDashboard />} />
           <Route path="strategy" element={<StrategyBuilderDashboard />} />
+          <Route path="trading" element={<TradingTerminal />} />
         </Route>
 
         {/* Fallback */}

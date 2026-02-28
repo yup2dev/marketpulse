@@ -119,6 +119,20 @@ export default function PriceTargetWidget({ symbol: initialSymbol = 'AAPL', onRe
     );
   };
 
+  const getExportData = () => ({
+    columns: [
+      { key: 'metric', header: 'Metric'    },
+      { key: 'value',  header: 'Price ($)' },
+    ],
+    rows: [
+      { metric: 'Current Price',  value: currentPrice?.toFixed(2) ?? '' },
+      { metric: 'Target (Mean)',  value: targetPrice?.toFixed(2) ?? ''  },
+      { metric: 'Target Low',     value: priceTarget?.low?.toFixed(2) ?? '' },
+      { metric: 'Target High',    value: priceTarget?.high?.toFixed(2) ?? '' },
+      { metric: 'Upside (%)',     value: upsidePct ?? '' },
+    ],
+  });
+
   return (
     <BaseWidget
       title="Price Target"
@@ -132,6 +146,8 @@ export default function PriceTargetWidget({ symbol: initialSymbol = 'AAPL', onRe
       viewMode={viewMode}
       onViewModeChange={setViewMode}
       showPeriodSelector={false}
+      exportData={priceTarget ? getExportData : undefined}
+      syncable={true}
     >
       <div className="h-full p-3">
         {viewMode === 'chart' ? renderChart() : renderTable()}

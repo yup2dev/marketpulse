@@ -60,41 +60,51 @@ export default function OwnershipInsiderWidget({ symbol: initialSymbol = 'AAPL',
       key: 'transaction_date',
       header: 'Date',
       width: '90px',
-      render: (row) => <span className="text-gray-400">{row.transaction_date}</span>
+      filterable: true,
+      render: (row) => <span className="text-gray-400">{row.transaction_date}</span>,
+      exportValue: (row) => row.transaction_date ?? '',
     },
     {
       key: 'insider_name',
       header: 'Name',
-      render: (row) => <span className="text-white">{row.insider_name}</span>
+      filterable: true,
+      render: (row) => <span className="text-white">{row.insider_name}</span>,
+      exportValue: (row) => row.insider_name ?? '',
     },
     {
       key: 'type',
       header: 'Type',
       align: 'center',
       width: '60px',
+      filterable: false,
       render: (row) => (
         <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${
           row.acquisition_or_disposition === 'A' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
         }`}>
           {row.acquisition_or_disposition === 'A' ? 'Buy' : 'Sell'}
         </span>
-      )
+      ),
+      exportValue: (row) => row.acquisition_or_disposition === 'A' ? 'Buy' : 'Sell',
     },
     {
       key: 'shares_traded',
       header: 'Shares',
       align: 'right',
       sortable: true,
+      filterable: false,
       sortValue: (row) => row.shares_traded,
-      render: (row) => <span className="text-gray-300">{formatNumber(row.shares_traded)}</span>
+      render: (row) => <span className="text-gray-300">{formatNumber(row.shares_traded)}</span>,
+      exportValue: (row) => row.shares_traded ?? '',
     },
     {
       key: 'transaction_value',
       header: 'Value',
       align: 'right',
       sortable: true,
+      filterable: false,
       sortValue: (row) => row.transaction_value,
-      render: (row) => <span className="text-white">{formatCurrency(row.transaction_value)}</span>
+      render: (row) => <span className="text-white">{formatCurrency(row.transaction_value)}</span>,
+      exportValue: (row) => row.transaction_value ?? '',
     },
   ];
 
@@ -174,10 +184,13 @@ export default function OwnershipInsiderWidget({ symbol: initialSymbol = 'AAPL',
       <div className="flex-1 overflow-auto px-3 pb-3">
         <WidgetTable
           columns={columns}
-          data={insiderTransactions.slice(0, 10)}
+          data={insiderTransactions}
           loading={loading}
           size="compact"
+          showFilters={true}
+          pageSize={10}
           emptyMessage="No insider transaction data"
+          exportFilename={`insider-activity_${symbol}`}
         />
       </div>
     </div>
@@ -196,6 +209,7 @@ export default function OwnershipInsiderWidget({ symbol: initialSymbol = 'AAPL',
       viewMode={viewMode}
       onViewModeChange={setViewMode}
       showPeriodSelector={false}
+      syncable={true}
     >
       {viewMode === 'chart' ? renderChart() : renderTable()}
     </BaseWidget>

@@ -197,6 +197,22 @@ const InsiderWidget = ({ symbol, onRemove }) => {
     );
   };
 
+  const getExportData = () => {
+    const transactions = insider?.transactions || [];
+    return {
+      columns: [
+        { key: 'date',           header: 'Date'        },
+        { key: 'name',           header: 'Insider'     },
+        { key: 'title',          header: 'Title'       },
+        { key: 'transactionType', header: 'Type',      exportValue: r => getTransactionLabel(r.transactionType) },
+        { key: 'shares',         header: 'Shares',     exportValue: r => r.shares?.toLocaleString() ?? '' },
+        { key: 'price',          header: 'Price ($)',  exportValue: r => r.price?.toFixed(2) ?? '' },
+        { key: 'value',          header: 'Value ($)',  exportValue: r => r.value ? formatNumber(r.value) : '' },
+      ],
+      rows: transactions,
+    };
+  };
+
   return (
     <BaseWidget
       title={`${symbol} - Insider`}
@@ -208,6 +224,8 @@ const InsiderWidget = ({ symbol, onRemove }) => {
       viewMode={viewMode}
       onViewModeChange={setViewMode}
       showPeriodSelector={false}
+      symbol={symbol}
+      exportData={insider ? getExportData : undefined}
     >
       <div className="h-full p-3">
         {viewMode === 'chart' ? renderChart() : renderTable()}

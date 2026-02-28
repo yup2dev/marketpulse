@@ -203,6 +203,28 @@ export default function LaborMarketWidget({ onRemove }) {
     );
   };
 
+  const getExportData = () => {
+    if (!data) return { columns: [], rows: [] };
+    const rows = [
+      { metric: 'U3 Unemployment Rate', value: data.unemployment?.u3 ?? '', unit: '%' },
+      { metric: 'U6 Unemployment Rate', value: data.unemployment?.u6 ?? '', unit: '%' },
+      { metric: 'Participation Rate',   value: data.unemployment?.participation_rate ?? '', unit: '%' },
+      { metric: 'Non-Farm Payrolls',    value: data.payrolls?.nfp ?? '', unit: 'K' },
+      { metric: 'Private Payrolls',     value: data.payrolls?.private ?? '', unit: 'K' },
+      { metric: 'Hourly Earnings YoY',  value: data.wages?.hourly_earnings_yoy ?? '', unit: '%' },
+      { metric: 'Average Workweek',     value: data.wages?.avg_workweek ?? '', unit: 'hrs' },
+      { metric: 'Heat Index',           value: data.heat_index ?? '', unit: '' },
+    ];
+    return {
+      columns: [
+        { key: 'metric', header: 'Metric' },
+        { key: 'value',  header: 'Value'  },
+        { key: 'unit',   header: 'Unit'   },
+      ],
+      rows,
+    };
+  };
+
   return (
     <BaseWidget
       title="Labor Market"
@@ -215,6 +237,7 @@ export default function LaborMarketWidget({ onRemove }) {
       onViewModeChange={setViewMode}
       showPeriodSelector={false}
       source="BLS / FRED"
+      exportData={data ? getExportData : undefined}
     >
       <div className="h-full p-3">
         {viewMode === 'chart' ? renderChart() : renderTable()}

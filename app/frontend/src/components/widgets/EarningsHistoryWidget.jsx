@@ -46,43 +46,53 @@ export default function EarningsHistoryWidget({ symbol: initialSymbol = 'AAPL', 
     fetchData();
   }, [fetchData]);
 
+  // Build a shared EPS series across all rows for sparkline reference
+  const epsSeries = data.filter(r => r.eps != null).map(r => r.eps);
+
   const columns = [
     {
       key: 'period',
       header: 'Period',
       width: '90px',
+      filterable: true,
       sortValue: (row) => row.period,
       render: (row) => (
         <div>
           <span className="text-white font-medium">{row.period}</span>
           {row.year && <span className="text-gray-500 ml-1">{row.year}</span>}
         </div>
-      )
+      ),
+      exportValue: (row) => `${row.period} ${row.year ?? ''}`.trim(),
     },
     {
       key: 'eps',
       header: 'EPS',
       align: 'center',
       sortable: true,
+      filterable: false,
       sortValue: (row) => row.eps,
       render: (row) => {
         if (row.eps === null || row.eps === undefined) return <span className="text-gray-500">-</span>;
         const beat = row.epsEst && row.eps > row.epsEst;
         const miss = row.epsEst && row.eps < row.epsEst;
         return <span className={beat ? 'text-green-500' : miss ? 'text-red-500' : 'text-white'}>{row.eps.toFixed(2)}</span>;
-      }
+      },
+      exportValue: (row) => row.eps?.toFixed(2) ?? '',
     },
     {
       key: 'epsEst',
       header: 'Est.',
       align: 'right',
-      render: (row) => <span className="text-gray-400">{row.epsEst?.toFixed(2) || '-'}</span>
+      filterable: false,
+      render: (row) => <span className="text-gray-400">{row.epsEst?.toFixed(2) || '-'}</span>,
+      exportValue: (row) => row.epsEst?.toFixed(2) ?? '',
     },
     {
       key: 'revenue',
       header: 'Revenue',
       align: 'right',
       sortable: true,
+      filterable: false,
       sortValue: (row) => row.revenue,
       render: (row) => {
         if (!row.revenue) return <span className="text-gray-500">-</span>;
@@ -90,9 +100,28 @@ export default function EarningsHistoryWidget({ symbol: initialSymbol = 'AAPL', 
         if (val >= 1e9) return <span className="text-white">{(val / 1e9).toFixed(2)}B</span>;
         if (val >= 1e6) return <span className="text-white">{(val / 1e6).toFixed(2)}M</span>;
         return <span className="text-white">{val.toFixed(2)}</span>;
-      }
+      },
+      exportValue: (row) => row.revenue ?? '',
     },
+    // Sparkline: shows overall EPS trend (same series for all rows, highlights where this row falls)
+    ...(epsSeries.length >= 3 ? [{
+      key: 'trend',
+      header: 'Trend',
+      align: 'center',
+      filterable: false,
+      type: 'sparkline',
+      sparkKey: '_epsSeries',   // injected below
+      sparkColor: '#22c55e',
+      sparkNegColor: '#ef4444',
+      sparkWidth: 52,
+      sparkHeight: 18,
+    }] : []),
   ];
+
+  // Inject shared EPS series into each row so sparkline can render it
+  const tableData = epsSeries.length >= 3
+    ? data.map(row => ({ ...row, _epsSeries: epsSeries }))
+    : data;
 
   return (
     <BaseWidget
@@ -106,13 +135,20 @@ export default function EarningsHistoryWidget({ symbol: initialSymbol = 'AAPL', 
       onRemove={onClose}
       showViewToggle={false}
       showPeriodSelector={false}
+      exportData={data.length ? () => ({
+        columns: columns.filter(c => c.type !== 'sparkline'),
+        rows: data,
+      }) : undefined}
     >
       <WidgetTable
         columns={columns}
-        data={data}
+        data={tableData}
         loading={loading}
         size="compact"
+        showFilters={true}
+        pageSize={8}
         emptyMessage="No earnings data"
+        exportFilename={`earnings_${symbol}`}
       />
     </BaseWidget>
   );

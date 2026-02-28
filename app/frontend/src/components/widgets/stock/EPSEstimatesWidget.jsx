@@ -93,6 +93,19 @@ export default function EPSEstimatesWidget({ symbol: initialSymbol = 'AAPL', onR
     );
   };
 
+  const getExportData = () => ({
+    columns: [
+      { key: 'period',   header: 'Period'          },
+      { key: 'estimate', header: 'EPS Estimate ($)', exportValue: r => r.estimate?.toFixed(2) ?? '' },
+      { key: 'growth',   header: 'Growth (%)',       exportValue: r => r.growth != null ? (r.growth * 100).toFixed(1) : '' },
+    ],
+    rows: Object.entries(epsEstimates || {}).map(([period, data]) => ({
+      period,
+      estimate: data.estimate,
+      growth: data.growth,
+    })),
+  });
+
   return (
     <BaseWidget
       title="EPS Estimates"
@@ -106,6 +119,8 @@ export default function EPSEstimatesWidget({ symbol: initialSymbol = 'AAPL', onR
       viewMode={viewMode}
       onViewModeChange={setViewMode}
       showPeriodSelector={false}
+      exportData={epsEstimates && Object.keys(epsEstimates).length ? getExportData : undefined}
+      syncable={true}
     >
       <div className="h-full p-3">
         {viewMode === 'chart' ? renderChart() : renderTable()}

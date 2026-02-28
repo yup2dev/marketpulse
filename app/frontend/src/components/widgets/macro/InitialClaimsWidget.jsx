@@ -4,28 +4,9 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { Users } from 'lucide-react';
-import {
-  ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer
-} from 'recharts';
 import BaseWidget from '../common/BaseWidget';
+import LWChart from '../common/LWChart';
 import { API_BASE } from '../../../config/api';
-
-const CustomTooltip = ({ active, payload, label }) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-[#1a1a1f] border border-gray-700 rounded px-3 py-2 shadow-lg">
-        <p className="text-gray-400 text-xs mb-1">{label}</p>
-        {payload.map((entry, index) => (
-          <p key={index} className="text-sm" style={{ color: entry.color }}>
-            {entry.name}: {typeof entry.value === 'number' ? entry.value.toLocaleString() : entry.value}K
-          </p>
-        ))}
-      </div>
-    );
-  }
-  return null;
-};
 
 export default function InitialClaimsWidget({ onRemove }) {
   const [data, setData] = useState(null);
@@ -51,25 +32,32 @@ export default function InitialClaimsWidget({ onRemove }) {
     loadData();
   }, [loadData]);
 
-  const formatDate = (dateStr) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', { year: '2-digit', month: 'short' });
-  };
-
   const renderChart = () => {
     if (!data?.history) return null;
+    const history = data.history.filter(d => d.date);
+    const multiSeries = [
+      {
+        name: 'Initial Claims',
+        data: history.filter(d => d.claims != null).map(d => ({ time: d.date, value: d.claims })),
+        type: 'area',
+        color: '#3b82f6',
+        topColor: '#3b82f620',
+        bottomColor: '#3b82f605',
+        lineWidth: 1,
+      },
+      {
+        name: '4 Week MA',
+        data: history.filter(d => d.ma_4w != null).map(d => ({ time: d.date, value: d.ma_4w })),
+        type: 'line',
+        color: '#ef4444',
+        lineWidth: 2,
+      },
+    ];
     return (
-      <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={data.history} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-          <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} />
-          <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} tickFormatter={(v) => `${v}K`} />
-          <Tooltip content={<CustomTooltip />} />
-          <Legend verticalAlign="top" height={30} wrapperStyle={{ fontSize: '10px' }} />
-          <Area type="monotone" dataKey="claims" fill="#3b82f620" stroke="#3b82f6" strokeWidth={1} name="Initial Claims" />
-          <Line type="monotone" dataKey="ma_4w" stroke="#ef4444" strokeWidth={2} dot={false} name="4 Week MA" />
-        </ComposedChart>
-      </ResponsiveContainer>
+      <LWChart
+        multiSeries={multiSeries}
+        formatter={v => `${v.toFixed(1)}K`}
+      />
     );
   };
 
@@ -100,6 +88,15 @@ export default function InitialClaimsWidget({ onRemove }) {
     );
   };
 
+  const getExportData = () => ({
+    columns: [
+      { key: 'date',   header: 'Date'                    },
+      { key: 'claims', header: 'Initial Claims (K)', exportValue: r => r.claims?.toFixed(1) ?? '' },
+      { key: 'ma_4w',  header: '4 Week MA (K)',      exportValue: r => r.ma_4w?.toFixed(1) ?? ''  },
+    ],
+    rows: data?.history || [],
+  });
+
   return (
     <BaseWidget
       title={data?.title || "Initial Claims"}
@@ -115,6 +112,7 @@ export default function InitialClaimsWidget({ onRemove }) {
       onPeriodChange={setPeriod}
       periodType="macro"
       source={data?.source}
+      exportData={data?.history?.length ? getExportData : undefined}
     >
       <div className="h-full p-3">
         {viewMode === 'chart' ? renderChart() : renderTable()}

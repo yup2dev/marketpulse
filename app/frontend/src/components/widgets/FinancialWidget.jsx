@@ -110,6 +110,36 @@ const FinancialWidget = ({ symbol, onRemove }) => {
     );
   };
 
+  const getExportData = () => {
+    const cols = [
+      { key: 'section', header: 'Section' },
+      { key: 'metric',  header: 'Metric'  },
+      { key: 'value',   header: 'Value'   },
+    ];
+    const is = financials?.income_statement || {};
+    const bs = financials?.balance_sheet || {};
+    const cf = financials?.cash_flow || {};
+    const rows = [
+      { section: 'Income Statement', metric: 'Revenue',           value: is.revenue },
+      { section: 'Income Statement', metric: 'Cost of Revenue',   value: is.cost_of_revenue },
+      { section: 'Income Statement', metric: 'Gross Profit',      value: is.gross_profit },
+      { section: 'Income Statement', metric: 'Operating Income',  value: is.operating_income },
+      { section: 'Income Statement', metric: 'Net Income',        value: is.net_income },
+      { section: 'Income Statement', metric: 'EBITDA',            value: is.ebitda },
+      { section: 'Income Statement', metric: 'EPS (Basic)',       value: is.basic_eps },
+      { section: 'Balance Sheet',    metric: 'Total Assets',      value: bs.total_assets },
+      { section: 'Balance Sheet',    metric: 'Current Assets',    value: bs.current_assets },
+      { section: 'Balance Sheet',    metric: 'Cash',              value: bs.cash },
+      { section: 'Balance Sheet',    metric: 'Total Liabilities', value: bs.total_liabilities },
+      { section: 'Balance Sheet',    metric: 'Total Equity',      value: bs.total_equity },
+      { section: 'Balance Sheet',    metric: 'Total Debt',        value: bs.total_debt },
+      { section: 'Cash Flow',        metric: 'Operating CF',      value: cf.operating_cash_flow },
+      { section: 'Cash Flow',        metric: 'Free Cash Flow',    value: cf.free_cash_flow },
+      { section: 'Cash Flow',        metric: 'CapEx',             value: cf.capital_expenditure },
+    ].map(r => ({ ...r, value: r.value != null ? r.value : '' }));
+    return { columns: cols, rows };
+  };
+
   return (
     <BaseWidget
       title={`${symbol} - Financials`}
@@ -121,6 +151,8 @@ const FinancialWidget = ({ symbol, onRemove }) => {
       viewMode={viewMode}
       onViewModeChange={setViewMode}
       showPeriodSelector={false}
+      symbol={symbol}
+      exportData={financials ? getExportData : undefined}
     >
       <div className="h-full p-3">
         {viewMode === 'chart' ? renderChart() : renderTable()}

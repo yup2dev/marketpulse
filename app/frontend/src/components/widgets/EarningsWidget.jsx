@@ -132,6 +132,22 @@ const EarningsWidget = ({ symbol, onRemove }) => {
     );
   };
 
+  const getExportData = () => ({
+    columns: [
+      { key: 'period',       header: 'Period'         },
+      { key: 'year',         header: 'Year'           },
+      { key: 'eps_actual',   header: 'EPS Actual ($)', exportValue: r => r.eps_actual?.toFixed(2) ?? '' },
+      { key: 'eps_estimated',header: 'EPS Est. ($)',   exportValue: r => r.eps_estimated?.toFixed(2) ?? '' },
+      { key: 'surprise_pct', header: 'Surprise (%)',   exportValue: r => r.eps_surprise_percent?.toFixed(2) ?? '' },
+    ],
+    rows: (earnings?.earnings || []).map(item => ({
+      ...item,
+      period: item.fiscal_period || `Q${item.fiscal_quarter}`,
+      year: item.fiscal_year,
+      surprise_pct: item.eps_surprise_percent,
+    })),
+  });
+
   return (
     <BaseWidget
       title={`${symbol} - Earnings`}
@@ -143,6 +159,8 @@ const EarningsWidget = ({ symbol, onRemove }) => {
       viewMode={viewMode}
       onViewModeChange={setViewMode}
       showPeriodSelector={false}
+      symbol={symbol}
+      exportData={earnings?.earnings?.length ? getExportData : undefined}
     >
       <div className="h-full p-3">
         {viewMode === 'chart' ? renderChart() : renderTable()}

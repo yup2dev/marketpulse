@@ -79,6 +79,40 @@ const KeyMetricsWidget = ({ symbol, onRemove }) => {
     </div>
   );
 
+  // Build flat rows for export
+  const getExportData = () => {
+    const rows = [];
+    if (info) {
+      rows.push(
+        { category: 'Valuation',  metric: 'Market Cap',       value: formatNumber(info.market_cap) },
+        { category: 'Valuation',  metric: 'P/E Ratio',        value: info.pe_ratio?.toFixed(2) ?? 'N/A' },
+        { category: 'Valuation',  metric: 'P/B Ratio',        value: info.price_to_book?.toFixed(2) ?? 'N/A' },
+        { category: 'Valuation',  metric: 'P/S Ratio',        value: info.price_to_sales?.toFixed(2) ?? 'N/A' },
+        { category: 'Valuation',  metric: 'PEG Ratio',        value: info.peg_ratio?.toFixed(2) ?? 'N/A' },
+        { category: 'Valuation',  metric: 'EPS (TTM)',        value: info.eps?.toFixed(2) ?? 'N/A' },
+        { category: 'Profitability', metric: 'ROE',           value: metrics.roe ? metrics.roe.toFixed(2) + '%' : 'N/A' },
+        { category: 'Profitability', metric: 'ROA',           value: metrics.roa ? metrics.roa.toFixed(2) + '%' : 'N/A' },
+        { category: 'Profitability', metric: 'Gross Margin',  value: metrics.grossMargin ? metrics.grossMargin.toFixed(2) + '%' : 'N/A' },
+        { category: 'Profitability', metric: 'Op. Margin',    value: metrics.operatingMargin ? metrics.operatingMargin.toFixed(2) + '%' : 'N/A' },
+        { category: 'Profitability', metric: 'Net Margin',    value: metrics.netMargin ? metrics.netMargin.toFixed(2) + '%' : 'N/A' },
+        { category: 'Health',     metric: 'Debt/Equity',      value: metrics.debtToEquity?.toFixed(2) ?? 'N/A' },
+        { category: 'Health',     metric: 'Current Ratio',    value: metrics.currentRatio?.toFixed(2) ?? 'N/A' },
+        { category: 'Growth',     metric: 'Revenue Growth',   value: metrics.revenueGrowth ? metrics.revenueGrowth.toFixed(2) + '%' : 'N/A' },
+        { category: 'Growth',     metric: 'Earnings Growth',  value: metrics.earningsGrowth ? metrics.earningsGrowth.toFixed(2) + '%' : 'N/A' },
+        { category: 'Other',      metric: 'Dividend Yield',   value: info.dividend_yield ? (info.dividend_yield * 100).toFixed(2) + '%' : 'N/A' },
+        { category: 'Other',      metric: 'Beta',             value: info.beta?.toFixed(2) ?? 'N/A' },
+      );
+    }
+    return {
+      columns: [
+        { key: 'category', header: 'Category' },
+        { key: 'metric',   header: 'Metric'   },
+        { key: 'value',    header: 'Value'    },
+      ],
+      rows,
+    };
+  };
+
   return (
     <BaseWidget
       title={`${symbol} - Metrics`}
@@ -89,6 +123,8 @@ const KeyMetricsWidget = ({ symbol, onRemove }) => {
       onRemove={onRemove}
       showViewToggle={false}
       showPeriodSelector={false}
+      exportData={quote && info ? getExportData : undefined}
+      symbol={symbol}
     >
       <div className="p-3 overflow-auto h-full">
         {quote && info ? (

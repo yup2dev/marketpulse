@@ -225,6 +225,33 @@ export default function YieldTrendsWidget({ onRemove }) {
     return isYields ? renderYieldsTable() : renderSpreadsTable();
   };
 
+  // Export data builder
+  const getExportData = () => {
+    const isYields = subTab === 'yields';
+    if (isYields && data?.yields_history) {
+      const history = data.yields_history;
+      const activeMaturities = MATURITIES.filter(m => selected.includes(m.key));
+      return {
+        columns: [
+          { key: 'date', header: 'Date' },
+          ...activeMaturities.map(m => ({ key: m.key, header: `${m.label} Yield (%)`, exportValue: r => r[m.key]?.toFixed(3) ?? '' })),
+        ],
+        rows: history,
+      };
+    }
+    if (!isYields && data?.spreads_history) {
+      return {
+        columns: [
+          { key: 'date',    header: 'Date' },
+          { key: '2y10y',   header: '2Y-10Y Spread (%)', exportValue: r => r['2y10y']?.toFixed(3) ?? '' },
+          { key: '3m10y',   header: '3M-10Y Spread (%)', exportValue: r => r['3m10y']?.toFixed(3) ?? '' },
+        ],
+        rows: data.spreads_history,
+      };
+    }
+    return { columns: [], rows: [] };
+  };
+
   return (
     <BaseWidget
       title="Yield Trends"
@@ -240,6 +267,7 @@ export default function YieldTrendsWidget({ onRemove }) {
       periodType="macro"
       headerExtra={subTab === 'yields' ? maturityChips : null}
       source="FRED / U.S. Treasury"
+      exportData={data ? getExportData : undefined}
     >
       <div className="h-full flex flex-col">
         {/* Sub-tabs */}

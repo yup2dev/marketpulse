@@ -6,12 +6,13 @@ import AddedFactorRow from './AddedFactorRow';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/** Count how many conditions (buy + sell) use a given factorId */
-function countFactorUsage(factorId, buyConditions, sellConditions) {
+/** Count how many conditions (buy + sell) reference a given varName.
+ *  Keys are now `f:<varName>::<BACKEND_FACTOR>` so we match on varName prefix. */
+function countFactorUsage(varName, buyConditions, sellConditions) {
   const all = [...buyConditions, ...sellConditions];
   return all.filter(row =>
-    row.leftKey?.startsWith(`f:${factorId}::`) ||
-    row.rightKey?.startsWith(`f:${factorId}::`)
+    row.leftKey?.startsWith(`f:${varName}::`) ||
+    row.rightKey?.startsWith(`f:${varName}::`)
   ).length;
 }
 
@@ -103,12 +104,12 @@ const StrategyEditorTab = ({
           ) : (
             selectedFactors.map(item => (
               <AddedFactorRow
-                key={item.factorId}
+                key={item.varName}
                 item={item}
                 factor={factorById[item.factorId]}
-                onUpdate={upd => onUpdateFactor(item.factorId, upd)}
-                onRemove={() => onRemoveFactor(item.factorId)}
-                usedCount={countFactorUsage(item.factorId, buyConditions, sellConditions)}
+                onUpdate={upd => onUpdateFactor(item.varName, upd)}
+                onRemove={() => onRemoveFactor(item.varName)}
+                usedCount={countFactorUsage(item.varName, buyConditions, sellConditions)}
               />
             ))
           )}

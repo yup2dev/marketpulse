@@ -19,7 +19,7 @@ import {
   CATEGORY_META,
   AVAILABILITY_META,
 } from '../../data/strategyFactors';
-import { buildVarOptions, toBECond, mkCondRow, makeVarName, parseParams } from './helpers';
+import { buildVarOptions, toBECond, fromBECond, mkCondRow, makeVarName, parseParams } from './helpers';
 import { TABS, TAB_CATEGORY_MAP } from './constants';
 import StrategyDropdown from './StrategyDropdown';
 import StrategyEditorTab from './StrategyEditorTab';
@@ -46,73 +46,79 @@ const CatBadge = ({ category, sub }) => {
 
 // ── Factor table columns ──────────────────────────────────────────────────────
 
-const buildFactorColumns = (selectedIds, onToggle) => [
-  {
-    key: 'name',
-    header: 'Factor',
-    sortable: true,
-    sortValue: r => r.name,
-    render: r => (
-      <div>
-        <div className="text-[11px] font-medium text-white">{r.name}</div>
-        <div className="text-[10px] text-gray-600 mt-0.5">{r.nameKo}</div>
-      </div>
-    ),
-  },
-  {
-    key: 'sub',
-    header: 'Category',
-    width: 130,
-    render: r => <CatBadge category={r.category} sub={r.sub} />,
-  },
-  {
-    key: 'desc',
-    header: 'Description',
-    render: r => (
-      <span className="text-[11px] text-gray-400 leading-relaxed">{r.desc}</span>
-    ),
-  },
-  {
-    key: 'examples',
-    header: 'Indicators',
-    render: r => (
-      <span className="text-[10px] text-gray-600">{r.examples}</span>
-    ),
-  },
-  {
-    key: 'strategic',
-    header: 'Strategic Use',
-    render: r => (
-      <span className="text-[10px] text-gray-500 leading-relaxed">{r.strategic}</span>
-    ),
-  },
-  {
-    key: 'availability',
-    header: 'Status',
-    width: 90,
-    render: r => <AvailBadge status={r.availability} />,
-  },
-  {
-    key: '_toggle',
-    header: '',
-    width: 80,
-    render: r => {
-      const added = selectedIds.has(r.id);
-      return (
-        <button
-          onClick={e => { e.stopPropagation(); onToggle(r); }}
-          className={`text-[10px] font-medium px-2.5 py-1 rounded border transition-colors ${
-            added
-              ? 'text-red-400/80 border-red-800/40 bg-red-900/10 hover:bg-red-900/20'
-              : 'text-cyan-400 border-cyan-800/50 bg-cyan-900/10 hover:bg-cyan-900/20'
-          }`}
-        >
-          {added ? 'Remove' : '+ Add'}
-        </button>
-      );
+/** selectedFactors array → per-factorId count map */
+const countByFactorId = (selectedFactors) =>
+  selectedFactors.reduce((acc, f) => {
+    acc[f.factorId] = (acc[f.factorId] || 0) + 1;
+    return acc;
+  }, {});
+
+const buildFactorColumns = (selectedFactors, onToggle) => {
+  const counts = countByFactorId(selectedFactors);
+  return [
+    {
+      key: 'name',
+      header: 'Factor',
+      sortable: true,
+      sortValue: r => r.name,
+      render: r => (
+        <div>
+          <div className="text-[11px] font-medium text-white">{r.name}</div>
+          <div className="text-[10px] text-gray-600 mt-0.5">{r.nameKo}</div>
+        </div>
+      ),
     },
-  },
-];
+    {
+      key: 'sub',
+      header: 'Category',
+      width: 130,
+      render: r => <CatBadge category={r.category} sub={r.sub} />,
+    },
+    {
+      key: 'desc',
+      header: 'Description',
+      render: r => (
+        <span className="text-[11px] text-gray-400 leading-relaxed">{r.desc}</span>
+      ),
+    },
+    {
+      key: 'examples',
+      header: 'Indicators',
+      render: r => (
+        <span className="text-[10px] text-gray-600">{r.examples}</span>
+      ),
+    },
+    {
+      key: 'strategic',
+      header: 'Strategic Use',
+      render: r => (
+        <span className="text-[10px] text-gray-500 leading-relaxed">{r.strategic}</span>
+      ),
+    },
+    {
+      key: 'availability',
+      header: 'Status',
+      width: 90,
+      render: r => <AvailBadge status={r.availability} />,
+    },
+    {
+      key: '_toggle',
+      header: '',
+      width: 90,
+      render: r => {
+        const n = counts[r.id] || 0;
+        return (
+          <button
+            onClick={e => { e.stopPropagation(); onToggle(r); }}
+            className="text-[10px] font-medium px-2.5 py-1 rounded border transition-colors text-cyan-400 border-cyan-800/50 bg-cyan-900/10 hover:bg-cyan-900/20"
+          >
+            {n > 0 ? `+ Add (${n})` : '+ Add'}
+          </button>
+        );
+      },
+    },
+  ];
+};
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
@@ -162,20 +168,28 @@ const StrategyBuilderDashboard = () => {
     setCurrentId(strategy.id);
     setName(strategy.name || '');
     setNotes(strategy.notes || '');
+
     const p = parseParams(strategy.parameters);
     setStopLoss(p.stop_loss_pct ?? 5);
     setTakeProfit(p.take_profit_pct ?? 15);
     setCapital(p.initial_capital ?? 10000);
-    setBuyConditions(p.buy_conditions  || []);
-    setSellConditions(p.sell_conditions || []);
     setBuyLogic(p.buy_logic  || 'AND');
     setSellLogic(p.sell_logic || 'OR');
+
+    let vars = [];
     try {
-      const vars = JSON.parse(strategy.variables || '[]');
-      setSelectedFactors(Array.isArray(vars) ? vars : []);
-    } catch {
-      setSelectedFactors([]);
-    }
+      const parsed = JSON.parse(strategy.variables || '[]');
+      vars = Array.isArray(parsed) ? parsed : [];
+    } catch { vars = []; }
+    setSelectedFactors(vars);
+
+    // Build varOptions immediately from the loaded vars so that fromBECond can
+    // map {factor, params} → the correct UI key (leftKey / rightKey).
+    // This avoids the timing issue of waiting for React to re-memoize varOptions.
+    const loadedVarOpts = buildVarOptions(vars);
+    setBuyConditions((p.buy_conditions  || []).map(c => fromBECond(c, loadedVarOpts)));
+    setSellConditions((p.sell_conditions || []).map(c => fromBECond(c, loadedVarOpts)));
+
     setActiveTab('strategy');
   };
 
@@ -194,29 +208,34 @@ const StrategyBuilderDashboard = () => {
   };
 
   // ── Toggle factor ─────────────────────────────────────────────────────────
+  // Always ADDS a new instance. Removal is done via the × button in AddedFactorRow.
+  // When the same factorId is added again, a numeric suffix is appended to varName
+  // (e.g. ema → ema2 → ema3) so each instance has a unique key in varOptions.
   const handleToggleFactor = useCallback((factor) => {
     setSelectedFactors(prev => {
-      if (prev.find(f => f.factorId === factor.id)) {
-        return prev.filter(f => f.factorId !== factor.id);
-      }
-      const params = {};
+      const existingCount = prev.filter(f => f.factorId === factor.id).length;
+      const baseName = makeVarName(factor);
+      const varName  = existingCount === 0 ? baseName : `${baseName}${existingCount + 1}`;
+      const params   = {};
       factor.params.forEach(p => { params[p.name] = p.default; });
-      // Guide user to My Strategy tab
-      toast(`"${factor.name}" 추가됨 → My Strategy 탭에서 조건을 설정하세요`, {
+      const suffix = existingCount > 0 ? ` (${existingCount + 1}번째)` : '';
+      toast(`"${factor.name}"${suffix} 추가됨 → My Strategy 탭에서 조건을 설정하세요`, {
         icon: '→',
         duration: 2500,
         style: { fontSize: '12px' },
       });
-      return [...prev, { factorId: factor.id, varName: makeVarName(factor), params }];
+      return [...prev, { factorId: factor.id, varName, params }];
     });
   }, []);
 
-  const handleUpdateFactor = (factorId, upd) => {
-    setSelectedFactors(prev => prev.map(f => f.factorId === factorId ? upd : f));
+  // Use varName as the unique key so two factors with the same factorId
+  // (e.g. ema + ema2) can be updated / removed independently.
+  const handleUpdateFactor = (varName, upd) => {
+    setSelectedFactors(prev => prev.map(f => f.varName === varName ? upd : f));
   };
 
-  const handleRemoveFactor = (factorId) => {
-    setSelectedFactors(prev => prev.filter(f => f.factorId !== factorId));
+  const handleRemoveFactor = (varName) => {
+    setSelectedFactors(prev => prev.filter(f => f.varName !== varName));
   };
 
   // ── Condition handlers ────────────────────────────────────────────────────
@@ -311,8 +330,8 @@ const StrategyBuilderDashboard = () => {
   }, [activeTab]);
 
   const columns = useMemo(
-    () => buildFactorColumns(selectedIds, handleToggleFactor),
-    [selectedIds, handleToggleFactor],
+    () => buildFactorColumns(selectedFactors, handleToggleFactor),
+    [selectedFactors, handleToggleFactor],
   );
 
   const addedCount = selectedFactors.length;

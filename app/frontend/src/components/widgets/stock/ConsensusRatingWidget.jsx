@@ -150,6 +150,20 @@ export default function ConsensusRatingWidget({ symbol: initialSymbol = 'AAPL', 
     );
   };
 
+  const getExportData = () => ({
+    columns: [
+      { key: 'metric', header: 'Metric' },
+      { key: 'value',  header: 'Value'  },
+    ],
+    rows: [
+      { metric: 'Consensus Rating', value: consensusRating },
+      { metric: 'Total Analysts',   value: totalRatings || analystData?.number_of_analysts || 0 },
+      { metric: 'Buy',              value: buyCount  },
+      { metric: 'Hold',             value: holdCount },
+      { metric: 'Sell',             value: sellCount },
+    ],
+  });
+
   return (
     <BaseWidget
       title="Consensus"
@@ -163,6 +177,8 @@ export default function ConsensusRatingWidget({ symbol: initialSymbol = 'AAPL', 
       viewMode={viewMode}
       onViewModeChange={setViewMode}
       showPeriodSelector={false}
+      exportData={analystData || estimatesData ? getExportData : undefined}
+      syncable={true}
     >
       <div className="h-full p-3">
         {viewMode === 'chart' ? renderChart() : renderTable()}

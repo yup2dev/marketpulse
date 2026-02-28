@@ -88,8 +88,17 @@ const ConditionRow = ({ row, varOptions, onUpdate, onRemove, side = 'buy' }) => 
         ) : (
           <input
             type="number"
-            value={row.rightValue}
-            onChange={e => onUpdate({ ...row, rightValue: e.target.value })}
+            value={row.rightValue ?? 0}
+            onChange={e => {
+              // Keep raw string while typing so "0." doesn't collapse to 0
+              const raw = e.target.value;
+              const num = raw === '' || raw === '-' ? raw : Number(raw);
+              onUpdate({ ...row, rightValue: num });
+            }}
+            onBlur={e => {
+              // On blur, always commit as a clean number
+              onUpdate({ ...row, rightValue: Number(e.target.value) || 0 });
+            }}
             className={`${sel} w-24 tabular-nums`}
             step="any"
             placeholder="0"

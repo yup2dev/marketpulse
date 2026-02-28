@@ -4,28 +4,10 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { TrendingUp } from 'lucide-react';
-import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, ReferenceLine
-} from 'recharts';
 import BaseWidget from '../common/BaseWidget';
+import LWChart from '../common/LWChart';
 import { API_BASE } from '../../../config/api';
 
-const CustomTooltip = ({ active, payload, label }) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-[#1a1a1f] border border-gray-700 rounded px-3 py-2 shadow-lg">
-        <p className="text-gray-400 text-xs mb-1">{label}</p>
-        {payload.map((entry, index) => (
-          <p key={index} className="text-sm" style={{ color: entry.color }}>
-            {entry.name}: {typeof entry.value === 'number' ? entry.value.toFixed(2) : entry.value}%
-          </p>
-        ))}
-      </div>
-    );
-  }
-  return null;
-};
 
 export default function GDPForecastWidget({ onRemove }) {
   const [data, setData] = useState(null);
@@ -51,30 +33,21 @@ export default function GDPForecastWidget({ onRemove }) {
     loadData();
   }, [loadData]);
 
-  const formatDate = (dateStr) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', { year: '2-digit', month: 'short' });
-  };
-
   const renderChart = () => {
     if (!data?.history) return null;
+    const series = data.history
+      .filter(d => d.date && d.value != null)
+      .map(d => ({ time: d.date, value: d.value }));
     return (
-      <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={data.history} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-          <defs>
-            <linearGradient id="gdpGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-              <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-          <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} />
-          <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} tickFormatter={(v) => `${v.toFixed(1)}%`} />
-          <Tooltip content={<CustomTooltip />} />
-          <ReferenceLine y={0} stroke="#4b5563" strokeDasharray="3 3" />
-          <Area type="monotone" dataKey="value" stroke="#3b82f6" fill="url(#gdpGradient)" strokeWidth={2} name="GDP Growth" />
-        </AreaChart>
-      </ResponsiveContainer>
+      <LWChart
+        series={series}
+        type="area"
+        color="#3b82f6"
+        topColor="#3b82f640"
+        bottomColor="#3b82f605"
+        referenceLine={0}
+        formatter={v => `${v.toFixed(2)}%`}
+      />
     );
   };
 
@@ -105,6 +78,14 @@ export default function GDPForecastWidget({ onRemove }) {
     );
   };
 
+  const getExportData = () => ({
+    columns: [
+      { key: 'date',  header: 'Date' },
+      { key: 'value', header: 'GDP Growth (%)', exportValue: r => r.value?.toFixed(2) ?? '' },
+    ],
+    rows: data?.history || [],
+  });
+
   return (
     <BaseWidget
       title={data?.title || "Evolution of Latest GDP Forecast"}
@@ -120,6 +101,7 @@ export default function GDPForecastWidget({ onRemove }) {
       onPeriodChange={setPeriod}
       periodType="macro"
       source={data?.source}
+      exportData={data?.history?.length ? getExportData : undefined}
     >
       <div className="h-full p-3">
         {viewMode === 'chart' ? renderChart() : renderTable()}

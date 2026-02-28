@@ -49,31 +49,35 @@ export default function DividendWidget({ symbol: initialSymbol = 'AAPL', onClose
       key: 'date',
       header: 'Date',
       width: '100px',
-      render: (row) => <span className="text-gray-300">{row.date}</span>
+      render: (row) => <span className="text-gray-300">{row.date}</span>,
+      exportValue: (row) => row.date ?? '',
     },
     {
       key: 'amount',
-      header: 'Amount',
+      header: 'Amount ($)',
       align: 'right',
       sortable: true,
       sortValue: (row) => row.amount,
-      render: (row) => row.amount ? <span className="text-white">${row.amount.toFixed(4)}</span> : <span className="text-gray-500">-</span>
+      render: (row) => row.amount ? <span className="text-white">${row.amount.toFixed(4)}</span> : <span className="text-gray-500">-</span>,
+      exportValue: (row) => row.amount?.toFixed(4) ?? '',
     },
     {
       key: 'yield',
-      header: 'Yield',
+      header: 'Yield (%)',
       align: 'right',
-      render: (row) => row.yield ? <span className="text-green-500">{(row.yield * 100).toFixed(2)}%</span> : <span className="text-gray-500">-</span>
+      render: (row) => row.yield ? <span className="text-green-500">{(row.yield * 100).toFixed(2)}%</span> : <span className="text-gray-500">-</span>,
+      exportValue: (row) => row.yield ? (row.yield * 100).toFixed(2) : '',
     },
     {
       key: 'growth',
-      header: 'YoY',
+      header: 'YoY (%)',
       align: 'right',
       render: (row) => {
         if (!row.growth) return <span className="text-gray-500">-</span>;
         const isPos = row.growth >= 0;
         return <span className={isPos ? 'text-green-500' : 'text-red-500'}>{isPos ? '+' : ''}{(row.growth * 100).toFixed(1)}%</span>;
-      }
+      },
+      exportValue: (row) => row.growth ? (row.growth * 100).toFixed(1) : '',
     },
   ];
 
@@ -89,6 +93,7 @@ export default function DividendWidget({ symbol: initialSymbol = 'AAPL', onClose
       onRemove={onClose}
       showViewToggle={false}
       showPeriodSelector={false}
+      syncable={true}
     >
       <WidgetTable
         columns={columns}
@@ -96,6 +101,7 @@ export default function DividendWidget({ symbol: initialSymbol = 'AAPL', onClose
         loading={loading}
         size="compact"
         emptyMessage="No dividend history"
+        exportFilename={`dividends_${symbol}`}
       />
     </BaseWidget>
   );
