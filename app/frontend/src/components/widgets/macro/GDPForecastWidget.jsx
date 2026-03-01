@@ -2,11 +2,35 @@
  * GDP Forecast Widget - Shows evolution of GDP forecast
  * Uses BaseWidget for common functionality
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { TrendingUp } from 'lucide-react';
 import BaseWidget from '../common/BaseWidget';
+import WidgetTable from '../common/WidgetTable';
 import LWChart from '../common/LWChart';
 import { API_BASE } from '../../../config/api';
+
+const GDP_COLUMNS = [
+  {
+    key: 'date',
+    header: 'Date',
+    sortable: true,
+    sortValue: (row) => row.date,
+    render: (row) => <span className="text-gray-300">{row.date}</span>,
+  },
+  {
+    key: 'value',
+    header: 'GDP Growth',
+    align: 'right',
+    sortable: true,
+    sortValue: (row) => row.value ?? -Infinity,
+    exportValue: (row) => row.value?.toFixed(2) ?? '',
+    render: (row) => (
+      <span className={(row.value ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'}>
+        {row.value?.toFixed(2)}%
+      </span>
+    ),
+  },
+];
 
 
 export default function GDPForecastWidget({ onRemove }) {
@@ -51,40 +75,25 @@ export default function GDPForecastWidget({ onRemove }) {
     );
   };
 
-  const renderTable = () => {
-    if (!data?.history) return null;
-    const recentData = [...data.history].reverse().slice(0, 20);
-    return (
-      <div className="overflow-auto h-full">
-        <table className="w-full text-xs">
-          <thead className="sticky top-0 bg-[#0d0d12]">
-            <tr className="border-b border-gray-800">
-              <th className="text-left py-2 px-3 text-gray-400 font-medium">Date</th>
-              <th className="text-right py-2 px-3 text-gray-400 font-medium">GDP Growth</th>
-            </tr>
-          </thead>
-          <tbody>
-            {recentData.map((row, idx) => (
-              <tr key={idx} className="border-b border-gray-800/50 hover:bg-gray-800/30">
-                <td className="py-2 px-3 text-gray-300">{row.date}</td>
-                <td className={`py-2 px-3 text-right ${row.value >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {row.value?.toFixed(2)}%
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  };
+  const tableData = useMemo(() =>
+    [...(data?.history || [])].reverse().slice(0, 20).map((r, i) => ({ ...r, _key: i })),
+    [data]
+  );
 
-  const getExportData = () => ({
-    columns: [
-      { key: 'date',  header: 'Date' },
-      { key: 'value', header: 'GDP Growth (%)', exportValue: r => r.value?.toFixed(2) ?? '' },
-    ],
-    rows: data?.history || [],
-  });
+  const renderTable = () => (
+    <div className="h-full overflow-auto">
+      <WidgetTable
+        columns={GDP_COLUMNS}
+        data={tableData}
+        resizable={true}
+        size="compact"
+        showExport={true}
+        exportFilename="gdp-forecast"
+        defaultSortKey="date"
+        defaultSortDirection="desc"
+      />
+    </div>
+  );
 
   return (
     <BaseWidget
@@ -101,7 +110,7 @@ export default function GDPForecastWidget({ onRemove }) {
       onPeriodChange={setPeriod}
       periodType="macro"
       source={data?.source}
-      exportData={data?.history?.length ? getExportData : undefined}
+      exportData={undefined}
     >
       <div className="h-full p-3">
         {viewMode === 'chart' ? renderChart() : renderTable()}

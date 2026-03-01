@@ -1,5 +1,3 @@
-import { ChevronRight } from 'lucide-react';
-
 /**
  * MenuDropdown Component
  * Displays sub-menu items in a dropdown with hover animation
@@ -24,12 +22,10 @@ const MenuDropdown = ({ menuItems, onNavigate, position }) => {
             w-full px-4 py-3 text-left text-sm text-gray-300
             hover:bg-gray-800 hover:text-white
             transition-colors duration-150
-            flex items-center justify-between
             ${index !== menuItems.length - 1 ? 'border-b border-gray-800' : ''}
           `}
         >
           <span>{item.menu_name}</span>
-          <ChevronRight size={14} className="text-gray-500" />
         </button>
       ))}
 

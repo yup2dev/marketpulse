@@ -2,13 +2,14 @@
  * Fed Balance Sheet Widget - QE/QT Liquidity Monitor
  * Shows Federal Reserve total assets (WALCL) with expansion/contraction regimes
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Landmark } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, ReferenceLine
+  ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import BaseWidget from '../common/BaseWidget';
+import WidgetTable from '../common/WidgetTable';
 import { API_BASE } from '../../../config/api';
 
 const CustomTooltip = ({ active, payload, label }) => {
@@ -21,14 +22,47 @@ const CustomTooltip = ({ active, payload, label }) => {
   );
 };
 
-// Color map for regimes
 const REGIME_COLOR = { expanding: '#22c55e', contracting: '#ef4444' };
 
+const TABLE_COLUMNS = [
+  {
+    key: 'date',
+    header: 'Date',
+    sortable: true,
+    sortValue: (row) => row.date,
+    render: (row) => <span className="text-gray-300">{row.date}</span>,
+  },
+  {
+    key: 'value',
+    header: 'Total Assets ($T)',
+    align: 'right',
+    sortable: true,
+    sortValue: (row) => row.value ?? -Infinity,
+    exportValue: (row) => row.value?.toFixed(3) ?? '',
+    render: (row) => (
+      <span className="text-cyan-400">${row.value?.toFixed(3)}T</span>
+    ),
+  },
+  {
+    key: 'chgWoW',
+    header: 'Chg WoW',
+    align: 'right',
+    sortable: true,
+    sortValue: (row) => row.chgWoW ?? -Infinity,
+    exportValue: (row) => row.chgWoW != null ? row.chgWoW.toFixed(3) : '',
+    render: (row) => (
+      <span className={row.chgWoW == null ? '' : row.chgWoW >= 0 ? 'text-green-400' : 'text-red-400'}>
+        {row.chgWoW != null ? `${row.chgWoW >= 0 ? '+' : ''}${row.chgWoW.toFixed(3)}T` : '-'}
+      </span>
+    ),
+  },
+];
+
 export default function FedBalanceSheetWidget({ onRemove }) {
-  const [data, setData] = useState(null);
+  const [data,    setData]    = useState(null);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('chart');
-  const [period, setPeriod] = useState('10y');
+  const [period,  setPeriod]  = useState('10y');
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -50,11 +84,16 @@ export default function FedBalanceSheetWidget({ onRemove }) {
   };
 
   const latest = data?.latest;
-  const peak = data?.peak;
-  const currentRegime = (() => {
-    if (!data?.regimes?.length) return null;
-    return data.regimes[data.regimes.length - 1];
-  })();
+  const peak   = data?.peak;
+  const currentRegime = data?.regimes?.length ? data.regimes[data.regimes.length - 1] : null;
+
+  const tableData = useMemo(() => {
+    const rows = [...(data?.series || [])].reverse().slice(0, 52);
+    return rows.map((r, i) => {
+      const prev = rows[i + 1];
+      return { ...r, _key: i, chgWoW: prev ? r.value - prev.value : null };
+    });
+  }, [data]);
 
   const renderChart = () => {
     const series = data?.series || [];
@@ -63,7 +102,7 @@ export default function FedBalanceSheetWidget({ onRemove }) {
         <AreaChart data={series} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id="bsGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.25} />
+              <stop offset="5%"  stopColor="#06b6d4" stopOpacity={0.25} />
               <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.02} />
             </linearGradient>
           </defs>
@@ -77,7 +116,6 @@ export default function FedBalanceSheetWidget({ onRemove }) {
             width={42}
           />
           <Tooltip content={<CustomTooltip />} />
-          {/* Peak reference */}
           {peak && (
             <ReferenceLine
               x={peak.date}
@@ -100,49 +138,14 @@ export default function FedBalanceSheetWidget({ onRemove }) {
     );
   };
 
-  const renderTable = () => {
-    const rows = [...(data?.series || [])].reverse().slice(0, 52);
-    return (
-      <div className="overflow-auto h-full">
-        <table className="w-full text-xs">
-          <thead className="sticky top-0 bg-[#0d0d12]">
-            <tr className="border-b border-gray-800">
-              <th className="text-left py-2 px-3 text-gray-400 font-medium">Date</th>
-              <th className="text-right py-2 px-3 text-gray-400 font-medium">Total Assets ($T)</th>
-              <th className="text-right py-2 px-3 text-gray-400 font-medium">Chg WoW</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r, i) => {
-              const prev = rows[i + 1];
-              const chg = prev ? r.value - prev.value : null;
-              return (
-                <tr key={i} className="border-b border-gray-800/50 hover:bg-gray-800/30">
-                  <td className="py-1.5 px-3 text-gray-300">{r.date}</td>
-                  <td className="py-1.5 px-3 text-right text-cyan-400 tabular-nums">${r.value?.toFixed(3)}T</td>
-                  <td className={`py-1.5 px-3 text-right tabular-nums ${chg === null ? '' : chg >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {chg !== null ? `${chg >= 0 ? '+' : ''}${chg.toFixed(3)}T` : '-'}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    );
-  };
-
-  const regimeLabel = currentRegime?.type === 'expanding' ? 'QE (Expanding)' : currentRegime?.type === 'contracting' ? 'QT (Contracting)' : null;
+  const regimeLabel = currentRegime?.type === 'expanding' ? 'QE (Expanding)'
+    : currentRegime?.type === 'contracting' ? 'QT (Contracting)' : null;
   const regimeColor = currentRegime ? REGIME_COLOR[currentRegime.type] : '#9ca3af';
 
   return (
     <BaseWidget
       title="Fed Balance Sheet — QE / QT Monitor"
-      subtitle={
-        latest
-          ? `$${latest.value.toFixed(2)}T · ${regimeLabel || ''}`
-          : undefined
-      }
+      subtitle={latest ? `$${latest.value.toFixed(2)}T · ${regimeLabel || ''}` : undefined}
       icon={Landmark}
       iconColor="text-cyan-400"
       loading={loading}
@@ -155,11 +158,12 @@ export default function FedBalanceSheetWidget({ onRemove }) {
       periodType="macro"
       source={data?.source}
     >
-      {/* Regime badge */}
       {regimeLabel && (
         <div className="px-3 pb-1 flex gap-2 items-center">
-          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded border"
-            style={{ color: regimeColor, borderColor: regimeColor + '60', backgroundColor: regimeColor + '15' }}>
+          <span
+            className="text-[10px] font-medium px-1.5 py-0.5 rounded border"
+            style={{ color: regimeColor, borderColor: regimeColor + '60', backgroundColor: regimeColor + '15' }}
+          >
             {regimeLabel}
           </span>
           {peak && (
@@ -170,7 +174,20 @@ export default function FedBalanceSheetWidget({ onRemove }) {
         </div>
       )}
       <div className="h-full p-3">
-        {viewMode === 'chart' ? renderChart() : renderTable()}
+        {viewMode === 'chart' ? renderChart() : (
+          <div className="h-full overflow-auto">
+            <WidgetTable
+              columns={TABLE_COLUMNS}
+              data={tableData}
+              resizable={true}
+              size="compact"
+              showExport={true}
+              exportFilename="fed-balance-sheet"
+              defaultSortKey="date"
+              defaultSortDirection="desc"
+            />
+          </div>
+        )}
       </div>
     </BaseWidget>
   );

@@ -1,14 +1,14 @@
 /**
  * Inflation Decomposition Widget - CPI components breakdown
- * Uses BaseWidget for common functionality
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { TrendingUp, TrendingDown, Flame } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Cell, ReferenceLine
+  ResponsiveContainer, Cell, ReferenceLine,
 } from 'recharts';
 import BaseWidget from '../common/BaseWidget';
+import WidgetTable from '../common/WidgetTable';
 import { API_BASE } from '../../../config/api';
 
 const getInflationColor = (value) => {
@@ -37,8 +37,50 @@ const CustomTooltip = ({ active, payload, label }) => {
   return null;
 };
 
+const COLUMNS = [
+  {
+    key: 'category',
+    header: 'Category',
+    sortable: true,
+    sortValue: (row) => row.category || '',
+    render: (row) => <span className="font-medium text-white">{row.category}</span>,
+  },
+  {
+    key: 'weight',
+    header: 'Weight',
+    align: 'right',
+    sortable: true,
+    sortValue: (row) => row.weight ?? -Infinity,
+    exportValue: (row) => row.weight?.toFixed(1) ?? '',
+    render: (row) => <span className="text-gray-400">{row.weight?.toFixed(1)}%</span>,
+  },
+  {
+    key: 'yoy_change',
+    header: 'YoY Change',
+    align: 'right',
+    sortable: true,
+    sortValue: (row) => row.yoy_change ?? -Infinity,
+    exportValue: (row) => row.yoy_change?.toFixed(2) ?? '',
+    render: (row) => (
+      <span className={`flex items-center justify-end gap-1 ${(row.yoy_change ?? 0) >= 0 ? 'text-red-400' : 'text-green-400'}`}>
+        {(row.yoy_change ?? 0) >= 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+        {row.yoy_change?.toFixed(2)}%
+      </span>
+    ),
+  },
+  {
+    key: 'contribution',
+    header: 'Contribution',
+    align: 'right',
+    sortable: true,
+    sortValue: (row) => row.contribution ?? -Infinity,
+    exportValue: (row) => row.contribution?.toFixed(2) ?? '',
+    render: (row) => <span className="text-blue-400">{row.contribution?.toFixed(2)}%</span>,
+  },
+];
+
 export default function InflationDecompWidget({ onRemove }) {
-  const [data, setData] = useState(null);
+  const [data,    setData]    = useState(null);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('chart');
 
@@ -56,12 +98,15 @@ export default function InflationDecompWidget({ onRemove }) {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  const tableData = useMemo(() =>
+    (data?.components || []).map((item, i) => ({ ...item, _key: i })),
+    [data]
+  );
+
   const renderChart = () => {
     if (!data) return null;
-
     return (
       <div className="h-full flex flex-col">
-        {/* Summary strip */}
         <div className="flex items-center gap-4 px-1 pb-2 flex-shrink-0">
           {data.headline_cpi && (
             <span className="text-xs text-gray-400">
@@ -80,7 +125,6 @@ export default function InflationDecompWidget({ onRemove }) {
             </span>
           )}
         </div>
-        {/* Chart */}
         <div className="flex-1 min-h-0">
           {data.components ? (
             <ResponsiveContainer width="100%" height="100%">
@@ -108,52 +152,33 @@ export default function InflationDecompWidget({ onRemove }) {
   const renderTable = () => {
     if (!data) return null;
     return (
-      <div className="overflow-auto h-full">
-        {/* Components table */}
-        {data.components && (
-          <table className="w-full text-xs">
-            <thead className="sticky top-0 bg-[#0d0d12]">
-              <tr className="border-b border-gray-800">
-                <th className="text-left py-2 px-3 text-gray-400 font-medium">Category</th>
-                <th className="text-right py-2 px-3 text-gray-400 font-medium">Weight</th>
-                <th className="text-right py-2 px-3 text-gray-400 font-medium">YoY Change</th>
-                <th className="text-right py-2 px-3 text-gray-400 font-medium">Contribution</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.components.map((item, idx) => (
-                <tr key={idx} className="border-b border-gray-800/50 hover:bg-gray-800/30">
-                  <td className="py-2 px-3 text-white font-medium">{item.category}</td>
-                  <td className="py-2 px-3 text-right text-gray-400 tabular-nums">{item.weight?.toFixed(1)}%</td>
-                  <td className="py-2 px-3 text-right">
-                    <span className={`flex items-center justify-end gap-1 ${item.yoy_change >= 0 ? 'text-red-400' : 'text-green-400'}`}>
-                      {item.yoy_change >= 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-                      {item.yoy_change?.toFixed(2)}%
-                    </span>
-                  </td>
-                  <td className="py-2 px-3 text-right text-blue-400 tabular-nums">{item.contribution?.toFixed(2)}%</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-        {/* Expectations */}
+      <div className="h-full flex flex-col overflow-auto">
+        <WidgetTable
+          columns={COLUMNS}
+          data={tableData}
+          resizable={true}
+          size="compact"
+          showExport={true}
+          exportFilename="inflation-decomp"
+          defaultSortKey="contribution"
+          defaultSortDirection="desc"
+          emptyMessage="No component data"
+        />
         {data.expectations && (
-          <>
-            <div className="px-3 py-2 text-xs text-gray-400 border-t border-gray-800">Inflation Expectations (Breakeven)</div>
-            <table className="w-full text-xs">
-              <tbody>
-                <tr className="border-b border-gray-800/50 hover:bg-gray-800/30">
-                  <td className="py-2 px-3 text-white">5-Year Forward</td>
-                  <td className="py-2 px-3 text-right text-white tabular-nums">{data.expectations['5y_breakeven']?.toFixed(2) || '-'}%</td>
-                </tr>
-                <tr className="border-b border-gray-800/50 hover:bg-gray-800/30">
-                  <td className="py-2 px-3 text-white">10-Year Forward</td>
-                  <td className="py-2 px-3 text-right text-white tabular-nums">{data.expectations['10y_breakeven']?.toFixed(2) || '-'}%</td>
-                </tr>
-              </tbody>
-            </table>
-          </>
+          <div className="border-t border-gray-800 shrink-0">
+            <div className="px-3 py-2 text-xs text-gray-400">Inflation Expectations (Breakeven)</div>
+            <div className="px-3 pb-3 flex flex-col gap-1">
+              {[
+                { label: '5-Year Forward',  val: data.expectations['5y_breakeven']  },
+                { label: '10-Year Forward', val: data.expectations['10y_breakeven'] },
+              ].map(({ label, val }) => (
+                <div key={label} className="flex items-center justify-between text-xs">
+                  <span className="text-white">{label}</span>
+                  <span className="text-white tabular-nums">{val?.toFixed(2) ?? '-'}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
       </div>
     );

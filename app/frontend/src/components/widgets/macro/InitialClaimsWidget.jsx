@@ -2,11 +2,40 @@
  * Initial Claims Widget - Shows weekly initial claims with 4-week MA
  * Uses BaseWidget for common functionality
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Users } from 'lucide-react';
 import BaseWidget from '../common/BaseWidget';
+import WidgetTable from '../common/WidgetTable';
 import LWChart from '../common/LWChart';
 import { API_BASE } from '../../../config/api';
+
+const CLAIMS_COLUMNS = [
+  {
+    key: 'date',
+    header: 'Date',
+    sortable: true,
+    sortValue: (row) => row.date,
+    render: (row) => <span className="text-gray-300">{row.date}</span>,
+  },
+  {
+    key: 'claims',
+    header: 'Initial Claims',
+    align: 'right',
+    sortable: true,
+    sortValue: (row) => row.claims ?? -Infinity,
+    exportValue: (row) => row.claims?.toFixed(1) ?? '',
+    render: (row) => <span className="text-blue-400">{row.claims?.toLocaleString()}K</span>,
+  },
+  {
+    key: 'ma_4w',
+    header: '4W MA',
+    align: 'right',
+    sortable: true,
+    sortValue: (row) => row.ma_4w ?? -Infinity,
+    exportValue: (row) => row.ma_4w?.toFixed(1) ?? '',
+    render: (row) => <span className="text-red-400">{row.ma_4w?.toLocaleString()}K</span>,
+  },
+];
 
 export default function InitialClaimsWidget({ onRemove }) {
   const [data, setData] = useState(null);
@@ -61,41 +90,25 @@ export default function InitialClaimsWidget({ onRemove }) {
     );
   };
 
-  const renderTable = () => {
-    if (!data?.history) return null;
-    const recentData = [...data.history].reverse().slice(0, 20);
-    return (
-      <div className="overflow-auto h-full">
-        <table className="w-full text-xs">
-          <thead className="sticky top-0 bg-[#0d0d12]">
-            <tr className="border-b border-gray-800">
-              <th className="text-left py-2 px-3 text-gray-400 font-medium">Date</th>
-              <th className="text-right py-2 px-3 text-gray-400 font-medium">Initial Claims</th>
-              <th className="text-right py-2 px-3 text-gray-400 font-medium">4W MA</th>
-            </tr>
-          </thead>
-          <tbody>
-            {recentData.map((row, idx) => (
-              <tr key={idx} className="border-b border-gray-800/50 hover:bg-gray-800/30">
-                <td className="py-2 px-3 text-gray-300">{row.date}</td>
-                <td className="py-2 px-3 text-right text-blue-400">{row.claims?.toLocaleString()}K</td>
-                <td className="py-2 px-3 text-right text-red-400">{row.ma_4w?.toLocaleString()}K</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  };
+  const tableData = useMemo(() =>
+    [...(data?.history || [])].reverse().slice(0, 20).map((r, i) => ({ ...r, _key: i })),
+    [data]
+  );
 
-  const getExportData = () => ({
-    columns: [
-      { key: 'date',   header: 'Date'                    },
-      { key: 'claims', header: 'Initial Claims (K)', exportValue: r => r.claims?.toFixed(1) ?? '' },
-      { key: 'ma_4w',  header: '4 Week MA (K)',      exportValue: r => r.ma_4w?.toFixed(1) ?? ''  },
-    ],
-    rows: data?.history || [],
-  });
+  const renderTable = () => (
+    <div className="h-full overflow-auto">
+      <WidgetTable
+        columns={CLAIMS_COLUMNS}
+        data={tableData}
+        resizable={true}
+        size="compact"
+        showExport={true}
+        exportFilename="initial-claims"
+        defaultSortKey="date"
+        defaultSortDirection="desc"
+      />
+    </div>
+  );
 
   return (
     <BaseWidget
@@ -112,7 +125,7 @@ export default function InitialClaimsWidget({ onRemove }) {
       onPeriodChange={setPeriod}
       periodType="macro"
       source={data?.source}
-      exportData={data?.history?.length ? getExportData : undefined}
+      exportData={undefined}
     >
       <div className="h-full p-3">
         {viewMode === 'chart' ? renderChart() : renderTable()}

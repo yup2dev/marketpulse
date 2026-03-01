@@ -117,6 +117,58 @@ const StrategyForm = ({ initial = EMPTY_FORM, onSave, onCancel }) => {
   );
 };
 
+// ── Per-type fallback display info (shown when DB fields are empty) ────────────
+const STRATEGY_DEFAULTS = {
+  ema_cross: (p) => ({
+    formula: `EMA(n) = P × k + EMA₋₁ × (1 − k)\nk = 2 / (n + 1)`,
+    variables: `fast=${p.fast ?? 20} : 단기 EMA 기간\nslow=${p.slow ?? 50} : 장기 EMA 기간\nSL=${p.stop_loss_pct ?? 5}%  /  TP=${p.take_profit_pct ?? 15}%`,
+    buy_condition: `EMA(${p.fast ?? 20}) > EMA(${p.slow ?? 50})\n→ 골든크로스 진입`,
+    sell_condition: `EMA(${p.fast ?? 20}) < EMA(${p.slow ?? 50})\n→ 데드크로스 청산`,
+  }),
+  rsi: (p) => ({
+    formula: `RSI = 100 − 100 / (1 + RS)\nRS = Avg Gain / Avg Loss (기간: ${p.period ?? 14})`,
+    variables: `period=${p.period ?? 14}\noversold=${p.oversold ?? 30}  overbought=${p.overbought ?? 70}\nSL=${p.stop_loss_pct ?? 5}%  /  TP=${p.take_profit_pct ?? 15}%`,
+    buy_condition: `RSI(${p.period ?? 14}) < ${p.oversold ?? 30}\n→ 과매도 반등 매수`,
+    sell_condition: `RSI(${p.period ?? 14}) > ${p.overbought ?? 70}\n→ 과매수 구간 청산`,
+  }),
+  macd_cross: (p) => ({
+    formula: `MACD = EMA(${p.fast ?? 12}) − EMA(${p.slow ?? 26})\nSignal = EMA(${p.signal ?? 9}, MACD)`,
+    variables: `fast=${p.fast ?? 12}  slow=${p.slow ?? 26}  signal=${p.signal ?? 9}\nSL=${p.stop_loss_pct ?? 5}%  /  TP=${p.take_profit_pct ?? 20}%`,
+    buy_condition: `MACD Line > Signal Line\n→ 골든크로스 진입`,
+    sell_condition: `MACD Line < Signal Line\n→ 데드크로스 청산`,
+  }),
+  bb_breakout: (p) => ({
+    formula: `Upper = MA(${p.period ?? 20}) + ${p.std_dev ?? 2}σ\nLower = MA(${p.period ?? 20}) − ${p.std_dev ?? 2}σ`,
+    variables: `period=${p.period ?? 20}  std_dev=${p.std_dev ?? 2}\nSL=${p.stop_loss_pct ?? 5}%  /  TP=${p.take_profit_pct ?? 15}%`,
+    buy_condition: `Price < Lower Band\n→ 하단 이탈 반등 매수`,
+    sell_condition: `Price > Upper Band\n→ 상단 이탈 청산`,
+  }),
+  heston_vol_regime: (p) => ({
+    formula: `dV = κ(θ − V)dt + ξ√V dW\nEntry: RealVol < θ × entry_ratio`,
+    variables: `theta=${p.theta ?? 0.04}  lookback=${p.lookback ?? 20}\nentry_ratio=${p.entry_ratio ?? 0.8}  exit_ratio=${p.exit_ratio ?? 1.2}\nSL=${p.stop_loss_pct ?? 5}%  /  TP=${p.take_profit_pct ?? 25}%`,
+    buy_condition: `RealizedVol < θ × ${p.entry_ratio ?? 0.8}\n→ 저변동성 구간 진입`,
+    sell_condition: `RealizedVol > θ × ${p.exit_ratio ?? 1.2}\n→ 고변동성 전환 청산`,
+  }),
+  heston_delta_signal: (p) => ({
+    formula: `Delta = ∂C/∂S (Heston 모델 기반)\n방향성 신호로 활용`,
+    variables: `lookback=${p.lookback ?? 20}\nSL=${p.stop_loss_pct ?? 5}%  /  TP=${p.take_profit_pct ?? 15}%`,
+    buy_condition: `Heston Delta > 임계값\n→ 상승 방향성 신호`,
+    sell_condition: `Heston Delta < 임계값\n→ 하락 방향성 신호`,
+  }),
+  heston_price_ratio: (p) => ({
+    formula: `Price / Fair Value (Heston)\n모형가 대비 시장가 비율`,
+    variables: `SL=${p.stop_loss_pct ?? 5}%  /  TP=${p.take_profit_pct ?? 15}%`,
+    buy_condition: `Market Price < Fair Value × entry_ratio\n→ 저평가 진입`,
+    sell_condition: `Market Price > Fair Value × exit_ratio\n→ 고평가 청산`,
+  }),
+  heston_variance_gap: (p) => ({
+    formula: `Variance Gap = Implied Vol² − RealizedVol²`,
+    variables: `SL=${p.stop_loss_pct ?? 5}%  /  TP=${p.take_profit_pct ?? 15}%`,
+    buy_condition: `Var Gap > threshold\n→ 내재변동성 프리미엄 진입`,
+    sell_condition: `Var Gap < −threshold\n→ 변동성 역전 청산`,
+  }),
+};
+
 // ── Strategy card (saved) ──────────────────────────────────────────────────────
 const SavedCard = ({ strategy, onEdit, onDelete, onRun }) => {
   const [expanded, setExpanded] = useState(false);
@@ -124,6 +176,13 @@ const SavedCard = ({ strategy, onEdit, onDelete, onRun }) => {
   try { params = JSON.parse(strategy.parameters || '{}'); } catch {}
 
   const typeLabel = STRATEGY_TYPE_OPTIONS.find(o => o.id === strategy.strategy_type)?.label || strategy.strategy_type;
+
+  // Fill in display fields from per-type defaults when DB fields are empty
+  const defaults = STRATEGY_DEFAULTS[strategy.strategy_type]?.(params) ?? {};
+  const dispFormula    = strategy.formula        || defaults.formula;
+  const dispVariables  = strategy.variables      || defaults.variables;
+  const dispBuy        = strategy.buy_condition  || defaults.buy_condition;
+  const dispSell       = strategy.sell_condition || defaults.sell_condition;
 
   return (
     <div className="border border-gray-800 rounded-lg bg-[#0d0d12] hover:border-gray-700 transition-colors">
@@ -156,30 +215,30 @@ const SavedCard = ({ strategy, onEdit, onDelete, onRun }) => {
 
       {expanded && (
         <div className="border-t border-gray-800 px-3 pb-3 pt-2 space-y-2">
-          {strategy.formula && (
+          {dispFormula && (
             <div>
               <div className="text-[9px] text-gray-500 uppercase tracking-wide mb-1">Formula</div>
-              <pre className="text-[10px] text-cyan-300 font-mono bg-[#060608] border border-gray-800 rounded px-2 py-1.5 whitespace-pre-wrap">{strategy.formula}</pre>
+              <pre className="text-[10px] text-cyan-300 font-mono bg-[#060608] border border-gray-800 rounded px-2 py-1.5 whitespace-pre-wrap">{dispFormula}</pre>
             </div>
           )}
-          {strategy.variables && (
+          {dispVariables && (
             <div>
               <div className="text-[9px] text-gray-500 uppercase tracking-wide mb-1">Variables</div>
-              <pre className="text-[10px] text-yellow-300/80 font-mono bg-[#060608] border border-gray-800 rounded px-2 py-1.5 whitespace-pre-wrap">{strategy.variables}</pre>
+              <pre className="text-[10px] text-yellow-300/80 font-mono bg-[#060608] border border-gray-800 rounded px-2 py-1.5 whitespace-pre-wrap">{dispVariables}</pre>
             </div>
           )}
-          {(strategy.buy_condition || strategy.sell_condition) && (
+          {(dispBuy || dispSell) && (
             <div className="grid grid-cols-2 gap-2">
-              {strategy.buy_condition && (
+              {dispBuy && (
                 <div className="bg-green-900/10 border border-green-800/30 rounded p-2">
                   <div className="text-[9px] text-green-400 mb-0.5">▲ BUY</div>
-                  <div className="text-[10px] text-gray-300">{strategy.buy_condition}</div>
+                  <div className="text-[10px] text-gray-300 whitespace-pre-wrap">{dispBuy}</div>
                 </div>
               )}
-              {strategy.sell_condition && (
+              {dispSell && (
                 <div className="bg-red-900/10 border border-red-800/30 rounded p-2">
                   <div className="text-[9px] text-red-400 mb-0.5">▼ SELL</div>
-                  <div className="text-[10px] text-gray-300">{strategy.sell_condition}</div>
+                  <div className="text-[10px] text-gray-300 whitespace-pre-wrap">{dispSell}</div>
                 </div>
               )}
             </div>

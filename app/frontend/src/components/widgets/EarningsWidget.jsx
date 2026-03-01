@@ -2,29 +2,79 @@
  * EarningsWidget - Displays quarterly earnings data using BaseWidget
  */
 import { useState, useEffect, useCallback } from 'react';
-import { Calendar, TrendingUp, TrendingDown, BarChart2, Table } from 'lucide-react';
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer, ReferenceLine
-} from 'recharts';
+import { Calendar, TrendingUp, TrendingDown } from 'lucide-react';
 import BaseWidget from './common/BaseWidget';
-import { formatNumber, formatPrice, API_BASE } from './constants';
+import CommonChart from '../common/CommonChart';
+import WidgetTable from './common/WidgetTable';
+import { formatPrice, API_BASE } from './constants';
 
-const CustomTooltip = ({ active, payload, label }) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-[#1a1a1f] border border-gray-700 rounded px-3 py-2 shadow-lg">
-        <p className="text-gray-400 text-xs mb-1">{label}</p>
-        {payload.map((entry, index) => (
-          <p key={index} className="text-xs" style={{ color: entry.color }}>
-            {entry.name}: ${entry.value?.toFixed(2)}
-          </p>
-        ))}
-      </div>
-    );
-  }
-  return null;
+const getSurpriseBadge = (surprise) => {
+  if (surprise == null) return null;
+  const pos = surprise > 0;
+  return (
+    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${
+      pos ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+    }`}>
+      {pos ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+      {pos ? '+' : ''}{surprise.toFixed(2)}%
+    </span>
+  );
 };
+
+const COLUMNS = [
+  {
+    key: 'period',
+    header: 'Period',
+    sortable: true,
+    sortValue: (row) => row._sortKey,
+    render: (row) => (
+      <div>
+        <div className="text-white font-medium">{row.period}</div>
+        <div className="text-[10px] text-gray-500">{row.fiscal_year}</div>
+      </div>
+    ),
+  },
+  {
+    key: 'eps_actual',
+    header: 'Actual',
+    align: 'right',
+    sortable: true,
+    sortValue: (row) => row.eps_actual ?? -Infinity,
+    exportValue: (row) => row.eps_actual?.toFixed(2) ?? '',
+    render: (row) => (
+      <span className="text-white font-medium">
+        {row.eps_actual != null ? formatPrice(row.eps_actual) : 'N/A'}
+      </span>
+    ),
+  },
+  {
+    key: 'eps_estimated',
+    header: 'Est.',
+    align: 'right',
+    sortable: true,
+    sortValue: (row) => row.eps_estimated ?? -Infinity,
+    exportValue: (row) => row.eps_estimated?.toFixed(2) ?? '',
+    render: (row) => (
+      <span className="text-gray-400">
+        {row.eps_estimated != null ? formatPrice(row.eps_estimated) : 'N/A'}
+      </span>
+    ),
+  },
+  {
+    key: 'eps_surprise_percent',
+    header: 'Surprise',
+    align: 'right',
+    sortable: true,
+    sortValue: (row) => row.eps_surprise_percent ?? -Infinity,
+    exportValue: (row) => row.eps_surprise_percent?.toFixed(2) ?? '',
+    render: (row) => getSurpriseBadge(row.eps_surprise_percent),
+  },
+];
+
+const CHART_SERIES = [
+  { key: 'estimated', name: 'Estimated', color: '#6b7280' },
+  { key: 'actual',    name: 'Actual',    color: '#22c55e' },
+];
 
 const EarningsWidget = ({ symbol, onRemove }) => {
   const [earnings, setEarnings] = useState(null);
@@ -36,13 +86,7 @@ const EarningsWidget = ({ symbol, onRemove }) => {
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE}/stock/earnings/${symbol}`);
-      if (res.ok) {
-        const data = await res.json();
-        console.log('Earnings data loaded:', data);
-        setEarnings(data);
-      } else {
-        console.error('Earnings fetch failed:', res.status);
-      }
+      if (res.ok) setEarnings(await res.json());
     } catch (error) {
       console.error('Error loading earnings:', error);
     } finally {
@@ -50,103 +94,22 @@ const EarningsWidget = ({ symbol, onRemove }) => {
     }
   }, [symbol]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  useEffect(() => { loadData(); }, [loadData]);
 
-  const getSurpriseBadge = (surprise) => {
-    if (surprise === null || surprise === undefined) return null;
-    const isPositive = surprise > 0;
-    return (
-      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${
-        isPositive ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
-      }`}>
-        {isPositive ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-        {isPositive ? '+' : ''}{surprise?.toFixed(2)}%
-      </span>
-    );
-  };
+  const rawItems = (earnings?.earnings || []).slice(0, 8);
 
-  const getChartData = () => {
-    if (!earnings?.earnings) return [];
-    return earnings.earnings.slice(0, 8).reverse().map(item => ({
-      period: item.fiscal_period || `Q${item.fiscal_quarter} ${item.fiscal_year}`,
-      actual: item.eps_actual,
-      estimated: item.eps_estimated,
-    }));
-  };
+  const tableData = rawItems.map((item, i) => ({
+    ...item,
+    _key: i,
+    period: item.fiscal_period || `Q${item.fiscal_quarter}`,
+    _sortKey: `${item.fiscal_year}-${String(item.fiscal_quarter || 0).padStart(2, '0')}`,
+  }));
 
-  const renderChart = () => {
-    const chartData = getChartData();
-    if (chartData.length === 0) return <div className="flex items-center justify-center h-full text-gray-500">No data</div>;
-
-    return (
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-          <XAxis dataKey="period" tick={{ fill: '#6b7280', fontSize: 9 }} axisLine={{ stroke: '#374151' }} />
-          <YAxis tick={{ fill: '#6b7280', fontSize: 9 }} axisLine={{ stroke: '#374151' }} tickFormatter={(v) => `$${v}`} />
-          <Tooltip content={<CustomTooltip />} />
-          <Legend wrapperStyle={{ fontSize: '10px' }} />
-          <ReferenceLine y={0} stroke="#4b5563" />
-          <Bar dataKey="estimated" fill="#6b7280" name="Estimated" />
-          <Bar dataKey="actual" fill="#22c55e" name="Actual" />
-        </BarChart>
-      </ResponsiveContainer>
-    );
-  };
-
-  const renderTable = () => {
-    if (!earnings?.earnings?.length) return <div className="flex items-center justify-center h-full text-gray-500">No data</div>;
-
-    return (
-      <div className="overflow-auto h-full">
-        <table className="w-full text-xs">
-          <thead className="sticky top-0 bg-[#0d0d12]">
-            <tr className="border-b border-gray-800">
-              <th className="text-left py-2 px-2 text-gray-400 font-medium">Period</th>
-              <th className="text-right py-2 px-2 text-gray-400 font-medium">Actual</th>
-              <th className="text-right py-2 px-2 text-gray-400 font-medium">Est.</th>
-              <th className="text-right py-2 px-2 text-gray-400 font-medium">Surprise</th>
-            </tr>
-          </thead>
-          <tbody>
-            {earnings.earnings.slice(0, 8).map((item, idx) => (
-              <tr key={idx} className="border-b border-gray-800/50 hover:bg-gray-800/30">
-                <td className="py-2 px-2">
-                  <div className="text-white text-xs font-medium">{item.fiscal_period || `Q${item.fiscal_quarter}`}</div>
-                  <div className="text-[10px] text-gray-500">{item.fiscal_year}</div>
-                </td>
-                <td className="text-right py-2 px-2 text-white font-medium">
-                  {item.eps_actual !== null ? formatPrice(item.eps_actual) : 'N/A'}
-                </td>
-                <td className="text-right py-2 px-2 text-gray-400">
-                  {item.eps_estimated !== null ? formatPrice(item.eps_estimated) : 'N/A'}
-                </td>
-                <td className="text-right py-2 px-2">{getSurpriseBadge(item.eps_surprise_percent)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  };
-
-  const getExportData = () => ({
-    columns: [
-      { key: 'period',       header: 'Period'         },
-      { key: 'year',         header: 'Year'           },
-      { key: 'eps_actual',   header: 'EPS Actual ($)', exportValue: r => r.eps_actual?.toFixed(2) ?? '' },
-      { key: 'eps_estimated',header: 'EPS Est. ($)',   exportValue: r => r.eps_estimated?.toFixed(2) ?? '' },
-      { key: 'surprise_pct', header: 'Surprise (%)',   exportValue: r => r.eps_surprise_percent?.toFixed(2) ?? '' },
-    ],
-    rows: (earnings?.earnings || []).map(item => ({
-      ...item,
-      period: item.fiscal_period || `Q${item.fiscal_quarter}`,
-      year: item.fiscal_year,
-      surprise_pct: item.eps_surprise_percent,
-    })),
-  });
+  const chartData = [...rawItems].reverse().map(item => ({
+    period: item.fiscal_period || `Q${item.fiscal_quarter} ${item.fiscal_year}`,
+    actual: item.eps_actual,
+    estimated: item.eps_estimated,
+  }));
 
   return (
     <BaseWidget
@@ -160,10 +123,33 @@ const EarningsWidget = ({ symbol, onRemove }) => {
       onViewModeChange={setViewMode}
       showPeriodSelector={false}
       symbol={symbol}
-      exportData={earnings?.earnings?.length ? getExportData : undefined}
     >
-      <div className="h-full p-3">
-        {viewMode === 'chart' ? renderChart() : renderTable()}
+      <div className="h-full">
+        {viewMode === 'chart' ? (
+          <div className="p-3 h-full">
+            <CommonChart
+              data={chartData}
+              series={CHART_SERIES}
+              xKey="period"
+              type="bar"
+              fillContainer={true}
+              showTypeSelector={false}
+              yFormatter={(v) => `$${v}`}
+            />
+          </div>
+        ) : (
+          <WidgetTable
+            columns={COLUMNS}
+            data={tableData}
+            resizable={true}
+            emptyMessage="No earnings data"
+            size="compact"
+            defaultSortKey="period"
+            defaultSortDirection="desc"
+            showExport={true}
+            exportFilename={`${symbol}-earnings`}
+          />
+        )}
       </div>
     </BaseWidget>
   );

@@ -43,7 +43,6 @@ def _init_db():
     except Exception as e:
         print(f"✗ Startup initialization failed: {e}")
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     _init_db()

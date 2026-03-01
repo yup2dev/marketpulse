@@ -3,10 +3,7 @@
  * Shared header for all pages
  */
 import { useState } from 'react';
-import {
-  TrendingUp, Grid3x3, LayoutDashboard, BarChart3, Briefcase,
-  Globe, Bell, LogOut, User, Settings, ChevronDown
-} from 'lucide-react';
+import { TrendingUp, LogOut, User, Settings, ChevronDown } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import useAuthStore from '../../store/authStore';
@@ -34,21 +31,6 @@ const Header = () => {
     await logout();
     toast.success('Logged out successfully');
     navigate('/login');
-  };
-
-  // Icon mapping
-  const iconMap = {
-    'Grid3x3': Grid3x3,
-    'LayoutDashboard': LayoutDashboard,
-    'Globe': Globe,
-    'BarChart3': BarChart3,
-    'Briefcase': Briefcase,
-    'Bell': Bell,
-  };
-
-  const getIcon = (iconName) => {
-    const IconComponent = iconMap[iconName];
-    return IconComponent ? <IconComponent size={16} /> : null;
   };
 
   // Handle navigation
@@ -130,7 +112,6 @@ const Header = () => {
                           : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
                       }`}
                     >
-                      {getIcon(menu.menu_icon)}
                       <span>{menu.menu_name}</span>
                       {menu.children?.length > 0 && (
                         <ChevronDown size={14} className="text-gray-500" />

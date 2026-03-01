@@ -3,6 +3,7 @@ SEC 13F Institutional Holdings Fetcher
 Clean implementation using Base Fetcher pattern and SEC official data
 """
 import logging
+import time
 from typing import Any, Dict, List, Optional
 import requests
 from bs4 import BeautifulSoup
@@ -83,7 +84,7 @@ INSTITUTIONS = {
         "manager": "BlackRock"
     },
     "statestreet": {
-        "cik": "0001029160",
+        "cik": "0000093751",
         "name": "State Street Corporation",
         "manager": "State Street"
     },
@@ -120,7 +121,7 @@ INSTITUTIONS = {
         "manager": "Daniel Loeb"
     },
     "appaloosa": {
-        "cik": "0001067983",
+        "cik": "0001418814",
         "name": "Appaloosa Management LP",
         "manager": "David Tepper"
     },
@@ -130,7 +131,7 @@ INSTITUTIONS = {
         "manager": "David Einhorn"
     },
     "pointstate": {
-        "cik": "0001350694",
+        "cik": "0001603466",
         "name": "Point72 Asset Management",
         "manager": "Steve Cohen"
     }
@@ -237,6 +238,7 @@ class SEC13FFetcher(Fetcher[InstitutionalHoldingsQueryParams, InstitutionalHoldi
 
         filing_urls = []
         try:
+            time.sleep(0.15)  # Respect SEC's 10 req/s rate limit
             response = requests.get(url, params=params, headers=headers, timeout=30)
             response.raise_for_status()
 
@@ -259,34 +261,48 @@ class SEC13FFetcher(Fetcher[InstitutionalHoldingsQueryParams, InstitutionalHoldi
 
     @staticmethod
     def _parse_filing(filing_url: str, headers: Dict) -> tuple[List[Dict], Optional[str]]:
-        """Parse holdings from 13F filing"""
+        """Parse holdings from 13F filing, with retry on 503"""
         holdings = []
         filing_date = None
 
-        try:
-            # Get filing page
-            response = requests.get(filing_url, headers=headers, timeout=30)
-            response.raise_for_status()
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                # Brief delay to respect SEC rate limits (10 req/s max)
+                if attempt > 0:
+                    time.sleep(2 ** attempt)  # 2s, 4s backoff
 
-            soup = BeautifulSoup(response.text, 'html.parser')
+                response = requests.get(filing_url, headers=headers, timeout=30)
 
-            # Extract filing date
-            filing_date_elem = soup.find('div', string=lambda t: t and 'Filing Date' in t)
-            if filing_date_elem:
-                date_text = filing_date_elem.text.split(':')[-1].strip()
-                filing_date = date_text
+                if response.status_code == 503 and attempt < max_retries - 1:
+                    log.warning(f"SEC 503 on filing index (attempt {attempt + 1}), retrying...")
+                    continue
 
-            # Find information table XML
-            xml_url = SEC13FFetcher._find_info_table_url(soup, filing_url)
-            if not xml_url:
-                log.warning("Could not find information table XML")
-                return holdings, filing_date
+                response.raise_for_status()
 
-            # Parse XML holdings
-            holdings = SEC13FFetcher._parse_xml_holdings(xml_url, headers)
+                soup = BeautifulSoup(response.text, 'html.parser')
 
-        except Exception as e:
-            log.error(f"Error parsing filing: {e}")
+                # Extract filing date
+                filing_date_elem = soup.find('div', string=lambda t: t and 'Filing Date' in t)
+                if filing_date_elem:
+                    date_text = filing_date_elem.text.split(':')[-1].strip()
+                    filing_date = date_text
+
+                # Find information table XML
+                xml_url = SEC13FFetcher._find_info_table_url(soup, filing_url)
+                if not xml_url:
+                    log.warning("Could not find information table XML")
+                    return holdings, filing_date
+
+                # Parse XML holdings
+                holdings = SEC13FFetcher._parse_xml_holdings(xml_url, headers)
+                break
+
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    log.warning(f"Error parsing filing (attempt {attempt + 1}): {e}, retrying...")
+                else:
+                    log.error(f"Error parsing filing: {e}")
 
         return holdings, filing_date
 

@@ -15,24 +15,28 @@ function fmtNum(n, dec = 2) {
   return n.toLocaleString('en-US', { maximumFractionDigits: dec, minimumFractionDigits: dec });
 }
 
-export default function LiquidationsPanel({ liquidations }) {
+export default function LiquidationsPanel({ liquidations, hideHeader = false }) {
   return (
     <div className="flex flex-col h-full">
       {/* Panel header */}
-      <div className="px-3 py-1.5 border-b border-gray-800/60 shrink-0 flex items-center gap-2">
-        <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
-          Liquidations
-        </span>
-        {liquidations.length > 0 && (
-          <span className="text-[9px] px-1.5 py-0.5 bg-red-900/20 text-red-400 border border-red-800/30 rounded-full tabular-nums">
-            {liquidations.length}
+      {!hideHeader && (
+        <div className="px-3 py-1.5 border-b border-gray-800/60 shrink-0 flex items-center gap-2">
+          <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+            Liquidations
           </span>
-        )}
-      </div>
+          {liquidations.length > 0 && (
+            <span className="text-[9px] px-1.5 py-0.5 bg-red-900/20 text-red-400 border border-red-800/30 rounded-full tabular-nums">
+              {liquidations.length}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Column headers */}
-      <div className="grid gap-1 px-3 py-1 text-[9px] text-gray-700 uppercase tracking-wider border-b border-gray-800/40 shrink-0"
-           style={{ gridTemplateColumns: '70px 46px 1fr 1fr 1fr 70px' }}>
+      <div
+        className="grid gap-1 px-3 py-1 text-[9px] text-gray-700 uppercase tracking-wider border-b border-gray-800/40 shrink-0"
+        style={{ gridTemplateColumns: '70px 46px 1fr 1fr 1fr 70px' }}
+      >
         <span>Time</span>
         <span>Side</span>
         <span className="text-right">Price</span>

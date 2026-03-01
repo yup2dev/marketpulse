@@ -12,16 +12,18 @@ function fmtTime(ts) {
   ].join(':');
 }
 
-export default function LiveTradesPanel({ trades }) {
+export default function LiveTradesPanel({ trades, hideHeader = false }) {
   return (
     <div className="flex flex-col h-full">
       {/* Panel header */}
+      {!hideHeader && (
       <div className="px-3 py-1.5 border-b border-gray-800/60 shrink-0 flex items-center gap-2">
         <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
           Live Trades
         </span>
         <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
       </div>
+      )}
 
       {/* Column headers */}
       <div

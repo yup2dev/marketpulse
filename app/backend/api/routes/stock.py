@@ -56,6 +56,19 @@ async def get_stock_history(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/orderbook/{symbol}")
+async def get_stock_orderbook(symbol: str):
+    """
+    Get approximate order book for a US stock.
+    Uses Polygon.io NBBO quotes aggregated by price level.
+    """
+    try:
+        result = await data_service.get_stock_orderbook(symbol.upper())
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/info/{symbol}")
 async def get_company_info(symbol: str):
     """Get company information"""

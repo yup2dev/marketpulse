@@ -4,13 +4,14 @@
  * - OECD Composite Leading Indicator: >100 = above-trend
  * - Sahm Rule: >0.5 = recession signal
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Activity } from 'lucide-react';
 import {
   ComposedChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, ReferenceLine, Legend
+  ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import BaseWidget from '../common/BaseWidget';
+import WidgetTable from '../common/WidgetTable';
 import { API_BASE } from '../../../config/api';
 
 const CustomTooltip = ({ active, payload, label }) => {
@@ -27,14 +28,14 @@ const CustomTooltip = ({ active, payload, label }) => {
   );
 };
 
-const VIEWS = ['cfnai', 'diff', 'sahm'];
+const VIEWS       = ['cfnai', 'diff', 'sahm'];
 const VIEW_LABELS = { cfnai: 'CFNAI', diff: 'Breadth', sahm: 'Sahm Rule' };
 
 export default function PMIWidget({ onRemove }) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState('chart');
-  const [period, setPeriod] = useState('5y');
+  const [data,       setData]       = useState(null);
+  const [loading,    setLoading]    = useState(true);
+  const [viewMode,   setViewMode]   = useState('chart');
+  const [period,     setPeriod]     = useState('5y');
   const [activeView, setActiveView] = useState('cfnai');
 
   const loadData = useCallback(async () => {
@@ -56,19 +57,14 @@ export default function PMIWidget({ onRemove }) {
     return d.toLocaleDateString('en-US', { year: '2-digit', month: 'short' });
   };
 
-  // Build chart data based on active view
   const chartConfig = {
     cfnai: {
       series: data?.cfnai?.series || [],
       ma3: data?.cfnai?.ma3 || [],
       threshold: 0,
       thresholdLabel: '0 (Expansion)',
-      mainKey: 'value',
       mainName: 'CFNAI',
       mainColor: '#f59e0b',
-      extraKey: null,
-      extraName: null,
-      extraColor: null,
       gradientId: 'cfnaiGrad',
       gradientColor: '#f59e0b',
     },
@@ -77,7 +73,6 @@ export default function PMIWidget({ onRemove }) {
       ma3: [],
       threshold: 0,
       thresholdLabel: '0 (Majority Expanding)',
-      mainKey: 'value',
       mainName: 'CFNAI Breadth',
       mainColor: '#60a5fa',
       gradientId: 'diffGrad',
@@ -88,7 +83,6 @@ export default function PMIWidget({ onRemove }) {
       ma3: [],
       threshold: 0.5,
       thresholdLabel: '0.5 (Recession)',
-      mainKey: 'value',
       mainName: 'Sahm Rule',
       mainColor: '#f87171',
       gradientId: 'sahmGrad',
@@ -98,20 +92,66 @@ export default function PMIWidget({ onRemove }) {
 
   const cfg = chartConfig[activeView];
 
-  // Merge MA3 into series for CFNAI view
-  const mergedSeries = (() => {
+  const mergedSeries = useMemo(() => {
     if (activeView !== 'cfnai' || !cfg.ma3?.length) return cfg.series;
     const ma3Map = Object.fromEntries(cfg.ma3.map(d => [d.date, d.value]));
     return cfg.series.map(d => ({ ...d, ma3: ma3Map[d.date] ?? null }));
-  })();
+  }, [activeView, cfg.series, cfg.ma3]);
+
+  const tableData = useMemo(() =>
+    [...cfg.series].reverse().slice(0, 36).map((r, i) => ({ ...r, _key: i })),
+    [cfg.series]
+  );
+
+  const tableColumns = useMemo(() => [
+    {
+      key: 'date',
+      header: 'Date',
+      sortable: true,
+      sortValue: (row) => row.date,
+      render: (row) => <span className="text-gray-300">{row.date}</span>,
+    },
+    {
+      key: 'value',
+      header: VIEW_LABELS[activeView],
+      align: 'right',
+      sortable: true,
+      sortValue: (row) => row.value ?? -Infinity,
+      exportValue: (row) => row.value?.toFixed(3) ?? '',
+      render: (row) => {
+        const expanding = activeView === 'sahm' ? row.value < 0.5 : row.value >= 0;
+        return (
+          <span className={`font-medium ${expanding ? 'text-green-400' : 'text-red-400'}`}>
+            {row.value?.toFixed(3)}
+          </span>
+        );
+      },
+    },
+    {
+      key: '_signal',
+      header: 'Signal',
+      align: 'right',
+      sortable: false,
+      render: (row) => {
+        const expanding = activeView === 'sahm' ? row.value < 0.5 : row.value >= 0;
+        return (
+          <span className={`text-[10px] ${expanding ? 'text-green-500' : 'text-red-500'}`}>
+            {activeView === 'sahm'
+              ? row.value >= 0.5 ? '⚠ Recession' : 'Normal'
+              : expanding ? 'Expansion' : 'Contraction'}
+          </span>
+        );
+      },
+    },
+  ], [activeView]);
 
   const renderChart = () => (
     <ResponsiveContainer width="100%" height="100%">
       <ComposedChart data={mergedSeries} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
         <defs>
           <linearGradient id={cfg.gradientId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor={cfg.gradientColor} stopOpacity={0.2} />
-            <stop offset="95%" stopColor={cfg.gradientColor} stopOpacity={0} />
+            <stop offset="5%"  stopColor={cfg.gradientColor} stopOpacity={0.2} />
+            <stop offset="95%" stopColor={cfg.gradientColor} stopOpacity={0}   />
           </linearGradient>
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
@@ -120,18 +160,16 @@ export default function PMIWidget({ onRemove }) {
           domain={['auto', 'auto']}
           tick={{ fill: '#6b7280', fontSize: 10 }}
           axisLine={{ stroke: '#374151' }}
-          tickFormatter={v => activeView === 'cli' ? v.toFixed(0) : v.toFixed(2)}
+          tickFormatter={v => v.toFixed(2)}
           width={38}
         />
         <Tooltip content={<CustomTooltip />} />
-        {/* Threshold reference line */}
         <ReferenceLine
           y={cfg.threshold}
           stroke="#6b7280"
           strokeDasharray="4 4"
           label={{ value: cfg.thresholdLabel, fill: '#6b7280', fontSize: 9, position: 'insideTopLeft' }}
         />
-        {/* Sahm 0.5 recession zone fill */}
         {activeView === 'sahm' && (
           <ReferenceLine y={0.5} stroke="#ef4444" strokeDasharray="3 3" />
         )}
@@ -144,7 +182,6 @@ export default function PMIWidget({ onRemove }) {
           strokeWidth={1.5}
           dot={false}
         />
-        {/* CFNAI 3-month MA overlay */}
         {activeView === 'cfnai' && (
           <Line
             type="monotone"
@@ -160,47 +197,9 @@ export default function PMIWidget({ onRemove }) {
     </ResponsiveContainer>
   );
 
-  const renderTable = () => {
-    const rows = [...cfg.series].reverse().slice(0, 36);
-    return (
-      <div className="overflow-auto h-full">
-        <table className="w-full text-xs">
-          <thead className="sticky top-0 bg-[#0d0d12]">
-            <tr className="border-b border-gray-800">
-              <th className="text-left py-2 px-3 text-gray-400 font-medium">Date</th>
-              <th className="text-right py-2 px-3 text-gray-400 font-medium">{VIEW_LABELS[activeView]}</th>
-              <th className="text-right py-2 px-3 text-gray-400 font-medium">Signal</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r, i) => {
-              const isExpanding = activeView === 'sahm'
-                ? r.value < 0.5
-                : r.value >= 0;
-              return (
-                <tr key={i} className="border-b border-gray-800/50 hover:bg-gray-800/30">
-                  <td className="py-1.5 px-3 text-gray-300">{r.date}</td>
-                  <td className={`py-1.5 px-3 text-right font-medium tabular-nums ${isExpanding ? 'text-green-400' : 'text-red-400'}`}>
-                    {r.value?.toFixed(3)}
-                  </td>
-                  <td className={`py-1.5 px-3 text-right text-[10px] ${isExpanding ? 'text-green-500' : 'text-red-500'}`}>
-                    {activeView === 'sahm'
-                      ? r.value >= 0.5 ? '⚠ Recession' : 'Normal'
-                      : isExpanding ? 'Expansion' : 'Contraction'}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    );
-  };
-
-  // Latest status
   const latestCfnai = data?.cfnai?.latest;
   const isExpanding = latestCfnai ? latestCfnai.value >= 0 : null;
-  const sahmSignal = data?.sahm?.recession_signal;
+  const sahmSignal  = data?.sahm?.recession_signal;
 
   return (
     <BaseWidget
@@ -238,7 +237,6 @@ export default function PMIWidget({ onRemove }) {
               {VIEW_LABELS[v]}
             </button>
           ))}
-          {/* Latest values inline */}
           <div className="ml-auto flex gap-3 text-[10px] items-center">
             {latestCfnai && (
               <span className={latestCfnai.value >= 0 ? 'text-green-400' : 'text-red-400'}>
@@ -257,12 +255,24 @@ export default function PMIWidget({ onRemove }) {
             )}
           </div>
         </div>
-        {/* Descriptions */}
         <div className="px-3 pb-1">
           <p className="text-[9px] text-gray-600">{data?.[activeView === 'diff' ? 'diff' : activeView]?.description}</p>
         </div>
-        <div className="flex-1 px-1 pb-2">
-          {viewMode === 'chart' ? renderChart() : renderTable()}
+        <div className="flex-1 px-1 pb-2 min-h-0">
+          {viewMode === 'chart' ? renderChart() : (
+            <div className="h-full overflow-auto">
+              <WidgetTable
+                columns={tableColumns}
+                data={tableData}
+                resizable={true}
+                size="compact"
+                showExport={true}
+                exportFilename="business-cycle"
+                defaultSortKey="date"
+                defaultSortDirection="desc"
+              />
+            </div>
+          )}
         </div>
       </div>
     </BaseWidget>

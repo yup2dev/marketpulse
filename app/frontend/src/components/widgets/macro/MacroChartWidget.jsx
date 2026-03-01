@@ -1,72 +1,73 @@
 /**
  * MacroChartWidget - Reusable chart widget for macro data
  * Supports multiple chart types: GDP, Inflation, Claims, Jobs
+ * Chart display type (line/area/bar) is user-switchable via CommonChart's selector.
  */
 import { useState, useEffect, useCallback } from 'react';
 import { RefreshCw, X, GripVertical } from 'lucide-react';
-import {
-  LineChart, Line, AreaChart, Area, BarChart, Bar,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer, ReferenceLine, ComposedChart
-} from 'recharts';
+import CommonChart from '../../common/CommonChart';
 import { API_BASE } from '../../../config/api';
 
-// Custom tooltip
-const CustomTooltip = ({ active, payload, label }) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-[#1a1a1f] border border-gray-700 rounded px-3 py-2 shadow-lg">
-        <p className="text-gray-400 text-xs mb-1">{label}</p>
-        {payload.map((entry, index) => (
-          <p key={index} className="text-sm" style={{ color: entry.color }}>
-            {entry.name}: {typeof entry.value === 'number' ? entry.value.toFixed(2) : entry.value}
-          </p>
-        ))}
-      </div>
-    );
-  }
-  return null;
-};
-
-// Chart type configurations
 const CHART_CONFIGS = {
   'gdp-forecast': {
     endpoint: '/macro/overview/gdp-forecast',
     defaultPeriod: '1y',
     title: 'Evolution of Latest GDP Forecast',
+    defaultDisplayType: 'area',
+    series: [{ key: 'value', name: 'GDP Growth', color: '#3b82f6' }],
   },
   'inflation-momentum': {
     endpoint: '/macro/overview/inflation-momentum',
     defaultPeriod: '3y',
     title: 'Inflation Momentum',
+    defaultDisplayType: 'line',
+    series: [
+      { key: 'yoy_12m', name: '12M',  color: '#3b82f6' },
+      { key: 'yoy_6m',  name: '6M',   color: '#f97316' },
+      { key: 'yoy_3m',  name: '3M',   color: '#22c55e' },
+    ],
   },
   'initial-claims': {
     endpoint: '/macro/overview/initial-claims',
     defaultPeriod: '2y',
     title: 'Initial Claims',
+    defaultDisplayType: 'area',
+    series: [
+      { key: 'claims', name: 'Initial Claims', color: '#3b82f6' },
+      { key: 'ma_4w',  name: '4 Week MA',      color: '#ef4444' },
+    ],
   },
   'jobs-breakdown': {
     endpoint: '/macro/overview/jobs-breakdown',
     defaultPeriod: '5y',
     title: 'Jobs: Private vs Government',
+    defaultDisplayType: 'bar',
+    series: [
+      { key: 'government', name: 'Government',   color: '#f97316' },
+      { key: 'private',    name: 'Total Private', color: '#22c55e' },
+    ],
   },
 };
 
-export default function MacroChartWidget({ chartType = 'gdp-forecast', onRemove }) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [period, setPeriod] = useState(CHART_CONFIGS[chartType]?.defaultPeriod || '1y');
-  const [startDate, setStartDate] = useState('2020-03-01');
+const formatDate = (dateStr) => {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('en-US', { year: '2-digit', month: 'short' });
+};
 
+export default function MacroChartWidget({ chartType = 'gdp-forecast', onRemove }) {
   const config = CHART_CONFIGS[chartType] || CHART_CONFIGS['gdp-forecast'];
+
+  const [data,        setData]        = useState(null);
+  const [loading,     setLoading]     = useState(true);
+  const [period,      setPeriod]      = useState(config.defaultPeriod);
+  const [displayType, setDisplayType] = useState(config.defaultDisplayType);
+  const [startDate,   setStartDate]   = useState('2020-03-01');
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE}${config.endpoint}?period=${period}`);
-      if (res.ok) {
-        setData(await res.json());
-      }
+      if (res.ok) setData(await res.json());
     } catch (error) {
       console.error(`Error loading ${chartType}:`, error);
     } finally {
@@ -74,104 +75,68 @@ export default function MacroChartWidget({ chartType = 'gdp-forecast', onRemove 
     }
   }, [config.endpoint, period, chartType]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  useEffect(() => { loadData(); }, [loadData]);
 
-  const formatDate = (dateStr) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', { year: '2-digit', month: 'short' });
+  const getChartData = () => {
+    if (!data?.history) return [];
+    if (chartType === 'jobs-breakdown') {
+      return data.history.filter(d => d.date >= startDate);
+    }
+    return data.history;
   };
 
   const renderChart = () => {
-    if (!data?.history) return null;
+    const chartData = getChartData();
 
-    switch (chartType) {
-      case 'gdp-forecast':
-        return (
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data.history} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id="gdpGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-              <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} />
-              <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} tickFormatter={(v) => `${v.toFixed(1)}%`} />
-              <Tooltip content={<CustomTooltip />} />
-              <ReferenceLine y={0} stroke="#4b5563" strokeDasharray="3 3" />
-              <Area type="monotone" dataKey="value" stroke="#3b82f6" fill="url(#gdpGradient)" strokeWidth={2} name="GDP Growth" />
-            </AreaChart>
-          </ResponsiveContainer>
-        );
-
-      case 'inflation-momentum':
-        return (
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data.history} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-              <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} />
-              <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} tickFormatter={(v) => `${v.toFixed(0)}%`} />
-              <Tooltip content={<CustomTooltip />} />
-              <Legend verticalAlign="top" height={30} wrapperStyle={{ fontSize: '10px' }} />
-              <ReferenceLine y={data.fed_target || 2} stroke="#6b7280" strokeDasharray="5 5" label={{ value: 'FED AIT', position: 'left', fill: '#6b7280', fontSize: 10 }} />
-              <Line type="monotone" dataKey="yoy_12m" stroke="#3b82f6" strokeWidth={2} dot={false} name="12M" />
-              <Line type="monotone" dataKey="yoy_6m" stroke="#f97316" strokeWidth={2} dot={false} name="6M" />
-              <Line type="monotone" dataKey="yoy_3m" stroke="#22c55e" strokeWidth={2} dot={false} name="3M" />
-            </LineChart>
-          </ResponsiveContainer>
-        );
-
-      case 'initial-claims':
-        return (
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={data.history} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-              <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} />
-              <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} tickFormatter={(v) => `${v}K`} />
-              <Tooltip content={<CustomTooltip />} />
-              <Legend verticalAlign="top" height={30} wrapperStyle={{ fontSize: '10px' }} />
-              <Area type="monotone" dataKey="claims" fill="#3b82f620" stroke="#3b82f6" strokeWidth={1} name="Initial Claims" />
-              <Line type="monotone" dataKey="ma_4w" stroke="#ef4444" strokeWidth={2} dot={false} name="4 Week MA" />
-            </ComposedChart>
-          </ResponsiveContainer>
-        );
-
-      case 'jobs-breakdown':
-        const filteredData = data.history?.filter(d => d.date >= startDate) || [];
-        return (
-          <div className="h-full flex flex-col">
-            <div className="flex items-center gap-2 mb-2 px-1">
-              <span className="text-xs text-gray-500">From:</span>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="px-2 py-1 bg-gray-800 border border-gray-700 rounded text-xs text-white"
-              />
-            </div>
-            <div className="flex-1 min-h-0">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={filteredData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                  <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} />
-                  <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} tickFormatter={(v) => `${v > 0 ? '+' : ''}${(v/1000).toFixed(0)}M`} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Legend verticalAlign="top" height={30} wrapperStyle={{ fontSize: '10px' }} />
-                  <ReferenceLine y={0} stroke="#4b5563" strokeDasharray="3 3" />
-                  <Bar dataKey="government" fill="#f97316" name="Government" stackId="a" />
-                  <Bar dataKey="private" fill="#22c55e" name="Total Private" stackId="a" />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
+    if (chartType === 'jobs-breakdown') {
+      return (
+        <div className="h-full flex flex-col">
+          <div className="flex items-center gap-2 mb-2 px-1">
+            <span className="text-xs text-gray-500">From:</span>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="px-2 py-1 bg-gray-800 border border-gray-700 rounded text-xs text-white"
+            />
           </div>
-        );
-
-      default:
-        return <div className="text-gray-500 text-center">Unknown chart type</div>;
+          <div className="flex-1 min-h-0">
+            <CommonChart
+              data={chartData}
+              series={config.series}
+              xKey="date"
+              type={displayType}
+              onTypeChange={setDisplayType}
+              fillContainer={true}
+              showTypeSelector={true}
+              allowedTypes={['line', 'area', 'bar', 'stackedBar']}
+              xFormatter={formatDate}
+            />
+          </div>
+        </div>
+      );
     }
+
+    return (
+      <CommonChart
+        data={chartData}
+        series={config.series}
+        xKey="date"
+        type={displayType}
+        onTypeChange={setDisplayType}
+        fillContainer={true}
+        showTypeSelector={true}
+        allowedTypes={['line', 'area', 'bar']}
+        xFormatter={formatDate}
+        yFormatter={
+          chartType === 'initial-claims'
+            ? (v) => `${v}K`
+            : chartType === 'inflation-momentum'
+            ? (v) => `${v.toFixed(0)}%`
+            : undefined
+        }
+      />
+    );
   };
 
   return (

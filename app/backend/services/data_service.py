@@ -3,6 +3,7 @@ Data Service - Integration with data_fetcher
 Provides unified interface for fetching financial data
 """
 import sys
+import asyncio
 import logging
 from pathlib import Path
 from typing import Dict, Any, List, Optional
@@ -33,6 +34,7 @@ from data_fetcher.fetchers.fred.employment import FREDEmploymentFetcher
 from data_fetcher.fetchers.fred.housing_starts import FREDHousingStartsFetcher
 from data_fetcher.fetchers.fred.industrial_production import FREDIndustrialProductionFetcher
 from data_fetcher.fetchers.polygon.news import PolygonNewsFetcher
+from data_fetcher.fetchers.polygon.orderbook import fetch_stock_orderbook
 from data_fetcher.fetchers.fmp.search import FMPSearchFetcher
 from data_fetcher.fetchers.fmp.active_stocks import FMPActiveStocksFetcher
 from data_fetcher.utils.helpers import parse_period_to_dates
@@ -1399,6 +1401,11 @@ class DataService:
         except Exception as e:
             log.error(f"Error fetching estimates for {symbol}: {e}")
             return {'symbol': symbol, 'eps': {}, 'revenue': {}, 'price_target': {}, 'recommendations': {}}
+
+    async def get_stock_orderbook(self, symbol: str) -> dict:
+        """Fetch approximate order book for a US stock via Polygon NBBO quotes."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, fetch_stock_orderbook, symbol)
 
     def _format_period_key(self, period: str) -> str:
         """Format period key for readability"""

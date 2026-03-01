@@ -1,17 +1,18 @@
 /**
  * Revenue Segments Widget
  *
- * Annual  (FMP):     Product segment + Geographic breakdown — donut / stacked trend / table
- * Quarterly (yfinance): P&L decomposition per quarter — Revenue, COGS, Gross Profit, OpEx, Net Income
+ * Annual  (FMP):     Product segment + Geographic breakdown — chart (pie/donut/bar/stacked) / table
+ * Quarterly (yfinance): P&L decomposition per quarter — P&L Chart / table
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { PieChart as PieIcon } from 'lucide-react';
 import {
-  PieChart, Pie, Cell, Tooltip as PieTooltip, ResponsiveContainer,
+  ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ComposedChart, Line,
 } from 'recharts';
 import BaseWidget from './common/BaseWidget';
+import CommonChart from '../common/CommonChart';
 import { API_BASE } from '../../config/api';
 
 // ─── Colour palette ───────────────────────────────────────────────────────────
@@ -21,15 +22,6 @@ const PALETTE = [
   '#4ade80', '#38bdf8', '#f472b6', '#c084fc', '#2dd4bf',
 ];
 const segColor = (i) => PALETTE[i % PALETTE.length];
-
-// P&L layer config (stacked bar for quarterly view)
-const PNL_LAYERS = [
-  { key: 'cogs',      label: 'Cost of Revenue', color: '#ef4444' },
-  { key: 'sga',       label: 'SG&A',            color: '#f97316' },
-  { key: 'rd',        label: 'R&D',              color: '#eab308' },
-  { key: 'op_income', label: 'Operating Income', color: '#22c55e' },
-  { key: 'other',     label: 'Other / Tax',      color: '#6b7280' },
-];
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
 const fmtB   = (v) => (v == null ? '–' : `$${v.toFixed(1)}B`);
@@ -44,19 +36,6 @@ const fmtQtr  = (s) => {
 };
 
 // ─── Tooltip components ───────────────────────────────────────────────────────
-const PieTooltipContent = ({ active, payload }) => {
-  if (!active || !payload?.length) return null;
-  const { name, value, payload: p } = payload[0];
-  const pct = p.total ? ((value / p.total) * 100).toFixed(1) : '?';
-  return (
-    <div className="bg-[#1a1a1f] border border-gray-700 rounded px-3 py-2 text-xs shadow-lg">
-      <p className="text-white font-medium">{name}</p>
-      <p className="text-cyan-400">{fmtB(value)}</p>
-      <p className="text-gray-400">{pct}% of total</p>
-    </div>
-  );
-};
-
 const BarTooltipContent = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
   const total = payload.reduce((s, p) => s + (p.value || 0), 0);
@@ -73,7 +52,6 @@ const BarTooltipContent = ({ active, payload, label }) => {
 
 const PnlTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
-  const rev = payload.find(p => p.dataKey === 'revenue')?.value;
   return (
     <div className="bg-[#1a1a1f] border border-gray-700 rounded px-3 py-2 text-xs shadow-lg max-w-[200px]">
       <p className="text-gray-400 mb-1">{label}</p>
@@ -87,9 +65,10 @@ const PnlTooltip = ({ active, payload, label }) => {
 // ─── Main Widget ──────────────────────────────────────────────────────────────
 export default function RevenueSegmentsWidget({ symbol: initialSymbol, onRemove }) {
   const [symbol,  setSymbol]  = useState(initialSymbol || 'AAPL');
-  const [freq,    setFreq]    = useState('annual');    // 'annual' | 'quarterly'
-  const [segType, setSegType] = useState('product');   // 'product' | 'geo'
-  const [view,    setView]    = useState('donut');     // 'donut'|'trend'|'table' (annual) / 'pnl'|'table' (quarterly)
+  const [freq,    setFreq]    = useState('annual');     // 'annual' | 'quarterly'
+  const [segType, setSegType] = useState('product');    // 'product' | 'geo'
+  const [view,    setView]    = useState('chart');      // 'chart' | 'table' (annual); 'pnl' | 'table' (quarterly)
+  const [annualChartType, setAnnualChartType] = useState('donut'); // pie | donut | bar | stackedBar
 
   const [annualData,    setAnnualData]    = useState(null);
   const [quarterlyData, setQuarterlyData] = useState(null);
@@ -117,7 +96,6 @@ export default function RevenueSegmentsWidget({ symbol: initialSymbol, onRemove 
     finally { setLoading(false); }
   }, [symbol]);
 
-  // Reload when symbol or freq changes
   useEffect(() => {
     if (freq === 'annual') {
       if (!annualData || annualData.symbol !== symbol) fetchAnnual();
@@ -126,52 +104,59 @@ export default function RevenueSegmentsWidget({ symbol: initialSymbol, onRemove 
     }
   }, [symbol, freq]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Reset cached data on symbol change
   useEffect(() => {
     setAnnualData(null);
     setQuarterlyData(null);
   }, [symbol]);
 
-  // Sync view default on freq switch
   const handleFreqChange = (f) => {
     setFreq(f);
-    setView(f === 'annual' ? 'donut' : 'pnl');
+    setView(f === 'annual' ? 'chart' : 'pnl');
   };
 
   // ── Annual derived data ───────────────────────────────────────────────────
   const seg = annualData?.[segType];
 
-  const donutData = seg
-    ? seg.segments
-        .filter(s => seg.latest[s] != null && seg.latest[s] > 0)
-        .map((s, i) => ({
-          name: s,
-          value: seg.latest[s],
-          total: seg.latest.total,
-          color: segColor(i),
-        }))
-    : [];
+  // Latest-period data for pie/donut slices
+  const latestSlices = useMemo(() => {
+    if (!seg) return [];
+    return seg.segments
+      .filter(s => seg.latest[s] != null && seg.latest[s] > 0)
+      .map(s => ({ name: s, value: seg.latest[s] }));
+  }, [seg]);
+
+  // CommonChart data + series depend on the chosen chart type
+  const annualChartData = useMemo(() => {
+    if (annualChartType === 'pie' || annualChartType === 'donut') {
+      return latestSlices;
+    }
+    return seg?.history || [];
+  }, [annualChartType, latestSlices, seg]);
+
+  const annualChartSeries = useMemo(() => {
+    if (annualChartType === 'pie' || annualChartType === 'donut') {
+      return [{ key: 'value', name: 'Revenue' }];
+    }
+    return (seg?.segments || []).map((s, i) => ({ key: s, name: s, color: segColor(i) }));
+  }, [annualChartType, seg]);
+
+  const annualChartXKey = (annualChartType === 'pie' || annualChartType === 'donut') ? 'name' : 'date';
 
   // ── Quarterly derived data ────────────────────────────────────────────────
   const qHistory = quarterlyData?.history || [];
 
-  // Build P&L stacked layers from quarterly data
-  // Revenue = COGS + SGA + R&D + Operating Income + other (diff)
   const qPnlData = qHistory.map(row => {
-    const rev   = row.revenue  ?? 0;
-    const cogs  = row.cogs     ?? 0;
-    const sga   = row.sga      ?? 0;
-    const rd    = row.rd       ?? 0;
+    const rev   = row.revenue   ?? 0;
+    const cogs  = row.cogs      ?? 0;
+    const sga   = row.sga       ?? 0;
+    const rd    = row.rd        ?? 0;
     const opinc = row.op_income ?? 0;
-    // Other = revenue - COGS - SGA - R&D - Operating Income (should be 0 ideally but accounting)
     const other = Math.max(0, rev - cogs - sga - rd - opinc);
     return {
       date:   fmtQtr(row.date),
       rawDate: row.date,
       revenue: rev,
-      cogs,
-      sga,
-      rd,
+      cogs, sga, rd,
       op_income: opinc,
       other,
       gross_margin: row.gross_margin,
@@ -182,73 +167,23 @@ export default function RevenueSegmentsWidget({ symbol: initialSymbol, onRemove 
   });
 
   // ── Renderers: Annual ─────────────────────────────────────────────────────
-  const renderDonut = () => {
-    if (!donutData.length) return <NoData msg="No segment data for this symbol" />;
-    const latest = seg.latest;
+  const renderAnnualChart = () => {
+    if (!seg?.segments?.length || !annualChartData.length) {
+      return <NoData msg="No segment data for this symbol" />;
+    }
     return (
-      <div className="flex h-full gap-2">
-        <div className="flex-1 min-w-0">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie data={donutData} cx="50%" cy="50%"
-                   innerRadius="52%" outerRadius="78%"
-                   paddingAngle={2} dataKey="value">
-                {donutData.map((d, i) => (
-                  <Cell key={i} fill={d.color} stroke="none" />
-                ))}
-              </Pie>
-              <PieTooltip content={<PieTooltipContent />} />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-        {/* Legend panel */}
-        <div className="w-44 flex flex-col justify-center gap-1 pr-2 overflow-y-auto">
-          <p className="text-[9px] text-gray-500 mb-1">
-            {fmtDate(latest.date)} · Total {fmtB(latest.total)}
-          </p>
-          {donutData.map((d, i) => {
-            const pct = latest.total ? ((d.value / latest.total) * 100).toFixed(1) : '?';
-            const yoy = seg.yoy[d.name];
-            return (
-              <div key={i} className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ background: d.color }} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-[10px] text-gray-300 truncate leading-tight">{d.name}</p>
-                  <p className="text-[10px] tabular-nums leading-tight">
-                    <span className="text-white">{fmtB(d.value)}</span>
-                    <span className="text-gray-500 ml-1">{pct}%</span>
-                    {yoy != null && (
-                      <span className={`ml-1 ${yoy >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {fmtPct(yoy)}
-                      </span>
-                    )}
-                  </p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
-
-  const renderAnnualTrend = () => {
-    if (!seg?.history?.length) return <NoData msg="No segment data" />;
-    return (
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={seg.history} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
-          <XAxis dataKey="date" tickFormatter={s => s?.slice(0, 4)}
-            tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} />
-          <YAxis tickFormatter={v => `$${v.toFixed(0)}B`}
-            tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} width={44} />
-          <Tooltip content={<BarTooltipContent />} />
-          <Legend wrapperStyle={{ fontSize: 10, color: '#9ca3af' }} iconSize={8} />
-          {seg.segments.map((s, i) => (
-            <Bar key={s} dataKey={s} stackId="a" fill={segColor(i)} maxBarSize={52} />
-          ))}
-        </BarChart>
-      </ResponsiveContainer>
+      <CommonChart
+        data={annualChartData}
+        series={annualChartSeries}
+        xKey={annualChartXKey}
+        type={annualChartType}
+        onTypeChange={setAnnualChartType}
+        fillContainer={true}
+        showTypeSelector={true}
+        allowedTypes={['pie', 'donut', 'bar', 'stackedBar']}
+        xFormatter={annualChartXKey === 'date' ? (s => s?.slice(0, 4)) : undefined}
+        tooltipFormatter={(v) => [fmtB(v)]}
+      />
     );
   };
 
@@ -308,22 +243,18 @@ export default function RevenueSegmentsWidget({ symbol: initialSymbol, onRemove 
         <ComposedChart data={qPnlData} margin={{ top: 8, right: 40, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
           <XAxis dataKey="date" tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} />
-          {/* Left: revenue in $B */}
           <YAxis yAxisId="left"
             tickFormatter={v => `$${v.toFixed(0)}B`}
             tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} width={44} />
-          {/* Right: margin % */}
           <YAxis yAxisId="right" orientation="right"
             tickFormatter={v => `${v.toFixed(0)}%`}
             tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} width={36} />
           <Tooltip content={<PnlTooltip />} />
           <Legend wrapperStyle={{ fontSize: 10, color: '#9ca3af' }} iconSize={8} />
-          {/* Stacked bars: COGS → SGA → R&D → Op Income → Other */}
           <Bar yAxisId="left" dataKey="cogs"      name="Cost of Revenue" stackId="a" fill="#ef4444" maxBarSize={40} />
           <Bar yAxisId="left" dataKey="sga"       name="SG&A"            stackId="a" fill="#f97316" maxBarSize={40} />
           <Bar yAxisId="left" dataKey="rd"        name="R&D"             stackId="a" fill="#eab308" maxBarSize={40} />
           <Bar yAxisId="left" dataKey="op_income" name="Op. Income"      stackId="a" fill="#22c55e" maxBarSize={40} />
-          {/* Margin lines */}
           <Line yAxisId="right" type="monotone" dataKey="gross_margin" name="Gross Margin"
             stroke="#60a5fa" strokeWidth={1.5} dot={false} strokeDasharray="4 4" connectNulls />
           <Line yAxisId="right" type="monotone" dataKey="op_margin" name="Op. Margin"
@@ -357,7 +288,7 @@ export default function RevenueSegmentsWidget({ symbol: initialSymbol, onRemove 
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, i) => {
+            {rows.map((row) => {
               const yoy = yoyMap[row.date];
               return (
                 <tr key={row.date} className="border-b border-gray-800/50 hover:bg-gray-800/20">
@@ -387,7 +318,7 @@ export default function RevenueSegmentsWidget({ symbol: initialSymbol, onRemove 
   // ── Subtitle ──────────────────────────────────────────────────────────────
   const subtitle = freq === 'annual'
     ? (annualData?.has_product || annualData?.has_geo
-        ? `${annualData[segType]?.latest?.date?.slice(0,10) || ''} · ${fmtB(annualData[segType]?.latest?.total)} · ${annualData[segType]?.segments?.length} segments`
+        ? `${annualData[segType]?.latest?.date?.slice(0, 10) || ''} · ${fmtB(annualData[segType]?.latest?.total)} · ${annualData[segType]?.segments?.length} segments`
         : 'No segment data')
     : (quarterlyData?.latest?.date
         ? `${fmtQtr(quarterlyData.latest.date)} · Revenue ${fmtB(quarterlyData.latest.revenue)}`
@@ -395,7 +326,7 @@ export default function RevenueSegmentsWidget({ symbol: initialSymbol, onRemove 
 
   // ── View options per freq ─────────────────────────────────────────────────
   const viewOptions = freq === 'annual'
-    ? [{ id: 'donut', label: 'Donut' }, { id: 'trend', label: 'Trend' }, { id: 'table', label: 'Table' }]
+    ? [{ id: 'chart', label: 'Chart' }, { id: 'table', label: 'Table' }]
     : [{ id: 'pnl',   label: 'P&L Chart' }, { id: 'table', label: 'Table' }];
 
   return (
@@ -474,8 +405,7 @@ export default function RevenueSegmentsWidget({ symbol: initialSymbol, onRemove 
           ) : freq === 'annual' ? (
             !annualData || (!annualData.has_product && !annualData.has_geo)
               ? <NoData msg="No segment data available for this symbol" />
-              : view === 'donut' ? renderDonut()
-              : view === 'trend' ? renderAnnualTrend()
+              : view === 'chart' ? renderAnnualChart()
               : renderAnnualTable()
           ) : (
             view === 'pnl' ? renderPnlChart() : renderQtrTable()

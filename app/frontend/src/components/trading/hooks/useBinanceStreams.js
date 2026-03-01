@@ -1,14 +1,7 @@
 /**
  * useBinanceStreams
- * Connects to Binance Futures WebSocket streams and provides:
- *  - candles        : closed 1m OHLCV bars (historical + completed WS bars)
- *  - liveCandle     : current open 1m bar
- *  - cvdPoints      : [{time, cvd}] per-minute CVD accumulation
- *  - bids / asks    : top-20 orderbook levels [[price, qty]]
- *  - trades         : latest aggTrades (newest first)
- *  - liquidations   : latest forceOrder events (newest first)
- *  - connected      : boolean WebSocket status
- *  - lastPrice      : latest trade price
+ * Connects to Binance Futures WebSocket streams.
+ * Pass symbol=null to disable all connections (e.g. when in stock mode).
  */
 import { useState, useEffect, useRef } from 'react';
 
@@ -19,9 +12,10 @@ const MAX_CANDLES = 200;
 const MAX_TRADES  = 150;
 const MAX_LIQS    = 100;
 
-export default function useBinanceStreams(symbol = 'BTCUSDT') {
-  const sym    = symbol.toUpperCase();
-  const symLow = symbol.toLowerCase();
+export default function useBinanceStreams(symbol) {
+  const enabled = !!symbol;
+  const sym     = (symbol || 'BTCUSDT').toUpperCase();
+  const symLow  = sym.toLowerCase();
 
   const [candles,      setCandles]      = useState([]);
   const [liveCandle,   setLiveCandle]   = useState(null);
@@ -33,15 +27,12 @@ export default function useBinanceStreams(symbol = 'BTCUSDT') {
   const [connected,    setConnected]    = useState(false);
   const [lastPrice,    setLastPrice]    = useState(null);
 
-  // Mutable refs for CVD tracking (avoid stale closures)
   const cvdRunning     = useRef(0);
   const minuteCvdDelta = useRef(0);
   const currentMinute  = useRef(null);
-  const wsRef          = useRef(null);
 
   // ── Initial klines fetch ──────────────────────────────────────────────────
   useEffect(() => {
-    // Reset all state when symbol changes
     setCandles([]);
     setLiveCandle(null);
     setCvdPoints([]);
@@ -50,12 +41,14 @@ export default function useBinanceStreams(symbol = 'BTCUSDT') {
     setTrades([]);
     setLiquidations([]);
     setLastPrice(null);
-    cvdRunning.current    = 0;
+    setConnected(false);
+    cvdRunning.current     = 0;
     minuteCvdDelta.current = 0;
     currentMinute.current  = null;
 
-    const ac = new AbortController();
+    if (!enabled) return;
 
+    const ac = new AbortController();
     (async () => {
       try {
         const res  = await fetch(
@@ -72,7 +65,7 @@ export default function useBinanceStreams(symbol = 'BTCUSDT') {
           low:    +k[3],
           close:  +k[4],
           volume: +k[5],
-          buyVol: +k[9],   // taker buy base asset volume
+          buyVol: +k[9],
         }));
 
         const closed = klines.slice(0, -1);
@@ -82,7 +75,6 @@ export default function useBinanceStreams(symbol = 'BTCUSDT') {
         setLiveCandle(live);
         setLastPrice(live.close);
 
-        // Build historical CVD from taker buy volume
         let running = 0;
         const cvd = closed.map(k => {
           const delta = 2 * k.buyVol - k.volume;
@@ -97,10 +89,12 @@ export default function useBinanceStreams(symbol = 'BTCUSDT') {
     })();
 
     return () => ac.abort();
-  }, [sym]);
+  }, [sym, enabled]);
 
   // ── WebSocket ─────────────────────────────────────────────────────────────
   useEffect(() => {
+    if (!enabled) return;
+
     const streams = [
       `${symLow}@kline_1m`,
       `${symLow}@aggTrade`,
@@ -109,7 +103,6 @@ export default function useBinanceStreams(symbol = 'BTCUSDT') {
     ].join('/');
 
     const ws = new WebSocket(`${WS}?streams=${streams}`);
-    wsRef.current = ws;
 
     ws.onopen  = () => setConnected(true);
     ws.onclose = () => setConnected(false);
@@ -122,42 +115,27 @@ export default function useBinanceStreams(symbol = 'BTCUSDT') {
       const { stream, data } = msg;
       if (!stream || !data) return;
 
-      // ── Kline ──────────────────────────────────────────────────────────
       if (stream.includes('@kline')) {
         const k = data.k;
         const candle = {
-          time:   k.t,
-          open:   +k.o,
-          high:   +k.h,
-          low:    +k.l,
-          close:  +k.c,
-          volume: +k.v,
+          time: k.t, open: +k.o, high: +k.h, low: +k.l, close: +k.c, volume: +k.v,
         };
         setLastPrice(+k.c);
         if (k.x) {
-          // Bar closed – move to history, reset live
           setCandles(prev => [...prev.slice(-(MAX_CANDLES - 1)), candle]);
           setLiveCandle(null);
         } else {
           setLiveCandle(candle);
         }
-      }
-
-      // ── Aggregated trades ──────────────────────────────────────────────
-      else if (stream.includes('@aggTrade')) {
+      } else if (stream.includes('@aggTrade')) {
         const price = +data.p;
         const qty   = +data.q;
-        // m=true → buyer is market maker → taker sold → SELL
         const isBuy = !data.m;
         const ts    = data.T;
 
-        // CVD: bucket by minute
         const minute = Math.floor(ts / 60000) * 60000;
-        if (currentMinute.current === null) {
-          currentMinute.current = minute;
-        }
+        if (currentMinute.current === null) currentMinute.current = minute;
         if (minute > currentMinute.current) {
-          // Commit previous minute
           cvdRunning.current += minuteCvdDelta.current;
           const snapshot = cvdRunning.current;
           const prevMin  = currentMinute.current;
@@ -171,31 +149,23 @@ export default function useBinanceStreams(symbol = 'BTCUSDT') {
           minuteCvdDelta.current += isBuy ? qty : -qty;
         }
 
-        // Live trades list
-        const trade = { id: data.a, time: ts, price, qty, total: price * qty, isBuy };
-        setTrades(prev => [trade, ...prev.slice(0, MAX_TRADES - 1)]);
+        setTrades(prev => [
+          { id: data.a, time: ts, price, qty, total: price * qty, isBuy },
+          ...prev.slice(0, MAX_TRADES - 1),
+        ]);
         setLastPrice(price);
-      }
-
-      // ── Orderbook depth ────────────────────────────────────────────────
-      else if (stream.includes('@depth')) {
+      } else if (stream.includes('@depth')) {
         setBids(data.b.map(([p, q]) => [+p, +q]).filter(([, q]) => q > 0));
         setAsks(data.a.map(([p, q]) => [+p, +q]).filter(([, q]) => q > 0));
-      }
-
-      // ── Force orders (liquidations) ────────────────────────────────────
-      else if (stream.includes('@forceOrder')) {
+      } else if (stream.includes('@forceOrder')) {
         const o = data.o;
-        const liq = {
-          id:     Date.now() + Math.random(),
-          time:   o.T,
-          side:   o.S,
-          price:  +o.p,
-          qty:    +o.q,
-          total:  +o.p * +o.q,
-          symbol: o.s,
-        };
-        setLiquidations(prev => [liq, ...prev.slice(0, MAX_LIQS - 1)]);
+        setLiquidations(prev => [
+          {
+            id: Date.now() + Math.random(),
+            time: o.T, side: o.S, price: +o.p, qty: +o.q, total: +o.p * +o.q, symbol: o.s,
+          },
+          ...prev.slice(0, MAX_LIQS - 1),
+        ]);
       }
     };
 
@@ -203,7 +173,7 @@ export default function useBinanceStreams(symbol = 'BTCUSDT') {
       ws.onmessage = null;
       ws.close();
     };
-  }, [symLow]);
+  }, [symLow, enabled]);
 
   return {
     candles, liveCandle, cvdPoints,

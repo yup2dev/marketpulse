@@ -4,21 +4,22 @@
  *  Rising real rates → headwind for gold, equities, crypto
  *  Falling real rates → tailwind for risk assets
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { TrendingUp } from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, ReferenceLine, Legend
+  ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import BaseWidget from '../common/BaseWidget';
+import WidgetTable from '../common/WidgetTable';
 import { API_BASE } from '../../../config/api';
 
 const SERIES_CONFIG = [
-  { key: 'nominal_10y', name: '10Y Nominal', color: '#60a5fa', dashed: false },
-  { key: 'real_10y',    name: '10Y Real (TIPS)', color: '#f59e0b', dashed: false },
-  { key: 'breakeven_10y', name: '10Y Breakeven', color: '#a78bfa', dashed: true },
-  { key: 'nominal_5y', name: '5Y Nominal', color: '#34d399', dashed: true },
-  { key: 'real_5y',    name: '5Y Real (TIPS)', color: '#fb923c', dashed: true },
+  { key: 'nominal_10y',   name: '10Y Nominal',        color: '#60a5fa', dashed: false },
+  { key: 'real_10y',      name: '10Y Real (TIPS)',     color: '#f59e0b', dashed: false },
+  { key: 'breakeven_10y', name: '10Y Breakeven',       color: '#a78bfa', dashed: true  },
+  { key: 'nominal_5y',    name: '5Y Nominal',          color: '#34d399', dashed: true  },
+  { key: 'real_5y',       name: '5Y Real (TIPS)',      color: '#fb923c', dashed: true  },
 ];
 
 const CustomTooltip = ({ active, payload, label }) => {
@@ -35,11 +36,69 @@ const CustomTooltip = ({ active, payload, label }) => {
   );
 };
 
+const TABLE_COLUMNS = [
+  {
+    key: 'date',
+    header: 'Date',
+    sortable: true,
+    sortValue: (row) => row.date,
+    render: (row) => <span className="text-gray-300">{row.date}</span>,
+  },
+  {
+    key: 'nominal_10y',
+    header: '10Y Nom.',
+    align: 'right',
+    sortable: true,
+    sortValue: (row) => row.nominal_10y ?? -Infinity,
+    exportValue: (row) => row.nominal_10y?.toFixed(3) ?? '',
+    render: (row) => (
+      <span className="text-blue-400">{row.nominal_10y?.toFixed(3) ?? '-'}%</span>
+    ),
+  },
+  {
+    key: 'real_10y',
+    header: '10Y Real',
+    align: 'right',
+    sortable: true,
+    sortValue: (row) => row.real_10y ?? -Infinity,
+    exportValue: (row) => row.real_10y?.toFixed(3) ?? '',
+    render: (row) => (
+      <span className={`font-medium ${(row.real_10y ?? 0) >= 0 ? 'text-amber-400' : 'text-red-400'}`}>
+        {row.real_10y?.toFixed(3) ?? '-'}%
+      </span>
+    ),
+  },
+  {
+    key: 'breakeven_10y',
+    header: '10Y BEI',
+    align: 'right',
+    sortable: true,
+    sortValue: (row) => row.breakeven_10y ?? -Infinity,
+    exportValue: (row) => row.breakeven_10y?.toFixed(3) ?? '',
+    render: (row) => (
+      <span className="text-violet-400">{row.breakeven_10y?.toFixed(3) ?? '-'}%</span>
+    ),
+  },
+  {
+    key: 'real_5y',
+    header: '5Y Real',
+    align: 'right',
+    sortable: true,
+    sortValue: (row) => row.real_5y ?? -Infinity,
+    exportValue: (row) => row.real_5y?.toFixed(3) ?? '',
+    render: (row) => (
+      <span className={`${(row.real_5y ?? 0) >= 0 ? 'text-amber-300' : 'text-red-300'}`}>
+        {row.real_5y?.toFixed(3) ?? '-'}%
+      </span>
+    ),
+  },
+];
+
 export default function RealRatesWidget({ onRemove }) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState('chart');
-  const [period, setPeriod] = useState('5y');
+  const [data,          setData]          = useState(null);
+  const [loading,       setLoading]       = useState(true);
+  const [viewMode,      setViewMode]      = useState('chart');
+  const [period,        setPeriod]        = useState('5y');
   const [visibleSeries, setVisibleSeries] = useState(['nominal_10y', 'real_10y', 'breakeven_10y']);
 
   const loadData = useCallback(async () => {
@@ -61,8 +120,8 @@ export default function RealRatesWidget({ onRemove }) {
     return d.toLocaleDateString('en-US', { year: '2-digit', month: 'short' });
   };
 
-  const latest = data?.latest || {};
-  const real10y = latest.real_10y;
+  const latest    = data?.latest || {};
+  const real10y   = latest.real_10y;
   const isPositive = real10y !== undefined && real10y > 0;
 
   const toggleSeries = (key) => {
@@ -71,11 +130,15 @@ export default function RealRatesWidget({ onRemove }) {
     );
   };
 
+  const tableData = useMemo(() =>
+    [...(data?.history || [])].reverse().slice(0, 60).map((r, i) => ({ ...r, _key: i })),
+    [data]
+  );
+
   const renderChart = () => {
     const history = data?.history || [];
     return (
       <div className="h-full flex flex-col">
-        {/* Series toggles */}
         <div className="flex flex-wrap gap-1.5 px-1 pb-2">
           {SERIES_CONFIG.map(s => (
             <button
@@ -107,7 +170,6 @@ export default function RealRatesWidget({ onRemove }) {
                 width={38}
               />
               <Tooltip content={<CustomTooltip />} />
-              {/* 0% reference line - key threshold */}
               <ReferenceLine y={0} stroke="#6b7280" strokeDasharray="4 4" label={{ value: '0%', fill: '#6b7280', fontSize: 9, position: 'insideTopLeft' }} />
               {SERIES_CONFIG.filter(s => visibleSeries.includes(s.key)).map(s => (
                 <Line
@@ -129,46 +191,12 @@ export default function RealRatesWidget({ onRemove }) {
     );
   };
 
-  const renderTable = () => {
-    const rows = [...(data?.history || [])].reverse().slice(0, 60);
-    return (
-      <div className="overflow-auto h-full">
-        <table className="w-full text-xs">
-          <thead className="sticky top-0 bg-[#0d0d12]">
-            <tr className="border-b border-gray-800">
-              <th className="text-left py-2 px-3 text-gray-400 font-medium">Date</th>
-              <th className="text-right py-2 px-3 text-gray-400 font-medium">10Y Nom.</th>
-              <th className="text-right py-2 px-3 text-gray-400 font-medium">10Y Real</th>
-              <th className="text-right py-2 px-3 text-gray-400 font-medium">10Y BEI</th>
-              <th className="text-right py-2 px-3 text-gray-400 font-medium">5Y Real</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r, i) => (
-              <tr key={i} className="border-b border-gray-800/50 hover:bg-gray-800/30">
-                <td className="py-1.5 px-3 text-gray-300">{r.date}</td>
-                <td className="py-1.5 px-3 text-right text-blue-400 tabular-nums">{r.nominal_10y?.toFixed(3) ?? '-'}%</td>
-                <td className={`py-1.5 px-3 text-right tabular-nums font-medium ${r.real_10y >= 0 ? 'text-amber-400' : 'text-red-400'}`}>
-                  {r.real_10y?.toFixed(3) ?? '-'}%
-                </td>
-                <td className="py-1.5 px-3 text-right text-violet-400 tabular-nums">{r.breakeven_10y?.toFixed(3) ?? '-'}%</td>
-                <td className={`py-1.5 px-3 text-right tabular-nums ${r.real_5y >= 0 ? 'text-amber-300' : 'text-red-300'}`}>
-                  {r.real_5y?.toFixed(3) ?? '-'}%
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  };
-
   const subtitleParts = [];
   if (real10y !== undefined) {
     subtitleParts.push(`10Y Real: ${real10y >= 0 ? '+' : ''}${real10y.toFixed(3)}%`);
     subtitleParts.push(isPositive ? 'Restrictive' : 'Accommodative');
   }
-  if (data?.['52w_high'] !== null && data?.['52w_high'] !== undefined) {
+  if (data?.['52w_high'] != null) {
     subtitleParts.push(`52w: ${data['52w_low']?.toFixed(2)}% – ${data['52w_high']?.toFixed(2)}%`);
   }
 
@@ -193,10 +221,10 @@ export default function RealRatesWidget({ onRemove }) {
         {Object.keys(latest).length > 0 && (
           <div className="flex gap-4 mb-2 text-[10px] flex-wrap">
             {[
-              { label: '10Y Nominal', val: latest.nominal_10y, color: '#60a5fa' },
-              { label: '10Y Real', val: latest.real_10y, color: '#f59e0b' },
+              { label: '10Y Nominal',   val: latest.nominal_10y,   color: '#60a5fa' },
+              { label: '10Y Real',      val: latest.real_10y,      color: '#f59e0b' },
               { label: '10Y Breakeven', val: latest.breakeven_10y, color: '#a78bfa' },
-              { label: '5Y Real', val: latest.real_5y, color: '#fb923c' },
+              { label: '5Y Real',       val: latest.real_5y,       color: '#fb923c' },
             ].filter(m => m.val !== undefined).map((m, i) => (
               <div key={i} className="flex flex-col">
                 <span className="text-gray-500">{m.label}</span>
@@ -207,8 +235,21 @@ export default function RealRatesWidget({ onRemove }) {
             ))}
           </div>
         )}
-        <div className="flex-1">
-          {viewMode === 'chart' ? renderChart() : renderTable()}
+        <div className="flex-1 min-h-0">
+          {viewMode === 'chart' ? renderChart() : (
+            <div className="h-full overflow-auto">
+              <WidgetTable
+                columns={TABLE_COLUMNS}
+                data={tableData}
+                resizable={true}
+                size="compact"
+                showExport={true}
+                exportFilename="real-rates"
+                defaultSortKey="date"
+                defaultSortDirection="desc"
+              />
+            </div>
+          )}
         </div>
       </div>
     </BaseWidget>

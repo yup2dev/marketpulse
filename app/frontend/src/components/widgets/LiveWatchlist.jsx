@@ -1,129 +1,141 @@
 /**
  * Live Watchlist Widget - Real-time stock watchlist with sparklines
- * Similar to trading terminal style
  */
 import { useState, useEffect, useCallback } from 'react';
-import { TrendingUp, TrendingDown, List } from 'lucide-react';
-import { LineChart, Line, ResponsiveContainer } from 'recharts';
+import { List } from 'lucide-react';
 import { API_BASE } from '../../config/api';
 import WidgetHeader from './common/WidgetHeader';
+import WidgetTable from './common/WidgetTable';
 
-// Default watchlist symbols
 const DEFAULT_SYMBOLS = [
-  { symbol: 'BTC-USD', name: 'Bitcoin', category: 'Crypto' },
-  { symbol: 'ETH-USD', name: 'Ethereum', category: 'Crypto' },
-  { symbol: 'AAPL', name: 'Apple', category: 'Equity.US' },
-  { symbol: 'MSFT', name: 'Microsoft', category: 'Equity.US' },
-  { symbol: 'NVDA', name: 'NVIDIA', category: 'Equity.US' },
-  { symbol: 'GOOGL', name: 'Google', category: 'Equity.US' },
-  { symbol: 'TSLA', name: 'Tesla', category: 'Equity.US' },
-  { symbol: 'QQQ', name: 'Nasdaq ETF', category: 'Equity.US' },
+  { symbol: 'BTC-USD', name: 'Bitcoin',    category: 'Crypto'    },
+  { symbol: 'ETH-USD', name: 'Ethereum',   category: 'Crypto'    },
+  { symbol: 'AAPL',    name: 'Apple',       category: 'Equity.US' },
+  { symbol: 'MSFT',    name: 'Microsoft',   category: 'Equity.US' },
+  { symbol: 'NVDA',    name: 'NVIDIA',      category: 'Equity.US' },
+  { symbol: 'GOOGL',   name: 'Google',      category: 'Equity.US' },
+  { symbol: 'TSLA',    name: 'Tesla',       category: 'Equity.US' },
+  { symbol: 'QQQ',     name: 'Nasdaq ETF',  category: 'Equity.US' },
 ];
-
-const MiniSparkline = ({ data, isPositive }) => {
-  if (!data || data.length < 2) return <div className="w-24 h-8" />;
-
-  return (
-    <div className="w-24 h-8">
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data}>
-          <Line
-            type="monotone"
-            dataKey="close"
-            stroke={isPositive ? '#22c55e' : '#ef4444'}
-            strokeWidth={1.5}
-            dot={false}
-          />
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
-  );
-};
 
 const formatPrice = (price) => {
   if (!price) return '-';
   if (price >= 1000) return price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  if (price >= 1) return price.toFixed(2);
+  if (price >= 1)    return price.toFixed(2);
   return price.toFixed(4);
 };
 
-const formatPercent = (value) => {
-  if (value === null || value === undefined) return '-';
-  const prefix = value >= 0 ? '+' : '';
-  return `${prefix}${value.toFixed(2)}%`;
+const formatPct = (value) => {
+  if (value == null) return '-';
+  return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
 };
 
-const WatchlistRow = ({ item, onRemove }) => {
-  const { symbol, name, category, quote, history } = item;
-  const price = quote?.price || quote?.regularMarketPrice || 0;
-  const change1h = quote?.change1h || 0;
-  const change24h = quote?.change_percent ?? quote?.changePercent ?? quote?.regularMarketChangePercent ?? 0;
-  const change7d = quote?.change7d || 0;
-  const isPositive = change24h >= 0;
+const pctRender = (val) => (
+  <span className={`font-medium ${val >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+    {formatPct(val)}
+  </span>
+);
 
-  return (
-    <tr className="border-b border-gray-800/30 hover:bg-gray-800/20 transition-colors">
-      <td className="py-1.5 px-3">
-        <span className="text-[11px] font-medium text-white">{category}.{symbol.replace('-USD', '')}/USD</span>
-      </td>
-      <td className="py-1.5 px-3 text-right">
-        <span className="text-[11px] font-medium text-white">{formatPrice(price)}</span>
-      </td>
-      <td className="py-1.5 px-3 text-right">
-        <span className={`text-[11px] font-medium ${change1h >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-          {formatPercent(change1h)}
-        </span>
-      </td>
-      <td className="py-1.5 px-3 text-right">
-        <span className={`text-[11px] font-medium ${change24h >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-          {formatPercent(change24h)}
-        </span>
-      </td>
-      <td className="py-1.5 px-3 text-right">
-        <span className={`text-[11px] font-medium ${change7d >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-          {formatPercent(change7d)}
-        </span>
-      </td>
-      <td className="py-1.5 px-3">
-        <MiniSparkline data={history} isPositive={isPositive} />
-      </td>
-    </tr>
-  );
-};
+const COLUMNS = [
+  {
+    key: 'label',
+    header: 'Symbol',
+    sortable: true,
+    sortValue: (row) => row.label,
+    render: (row) => <span className="font-medium text-white">{row.label}</span>,
+  },
+  {
+    key: 'price',
+    header: 'Price',
+    align: 'right',
+    sortable: true,
+    sortValue: (row) => row.price ?? -Infinity,
+    exportValue: (row) => row.price?.toString() ?? '',
+    render: (row) => <span className="font-medium text-white">{formatPrice(row.price)}</span>,
+  },
+  {
+    key: 'change1h',
+    header: '1H',
+    align: 'right',
+    sortable: true,
+    sortValue: (row) => row.change1h ?? -Infinity,
+    exportValue: (row) => formatPct(row.change1h),
+    render: (row) => pctRender(row.change1h),
+  },
+  {
+    key: 'change24h',
+    header: '24H',
+    align: 'right',
+    sortable: true,
+    sortValue: (row) => row.change24h ?? -Infinity,
+    exportValue: (row) => formatPct(row.change24h),
+    render: (row) => pctRender(row.change24h),
+  },
+  {
+    key: 'change7d',
+    header: '7D',
+    align: 'right',
+    sortable: true,
+    sortValue: (row) => row.change7d ?? -Infinity,
+    exportValue: (row) => formatPct(row.change7d),
+    render: (row) => pctRender(row.change7d),
+  },
+  {
+    key: 'sparklineData',
+    header: 'Last 7 Days',
+    type: 'sparkline',
+    sparkWidth: 64,
+    sparkHeight: 22,
+  },
+];
 
-export default function LiveWatchlist({ defaultSymbols = DEFAULT_SYMBOLS, title = "Live Watchlist", onRemove }) {
-  const [symbols, setSymbols] = useState(defaultSymbols);
-  const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedCount, setSelectedCount] = useState(defaultSymbols.length);
+export default function LiveWatchlist({ defaultSymbols = DEFAULT_SYMBOLS, title = 'Live Watchlist', onRemove }) {
+  const [symbols]  = useState(defaultSymbols);
+  const [data,     setData]    = useState([]);
+  const [loading,  setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
     try {
       const results = await Promise.all(
         symbols.map(async ({ symbol, name, category }) => {
           try {
-            // Fetch quote
-            const quoteRes = await fetch(`${API_BASE}/stock/quote/${encodeURIComponent(symbol)}`);
-            const quote = quoteRes.ok ? await quoteRes.json() : null;
+            const [quoteRes, histRes] = await Promise.all([
+              fetch(`${API_BASE}/stock/quote/${encodeURIComponent(symbol)}`),
+              fetch(`${API_BASE}/stock/history/${encodeURIComponent(symbol)}?period=7d&interval=1d`),
+            ]);
+            const quote   = quoteRes.ok ? await quoteRes.json() : null;
+            const histData = histRes.ok  ? await histRes.json()  : null;
+            const history  = histData?.data || [];
 
-            // Fetch history for sparkline
-            const historyRes = await fetch(`${API_BASE}/stock/history/${encodeURIComponent(symbol)}?period=7d&interval=1d`);
-            const historyData = historyRes.ok ? await historyRes.json() : null;
+            const price    = quote?.price || quote?.regularMarketPrice || 0;
+            const change1h = quote?.change1h || 0;
+            const change24h = quote?.change_percent ?? quote?.changePercent ?? quote?.regularMarketChangePercent ?? 0;
+            const change7d = quote?.change7d || 0;
 
             return {
+              _key: symbol,
+              label: `${category}.${symbol.replace('-USD', '')}/USD`,
               symbol,
-              name,
-              category,
-              quote,
-              history: historyData?.data || []
+              price,
+              change1h,
+              change24h,
+              change7d,
+              sparklineData: history.map(h => h.close).filter(Boolean),
             };
-          } catch (e) {
-            console.error(`Failed to fetch data for ${symbol}:`, e);
-            return { symbol, name, category, quote: null, history: [] };
+          } catch {
+            return {
+              _key: symbol,
+              label: `${category}.${symbol.replace('-USD', '')}/USD`,
+              symbol,
+              price: 0,
+              change1h: 0,
+              change24h: 0,
+              change7d: 0,
+              sparklineData: [],
+            };
           }
         })
       );
-
       setData(results);
     } catch (error) {
       console.error('Failed to fetch watchlist data:', error);
@@ -134,62 +146,32 @@ export default function LiveWatchlist({ defaultSymbols = DEFAULT_SYMBOLS, title 
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 30000); // Refresh every 30 seconds
+    const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  const handleRemove = (symbol) => {
-    setSymbols(symbols.filter(s => s.symbol !== symbol));
-    setData(data.filter(d => d.symbol !== symbol));
-    setSelectedCount(prev => prev - 1);
-  };
-
   return (
     <div className="bg-[#0d0d12] border border-gray-800 rounded-lg overflow-hidden h-full flex flex-col">
-      {/* Header */}
       <WidgetHeader
         icon={List}
         iconColor="text-cyan-400"
         title={title}
-        subtitle={`${selectedCount} symbols`}
+        subtitle={`${symbols.length} symbols`}
         loading={loading}
         onRefresh={fetchData}
         onRemove={onRemove}
       />
-
-      {/* Table */}
       <div className="flex-1 overflow-auto">
-        <table className="w-full">
-          <thead className="bg-[#0a0a0f] sticky top-0">
-            <tr className="text-[10px] text-gray-500">
-              <th className="py-1.5 px-3 text-left font-medium">Symbol</th>
-              <th className="py-1.5 px-3 text-right font-medium">Price</th>
-              <th className="py-1.5 px-3 text-right font-medium">1H</th>
-              <th className="py-1.5 px-3 text-right font-medium">24H</th>
-              <th className="py-1.5 px-3 text-right font-medium">7D</th>
-              <th className="py-1.5 px-3 text-right font-medium">Last 7 Days</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              Array(5).fill(0).map((_, i) => (
-                <tr key={i} className="border-b border-gray-800/50">
-                  <td colSpan={6} className="py-3 px-4">
-                    <div className="h-4 bg-gray-800 rounded animate-pulse" />
-                  </td>
-                </tr>
-              ))
-            ) : (
-              data.map((item) => (
-                <WatchlistRow
-                  key={item.symbol}
-                  item={item}
-                  onRemove={handleRemove}
-                />
-              ))
-            )}
-          </tbody>
-        </table>
+        <WidgetTable
+          columns={COLUMNS}
+          data={data}
+          loading={loading}
+          size="compact"
+          resizable={true}
+          showExport={true}
+          exportFilename="watchlist"
+          emptyMessage="No watchlist data"
+        />
       </div>
     </div>
   );

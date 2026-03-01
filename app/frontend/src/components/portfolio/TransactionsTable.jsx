@@ -1,120 +1,128 @@
 /**
  * 거래 내역 테이블
  */
-import { ArrowUpCircle, ArrowDownCircle, DollarSign } from 'lucide-react';
+import WidgetTable from '../widgets/common/WidgetTable';
+
+const TYPE_INFO = {
+  buy:      { text: '매수', cls: 'bg-green-500/20 text-green-400 border border-green-500/30' },
+  sell:     { text: '매도', cls: 'bg-red-500/20   text-red-400   border border-red-500/30'   },
+  dividend: { text: '배당', cls: 'bg-blue-500/20  text-blue-400  border border-blue-500/30'  },
+};
+
+const getTypeInfo = (type) =>
+  TYPE_INFO[type] || { text: type, cls: 'bg-gray-500/20 text-gray-400 border border-gray-500/30' };
+
+const COLUMNS = [
+  {
+    key: 'transaction_date',
+    header: '일시',
+    sortable: true,
+    sortValue: (row) => row.transaction_date,
+    exportValue: (row) =>
+      new Date(row.transaction_date).toLocaleString('ko-KR', {
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit',
+      }),
+    render: (row) =>
+      new Date(row.transaction_date).toLocaleString('ko-KR', {
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit',
+      }),
+  },
+  {
+    key: 'transaction_type',
+    header: '유형',
+    sortable: true,
+    sortValue: (row) => row.transaction_type,
+    exportValue: (row) => getTypeInfo(row.transaction_type).text,
+    render: (row) => {
+      const { text, cls } = getTypeInfo(row.transaction_type);
+      return (
+        <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${cls}`}>
+          {text}
+        </span>
+      );
+    },
+  },
+  {
+    key: 'ticker_cd',
+    header: '종목',
+    sortable: true,
+    sortValue: (row) => row.ticker_cd,
+    render: (row) => (
+      <span className="font-semibold text-white">{row.ticker_cd}</span>
+    ),
+  },
+  {
+    key: 'quantity',
+    header: '수량',
+    align: 'right',
+    sortable: true,
+    sortValue: (row) => parseFloat(row.quantity),
+    exportValue: (row) => parseFloat(row.quantity).toFixed(8),
+    render: (row) => parseFloat(row.quantity).toFixed(8),
+  },
+  {
+    key: 'price',
+    header: '가격',
+    align: 'right',
+    sortable: true,
+    sortValue: (row) => parseFloat(row.price),
+    exportValue: (row) => '$' + parseFloat(row.price).toFixed(2),
+    render: (row) => '$' + parseFloat(row.price).toFixed(2),
+  },
+  {
+    key: 'commission',
+    header: '수수료',
+    align: 'right',
+    sortable: true,
+    sortValue: (row) => parseFloat(row.commission || 0),
+    exportValue: (row) => '$' + parseFloat(row.commission || 0).toFixed(2),
+    render: (row) => (
+      <span className="text-gray-400">
+        ${parseFloat(row.commission || 0).toFixed(2)}
+      </span>
+    ),
+  },
+  {
+    key: 'total_amount',
+    header: '총액',
+    align: 'right',
+    sortable: true,
+    sortValue: (row) => parseFloat(row.total_amount),
+    exportValue: (row) => '$' + parseFloat(row.total_amount).toFixed(2),
+    render: (row) => (
+      <span className="font-semibold">
+        ${parseFloat(row.total_amount).toFixed(2)}
+      </span>
+    ),
+  },
+  {
+    key: 'notes',
+    header: '메모',
+    render: (row) => (
+      <span className="text-gray-400 text-xs truncate max-w-[140px] block">
+        {row.notes || '—'}
+      </span>
+    ),
+    exportValue: (row) => row.notes || '',
+  },
+];
 
 export default function TransactionsTable({ transactions }) {
-  if (!transactions || transactions.length === 0) {
-    return (
-      <div className="text-center py-12">
-        <p className="text-gray-500">거래 내역이 없습니다.</p>
-      </div>
-    );
-  }
-
-  const getTransactionIcon = (type) => {
-    switch (type) {
-      case 'buy':
-        return <ArrowUpCircle className="text-green-600" size={20} />;
-      case 'sell':
-        return <ArrowDownCircle className="text-red-600" size={20} />;
-      case 'dividend':
-        return <DollarSign className="text-blue-600" size={20} />;
-      default:
-        return null;
-    }
-  };
-
-  const getTransactionTypeText = (type) => {
-    switch (type) {
-      case 'buy':
-        return '매수';
-      case 'sell':
-        return '매도';
-      case 'dividend':
-        return '배당';
-      default:
-        return type;
-    }
-  };
-
-  const getTransactionTypeClass = (type) => {
-    switch (type) {
-      case 'buy':
-        return 'bg-green-100 text-green-800';
-      case 'sell':
-        return 'bg-red-100 text-red-800';
-      case 'dividend':
-        return 'bg-blue-100 text-blue-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
   return (
     <div className="overflow-x-auto">
-      <table className="w-full">
-        <thead>
-          <tr className="border-b border-gray-200">
-            <th className="text-left py-3 px-4 font-semibold text-gray-700">일시</th>
-            <th className="text-left py-3 px-4 font-semibold text-gray-700">유형</th>
-            <th className="text-left py-3 px-4 font-semibold text-gray-700">종목</th>
-            <th className="text-right py-3 px-4 font-semibold text-gray-700">수량</th>
-            <th className="text-right py-3 px-4 font-semibold text-gray-700">가격</th>
-            <th className="text-right py-3 px-4 font-semibold text-gray-700">수수료</th>
-            <th className="text-right py-3 px-4 font-semibold text-gray-700">총액</th>
-            <th className="text-left py-3 px-4 font-semibold text-gray-700">메모</th>
-          </tr>
-        </thead>
-        <tbody>
-          {transactions.map((transaction) => (
-            <tr
-              key={transaction.transaction_id}
-              className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
-            >
-              <td className="py-3 px-4 text-sm text-gray-600">
-                {new Date(transaction.transaction_date).toLocaleString('ko-KR', {
-                  year: 'numeric',
-                  month: '2-digit',
-                  day: '2-digit',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
-              </td>
-              <td className="py-3 px-4">
-                <div className="flex items-center gap-2">
-                  {getTransactionIcon(transaction.transaction_type)}
-                  <span
-                    className={`px-2 py-1 rounded text-xs font-semibold ${getTransactionTypeClass(
-                      transaction.transaction_type
-                    )}`}
-                  >
-                    {getTransactionTypeText(transaction.transaction_type)}
-                  </span>
-                </div>
-              </td>
-              <td className="py-3 px-4 font-semibold text-gray-900">
-                {transaction.ticker_cd}
-              </td>
-              <td className="text-right py-3 px-4 text-gray-900">
-                {parseFloat(transaction.quantity).toFixed(8)}
-              </td>
-              <td className="text-right py-3 px-4 text-gray-900">
-                ${parseFloat(transaction.price).toFixed(2)}
-              </td>
-              <td className="text-right py-3 px-4 text-gray-600">
-                ${parseFloat(transaction.commission || 0).toFixed(2)}
-              </td>
-              <td className="text-right py-3 px-4 font-semibold text-gray-900">
-                ${parseFloat(transaction.total_amount).toFixed(2)}
-              </td>
-              <td className="py-3 px-4 text-sm text-gray-600 max-w-xs truncate">
-                {transaction.notes || '-'}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <WidgetTable
+        columns={COLUMNS}
+        data={(transactions || []).map((t, i) => ({ ...t, _key: t.transaction_id ?? i }))}
+        emptyMessage="거래 내역이 없습니다."
+        resizable={true}
+        showExport={true}
+        exportFilename="transactions"
+        defaultSortKey="transaction_date"
+        defaultSortDirection="desc"
+        showFilters={true}
+      />
     </div>
   );
 }

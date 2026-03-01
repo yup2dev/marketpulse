@@ -26,6 +26,9 @@ import {
   ColorType,
   LineStyle,
   CrosshairMode,
+  LineSeries,
+  AreaSeries,
+  HistogramSeries,
 } from 'lightweight-charts';
 
 const DARK_THEME = {
@@ -125,13 +128,13 @@ export default function LWChart({
 
       let s;
       if (seriesType === 'histogram') {
-        s = chart.addHistogramSeries({
+        s = chart.addSeries(HistogramSeries, {
           color: c,
           priceFormat: priceFormat,
         });
         s.setData(data.map(d => ({ ...d, color: d.value >= 0 ? (opts.posColor || c) : (opts.negColor || '#ef4444') })));
       } else if (seriesType === 'area') {
-        s = chart.addAreaSeries({
+        s = chart.addSeries(AreaSeries, {
           lineColor:   c,
           topColor:    opts.topColor    || topColor    || `${c}40`,
           bottomColor: opts.bottomColor || bottomColor || `${c}05`,
@@ -143,7 +146,7 @@ export default function LWChart({
         s.setData(data);
       } else {
         // line
-        s = chart.addLineSeries({
+        s = chart.addSeries(LineSeries, {
           color:     c,
           lineWidth: opts.lineWidth || 2,
           priceFormat,
