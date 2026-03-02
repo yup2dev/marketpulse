@@ -2,13 +2,85 @@
  * InsiderWidget - Displays insider trading activity using BaseWidget
  */
 import { useState, useEffect, useCallback } from 'react';
-import { UserCheck, TrendingUp, TrendingDown, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer
-} from 'recharts';
+import { UserCheck } from 'lucide-react';
 import BaseWidget from './common/BaseWidget';
+import WidgetTable from './common/WidgetTable';
 import { formatNumber, formatPrice, API_BASE } from './constants';
+
+const getTransactionLabel = (type) => {
+  if (type === 'A') return 'Buy';
+  if (type === 'D') return 'Sell';
+  return type;
+};
+
+const formatDate = (dateStr) => {
+  if (!dateStr) return 'N/A';
+  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
+};
+
+const COLUMNS = [
+  {
+    key: 'transaction_date',
+    header: 'Date',
+    sortable: true,
+    sortValue: (row) => row.transaction_date,
+    render: (row) => <span className="text-gray-400">{formatDate(row.transaction_date)}</span>,
+    exportValue: (row) => row.transaction_date ?? '',
+  },
+  {
+    key: 'insider_name',
+    header: 'Name',
+    filterable: true,
+    render: (row) => <span className="text-white">{row.insider_name || 'Unknown'}</span>,
+    exportValue: (row) => row.insider_name ?? '',
+  },
+  {
+    key: 'insider_title',
+    header: 'Title',
+    render: (row) => <span className="text-gray-400 text-[10px]">{row.insider_title || '—'}</span>,
+    exportValue: (row) => row.insider_title ?? '',
+  },
+  {
+    key: 'type',
+    header: 'Type',
+    align: 'center',
+    render: (row) => (
+      <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${
+        row.acquisition_or_disposition === 'A' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+      }`}>
+        {getTransactionLabel(row.acquisition_or_disposition)}
+      </span>
+    ),
+    exportValue: (row) => getTransactionLabel(row.acquisition_or_disposition),
+  },
+  {
+    key: 'shares_traded',
+    header: 'Shares',
+    align: 'right',
+    sortable: true,
+    sortValue: (row) => row.shares_traded,
+    render: (row) => <span className="text-gray-300">{formatNumber(row.shares_traded)}</span>,
+    exportValue: (row) => row.shares_traded ?? '',
+  },
+  {
+    key: 'price_per_share',
+    header: 'Price',
+    align: 'right',
+    sortable: true,
+    sortValue: (row) => row.price_per_share,
+    render: (row) => <span className="text-gray-300">{formatPrice(row.price_per_share)}</span>,
+    exportValue: (row) => row.price_per_share ?? '',
+  },
+  {
+    key: 'transaction_value',
+    header: 'Value',
+    align: 'right',
+    sortable: true,
+    sortValue: (row) => row.transaction_value,
+    render: (row) => <span className="text-white font-medium">{formatNumber(row.transaction_value)}</span>,
+    exportValue: (row) => row.transaction_value ?? '',
+  },
+];
 
 const InsiderWidget = ({ symbol, onRemove }) => {
   const [insider, setInsider] = useState(null);
@@ -28,190 +100,86 @@ const InsiderWidget = ({ symbol, onRemove }) => {
     }
   }, [symbol]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  const formatDate = (dateStr) => {
-    if (!dateStr) return 'N/A';
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
-  };
-
-  const getTransactionIcon = (type) => {
-    if (type === 'A') return <ArrowUpCircle size={14} className="text-green-400" />;
-    if (type === 'D') return <ArrowDownCircle size={14} className="text-red-400" />;
-    return null;
-  };
-
-  const getTransactionLabel = (type) => {
-    if (type === 'A') return 'Buy';
-    if (type === 'D') return 'Sell';
-    return type;
-  };
-
-  const getChartData = () => {
-    if (!insider?.summary) return [];
-    return [
-      { name: 'Buys', value: insider.summary.buy_value || 0, count: insider.summary.buy_count || 0 },
-      { name: 'Sells', value: Math.abs(insider.summary.sell_value || 0), count: insider.summary.sell_count || 0 },
-    ];
-  };
+  useEffect(() => { loadData(); }, [loadData]);
 
   const renderChart = () => {
-    const chartData = getChartData();
-    if (chartData.length === 0 || (chartData[0].value === 0 && chartData[1].value === 0)) {
-      return <div className="flex items-center justify-center h-full text-gray-500">No data</div>;
-    }
+    if (!insider) return <div className="flex items-center justify-center h-full text-gray-500 text-xs">No data</div>;
+
+    const buyTotal = Math.abs(insider.summary?.buy_value || 0);
+    const sellTotal = Math.abs(insider.summary?.sell_value || 0);
+    const maxSummary = Math.max(buyTotal, sellTotal, 1);
+
+    const topTx = (insider.transactions || []).slice(0, 6);
+    const maxTxVal = Math.max(...topTx.map(t => Math.abs(t.transaction_value || 0)), 1);
 
     return (
-      <div className="h-full flex flex-col">
-        {/* Summary Cards */}
-        <div className="grid grid-cols-2 gap-2 mb-3">
-          <div className="bg-green-500/10 border border-green-500/20 rounded p-2">
-            <div className="flex items-center gap-1 mb-1">
-              <TrendingUp size={12} className="text-green-400" />
-              <span className="text-[10px] text-green-400 font-medium">Buys</span>
-            </div>
-            <div className="text-lg font-bold text-green-400">{insider?.summary?.buy_count || 0}</div>
-            <div className="text-[10px] text-gray-500">{formatNumber(insider?.summary?.buy_value || 0)}</div>
-          </div>
-          <div className="bg-red-500/10 border border-red-500/20 rounded p-2">
-            <div className="flex items-center gap-1 mb-1">
-              <TrendingDown size={12} className="text-red-400" />
-              <span className="text-[10px] text-red-400 font-medium">Sells</span>
-            </div>
-            <div className="text-lg font-bold text-red-400">{insider?.summary?.sell_count || 0}</div>
-            <div className="text-[10px] text-gray-500">{formatNumber(insider?.summary?.sell_value || 0)}</div>
-          </div>
-        </div>
-
-        {/* Net Activity */}
-        {insider?.summary?.net_value !== undefined && (
-          <div className={`rounded p-2 mb-3 ${insider.summary.net_value >= 0 ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
-            <div className="flex justify-between items-center">
-              <span className="text-gray-400 text-xs">Net Activity</span>
-              <span className={`font-bold text-sm ${insider.summary.net_value >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                {insider.summary.net_value >= 0 ? '+' : ''}{formatNumber(insider.summary.net_value)}
-              </span>
-            </div>
+      <div className="overflow-auto h-full p-3 space-y-4">
+        {insider.summary && (
+          <div className="space-y-2.5">
+            <p className="text-[10px] text-gray-600 uppercase tracking-wide">Activity Summary</p>
+            {[
+              { label: 'Total Buys', value: buyTotal, color: '#22c55e', textClass: 'text-green-400' },
+              { label: 'Total Sells', value: sellTotal, color: '#ef4444', textClass: 'text-red-400' },
+            ].map(b => (
+              <div key={b.label}>
+                <div className="flex items-center justify-between mb-0.5 text-xs">
+                  <span className="text-gray-300">{b.label}</span>
+                  <span className={`font-medium tabular-nums ml-2 flex-shrink-0 ${b.textClass}`}>{formatNumber(b.value)}</span>
+                </div>
+                <div className="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden">
+                  <div className="h-1.5 rounded-full transition-all duration-500" style={{ width: `${(b.value / maxSummary) * 100}%`, backgroundColor: b.color }} />
+                </div>
+              </div>
+            ))}
           </div>
         )}
-
-        {/* Bar Chart */}
-        <div className="flex-1 min-h-0">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-              <XAxis dataKey="name" tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} />
-              <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} tickFormatter={(v) => formatNumber(v)} />
-              <Tooltip contentStyle={{ backgroundColor: '#1a1a1f', border: '1px solid #374151', borderRadius: '8px' }} formatter={(v) => formatNumber(v)} />
-              <Bar dataKey="value" name="Value">
-                {chartData.map((entry, index) => (
-                  <rect key={index} fill={index === 0 ? '#22c55e' : '#ef4444'} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-    );
-  };
-
-  const renderTable = () => {
-    if (!insider) return <div className="flex items-center justify-center h-full text-gray-500">No data</div>;
-
-    return (
-      <div className="space-y-3 overflow-auto h-full">
-        {/* Summary Cards */}
-        <div className="grid grid-cols-2 gap-2">
-          <div className="bg-green-500/10 border border-green-500/20 rounded p-2">
-            <div className="flex items-center gap-1 mb-1">
-              <TrendingUp size={12} className="text-green-400" />
-              <span className="text-[10px] text-green-400 font-medium">Buys</span>
-            </div>
-            <div className="text-lg font-bold text-green-400">{insider.summary?.buy_count || 0}</div>
-            <div className="text-[10px] text-gray-500">{formatNumber(insider.summary?.buy_value || 0)}</div>
-          </div>
-          <div className="bg-red-500/10 border border-red-500/20 rounded p-2">
-            <div className="flex items-center gap-1 mb-1">
-              <TrendingDown size={12} className="text-red-400" />
-              <span className="text-[10px] text-red-400 font-medium">Sells</span>
-            </div>
-            <div className="text-lg font-bold text-red-400">{insider.summary?.sell_count || 0}</div>
-            <div className="text-[10px] text-gray-500">{formatNumber(insider.summary?.sell_value || 0)}</div>
-          </div>
-        </div>
-
-        {/* Net Activity */}
-        {insider.summary?.net_value !== undefined && (
-          <div className={`rounded p-2 ${insider.summary.net_value >= 0 ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
-            <div className="flex justify-between items-center">
-              <span className="text-gray-400 text-xs">Net Activity</span>
-              <span className={`font-bold text-sm ${insider.summary.net_value >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                {insider.summary.net_value >= 0 ? '+' : ''}{formatNumber(insider.summary.net_value)}
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* Recent Transactions */}
-        {insider.transactions?.length > 0 && (
-          <div>
-            <h4 className="text-[10px] font-semibold text-gray-500 uppercase mb-2">Recent Transactions</h4>
-            <div className="space-y-1.5">
-              {insider.transactions.slice(0, 8).map((tx, idx) => (
-                <div key={idx} className="bg-gray-800/30 rounded p-2 hover:bg-gray-800/50 transition-colors">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        {getTransactionIcon(tx.acquisition_or_disposition)}
-                        <span className="text-white text-xs font-medium truncate">{tx.insider_name || 'Unknown'}</span>
-                      </div>
-                      {tx.insider_title && (
-                        <div className="text-[10px] text-gray-500 truncate mt-0.5">{tx.insider_title}</div>
-                      )}
-                    </div>
-                    <div className="text-right ml-2">
-                      <div className={`text-xs font-medium ${tx.acquisition_or_disposition === 'A' ? 'text-green-400' : 'text-red-400'}`}>
-                        {getTransactionLabel(tx.acquisition_or_disposition)}
-                      </div>
-                      <div className="text-[10px] text-gray-500">{formatDate(tx.transaction_date)}</div>
-                    </div>
+        {topTx.length > 0 && (
+          <div className="space-y-2.5">
+            <p className="text-[10px] text-gray-600 uppercase tracking-wide">Recent Transactions</p>
+            {topTx.map((tx, i) => {
+              const isBuy = tx.acquisition_or_disposition === 'A';
+              const val = Math.abs(tx.transaction_value || 0);
+              return (
+                <div key={i}>
+                  <div className="flex items-center justify-between mb-0.5 text-xs">
+                    <span className="text-gray-300 truncate max-w-[70%]">{tx.insider_name || 'Unknown'}</span>
+                    <span className={`font-medium tabular-nums ml-2 flex-shrink-0 ${isBuy ? 'text-green-400' : 'text-red-400'}`}>
+                      {isBuy ? '+' : '-'}{formatNumber(val)}
+                    </span>
                   </div>
-                  <div className="flex justify-between mt-1.5 text-[10px]">
-                    <span className="text-gray-400">{formatNumber(tx.shares_traded)} shares</span>
-                    <span className="text-gray-400">@ {formatPrice(tx.price_per_share)}</span>
-                    <span className="text-white font-medium">{formatNumber(tx.transaction_value)}</span>
+                  <div className="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden">
+                    <div className="h-1.5 rounded-full transition-all duration-500" style={{ width: `${(val / maxTxVal) * 100}%`, backgroundColor: isBuy ? '#22c55e' : '#ef4444' }} />
                   </div>
                 </div>
-              ))}
-            </div>
+              );
+            })}
           </div>
-        )}
-
-        {(!insider.transactions || insider.transactions.length === 0) && (
-          <div className="text-center text-gray-500 py-4 text-xs">No recent transactions</div>
         )}
       </div>
     );
   };
 
-  const getExportData = () => {
-    const transactions = insider?.transactions || [];
-    return {
-      columns: [
-        { key: 'date',           header: 'Date'        },
-        { key: 'name',           header: 'Insider'     },
-        { key: 'title',          header: 'Title'       },
-        { key: 'transactionType', header: 'Type',      exportValue: r => getTransactionLabel(r.transactionType) },
-        { key: 'shares',         header: 'Shares',     exportValue: r => r.shares?.toLocaleString() ?? '' },
-        { key: 'price',          header: 'Price ($)',  exportValue: r => r.price?.toFixed(2) ?? '' },
-        { key: 'value',          header: 'Value ($)',  exportValue: r => r.value ? formatNumber(r.value) : '' },
-      ],
-      rows: transactions,
-    };
-  };
+  const renderTable = () => (
+    <div className="h-full px-3 pb-3 pt-1">
+      <WidgetTable
+        columns={COLUMNS}
+        data={insider?.transactions || []}
+        loading={loading}
+        size="compact"
+        showFilters
+        pageSize={10}
+        emptyMessage="No insider transactions found"
+        exportFilename={`insider-trading_${symbol}`}
+        defaultSortKey="transaction_date"
+        defaultSortDirection="desc"
+      />
+    </div>
+  );
+
+  const getExportData = () => ({
+    columns: COLUMNS.filter(c => c.exportValue),
+    rows: insider?.transactions || [],
+  });
 
   return (
     <BaseWidget
@@ -227,9 +195,7 @@ const InsiderWidget = ({ symbol, onRemove }) => {
       symbol={symbol}
       exportData={insider ? getExportData : undefined}
     >
-      <div className="h-full p-3">
-        {viewMode === 'chart' ? renderChart() : renderTable()}
-      </div>
+      {viewMode === 'chart' ? renderChart() : renderTable()}
     </BaseWidget>
   );
 };

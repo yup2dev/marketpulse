@@ -25,6 +25,14 @@ import OwnershipInstitutionalWidget from '../widgets/stock/OwnershipInstitutiona
 import OwnershipInsiderWidget from '../widgets/stock/OwnershipInsiderWidget';
 import EstimatesTab from './EstimatesTab';
 import RevenueSegmentsWidget from '../widgets/RevenueSegmentsWidget';
+import ManagementWidget from '../widgets/ManagementWidget';
+import EconomicMoatWidget from '../widgets/EconomicMoatWidget';
+import SWOTWidget from '../widgets/SWOTWidget';
+import StockSentimentWidget from '../widgets/StockSentimentWidget';
+import SocialSentimentWidget from '../widgets/SocialSentimentWidget';
+import InvestmentScorecardWidget from '../widgets/InvestmentScorecardWidget';
+import MacroCrossWidget from '../widgets/MacroCrossWidget';
+import CompanyRelationsWidget from '../widgets/CompanyRelationsWidget';
 import WidgetContextMenu from '../common/WidgetContextMenu';
 import TabWidgetWrapper from '../widgets/TabWidgetWrapper';
 import { useGlobalWidgetContext } from '../../contexts/GlobalWidgetContext';
@@ -42,6 +50,10 @@ const STOCK_TABS = [
   { id: 'ownership', label: 'Ownership' },
   { id: 'company-calendar', label: 'Company Calendar' },
   { id: 'estimates', label: 'Estimates' },
+  { id: 'analysis', label: 'Analysis' },
+  { id: 'sentiment', label: 'Sentiment' },
+  { id: 'scorecard', label: 'Scorecard' },
+  { id: 'relations', label: 'Relations' },
 ];
 
 // Available widgets per tab
@@ -87,6 +99,22 @@ const TAB_WIDGETS = {
   estimates: [
     { id: 'estimates', name: 'Analyst Estimates', description: 'Estimates overview with tabs', defaultSize: { w: 12, h: 10 } },
   ],
+  analysis: [
+    { id: 'swot', name: 'SWOT Analysis', description: 'Data-driven SWOT', defaultSize: { w: 6, h: 8 } },
+    { id: 'management', name: 'Management', description: 'Executive team & governance', defaultSize: { w: 6, h: 7 } },
+    { id: 'economic-moat', name: 'Economic Moat', description: '10-year moat metrics', defaultSize: { w: 6, h: 7 } },
+  ],
+  sentiment: [
+    { id: 'stock-sentiment', name: 'News Sentiment', description: 'News sentiment & trend', defaultSize: { w: 6, h: 8 } },
+    { id: 'social-sentiment', name: 'Social Sentiment', description: 'Reddit & StockTwits', defaultSize: { w: 6, h: 8 } },
+  ],
+  scorecard: [
+    { id: 'investment-scorecard', name: 'Investment Scorecard', description: '5-category scorecard', defaultSize: { w: 6, h: 10 } },
+    { id: 'macro-cross', name: 'Macro Cross', description: 'Macro impact analysis', defaultSize: { w: 6, h: 8 } },
+  ],
+  relations: [
+    { id: 'company-relations', name: 'Company Relations', description: 'Supply chain & competitor network', defaultSize: { w: 12, h: 10 } },
+  ],
 };
 
 // Default widgets per tab
@@ -124,6 +152,22 @@ const DEFAULT_TAB_WIDGETS = {
   estimates: [
     { id: 'estimates-1', type: 'estimates' },
   ],
+  analysis: [
+    { id: 'swot-1', type: 'swot' },
+    { id: 'management-1', type: 'management' },
+    { id: 'economic-moat-1', type: 'economic-moat' },
+  ],
+  sentiment: [
+    { id: 'stock-sentiment-1', type: 'stock-sentiment' },
+    { id: 'social-sentiment-1', type: 'social-sentiment' },
+  ],
+  scorecard: [
+    { id: 'investment-scorecard-1', type: 'investment-scorecard' },
+    { id: 'macro-cross-1', type: 'macro-cross' },
+  ],
+  relations: [
+    { id: 'company-relations-1', type: 'company-relations' },
+  ],
 };
 
 // Default layouts per tab
@@ -160,6 +204,22 @@ const DEFAULT_TAB_LAYOUTS = {
   ],
   estimates: [
     { i: 'estimates-1', x: 0, y: 0, w: 12, h: 10, minW: 8, minH: 6 },
+  ],
+  analysis: [
+    { i: 'swot-1',         x: 0, y: 0, w: 6, h: 8, minW: 4, minH: 5 },
+    { i: 'management-1',   x: 6, y: 0, w: 6, h: 7, minW: 4, minH: 5 },
+    { i: 'economic-moat-1',x: 6, y: 7, w: 6, h: 7, minW: 4, minH: 5 },
+  ],
+  sentiment: [
+    { i: 'stock-sentiment-1',  x: 0, y: 0, w: 6, h: 8, minW: 4, minH: 5 },
+    { i: 'social-sentiment-1', x: 6, y: 0, w: 6, h: 8, minW: 4, minH: 5 },
+  ],
+  scorecard: [
+    { i: 'investment-scorecard-1', x: 0, y: 0, w: 6, h: 10, minW: 4, minH: 6 },
+    { i: 'macro-cross-1',          x: 6, y: 0, w: 6, h: 8,  minW: 4, minH: 5 },
+  ],
+  relations: [
+    { i: 'company-relations-1', x: 0, y: 0, w: 12, h: 10, minW: 6, minH: 7 },
   ],
 };
 
@@ -406,6 +466,22 @@ function ImprovedStockDashboard() {
         );
       case 'revenue-segments':
         return <RevenueSegmentsWidget symbol={widgetSymbol} onRemove={onRemove} />;
+      case 'management':
+        return <ManagementWidget symbol={widgetSymbol} onRemove={onRemove} />;
+      case 'economic-moat':
+        return <EconomicMoatWidget symbol={widgetSymbol} onRemove={onRemove} />;
+      case 'swot':
+        return <SWOTWidget symbol={widgetSymbol} onRemove={onRemove} />;
+      case 'stock-sentiment':
+        return <StockSentimentWidget symbol={widgetSymbol} onRemove={onRemove} />;
+      case 'social-sentiment':
+        return <SocialSentimentWidget symbol={widgetSymbol} onRemove={onRemove} />;
+      case 'investment-scorecard':
+        return <InvestmentScorecardWidget symbol={widgetSymbol} onRemove={onRemove} />;
+      case 'macro-cross':
+        return <MacroCrossWidget symbol={widgetSymbol} onRemove={onRemove} />;
+      case 'company-relations':
+        return <CompanyRelationsWidget symbol={widgetSymbol} onRemove={onRemove} />;
       default:
         return <ResizableStockWidget symbol={widgetSymbol} onRemove={onRemove} />;
     }

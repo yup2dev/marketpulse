@@ -1417,6 +1417,645 @@ class DataService:
         }
         return period_map.get(period, period)
 
+    async def get_management(self, symbol: str) -> Dict[str, Any]:
+        """Get management team and governance risk data via yfinance"""
+        try:
+            import yfinance as yf
+            ticker = yf.Ticker(symbol)
+            info = ticker.info
+
+            officers_raw = info.get('companyOfficers', [])
+            officers = []
+            for o in officers_raw:
+                officers.append({
+                    'name': o.get('name', ''),
+                    'title': o.get('title', ''),
+                    'age': o.get('age'),
+                    'total_pay': o.get('totalPay'),
+                    'year_born': o.get('yearBorn'),
+                })
+
+            governance = {
+                'audit_risk': info.get('auditRisk'),
+                'board_risk': info.get('boardRisk'),
+                'compensation_risk': info.get('compensationRisk'),
+                'shareholder_rights_risk': info.get('shareHolderRightsRisk'),
+                'overall_risk': info.get('overallRisk'),
+            }
+
+            return {
+                'symbol': symbol,
+                'officers': officers,
+                'governance': governance,
+            }
+        except Exception as e:
+            log.error(f"Error fetching management for {symbol}: {e}")
+            return {'symbol': symbol, 'officers': [], 'governance': {}}
+
+    async def get_moat_analysis(self, symbol: str) -> Dict[str, Any]:
+        """Get 10-year moat metrics: ROE, ROIC, margins, FCF margin"""
+        try:
+            import yfinance as yf
+            import numpy as np
+            ticker = yf.Ticker(symbol)
+            income = ticker.income_stmt        # annual
+            balance = ticker.balance_sheet     # annual
+            cashflow = ticker.cashflow         # annual
+
+            if income is None or income.empty:
+                return {'symbol': symbol, 'history': [], 'moat_score': 0, 'moat_type': 'None'}
+
+            cols = sorted(income.columns)  # ascending by date
+
+            def safe(df, row, col):
+                try:
+                    val = df.loc[row, col]
+                    if val is None or (isinstance(val, float) and np.isnan(val)):
+                        return None
+                    return float(val)
+                except Exception:
+                    return None
+
+            history = []
+            roe_above_15 = 0
+            for col in cols:
+                year = str(col)[:4]
+                revenue = safe(income, 'Total Revenue', col)
+                gross   = safe(income, 'Gross Profit', col)
+                op_inc  = safe(income, 'Operating Income', col)
+                net_inc = safe(income, 'Net Income', col)
+                ebit    = op_inc  # proxy for EBIT
+
+                equity  = safe(balance, 'Stockholders Equity', col) if balance is not None and not balance.empty else None
+                total_assets = safe(balance, 'Total Assets', col) if balance is not None and not balance.empty else None
+                total_debt   = safe(balance, 'Total Debt', col) if balance is not None and not balance.empty else None
+
+                fcf = None
+                if cashflow is not None and not cashflow.empty:
+                    ocf  = safe(cashflow, 'Operating Cash Flow', col)
+                    capex = safe(cashflow, 'Capital Expenditure', col)
+                    if ocf is not None and capex is not None:
+                        fcf = ocf + capex  # capex is negative in yfinance
+
+                roe = round(net_inc / equity * 100, 1) if (net_inc and equity and equity != 0) else None
+                invested_capital = (total_assets - (total_assets - (equity or 0) - (total_debt or 0))) if total_assets else None
+                roic = None
+                if ebit and invested_capital and invested_capital != 0:
+                    roic = round(ebit / invested_capital * 100, 1)
+
+                gross_margin = round(gross / revenue * 100, 1) if (gross and revenue and revenue != 0) else None
+                op_margin    = round(op_inc / revenue * 100, 1) if (op_inc and revenue and revenue != 0) else None
+                net_margin   = round(net_inc / revenue * 100, 1) if (net_inc and revenue and revenue != 0) else None
+                fcf_margin   = round(fcf / revenue * 100, 1) if (fcf and revenue and revenue != 0) else None
+
+                if roe is not None and roe >= 15:
+                    roe_above_15 += 1
+
+                history.append({
+                    'year': year,
+                    'roe': roe,
+                    'roic': roic,
+                    'gross_margin': gross_margin,
+                    'op_margin': op_margin,
+                    'net_margin': net_margin,
+                    'fcf_margin': fcf_margin,
+                })
+
+            if roe_above_15 >= 7:
+                moat_type = 'Wide'
+                moat_score = min(100, 60 + roe_above_15 * 5)
+            elif roe_above_15 >= 4:
+                moat_type = 'Narrow'
+                moat_score = 30 + roe_above_15 * 5
+            else:
+                moat_type = 'None'
+                moat_score = max(0, roe_above_15 * 5)
+
+            return {
+                'symbol': symbol,
+                'history': history,
+                'moat_score': moat_score,
+                'moat_type': moat_type,
+            }
+        except Exception as e:
+            log.error(f"Error fetching moat analysis for {symbol}: {e}")
+            return {'symbol': symbol, 'history': [], 'moat_score': 0, 'moat_type': 'None'}
+
+    async def get_swot(self, symbol: str) -> Dict[str, Any]:
+        """Auto-derive SWOT items from yfinance info + analyst data"""
+        try:
+            import yfinance as yf
+            ticker = yf.Ticker(symbol)
+            info = ticker.info
+
+            strengths = []
+            weaknesses = []
+            opportunities = []
+            threats = []
+
+            # Profitability strengths/weaknesses
+            roe = info.get('returnOnEquity')
+            if roe is not None:
+                if roe > 0.15:
+                    strengths.append({'label': 'High ROE', 'value': f"{roe*100:.1f}%", 'type': 'positive'})
+                elif roe < 0.05:
+                    weaknesses.append({'label': 'Low ROE', 'value': f"{roe*100:.1f}%", 'type': 'negative'})
+
+            roa = info.get('returnOnAssets')
+            if roa is not None:
+                if roa > 0.08:
+                    strengths.append({'label': 'Strong ROA', 'value': f"{roa*100:.1f}%", 'type': 'positive'})
+                elif roa < 0.02:
+                    weaknesses.append({'label': 'Low ROA', 'value': f"{roa*100:.1f}%", 'type': 'negative'})
+
+            op_margin = info.get('operatingMargins')
+            if op_margin is not None:
+                if op_margin > 0.20:
+                    strengths.append({'label': 'High Operating Margin', 'value': f"{op_margin*100:.1f}%", 'type': 'positive'})
+                elif op_margin < 0.05:
+                    weaknesses.append({'label': 'Thin Operating Margin', 'value': f"{op_margin*100:.1f}%", 'type': 'negative'})
+
+            fcf = info.get('freeCashflow')
+            if fcf and fcf > 0:
+                strengths.append({'label': 'Positive FCF', 'value': f"${fcf/1e9:.1f}B", 'type': 'positive'})
+            elif fcf and fcf < 0:
+                weaknesses.append({'label': 'Negative FCF', 'value': f"${fcf/1e9:.1f}B", 'type': 'negative'})
+
+            # Debt
+            de = info.get('debtToEquity')
+            if de is not None:
+                if de > 100:
+                    weaknesses.append({'label': 'High Debt/Equity', 'value': f"{de:.0f}%", 'type': 'negative'})
+                    threats.append({'label': 'Leverage Risk', 'value': f"D/E {de:.0f}%", 'type': 'negative'})
+                elif de < 30:
+                    strengths.append({'label': 'Low Leverage', 'value': f"D/E {de:.0f}%", 'type': 'positive'})
+
+            # Growth
+            rev_growth = info.get('revenueGrowth')
+            if rev_growth is not None:
+                if rev_growth > 0.10:
+                    strengths.append({'label': 'Revenue Growth', 'value': f"{rev_growth*100:.1f}%", 'type': 'positive'})
+                elif rev_growth < 0:
+                    weaknesses.append({'label': 'Revenue Decline', 'value': f"{rev_growth*100:.1f}%", 'type': 'negative'})
+
+            eps_growth = info.get('earningsGrowth')
+            if eps_growth is not None and eps_growth > 0.15:
+                opportunities.append({'label': 'EPS Growth Trend', 'value': f"{eps_growth*100:.1f}%", 'type': 'positive'})
+
+            # Analyst target upside
+            current_price = info.get('currentPrice') or info.get('regularMarketPrice')
+            target_mean = info.get('targetMeanPrice')
+            if current_price and target_mean:
+                upside = (target_mean - current_price) / current_price * 100
+                if upside > 15:
+                    opportunities.append({'label': 'Analyst Upside', 'value': f"+{upside:.1f}%", 'type': 'positive'})
+                elif upside < -10:
+                    threats.append({'label': 'Analyst Downside', 'value': f"{upside:.1f}%", 'type': 'negative'})
+
+            # Beta / volatility
+            beta = info.get('beta')
+            if beta is not None:
+                if beta > 1.5:
+                    threats.append({'label': 'High Volatility', 'value': f"Beta {beta:.2f}", 'type': 'negative'})
+                elif beta < 0.7:
+                    strengths.append({'label': 'Low Volatility', 'value': f"Beta {beta:.2f}", 'type': 'positive'})
+
+            # Market position
+            market_cap = info.get('marketCap')
+            if market_cap and market_cap > 100e9:
+                strengths.append({'label': 'Large Cap Stability', 'value': f"${market_cap/1e9:.0f}B", 'type': 'positive'})
+
+            # Forward growth opportunity
+            forward_pe = info.get('forwardPE')
+            trailing_pe = info.get('trailingPE')
+            if forward_pe and trailing_pe and forward_pe < trailing_pe * 0.85:
+                opportunities.append({'label': 'Improving Earnings Outlook', 'value': f"Fwd PE {forward_pe:.1f}", 'type': 'positive'})
+
+            return {
+                'symbol': symbol,
+                'strengths': strengths,
+                'weaknesses': weaknesses,
+                'opportunities': opportunities,
+                'threats': threats,
+                'ai_analysis': None,
+            }
+        except Exception as e:
+            log.error(f"Error fetching SWOT for {symbol}: {e}")
+            return {'symbol': symbol, 'strengths': [], 'weaknesses': [], 'opportunities': [], 'threats': [], 'ai_analysis': None}
+
+    async def get_stock_sentiment(self, symbol: str) -> Dict[str, Any]:
+        """Aggregate news sentiment from Polygon news feed"""
+        try:
+            params = {'ticker': symbol}
+            result = await PolygonNewsFetcher.fetch_data(params)
+
+            if not result:
+                return {'symbol': symbol, 'news': [], 'aggregate': {}, 'trend': []}
+
+            from datetime import datetime as dt, timezone
+            positive = 0
+            negative = 0
+            neutral = 0
+            news_items = []
+
+            for article in result[:50]:
+                title = article.title or ''
+                # Simple keyword-based sentiment
+                title_lower = title.lower()
+                pos_words = ['beat', 'surge', 'rally', 'gain', 'rise', 'up', 'growth', 'profit', 'record', 'strong', 'bullish', 'upgrade', 'buy']
+                neg_words = ['miss', 'fall', 'drop', 'decline', 'loss', 'down', 'weak', 'bearish', 'downgrade', 'sell', 'concern', 'risk', 'cut']
+
+                pos_score = sum(1 for w in pos_words if w in title_lower)
+                neg_score = sum(1 for w in neg_words if w in title_lower)
+
+                if pos_score > neg_score:
+                    sentiment = 'positive'
+                    sentiment_score = min(100, 50 + pos_score * 10)
+                    positive += 1
+                elif neg_score > pos_score:
+                    sentiment = 'negative'
+                    sentiment_score = max(0, 50 - neg_score * 10)
+                    negative += 1
+                else:
+                    sentiment = 'neutral'
+                    sentiment_score = 50
+                    neutral += 1
+
+                pub_at = article.published_utc.isoformat() if article.published_utc else None
+                news_items.append({
+                    'title': title,
+                    'published_at': pub_at,
+                    'source': article.publisher_name,
+                    'url': article.article_url,
+                    'sentiment': sentiment,
+                    'sentiment_score': sentiment_score,
+                })
+
+            total = len(news_items)
+            overall_score = int((positive * 100 + neutral * 50) / total) if total > 0 else 50
+
+            # Build 30-day trend (group by day)
+            from collections import defaultdict
+            day_scores: Dict[str, list] = defaultdict(list)
+            for item in news_items:
+                if item['published_at']:
+                    day = item['published_at'][:10]
+                    day_scores[day].append(item['sentiment_score'])
+
+            trend = sorted([
+                {'date': day, 'score': round(sum(scores) / len(scores), 1)}
+                for day, scores in day_scores.items()
+            ], key=lambda x: x['date'])
+
+            return {
+                'symbol': symbol,
+                'news': news_items,
+                'aggregate': {
+                    'positive': positive,
+                    'negative': negative,
+                    'neutral': neutral,
+                    'overall_score': overall_score,
+                },
+                'trend': trend,
+            }
+        except Exception as e:
+            log.error(f"Error fetching stock sentiment for {symbol}: {e}")
+            return {'symbol': symbol, 'news': [], 'aggregate': {}, 'trend': []}
+
+    async def get_social_sentiment(self, symbol: str) -> Dict[str, Any]:
+        """Fetch Reddit + StockTwits social sentiment"""
+        reddit_posts = []
+        stocktwits_messages = []
+
+        # StockTwits (free public API)
+        try:
+            import requests as sync_requests
+            st_url = f"https://api.stocktwits.com/api/2/streams/symbol/{symbol}.json"
+            st_res = sync_requests.get(st_url, timeout=10)
+            if st_res.ok:
+                st_data = st_res.json()
+                for msg in (st_data.get('messages') or [])[:30]:
+                    body = msg.get('body', '')
+                    entities = msg.get('entities', {})
+                    sentiment_obj = entities.get('sentiment', {}) or {}
+                    basic_sent = sentiment_obj.get('basic', '')
+                    sentiment = 'bullish' if basic_sent == 'Bullish' else ('bearish' if basic_sent == 'Bearish' else 'neutral')
+                    stocktwits_messages.append({
+                        'body': body,
+                        'sentiment': sentiment,
+                        'created_at': msg.get('created_at', ''),
+                        'user': msg.get('user', {}).get('username', ''),
+                    })
+        except Exception as e:
+            log.warning(f"StockTwits fetch failed for {symbol}: {e}")
+
+        # Reddit (requires env vars)
+        reddit_configured = False
+        try:
+            import os
+            import requests as sync_requests
+            client_id = os.environ.get('REDDIT_CLIENT_ID')
+            client_secret = os.environ.get('REDDIT_CLIENT_SECRET')
+            reddit_configured = bool(client_id and client_secret)
+
+            if client_id and client_secret:
+                # Get access token
+                auth = (client_id, client_secret)
+                token_res = sync_requests.post(
+                    'https://www.reddit.com/api/v1/access_token',
+                    auth=auth,
+                    data={'grant_type': 'client_credentials'},
+                    headers={'User-Agent': 'MarketPulse/1.0'},
+                    timeout=10
+                )
+                if token_res.ok:
+                    token = token_res.json().get('access_token', '')
+                    headers = {'Authorization': f'bearer {token}', 'User-Agent': 'MarketPulse/1.0'}
+
+                    for sub in ['stocks', 'investing', 'wallstreetbets']:
+                        search_res = sync_requests.get(
+                            f'https://oauth.reddit.com/r/{sub}/search',
+                            params={'q': symbol, 'sort': 'new', 'limit': 10, 'restrict_sr': True},
+                            headers=headers,
+                            timeout=10
+                        )
+                        if search_res.ok:
+                            posts = search_res.json().get('data', {}).get('children', [])
+                            for post in posts:
+                                d = post.get('data', {})
+                                title = d.get('title', '')
+                                title_lower = title.lower()
+                                pos_w = ['beat', 'bull', 'buy', 'moon', 'surge', 'gain']
+                                neg_w = ['bear', 'sell', 'dump', 'crash', 'loss', 'miss']
+                                ps = sum(1 for w in pos_w if w in title_lower)
+                                ns = sum(1 for w in neg_w if w in title_lower)
+                                sentiment = 'positive' if ps > ns else ('negative' if ns > ps else 'neutral')
+                                import datetime
+                                created = datetime.datetime.fromtimestamp(d.get('created_utc', 0)).isoformat()
+                                reddit_posts.append({
+                                    'subreddit': sub,
+                                    'title': title,
+                                    'score': d.get('score', 0),
+                                    'num_comments': d.get('num_comments', 0),
+                                    'created_utc': created,
+                                    'sentiment': sentiment,
+                                    'url': f"https://reddit.com{d.get('permalink', '')}",
+                                })
+        except Exception as e:
+            log.warning(f"Reddit fetch failed for {symbol}: {e}")
+
+        # Aggregate
+        all_sentiments = [m['sentiment'] for m in stocktwits_messages] + [p['sentiment'] for p in reddit_posts]
+        bullish = sum(1 for s in all_sentiments if s in ('bullish', 'positive'))
+        bearish = sum(1 for s in all_sentiments if s in ('bearish', 'negative'))
+        neutral_count = len(all_sentiments) - bullish - bearish
+        total = len(all_sentiments)
+
+        return {
+            'symbol': symbol,
+            'reddit_posts': reddit_posts,
+            'stocktwits_messages': stocktwits_messages,
+            'aggregate': {
+                'bullish_pct': round(bullish / total * 100, 1) if total else 0,
+                'bearish_pct': round(bearish / total * 100, 1) if total else 0,
+                'neutral_pct': round(neutral_count / total * 100, 1) if total else 0,
+                'message_volume': total,
+            },
+            'has_reddit': reddit_configured,
+        }
+
+    async def get_scorecard(self, symbol: str) -> Dict[str, Any]:
+        """Compute 5-category investment scorecard (0-100 each)"""
+        try:
+            import yfinance as yf
+            ticker = yf.Ticker(symbol)
+            info = ticker.info
+
+            # ── Fundamentals (ROE, ROA, margins) ──────────────────────────────
+            roe = info.get('returnOnEquity') or 0
+            roa = info.get('returnOnAssets') or 0
+            op_margin = info.get('operatingMargins') or 0
+            net_margin = info.get('profitMargins') or 0
+            fundamentals_score = min(100, max(0, int(
+                (min(roe / 0.20, 1) * 30) +
+                (min(roa / 0.10, 1) * 20) +
+                (min(op_margin / 0.25, 1) * 30) +
+                (min(net_margin / 0.15, 1) * 20)
+            ) * 100 // 100))
+            fundamentals_detail = {
+                'ROE': f"{roe*100:.1f}%" if roe else 'N/A',
+                'ROA': f"{roa*100:.1f}%" if roa else 'N/A',
+                'Op Margin': f"{op_margin*100:.1f}%" if op_margin else 'N/A',
+            }
+
+            # ── Growth ────────────────────────────────────────────────────────
+            rev_growth = info.get('revenueGrowth') or 0
+            eps_growth = info.get('earningsGrowth') or 0
+            eq_growth  = info.get('earningsQuarterlyGrowth') or 0
+            growth_score = min(100, max(0, int(
+                (min(max(rev_growth, 0) / 0.20, 1) * 40) +
+                (min(max(eps_growth, 0) / 0.25, 1) * 40) +
+                (min(max(eq_growth,  0) / 0.20, 1) * 20)
+            ) * 100 // 100))
+            growth_detail = {
+                'Rev Growth': f"{rev_growth*100:.1f}%" if rev_growth else 'N/A',
+                'EPS Growth': f"{eps_growth*100:.1f}%" if eps_growth else 'N/A',
+            }
+
+            # ── Valuation ─────────────────────────────────────────────────────
+            pe = info.get('trailingPE') or 0
+            pb = info.get('priceToBook') or 0
+            ev_ebitda = info.get('enterpriseToEbitda') or 0
+            # Lower is better; score 100 if very cheap, 0 if very expensive
+            pe_score    = max(0, 100 - min(pe / 30, 1) * 100) if pe > 0 else 50
+            pb_score    = max(0, 100 - min(pb / 5, 1) * 100) if pb > 0 else 50
+            eveb_score  = max(0, 100 - min(ev_ebitda / 20, 1) * 100) if ev_ebitda > 0 else 50
+            valuation_score = int((pe_score * 0.4 + pb_score * 0.3 + eveb_score * 0.3))
+            valuation_detail = {
+                'P/E': f"{pe:.1f}" if pe else 'N/A',
+                'P/B': f"{pb:.1f}" if pb else 'N/A',
+                'EV/EBITDA': f"{ev_ebitda:.1f}" if ev_ebitda else 'N/A',
+            }
+
+            # ── Sentiment (analyst) ───────────────────────────────────────────
+            current_price = info.get('currentPrice') or info.get('regularMarketPrice') or 0
+            target_mean   = info.get('targetMeanPrice') or 0
+            upside = ((target_mean - current_price) / current_price * 100) if current_price and target_mean else 0
+            rec_mean = info.get('recommendationMean') or 3  # 1=Strong Buy, 5=Strong Sell
+            analyst_score = max(0, 100 - (rec_mean - 1) / 4 * 100)
+            upside_score  = min(100, max(0, 50 + upside * 2))
+            sentiment_score = int(analyst_score * 0.6 + upside_score * 0.4)
+            sentiment_detail = {
+                'Analyst Rating': f"{rec_mean:.1f}/5" if rec_mean else 'N/A',
+                'Price Upside': f"+{upside:.1f}%" if upside > 0 else f"{upside:.1f}%",
+            }
+
+            # ── Technical (MA position, RSI) ──────────────────────────────────
+            price     = info.get('currentPrice') or info.get('regularMarketPrice') or 0
+            ma50      = info.get('fiftyDayAverage') or 0
+            ma200     = info.get('twoHundredDayAverage') or 0
+            ma_score  = 0
+            if price and ma50 and ma200:
+                if price > ma50 > ma200:
+                    ma_score = 100
+                elif price > ma50 or price > ma200:
+                    ma_score = 60
+                else:
+                    ma_score = 20
+            technical_score = ma_score
+            technical_detail = {
+                '50 MA': f"${ma50:.2f}" if ma50 else 'N/A',
+                '200 MA': f"${ma200:.2f}" if ma200 else 'N/A',
+                'Price vs MAs': 'Above' if price > ma50 else 'Below',
+            }
+
+            # ── Overall (weighted) ────────────────────────────────────────────
+            overall = int(
+                fundamentals_score * 0.30 +
+                growth_score       * 0.25 +
+                valuation_score    * 0.20 +
+                sentiment_score    * 0.15 +
+                technical_score    * 0.10
+            )
+
+            if overall >= 80:
+                grade = 'Strong Buy'
+            elif overall >= 65:
+                grade = 'Buy'
+            elif overall >= 45:
+                grade = 'Hold'
+            elif overall >= 30:
+                grade = 'Sell'
+            else:
+                grade = 'Strong Sell'
+
+            return {
+                'symbol': symbol,
+                'overall_score': overall,
+                'investment_grade': grade,
+                'categories': {
+                    'fundamentals': {'score': fundamentals_score, 'detail': fundamentals_detail},
+                    'growth':       {'score': growth_score,       'detail': growth_detail},
+                    'valuation':    {'score': valuation_score,    'detail': valuation_detail},
+                    'sentiment':    {'score': sentiment_score,    'detail': sentiment_detail},
+                    'technical':    {'score': technical_score,    'detail': technical_detail},
+                },
+                'outlook': {
+                    'short_term':  'Positive' if technical_score >= 60 else 'Neutral' if technical_score >= 30 else 'Negative',
+                    'medium_term': 'Positive' if growth_score >= 60 else 'Neutral' if growth_score >= 30 else 'Negative',
+                    'long_term':   'Positive' if fundamentals_score >= 60 else 'Neutral' if fundamentals_score >= 30 else 'Negative',
+                },
+                'ai_report': None,
+            }
+        except Exception as e:
+            log.error(f"Error computing scorecard for {symbol}: {e}")
+            return {
+                'symbol': symbol, 'overall_score': 0, 'investment_grade': 'N/A',
+                'categories': {}, 'outlook': {}, 'ai_report': None,
+            }
+
+
+    # ── Company relations: DB-first pipeline ──────────────────────────────────
+
+    async def _fetch_yahoo_similar_fallback(self, symbol: str, base_sector: str) -> list[dict]:
+        """
+        Fallback: Yahoo Finance recommendationsbysymbol → competitor 목록
+        DB에 데이터 없을 때만 호출 (실시간)
+        """
+        import httpx
+        import asyncio
+
+        url = f"https://query2.finance.yahoo.com/v6/finance/recommendationsbysymbol/{symbol}"
+        headers = {"User-Agent": "Mozilla/5.0 (compatible; MarketPulse/1.0)"}
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                r = await client.get(url, headers=headers)
+                if r.status_code != 200:
+                    return []
+                result = r.json().get("finance", {}).get("result", [])
+                if not result:
+                    return []
+                syms = result[0].get("recommendedSymbols", [])
+        except Exception as e:
+            log.warning(f"Yahoo 유사종목 fallback 실패 [{symbol}]: {e}")
+            return []
+
+        nodes = []
+        for item in syms[:10]:
+            sym = item.get("symbol", "")
+            if not sym or sym == symbol:
+                continue
+            try:
+                info = await asyncio.to_thread(lambda s=sym: yf.Ticker(s).info)
+                nodes.append({
+                    "symbol": sym,
+                    "name": info.get("longName", sym),
+                    "type": "competitor",
+                    "detail": f"{info.get('industry', base_sector)} peer",
+                })
+            except Exception:
+                nodes.append({"symbol": sym, "name": sym, "type": "competitor", "detail": "Peer"})
+
+        return nodes
+
+    async def get_company_relations(self, symbol: str) -> dict:
+        """
+        종목 관계 그래프 반환 (DB-first)
+
+          Tier 1 – DB (mbs_in_stk_relations)
+                   stock_collect_module이 주기적으로 FMP peers로 채운 데이터
+                   Coverage: S&P 500 전체
+                   Quality : ★★★★
+
+          Tier 2 – Yahoo Finance 실시간 (DB 없을 때 fallback)
+                   recommendationsbysymbol → competitor 목록
+                   Coverage: 대부분 US 상장 종목
+                   Quality : ★★ (peers, supply-chain 아님)
+        """
+        import asyncio
+        from index_analyzer.pipeline.stock_collect_module import (
+            get_relations_from_db, get_profile_from_db
+        )
+
+        symbol = symbol.upper()
+
+        # ── Tier 1: DB 조회 ────────────────────────────────────────────────
+        db_nodes = await asyncio.to_thread(get_relations_from_db, symbol)
+        profile  = await asyncio.to_thread(get_profile_from_db, symbol)
+
+        name   = profile.get("stk_nm", symbol) if profile else symbol
+        sector = profile.get("sector", "") if profile else ""
+
+        if db_nodes:
+            return {
+                "symbol": symbol,
+                "name":   name,
+                "sector": sector,
+                "nodes":  db_nodes,
+                "found":  True,
+                "data_source": "db_fmp_peers",
+            }
+
+        # ── Tier 2: Yahoo Finance 실시간 fallback ─────────────────────────
+        if not sector:
+            try:
+                info = await asyncio.to_thread(lambda: yf.Ticker(symbol).info)
+                name   = info.get("longName", symbol)
+                sector = info.get("sector", "")
+            except Exception:
+                pass
+
+        yahoo_nodes = await self._fetch_yahoo_similar_fallback(symbol, sector)
+
+        return {
+            "symbol": symbol,
+            "name":   name,
+            "sector": sector,
+            "nodes":  yahoo_nodes,
+            "found":  bool(yahoo_nodes),
+            "data_source": "yahoo_finance",
+        }
+
 
 # Singleton instance
 data_service = DataService()

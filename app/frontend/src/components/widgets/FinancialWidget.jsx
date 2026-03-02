@@ -2,7 +2,6 @@
  * FinancialWidget - Displays key financial data using BaseWidget
  */
 import { useState, useEffect, useCallback } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { BarChart3 } from 'lucide-react';
 import BaseWidget from './common/BaseWidget';
 import { formatNumber, API_BASE } from './constants';
@@ -34,32 +33,36 @@ const FinancialWidget = ({ symbol, onRemove }) => {
     return formatted === 'N/A' ? formatted : '$' + formatted;
   };
 
-  const getChartData = () => {
-    if (!financials) return [];
-    const income = financials.income_statement || {};
-    return [
-      { name: 'Revenue', value: income.revenue || 0 },
-      { name: 'Gross Profit', value: income.gross_profit || 0 },
-      { name: 'Op. Income', value: income.operating_income || 0 },
-      { name: 'Net Income', value: income.net_income || 0 },
-      { name: 'EBITDA', value: income.ebitda || 0 },
-    ];
-  };
-
   const renderChart = () => {
-    const chartData = getChartData();
-    if (chartData.length === 0) return <div className="flex items-center justify-center h-full text-gray-500">No data</div>;
-
+    if (!financials) return <div className="flex items-center justify-center h-full text-gray-500 text-xs">No data</div>;
+    const income = financials.income_statement || {};
+    const bars = [
+      { label: 'Revenue',        value: income.revenue || 0,           color: '#3b82f6', textClass: 'text-blue-400' },
+      { label: 'Gross Profit',   value: income.gross_profit || 0,      color: '#22c55e', textClass: 'text-green-400' },
+      { label: 'Op. Income',     value: income.operating_income || 0,  color: '#a78bfa', textClass: 'text-violet-400' },
+      { label: 'Net Income',     value: income.net_income || 0,        color: '#4ade80', textClass: 'text-emerald-400' },
+      { label: 'EBITDA',         value: income.ebitda || 0,            color: '#f59e0b', textClass: 'text-amber-400' },
+      { label: 'Free Cash Flow', value: financials.cash_flow?.free_cash_flow || 0, color: '#22d3ee', textClass: 'text-cyan-400' },
+    ].filter(b => b.value !== 0);
+    if (bars.length === 0) return <div className="flex items-center justify-center h-full text-gray-500 text-xs">No data</div>;
+    const maxVal = Math.max(...bars.map(b => Math.abs(b.value)), 1);
     return (
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 40 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-          <XAxis dataKey="name" tick={{ fill: '#6b7280', fontSize: 9 }} angle={-45} textAnchor="end" height={60} axisLine={{ stroke: '#374151' }} />
-          <YAxis tick={{ fill: '#6b7280', fontSize: 9 }} axisLine={{ stroke: '#374151' }} tickFormatter={(v) => formatFinancialNumber(v)} />
-          <Tooltip contentStyle={{ backgroundColor: '#1a1a1f', border: '1px solid #374151', borderRadius: '8px' }} formatter={(v) => formatFinancialNumber(v)} />
-          <Bar dataKey="value" fill="#3b82f6" />
-        </BarChart>
-      </ResponsiveContainer>
+      <div className="space-y-2.5">
+        <p className="text-[10px] text-gray-600 uppercase tracking-wide">Income Statement</p>
+        {bars.map(b => (
+          <div key={b.label}>
+            <div className="flex items-center justify-between mb-0.5 text-xs">
+              <span className="text-gray-300">{b.label}</span>
+              <span className={`font-medium tabular-nums ml-2 flex-shrink-0 ${b.value < 0 ? 'text-red-400' : b.textClass}`}>
+                {formatFinancialNumber(b.value)}
+              </span>
+            </div>
+            <div className="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden">
+              <div className="h-1.5 rounded-full transition-all duration-500" style={{ width: `${Math.abs(b.value) / maxVal * 100}%`, backgroundColor: b.value < 0 ? '#ef4444' : b.color }} />
+            </div>
+          </div>
+        ))}
+      </div>
     );
   };
 
@@ -154,9 +157,10 @@ const FinancialWidget = ({ symbol, onRemove }) => {
       symbol={symbol}
       exportData={financials ? getExportData : undefined}
     >
-      <div className="h-full p-3">
-        {viewMode === 'chart' ? renderChart() : renderTable()}
-      </div>
+      {viewMode === 'chart'
+        ? <div className="overflow-auto h-full p-3">{renderChart()}</div>
+        : renderTable()
+      }
     </BaseWidget>
   );
 };

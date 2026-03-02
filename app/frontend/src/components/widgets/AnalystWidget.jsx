@@ -2,12 +2,9 @@
  * AnalystWidget - Displays analyst recommendations using BaseWidget
  */
 import { useState, useEffect, useCallback } from 'react';
-import { Users, TrendingUp, TrendingDown, Target, BarChart2 } from 'lucide-react';
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Cell
-} from 'recharts';
+import { Users, TrendingUp, TrendingDown, Target } from 'lucide-react';
 import BaseWidget from './common/BaseWidget';
+import DistributionDisplay from '../common/DistributionDisplay';
 import { formatPrice, API_BASE } from './constants';
 
 const RATING_COLORS = {
@@ -58,57 +55,26 @@ const AnalystWidget = ({ symbol, onRemove }) => {
   const upside = analyst?.price_target?.average && quote?.price
     ? ((analyst.price_target.average - quote.price) / quote.price * 100) : null;
 
-  const getChartData = () => {
+
+  // DistributionDisplay에 넘길 ratings 항목 배열
+  const getRatingItems = () => {
     if (!analyst?.ratings) return [];
     return [
-      { name: 'Strong Buy', value: analyst.ratings.strong_buy || 0, fill: '#16a34a' },
-      { name: 'Buy', value: analyst.ratings.buy || 0, fill: '#22c55e' },
-      { name: 'Hold', value: analyst.ratings.hold || 0, fill: '#eab308' },
-      { name: 'Sell', value: analyst.ratings.sell || 0, fill: '#f87171' },
-      { name: 'Strong Sell', value: analyst.ratings.strong_sell || 0, fill: '#dc2626' },
-    ].filter(d => d.value > 0);
+      { label: 'Strong Buy',  value: analyst.ratings.strong_buy  || 0, color: '#16a34a' },
+      { label: 'Buy',         value: analyst.ratings.buy         || 0, color: '#22c55e' },
+      { label: 'Hold',        value: analyst.ratings.hold        || 0, color: '#eab308' },
+      { label: 'Sell',        value: analyst.ratings.sell        || 0, color: '#f87171' },
+      { label: 'Strong Sell', value: analyst.ratings.strong_sell || 0, color: '#dc2626' },
+    ];
   };
 
-  const RatingBar = ({ label, count, total, color }) => {
-    const percentage = total > 0 ? (count / total) * 100 : 0;
-    return (
-      <div className="flex items-center gap-2">
-        <span className="text-[10px] text-gray-400 w-16">{label}</span>
-        <div className="flex-1 bg-gray-800 rounded-full h-1.5 overflow-hidden">
-          <div className={`h-full ${color} transition-all duration-300`} style={{ width: `${percentage}%` }} />
-        </div>
-        <span className="text-[10px] text-gray-400 w-4 text-right">{count}</span>
-      </div>
-    );
-  };
-
-  const renderChart = () => {
-    const chartData = getChartData();
-    if (chartData.length === 0) return <div className="flex items-center justify-center h-full text-gray-500">No data</div>;
-
-    return (
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={chartData} layout="vertical" margin={{ top: 10, right: 10, left: 60, bottom: 10 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" horizontal={false} />
-          <XAxis type="number" tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} />
-          <YAxis type="category" dataKey="name" tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} width={60} />
-          <Tooltip contentStyle={{ backgroundColor: '#1a1a1f', border: '1px solid #374151', borderRadius: '8px' }} />
-          <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-            {chartData.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={entry.fill} />
-            ))}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
-    );
-  };
-
-  const renderTable = () => {
+  const renderContent = () => {
     if (!analyst) return <div className="flex items-center justify-center h-full text-gray-500">No data</div>;
+    const ratingItems = getRatingItems();
 
     return (
       <div className="space-y-3 overflow-auto h-full">
-        {/* Consensus Badge */}
+        {/* Consensus */}
         <div className="flex items-center justify-between">
           <div>
             <div className="text-[10px] text-gray-500 mb-1">Consensus</div>
@@ -127,15 +93,16 @@ const AnalystWidget = ({ symbol, onRemove }) => {
           )}
         </div>
 
-        {/* Rating Distribution */}
-        {analyst.ratings?.total > 0 && (
-          <div className="space-y-1.5">
-            <h4 className="text-[10px] font-semibold text-gray-500 uppercase">Distribution</h4>
-            <RatingBar label="Strong Buy" count={analyst.ratings.strong_buy || 0} total={analyst.ratings.total} color="bg-green-600" />
-            <RatingBar label="Buy" count={analyst.ratings.buy || 0} total={analyst.ratings.total} color="bg-green-400" />
-            <RatingBar label="Hold" count={analyst.ratings.hold || 0} total={analyst.ratings.total} color="bg-yellow-500" />
-            <RatingBar label="Sell" count={analyst.ratings.sell || 0} total={analyst.ratings.total} color="bg-red-400" />
-            <RatingBar label="Strong Sell" count={analyst.ratings.strong_sell || 0} total={analyst.ratings.total} color="bg-red-600" />
+        {/* Rating Distribution — 공통 컴포넌트 */}
+        {ratingItems.length > 0 && analyst.ratings?.total > 0 && (
+          <div>
+            <h4 className="text-[10px] font-semibold text-gray-500 uppercase mb-1.5">Distribution</h4>
+            <DistributionDisplay
+              items={ratingItems}
+              total={analyst.ratings.total}
+              view={viewMode === 'chart' ? 'donut' : 'bars'}
+              showToggle
+            />
           </div>
         )}
 
@@ -159,7 +126,6 @@ const AnalystWidget = ({ symbol, onRemove }) => {
                 <div className="text-white text-xs font-medium">{formatPrice(analyst.price_target.high)}</div>
               </div>
             </div>
-
             {upside !== null && (
               <div className="flex items-center justify-between py-1.5 bg-gray-800/30 rounded px-2">
                 <span className="text-gray-400 text-xs">Expected Return</span>
@@ -218,8 +184,8 @@ const AnalystWidget = ({ symbol, onRemove }) => {
       symbol={symbol}
       exportData={analyst ? getExportData : undefined}
     >
-      <div className="h-full p-3">
-        {viewMode === 'chart' ? renderChart() : renderTable()}
+      <div className="h-full p-3 overflow-auto">
+        {renderContent()}
       </div>
     </BaseWidget>
   );

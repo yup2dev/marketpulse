@@ -322,6 +322,76 @@ async def get_estimates(symbol: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/management/{symbol}")
+async def get_management(symbol: str):
+    """Get executive team and governance risk data"""
+    try:
+        data = await data_service.get_management(symbol.upper())
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/moat/{symbol}")
+async def get_moat_analysis(symbol: str):
+    """Get 10-year economic moat analysis (ROE, ROIC, margins, FCF)"""
+    try:
+        data = await data_service.get_moat_analysis(symbol.upper())
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/swot/{symbol}")
+async def get_swot(symbol: str):
+    """Get data-driven SWOT analysis"""
+    try:
+        data = await data_service.get_swot(symbol.upper())
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/sentiment/{symbol}")
+async def get_stock_sentiment(symbol: str):
+    """Get news sentiment aggregation and trend"""
+    try:
+        data = await data_service.get_stock_sentiment(symbol.upper())
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/reddit/{symbol}")
+async def get_social_sentiment(symbol: str):
+    """Get Reddit + StockTwits social sentiment"""
+    try:
+        data = await data_service.get_social_sentiment(symbol.upper())
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/scorecard/{symbol}")
+async def get_scorecard(symbol: str):
+    """Get 5-category investment scorecard with overall grade"""
+    try:
+        data = await data_service.get_scorecard(symbol.upper())
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/relations/{symbol}")
+async def get_company_relations(symbol: str):
+    """Return curated supply-chain / competitor / customer / partner relationships."""
+    try:
+        data = await data_service.get_company_relations(symbol.upper())
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/indicator/{indicator}")
 async def get_indicator_history(indicator: str, period: str = "5y"):
     """

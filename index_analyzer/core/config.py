@@ -63,6 +63,7 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: Optional[str] = Field(default=None, description="OpenAI API 키")
     FRED_API_KEY: Optional[str] = Field(default=None, description="FRED (Federal Reserve Economic Data) API 키")
     ALPHAVANTAGE_API_KEY: Optional[str] = Field(default=None, description="Alpha Vantage API 키")
+    FMP_API_KEY: Optional[str] = Field(default=None, description="Financial Modeling Prep API 키")
 
     # ===== Crawler Settings =====
     CRAWLER_MAX_WORKERS: int = Field(default=5, description="크롤러 최대 워커 수")
@@ -95,6 +96,7 @@ class Settings(BaseSettings):
         env_file = str(Path(__file__).parent.parent.parent / ".env")
         env_file_encoding = "utf-8"
         case_sensitive = True
+        extra = "ignore"  # .env에 Settings에 없는 변수가 있어도 무시
 
     @property
     def db_url(self) -> str:

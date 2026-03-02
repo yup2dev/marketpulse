@@ -394,6 +394,155 @@ class MBS_IN_FINANCIAL_METRICS(Base):
         }
 
 
+class MBS_IN_STK_PROFILE(Base):
+    """
+    입수 - 종목 상세 프로필
+    FMP에서 수집한 기업 상세 정보 (S&P 500 등)
+    """
+    __tablename__ = 'mbs_in_stk_profile'
+
+    stk_cd = Column(String(20), primary_key=True)   # 종목 코드
+    stk_nm = Column(String(200))                     # 회사명
+    sector = Column(String(100), index=True)         # 섹터
+    industry = Column(String(100), index=True)       # 산업
+    description = Column(Text)                       # 사업 설명
+    website = Column(String(300))                    # 웹사이트
+    ceo = Column(String(100))                        # CEO
+    employees = Column(Integer)                      # 임직원 수
+    country = Column(String(50))                     # 국가
+    exchange = Column(String(50))                    # 거래소
+    currency = Column(String(10), default='USD')     # 통화
+    ipo_date = Column(Date)                          # IPO 날짜
+    image_url = Column(String(500))                  # 로고 URL
+
+    # 재무 요약 (최신 스냅샷)
+    market_cap = Column(DECIMAL(20, 2))              # 시가총액
+    price = Column(DECIMAL(20, 4))                   # 현재가
+    beta = Column(DECIMAL(10, 4))                    # 베타
+
+    # 지수 소속 여부
+    in_sp500 = Column(Boolean, default=False, index=True)
+    in_nasdaq100 = Column(Boolean, default=False)
+    in_dow30 = Column(Boolean, default=False)
+
+    data_source = Column(String(50))                 # fmp / yahoo / manual
+    last_updated = Column(DateTime)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        Index('idx_stk_profile_sector', 'sector'),
+        Index('idx_stk_profile_industry', 'industry'),
+        Index('idx_stk_profile_sp500', 'in_sp500'),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            'stk_cd': self.stk_cd,
+            'stk_nm': self.stk_nm,
+            'sector': self.sector,
+            'industry': self.industry,
+            'description': self.description,
+            'website': self.website,
+            'ceo': self.ceo,
+            'employees': self.employees,
+            'country': self.country,
+            'exchange': self.exchange,
+            'currency': self.currency,
+            'ipo_date': self.ipo_date.isoformat() if self.ipo_date else None,
+            'image_url': self.image_url,
+            'market_cap': float(self.market_cap) if self.market_cap else None,
+            'price': float(self.price) if self.price else None,
+            'beta': float(self.beta) if self.beta else None,
+            'in_sp500': self.in_sp500,
+            'in_nasdaq100': self.in_nasdaq100,
+            'in_dow30': self.in_dow30,
+            'data_source': self.data_source,
+            'last_updated': self.last_updated.isoformat() if self.last_updated else None,
+        }
+
+
+class MBS_IN_STK_RELATIONS(Base):
+    """
+    입수 - 종목 관계
+    경쟁사(competitor), 동종업계(peer), 고객사(customer), 공급사(supplier_t1/t2), 파트너(partner)
+    """
+    __tablename__ = 'mbs_in_stk_relations'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    stk_cd = Column(String(20), nullable=False, index=True)       # 기준 종목
+    related_cd = Column(String(20), nullable=False, index=True)   # 관련 종목
+    relation_type = Column(String(30), nullable=False, index=True)
+    # competitor / peer / customer / supplier_t1 / supplier_t2 / partner
+
+    related_nm = Column(String(200))                              # 관련 종목명
+    detail = Column(Text)                                         # 관계 상세 설명
+    confidence = Column(DECIMAL(5, 4), default=1.0)              # 신뢰도 0-1
+    data_source = Column(String(50))                              # fmp_peers / yahoo / manual
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint('stk_cd', 'related_cd', 'relation_type', name='uq_stk_relation'),
+        Index('idx_stk_relations_stk', 'stk_cd'),
+        Index('idx_stk_relations_type', 'stk_cd', 'relation_type'),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            'id': self.id,
+            'stk_cd': self.stk_cd,
+            'related_cd': self.related_cd,
+            'relation_type': self.relation_type,
+            'related_nm': self.related_nm,
+            'detail': self.detail,
+            'confidence': float(self.confidence) if self.confidence else None,
+            'data_source': self.data_source,
+        }
+
+
+class MBS_IN_INDX_MEMBER(Base):
+    """
+    입수 - 지수 구성종목
+    S&P 500, NASDAQ 100, Dow 30 구성종목 이력
+    """
+    __tablename__ = 'mbs_in_indx_member'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    indx_cd = Column(String(50), nullable=False, index=True)   # sp500 / nasdaq100 / dow30
+    stk_cd = Column(String(20), nullable=False, index=True)
+    stk_nm = Column(String(200))
+    sector = Column(String(100))
+    sub_sector = Column(String(100))
+
+    date_added = Column(Date)
+    date_removed = Column(Date)
+    is_current = Column(Boolean, default=True, index=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint('indx_cd', 'stk_cd', name='uq_indx_member'),
+        Index('idx_indx_member_indx', 'indx_cd', 'is_current'),
+        Index('idx_indx_member_stk', 'stk_cd'),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            'indx_cd': self.indx_cd,
+            'stk_cd': self.stk_cd,
+            'stk_nm': self.stk_nm,
+            'sector': self.sector,
+            'sub_sector': self.sub_sector,
+            'date_added': self.date_added.isoformat() if self.date_added else None,
+            'date_removed': self.date_removed.isoformat() if self.date_removed else None,
+            'is_current': self.is_current,
+        }
+
+
 class MBS_IN_BOND_ISSUANCE(Base):
     """
     입수 - 기업채권 발행량
