@@ -1,15 +1,15 @@
 /**
- * 자산 배분 차트 컴포넌트
+ * 자산 배분 차트 컴포넌트 (Plotly 버전)
  * 포트폴리오 내 종목별 비중을 파이 차트로 표시
  */
 import { useEffect, useState } from 'react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import PlotlyChart from '../core/PlotlyChart';
 
 const COLORS = [
   '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
-  '#EC4899', '#14B8A6', '#F97316', '#06B6D4', '#84CC16'
+  '#EC4899', '#14B8A6', '#F97316', '#06B6D4', '#84CC16',
 ];
 
 export default function AssetAllocationChart({ portfolioId }) {
@@ -17,9 +17,7 @@ export default function AssetAllocationChart({ portfolioId }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (portfolioId) {
-      loadAllocation();
-    }
+    if (portfolioId) loadAllocation();
   }, [portfolioId]);
 
   const loadAllocation = async () => {
@@ -28,9 +26,7 @@ export default function AssetAllocationChart({ portfolioId }) {
       const token = localStorage.getItem('token');
       const response = await axios.get(
         `${import.meta.env.VITE_API_URL}/user-portfolio/portfolios/${portfolioId}/allocation`,
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
+        { headers: { Authorization: `Bearer ${token}` } },
       );
       setAllocation(response.data.allocation);
     } catch (error) {
@@ -46,13 +42,13 @@ export default function AssetAllocationChart({ portfolioId }) {
       <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">자산 배분</h3>
         <div className="flex items-center justify-center h-80">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
         </div>
       </div>
     );
   }
 
-  if (!allocation || allocation.length === 0) {
+  if (!allocation?.length) {
     return (
       <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">자산 배분</h3>
@@ -63,56 +59,26 @@ export default function AssetAllocationChart({ portfolioId }) {
     );
   }
 
+  // PlotlyChart pie data format: each row = one slice
   const chartData = allocation.map((item) => ({
-    name: item.ticker_cd,
-    value: item.weight_pct,
-    marketValue: item.market_value
+    name:      item.ticker_cd,
+    value:     item.weight_pct,
+    color:     COLORS[allocation.indexOf(item) % COLORS.length],
   }));
-
-  const CustomTooltip = ({ active, payload }) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      return (
-        <div className="bg-white p-3 rounded-lg shadow-lg border border-gray-200">
-          <p className="font-semibold text-gray-900">{data.name}</p>
-          <p className="text-sm text-gray-600">
-            비중: <span className="font-semibold">{data.value.toFixed(2)}%</span>
-          </p>
-          <p className="text-sm text-gray-600">
-            가치: <span className="font-semibold">${data.marketValue.toLocaleString()}</span>
-          </p>
-        </div>
-      );
-    }
-    return null;
-  };
 
   return (
     <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
       <h3 className="text-lg font-semibold text-gray-900 mb-4">자산 배분</h3>
 
-      {/* Pie Chart */}
-      <ResponsiveContainer width="100%" height={300}>
-        <PieChart>
-          <Pie
-            data={chartData}
-            cx="50%"
-            cy="50%"
-            labelLine={false}
-            label={({ name, value }) => `${name} ${value.toFixed(1)}%`}
-            outerRadius={100}
-            fill="#8884d8"
-            dataKey="value"
-            isAnimationActive={false}
-          >
-            {chartData.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-            ))}
-          </Pie>
-          <Tooltip content={<CustomTooltip />} isAnimationActive={false} />
-          <Legend />
-        </PieChart>
-      </ResponsiveContainer>
+      <PlotlyChart
+        data={chartData}
+        series={[{ key: 'value', name: 'Weight %' }]}
+        xKey="name"
+        type="donut"
+        height={300}
+        showTypeSelector={false}
+        compact={false}
+      />
 
       {/* Holdings List */}
       <div className="mt-6 space-y-3">
@@ -122,10 +88,7 @@ export default function AssetAllocationChart({ portfolioId }) {
             className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
           >
             <div className="flex items-center gap-3">
-              <div
-                className="w-3 h-3 rounded-full"
-                style={{ backgroundColor: COLORS[index % COLORS.length] }}
-              ></div>
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
               <div>
                 <p className="font-semibold text-gray-900">{item.ticker_cd}</p>
                 <p className="text-xs text-gray-500">
@@ -134,12 +97,8 @@ export default function AssetAllocationChart({ portfolioId }) {
               </div>
             </div>
             <div className="text-right">
-              <p className="font-semibold text-gray-900">
-                ${item.market_value.toLocaleString()}
-              </p>
-              <p className="text-sm text-gray-600">
-                {item.weight_pct.toFixed(2)}%
-              </p>
+              <p className="font-semibold text-gray-900">${item.market_value.toLocaleString()}</p>
+              <p className="text-sm text-gray-600">{item.weight_pct.toFixed(2)}%</p>
             </div>
           </div>
         ))}

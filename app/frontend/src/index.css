@@ -2,10 +2,24 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Design System CSS Variables ─────────────────────────────────────────── */
+:root {
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --color-bg-primary:   #0a0e14;
+  --color-bg-secondary: #111827;
+  --color-bg-tertiary:  #1f2937;
+  --color-border:       #374151;
+  --color-text-primary: #f9fafb;
+  --color-text-muted:   #9ca3af;
+  --color-accent:       #06b6d4;
+  --color-positive:     #22c55e;
+  --color-negative:     #ef4444;
+}
+
 @layer base {
   body {
     @apply m-0;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }

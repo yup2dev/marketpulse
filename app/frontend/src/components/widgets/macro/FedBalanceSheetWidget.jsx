@@ -4,23 +4,10 @@
  */
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Landmark } from 'lucide-react';
-import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, ReferenceLine,
-} from 'recharts';
+import CommonChart from '../../common/CommonChart';
 import BaseWidget from '../common/BaseWidget';
-import WidgetTable from '../common/WidgetTable';
+import CommonTable from '../../common/CommonTable';
 import { API_BASE } from '../../../config/api';
-
-const CustomTooltip = ({ active, payload, label }) => {
-  if (!active || !payload || !payload.length) return null;
-  return (
-    <div className="bg-[#1a1a1f] border border-gray-700 rounded px-3 py-2 shadow-lg text-xs">
-      <p className="text-gray-400 mb-1">{label}</p>
-      <p className="text-cyan-400">${payload[0]?.value?.toFixed(2)}T</p>
-    </div>
-  );
-};
 
 const REGIME_COLOR = { expanding: '#22c55e', contracting: '#ef4444' };
 
@@ -29,17 +16,14 @@ const TABLE_COLUMNS = [
     key: 'date',
     header: 'Date',
     sortable: true,
-    sortValue: (row) => row.date,
-    render: (row) => <span className="text-gray-300">{row.date}</span>,
+    renderFn: (value, row) => <span className="text-gray-300">{row.date}</span>,
   },
   {
     key: 'value',
     header: 'Total Assets ($T)',
     align: 'right',
     sortable: true,
-    sortValue: (row) => row.value ?? -Infinity,
-    exportValue: (row) => row.value?.toFixed(3) ?? '',
-    render: (row) => (
+    renderFn: (value, row) => (
       <span className="text-cyan-400">${row.value?.toFixed(3)}T</span>
     ),
   },
@@ -48,9 +32,7 @@ const TABLE_COLUMNS = [
     header: 'Chg WoW',
     align: 'right',
     sortable: true,
-    sortValue: (row) => row.chgWoW ?? -Infinity,
-    exportValue: (row) => row.chgWoW != null ? row.chgWoW.toFixed(3) : '',
-    render: (row) => (
+    renderFn: (value, row) => (
       <span className={row.chgWoW == null ? '' : row.chgWoW >= 0 ? 'text-green-400' : 'text-red-400'}>
         {row.chgWoW != null ? `${row.chgWoW >= 0 ? '+' : ''}${row.chgWoW.toFixed(3)}T` : '-'}
       </span>
@@ -97,44 +79,22 @@ export default function FedBalanceSheetWidget({ onRemove }) {
 
   const renderChart = () => {
     const series = data?.series || [];
+    const refLines = peak
+      ? [{ value: undefined, x: peak.date, color: '#f59e0b', label: `Peak $${peak.value.toFixed(1)}T` }]
+      : [];
     return (
-      <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={series} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
-          <defs>
-            <linearGradient id="bsGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%"  stopColor="#06b6d4" stopOpacity={0.25} />
-              <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.02} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-          <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} />
-          <YAxis
-            domain={['auto', 'auto']}
-            tick={{ fill: '#6b7280', fontSize: 10 }}
-            axisLine={{ stroke: '#374151' }}
-            tickFormatter={v => `$${v.toFixed(0)}T`}
-            width={42}
-          />
-          <Tooltip content={<CustomTooltip />} />
-          {peak && (
-            <ReferenceLine
-              x={peak.date}
-              stroke="#f59e0b"
-              strokeDasharray="4 4"
-              label={{ value: `Peak $${peak.value.toFixed(1)}T`, fill: '#f59e0b', fontSize: 9, position: 'insideTopRight' }}
-            />
-          )}
-          <Area
-            type="monotone"
-            dataKey="value"
-            name="Fed Assets"
-            stroke="#06b6d4"
-            fill="url(#bsGradient)"
-            strokeWidth={1.5}
-            dot={false}
-          />
-        </AreaChart>
-      </ResponsiveContainer>
+      <CommonChart
+        data={series}
+        series={[{ key: 'value', name: 'Fed Assets', color: '#06b6d4' }]}
+        xKey="date"
+        type="area"
+        fillContainer={true}
+        showTypeSelector={false}
+        xFormatter={formatDate}
+        yFormatter={(v) => `$${Number(v).toFixed(0)}T`}
+        tooltipFormatter={(v) => `$${Number(v).toFixed(2)}T`}
+        referenceLines={refLines}
+      />
     );
   };
 
@@ -176,15 +136,13 @@ export default function FedBalanceSheetWidget({ onRemove }) {
       <div className="h-full p-3">
         {viewMode === 'chart' ? renderChart() : (
           <div className="h-full overflow-auto">
-            <WidgetTable
+            <CommonTable
               columns={TABLE_COLUMNS}
               data={tableData}
-              resizable={true}
-              size="compact"
-              showExport={true}
-              exportFilename="fed-balance-sheet"
-              defaultSortKey="date"
-              defaultSortDirection="desc"
+              compact={true}
+              searchable={false}
+              exportable={true}
+              pageSize={20}
             />
           </div>
         )}

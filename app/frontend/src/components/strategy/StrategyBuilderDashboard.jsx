@@ -4,7 +4,7 @@
  * Layout:
  *   Header  : 전략 선택 드롭다운 + New/Save/Run 버튼
  *   Tab bar : All | Macro | Micro | Stock | Alt Data | My Strategy
- *   Content : 팩터 테이블 (WidgetTable) 또는 비주얼 조건 빌더
+ *   Content : 팩터 테이블 (CommonTable) 또는 비주얼 조건 빌더
  */
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import WidgetTable from '../widgets/common/WidgetTable';
+import CommonTable from '../common/CommonTable';
 import { quantAPI } from '../../config/api';
 import {
   STRATEGY_FACTORS,
@@ -60,11 +60,10 @@ const buildFactorColumns = (selectedFactors, onToggle) => {
       key: 'name',
       header: 'Factor',
       sortable: true,
-      sortValue: r => r.name,
-      render: r => (
+      renderFn: (value, row) => (
         <div>
-          <div className="text-[11px] font-medium text-white">{r.name}</div>
-          <div className="text-[10px] text-gray-600 mt-0.5">{r.nameKo}</div>
+          <div className="text-[11px] font-medium text-white">{value}</div>
+          <div className="text-[10px] text-gray-600 mt-0.5">{row.nameKo}</div>
         </div>
       ),
     },
@@ -72,44 +71,46 @@ const buildFactorColumns = (selectedFactors, onToggle) => {
       key: 'sub',
       header: 'Category',
       width: 130,
-      render: r => <CatBadge category={r.category} sub={r.sub} />,
+      renderFn: (value, row) => <CatBadge category={row.category} sub={value} />,
     },
     {
       key: 'desc',
       header: 'Description',
-      render: r => (
-        <span className="text-[11px] text-gray-400 leading-relaxed">{r.desc}</span>
+      renderFn: (value) => (
+        <span className="text-[11px] text-gray-400 leading-relaxed">{value}</span>
       ),
     },
     {
       key: 'examples',
       header: 'Indicators',
-      render: r => (
-        <span className="text-[10px] text-gray-600">{r.examples}</span>
+      renderFn: (value) => (
+        <span className="text-[10px] text-gray-600">{value}</span>
       ),
     },
     {
       key: 'strategic',
       header: 'Strategic Use',
-      render: r => (
-        <span className="text-[10px] text-gray-500 leading-relaxed">{r.strategic}</span>
+      renderFn: (value) => (
+        <span className="text-[10px] text-gray-500 leading-relaxed">{value}</span>
       ),
     },
     {
       key: 'availability',
       header: 'Status',
       width: 90,
-      render: r => <AvailBadge status={r.availability} />,
+      renderFn: (value) => <AvailBadge status={value} />,
     },
     {
       key: '_toggle',
       header: '',
       width: 90,
-      render: r => {
-        const n = counts[r.id] || 0;
+      sortable: false,
+      accessorFn: (row) => row.id,
+      renderFn: (value, row) => {
+        const n = counts[row.id] || 0;
         return (
           <button
-            onClick={e => { e.stopPropagation(); onToggle(r); }}
+            onClick={e => { e.stopPropagation(); onToggle(row); }}
             className="text-[10px] font-medium px-2.5 py-1 rounded border transition-colors text-cyan-400 border-cyan-800/50 bg-cyan-900/10 hover:bg-cyan-900/20"
           >
             {n > 0 ? `+ Add (${n})` : '+ Add'}
@@ -468,12 +469,13 @@ const StrategyBuilderDashboard = () => {
 
         {activeTab !== 'strategy' && (
           <div className="h-full overflow-auto">
-            <WidgetTable
+            <CommonTable
               columns={columns}
               data={filteredFactors}
-              size="compact"
-              showRowNumbers
-              emptyMessage="해당 카테고리의 팩터가 없습니다."
+              compact
+              searchable={false}
+              exportable={false}
+              pageSize={50}
               rowClassName={r =>
                 selectedIds.has(r.id)
                   ? 'bg-cyan-900/[0.07] border-l-2 border-l-cyan-600/50'

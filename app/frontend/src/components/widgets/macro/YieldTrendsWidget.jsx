@@ -5,10 +5,7 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { Activity, X } from 'lucide-react';
-import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, ReferenceLine
-} from 'recharts';
+import CommonChart from '../../common/CommonChart';
 import BaseWidget from '../common/BaseWidget';
 import { API_BASE } from '../../../config/api';
 
@@ -25,22 +22,6 @@ const MATURITIES = [
 const DEFAULT_SELECTED = ['2y', '5y', '10y'];
 
 const SPREAD_COLORS = { '2y10y': '#3b82f6', '3m10y': '#f97316' };
-
-const CustomTooltip = ({ active, payload, label }) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-[#1a1a1f] border border-gray-700 rounded px-3 py-2 shadow-lg">
-        <p className="text-gray-400 text-xs mb-1">{label}</p>
-        {payload.map((entry, index) => (
-          <p key={index} className="text-xs" style={{ color: entry.color }}>
-            {entry.name}: {typeof entry.value === 'number' ? entry.value.toFixed(2) : entry.value}%
-          </p>
-        ))}
-      </div>
-    );
-  }
-  return null;
-};
 
 export default function YieldTrendsWidget({ onRemove }) {
   const [data, setData] = useState(null);
@@ -109,31 +90,23 @@ export default function YieldTrendsWidget({ onRemove }) {
     const step = Math.max(1, Math.floor(history.length / 200));
     const sampled = history.filter((_, i) => i % step === 0 || i === history.length - 1);
 
+    const chartSeries = selected
+      .map(key => MATURITIES.find(mat => mat.key === key))
+      .filter(Boolean)
+      .map(m => ({ key: m.key, name: m.label, color: m.color }));
+
     return (
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={sampled} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-          <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} />
-          <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} tickFormatter={(v) => `${v}%`} />
-          <Tooltip content={<CustomTooltip />} />
-          {selected.map(key => {
-            const m = MATURITIES.find(mat => mat.key === key);
-            if (!m) return null;
-            return (
-              <Line
-                key={key}
-                type="monotone"
-                dataKey={key}
-                stroke={m.color}
-                strokeWidth={1.5}
-                dot={false}
-                name={m.label}
-                connectNulls
-              />
-            );
-          })}
-        </LineChart>
-      </ResponsiveContainer>
+      <CommonChart
+        data={sampled}
+        series={chartSeries}
+        xKey="date"
+        type="line"
+        fillContainer={true}
+        showTypeSelector={false}
+        xFormatter={formatDate}
+        yFormatter={(v) => `${v}%`}
+        tooltipFormatter={(v) => `${Number(v).toFixed(2)}%`}
+      />
     );
   };
 
@@ -144,17 +117,21 @@ export default function YieldTrendsWidget({ onRemove }) {
     const sampled = history.filter((_, i) => i % step === 0 || i === history.length - 1);
 
     return (
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={sampled} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-          <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} />
-          <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} tickFormatter={(v) => `${v}%`} />
-          <Tooltip content={<CustomTooltip />} />
-          <ReferenceLine y={0} stroke="#4b5563" strokeDasharray="3 3" />
-          <Line type="monotone" dataKey="2y10y" stroke={SPREAD_COLORS['2y10y']} strokeWidth={1.5} dot={false} name="2Y-10Y" connectNulls />
-          <Line type="monotone" dataKey="3m10y" stroke={SPREAD_COLORS['3m10y']} strokeWidth={1.5} dot={false} name="3M-10Y" connectNulls />
-        </LineChart>
-      </ResponsiveContainer>
+      <CommonChart
+        data={sampled}
+        series={[
+          { key: '2y10y', name: '2Y-10Y', color: SPREAD_COLORS['2y10y'] },
+          { key: '3m10y', name: '3M-10Y', color: SPREAD_COLORS['3m10y'] },
+        ]}
+        xKey="date"
+        type="line"
+        fillContainer={true}
+        showTypeSelector={false}
+        xFormatter={formatDate}
+        yFormatter={(v) => `${v}%`}
+        tooltipFormatter={(v) => `${Number(v).toFixed(2)}%`}
+        referenceLines={[{ value: 0, color: '#4b5563', label: '0%' }]}
+      />
     );
   };
 

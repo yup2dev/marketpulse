@@ -5,11 +5,8 @@ import ProtectedRoute from './components/common/ProtectedRoute';
 import AppLayout from './components/layout/AppLayout';
 import Login from './components/auth/Login';
 import Register from './components/auth/Register';
-import ProfessionalDashboard from './components/dashboard/ProfessionalDashboard';
-import StockDashboard from './components/analysis/StockDashboard';
-import MacroDashboard from './components/macro/MacroDashboard';
+import TabDashboard from './components/core/TabDashboard';
 import UnifiedBacktest from './components/backtest/UnifiedBacktest';
-import PortfolioDashboard from './components/portfolio/PortfolioDashboard';
 import PortfolioDetail from './components/portfolio/PortfolioDetail';
 import AlertsDashboard from './components/alerts/AlertsDashboard';
 import ScreenerDashboard from './components/screener/ScreenerDashboard';
@@ -72,11 +69,11 @@ function App() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<ProfessionalDashboard />} />
-          <Route path="stock" element={<StockDashboard />} />
-          <Route path="macro" element={<MacroDashboard />} />
+          <Route index element={<TabDashboard screen="dashboard" />} />
+          <Route path="stock" element={<TabDashboard screen="stock" />} />
+          <Route path="macro" element={<TabDashboard screen="macro" />} />
           <Route path="backtest" element={<UnifiedBacktest />} />
-          <Route path="portfolios" element={<PortfolioDashboard />} />
+          <Route path="portfolios" element={<TabDashboard screen="portfolio" />} />
           <Route path="portfolio/:portfolioId" element={<PortfolioDetail />} />
           <Route path="alerts" element={<AlertsDashboard />} />
           <Route path="screener" element={<ScreenerDashboard />} />

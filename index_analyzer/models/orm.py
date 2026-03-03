@@ -1034,6 +1034,42 @@ class MBS_RCMD_RESULT(Base):
         }
 
 
+class UserWorkspace(Base):
+    """사용자 워크스페이스 레이아웃 저장"""
+    __tablename__ = 'user_workspaces'
+
+    id = Column(String(50), primary_key=True)
+    user_id = Column(String(50), ForeignKey('users.user_id'), nullable=False, index=True)
+    screen = Column(String(50), nullable=False)
+    name = Column(String(200), nullable=False)
+    is_default = Column(Boolean, default=False)
+    layout = Column(Text)   # JSON: react-grid-layout positions
+    widgets = Column(Text)  # JSON: widget configs + state
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User")
+
+    __table_args__ = (
+        Index('idx_workspace_user_screen', 'user_id', 'screen'),
+    )
+
+    def to_dict(self) -> dict:
+        import json
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'screen': self.screen,
+            'name': self.name,
+            'is_default': self.is_default,
+            'layout': json.loads(self.layout) if self.layout else [],
+            'widgets': json.loads(self.widgets) if self.widgets else [],
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
 # =============================================================================
 # Backward-compatible re-exports from utils.db
 # =============================================================================

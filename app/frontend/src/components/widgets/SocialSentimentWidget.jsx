@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { MessageSquare } from 'lucide-react';
 import BaseWidget from './common/BaseWidget';
-import WidgetTable from './common/WidgetTable';
+import CommonTable from '../common/CommonTable';
 import { API_BASE } from './constants';
 
 const SENTIMENT_TEXT = {
@@ -16,34 +16,57 @@ const SENTIMENT_TEXT = {
 };
 
 const REDDIT_COLS = [
-  { key: 'subreddit', header: 'Subreddit', sortable: true, render: r => `r/${r.subreddit}` },
-  { key: 'title', header: 'Title', render: r =>
-    <a href={r.url} target="_blank" rel="noopener noreferrer" className="hover:text-cyan-400 line-clamp-1">{r.title}</a>
+  {
+    key: 'subreddit',
+    header: 'Subreddit',
+    sortable: true,
+    renderFn: (value, row) => `r/${row.subreddit}`,
+  },
+  {
+    key: 'title',
+    header: 'Title',
+    sortable: false,
+    renderFn: (value, row) => (
+      <a href={row.url} target="_blank" rel="noopener noreferrer" className="hover:text-cyan-400 line-clamp-1">{row.title}</a>
+    ),
   },
   { key: 'score', header: 'Score', sortable: true, align: 'right' },
   { key: 'num_comments', header: 'Comments', sortable: true, align: 'right' },
   {
-    key: 'sentiment', header: 'Sentiment', align: 'center',
-    render: r => (
-      <span className={`text-[9px] font-medium capitalize ${SENTIMENT_TEXT[r.sentiment] || SENTIMENT_TEXT.neutral}`}>
-        {r.sentiment}
+    key: 'sentiment',
+    header: 'Sentiment',
+    align: 'center',
+    renderFn: (value, row) => (
+      <span className={`text-[9px] font-medium capitalize ${SENTIMENT_TEXT[row.sentiment] || SENTIMENT_TEXT.neutral}`}>
+        {row.sentiment}
       </span>
-    )
+    ),
   },
 ];
 
 const ST_COLS = [
   { key: 'user', header: 'User', sortable: true },
-  { key: 'body', header: 'Message', render: r => <span className="line-clamp-2 text-[10px]">{r.body}</span> },
   {
-    key: 'sentiment', header: 'Sentiment', align: 'center',
-    render: r => (
-      <span className={`text-[9px] font-medium capitalize ${SENTIMENT_TEXT[r.sentiment] || SENTIMENT_TEXT.neutral}`}>
-        {r.sentiment}
-      </span>
-    )
+    key: 'body',
+    header: 'Message',
+    sortable: false,
+    renderFn: (value, row) => <span className="line-clamp-2 text-[10px]">{row.body}</span>,
   },
-  { key: 'created_at', header: 'Time', render: r => r.created_at ? new Date(r.created_at).toLocaleDateString() : '' },
+  {
+    key: 'sentiment',
+    header: 'Sentiment',
+    align: 'center',
+    renderFn: (value, row) => (
+      <span className={`text-[9px] font-medium capitalize ${SENTIMENT_TEXT[row.sentiment] || SENTIMENT_TEXT.neutral}`}>
+        {row.sentiment}
+      </span>
+    ),
+  },
+  {
+    key: 'created_at',
+    header: 'Time',
+    renderFn: (value, row) => row.created_at ? new Date(row.created_at).toLocaleDateString() : '',
+  },
 ];
 
 export default function SocialSentimentWidget({ symbol, onRemove }) {
@@ -70,12 +93,6 @@ export default function SocialSentimentWidget({ symbol, onRemove }) {
   const st     = data?.stocktwits_messages || [];
   const agg    = data?.aggregate || {};
   const hasReddit = data?.has_reddit;
-
-  const socialItems = [
-    { label: 'Bullish', value: agg.bullish_pct ?? 0, color: '#22c55e' },
-    { label: 'Neutral', value: agg.neutral_pct  ?? 0, color: '#6b7280' },
-    { label: 'Bearish', value: agg.bearish_pct  ?? 0, color: '#ef4444' },
-  ];
 
   return (
     <BaseWidget
@@ -155,7 +172,14 @@ export default function SocialSentimentWidget({ symbol, onRemove }) {
               <p className="text-gray-500 text-xs">Set REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET in your .env file</p>
             </div>
           ) : reddit.length > 0 ? (
-            <WidgetTable columns={REDDIT_COLS} rows={reddit} resizable />
+            <CommonTable
+              columns={REDDIT_COLS}
+              data={reddit.map((r, i) => ({ ...r, _key: i }))}
+              compact={true}
+              searchable={false}
+              exportable={false}
+              pageSize={20}
+            />
           ) : (
             <div className="text-center text-gray-500 text-xs py-8">No Reddit posts found</div>
           )
@@ -163,7 +187,14 @@ export default function SocialSentimentWidget({ symbol, onRemove }) {
 
         {tab === 'stocktwits' && (
           st.length > 0
-            ? <WidgetTable columns={ST_COLS} rows={st} resizable />
+            ? <CommonTable
+                columns={ST_COLS}
+                data={st.map((r, i) => ({ ...r, _key: i }))}
+                compact={true}
+                searchable={false}
+                exportable={false}
+                pageSize={20}
+              />
             : <div className="text-center text-gray-500 text-xs py-8">No StockTwits messages found</div>
         )}
       </div>

@@ -6,12 +6,9 @@
  */
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { TrendingUp } from 'lucide-react';
-import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, ReferenceLine,
-} from 'recharts';
+import CommonChart from '../../common/CommonChart';
 import BaseWidget from '../common/BaseWidget';
-import WidgetTable from '../common/WidgetTable';
+import CommonTable from '../../common/CommonTable';
 import { API_BASE } from '../../../config/api';
 
 const SERIES_CONFIG = [
@@ -22,36 +19,19 @@ const SERIES_CONFIG = [
   { key: 'real_5y',       name: '5Y Real (TIPS)',      color: '#fb923c', dashed: true  },
 ];
 
-const CustomTooltip = ({ active, payload, label }) => {
-  if (!active || !payload || !payload.length) return null;
-  return (
-    <div className="bg-[#1a1a1f] border border-gray-700 rounded px-3 py-2 shadow-lg text-xs">
-      <p className="text-gray-400 mb-1">{label}</p>
-      {payload.map((entry, i) => (
-        <p key={i} style={{ color: entry.color }}>
-          {entry.name}: {entry.value?.toFixed(3)}%
-        </p>
-      ))}
-    </div>
-  );
-};
-
 const TABLE_COLUMNS = [
   {
     key: 'date',
     header: 'Date',
     sortable: true,
-    sortValue: (row) => row.date,
-    render: (row) => <span className="text-gray-300">{row.date}</span>,
+    renderFn: (value, row) => <span className="text-gray-300">{row.date}</span>,
   },
   {
     key: 'nominal_10y',
     header: '10Y Nom.',
     align: 'right',
     sortable: true,
-    sortValue: (row) => row.nominal_10y ?? -Infinity,
-    exportValue: (row) => row.nominal_10y?.toFixed(3) ?? '',
-    render: (row) => (
+    renderFn: (value, row) => (
       <span className="text-blue-400">{row.nominal_10y?.toFixed(3) ?? '-'}%</span>
     ),
   },
@@ -60,9 +40,7 @@ const TABLE_COLUMNS = [
     header: '10Y Real',
     align: 'right',
     sortable: true,
-    sortValue: (row) => row.real_10y ?? -Infinity,
-    exportValue: (row) => row.real_10y?.toFixed(3) ?? '',
-    render: (row) => (
+    renderFn: (value, row) => (
       <span className={`font-medium ${(row.real_10y ?? 0) >= 0 ? 'text-amber-400' : 'text-red-400'}`}>
         {row.real_10y?.toFixed(3) ?? '-'}%
       </span>
@@ -73,9 +51,7 @@ const TABLE_COLUMNS = [
     header: '10Y BEI',
     align: 'right',
     sortable: true,
-    sortValue: (row) => row.breakeven_10y ?? -Infinity,
-    exportValue: (row) => row.breakeven_10y?.toFixed(3) ?? '',
-    render: (row) => (
+    renderFn: (value, row) => (
       <span className="text-violet-400">{row.breakeven_10y?.toFixed(3) ?? '-'}%</span>
     ),
   },
@@ -84,9 +60,7 @@ const TABLE_COLUMNS = [
     header: '5Y Real',
     align: 'right',
     sortable: true,
-    sortValue: (row) => row.real_5y ?? -Infinity,
-    exportValue: (row) => row.real_5y?.toFixed(3) ?? '',
-    render: (row) => (
+    renderFn: (value, row) => (
       <span className={`${(row.real_5y ?? 0) >= 0 ? 'text-amber-300' : 'text-red-300'}`}>
         {row.real_5y?.toFixed(3) ?? '-'}%
       </span>
@@ -137,6 +111,9 @@ export default function RealRatesWidget({ onRemove }) {
 
   const renderChart = () => {
     const history = data?.history || [];
+    const activeSeries = SERIES_CONFIG
+      .filter(s => visibleSeries.includes(s.key))
+      .map(s => ({ key: s.key, name: s.name, color: s.color }));
     return (
       <div className="h-full flex flex-col">
         <div className="flex flex-wrap gap-1.5 px-1 pb-2">
@@ -158,34 +135,18 @@ export default function RealRatesWidget({ onRemove }) {
           ))}
         </div>
         <div className="flex-1">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={history} margin={{ top: 4, right: 12, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-              <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} />
-              <YAxis
-                domain={['auto', 'auto']}
-                tick={{ fill: '#6b7280', fontSize: 10 }}
-                axisLine={{ stroke: '#374151' }}
-                tickFormatter={v => `${v.toFixed(1)}%`}
-                width={38}
-              />
-              <Tooltip content={<CustomTooltip />} />
-              <ReferenceLine y={0} stroke="#6b7280" strokeDasharray="4 4" label={{ value: '0%', fill: '#6b7280', fontSize: 9, position: 'insideTopLeft' }} />
-              {SERIES_CONFIG.filter(s => visibleSeries.includes(s.key)).map(s => (
-                <Line
-                  key={s.key}
-                  type="monotone"
-                  dataKey={s.key}
-                  name={s.name}
-                  stroke={s.color}
-                  strokeWidth={1.5}
-                  strokeDasharray={s.dashed ? '4 4' : undefined}
-                  dot={false}
-                  connectNulls
-                />
-              ))}
-            </LineChart>
-          </ResponsiveContainer>
+          <CommonChart
+            data={history}
+            series={activeSeries}
+            xKey="date"
+            type="line"
+            fillContainer={true}
+            showTypeSelector={false}
+            xFormatter={formatDate}
+            yFormatter={(v) => `${Number(v).toFixed(1)}%`}
+            tooltipFormatter={(v) => `${Number(v).toFixed(3)}%`}
+            referenceLines={[{ value: 0, color: '#6b7280', label: '0%' }]}
+          />
         </div>
       </div>
     );
@@ -238,15 +199,13 @@ export default function RealRatesWidget({ onRemove }) {
         <div className="flex-1 min-h-0">
           {viewMode === 'chart' ? renderChart() : (
             <div className="h-full overflow-auto">
-              <WidgetTable
+              <CommonTable
                 columns={TABLE_COLUMNS}
                 data={tableData}
-                resizable={true}
-                size="compact"
-                showExport={true}
-                exportFilename="real-rates"
-                defaultSortKey="date"
-                defaultSortDirection="desc"
+                compact={true}
+                searchable={false}
+                exportable={true}
+                pageSize={20}
               />
             </div>
           )}

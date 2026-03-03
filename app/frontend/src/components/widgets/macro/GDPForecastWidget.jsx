@@ -5,7 +5,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { TrendingUp } from 'lucide-react';
 import BaseWidget from '../common/BaseWidget';
-import WidgetTable from '../common/WidgetTable';
+import CommonTable from '../../common/CommonTable';
 import LWChart from '../common/LWChart';
 import { API_BASE } from '../../../config/api';
 
@@ -14,17 +14,14 @@ const GDP_COLUMNS = [
     key: 'date',
     header: 'Date',
     sortable: true,
-    sortValue: (row) => row.date,
-    render: (row) => <span className="text-gray-300">{row.date}</span>,
+    renderFn: (value, row) => <span className="text-gray-300">{row.date}</span>,
   },
   {
     key: 'value',
     header: 'GDP Growth',
     align: 'right',
     sortable: true,
-    sortValue: (row) => row.value ?? -Infinity,
-    exportValue: (row) => row.value?.toFixed(2) ?? '',
-    render: (row) => (
+    renderFn: (value, row) => (
       <span className={(row.value ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'}>
         {row.value?.toFixed(2)}%
       </span>
@@ -82,15 +79,13 @@ export default function GDPForecastWidget({ onRemove }) {
 
   const renderTable = () => (
     <div className="h-full overflow-auto">
-      <WidgetTable
+      <CommonTable
         columns={GDP_COLUMNS}
         data={tableData}
-        resizable={true}
-        size="compact"
-        showExport={true}
-        exportFilename="gdp-forecast"
-        defaultSortKey="date"
-        defaultSortDirection="desc"
+        compact={true}
+        searchable={false}
+        exportable={true}
+        pageSize={20}
       />
     </div>
   );

@@ -1,10 +1,10 @@
 /**
- * InsiderWidget - Displays insider trading activity using BaseWidget
+ * InsiderWidget - Displays insider trading activity using BaseWidget + CommonTable
  */
 import { useState, useEffect, useCallback } from 'react';
 import { UserCheck } from 'lucide-react';
 import BaseWidget from './common/BaseWidget';
-import WidgetTable from './common/WidgetTable';
+import CommonTable from '../common/CommonTable';
 import { formatNumber, formatPrice, API_BASE } from './constants';
 
 const getTransactionLabel = (type) => {
@@ -13,72 +13,52 @@ const getTransactionLabel = (type) => {
   return type;
 };
 
-const formatDate = (dateStr) => {
-  if (!dateStr) return 'N/A';
-  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
-};
-
 const COLUMNS = [
   {
     key: 'transaction_date',
     header: 'Date',
-    sortable: true,
-    sortValue: (row) => row.transaction_date,
-    render: (row) => <span className="text-gray-400">{formatDate(row.transaction_date)}</span>,
-    exportValue: (row) => row.transaction_date ?? '',
+    formatter: 'date',
   },
   {
     key: 'insider_name',
     header: 'Name',
-    filterable: true,
-    render: (row) => <span className="text-white">{row.insider_name || 'Unknown'}</span>,
-    exportValue: (row) => row.insider_name ?? '',
+    renderFn: (value) => <span className="text-white">{value || 'Unknown'}</span>,
   },
   {
     key: 'insider_title',
     header: 'Title',
-    render: (row) => <span className="text-gray-400 text-[10px]">{row.insider_title || '—'}</span>,
-    exportValue: (row) => row.insider_title ?? '',
+    renderFn: (value) => <span className="text-gray-400 text-[10px]">{value || '—'}</span>,
   },
   {
-    key: 'type',
+    key: 'acquisition_or_disposition',
     header: 'Type',
     align: 'center',
-    render: (row) => (
+    renderFn: (value) => (
       <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${
-        row.acquisition_or_disposition === 'A' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+        value === 'A' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
       }`}>
-        {getTransactionLabel(row.acquisition_or_disposition)}
+        {getTransactionLabel(value)}
       </span>
     ),
-    exportValue: (row) => getTransactionLabel(row.acquisition_or_disposition),
   },
   {
     key: 'shares_traded',
     header: 'Shares',
     align: 'right',
-    sortable: true,
-    sortValue: (row) => row.shares_traded,
-    render: (row) => <span className="text-gray-300">{formatNumber(row.shares_traded)}</span>,
-    exportValue: (row) => row.shares_traded ?? '',
+    formatter: 'number',
   },
   {
     key: 'price_per_share',
     header: 'Price',
     align: 'right',
-    sortable: true,
-    sortValue: (row) => row.price_per_share,
-    render: (row) => <span className="text-gray-300">{formatPrice(row.price_per_share)}</span>,
-    exportValue: (row) => row.price_per_share ?? '',
+    formatter: 'currency',
   },
   {
     key: 'transaction_value',
     header: 'Value',
     align: 'right',
-    sortable: true,
-    sortValue: (row) => row.transaction_value,
-    render: (row) => <span className="text-white font-medium">{formatNumber(row.transaction_value)}</span>,
-    exportValue: (row) => row.transaction_value ?? '',
+    formatter: 'magnitude',
+    renderFn: (value) => <span className="text-white font-medium">{formatNumber(value)}</span>,
   },
 ];
 
@@ -108,7 +88,6 @@ const InsiderWidget = ({ symbol, onRemove }) => {
     const buyTotal = Math.abs(insider.summary?.buy_value || 0);
     const sellTotal = Math.abs(insider.summary?.sell_value || 0);
     const maxSummary = Math.max(buyTotal, sellTotal, 1);
-
     const topTx = (insider.transactions || []).slice(0, 6);
     const maxTxVal = Math.max(...topTx.map(t => Math.abs(t.transaction_value || 0)), 1);
 
@@ -127,7 +106,8 @@ const InsiderWidget = ({ symbol, onRemove }) => {
                   <span className={`font-medium tabular-nums ml-2 flex-shrink-0 ${b.textClass}`}>{formatNumber(b.value)}</span>
                 </div>
                 <div className="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden">
-                  <div className="h-1.5 rounded-full transition-all duration-500" style={{ width: `${(b.value / maxSummary) * 100}%`, backgroundColor: b.color }} />
+                  <div className="h-1.5 rounded-full transition-all duration-500"
+                    style={{ width: `${(b.value / maxSummary) * 100}%`, backgroundColor: b.color }} />
                 </div>
               </div>
             ))}
@@ -148,7 +128,8 @@ const InsiderWidget = ({ symbol, onRemove }) => {
                     </span>
                   </div>
                   <div className="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden">
-                    <div className="h-1.5 rounded-full transition-all duration-500" style={{ width: `${(val / maxTxVal) * 100}%`, backgroundColor: isBuy ? '#22c55e' : '#ef4444' }} />
+                    <div className="h-1.5 rounded-full transition-all duration-500"
+                      style={{ width: `${(val / maxTxVal) * 100}%`, backgroundColor: isBuy ? '#22c55e' : '#ef4444' }} />
                   </div>
                 </div>
               );
@@ -158,28 +139,6 @@ const InsiderWidget = ({ symbol, onRemove }) => {
       </div>
     );
   };
-
-  const renderTable = () => (
-    <div className="h-full px-3 pb-3 pt-1">
-      <WidgetTable
-        columns={COLUMNS}
-        data={insider?.transactions || []}
-        loading={loading}
-        size="compact"
-        showFilters
-        pageSize={10}
-        emptyMessage="No insider transactions found"
-        exportFilename={`insider-trading_${symbol}`}
-        defaultSortKey="transaction_date"
-        defaultSortDirection="desc"
-      />
-    </div>
-  );
-
-  const getExportData = () => ({
-    columns: COLUMNS.filter(c => c.exportValue),
-    rows: insider?.transactions || [],
-  });
 
   return (
     <BaseWidget
@@ -193,9 +152,17 @@ const InsiderWidget = ({ symbol, onRemove }) => {
       onViewModeChange={setViewMode}
       showPeriodSelector={false}
       symbol={symbol}
-      exportData={insider ? getExportData : undefined}
     >
-      {viewMode === 'chart' ? renderChart() : renderTable()}
+      {viewMode === 'chart' ? renderChart() : (
+        <CommonTable
+          columns={COLUMNS}
+          data={insider?.transactions || []}
+          searchable
+          exportable
+          compact
+          pageSize={10}
+        />
+      )}
     </BaseWidget>
   );
 };

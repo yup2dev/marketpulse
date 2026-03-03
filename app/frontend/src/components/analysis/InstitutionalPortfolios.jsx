@@ -19,7 +19,7 @@ import {
   ArrowDownRight,
 } from 'lucide-react';
 import { API_BASE } from '../../config/api';
-import WidgetTable from '../widgets/common/WidgetTable';
+import CommonTable from '../common/CommonTable';
 
 // Category tabs for different data views
 const CATEGORIES = [
@@ -671,10 +671,9 @@ const OverviewRow = ({ portfolio, idx, isExpanded, onToggle, formatNumber, forma
       {
         key: 'symbol',
         header: 'Symbol',
-        minWidth: '80px',
+        minWidth: 80,
         sortable: true,
-        sortValue: (row) => row.symbol,
-        render: (row) => {
+        renderFn: (value, row) => {
           const isCurrentSymbol = symbolFilter && row.symbol?.toUpperCase() === symbolFilter.toUpperCase();
           return (
             <span className={`font-medium ${row._isSold ? 'text-gray-400' : isCurrentSymbol ? 'text-cyan-400' : 'text-white'}`}>
@@ -686,12 +685,11 @@ const OverviewRow = ({ portfolio, idx, isExpanded, onToggle, formatNumber, forma
       {
         key: 'name',
         header: 'Name',
-        minWidth: '120px',
+        minWidth: 120,
         sortable: true,
-        sortValue: (row) => row.name?.toLowerCase(),
-        render: (row) => (
+        renderFn: (value, row) => (
           <span className={`truncate max-w-[200px] inline-block ${row._isSold ? 'text-gray-500' : 'text-gray-400'}`}>
-            {row.name}
+            {value}
           </span>
         ),
       },
@@ -699,12 +697,11 @@ const OverviewRow = ({ portfolio, idx, isExpanded, onToggle, formatNumber, forma
         key: 'value',
         header: 'Value',
         align: 'right',
-        minWidth: '90px',
+        minWidth: 90,
         sortable: true,
-        sortValue: (row) => row.value,
-        render: (row) => (
+        renderFn: (value, row) => (
           <span className={row._isSold ? 'text-gray-500' : 'text-white'}>
-            {formatNumber(row.value)}
+            {formatNumber(value)}
           </span>
         ),
       },
@@ -712,12 +709,11 @@ const OverviewRow = ({ portfolio, idx, isExpanded, onToggle, formatNumber, forma
         key: 'shares',
         header: 'Shares',
         align: 'right',
-        minWidth: '80px',
+        minWidth: 80,
         sortable: true,
-        sortValue: (row) => row.shares,
-        render: (row) => (
+        renderFn: (value, row) => (
           <span className={row._isSold ? 'text-gray-500' : 'text-gray-300'}>
-            {formatShares(row.shares)}
+            {formatShares(value)}
           </span>
         ),
       },
@@ -725,12 +721,11 @@ const OverviewRow = ({ portfolio, idx, isExpanded, onToggle, formatNumber, forma
         key: 'weight',
         header: 'Weight',
         align: 'right',
-        minWidth: '70px',
+        minWidth: 70,
         sortable: true,
-        sortValue: (row) => row.weight,
-        render: (row) => (
+        renderFn: (value, row) => (
           <span className={row._isSold ? 'text-gray-600' : 'text-cyan-400 font-medium'}>
-            {row._isSold ? '-' : `${row.weight || 0}%`}
+            {row._isSold ? '-' : `${value || 0}%`}
           </span>
         ),
       },
@@ -742,15 +737,14 @@ const OverviewRow = ({ portfolio, idx, isExpanded, onToggle, formatNumber, forma
           key: 'share_change',
           header: 'Share Chg',
           align: 'right',
-          minWidth: '90px',
+          minWidth: 90,
           sortable: true,
-          sortValue: (row) => row.share_change,
-          render: (row) => {
-            if (row.share_change == null) return <span className="text-gray-600">-</span>;
-            const color = row.share_change > 0 ? 'text-green-400' : row.share_change < 0 ? 'text-red-400' : 'text-gray-500';
+          renderFn: (value, row) => {
+            if (value == null) return <span className="text-gray-600">-</span>;
+            const color = value > 0 ? 'text-green-400' : value < 0 ? 'text-red-400' : 'text-gray-500';
             return (
               <span className={color}>
-                {row.share_change > 0 ? '+' : ''}{formatShares(row.share_change)}
+                {value > 0 ? '+' : ''}{formatShares(value)}
                 {row.share_change_pct != null && (
                   <span className="text-gray-500 ml-1">({row.share_change_pct > 0 ? '+' : ''}{row.share_change_pct.toFixed(1)}%)</span>
                 )}
@@ -762,15 +756,14 @@ const OverviewRow = ({ portfolio, idx, isExpanded, onToggle, formatNumber, forma
           key: 'value_change',
           header: 'Value Chg',
           align: 'right',
-          minWidth: '90px',
+          minWidth: 90,
           sortable: true,
-          sortValue: (row) => row.value_change,
-          render: (row) => {
-            if (row.value_change == null) return <span className="text-gray-600">-</span>;
-            const color = row.value_change > 0 ? 'text-green-400' : row.value_change < 0 ? 'text-red-400' : 'text-gray-500';
+          renderFn: (value) => {
+            if (value == null) return <span className="text-gray-600">-</span>;
+            const color = value > 0 ? 'text-green-400' : value < 0 ? 'text-red-400' : 'text-gray-500';
             return (
               <span className={color}>
-                {row.value_change > 0 ? '+' : ''}{formatNumber(row.value_change)}
+                {value > 0 ? '+' : ''}{formatNumber(value)}
               </span>
             );
           },
@@ -779,11 +772,10 @@ const OverviewRow = ({ portfolio, idx, isExpanded, onToggle, formatNumber, forma
           key: 'status',
           header: 'Status',
           align: 'center',
-          minWidth: '70px',
+          minWidth: 70,
           sortable: true,
-          sortValue: (row) => STATUS_ORDER[row.status] ?? 99,
-          render: (row) => {
-            const badge = row.status ? STATUS_BADGE[row.status] : null;
+          renderFn: (value) => {
+            const badge = value ? STATUS_BADGE[value] : null;
             if (!badge) return <span className="text-gray-600">-</span>;
             return (
               <span className={`inline-block px-1.5 py-0.5 text-[10px] font-medium rounded border ${badge.cls}`}>
@@ -863,23 +855,17 @@ const OverviewRow = ({ portfolio, idx, isExpanded, onToggle, formatNumber, forma
                 </div>
               )}
 
-              <WidgetTable
+              <CommonTable
                 key={statusFilter}
                 columns={subColumns}
-                data={filteredPositions.slice(0, 30).map((s, i) => ({
-                  ...s,
-                  _key: `${s.symbol || s.cusip || 'pos'}-${i}`,
-                }))}
-                size="compact"
-                showRowNumbers
-                stickyHeader={false}
-                emptyMessage="No positions match this filter"
-                defaultSortKey="value"
-                defaultSortDirection="desc"
-                resizable
+                data={filteredPositions.slice(0, 30)}
+                compact
+                searchable={false}
+                exportable={false}
+                pageSize={30}
                 rowClassName={(row) => {
                   const isCurrentSymbol = symbolFilter && row.symbol?.toUpperCase() === symbolFilter.toUpperCase();
-                  return `${row._isSold ? 'opacity-70' : ''} ${isCurrentSymbol ? 'bg-cyan-900/10' : ''}`;
+                  return `${row._isSold ? 'opacity-70' : ''} ${isCurrentSymbol ? 'bg-cyan-900/10' : ''}`.trim();
                 }}
               />
               {filteredPositions.length > 30 && (
@@ -901,22 +887,21 @@ const OverviewRow = ({ portfolio, idx, isExpanded, onToggle, formatNumber, forma
 const HoldingsTable = ({ holdings, formatNumber, formatShares, portfolios }) => {
   const columns = useMemo(() => [
     {
-      key: 'stock',
+      key: 'symbol',
       header: 'Stock',
-      minWidth: '200px',
+      minWidth: 200,
       sortable: true,
-      sortValue: (row) => row.symbol,
-      render: (row, idx) => (
+      renderFn: (value, row) => (
         <div className="flex items-center gap-3">
           <div
             className="w-1 h-10 rounded"
-            style={{ backgroundColor: INST_COLORS[idx % INST_COLORS.length] }}
+            style={{ backgroundColor: INST_COLORS[row._idx % INST_COLORS.length] }}
           />
           <div className="w-8 h-8 bg-gray-700 rounded flex items-center justify-center text-xs font-bold text-white">
-            {row.symbol.slice(0, 2)}
+            {value?.slice(0, 2)}
           </div>
           <div>
-            <div className="font-semibold text-white">{row.symbol}</div>
+            <div className="font-semibold text-white">{value}</div>
             <div className="text-xs text-gray-400 truncate max-w-[150px]">{row.name}</div>
           </div>
         </div>
@@ -926,68 +911,65 @@ const HoldingsTable = ({ holdings, formatNumber, formatShares, portfolios }) => 
       key: 'totalValue',
       header: 'Total Value',
       align: 'right',
-      minWidth: '130px',
+      minWidth: 130,
       sortable: true,
-      sortValue: (row) => row.totalValue,
-      render: (row) => <span className="text-white font-medium">{formatNumber(row.totalValue)}</span>,
+      renderFn: (value) => <span className="text-white font-medium">{formatNumber(value)}</span>,
     },
     {
       key: 'totalShares',
       header: 'Total Shares',
       align: 'right',
-      minWidth: '120px',
+      minWidth: 120,
       sortable: true,
-      sortValue: (row) => row.totalShares,
-      render: (row) => <span className="text-white">{formatShares(row.totalShares)}</span>,
+      renderFn: (value) => <span className="text-white">{formatShares(value)}</span>,
     },
     {
       key: 'holders',
       header: 'Holders',
       align: 'right',
-      minWidth: '90px',
+      minWidth: 90,
       sortable: true,
-      sortValue: (row) => row.holders,
-      render: (row) => (
-        <span className="text-cyan-400 font-medium">{row.holders}/{portfolios.length}</span>
+      renderFn: (value) => (
+        <span className="text-cyan-400 font-medium">{value}/{portfolios.length}</span>
       ),
     },
     {
       key: 'avgWeight',
       header: 'Avg Weight',
       align: 'right',
-      minWidth: '100px',
+      minWidth: 100,
       sortable: true,
-      sortValue: (row) => row.avgWeight,
-      render: (row) => <span className="text-white">{row.avgWeight.toFixed(1)}%</span>,
+      renderFn: (value) => <span className="text-white">{value?.toFixed(1)}%</span>,
     },
     {
-      key: 'heldBy',
+      key: 'institutions',
       header: 'Held By',
-      minWidth: '150px',
-      render: (row) => (
+      minWidth: 150,
+      sortable: false,
+      renderFn: (value) => (
         <div className="flex items-center gap-1 flex-wrap">
-          {row.institutions.slice(0, 3).map((inst, i) => (
+          {(value || []).slice(0, 3).map((inst, i) => (
             <span key={i} className="px-1.5 py-0.5 bg-gray-800 rounded text-[10px] text-gray-400 truncate max-w-[80px]">
               {inst}
             </span>
           ))}
-          {row.institutions.length > 3 && (
-            <span className="text-[10px] text-gray-500">+{row.institutions.length - 3}</span>
+          {(value || []).length > 3 && (
+            <span className="text-[10px] text-gray-500">+{value.length - 3}</span>
           )}
         </div>
       ),
     },
   ], [formatNumber, formatShares, portfolios.length]);
 
+  const data = useMemo(() => holdings.map((h, i) => ({ ...h, _idx: i })), [holdings]);
+
   return (
-    <WidgetTable
+    <CommonTable
       columns={columns}
-      data={holdings}
-      showRowNumbers
-      emptyMessage="No holdings data available"
-      defaultSortKey="totalValue"
-      defaultSortDirection="desc"
-      resizable
+      data={data}
+      searchable
+      exportable={false}
+      pageSize={50}
     />
   );
 };
@@ -998,22 +980,21 @@ const HoldingsTable = ({ holdings, formatNumber, formatShares, portfolios }) => 
 const ActivityTable = ({ portfolios, formatNumber }) => {
   const columns = useMemo(() => [
     {
-      key: 'institution',
+      key: 'manager',
       header: 'Institution',
-      minWidth: '250px',
+      minWidth: 250,
       sortable: true,
-      sortValue: (row) => row.manager,
-      render: (row, idx) => (
+      renderFn: (value, row) => (
         <div className="flex items-center gap-3">
           <div
             className="w-1 h-10 rounded"
-            style={{ backgroundColor: INST_COLORS[idx % INST_COLORS.length] }}
+            style={{ backgroundColor: INST_COLORS[row._idx % INST_COLORS.length] }}
           />
           <div className="w-8 h-8 bg-gray-700 rounded flex items-center justify-center">
             <Building2 size={14} className="text-gray-400" />
           </div>
           <div>
-            <div className="font-semibold text-white">{row.manager}</div>
+            <div className="font-semibold text-white">{value}</div>
             <div className="text-xs text-gray-400">{row.filing_date || ''}</div>
           </div>
         </div>
@@ -1023,101 +1004,94 @@ const ActivityTable = ({ portfolios, formatNumber }) => {
       key: 'value_change',
       header: 'Value Change',
       align: 'right',
-      minWidth: '110px',
+      minWidth: 110,
       sortable: true,
-      sortValue: (row) => row.value_change || (row.previous_value ? row.total_value - row.previous_value : 0),
-      render: (row) => {
-        const valueChange = row.value_change || (row.previous_value ? row.total_value - row.previous_value : null);
+      renderFn: (value, row) => {
+        const valueChange = value || (row.previous_value ? row.total_value - row.previous_value : null);
         if (valueChange == null) return <span className="text-gray-500">-</span>;
         const color = valueChange > 0 ? 'text-green-400' : valueChange < 0 ? 'text-red-400' : 'text-gray-400';
         return <span className={color}>{valueChange > 0 ? '+' : ''}{formatNumber(valueChange)}</span>;
       },
     },
     {
-      key: 'change_pct',
+      key: 'value_change_pct',
       header: 'Change %',
       align: 'right',
-      minWidth: '90px',
+      minWidth: 90,
       sortable: true,
-      sortValue: (row) => row.value_change_pct,
-      render: (row) => {
-        const pct = row.value_change_pct;
-        if (pct == null) return <span className="text-gray-500">-</span>;
-        const color = pct > 0 ? 'text-green-400' : pct < 0 ? 'text-red-400' : 'text-gray-400';
+      renderFn: (value) => {
+        if (value == null) return <span className="text-gray-500">-</span>;
+        const color = value > 0 ? 'text-green-400' : value < 0 ? 'text-red-400' : 'text-gray-400';
         return (
           <span className={`flex items-center justify-end gap-1 font-medium ${color}`}>
-            {pct > 0 && <TrendingUp size={12} />}
-            {pct < 0 && <TrendingDown size={12} />}
-            {pct > 0 ? '+' : ''}{pct.toFixed(1)}%
+            {value > 0 && <TrendingUp size={12} />}
+            {value < 0 && <TrendingDown size={12} />}
+            {value > 0 ? '+' : ''}{value.toFixed(1)}%
           </span>
         );
       },
     },
     {
-      key: 'new',
+      key: 'num_new_positions',
       header: 'New',
       align: 'right',
-      minWidth: '80px',
+      minWidth: 80,
       sortable: true,
-      sortValue: (row) => row.num_new_positions,
-      render: (row) => row.num_new_positions > 0
-        ? <span className="flex items-center justify-end gap-1 text-green-400"><ArrowUpRight size={12} />{row.num_new_positions}</span>
-        : <span className="text-gray-500">{row.num_new_positions || 0}</span>,
+      renderFn: (value) => value > 0
+        ? <span className="flex items-center justify-end gap-1 text-green-400"><ArrowUpRight size={12} />{value}</span>
+        : <span className="text-gray-500">{value || 0}</span>,
     },
     {
-      key: 'sold',
+      key: 'num_sold_out',
       header: 'Sold',
       align: 'right',
-      minWidth: '80px',
+      minWidth: 80,
       sortable: true,
-      sortValue: (row) => row.num_sold_out,
-      render: (row) => row.num_sold_out > 0
-        ? <span className="flex items-center justify-end gap-1 text-red-400"><ArrowDownRight size={12} />{row.num_sold_out}</span>
-        : <span className="text-gray-500">{row.num_sold_out || 0}</span>,
+      renderFn: (value) => value > 0
+        ? <span className="flex items-center justify-end gap-1 text-red-400"><ArrowDownRight size={12} />{value}</span>
+        : <span className="text-gray-500">{value || 0}</span>,
     },
     {
-      key: 'increased',
+      key: 'num_increased',
       header: 'Increased',
       align: 'right',
-      minWidth: '90px',
+      minWidth: 90,
       sortable: true,
-      sortValue: (row) => row.num_increased,
-      render: (row) => row.num_increased > 0
-        ? <span className="text-cyan-400 font-medium">{row.num_increased}</span>
-        : <span className="text-gray-500">{row.num_increased || 0}</span>,
+      renderFn: (value) => value > 0
+        ? <span className="text-cyan-400 font-medium">{value}</span>
+        : <span className="text-gray-500">{value || 0}</span>,
     },
     {
-      key: 'decreased',
+      key: 'num_decreased',
       header: 'Decreased',
       align: 'right',
-      minWidth: '90px',
+      minWidth: 90,
       sortable: true,
-      sortValue: (row) => row.num_decreased,
-      render: (row) => row.num_decreased > 0
-        ? <span className="text-yellow-400 font-medium">{row.num_decreased}</span>
-        : <span className="text-gray-500">{row.num_decreased || 0}</span>,
+      renderFn: (value) => value > 0
+        ? <span className="text-yellow-400 font-medium">{value}</span>
+        : <span className="text-gray-500">{value || 0}</span>,
     },
     {
       key: 'turnover',
       header: 'Turnover',
       align: 'right',
-      minWidth: '90px',
+      minWidth: 90,
       sortable: true,
-      sortValue: (row) => row.turnover,
-      render: (row) => row.turnover != null
-        ? <span className="text-white">{row.turnover.toFixed(1)}%</span>
+      renderFn: (value) => value != null
+        ? <span className="text-white">{value.toFixed(1)}%</span>
         : <span className="text-gray-500">-</span>,
     },
   ], [formatNumber]);
 
-  const data = portfolios.map(p => ({ ...p, _key: p.id }));
+  const data = useMemo(() => portfolios.map((p, i) => ({ ...p, _idx: i })), [portfolios]);
 
   return (
-    <WidgetTable
+    <CommonTable
       columns={columns}
       data={data}
-      emptyMessage="No activity data available"
-      resizable
+      searchable
+      exportable={false}
+      pageSize={20}
     />
   );
 };

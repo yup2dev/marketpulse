@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from data_fetcher.fetchers.base import Fetcher
-from index_analyzer.models.database import (
+from index_analyzer.models.orm import (
     MBS_IN_STBD_MST, MBS_IN_INDX_STBD, get_sqlite_db
 )
 

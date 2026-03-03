@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Calendar, TrendingUp, TrendingDown } from 'lucide-react';
 import BaseWidget from './common/BaseWidget';
 import CommonChart from '../common/CommonChart';
-import WidgetTable from './common/WidgetTable';
+import CommonTable from '../common/CommonTable';
 import { formatPrice, API_BASE } from './constants';
 
 const getSurpriseBadge = (surprise) => {
@@ -26,8 +26,7 @@ const COLUMNS = [
     key: 'period',
     header: 'Period',
     sortable: true,
-    sortValue: (row) => row._sortKey,
-    render: (row) => (
+    renderFn: (value, row) => (
       <div>
         <div className="text-white font-medium">{row.period}</div>
         <div className="text-[10px] text-gray-500">{row.fiscal_year}</div>
@@ -39,9 +38,7 @@ const COLUMNS = [
     header: 'Actual',
     align: 'right',
     sortable: true,
-    sortValue: (row) => row.eps_actual ?? -Infinity,
-    exportValue: (row) => row.eps_actual?.toFixed(2) ?? '',
-    render: (row) => (
+    renderFn: (value, row) => (
       <span className="text-white font-medium">
         {row.eps_actual != null ? formatPrice(row.eps_actual) : 'N/A'}
       </span>
@@ -52,9 +49,7 @@ const COLUMNS = [
     header: 'Est.',
     align: 'right',
     sortable: true,
-    sortValue: (row) => row.eps_estimated ?? -Infinity,
-    exportValue: (row) => row.eps_estimated?.toFixed(2) ?? '',
-    render: (row) => (
+    renderFn: (value, row) => (
       <span className="text-gray-400">
         {row.eps_estimated != null ? formatPrice(row.eps_estimated) : 'N/A'}
       </span>
@@ -65,9 +60,7 @@ const COLUMNS = [
     header: 'Surprise',
     align: 'right',
     sortable: true,
-    sortValue: (row) => row.eps_surprise_percent ?? -Infinity,
-    exportValue: (row) => row.eps_surprise_percent?.toFixed(2) ?? '',
-    render: (row) => getSurpriseBadge(row.eps_surprise_percent),
+    renderFn: (value, row) => getSurpriseBadge(row.eps_surprise_percent),
   },
 ];
 
@@ -138,16 +131,13 @@ const EarningsWidget = ({ symbol, onRemove }) => {
             />
           </div>
         ) : (
-          <WidgetTable
+          <CommonTable
             columns={COLUMNS}
             data={tableData}
-            resizable={true}
-            emptyMessage="No earnings data"
-            size="compact"
-            defaultSortKey="period"
-            defaultSortDirection="desc"
-            showExport={true}
-            exportFilename={`${symbol}-earnings`}
+            compact={true}
+            searchable={false}
+            exportable={true}
+            pageSize={20}
           />
         )}
       </div>

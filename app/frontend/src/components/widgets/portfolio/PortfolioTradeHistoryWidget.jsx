@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { History, Plus, Pencil, Trash2 } from 'lucide-react';
 import BaseWidget from '../common/BaseWidget';
-import WidgetTable from '../common/WidgetTable';
+import CommonTable from '../../common/CommonTable';
 
 const fmt = (val, dec = 2) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: dec }).format(val ?? 0);
@@ -63,10 +63,9 @@ const buildColumns = (hasPriceData, onEdit, onDelete, deletingId, exchangeRate) 
     key: 'transaction_date',
     header: 'Date',
     sortable: true,
-    sortValue: (r) => r.transaction_date,
-    render: (r) => (
+    renderFn: (value, row) => (
       <span className="tabular-nums text-[11px] text-gray-300">
-        {r.transaction_date ? r.transaction_date.slice(0, 10) : '-'}
+        {row.transaction_date ? row.transaction_date.slice(0, 10) : '-'}
       </span>
     ),
   },
@@ -74,13 +73,12 @@ const buildColumns = (hasPriceData, onEdit, onDelete, deletingId, exchangeRate) 
     key: 'ticker_cd',
     header: 'Symbol',
     sortable: true,
-    sortValue: (r) => r.ticker_cd,
-    render: (r) => (
+    renderFn: (value, row) => (
       <div className="flex items-center gap-2">
         <div className="w-6 h-6 rounded bg-gray-800 flex items-center justify-center text-[10px] font-bold border border-gray-700 flex-shrink-0">
-          {(r.ticker_cd || '??').slice(0, 2)}
+          {(row.ticker_cd || '??').slice(0, 2)}
         </div>
-        <span className="text-[11px] font-medium text-white">{r.ticker_cd}</span>
+        <span className="text-[11px] font-medium text-white">{row.ticker_cd}</span>
       </div>
     ),
   },
@@ -88,9 +86,8 @@ const buildColumns = (hasPriceData, onEdit, onDelete, deletingId, exchangeRate) 
     key: 'transaction_type',
     header: 'Type',
     sortable: true,
-    sortValue: (r) => r.transaction_type,
-    render: (r) => {
-      const badge = TYPE_BADGE[r.transaction_type] || { label: r.transaction_type?.toUpperCase(), cls: 'bg-gray-700 text-gray-300 border-gray-600' };
+    renderFn: (value, row) => {
+      const badge = TYPE_BADGE[row.transaction_type] || { label: row.transaction_type?.toUpperCase(), cls: 'bg-gray-700 text-gray-300 border-gray-600' };
       return <span className={`inline-block px-1.5 py-0.5 text-[10px] font-medium rounded border ${badge.cls}`}>{badge.label}</span>;
     },
   },
@@ -99,20 +96,18 @@ const buildColumns = (hasPriceData, onEdit, onDelete, deletingId, exchangeRate) 
     header: 'Qty',
     align: 'right',
     sortable: true,
-    sortValue: (r) => r.quantity,
-    render: (r) => <span className="tabular-nums text-[11px]">{r.quantity?.toLocaleString()}</span>,
+    renderFn: (value, row) => <span className="tabular-nums text-[11px]">{row.quantity?.toLocaleString()}</span>,
   },
   {
     key: 'price',
     header: '거래가',
     align: 'right',
     sortable: true,
-    sortValue: (r) => r.price,
-    render: (r) => (
+    renderFn: (value, row) => (
       <div>
-        <div className="tabular-nums text-[11px]">{fmt(r.price)}</div>
+        <div className="tabular-nums text-[11px]">{fmt(row.price)}</div>
         {exchangeRate && (
-          <div className="tabular-nums text-[10px] text-gray-500">{fmtKRWLocal(r.price * exchangeRate)}</div>
+          <div className="tabular-nums text-[10px] text-gray-500">{fmtKRWLocal(row.price * exchangeRate)}</div>
         )}
       </div>
     ),
@@ -121,14 +116,14 @@ const buildColumns = (hasPriceData, onEdit, onDelete, deletingId, exchangeRate) 
     key: 'currentPrice',
     header: '현재가',
     align: 'right',
-    render: (r) => {
-      if (r.transaction_type !== 'buy' || r.currentPrice == null) return <span className="text-gray-700 text-[11px]">—</span>;
-      const isUp = r.currentPrice >= r.price;
+    renderFn: (value, row) => {
+      if (row.transaction_type !== 'buy' || row.currentPrice == null) return <span className="text-gray-700 text-[11px]">—</span>;
+      const isUp = row.currentPrice >= row.price;
       return (
         <div>
-          <div className={`tabular-nums text-[11px] font-medium ${isUp ? 'text-green-400' : 'text-red-400'}`}>{fmt(r.currentPrice)}</div>
+          <div className={`tabular-nums text-[11px] font-medium ${isUp ? 'text-green-400' : 'text-red-400'}`}>{fmt(row.currentPrice)}</div>
           {exchangeRate && (
-            <div className="tabular-nums text-[10px] text-gray-500">{fmtKRWLocal(r.currentPrice * exchangeRate)}</div>
+            <div className="tabular-nums text-[10px] text-gray-500">{fmtKRWLocal(row.currentPrice * exchangeRate)}</div>
           )}
         </div>
       );
@@ -139,25 +134,23 @@ const buildColumns = (hasPriceData, onEdit, onDelete, deletingId, exchangeRate) 
     header: '현재 손익',
     align: 'right',
     sortable: hasPriceData,
-    sortValue: (r) => r.currentPnl ?? -Infinity,
-    render: (r) => <CurrentPnlCell row={r} exchangeRate={exchangeRate} />,
+    renderFn: (value, row) => <CurrentPnlCell row={row} exchangeRate={exchangeRate} />,
   },
   {
     key: 'total_amount',
     header: '거래금액',
     align: 'right',
     sortable: true,
-    sortValue: (r) => r.total_amount,
-    render: (r) => {
-      const isNeg = r.transaction_type === 'buy';
+    renderFn: (value, row) => {
+      const isNeg = row.transaction_type === 'buy';
       return (
         <div>
           <div className={`tabular-nums text-[11px] font-medium ${isNeg ? 'text-red-400' : 'text-green-400'}`}>
-            {isNeg ? '-' : '+'}{fmt(r.total_amount)}
+            {isNeg ? '-' : '+'}{fmt(row.total_amount)}
           </div>
           {exchangeRate && (
             <div className="tabular-nums text-[10px] text-gray-500">
-              {isNeg ? '-' : '+'}{fmtKRWLocal(r.total_amount * exchangeRate)}
+              {isNeg ? '-' : '+'}{fmtKRWLocal(row.total_amount * exchangeRate)}
             </div>
           )}
         </div>
@@ -168,11 +161,11 @@ const buildColumns = (hasPriceData, onEdit, onDelete, deletingId, exchangeRate) 
     key: 'commission',
     header: 'Fee',
     align: 'right',
-    render: (r) => (
+    renderFn: (value, row) => (
       <div>
-        <div className="tabular-nums text-[11px] text-gray-500">{r.commission ? fmt(r.commission) : '-'}</div>
-        {exchangeRate && r.commission ? (
-          <div className="tabular-nums text-[10px] text-gray-600">{fmtKRWLocal(r.commission * exchangeRate)}</div>
+        <div className="tabular-nums text-[11px] text-gray-500">{row.commission ? fmt(row.commission) : '-'}</div>
+        {exchangeRate && row.commission ? (
+          <div className="tabular-nums text-[10px] text-gray-600">{fmtKRWLocal(row.commission * exchangeRate)}</div>
         ) : null}
       </div>
     ),
@@ -180,13 +173,14 @@ const buildColumns = (hasPriceData, onEdit, onDelete, deletingId, exchangeRate) 
   {
     key: 'notes',
     header: 'Notes',
-    render: (r) => <span className="text-[11px] text-gray-500 truncate max-w-[100px] inline-block">{r.notes || '-'}</span>,
+    renderFn: (value, row) => <span className="text-[11px] text-gray-500 truncate max-w-[100px] inline-block">{row.notes || '-'}</span>,
   },
   {
     key: '_actions',
     header: '',
     align: 'right',
-    render: (r) => <ActionCell row={r} onEdit={onEdit} onDelete={onDelete} deletingId={deletingId} />,
+    sortable: false,
+    renderFn: (value, row) => <ActionCell row={row} onEdit={onEdit} onDelete={onDelete} deletingId={deletingId} />,
   },
 ];
 
@@ -249,14 +243,13 @@ export default function PortfolioTradeHistoryWidget({
       }
     >
       <div className="overflow-auto h-full">
-        <WidgetTable
+        <CommonTable
           columns={COLUMNS}
           data={data}
-          size="compact"
-          showRowNumbers
-          emptyMessage="No transactions yet — add a trade to get started"
-          defaultSortKey="transaction_date"
-          defaultSortDirection="desc"
+          compact={true}
+          searchable={false}
+          exportable={true}
+          pageSize={50}
         />
       </div>
     </BaseWidget>

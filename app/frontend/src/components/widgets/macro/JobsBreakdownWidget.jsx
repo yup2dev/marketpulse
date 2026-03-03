@@ -5,7 +5,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Briefcase } from 'lucide-react';
 import BaseWidget from '../common/BaseWidget';
-import WidgetTable from '../common/WidgetTable';
+import CommonTable from '../../common/CommonTable';
 import CommonChart from '../../common/CommonChart';
 import { API_BASE } from '../../../config/api';
 
@@ -21,35 +21,34 @@ const JOBS_COLUMNS = [
     key: 'date',
     header: 'Date',
     sortable: true,
-    sortValue: (row) => row.date,
-    render: (row) => <span className="text-gray-300">{row.date}</span>,
+    renderFn: (value, row) => <span className="text-gray-300">{row.date}</span>,
   },
   {
     key: 'private',
     header: 'Private',
     align: 'right',
     sortable: true,
-    sortValue: (row) => row.private ?? -Infinity,
-    exportValue: (row) => formatM(row.private),
-    render: (row) => <span className={(row.private ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'}>{formatM(row.private)}</span>,
+    renderFn: (value, row) => (
+      <span className={(row.private ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'}>{formatM(row.private)}</span>
+    ),
   },
   {
     key: 'government',
     header: 'Government',
     align: 'right',
     sortable: true,
-    sortValue: (row) => row.government ?? -Infinity,
-    exportValue: (row) => formatM(row.government),
-    render: (row) => <span className={(row.government ?? 0) >= 0 ? 'text-orange-400' : 'text-red-400'}>{formatM(row.government)}</span>,
+    renderFn: (value, row) => (
+      <span className={(row.government ?? 0) >= 0 ? 'text-orange-400' : 'text-red-400'}>{formatM(row.government)}</span>
+    ),
   },
   {
     key: '_total',
     header: 'Total',
     align: 'right',
     sortable: true,
-    sortValue: (row) => row._total ?? -Infinity,
-    exportValue: (row) => formatM(row._total),
-    render: (row) => <span className={(row._total ?? 0) >= 0 ? 'text-cyan-400' : 'text-red-400'}>{formatM(row._total)}</span>,
+    renderFn: (value, row) => (
+      <span className={(row._total ?? 0) >= 0 ? 'text-cyan-400' : 'text-red-400'}>{formatM(row._total)}</span>
+    ),
   },
 ];
 
@@ -111,15 +110,13 @@ export default function JobsBreakdownWidget({ onRemove }) {
 
   const renderTable = () => (
     <div className="h-full overflow-auto">
-      <WidgetTable
+      <CommonTable
         columns={JOBS_COLUMNS}
         data={tableData}
-        resizable={true}
-        size="compact"
-        showExport={true}
-        exportFilename="jobs-breakdown"
-        defaultSortKey="date"
-        defaultSortDirection="desc"
+        compact={true}
+        searchable={false}
+        exportable={true}
+        pageSize={20}
       />
     </div>
   );

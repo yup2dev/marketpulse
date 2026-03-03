@@ -4,18 +4,17 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Users } from 'lucide-react';
 import BaseWidget from './common/BaseWidget';
-import WidgetTable from './common/WidgetTable';
+import CommonTable from '../common/CommonTable';
 import { API_BASE } from './constants';
 
 const GOVERNANCE_KEYS = [
-  { key: 'audit_risk',             label: 'Audit Risk' },
-  { key: 'board_risk',             label: 'Board Risk' },
-  { key: 'compensation_risk',      label: 'Compensation Risk' },
-  { key: 'shareholder_rights_risk',label: 'Shareholder Rights' },
-  { key: 'overall_risk',           label: 'Overall Risk' },
+  { key: 'audit_risk',              label: 'Audit Risk' },
+  { key: 'board_risk',              label: 'Board Risk' },
+  { key: 'compensation_risk',       label: 'Compensation Risk' },
+  { key: 'shareholder_rights_risk', label: 'Shareholder Rights' },
+  { key: 'overall_risk',            label: 'Overall Risk' },
 ];
 
-// 1-10 스케일 → 점수용 색상 (낮을수록 양호)
 function riskColor(v) {
   if (!v) return '#6b7280';
   if (v <= 3) return '#22c55e';
@@ -24,18 +23,16 @@ function riskColor(v) {
 }
 
 const OFFICER_COLUMNS = [
-  { key: 'name', header: 'Name', sortable: true },
-  { key: 'title', header: 'Title', sortable: true },
-  { key: 'age', header: 'Age', sortable: true, align: 'center' },
+  { key: 'name',      header: 'Name',      sortable: true },
+  { key: 'title',     header: 'Title',     sortable: true },
+  { key: 'age',       header: 'Age',       sortable: true, align: 'center' },
   {
     key: 'total_pay',
     header: 'Total Pay',
-    sortable: true,
-    sortValue: (row) => row.total_pay ?? -Infinity,
-    render: (row) => row.total_pay ? `$${(row.total_pay / 1e6).toFixed(1)}M` : 'N/A',
     align: 'right',
+    renderFn: (value) => value ? `$${(value / 1e6).toFixed(1)}M` : 'N/A',
   },
-  { key: 'year_born', header: 'Born', sortable: true, align: 'center' },
+  { key: 'year_born', header: 'Born',      sortable: true, align: 'center' },
 ];
 
 export default function ManagementWidget({ symbol, onRemove }) {
@@ -91,7 +88,7 @@ export default function ManagementWidget({ symbol, onRemove }) {
       <div className="flex-1 overflow-auto p-3">
         {tab === 'team' && (
           officers.length > 0
-            ? <WidgetTable columns={OFFICER_COLUMNS} rows={officers} resizable />
+            ? <CommonTable columns={OFFICER_COLUMNS} data={officers} searchable={false} exportable={false} compact pageSize={20} />
             : <div className="text-center text-gray-500 text-xs py-8">No officer data available</div>
         )}
 
@@ -105,7 +102,8 @@ export default function ManagementWidget({ symbol, onRemove }) {
                     <p className="text-[10px] text-gray-600 uppercase tracking-wide mb-2">1 = Low · 10 = High Risk</p>
                     <div className="flex justify-around mb-1">
                       {bars.map(b => (
-                        <span key={b.label} className="text-[9px] font-medium tabular-nums flex-1 text-center" style={{ color: riskColor(b.value) }}>
+                        <span key={b.label} className="text-[9px] font-medium tabular-nums flex-1 text-center"
+                          style={{ color: riskColor(b.value) }}>
                           {b.value}/10
                         </span>
                       ))}
@@ -113,16 +111,16 @@ export default function ManagementWidget({ symbol, onRemove }) {
                     <div className="flex-1 flex items-end justify-around gap-2 min-h-0">
                       {bars.map(b => (
                         <div key={b.label} className="flex-1 flex justify-center items-end h-full">
-                          <div
-                            className="w-full max-w-[36px] rounded-t transition-all duration-700"
-                            style={{ height: `${b.value / 10 * 100}%`, backgroundColor: riskColor(b.value), minHeight: '3px' }}
-                          />
+                          <div className="w-full max-w-[36px] rounded-t transition-all duration-700"
+                            style={{ height: `${b.value / 10 * 100}%`, backgroundColor: riskColor(b.value), minHeight: '3px' }} />
                         </div>
                       ))}
                     </div>
                     <div className="flex justify-around border-t border-gray-800 pt-1.5 mt-1">
                       {bars.map(b => (
-                        <span key={b.label} className="text-[8px] text-gray-500 text-center flex-1 leading-tight">{b.label.replace(' Risk', '')}</span>
+                        <span key={b.label} className="text-[8px] text-gray-500 text-center flex-1 leading-tight">
+                          {b.label.replace(' Risk', '')}
+                        </span>
                       ))}
                     </div>
                   </div>

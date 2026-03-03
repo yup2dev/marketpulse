@@ -3,24 +3,11 @@
  */
 import { useState, useEffect } from 'react';
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  ReferenceLine,
-  Area,
-  AreaChart
-} from 'recharts';
-import {
-  Activity,
-  AlertCircle,
   AlertTriangle,
   TrendingUp,
   TrendingDown
 } from 'lucide-react';
+import CommonChart from '../common/CommonChart';
 import { API_BASE } from '../../config/api';
 import { CARD_CLASSES } from '../../styles/designTokens';
 import { SkeletonLoader } from '../widgets/constants';
@@ -149,68 +136,6 @@ export default function YieldCurveChart() {
 
   const shapeConfig = curveData ? SHAPE_CONFIG[curveData.curve_shape] : null;
 
-  const CustomTooltip = ({ active, payload }) => {
-    if (active && payload && payload.length > 0) {
-      const data = payload[0].payload;
-      return (
-        <div className="bg-gray-900 border border-gray-700 rounded-lg p-3 shadow-lg">
-          <p className="text-white font-semibold mb-1">{data.maturity}</p>
-          <p className="text-blue-400">Yield: {data.yield?.toFixed(2)}%</p>
-        </div>
-      );
-    }
-    return null;
-  };
-
-  const CustomHistoricalTooltip = ({ active, payload }) => {
-    if (active && payload && payload.length > 0) {
-      const data = payload[0].payload;
-      return (
-        <div className="bg-gray-900 border border-gray-700 rounded-lg p-3 shadow-lg">
-          <p className="text-white font-semibold mb-2">
-            {new Date(data.date).toLocaleDateString()}
-          </p>
-          {data['2y10y'] !== undefined && (
-            <p className={`text-sm ${data['2y10y'] < 0 ? 'text-red-400' : 'text-green-400'}`}>
-              2y-10y: {data['2y10y'].toFixed(2)}%
-            </p>
-          )}
-          {data['3m10y'] !== undefined && (
-            <p className={`text-sm ${data['3m10y'] < 0 ? 'text-red-400' : 'text-green-400'}`}>
-              3m-10y: {data['3m10y'].toFixed(2)}%
-            </p>
-          )}
-        </div>
-      );
-    }
-    return null;
-  };
-
-  const CustomYieldsTooltip = ({ active, payload }) => {
-    if (active && payload && payload.length > 0) {
-      const data = payload[0].payload;
-      return (
-        <div className="bg-gray-900 border border-gray-700 rounded-lg p-3 shadow-lg">
-          <p className="text-white font-semibold mb-2">
-            {new Date(data.date).toLocaleDateString()}
-          </p>
-          {selectedMaturities.map(maturity => {
-            if (data[maturity] !== undefined) {
-              const maturityOption = MATURITY_OPTIONS.find(opt => opt.key === maturity);
-              return (
-                <p key={maturity} className="text-sm" style={{ color: maturityOption?.color }}>
-                  {maturityOption?.label}: {data[maturity].toFixed(2)}%
-                </p>
-              );
-            }
-            return null;
-          })}
-        </div>
-      );
-    }
-    return null;
-  };
-
   const toggleMaturity = (maturityKey) => {
     setSelectedMaturities(prev => {
       if (prev.includes(maturityKey)) {
@@ -259,32 +184,6 @@ export default function YieldCurveChart() {
 
       return result;
     });
-  };
-
-  const CustomSpreadsTooltip = ({ active, payload }) => {
-    if (active && payload && payload.length > 0) {
-      const data = payload[0].payload;
-      return (
-        <div className="bg-gray-900 border border-gray-700 rounded-lg p-3 shadow-lg">
-          <p className="text-white font-semibold mb-2">
-            {new Date(data.date).toLocaleDateString()}
-          </p>
-          {selectedSpreads.map((spread, idx) => {
-            const spreadKey = `${spread.short}${spread.long}`;
-            if (data[spreadKey] !== undefined) {
-              const spreadOption = SPREAD_OPTIONS.find(opt => opt.short === spread.short && opt.long === spread.long);
-              return (
-                <p key={idx} className={`text-sm ${data[spreadKey] < 0 ? 'text-red-400' : 'text-green-400'}`}>
-                  {spreadOption?.label}: {data[spreadKey].toFixed(2)}%
-                </p>
-              );
-            }
-            return null;
-          })}
-        </div>
-      );
-    }
-    return null;
   };
 
   return (
@@ -381,35 +280,16 @@ export default function YieldCurveChart() {
                 <SkeletonLoader variant="chart" />
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height={400}>
-              <AreaChart data={curveData.curve}>
-                <defs>
-                  <linearGradient id="yieldGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis
-                  dataKey="maturity"
-                  stroke="#9ca3af"
-                  tick={{ fill: '#9ca3af' }}
-                />
-                <YAxis
-                  stroke="#9ca3af"
-                  tick={{ fill: '#9ca3af' }}
-                  label={{ value: 'Yield (%)', angle: -90, position: 'insideLeft', fill: '#9ca3af' }}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Area
-                  type="monotone"
-                  dataKey="yield"
-                  stroke="#3b82f6"
-                  strokeWidth={3}
-                  fill="url(#yieldGradient)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+              <CommonChart
+                data={curveData.curve}
+                series={[{ key: 'yield', name: 'Yield', color: '#3b82f6' }]}
+                xKey="maturity"
+                type="area"
+                height={400}
+                showTypeSelector={false}
+                yFormatter={(v) => `${v}%`}
+                tooltipFormatter={(v) => `${Number(v).toFixed(2)}%`}
+              />
             )}
           </div>
 
@@ -543,40 +423,22 @@ export default function YieldCurveChart() {
             </div>
 
             {historyData && historyData.yields_history && (
-              <ResponsiveContainer width="100%" height={400}>
-                <LineChart data={calculateSpreadsData()}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                  <XAxis
-                    dataKey="date"
-                    stroke="#9ca3af"
-                    tick={{ fill: '#9ca3af' }}
-                    tickFormatter={(date) => new Date(date).toLocaleDateString('en-US', { year: '2-digit', month: 'short' })}
-                  />
-                  <YAxis
-                    stroke="#9ca3af"
-                    tick={{ fill: '#9ca3af' }}
-                    label={{ value: 'Spread (%)', angle: -90, position: 'insideLeft', fill: '#9ca3af' }}
-                  />
-                  <Tooltip content={<CustomSpreadsTooltip />} />
-                  <ReferenceLine y={0} stroke="#ef4444" strokeDasharray="3 3" />
-                  {selectedSpreads.map((spread, idx) => {
-                    const spreadKey = `${spread.short}${spread.long}`;
-                    const spreadOption = SPREAD_OPTIONS.find(opt => opt.short === spread.short && opt.long === spread.long);
-                    return (
-                      <Line
-                        key={idx}
-                        type="monotone"
-                        dataKey={spreadKey}
-                        stroke={spreadOption?.color}
-                        strokeWidth={2}
-                        dot={false}
-                        name={spreadOption?.label}
-                        connectNulls
-                      />
-                    );
-                  })}
-                </LineChart>
-              </ResponsiveContainer>
+              <CommonChart
+                data={calculateSpreadsData()}
+                series={selectedSpreads.map((spread) => {
+                  const spreadKey = `${spread.short}${spread.long}`;
+                  const spreadOption = SPREAD_OPTIONS.find(opt => opt.short === spread.short && opt.long === spread.long);
+                  return { key: spreadKey, name: spreadOption?.label || spreadKey, color: spreadOption?.color || '#6b7280' };
+                })}
+                xKey="date"
+                type="line"
+                height={400}
+                showTypeSelector={false}
+                xFormatter={(date) => new Date(date).toLocaleDateString('en-US', { year: '2-digit', month: 'short' })}
+                yFormatter={(v) => `${v}%`}
+                tooltipFormatter={(v) => `${Number(v).toFixed(2)}%`}
+                referenceLines={[{ value: 0, color: '#ef4444', label: '0%' }]}
+              />
             )}
           </div>
 
@@ -659,38 +521,20 @@ export default function YieldCurveChart() {
             </div>
 
             {historyData && historyData.yields_history && (
-              <ResponsiveContainer width="100%" height={400}>
-                <LineChart data={historyData.yields_history}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                  <XAxis
-                    dataKey="date"
-                    stroke="#9ca3af"
-                    tick={{ fill: '#9ca3af' }}
-                    tickFormatter={(date) => new Date(date).toLocaleDateString('en-US', { year: '2-digit', month: 'short' })}
-                  />
-                  <YAxis
-                    stroke="#9ca3af"
-                    tick={{ fill: '#9ca3af' }}
-                    label={{ value: 'Yield (%)', angle: -90, position: 'insideLeft', fill: '#9ca3af' }}
-                  />
-                  <Tooltip content={<CustomYieldsTooltip />} />
-                  {selectedMaturities.map(maturity => {
-                    const option = MATURITY_OPTIONS.find(opt => opt.key === maturity);
-                    return (
-                      <Line
-                        key={maturity}
-                        type="monotone"
-                        dataKey={maturity}
-                        stroke={option?.color}
-                        strokeWidth={2}
-                        dot={false}
-                        name={option?.label}
-                        connectNulls
-                      />
-                    );
-                  })}
-                </LineChart>
-              </ResponsiveContainer>
+              <CommonChart
+                data={historyData.yields_history}
+                series={selectedMaturities.map(maturity => {
+                  const option = MATURITY_OPTIONS.find(opt => opt.key === maturity);
+                  return { key: maturity, name: option?.label || maturity, color: option?.color || '#6b7280' };
+                })}
+                xKey="date"
+                type="line"
+                height={400}
+                showTypeSelector={false}
+                xFormatter={(date) => new Date(date).toLocaleDateString('en-US', { year: '2-digit', month: 'short' })}
+                yFormatter={(v) => `${v}%`}
+                tooltipFormatter={(v) => `${Number(v).toFixed(2)}%`}
+              />
             )}
           </div>
         </>

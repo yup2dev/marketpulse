@@ -7,7 +7,7 @@ from decimal import Decimal
 from datetime import datetime
 import uuid
 
-from index_analyzer.models.database import Alert, AlertHistory, User, MBS_IN_STK_STBD
+from index_analyzer.models.orm import Alert, AlertHistory, User, MBS_IN_STK_STBD
 
 
 class AlertService:

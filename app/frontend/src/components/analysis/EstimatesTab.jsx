@@ -3,11 +3,8 @@
  * Matches ComparisonAnalysisTab layout: header bar, category tabs, chart + table
  */
 import { useState, useEffect, useMemo } from 'react';
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer
-} from 'recharts';
 import { RefreshCw } from 'lucide-react';
+import CommonChart from '../common/CommonChart';
 import { API_BASE } from '../../config/api';
 import { formatCurrency } from '../../utils/widgetUtils';
 import ChartWidget from '../widgets/ChartWidget';
@@ -30,25 +27,6 @@ const getRatingColor = (rating) => {
 
 const fmtEps = (v) => v != null ? `$${v.toFixed(2)}` : '—';
 const fmtGrowth = (v) => v != null ? `${(v * 100).toFixed(1)}%` : '—';
-
-// Custom tooltip for bar charts
-function ChartTooltip({ active, payload, label, isCurrency }) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="bg-[#1a1a1f] border border-gray-700 rounded-lg px-3 py-2 text-xs">
-      <div className="text-gray-400 mb-1">{label}</div>
-      {payload.map((entry, i) => (
-        <div key={i} className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
-          <span className="text-gray-300">{entry.name}:</span>
-          <span className="text-white font-medium tabular-nums">
-            {isCurrency ? formatCurrency(entry.value) : fmtEps(entry.value)}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 // Builds chart data array from estimates keyed by period
 function buildChartData(estimates) {
@@ -136,16 +114,18 @@ function EPSContent({ estimatesData }) {
       {/* Chart */}
       <div className="p-4">
         {epsData.length > 0 ? (
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={epsData} barGap={4}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1f1f2e" vertical={false} />
-              <XAxis dataKey="period" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} width={50} />
-              <Tooltip content={<ChartTooltip />} />
-              <Bar dataKey="estimate" name="Estimate" fill="#34d399" radius={[3, 3, 0, 0]} />
-              <Bar dataKey="yearAgo" name="Year Ago" fill="#6b7280" radius={[3, 3, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <CommonChart
+            data={epsData}
+            series={[
+              { key: 'estimate', name: 'Estimate', color: '#34d399' },
+              { key: 'yearAgo',  name: 'Year Ago', color: '#6b7280' },
+            ]}
+            xKey="period"
+            type="bar"
+            height={220}
+            showTypeSelector={false}
+            tooltipFormatter={(v) => fmtEps(v)}
+          />
         ) : (
           <div className="h-[220px] flex items-center justify-center text-gray-500 text-xs">No EPS data</div>
         )}
@@ -202,17 +182,19 @@ function RevenueContent({ estimatesData }) {
       {/* Chart */}
       <div className="p-4">
         {revData.length > 0 ? (
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={revData} barGap={4}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1f1f2e" vertical={false} />
-              <XAxis dataKey="period" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} width={55}
-                tickFormatter={(v) => v >= 1e9 ? `${(v/1e9).toFixed(0)}B` : v >= 1e6 ? `${(v/1e6).toFixed(0)}M` : v} />
-              <Tooltip content={<ChartTooltip isCurrency />} />
-              <Bar dataKey="estimate" name="Estimate" fill="#60a5fa" radius={[3, 3, 0, 0]} />
-              <Bar dataKey="yearAgo" name="Year Ago" fill="#6b7280" radius={[3, 3, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <CommonChart
+            data={revData}
+            series={[
+              { key: 'estimate', name: 'Estimate', color: '#60a5fa' },
+              { key: 'yearAgo',  name: 'Year Ago', color: '#6b7280' },
+            ]}
+            xKey="period"
+            type="bar"
+            height={220}
+            showTypeSelector={false}
+            yFormatter={(v) => v >= 1e9 ? `${(v/1e9).toFixed(0)}B` : v >= 1e6 ? `${(v/1e6).toFixed(0)}M` : v}
+            tooltipFormatter={(v) => formatCurrency(v)}
+          />
         ) : (
           <div className="h-[220px] flex items-center justify-center text-gray-500 text-xs">No revenue data</div>
         )}

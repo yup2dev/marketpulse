@@ -10,7 +10,7 @@ from typing import Generator
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from sqlalchemy.orm import Session
-from index_analyzer.models.database import get_sqlite_db
+from index_analyzer.models.orm import get_sqlite_db
 
 # Database path
 DB_PATH = Path(__file__).parent.parent.parent.parent / "data" / "marketpulse.db"

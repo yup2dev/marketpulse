@@ -1,6 +1,6 @@
 import { Layers } from 'lucide-react';
 import BaseWidget from '../common/BaseWidget';
-import WidgetTable from '../common/WidgetTable';
+import CommonTable from '../../common/CommonTable';
 
 const fmtUSD = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(val ?? 0);
 const fmtPct = (val) => `${val >= 0 ? '+' : ''}${val.toFixed(2)}%`;
@@ -13,13 +13,13 @@ function buildColumns(displayCurrency, exchangeRate, formatKRW) {
     {
       key: 'symbol',
       header: 'Asset',
-      render: (row) => (
+      renderFn: (value, row) => (
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded-full bg-gray-800 flex items-center justify-center text-[10px] font-bold flex-shrink-0 border border-gray-700">
-            {row.symbol.slice(0, 2)}
+            {value.slice(0, 2)}
           </div>
           <div className="min-w-0">
-            <div className="text-[11px] font-medium text-white">{row.symbol}</div>
+            <div className="text-[11px] font-medium text-white">{value}</div>
             <div className="text-[10px] text-gray-500 truncate max-w-[80px]">{row.quantity} sh</div>
           </div>
         </div>
@@ -29,13 +29,14 @@ function buildColumns(displayCurrency, exchangeRate, formatKRW) {
       key: 'currentPrice',
       header: '현재가',
       align: 'right',
-      render: (row) => {
-        const isUp = row.openPrice != null && row.currentPrice >= row.openPrice;
-        const isDown = row.openPrice != null && row.currentPrice < row.openPrice;
+      sortable: true,
+      renderFn: (value, row) => {
+        const isUp = row.openPrice != null && value >= row.openPrice;
+        const isDown = row.openPrice != null && value < row.openPrice;
         return (
           <div>
             <div className={`tabular-nums text-[11px] font-medium ${isUp ? 'text-green-400' : isDown ? 'text-red-400' : 'text-white'}`}>
-              {fmtUSD(row.currentPrice)}
+              {fmtUSD(value)}
             </div>
             {row.dailyChangePct != null && (
               <div className={`tabular-nums text-[10px] ${row.dailyChangePct >= 0 ? 'text-green-500' : 'text-red-500'}`}>
@@ -45,35 +46,31 @@ function buildColumns(displayCurrency, exchangeRate, formatKRW) {
           </div>
         );
       },
-      sortable: true,
-      sortValue: (row) => row.currentPrice,
     },
     {
       key: 'value',
       header: `평가금액${isKRW ? ' (₩)' : ''}`,
       align: 'right',
-      render: (row) => (
+      sortable: true,
+      renderFn: (value) => (
         <div>
-          <div className="tabular-nums text-[11px] text-white">{fmt(row.value)}</div>
-          {isKRW && <div className="tabular-nums text-[10px] text-gray-500">{fmtUSD(row.value)}</div>}
+          <div className="tabular-nums text-[11px] text-white">{fmt(value)}</div>
+          {isKRW && <div className="tabular-nums text-[10px] text-gray-500">{fmtUSD(value)}</div>}
         </div>
       ),
-      sortable: true,
-      sortValue: (row) => row.value,
     },
     {
       key: 'pnl',
       header: `총 손익${isKRW ? ' (₩)' : ''}`,
       align: 'right',
-      render: (row) => (
-        <div className={row.pnl >= 0 ? 'text-green-400' : 'text-red-400'}>
-          <div className="tabular-nums text-[11px]">{fmt(row.pnl)}</div>
+      sortable: true,
+      renderFn: (value, row) => (
+        <div className={value >= 0 ? 'text-green-400' : 'text-red-400'}>
+          <div className="tabular-nums text-[11px]">{fmt(value)}</div>
           <div className="tabular-nums text-[10px] opacity-80">{fmtPct(row.pnlPct)}</div>
-          {isKRW && <div className="tabular-nums text-[10px] opacity-50">{fmtUSD(row.pnl)}</div>}
+          {isKRW && <div className="tabular-nums text-[10px] opacity-50">{fmtUSD(value)}</div>}
         </div>
       ),
-      sortable: true,
-      sortValue: (row) => row.pnl,
     },
   ];
 }
@@ -86,7 +83,6 @@ export default function PortfolioHoldingsWidget({
   exchangeRate = null,
   formatKRW,
 }) {
-  const data = holdings.slice(0, 5).map((h) => ({ ...h, _key: h.symbol }));
   const COLUMNS = buildColumns(displayCurrency, exchangeRate, formatKRW);
 
   return (
@@ -108,16 +104,14 @@ export default function PortfolioHoldingsWidget({
         )
       }
     >
-      <div className="overflow-auto h-full">
-        <WidgetTable
-          columns={COLUMNS}
-          data={data}
-          size="compact"
-          emptyMessage="No holdings"
-          defaultSortKey="value"
-          defaultSortDirection="desc"
-        />
-      </div>
+      <CommonTable
+        columns={COLUMNS}
+        data={holdings.slice(0, 5)}
+        searchable={false}
+        exportable={false}
+        compact
+        pageSize={10}
+      />
     </BaseWidget>
   );
 }

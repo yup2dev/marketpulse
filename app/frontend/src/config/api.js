@@ -171,3 +171,12 @@ export const dashboardAPI = {
   addToWatchlist:      (symbol) => apiClient.post(`${API_BASE}/dashboard/watchlist`, { symbol }),
   removeFromWatchlist: (symbol) => apiClient.request(`${API_BASE}/dashboard/watchlist/${symbol}`, { method: 'DELETE' }),
 };
+
+// ─── Workspace API ────────────────────────────────────────────────────────────
+export const workspaceAPI = {
+  list:       (screen)       => apiClient.get(`${API_BASE}/workspace?screen=${encodeURIComponent(screen)}`),
+  create:     (data)         => apiClient.post(`${API_BASE}/workspace`, data),
+  update:     (id, data)     => apiClient.request(`${API_BASE}/workspace/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete:     (id)           => apiClient.request(`${API_BASE}/workspace/${id}`, { method: 'DELETE' }),
+  setDefault: (id)           => apiClient.post(`${API_BASE}/workspace/${id}/default`),
+};

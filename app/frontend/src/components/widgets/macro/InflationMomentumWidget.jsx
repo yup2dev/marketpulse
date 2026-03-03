@@ -5,7 +5,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Activity } from 'lucide-react';
 import BaseWidget from '../common/BaseWidget';
-import WidgetTable from '../common/WidgetTable';
+import CommonTable from '../../common/CommonTable';
 import CommonChart from '../../common/CommonChart';
 import { API_BASE } from '../../../config/api';
 
@@ -20,35 +20,28 @@ const MOMENTUM_COLUMNS = [
     key: 'date',
     header: 'Date',
     sortable: true,
-    sortValue: (row) => row.date,
-    render: (row) => <span className="text-gray-300">{row.date}</span>,
+    renderFn: (value, row) => <span className="text-gray-300">{row.date}</span>,
   },
   {
     key: 'yoy_12m',
     header: '12M',
     align: 'right',
     sortable: true,
-    sortValue: (row) => row.yoy_12m ?? -Infinity,
-    exportValue: (row) => row.yoy_12m?.toFixed(2) ?? '',
-    render: (row) => <span className="text-blue-400">{row.yoy_12m?.toFixed(2)}%</span>,
+    renderFn: (value, row) => <span className="text-blue-400">{row.yoy_12m?.toFixed(2)}%</span>,
   },
   {
     key: 'yoy_6m',
     header: '6M',
     align: 'right',
     sortable: true,
-    sortValue: (row) => row.yoy_6m ?? -Infinity,
-    exportValue: (row) => row.yoy_6m?.toFixed(2) ?? '',
-    render: (row) => <span className="text-orange-400">{row.yoy_6m?.toFixed(2)}%</span>,
+    renderFn: (value, row) => <span className="text-orange-400">{row.yoy_6m?.toFixed(2)}%</span>,
   },
   {
     key: 'yoy_3m',
     header: '3M',
     align: 'right',
     sortable: true,
-    sortValue: (row) => row.yoy_3m ?? -Infinity,
-    exportValue: (row) => row.yoy_3m?.toFixed(2) ?? '',
-    render: (row) => <span className="text-green-400">{row.yoy_3m?.toFixed(2)}%</span>,
+    renderFn: (value, row) => <span className="text-green-400">{row.yoy_3m?.toFixed(2)}%</span>,
   },
 ];
 
@@ -108,15 +101,13 @@ export default function InflationMomentumWidget({ onRemove }) {
 
   const renderTable = () => (
     <div className="h-full overflow-auto">
-      <WidgetTable
+      <CommonTable
         columns={MOMENTUM_COLUMNS}
         data={tableData}
-        resizable={true}
-        size="compact"
-        showExport={true}
-        exportFilename="inflation-momentum"
-        defaultSortKey="date"
-        defaultSortDirection="desc"
+        compact={true}
+        searchable={false}
+        exportable={true}
+        pageSize={20}
       />
     </div>
   );

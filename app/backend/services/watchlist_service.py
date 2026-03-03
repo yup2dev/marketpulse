@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
-from index_analyzer.models.database import Watchlist, WatchlistItem, MBS_IN_STBD_MST
+from index_analyzer.models.orm import Watchlist, WatchlistItem, MBS_IN_STBD_MST
 
 
 class WatchlistService:

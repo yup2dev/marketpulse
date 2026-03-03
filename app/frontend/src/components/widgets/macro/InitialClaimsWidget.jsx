@@ -5,7 +5,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Users } from 'lucide-react';
 import BaseWidget from '../common/BaseWidget';
-import WidgetTable from '../common/WidgetTable';
+import CommonTable from '../../common/CommonTable';
 import LWChart from '../common/LWChart';
 import { API_BASE } from '../../../config/api';
 
@@ -14,26 +14,21 @@ const CLAIMS_COLUMNS = [
     key: 'date',
     header: 'Date',
     sortable: true,
-    sortValue: (row) => row.date,
-    render: (row) => <span className="text-gray-300">{row.date}</span>,
+    renderFn: (value, row) => <span className="text-gray-300">{row.date}</span>,
   },
   {
     key: 'claims',
     header: 'Initial Claims',
     align: 'right',
     sortable: true,
-    sortValue: (row) => row.claims ?? -Infinity,
-    exportValue: (row) => row.claims?.toFixed(1) ?? '',
-    render: (row) => <span className="text-blue-400">{row.claims?.toLocaleString()}K</span>,
+    renderFn: (value, row) => <span className="text-blue-400">{row.claims?.toLocaleString()}K</span>,
   },
   {
     key: 'ma_4w',
     header: '4W MA',
     align: 'right',
     sortable: true,
-    sortValue: (row) => row.ma_4w ?? -Infinity,
-    exportValue: (row) => row.ma_4w?.toFixed(1) ?? '',
-    render: (row) => <span className="text-red-400">{row.ma_4w?.toLocaleString()}K</span>,
+    renderFn: (value, row) => <span className="text-red-400">{row.ma_4w?.toLocaleString()}K</span>,
   },
 ];
 
@@ -97,15 +92,13 @@ export default function InitialClaimsWidget({ onRemove }) {
 
   const renderTable = () => (
     <div className="h-full overflow-auto">
-      <WidgetTable
+      <CommonTable
         columns={CLAIMS_COLUMNS}
         data={tableData}
-        resizable={true}
-        size="compact"
-        showExport={true}
-        exportFilename="initial-claims"
-        defaultSortKey="date"
-        defaultSortDirection="desc"
+        compact={true}
+        searchable={false}
+        exportable={true}
+        pageSize={20}
       />
     </div>
   );

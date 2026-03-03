@@ -6,11 +6,6 @@
  */
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { PieChart as PieIcon } from 'lucide-react';
-import {
-  ResponsiveContainer,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ComposedChart, Line,
-} from 'recharts';
 import BaseWidget from './common/BaseWidget';
 import CommonChart from '../common/CommonChart';
 import { API_BASE } from '../../config/api';
@@ -35,32 +30,6 @@ const fmtQtr  = (s) => {
   return `Q${q}'${String(d.getFullYear()).slice(2)}`;
 };
 
-// ─── Tooltip components ───────────────────────────────────────────────────────
-const BarTooltipContent = ({ active, payload, label }) => {
-  if (!active || !payload?.length) return null;
-  const total = payload.reduce((s, p) => s + (p.value || 0), 0);
-  return (
-    <div className="bg-[#1a1a1f] border border-gray-700 rounded px-3 py-2 text-xs shadow-lg max-w-[210px]">
-      <p className="text-gray-400 mb-1">{label}</p>
-      <p className="text-gray-300 font-medium mb-1">Total {fmtB(total)}</p>
-      {[...payload].reverse().map((p, i) => (
-        <p key={i} style={{ color: p.fill || p.color }}>{p.name}: {fmtB(p.value)}</p>
-      ))}
-    </div>
-  );
-};
-
-const PnlTooltip = ({ active, payload, label }) => {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="bg-[#1a1a1f] border border-gray-700 rounded px-3 py-2 text-xs shadow-lg max-w-[200px]">
-      <p className="text-gray-400 mb-1">{label}</p>
-      {payload.map((p, i) => p.value != null && (
-        <p key={i} style={{ color: p.color || p.fill }}>{p.name}: {fmtB(p.value)}</p>
-      ))}
-    </div>
-  );
-};
 
 // ─── Main Widget ──────────────────────────────────────────────────────────────
 export default function RevenueSegmentsWidget({ symbol: initialSymbol, onRemove }) {
@@ -239,28 +208,21 @@ export default function RevenueSegmentsWidget({ symbol: initialSymbol, onRemove 
   const renderPnlChart = () => {
     if (!qPnlData.length) return <NoData msg="No quarterly data" />;
     return (
-      <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={qPnlData} margin={{ top: 8, right: 40, left: 0, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
-          <XAxis dataKey="date" tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} />
-          <YAxis yAxisId="left"
-            tickFormatter={v => `$${v.toFixed(0)}B`}
-            tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} width={44} />
-          <YAxis yAxisId="right" orientation="right"
-            tickFormatter={v => `${v.toFixed(0)}%`}
-            tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} width={36} />
-          <Tooltip content={<PnlTooltip />} />
-          <Legend wrapperStyle={{ fontSize: 10, color: '#9ca3af' }} iconSize={8} />
-          <Bar yAxisId="left" dataKey="cogs"      name="Cost of Revenue" stackId="a" fill="#ef4444" maxBarSize={40} />
-          <Bar yAxisId="left" dataKey="sga"       name="SG&A"            stackId="a" fill="#f97316" maxBarSize={40} />
-          <Bar yAxisId="left" dataKey="rd"        name="R&D"             stackId="a" fill="#eab308" maxBarSize={40} />
-          <Bar yAxisId="left" dataKey="op_income" name="Op. Income"      stackId="a" fill="#22c55e" maxBarSize={40} />
-          <Line yAxisId="right" type="monotone" dataKey="gross_margin" name="Gross Margin"
-            stroke="#60a5fa" strokeWidth={1.5} dot={false} strokeDasharray="4 4" connectNulls />
-          <Line yAxisId="right" type="monotone" dataKey="op_margin" name="Op. Margin"
-            stroke="#a78bfa" strokeWidth={1.5} dot={false} connectNulls />
-        </ComposedChart>
-      </ResponsiveContainer>
+      <CommonChart
+        data={qPnlData}
+        series={[
+          { key: 'cogs',      name: 'Cost of Revenue', color: '#ef4444' },
+          { key: 'sga',       name: 'SG&A',            color: '#f97316' },
+          { key: 'rd',        name: 'R&D',             color: '#eab308' },
+          { key: 'op_income', name: 'Op. Income',      color: '#22c55e' },
+        ]}
+        xKey="date"
+        type="stackedBar"
+        fillContainer={true}
+        showTypeSelector={false}
+        yFormatter={(v) => `$${Number(v).toFixed(0)}B`}
+        tooltipFormatter={(v) => fmtB(v)}
+      />
     );
   };
 

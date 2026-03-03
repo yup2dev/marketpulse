@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Shield } from 'lucide-react';
 import BaseWidget from './common/BaseWidget';
-import WidgetTable from './common/WidgetTable';
+import CommonTable from '../common/CommonTable';
 import { API_BASE } from './constants';
 
 const MOAT_COLOR = {
@@ -14,22 +14,28 @@ const MOAT_COLOR = {
 };
 
 const METRIC_BARS = [
-  { key: 'roe',          label: 'ROE',         color: '#22d3ee', textClass: 'text-cyan-400' },
+  { key: 'roe',          label: 'ROE',         color: '#22d3ee', textClass: 'text-cyan-400'   },
   { key: 'roic',         label: 'ROIC',        color: '#a78bfa', textClass: 'text-violet-400' },
-  { key: 'gross_margin', label: 'Gross Margin', color: '#60a5fa', textClass: 'text-blue-400' },
-  { key: 'op_margin',    label: 'Op Margin',   color: '#4ade80', textClass: 'text-green-400' },
+  { key: 'gross_margin', label: 'Gross Margin', color: '#60a5fa', textClass: 'text-blue-400'  },
+  { key: 'op_margin',    label: 'Op Margin',   color: '#4ade80', textClass: 'text-green-400'  },
   { key: 'net_margin',   label: 'Net Margin',  color: '#facc15', textClass: 'text-yellow-400' },
   { key: 'fcf_margin',   label: 'FCF Margin',  color: '#fb923c', textClass: 'text-orange-400' },
 ];
 
 const TABLE_COLUMNS = [
-  { key: 'year',        header: 'Year',       sortable: true },
-  { key: 'roe',         header: 'ROE %',      sortable: true, render: r => r.roe != null ? `${r.roe}%` : '—', align: 'right' },
-  { key: 'roic',        header: 'ROIC %',     sortable: true, render: r => r.roic != null ? `${r.roic}%` : '—', align: 'right' },
-  { key: 'gross_margin',header: 'Gross %',    sortable: true, render: r => r.gross_margin != null ? `${r.gross_margin}%` : '—', align: 'right' },
-  { key: 'op_margin',   header: 'Op %',       sortable: true, render: r => r.op_margin != null ? `${r.op_margin}%` : '—', align: 'right' },
-  { key: 'net_margin',  header: 'Net %',      sortable: true, render: r => r.net_margin != null ? `${r.net_margin}%` : '—', align: 'right' },
-  { key: 'fcf_margin',  header: 'FCF %',      sortable: true, render: r => r.fcf_margin != null ? `${r.fcf_margin}%` : '—', align: 'right' },
+  { key: 'year',         header: 'Year',    sortable: true },
+  { key: 'roe',          header: 'ROE %',   sortable: true, align: 'right',
+    renderFn: (v) => v != null ? `${v}%` : '—' },
+  { key: 'roic',         header: 'ROIC %',  sortable: true, align: 'right',
+    renderFn: (v) => v != null ? `${v}%` : '—' },
+  { key: 'gross_margin', header: 'Gross %', sortable: true, align: 'right',
+    renderFn: (v) => v != null ? `${v}%` : '—' },
+  { key: 'op_margin',    header: 'Op %',    sortable: true, align: 'right',
+    renderFn: (v) => v != null ? `${v}%` : '—' },
+  { key: 'net_margin',   header: 'Net %',   sortable: true, align: 'right',
+    renderFn: (v) => v != null ? `${v}%` : '—' },
+  { key: 'fcf_margin',   header: 'FCF %',   sortable: true, align: 'right',
+    renderFn: (v) => v != null ? `${v}%` : '—' },
 ];
 
 export default function EconomicMoatWidget({ symbol, onRemove }) {
@@ -103,7 +109,6 @@ export default function EconomicMoatWidget({ symbol, onRemove }) {
       showPeriodSelector={false}
       source="Yahoo Finance"
     >
-      {/* Moat stats — plain text, no boxes */}
       <div className="flex items-center gap-3 px-4 py-2 border-b border-gray-800 text-xs">
         <span className={`font-semibold ${MOAT_COLOR[moatType] || MOAT_COLOR.None}`}>{moatType} Moat</span>
         <span className="text-gray-500">Score: <span className="text-white font-medium tabular-nums">{moatScore}/100</span></span>
@@ -113,7 +118,7 @@ export default function EconomicMoatWidget({ symbol, onRemove }) {
       <div className="flex-1 min-h-0 p-3">
         {viewMode === 'chart' ? renderMetricBars(history) : (
           history.length > 0
-            ? <WidgetTable columns={TABLE_COLUMNS} rows={history} resizable />
+            ? <CommonTable columns={TABLE_COLUMNS} data={history} searchable={false} exportable={false} compact pageSize={15} />
             : <div className="text-center text-gray-500 text-xs py-8">No data available</div>
         )}
       </div>

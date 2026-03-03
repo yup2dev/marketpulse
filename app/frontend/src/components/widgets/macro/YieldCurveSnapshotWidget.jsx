@@ -3,12 +3,9 @@
  */
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { TrendingUp, TrendingDown } from 'lucide-react';
-import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer,
-} from 'recharts';
+import CommonChart from '../../common/CommonChart';
 import BaseWidget from '../common/BaseWidget';
-import WidgetTable from '../common/WidgetTable';
+import CommonTable from '../../common/CommonTable';
 import { API_BASE } from '../../../config/api';
 
 const SHAPE_COLORS = {
@@ -18,44 +15,26 @@ const SHAPE_COLORS = {
   humped:   { text: 'text-blue-400',   bg: 'bg-blue-500/20 border-blue-500/30'     },
 };
 
-const CustomTooltip = ({ active, payload, label }) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-[#1a1a1f] border border-gray-700 rounded px-3 py-2 shadow-lg">
-        <p className="text-gray-400 text-xs mb-1">{label}</p>
-        <p className="text-sm text-blue-400">
-          Yield: {typeof payload[0].value === 'number' ? payload[0].value.toFixed(2) : payload[0].value}%
-        </p>
-      </div>
-    );
-  }
-  return null;
-};
-
 const CURVE_COLUMNS = [
   {
     key: 'maturity',
     header: 'Maturity',
     sortable: true,
-    sortValue: (row) => row.years ?? 0,
-    render: (row) => <span className="font-medium text-white">{row.maturity}</span>,
+    renderFn: (value, row) => <span className="font-medium text-white">{row.maturity}</span>,
   },
   {
     key: 'yield',
     header: 'Yield',
     align: 'right',
     sortable: true,
-    sortValue: (row) => row.yield ?? -Infinity,
-    exportValue: (row) => row.yield?.toFixed(2) ?? '',
-    render: (row) => <span className="text-white">{row.yield?.toFixed(2)}%</span>,
+    renderFn: (value, row) => <span className="text-white">{row.yield?.toFixed(2)}%</span>,
   },
   {
     key: 'years',
     header: 'Years',
     align: 'right',
     sortable: true,
-    sortValue: (row) => row.years ?? -Infinity,
-    render: (row) => <span className="text-gray-400">{row.years}</span>,
+    renderFn: (value, row) => <span className="text-gray-400">{row.years}</span>,
   },
 ];
 
@@ -102,21 +81,16 @@ export default function YieldCurveSnapshotWidget({ onRemove }) {
           ))}
         </div>
         <div className="flex-1 min-h-0">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data.curve} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id="yieldSnapGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#3b82f6" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}   />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-              <XAxis dataKey="maturity" tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} />
-              <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} tickFormatter={(v) => `${v}%`} />
-              <Tooltip content={<CustomTooltip />} />
-              <Area type="monotone" dataKey="yield" stroke="#3b82f6" fill="url(#yieldSnapGradient)" strokeWidth={2} />
-            </AreaChart>
-          </ResponsiveContainer>
+          <CommonChart
+            data={data.curve}
+            series={[{ key: 'yield', name: 'Yield', color: '#3b82f6' }]}
+            xKey="maturity"
+            type="area"
+            fillContainer={true}
+            showTypeSelector={false}
+            yFormatter={(v) => `${v}%`}
+            tooltipFormatter={(v) => `${Number(v).toFixed(2)}%`}
+          />
         </div>
       </div>
     );
@@ -126,15 +100,13 @@ export default function YieldCurveSnapshotWidget({ onRemove }) {
     if (!data?.curve) return null;
     return (
       <div className="h-full flex flex-col overflow-auto">
-        <WidgetTable
+        <CommonTable
           columns={CURVE_COLUMNS}
           data={curveData}
-          resizable={true}
-          size="compact"
-          showExport={true}
-          exportFilename="yield-curve"
-          defaultSortKey="years"
-          defaultSortDirection="asc"
+          compact={true}
+          searchable={false}
+          exportable={true}
+          pageSize={20}
         />
         {/* Spreads section */}
         {data.spreads && (

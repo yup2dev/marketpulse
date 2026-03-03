@@ -8,7 +8,7 @@ from datetime import datetime
 import uuid
 import json
 
-from index_analyzer.models.database import (
+from index_analyzer.models.orm import (
     User, Portfolio, Transaction, Holding, Watchlist
 )
 

@@ -13,7 +13,7 @@ import {
 } from './constants';
 import useRefreshStore from '../../store/refreshStore';
 
-const TickerInfoWidget = ({ symbol, onRemove }) => {
+const TickerQuickStatsWidget = ({ symbol, onRemove }) => {
   const { classes } = useTheme();
   const [quote, setQuote] = useState(null);
   const [info, setInfo] = useState(null);
@@ -167,4 +167,4 @@ const TickerInfoWidget = ({ symbol, onRemove }) => {
   );
 };
 
-export default TickerInfoWidget;
+export default TickerQuickStatsWidget;

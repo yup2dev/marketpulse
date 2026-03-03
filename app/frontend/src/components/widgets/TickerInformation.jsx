@@ -3,10 +3,10 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { TrendingUp, TrendingDown, Info, Search } from 'lucide-react';
-import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import { API_BASE } from '../../config/api';
 import BaseWidget from './common/BaseWidget';
 import StockSelectorModal from '../common/StockSelectorModal';
+import PlotlyChart from '../core/PlotlyChart';
 
 export default function TickerInformation({ symbol = 'AAPL', onSymbolChange, onRemove }) {
   const [quote, setQuote] = useState(null);
@@ -90,23 +90,15 @@ export default function TickerInformation({ symbol = 'AAPL', onSymbolChange, onR
           {/* Mini Chart */}
           <div className="w-28 h-16">
             {history.length > 0 && (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={history}>
-                  <defs>
-                    <linearGradient id={`gradient-${symbol}`} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={isPositive ? '#22c55e' : '#ef4444'} stopOpacity={0.3} />
-                      <stop offset="100%" stopColor={isPositive ? '#22c55e' : '#ef4444'} stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <Area
-                    type="monotone"
-                    dataKey="close"
-                    stroke={isPositive ? '#22c55e' : '#ef4444'}
-                    strokeWidth={1.5}
-                    fill={`url(#gradient-${symbol})`}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+              <PlotlyChart
+                data={history}
+                series={[{ key: 'close', name: symbol, color: isPositive ? '#22c55e' : '#ef4444' }]}
+                xKey="date"
+                type="area"
+                height={64}
+                compact
+                showTypeSelector={false}
+              />
             )}
           </div>
 

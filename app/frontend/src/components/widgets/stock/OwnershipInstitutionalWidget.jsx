@@ -4,58 +4,43 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Building2 } from 'lucide-react';
 import BaseWidget from '../common/BaseWidget';
-import WidgetTable from '../common/WidgetTable';
+import CommonTable from '../../common/CommonTable';
 import { API_BASE } from '../../../config/api';
-
-const formatNumber = (value) => {
-  if (value === null || value === undefined) return '-';
-  if (Math.abs(value) >= 1e9) return `${(value / 1e9).toFixed(2)}B`;
-  if (Math.abs(value) >= 1e6) return `${(value / 1e6).toFixed(2)}M`;
-  if (Math.abs(value) >= 1e3) return `${(value / 1e3).toFixed(2)}K`;
-  return value.toLocaleString();
-};
-
-const formatCurrency = (value) => {
-  if (value === null || value === undefined) return '-';
-  if (Math.abs(value) >= 1e9) return `$${(value / 1e9).toFixed(2)}B`;
-  if (Math.abs(value) >= 1e6) return `$${(value / 1e6).toFixed(2)}M`;
-  if (Math.abs(value) >= 1e3) return `$${(value / 1e3).toFixed(1)}K`;
-  return `$${value.toLocaleString()}`;
-};
 
 const COLUMNS = [
   {
     key: 'name',
     header: 'Institution',
-    render: (row) => <span className="text-white">{row.name}</span>,
-    exportValue: (row) => row.name ?? '',
+    renderFn: (value) => <span className="text-white">{value}</span>,
   },
   {
     key: 'shares',
     header: 'Shares',
     align: 'right',
     sortable: true,
-    sortValue: (row) => row.shares,
-    render: (row) => <span className="text-gray-300">{formatNumber(row.shares)}</span>,
-    exportValue: (row) => row.shares ?? '',
+    formatter: 'magnitude',
   },
   {
     key: 'value',
     header: 'Value',
     align: 'right',
     sortable: true,
-    sortValue: (row) => row.value,
-    render: (row) => <span className="text-white">{formatCurrency(row.value)}</span>,
-    exportValue: (row) => row.value ?? '',
+    formatter: 'magnitude',
+    renderFn: (value) => {
+      if (value == null) return '-';
+      if (Math.abs(value) >= 1e9) return <span className="text-white">${(value / 1e9).toFixed(2)}B</span>;
+      if (Math.abs(value) >= 1e6) return <span className="text-white">${(value / 1e6).toFixed(2)}M</span>;
+      return <span className="text-white">${value.toLocaleString()}</span>;
+    },
   },
   {
     key: 'pct_held',
     header: '% Held',
     align: 'right',
     sortable: true,
-    sortValue: (row) => row.pct_held,
-    render: (row) => <span className="text-blue-400 font-medium">{row.pct_held?.toFixed(2)}%</span>,
-    exportValue: (row) => row.pct_held?.toFixed(2) ?? '',
+    renderFn: (value) => (
+      <span className="text-blue-400 font-medium">{value?.toFixed(2)}%</span>
+    ),
   },
 ];
 
@@ -115,22 +100,6 @@ export default function OwnershipInstitutionalWidget({ symbol: initialSymbol = '
     );
   };
 
-  const renderTable = () => (
-    <div className="h-full px-3 pb-3 pt-1">
-      <WidgetTable
-        columns={COLUMNS}
-        data={institutionalHolders}
-        loading={loading}
-        size="compact"
-        showRowNumbers
-        showFilters
-        pageSize={10}
-        emptyMessage="No institutional holder data"
-        exportFilename={`institutional-holders_${symbol}`}
-      />
-    </div>
-  );
-
   return (
     <BaseWidget
       title="Institutional Holders"
@@ -146,7 +115,16 @@ export default function OwnershipInstitutionalWidget({ symbol: initialSymbol = '
       showPeriodSelector={false}
       syncable
     >
-      {viewMode === 'chart' ? renderChart() : renderTable()}
+      {viewMode === 'chart' ? renderChart() : (
+        <CommonTable
+          columns={COLUMNS}
+          data={institutionalHolders}
+          searchable
+          exportable
+          compact
+          pageSize={10}
+        />
+      )}
     </BaseWidget>
   );
 }

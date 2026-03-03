@@ -8,7 +8,7 @@ from typing import Optional
 
 from app.backend.database.db_dependency import get_db
 from app.backend.auth.security import decode_token
-from index_analyzer.models.database import User
+from index_analyzer.models.orm import User
 
 security          = HTTPBearer()
 security_optional = HTTPBearer(auto_error=False)   # 인증 없어도 허용

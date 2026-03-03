@@ -1,9 +1,9 @@
 /**
- * Earnings History Widget - Uses common WidgetTable & BaseWidget
+ * Earnings History Widget - CommonTable + BaseWidget
  */
 import { useState, useEffect, useCallback } from 'react';
 import { Calendar } from 'lucide-react';
-import WidgetTable from './common/WidgetTable';
+import CommonTable from '../common/CommonTable';
 import BaseWidget from './common/BaseWidget';
 import { API_BASE } from '../../config/api';
 
@@ -12,9 +12,7 @@ export default function EarningsHistoryWidget({ symbol: initialSymbol = 'AAPL', 
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    setSymbol(initialSymbol);
-  }, [initialSymbol]);
+  useEffect(() => { setSymbol(initialSymbol); }, [initialSymbol]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -23,11 +21,11 @@ export default function EarningsHistoryWidget({ symbol: initialSymbol = 'AAPL', 
       if (res.ok) {
         const result = await res.json();
         const mapped = (result.earnings || []).map(item => ({
-          period: item.fiscal_period,
-          year: item.fiscal_year,
-          date: item.report_date || item.period_end_date,
-          eps: item.eps_actual,
-          epsEst: item.eps_estimated,
+          period:  item.fiscal_period,
+          year:    item.fiscal_year,
+          date:    item.report_date || item.period_end_date,
+          eps:     item.eps_actual,
+          epsEst:  item.eps_estimated,
           revenue: item.revenue_actual,
         }));
         setData(mapped);
@@ -42,86 +40,62 @@ export default function EarningsHistoryWidget({ symbol: initialSymbol = 'AAPL', 
     }
   }, [symbol]);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Build a shared EPS series across all rows for sparkline reference
   const epsSeries = data.filter(r => r.eps != null).map(r => r.eps);
+  const tableData = epsSeries.length >= 3
+    ? data.map(row => ({ ...row, _epsSeries: epsSeries }))
+    : data;
 
   const columns = [
     {
       key: 'period',
       header: 'Period',
-      width: '90px',
-      filterable: true,
-      sortValue: (row) => row.period,
-      render: (row) => (
+      renderFn: (value, row) => (
         <div>
-          <span className="text-white font-medium">{row.period}</span>
+          <span className="text-white font-medium">{value}</span>
           {row.year && <span className="text-gray-500 ml-1">{row.year}</span>}
         </div>
       ),
-      exportValue: (row) => `${row.period} ${row.year ?? ''}`.trim(),
     },
     {
       key: 'eps',
       header: 'EPS',
       align: 'center',
-      sortable: true,
-      filterable: false,
-      sortValue: (row) => row.eps,
-      render: (row) => {
-        if (row.eps === null || row.eps === undefined) return <span className="text-gray-500">-</span>;
-        const beat = row.epsEst && row.eps > row.epsEst;
-        const miss = row.epsEst && row.eps < row.epsEst;
-        return <span className={beat ? 'text-green-500' : miss ? 'text-red-500' : 'text-white'}>{row.eps.toFixed(2)}</span>;
+      renderFn: (value, row) => {
+        if (value == null) return <span className="text-gray-500">-</span>;
+        const beat = row.epsEst && value > row.epsEst;
+        const miss = row.epsEst && value < row.epsEst;
+        return (
+          <span className={beat ? 'text-green-500' : miss ? 'text-red-500' : 'text-white'}>
+            {Number(value).toFixed(2)}
+          </span>
+        );
       },
-      exportValue: (row) => row.eps?.toFixed(2) ?? '',
     },
     {
       key: 'epsEst',
       header: 'Est.',
       align: 'right',
-      filterable: false,
-      render: (row) => <span className="text-gray-400">{row.epsEst?.toFixed(2) || '-'}</span>,
-      exportValue: (row) => row.epsEst?.toFixed(2) ?? '',
+      renderFn: (value) => (
+        <span className="text-gray-400">{value != null ? Number(value).toFixed(2) : '-'}</span>
+      ),
     },
     {
       key: 'revenue',
       header: 'Revenue',
       align: 'right',
-      sortable: true,
-      filterable: false,
-      sortValue: (row) => row.revenue,
-      render: (row) => {
-        if (!row.revenue) return <span className="text-gray-500">-</span>;
-        const val = row.revenue;
-        if (val >= 1e9) return <span className="text-white">{(val / 1e9).toFixed(2)}B</span>;
-        if (val >= 1e6) return <span className="text-white">{(val / 1e6).toFixed(2)}M</span>;
-        return <span className="text-white">{val.toFixed(2)}</span>;
-      },
-      exportValue: (row) => row.revenue ?? '',
+      formatter: 'magnitude',
     },
-    // Sparkline: shows overall EPS trend (same series for all rows, highlights where this row falls)
     ...(epsSeries.length >= 3 ? [{
-      key: 'trend',
+      key: '_epsSeries',
       header: 'Trend',
       align: 'center',
-      filterable: false,
-      type: 'sparkline',
-      sparkKey: '_epsSeries',   // injected below
-      sparkColor: '#22c55e',
-      sparkNegColor: '#ef4444',
-      sparkWidth: 52,
-      sparkHeight: 18,
+      sortable: false,
+      renderFn: 'sparkline',
+      sparklineField: '_epsSeries',
     }] : []),
   ];
-
-  // Inject shared EPS series into each row so sparkline can render it
-  const tableData = epsSeries.length >= 3
-    ? data.map(row => ({ ...row, _epsSeries: epsSeries }))
-    : data;
 
   return (
     <BaseWidget
@@ -135,20 +109,14 @@ export default function EarningsHistoryWidget({ symbol: initialSymbol = 'AAPL', 
       onRemove={onClose}
       showViewToggle={false}
       showPeriodSelector={false}
-      exportData={data.length ? () => ({
-        columns: columns.filter(c => c.type !== 'sparkline'),
-        rows: data,
-      }) : undefined}
     >
-      <WidgetTable
+      <CommonTable
         columns={columns}
         data={tableData}
-        loading={loading}
-        size="compact"
-        showFilters={true}
+        searchable={false}
+        exportable
+        compact
         pageSize={8}
-        emptyMessage="No earnings data"
-        exportFilename={`earnings_${symbol}`}
       />
     </BaseWidget>
   );

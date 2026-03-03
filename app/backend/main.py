@@ -17,10 +17,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.backend.core.config import settings
 # Import new models so Base.metadata.create_all() picks them up
 import index_analyzer.models.quant_strategy  # noqa: F401
+import index_analyzer.models.orm  # noqa: F401 — ensures UserWorkspace is picked up by create_all
 from app.backend.api.routes import (
     stock, economic, news, dashboard, backtest, portfolio, macro,
     auth, user_portfolio, screener, alerts, export, watchlist, menu, quant
 )
+from app.backend.api.routes.workspace import router as workspace_router
 
 
 def _init_db():
@@ -84,6 +86,7 @@ app.include_router(backtest.router, prefix="/api/backtest", tags=["backtest"])
 app.include_router(portfolio.router, prefix="/api/portfolio", tags=["portfolio"])
 app.include_router(macro.router, prefix="/api/macro", tags=["macro"])
 app.include_router(quant.router, prefix="/api/quant", tags=["quant"])
+app.include_router(workspace_router, prefix="/api", tags=["workspace"])
 
 
 @app.get("/")

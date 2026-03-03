@@ -1,7 +1,7 @@
 /**
  * 관심종목 대시보드
  */
-import WatchlistWidget from './WatchlistWidget';
+import WatchlistView from './WatchlistView';
 
 export default function WatchlistDashboard() {
   return (
@@ -14,7 +14,7 @@ export default function WatchlistDashboard() {
           </p>
         </div>
 
-        <WatchlistWidget />
+        <WatchlistView />
       </div>
     </div>
   );

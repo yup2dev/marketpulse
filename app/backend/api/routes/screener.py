@@ -9,7 +9,7 @@ from typing import List, Dict, Any, Optional
 from app.backend.database.db_dependency import get_db
 from app.backend.auth.dependencies import get_current_active_user, get_optional_user
 from app.backend.services.screener_service import ScreenerService
-from index_analyzer.models.database import User
+from index_analyzer.models.orm import User
 
 router = APIRouter(prefix="/screener", tags=["Screener"])
 

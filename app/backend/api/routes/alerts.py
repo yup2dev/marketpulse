@@ -10,7 +10,7 @@ from decimal import Decimal
 from app.backend.database.db_dependency import get_db
 from app.backend.auth.dependencies import get_current_active_user
 from app.backend.services.alert_service import AlertService
-from index_analyzer.models.database import User
+from index_analyzer.models.orm import User
 
 router = APIRouter(prefix="/alerts", tags=["Alerts"])
 

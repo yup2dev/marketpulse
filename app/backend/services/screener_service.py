@@ -9,7 +9,7 @@ from datetime import datetime, date
 import uuid
 import json
 
-from index_analyzer.models.database import (
+from index_analyzer.models.orm import (
     MBS_IN_STBD_MST,
     MBS_IN_STK_STBD,
     MBS_IN_FINANCIAL_METRICS,

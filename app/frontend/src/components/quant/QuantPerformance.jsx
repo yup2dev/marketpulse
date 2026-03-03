@@ -1,6 +1,6 @@
 import React from 'react';
 import { TrendingUp, TrendingDown, Activity, BarChart2, Target, DollarSign } from 'lucide-react';
-import WidgetTable from '../widgets/common/WidgetTable';
+import CommonTable from '../common/CommonTable';
 
 // ── Metric Card ───────────────────────────────────────────────────────────────
 const MetricCard = ({ label, value, sub, positive, negative, icon: Icon }) => {
@@ -17,49 +17,44 @@ const MetricCard = ({ label, value, sub, positive, negative, icon: Icon }) => {
   );
 };
 
-// ── Trades columns for WidgetTable ────────────────────────────────────────────
+// ── Trades columns for CommonTable ────────────────────────────────────────────
 const TRADE_COLUMNS = [
   {
     key: 'entry_date',
     header: 'Entry',
     sortable: true,
-    sortValue: r => r.entry_date,
-    render: r => <span className="text-gray-300 tabular-nums whitespace-nowrap">{r.entry_date}</span>,
+    renderFn: (value, row) => <span className="text-gray-300 tabular-nums whitespace-nowrap">{row.entry_date}</span>,
   },
   {
     key: 'exit_date',
     header: 'Exit',
     sortable: true,
-    sortValue: r => r.exit_date,
-    render: r => <span className="text-gray-300 tabular-nums whitespace-nowrap">{r.exit_date}</span>,
+    renderFn: (value, row) => <span className="text-gray-300 tabular-nums whitespace-nowrap">{row.exit_date}</span>,
   },
   {
     key: 'entry_price',
     header: 'Entry $',
     align: 'right',
     sortable: true,
-    sortValue: r => r.entry_price,
-    render: r => <span className="text-gray-200 tabular-nums">${r.entry_price?.toFixed(2)}</span>,
+    renderFn: (value, row) => <span className="text-gray-200 tabular-nums">${row.entry_price?.toFixed(2)}</span>,
   },
   {
     key: 'exit_price',
     header: 'Exit $',
     align: 'right',
     sortable: true,
-    sortValue: r => r.exit_price,
-    render: r => <span className="text-gray-200 tabular-nums">${r.exit_price?.toFixed(2)}</span>,
+    renderFn: (value, row) => <span className="text-gray-200 tabular-nums">${row.exit_price?.toFixed(2)}</span>,
   },
   {
     key: 'pnl',
     header: 'P&L',
     align: 'right',
     sortable: true,
-    sortValue: r => r.pnl,
-    render: r => {
-      const win = r.pnl >= 0;
+    renderFn: (value, row) => {
+      const win = row.pnl >= 0;
       return (
         <span className={`tabular-nums font-medium ${win ? 'text-green-400' : 'text-red-400'}`}>
-          {win ? '+' : ''}{r.pnl?.toFixed(0)}
+          {win ? '+' : ''}{row.pnl?.toFixed(0)}
         </span>
       );
     },
@@ -69,12 +64,11 @@ const TRADE_COLUMNS = [
     header: 'P&L %',
     align: 'right',
     sortable: true,
-    sortValue: r => r.pnl_pct,
-    render: r => {
-      const win = r.pnl_pct >= 0;
+    renderFn: (value, row) => {
+      const win = row.pnl_pct >= 0;
       return (
         <span className={`tabular-nums font-medium ${win ? 'text-green-400' : 'text-red-400'}`}>
-          {win ? '+' : ''}{r.pnl_pct?.toFixed(2)}%
+          {win ? '+' : ''}{row.pnl_pct?.toFixed(2)}%
         </span>
       );
     },
@@ -82,8 +76,9 @@ const TRADE_COLUMNS = [
   {
     key: 'reason',
     header: 'Reason',
-    render: r => (
-      <span className="text-gray-400 truncate max-w-[200px] block" title={r.reason}>{r.reason}</span>
+    sortable: false,
+    renderFn: (value, row) => (
+      <span className="text-gray-400 truncate max-w-[200px] block" title={row.reason}>{row.reason}</span>
     ),
   },
 ];
@@ -170,13 +165,13 @@ const QuantPerformance = ({ performance, ticker, section = 'all' }) => {
             Trade History ({trades.length})
           </div>
           <div className="border border-gray-800 rounded-lg overflow-hidden">
-            <WidgetTable
+            <CommonTable
               columns={TRADE_COLUMNS}
               data={trades.map((t, i) => ({ ...t, _key: i }))}
-              size="compact"
-              defaultSortKey="entry_date"
-              defaultSortDirection="desc"
-              emptyMessage="거래 내역이 없습니다"
+              compact={true}
+              searchable={false}
+              exportable={false}
+              pageSize={20}
             />
           </div>
         </div>

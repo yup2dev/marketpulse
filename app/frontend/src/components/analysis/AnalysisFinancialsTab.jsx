@@ -3,7 +3,7 @@
  */
 import { useState, useEffect } from 'react';
 import { RefreshCw, TrendingUp, TrendingDown } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
+import PlotlyChart from '../core/PlotlyChart';
 import { useStockContext } from './AnalysisDashboard';
 import { API_BASE } from '../../config/api';
 
@@ -160,40 +160,34 @@ export default function AnalysisFinancialsTab() {
               </h4>
             </div>
             <div className="p-4 h-[calc(100%-52px)]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                  <XAxis dataKey="date" stroke="#666" fontSize={11} />
-                  <YAxis stroke="#666" fontSize={11} tickFormatter={(v) => {
-                    if (Math.abs(v) >= 1e9) return `${(v / 1e9).toFixed(0)}B`;
-                    if (Math.abs(v) >= 1e6) return `${(v / 1e6).toFixed(0)}M`;
-                    return v;
-                  }} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333' }}
-                    formatter={(value) => formatNumber(value)}
-                    isAnimationActive={false}
-                  />
-                  {activeTab === 'income' && (
-                    <>
-                      <Bar dataKey="revenue" name="Revenue" fill="#3b82f6" isAnimationActive={false} />
-                      <Bar dataKey="netIncome" name="Net Income" fill="#22c55e" isAnimationActive={false} />
-                    </>
-                  )}
-                  {activeTab === 'balance' && (
-                    <>
-                      <Bar dataKey="totalAssets" name="Total Assets" fill="#3b82f6" isAnimationActive={false} />
-                      <Bar dataKey="totalEquity" name="Total Equity" fill="#22c55e" isAnimationActive={false} />
-                    </>
-                  )}
-                  {activeTab === 'cashflow' && (
-                    <>
-                      <Bar dataKey="operatingCashFlow" name="Operating CF" fill="#3b82f6" isAnimationActive={false} />
-                      <Bar dataKey="freeCashFlow" name="Free CF" fill="#22c55e" isAnimationActive={false} />
-                    </>
-                  )}
-                </BarChart>
-              </ResponsiveContainer>
+              <PlotlyChart
+                data={chartData}
+                xKey="date"
+                type="bar"
+                fillContainer
+                series={
+                  activeTab === 'income'
+                    ? [
+                        { key: 'revenue', name: 'Revenue', color: '#3b82f6' },
+                        { key: 'netIncome', name: 'Net Income', color: '#22c55e' },
+                      ]
+                    : activeTab === 'balance'
+                    ? [
+                        { key: 'totalAssets', name: 'Total Assets', color: '#3b82f6' },
+                        { key: 'totalEquity', name: 'Total Equity', color: '#22c55e' },
+                      ]
+                    : [
+                        { key: 'operatingCashFlow', name: 'Operating CF', color: '#3b82f6' },
+                        { key: 'freeCashFlow', name: 'Free CF', color: '#22c55e' },
+                      ]
+                }
+                yFormatter={(v) => {
+                  if (Math.abs(v) >= 1e9) return `${(v / 1e9).toFixed(0)}B`;
+                  if (Math.abs(v) >= 1e6) return `${(v / 1e6).toFixed(0)}M`;
+                  return String(v);
+                }}
+                tooltipFormatter={(value) => formatNumber(value)}
+              />
             </div>
           </div>
         </div>
@@ -205,20 +199,19 @@ export default function AnalysisFinancialsTab() {
               <h4 className="text-sm font-semibold text-white">Profit Margins</h4>
             </div>
             <div className="p-4 h-[calc(100%-52px)]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                  <XAxis dataKey="date" stroke="#666" fontSize={10} />
-                  <YAxis stroke="#666" fontSize={10} tickFormatter={(v) => `${v.toFixed(0)}%`} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333' }}
-                    formatter={(value) => `${value.toFixed(2)}%`}
-                  />
-                  <Line type="monotone" dataKey="grossMargin" name="Gross" stroke="#22c55e" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="operatingMargin" name="Operating" stroke="#3b82f6" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="netMargin" name="Net" stroke="#8b5cf6" strokeWidth={2} dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
+              <PlotlyChart
+                data={chartData}
+                xKey="date"
+                type="line"
+                fillContainer
+                series={[
+                  { key: 'grossMargin', name: 'Gross', color: '#22c55e' },
+                  { key: 'operatingMargin', name: 'Operating', color: '#3b82f6' },
+                  { key: 'netMargin', name: 'Net', color: '#8b5cf6' },
+                ]}
+                yFormatter={(v) => `${v.toFixed(0)}%`}
+                tooltipFormatter={(value) => `${value.toFixed(2)}%`}
+              />
             </div>
           </div>
         </div>

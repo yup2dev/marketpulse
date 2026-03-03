@@ -10,7 +10,7 @@ from typing import Optional
 from app.backend.database.db_dependency import get_db
 from app.backend.services.auth_service import AuthService
 from app.backend.auth.dependencies import get_current_user, get_current_active_user
-from index_analyzer.models.database import User
+from index_analyzer.models.orm import User
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 security = HTTPBearer()

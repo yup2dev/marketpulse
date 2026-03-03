@@ -6,27 +6,10 @@
  */
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Activity } from 'lucide-react';
-import {
-  ComposedChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, ReferenceLine,
-} from 'recharts';
+import CommonChart from '../../common/CommonChart';
 import BaseWidget from '../common/BaseWidget';
-import WidgetTable from '../common/WidgetTable';
+import CommonTable from '../../common/CommonTable';
 import { API_BASE } from '../../../config/api';
-
-const CustomTooltip = ({ active, payload, label }) => {
-  if (!active || !payload || !payload.length) return null;
-  return (
-    <div className="bg-[#1a1a1f] border border-gray-700 rounded px-3 py-2 shadow-lg text-xs">
-      <p className="text-gray-400 mb-1">{label}</p>
-      {payload.map((entry, i) => (
-        <p key={i} style={{ color: entry.color }}>
-          {entry.name}: {entry.value?.toFixed(3)}
-        </p>
-      ))}
-    </div>
-  );
-};
 
 const VIEWS       = ['cfnai', 'diff', 'sahm'];
 const VIEW_LABELS = { cfnai: 'CFNAI', diff: 'Breadth', sahm: 'Sahm Rule' };
@@ -108,17 +91,14 @@ export default function PMIWidget({ onRemove }) {
       key: 'date',
       header: 'Date',
       sortable: true,
-      sortValue: (row) => row.date,
-      render: (row) => <span className="text-gray-300">{row.date}</span>,
+      renderFn: (value, row) => <span className="text-gray-300">{row.date}</span>,
     },
     {
       key: 'value',
       header: VIEW_LABELS[activeView],
       align: 'right',
       sortable: true,
-      sortValue: (row) => row.value ?? -Infinity,
-      exportValue: (row) => row.value?.toFixed(3) ?? '',
-      render: (row) => {
+      renderFn: (value, row) => {
         const expanding = activeView === 'sahm' ? row.value < 0.5 : row.value >= 0;
         return (
           <span className={`font-medium ${expanding ? 'text-green-400' : 'text-red-400'}`}>
@@ -132,7 +112,7 @@ export default function PMIWidget({ onRemove }) {
       header: 'Signal',
       align: 'right',
       sortable: false,
-      render: (row) => {
+      renderFn: (value, row) => {
         const expanding = activeView === 'sahm' ? row.value < 0.5 : row.value >= 0;
         return (
           <span className={`text-[10px] ${expanding ? 'text-green-500' : 'text-red-500'}`}>
@@ -145,57 +125,30 @@ export default function PMIWidget({ onRemove }) {
     },
   ], [activeView]);
 
-  const renderChart = () => (
-    <ResponsiveContainer width="100%" height="100%">
-      <ComposedChart data={mergedSeries} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
-        <defs>
-          <linearGradient id={cfg.gradientId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%"  stopColor={cfg.gradientColor} stopOpacity={0.2} />
-            <stop offset="95%" stopColor={cfg.gradientColor} stopOpacity={0}   />
-          </linearGradient>
-        </defs>
-        <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-        <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} />
-        <YAxis
-          domain={['auto', 'auto']}
-          tick={{ fill: '#6b7280', fontSize: 10 }}
-          axisLine={{ stroke: '#374151' }}
-          tickFormatter={v => v.toFixed(2)}
-          width={38}
-        />
-        <Tooltip content={<CustomTooltip />} />
-        <ReferenceLine
-          y={cfg.threshold}
-          stroke="#6b7280"
-          strokeDasharray="4 4"
-          label={{ value: cfg.thresholdLabel, fill: '#6b7280', fontSize: 9, position: 'insideTopLeft' }}
-        />
-        {activeView === 'sahm' && (
-          <ReferenceLine y={0.5} stroke="#ef4444" strokeDasharray="3 3" />
-        )}
-        <Area
-          type="monotone"
-          dataKey="value"
-          name={cfg.mainName}
-          stroke={cfg.mainColor}
-          fill={`url(#${cfg.gradientId})`}
-          strokeWidth={1.5}
-          dot={false}
-        />
-        {activeView === 'cfnai' && (
-          <Line
-            type="monotone"
-            dataKey="ma3"
-            name="3M MA"
-            stroke="#a78bfa"
-            strokeWidth={2}
-            dot={false}
-            connectNulls
-          />
-        )}
-      </ComposedChart>
-    </ResponsiveContainer>
-  );
+  const renderChart = () => {
+    const chartSeries = [{ key: 'value', name: cfg.mainName, color: cfg.mainColor }];
+    if (activeView === 'cfnai') {
+      chartSeries.push({ key: 'ma3', name: '3M MA', color: '#a78bfa' });
+    }
+    const refLines = [{ value: cfg.threshold, color: '#6b7280', label: cfg.thresholdLabel }];
+    if (activeView === 'sahm') {
+      refLines.push({ value: 0.5, color: '#ef4444', label: '0.5 Recession' });
+    }
+    return (
+      <CommonChart
+        data={mergedSeries}
+        series={chartSeries}
+        xKey="date"
+        type="area"
+        fillContainer={true}
+        showTypeSelector={false}
+        xFormatter={formatDate}
+        yFormatter={(v) => Number(v).toFixed(2)}
+        tooltipFormatter={(v) => Number(v).toFixed(3)}
+        referenceLines={refLines}
+      />
+    );
+  };
 
   const latestCfnai = data?.cfnai?.latest;
   const isExpanding = latestCfnai ? latestCfnai.value >= 0 : null;
@@ -261,15 +214,13 @@ export default function PMIWidget({ onRemove }) {
         <div className="flex-1 px-1 pb-2 min-h-0">
           {viewMode === 'chart' ? renderChart() : (
             <div className="h-full overflow-auto">
-              <WidgetTable
+              <CommonTable
                 columns={tableColumns}
                 data={tableData}
-                resizable={true}
-                size="compact"
-                showExport={true}
-                exportFilename="business-cycle"
-                defaultSortKey="date"
-                defaultSortDirection="desc"
+                compact={true}
+                searchable={false}
+                exportable={true}
+                pageSize={20}
               />
             </div>
           )}

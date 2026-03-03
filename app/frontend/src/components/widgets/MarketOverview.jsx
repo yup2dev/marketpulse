@@ -2,9 +2,8 @@
  * Market Overview Widget - Real-time market indices display
  * Shows major indices with mini sparkline charts
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { TrendingUp, TrendingDown, Globe } from 'lucide-react';
-import { LineChart, Line, ResponsiveContainer } from 'recharts';
 import { API_BASE } from '../../config/api';
 import WidgetHeader from './common/WidgetHeader';
 
@@ -21,23 +20,34 @@ const MARKET_INDICES = [
 ];
 
 const MiniSparkline = ({ data, isPositive }) => {
-  if (!data || data.length === 0) return null;
+  const divRef = useRef(null);
 
-  return (
-    <div className="w-16 h-6">
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data}>
-          <Line
-            type="monotone"
-            dataKey="close"
-            stroke={isPositive ? '#22c55e' : '#ef4444'}
-            strokeWidth={1}
-            dot={false}
-          />
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
-  );
+  useEffect(() => {
+    if (!divRef.current || !data?.length) return;
+    let ro;
+    const draw = async () => {
+      const Plotly = (await import('plotly.js-dist-min')).default;
+      const color = isPositive ? '#22c55e' : '#ef4444';
+      await Plotly.react(
+        divRef.current,
+        [{ type: 'scatter', mode: 'lines', y: data.map(d => d.close), line: { color, width: 1 } }],
+        {
+          paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+          margin: { t: 0, r: 0, b: 0, l: 0 },
+          xaxis: { visible: false }, yaxis: { visible: false },
+          showlegend: false,
+        },
+        { displayModeBar: false, responsive: true },
+      );
+      ro = new ResizeObserver(() => Plotly.Plots.resize(divRef.current));
+      ro.observe(divRef.current);
+    };
+    draw();
+    return () => { if (ro) ro.disconnect(); };
+  }, [data, isPositive]);
+
+  if (!data?.length) return null;
+  return <div ref={divRef} className="w-16 h-6" />;
 };
 
 const IndexCard = ({ symbol, name, shortName, quote, history }) => {

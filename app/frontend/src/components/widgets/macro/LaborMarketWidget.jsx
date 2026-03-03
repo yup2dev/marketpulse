@@ -4,10 +4,7 @@
  */
 import { useState, useEffect, useCallback, Fragment } from 'react';
 import { Users, TrendingUp, TrendingDown } from 'lucide-react';
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Cell
-} from 'recharts';
+import CommonChart from '../../common/CommonChart';
 import BaseWidget from '../common/BaseWidget';
 import { API_BASE } from '../../../config/api';
 
@@ -21,20 +18,6 @@ const getHeatTextColor = (value) => {
   if (value >= 70) return 'text-red-400';
   if (value >= 50) return 'text-yellow-400';
   return 'text-green-400';
-};
-
-const CustomTooltip = ({ active, payload, label }) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-[#1a1a1f] border border-gray-700 rounded px-3 py-2 shadow-lg">
-        <p className="text-gray-400 text-xs mb-1">{label}</p>
-        <p className="text-sm text-white">
-          {typeof payload[0].value === 'number' ? payload[0].value.toFixed(1) : payload[0].value}%
-        </p>
-      </div>
-    );
-  }
-  return null;
 };
 
 const formatNumber = (value) => {
@@ -105,19 +88,16 @@ export default function LaborMarketWidget({ onRemove }) {
         {/* Chart */}
         <div className="flex-1 min-h-0">
           {barData.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={barData} margin={{ top: 10, right: 10, left: 0, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                <XAxis dataKey="name" tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} />
-                <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} tickFormatter={(v) => `${v}%`} />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={32}>
-                  {barData.map((entry, idx) => (
-                    <Cell key={idx} fill={entry.color} fillOpacity={0.8} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <CommonChart
+              data={barData}
+              series={[{ key: 'value', name: 'Value', color: '#3b82f6' }]}
+              xKey="name"
+              type="bar"
+              fillContainer={true}
+              showTypeSelector={false}
+              yFormatter={(v) => `${v}%`}
+              tooltipFormatter={(v) => `${Number(v).toFixed(1)}%`}
+            />
           ) : (
             <div className="flex items-center justify-center h-full text-gray-500 text-sm">No chart data</div>
           )}

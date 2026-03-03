@@ -1,6 +1,6 @@
 import { Wallet } from 'lucide-react';
 import BaseWidget from '../common/BaseWidget';
-import WidgetTable from '../common/WidgetTable';
+import CommonTable from '../../common/CommonTable';
 
 const fmtUSD = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(val ?? 0);
 const fmtUSDCompact = (val) => {
@@ -48,7 +48,7 @@ function buildColumns(displayCurrency, exchangeRate, formatKRW) {
     {
       key: 'symbol',
       header: 'Asset',
-      render: (row) => (
+      renderFn: (value, row) => (
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded-full bg-gray-800 flex items-center justify-center text-[10px] font-bold flex-shrink-0 border border-gray-700">
             {row.symbol.slice(0, 2)}
@@ -64,27 +64,26 @@ function buildColumns(displayCurrency, exchangeRate, formatKRW) {
       key: 'avgCost',
       header: 'Avg Cost',
       align: 'right',
-      render: (row) => <span className="tabular-nums text-[11px] text-gray-400">{fmtUSDCompact(row.avgCost)}</span>,
       sortable: true,
-      sortValue: (row) => row.avgCost,
+      renderFn: (value, row) => <span className="tabular-nums text-[11px] text-gray-400">{fmtUSDCompact(row.avgCost)}</span>,
     },
     {
       key: 'openPrice',
       header: '시가',
       align: 'right',
-      render: (row) => (
+      sortable: true,
+      renderFn: (value, row) => (
         row.openPrice != null
           ? <span className="tabular-nums text-[11px] text-gray-300">{fmtUSDCompact(row.openPrice)}</span>
           : <span className="text-gray-600 text-[11px]">—</span>
       ),
-      sortable: true,
-      sortValue: (row) => row.openPrice ?? 0,
     },
     {
       key: 'currentPrice',
       header: '현재가',
       align: 'right',
-      render: (row) => {
+      sortable: true,
+      renderFn: (value, row) => {
         const isUp = row.openPrice != null && row.currentPrice >= row.openPrice;
         const isDown = row.openPrice != null && row.currentPrice < row.openPrice;
         return (
@@ -93,43 +92,40 @@ function buildColumns(displayCurrency, exchangeRate, formatKRW) {
           </span>
         );
       },
-      sortable: true,
-      sortValue: (row) => row.currentPrice,
     },
     {
       key: 'dayChange',
       header: '당일 변동',
       align: 'right',
-      render: (row) => <DayChangeCell row={row} />,
       sortable: true,
-      sortValue: (row) => row.dailyChange ?? 0,
+      accessorFn: (row) => row.dailyChange ?? 0,
+      renderFn: (value, row) => <DayChangeCell row={row} />,
     },
     {
       key: 'todayPnl',
       header: '오늘 손익',
       align: 'right',
-      render: (row) => <TodayPnlCell row={row} />,
       sortable: true,
-      sortValue: (row) => row.todayPnl ?? 0,
+      renderFn: (value, row) => <TodayPnlCell row={row} />,
     },
     {
       key: 'value',
       header: `평가금액${isKRW ? ' (₩)' : ''}`,
       align: 'right',
-      render: (row) => (
+      sortable: true,
+      renderFn: (value, row) => (
         <div>
           <div className="tabular-nums text-[11px] text-white font-medium">{fmt(row.value)}</div>
           {isKRW && <div className="tabular-nums text-[10px] text-gray-500">{fmtUSD(row.value)}</div>}
         </div>
       ),
-      sortable: true,
-      sortValue: (row) => row.value,
     },
     {
       key: 'pnl',
       header: `총 손익${isKRW ? ' (₩)' : ''}`,
       align: 'right',
-      render: (row) => {
+      sortable: true,
+      renderFn: (value, row) => {
         if (row._noPrices) return <span className="text-gray-600 text-[11px]">—</span>;
         return (
           <div className={row.pnl >= 0 ? 'text-green-400' : 'text-red-400'}>
@@ -139,14 +135,13 @@ function buildColumns(displayCurrency, exchangeRate, formatKRW) {
           </div>
         );
       },
-      sortable: true,
-      sortValue: (row) => row.pnl,
     },
     {
       key: 'actions',
       header: '',
       align: 'right',
-      render: () => (
+      sortable: false,
+      renderFn: () => (
         <button className="text-cyan-400 hover:text-cyan-300 text-[11px] px-1.5 py-0.5 rounded hover:bg-cyan-900/20 transition-colors">
           Trade
         </button>
@@ -194,13 +189,13 @@ export default function PortfolioBalancesWidget({
       }
     >
       <div className="overflow-auto h-full">
-        <WidgetTable
+        <CommonTable
           columns={COLUMNS}
           data={data}
-          size="compact"
-          emptyMessage="No balances"
-          defaultSortKey="value"
-          defaultSortDirection="desc"
+          compact={true}
+          searchable={false}
+          exportable={false}
+          pageSize={50}
         />
       </div>
     </BaseWidget>

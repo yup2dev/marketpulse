@@ -2,10 +2,7 @@
  * Common Widget Components and Utilities
  * Shared components for all widgets to ensure consistent UI/UX
  */
-import { useState, useRef, useEffect } from 'react';
-import { RefreshCw, X, Maximize2, Download, FileDown, FileSpreadsheet, Image } from 'lucide-react';
 import { API_BASE } from '../../config/api';
-import { downloadCSV, downloadExcel, downloadChartPNG, makeFilename } from '../../utils/exportUtils';
 
 // ============================================================================
 // STYLES AND CONSTANTS
@@ -204,151 +201,8 @@ export const formatDate = (date, options = null) => {
   }
 };
 
-// ============================================================================
-// WIDGET HEADER COMPONENT
-// ============================================================================
-
-/**
- * WidgetHeader - Standard header for all widgets
- * @param {object} icon - Lucide icon component
- * @param {string} iconColor - Tailwind color class for icon
- * @param {string} title - Widget title
- * @param {boolean} loading - Loading state
- * @param {function} onRefresh - Refresh handler
- * @param {function} onRemove - Remove handler (optional)
- * @param {function} onMaximize - Maximize handler (optional)
- * @param {node} children - Additional header controls
- */
-export const WidgetHeader = ({
-  icon: Icon,
-  iconColor = 'text-blue-400',
-  title,
-  loading = false,
-  onRefresh,
-  onRemove,
-  onMaximize,
-  children,
-  // Export support
-  exportData,   // () => { columns, rows }
-  chartRef,     // ref to chart container for PNG
-  symbol,       // used in filename
-}) => {
-  const [showExportMenu, setShowExportMenu] = useState(false);
-  const exportMenuRef = useRef(null);
-
-  useEffect(() => {
-    if (!showExportMenu) return;
-    const handler = (e) => {
-      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target)) {
-        setShowExportMenu(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [showExportMenu]);
-
-  const handleExport = (format) => {
-    setShowExportMenu(false);
-    const fname = makeFilename(title || 'export', symbol);
-    if (format === 'png') {
-      if (chartRef?.current) downloadChartPNG(chartRef.current, fname);
-      return;
-    }
-    if (!exportData) return;
-    const { columns, rows } = exportData();
-    if (!rows?.length) return;
-    if (format === 'csv')   downloadCSV(rows,   columns, fname);
-    if (format === 'excel') downloadExcel(rows, columns, fname);
-  };
-
-  return (
-    <div className={WIDGET_STYLES.header}>
-      {/* Left side - Drag handle area with Icon and Title */}
-      <div className="flex items-center gap-2 min-w-0 cursor-move drag-handle-area flex-1">
-        {Icon && <Icon size={18} className={`${iconColor} flex-shrink-0`} />}
-        <h3 className={`${WIDGET_STYLES.title} truncate`}>{title}</h3>
-      </div>
-
-      {/* Right side - Controls */}
-      <div className="flex items-center gap-1 flex-shrink-0">
-        {children}
-
-        {/* Export dropdown */}
-        {(exportData || chartRef) && (
-          <div ref={exportMenuRef} className="relative">
-            <button
-              onMouseDown={e => e.stopPropagation()}
-              onClick={() => setShowExportMenu(v => !v)}
-              className="p-1.5 text-gray-400 hover:text-cyan-400 hover:bg-gray-700/50 rounded transition-colors"
-              title="Export"
-            >
-              <Download size={13} />
-            </button>
-            {showExportMenu && (
-              <div className="absolute right-0 top-full mt-1 bg-[#0d0d12] border border-gray-700 rounded shadow-xl z-[60] py-1 min-w-[140px]">
-                {exportData && (
-                  <>
-                    <button onClick={() => handleExport('csv')}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-gray-300 hover:text-white hover:bg-gray-800/50 transition-colors">
-                      <FileDown size={11} className="text-cyan-400" /> CSV
-                    </button>
-                    <button onClick={() => handleExport('excel')}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-gray-300 hover:text-white hover:bg-gray-800/50 transition-colors">
-                      <FileSpreadsheet size={11} className="text-green-400" /> Excel (.xlsx)
-                    </button>
-                  </>
-                )}
-                {chartRef && (
-                  <button onClick={() => handleExport('png')}
-                    className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-gray-300 hover:text-white hover:bg-gray-800/50 transition-colors border-t border-gray-800 mt-0.5 pt-1.5">
-                    <Image size={11} className="text-purple-400" /> PNG (Chart)
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Refresh Button */}
-        {onRefresh && (
-          <button
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={(e) => { e.stopPropagation(); onRefresh(); }}
-            disabled={loading}
-            className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700/50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Refresh"
-          >
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-          </button>
-        )}
-
-        {/* Maximize Button */}
-        {onMaximize && (
-          <button
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={(e) => { e.stopPropagation(); onMaximize(); }}
-            className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700/50 rounded transition-colors"
-            title="Maximize"
-          >
-            <Maximize2 size={14} />
-          </button>
-        )}
-
-        {/* Remove Button */}
-        {onRemove && (
-          <button
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={(e) => { e.stopPropagation(); onRemove(); }}
-            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-500/10 rounded transition-colors"
-            title="Remove"
-          >
-            <X size={14} />
-          </button>
-        )}
-      </div>
-    </div>
-  );
-};
+// ── WidgetHeader — re-exported from canonical location ────────────────────────
+export { WidgetHeader } from './common/WidgetHeader';
 
 // ============================================================================
 // LOADING SPINNER COMPONENT

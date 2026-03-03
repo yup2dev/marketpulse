@@ -16,6 +16,7 @@ import ThemeToggle from '../common/ThemeToggle';
 import MenuDropdown from '../common/MenuDropdown';
 import WidgetContextMenu from '../common/WidgetContextMenu';
 import { GlobalWidgetContext, useGlobalWidgetContext } from '../../contexts/GlobalWidgetContext';
+import WorkspaceBar from '../core/WorkspaceBar';
 
 export { useGlobalWidgetContext };
 
@@ -31,6 +32,19 @@ const ROUTE_MAP = {
   'watchlist':          '/watchlist',
   'quant':              '/quant',
   'strategy':           '/strategy',
+};
+
+// Map pathname → workspace screen name
+// Note: /, /stock, /macro, /portfolios are handled by TabDashboard (tab-scoped workspaces)
+// and don't use the WorkspaceBar.
+const SCREEN_MAP = {
+  '/backtest':   'backtest',
+  '/alerts':     'alerts',
+  '/screener':   'screener',
+  '/watchlist':  'watchlist',
+  '/quant':      'quant',
+  '/strategy':   'strategy',
+  '/trading':    'trading',
 };
 
 const AppLayout = () => {
@@ -131,6 +145,8 @@ const AppLayout = () => {
     registerWidgets,
     unregisterWidgets,
   }), [registerWidgets, unregisterWidgets]);
+
+  const currentScreen = SCREEN_MAP[location.pathname] || null;
 
   return (
     <GlobalWidgetContext.Provider value={contextValue}>
@@ -268,8 +284,15 @@ const AppLayout = () => {
         </div>
       </header>
 
-      {/* Main Content - with top padding for fixed header */}
-      <main className="flex-1 pt-14">
+      {/* WorkspaceBar — below the fixed header */}
+      {currentScreen && (
+        <div className="fixed top-14 left-0 right-0 z-40">
+          <WorkspaceBar screen={currentScreen} />
+        </div>
+      )}
+
+      {/* Main Content - with top padding for fixed header (56px) + workspace bar (32px) */}
+      <main className={`flex-1 ${currentScreen ? 'pt-[88px]' : 'pt-14'}`}>
         <Outlet />
       </main>
 

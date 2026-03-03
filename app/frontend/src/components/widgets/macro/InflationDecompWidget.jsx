@@ -3,12 +3,9 @@
  */
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { TrendingUp, TrendingDown, Flame } from 'lucide-react';
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Cell, ReferenceLine,
-} from 'recharts';
+import CommonChart from '../../common/CommonChart';
 import BaseWidget from '../common/BaseWidget';
-import WidgetTable from '../common/WidgetTable';
+import CommonTable from '../../common/CommonTable';
 import { API_BASE } from '../../../config/api';
 
 const getInflationColor = (value) => {
@@ -23,45 +20,26 @@ const getInflationTextColor = (value) => {
   return 'text-green-400';
 };
 
-const CustomTooltip = ({ active, payload, label }) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-[#1a1a1f] border border-gray-700 rounded px-3 py-2 shadow-lg">
-        <p className="text-gray-400 text-xs mb-1">{label}</p>
-        <p className="text-sm text-white">
-          YoY: {typeof payload[0].value === 'number' ? payload[0].value.toFixed(2) : payload[0].value}%
-        </p>
-      </div>
-    );
-  }
-  return null;
-};
-
 const COLUMNS = [
   {
     key: 'category',
     header: 'Category',
     sortable: true,
-    sortValue: (row) => row.category || '',
-    render: (row) => <span className="font-medium text-white">{row.category}</span>,
+    renderFn: (value, row) => <span className="font-medium text-white">{row.category}</span>,
   },
   {
     key: 'weight',
     header: 'Weight',
     align: 'right',
     sortable: true,
-    sortValue: (row) => row.weight ?? -Infinity,
-    exportValue: (row) => row.weight?.toFixed(1) ?? '',
-    render: (row) => <span className="text-gray-400">{row.weight?.toFixed(1)}%</span>,
+    renderFn: (value, row) => <span className="text-gray-400">{row.weight?.toFixed(1)}%</span>,
   },
   {
     key: 'yoy_change',
     header: 'YoY Change',
     align: 'right',
     sortable: true,
-    sortValue: (row) => row.yoy_change ?? -Infinity,
-    exportValue: (row) => row.yoy_change?.toFixed(2) ?? '',
-    render: (row) => (
+    renderFn: (value, row) => (
       <span className={`flex items-center justify-end gap-1 ${(row.yoy_change ?? 0) >= 0 ? 'text-red-400' : 'text-green-400'}`}>
         {(row.yoy_change ?? 0) >= 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
         {row.yoy_change?.toFixed(2)}%
@@ -73,9 +51,7 @@ const COLUMNS = [
     header: 'Contribution',
     align: 'right',
     sortable: true,
-    sortValue: (row) => row.contribution ?? -Infinity,
-    exportValue: (row) => row.contribution?.toFixed(2) ?? '',
-    render: (row) => <span className="text-blue-400">{row.contribution?.toFixed(2)}%</span>,
+    renderFn: (value, row) => <span className="text-blue-400">{row.contribution?.toFixed(2)}%</span>,
   },
 ];
 
@@ -127,20 +103,17 @@ export default function InflationDecompWidget({ onRemove }) {
         </div>
         <div className="flex-1 min-h-0">
           {data.components ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data.components} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                <XAxis dataKey="category" tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} angle={-15} textAnchor="end" height={50} />
-                <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} tickFormatter={(v) => `${v}%`} />
-                <Tooltip content={<CustomTooltip />} />
-                <ReferenceLine y={2} stroke="#f59e0b" strokeDasharray="3 3" label={{ value: '2% Target', position: 'right', fill: '#f59e0b', fontSize: 10 }} />
-                <Bar dataKey="yoy_change" radius={[4, 4, 0, 0]}>
-                  {data.components.map((entry, idx) => (
-                    <Cell key={idx} fill={getInflationColor(entry.yoy_change)} fillOpacity={0.8} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <CommonChart
+              data={data.components}
+              series={[{ key: 'yoy_change', name: 'YoY Change', color: '#f59e0b' }]}
+              xKey="category"
+              type="bar"
+              fillContainer={true}
+              showTypeSelector={false}
+              yFormatter={(v) => `${v}%`}
+              tooltipFormatter={(v) => `${Number(v).toFixed(2)}%`}
+              referenceLines={[{ value: 2, color: '#f59e0b', label: '2% Target' }]}
+            />
           ) : (
             <div className="flex items-center justify-center h-full text-gray-500 text-sm">No component data</div>
           )}
@@ -153,16 +126,13 @@ export default function InflationDecompWidget({ onRemove }) {
     if (!data) return null;
     return (
       <div className="h-full flex flex-col overflow-auto">
-        <WidgetTable
+        <CommonTable
           columns={COLUMNS}
           data={tableData}
-          resizable={true}
-          size="compact"
-          showExport={true}
-          exportFilename="inflation-decomp"
-          defaultSortKey="contribution"
-          defaultSortDirection="desc"
-          emptyMessage="No component data"
+          compact={true}
+          searchable={false}
+          exportable={true}
+          pageSize={20}
         />
         {data.expectations && (
           <div className="border-t border-gray-800 shrink-0">

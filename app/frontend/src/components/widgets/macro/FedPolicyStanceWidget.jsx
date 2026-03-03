@@ -3,12 +3,9 @@
  */
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Landmark } from 'lucide-react';
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Cell,
-} from 'recharts';
+import CommonChart from '../../common/CommonChart';
 import BaseWidget from '../common/BaseWidget';
-import WidgetTable from '../common/WidgetTable';
+import CommonTable from '../../common/CommonTable';
 import { API_BASE } from '../../../config/api';
 
 const STANCE_BADGE = {
@@ -19,39 +16,26 @@ const STANCE_BADGE = {
 
 const PROB_COLORS = { Hike: '#ef4444', Hold: '#eab308', Cut: '#22c55e' };
 
-const CustomTooltip = ({ active, payload }) => {
-  if (active && payload && payload.length) {
-    const d = payload[0].payload;
-    return (
-      <div className="bg-[#1a1a1f] border border-gray-700 rounded px-3 py-2 shadow-lg">
-        <p className="text-sm" style={{ color: PROB_COLORS[d.name] || '#fff' }}>
-          {d.name}: {d.value.toFixed(1)}%
-        </p>
-      </div>
-    );
-  }
-  return null;
-};
-
 const METRIC_COLUMNS = [
   {
     key: 'metric',
     header: 'Metric',
     sortable: true,
-    sortValue: (row) => row.metric,
-    render: (row) => <span className="text-gray-300">{row.metric}</span>,
+    renderFn: (value, row) => <span className="text-gray-300">{row.metric}</span>,
   },
   {
     key: 'value',
     header: 'Value',
     align: 'right',
-    render: (row) => <span className="text-white tabular-nums">{row.value}</span>,
+    sortable: false,
+    renderFn: (value, row) => <span className="text-white tabular-nums">{row.value}</span>,
   },
   {
     key: 'signal',
     header: 'Signal',
     align: 'right',
-    render: (row) => {
+    sortable: false,
+    renderFn: (value, row) => {
       if (!row.signal) return <span className="text-gray-500">-</span>;
       const badge = STANCE_BADGE[row.signal];
       return badge ? (
@@ -126,6 +110,14 @@ export default function FedPolicyStanceWidget({ onRemove }) {
     const stanceBadge = STANCE_BADGE[data.stance] || STANCE_BADGE.neutral;
     const targetRange  = data.fed_funds_target_range || data.target_range;
 
+    const chartSeries = chartData.map(d => ({
+      key: d.name,
+      name: d.name,
+      color: PROB_COLORS[d.name] || '#6b7280',
+    }));
+    // Pivot chartData into single object for CommonChart bar
+    const pivotedData = [chartData.reduce((acc, d) => { acc[d.name] = d.value; return acc; }, {})];
+
     return (
       <div className="h-full flex flex-col">
         <div className="flex items-center gap-3 px-1 pb-2 flex-shrink-0">
@@ -151,19 +143,16 @@ export default function FedPolicyStanceWidget({ onRemove }) {
           )}
         </div>
         <div className="flex-1 min-h-0">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 30, left: 5, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" horizontal={false} />
-              <XAxis type="number" domain={[0, 100]} tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={{ stroke: '#374151' }} tickFormatter={(v) => `${v}%`} />
-              <YAxis type="category" dataKey="name" tick={{ fill: '#6b7280', fontSize: 11 }} axisLine={{ stroke: '#374151' }} width={40} />
-              <Tooltip content={<CustomTooltip />} />
-              <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={24}>
-                {chartData.map((entry, idx) => (
-                  <Cell key={idx} fill={PROB_COLORS[entry.name]} fillOpacity={0.8} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          <CommonChart
+            data={chartData}
+            series={[{ key: 'value', name: 'Probability', color: '#60a5fa' }]}
+            xKey="name"
+            type="bar"
+            fillContainer={true}
+            showTypeSelector={false}
+            yFormatter={(v) => `${v}%`}
+            tooltipFormatter={(v, name, item) => `${item?.payload?.name || name}: ${Number(v).toFixed(1)}%`}
+          />
         </div>
       </div>
     );
@@ -173,13 +162,13 @@ export default function FedPolicyStanceWidget({ onRemove }) {
     if (!data) return null;
     return (
       <div className="h-full flex flex-col overflow-auto">
-        <WidgetTable
+        <CommonTable
           columns={METRIC_COLUMNS}
           data={metricsData}
-          resizable={true}
-          size="compact"
-          showExport={false}
-          emptyMessage="No data"
+          compact={true}
+          searchable={false}
+          exportable={false}
+          pageSize={20}
         />
         {factors.length > 0 && (
           <div className="border-t border-gray-800 shrink-0">

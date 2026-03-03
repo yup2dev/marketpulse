@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Globe } from 'lucide-react';
 import BaseWidget from './common/BaseWidget';
-import WidgetTable from './common/WidgetTable';
+import CommonTable from '../common/CommonTable';
 import { API_BASE } from './constants';
 
 // Sector → relevant macro indicators
@@ -46,12 +46,14 @@ const TABLE_COLS = [
   { key: 'value', header: 'Latest', align: 'right', sortable: true },
   { key: 'unit',  header: 'Unit',   align: 'center' },
   {
-    key: 'impact', header: 'Impact', align: 'center',
-    render: r => (
-      <span className={`text-[9px] font-medium ${IMPACT_TEXT[r.impact] || IMPACT_TEXT.Neutral}`}>
-        {r.impact}
+    key: 'impact',
+    header: 'Impact',
+    align: 'center',
+    renderFn: (value, row) => (
+      <span className={`text-[9px] font-medium ${IMPACT_TEXT[row.impact] || IMPACT_TEXT.Neutral}`}>
+        {row.impact}
       </span>
-    )
+    ),
   },
 ];
 
@@ -155,7 +157,14 @@ export default function MacroCrossWidget({ symbol, onRemove }) {
       <div className="flex-1 overflow-auto p-3">
         {tab === 'table' && (
           indicators.length > 0
-            ? <WidgetTable columns={TABLE_COLS} rows={indicators} resizable />
+            ? <CommonTable
+                columns={TABLE_COLS}
+                data={indicators.map((r, i) => ({ ...r, _key: i }))}
+                compact={true}
+                searchable={false}
+                exportable={false}
+                pageSize={20}
+              />
             : <div className="text-center text-gray-500 text-xs py-8">No macro data available</div>
         )}
 

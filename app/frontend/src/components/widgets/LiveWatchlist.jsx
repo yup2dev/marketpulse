@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { List } from 'lucide-react';
 import { API_BASE } from '../../config/api';
 import WidgetHeader from './common/WidgetHeader';
-import WidgetTable from './common/WidgetTable';
+import CommonTable from '../common/CommonTable';
 
 const DEFAULT_SYMBOLS = [
   { symbol: 'BTC-USD', name: 'Bitcoin',    category: 'Crypto'    },
@@ -30,62 +30,59 @@ const formatPct = (value) => {
   return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
 };
 
-const pctRender = (val) => (
-  <span className={`font-medium ${val >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-    {formatPct(val)}
-  </span>
-);
-
 const COLUMNS = [
   {
     key: 'label',
     header: 'Symbol',
     sortable: true,
-    sortValue: (row) => row.label,
-    render: (row) => <span className="font-medium text-white">{row.label}</span>,
+    renderFn: (value, row) => <span className="font-medium text-white">{row.label}</span>,
   },
   {
     key: 'price',
     header: 'Price',
     align: 'right',
     sortable: true,
-    sortValue: (row) => row.price ?? -Infinity,
-    exportValue: (row) => row.price?.toString() ?? '',
-    render: (row) => <span className="font-medium text-white">{formatPrice(row.price)}</span>,
+    renderFn: (value, row) => <span className="font-medium text-white">{formatPrice(row.price)}</span>,
   },
   {
     key: 'change1h',
     header: '1H',
     align: 'right',
     sortable: true,
-    sortValue: (row) => row.change1h ?? -Infinity,
-    exportValue: (row) => formatPct(row.change1h),
-    render: (row) => pctRender(row.change1h),
+    renderFn: (value, row) => (
+      <span className={`font-medium ${(row.change1h ?? 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+        {formatPct(row.change1h)}
+      </span>
+    ),
   },
   {
     key: 'change24h',
     header: '24H',
     align: 'right',
     sortable: true,
-    sortValue: (row) => row.change24h ?? -Infinity,
-    exportValue: (row) => formatPct(row.change24h),
-    render: (row) => pctRender(row.change24h),
+    renderFn: (value, row) => (
+      <span className={`font-medium ${(row.change24h ?? 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+        {formatPct(row.change24h)}
+      </span>
+    ),
   },
   {
     key: 'change7d',
     header: '7D',
     align: 'right',
     sortable: true,
-    sortValue: (row) => row.change7d ?? -Infinity,
-    exportValue: (row) => formatPct(row.change7d),
-    render: (row) => pctRender(row.change7d),
+    renderFn: (value, row) => (
+      <span className={`font-medium ${(row.change7d ?? 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+        {formatPct(row.change7d)}
+      </span>
+    ),
   },
   {
     key: 'sparklineData',
     header: 'Last 7 Days',
-    type: 'sparkline',
-    sparkWidth: 64,
-    sparkHeight: 22,
+    sortable: false,
+    renderFn: 'sparkline',
+    sparklineField: 'sparklineData',
   },
 ];
 
@@ -162,15 +159,13 @@ export default function LiveWatchlist({ defaultSymbols = DEFAULT_SYMBOLS, title 
         onRemove={onRemove}
       />
       <div className="flex-1 overflow-auto">
-        <WidgetTable
+        <CommonTable
           columns={COLUMNS}
           data={data}
-          loading={loading}
-          size="compact"
-          resizable={true}
-          showExport={true}
-          exportFilename="watchlist"
-          emptyMessage="No watchlist data"
+          compact={true}
+          searchable={false}
+          exportable={true}
+          pageSize={20}
         />
       </div>
     </div>

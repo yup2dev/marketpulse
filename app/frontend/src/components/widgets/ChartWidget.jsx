@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { LineChart, Line, BarChart, Bar, ComposedChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, ReferenceArea, ReferenceDot, Cell, Rectangle, Customized } from 'recharts';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Plus, TrendingUp, Percent, Activity, X, TrendingDown, GitCompare, Settings, ChevronDown, ChevronUp, BarChart2, Layers, Target } from 'lucide-react';
 import StockSelectorModal from '../common/StockSelectorModal';
 import useTheme from '../../hooks/useTheme';
@@ -32,107 +31,506 @@ import {
   getRegimeBadge,
 } from '../../utils/pairAnalysis';
 
-// Custom Candlestick Bar Shape
-const CandlestickBar = (props) => {
-  const { x, y, width, height, payload, dataKey } = props;
-  const symbol = dataKey?.replace('_candleBody', '') || '';
+// Plotly-based stock chart component
+const PlotlyStockChart = ({
+  chartData,
+  tickers,
+  chartType,
+  normalized,
+  showVolume,
+  technicalIndicators,
+  pairMode,
+  pairConfig,
+  spreadData,
+  indexData,
+  regimePeriods,
+  outperformPeriods,
+  externalReferenceLines,
+  externalReferencePoints,
+  chartTheme,
+  isSeriesMode,
+  visibleSeries,
+  hasVolumeInSeries,
+  formatPrice,
+  formatDate,
+  formatNumber,
+  INDICATOR_COLORS,
+  CANDLE_COLORS,
+  getRegimeColor,
+  selectedDot,
+  setSelectedDot,
+}) => {
+  const divRef = useRef(null);
 
-  const open = payload?.[`${symbol}_open`];
-  const high = payload?.[`${symbol}_high`];
-  const low = payload?.[`${symbol}_low`];
-  const close = payload?.[`${symbol}_close`];
+  useEffect(() => {
+    if (!divRef.current || !chartData || chartData.length === 0) return;
 
-  if (open === undefined || close === undefined || high === undefined || low === undefined) {
-    return null;
-  }
+    const loadPlotly = async () => {
+      const Plotly = (await import('plotly.js-dist-min')).default;
 
-  const isBullish = close >= open;
-  const color = isBullish ? CANDLE_COLORS.up : CANDLE_COLORS.down;
+      const traces = [];
+      const shapes = [];
+      const annotations = [];
 
-  // Calculate wick positions relative to body
-  const bodyTop = y;
-  const bodyBottom = y + height;
-  const bodyMid = x + width / 2;
+      const darkLayout = {
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        font: { family: 'Inter, system-ui', color: '#9ca3af', size: 11 },
+        xaxis: {
+          gridcolor: chartTheme?.grid || '#1f2937',
+          linecolor: '#374151',
+          tickfont: { color: '#6b7280', size: 10 },
+          rangeslider: { visible: false },
+          type: 'category',
+        },
+        yaxis: {
+          gridcolor: chartTheme?.grid || '#1f2937',
+          linecolor: '#374151',
+          tickfont: { color: '#6b7280', size: 10 },
+          automargin: true,
+          side: 'right',
+        },
+        yaxis2: {
+          gridcolor: 'rgba(0,0,0,0)',
+          linecolor: '#374151',
+          tickfont: { color: '#6b7280', size: 10 },
+          automargin: true,
+          side: 'left',
+          overlaying: 'y',
+        },
+        yaxis3: {
+          gridcolor: 'rgba(0,0,0,0)',
+          linecolor: '#374151',
+          tickfont: { color: '#f59e0b', size: 10 },
+          automargin: true,
+          side: 'left',
+          overlaying: 'y',
+        },
+        margin: { t: 8, r: 60, b: 32, l: 60 },
+        legend: { font: { color: '#9ca3af', size: 10 }, bgcolor: 'rgba(0,0,0,0)', x: 0, y: 1 },
+        hoverlabel: { bgcolor: '#1a1f2e', bordercolor: '#374151', font: { color: '#f9fafb', size: 11 } },
+        hovermode: 'x unified',
+        showlegend: true,
+        shapes,
+        annotations,
+      };
 
-  // Calculate wick heights based on price ratios
-  const priceRange = Math.abs(open - close) || 0.01;
-  const highExtend = ((Math.max(open, close) - low) / priceRange) * height;
-  const lowExtend = ((high - Math.max(open, close)) / priceRange) * height;
+      const dates = chartData.map(d => d.date);
 
-  return (
-    <g>
-      {/* Upper wick */}
-      <line
-        x1={bodyMid}
-        y1={bodyTop - lowExtend}
-        x2={bodyMid}
-        y2={bodyTop}
-        stroke={color}
-        strokeWidth={1}
-      />
-      {/* Lower wick */}
-      <line
-        x1={bodyMid}
-        y1={bodyBottom}
-        x2={bodyMid}
-        y2={bodyBottom + highExtend}
-        stroke={color}
-        strokeWidth={1}
-      />
-      {/* Body */}
-      <rect
-        x={x}
-        y={y}
-        width={width}
-        height={Math.max(height, 1)}
-        fill={isBullish ? '#1a1a1a' : color}
-        stroke={color}
-        strokeWidth={1}
-      />
-    </g>
-  );
+      // Regime background areas
+      if (pairMode && pairConfig?.showRegime) {
+        regimePeriods?.forEach((period) => {
+          shapes.push({
+            type: 'rect',
+            xref: 'x',
+            yref: 'paper',
+            x0: period.start,
+            x1: period.end,
+            y0: 0,
+            y1: 1,
+            fillcolor: getRegimeColor?.(period.regime) || 'rgba(100,100,100,0.1)',
+            line: { width: 0 },
+          });
+        });
+      }
+
+      // Outperform highlight areas
+      if (pairMode && pairConfig?.showHighlight) {
+        outperformPeriods?.forEach((period) => {
+          shapes.push({
+            type: 'rect',
+            xref: 'x',
+            yref: 'paper',
+            x0: period.start,
+            x1: period.end,
+            y0: 0,
+            y1: 1,
+            fillcolor: 'rgba(34, 197, 94, 0.15)',
+            line: { color: 'rgba(34, 197, 94, 0.3)', dash: 'dot', width: 1 },
+          });
+        });
+      }
+
+      // Series mode rendering
+      if (isSeriesMode && visibleSeries) {
+        visibleSeries.forEach((s) => {
+          // Price line
+          traces.push({
+            type: 'scatter',
+            mode: 'lines',
+            x: dates,
+            y: chartData.map(d => d[s.id]),
+            name: s.name,
+            yaxis: 'y',
+            line: { color: s.color || '#06b6d4', width: 2 },
+            connectgaps: true,
+          });
+          // Volume bars
+          if (showVolume && hasVolumeInSeries) {
+            traces.push({
+              type: 'bar',
+              x: dates,
+              y: chartData.map(d => d[`${s.id}_volume`]),
+              name: `${s.name} Vol`,
+              yaxis: 'y2',
+              marker: { color: s.color || '#06b6d4', opacity: 0.3 },
+              showlegend: false,
+            });
+          }
+        });
+      } else {
+        // Symbol mode rendering
+        const stockTickers = tickers?.filter(t => t.visible) || [];
+
+        stockTickers.forEach((ticker) => {
+          if (ticker.type === 'indicator') {
+            // Macro indicator - dashed line
+            traces.push({
+              type: 'scatter',
+              mode: 'lines',
+              x: dates,
+              y: chartData.map(d => d[ticker.symbol]),
+              name: ticker.name || ticker.symbol,
+              yaxis: 'y',
+              line: { color: ticker.color, width: 3, dash: 'dot' },
+              connectgaps: true,
+            });
+            return;
+          }
+
+          // Stock rendering based on chart type
+          const isOHLCType = ['candlestick', 'ohlc', 'heikinashi'].includes(chartType) && !normalized;
+
+          if (isOHLCType) {
+            if (chartType === 'ohlc') {
+              traces.push({
+                type: 'ohlc',
+                x: dates,
+                open: chartData.map(d => d[`${ticker.symbol}_open`]),
+                high: chartData.map(d => d[`${ticker.symbol}_high`]),
+                low: chartData.map(d => d[`${ticker.symbol}_low`]),
+                close: chartData.map(d => d[`${ticker.symbol}_close`]),
+                name: ticker.name || ticker.symbol,
+                yaxis: 'y',
+                increasing: { line: { color: CANDLE_COLORS?.up || '#22c55e' } },
+                decreasing: { line: { color: CANDLE_COLORS?.down || '#ef4444' } },
+              });
+            } else {
+              // candlestick and heikinashi
+              traces.push({
+                type: 'candlestick',
+                x: dates,
+                open: chartData.map(d => d[`${ticker.symbol}_open`]),
+                high: chartData.map(d => d[`${ticker.symbol}_high`]),
+                low: chartData.map(d => d[`${ticker.symbol}_low`]),
+                close: chartData.map(d => d[`${ticker.symbol}_close`]),
+                name: ticker.name || ticker.symbol,
+                yaxis: 'y',
+                increasing: { line: { color: CANDLE_COLORS?.up || '#22c55e' }, fillcolor: CANDLE_COLORS?.up || '#22c55e' },
+                decreasing: { line: { color: CANDLE_COLORS?.down || '#ef4444' }, fillcolor: CANDLE_COLORS?.down || '#ef4444' },
+              });
+            }
+          } else if (chartType === 'area') {
+            traces.push({
+              type: 'scatter',
+              mode: 'lines',
+              x: dates,
+              y: chartData.map(d => d[ticker.symbol]),
+              name: ticker.name || ticker.symbol,
+              yaxis: 'y',
+              line: { color: ticker.color, width: 2 },
+              fill: 'tozeroy',
+              fillcolor: ticker.color.replace(')', ', 0.1)').replace('rgb', 'rgba').replace('#', 'rgba(') || 'rgba(6,182,212,0.1)',
+              connectgaps: true,
+            });
+          } else {
+            // line (default)
+            traces.push({
+              type: 'scatter',
+              mode: 'lines',
+              x: dates,
+              y: chartData.map(d => d[ticker.symbol]),
+              name: ticker.name || ticker.symbol,
+              yaxis: 'y',
+              line: { color: ticker.color, width: 2 },
+              connectgaps: true,
+            });
+          }
+
+          // Volume bars
+          if (showVolume) {
+            traces.push({
+              type: 'bar',
+              x: dates,
+              y: chartData.map(d => d[`${ticker.symbol}_volume`]),
+              name: `${ticker.symbol} Vol`,
+              yaxis: 'y2',
+              marker: { color: ticker.color, opacity: 0.3 },
+              showlegend: false,
+            });
+          }
+        });
+
+        // Technical indicator overlays
+        if (!normalized && technicalIndicators) {
+          technicalIndicators.filter(ti => ti.visible).forEach((indicator) => {
+            const { indicatorId, symbol } = indicator;
+
+            if (indicatorId === 'BBANDS') {
+              traces.push({
+                type: 'scatter', mode: 'lines',
+                x: dates, y: chartData.map(d => d[`${symbol}_${indicatorId}_upper`]),
+                name: `${symbol} BB Upper`, yaxis: 'y',
+                line: { color: INDICATOR_COLORS?.BBANDS_upper || '#6b7280', width: 1, dash: 'dash' },
+                connectgaps: true, showlegend: true,
+              });
+              traces.push({
+                type: 'scatter', mode: 'lines',
+                x: dates, y: chartData.map(d => d[`${symbol}_${indicatorId}_middle`]),
+                name: `${symbol} BB Middle`, yaxis: 'y',
+                line: { color: INDICATOR_COLORS?.BBANDS_middle || '#9ca3af', width: 1.5 },
+                connectgaps: true,
+              });
+              traces.push({
+                type: 'scatter', mode: 'lines',
+                x: dates, y: chartData.map(d => d[`${symbol}_${indicatorId}_lower`]),
+                name: `${symbol} BB Lower`, yaxis: 'y',
+                line: { color: INDICATOR_COLORS?.BBANDS_lower || '#6b7280', width: 1, dash: 'dash' },
+                fill: 'tonexty', fillcolor: 'rgba(107,114,128,0.05)',
+                connectgaps: true,
+              });
+            } else if (['SMA_20', 'SMA_50', 'SMA_200', 'EMA_12', 'EMA_26'].includes(indicatorId)) {
+              traces.push({
+                type: 'scatter', mode: 'lines',
+                x: dates, y: chartData.map(d => d[`${symbol}_${indicatorId}`]),
+                name: `${symbol} ${indicator.name}`, yaxis: 'y',
+                line: { color: INDICATOR_COLORS?.[indicatorId] || '#f59e0b', width: 1.5 },
+                connectgaps: true,
+              });
+            }
+          });
+        }
+      }
+
+      // Normalized baseline
+      if (normalized) {
+        shapes.push({
+          type: 'line', xref: 'paper', yref: 'y',
+          x0: 0, x1: 1, y0: 0, y1: 0,
+          line: { color: '#9ca3af', dash: 'dot', width: 1 },
+        });
+      }
+
+      // External reference lines (analyst targets)
+      if (!normalized && externalReferenceLines?.length > 0) {
+        externalReferenceLines.forEach((line, idx) => {
+          if (line.y != null) {
+            shapes.push({
+              type: 'line', xref: 'paper', yref: 'y',
+              x0: 0, x1: 1, y0: line.y, y1: line.y,
+              line: {
+                color: line.color,
+                dash: line.dashed ? 'dash' : 'solid',
+                width: line.dashed ? 1 : 1.5,
+              },
+            });
+            if (line.label) {
+              annotations.push({
+                xref: 'paper', yref: 'y',
+                x: 1, y: line.y,
+                text: line.label,
+                showarrow: false,
+                font: { color: line.color, size: 10 },
+                xanchor: 'right',
+              });
+            }
+          }
+        });
+      }
+
+      // Pair Analysis: spread line
+      if (pairMode && pairConfig?.showSpread && spreadData?.length > 0) {
+        traces.push({
+          type: 'scatter', mode: 'lines',
+          x: dates, y: chartData.map(d => d.spread),
+          name: 'Spread', yaxis: 'y3',
+          line: { color: '#f59e0b', width: 2.5 },
+          connectgaps: true,
+        });
+        shapes.push({
+          type: 'line', xref: 'paper', yref: 'y3',
+          x0: 0, x1: 1, y0: 1, y1: 1,
+          line: { color: '#f59e0b', dash: 'dot', width: 1 },
+        });
+        annotations.push({
+          xref: 'paper', yref: 'y3',
+          x: 0, y: 1,
+          text: 'Base (1.0)',
+          showarrow: false,
+          font: { color: '#f59e0b', size: 10 },
+          xanchor: 'left',
+        });
+      }
+
+      // Pair Analysis: index line
+      if (pairMode && pairConfig?.showIndex && indexData?.length > 0) {
+        traces.push({
+          type: 'scatter', mode: 'lines',
+          x: dates, y: chartData.map(d => d.indexNormalized),
+          name: pairConfig.regimeSymbol === '^KS11' ? 'KOSPI' : pairConfig.regimeSymbol,
+          yaxis: 'y3',
+          line: { color: '#3b82f6', width: 2, dash: 'dash' },
+          connectgaps: true,
+        });
+      }
+
+      // External reference points (analyst dots)
+      if (!normalized && externalReferencePoints?.length > 0 && chartData.length > 0) {
+        const primarySymbol = tickers?.find(t => t.type === 'stock')?.symbol;
+        const dataByDate = {};
+        chartData.forEach(d => { if (d.date) dataByDate[d.date] = d; });
+        const chartDates = Object.keys(dataByDate);
+
+        const findClosestDate = (targetDate) => {
+          if (!targetDate) return chartDates[chartDates.length - 1];
+          const target = new Date(targetDate).getTime();
+          let closest = chartDates[0];
+          let minDiff = Math.abs(new Date(closest).getTime() - target);
+          for (const d of chartDates) {
+            const diff = Math.abs(new Date(d).getTime() - target);
+            if (diff < minDiff) { minDiff = diff; closest = d; }
+          }
+          return closest;
+        };
+
+        const ptX = [], ptY = [], ptText = [], ptColors = [];
+        externalReferencePoints.forEach((pt) => {
+          const snappedDate = findClosestDate(pt.x);
+          let yVal = pt.y;
+          if (yVal == null && primarySymbol && dataByDate[snappedDate]) {
+            yVal = dataByDate[snappedDate][primarySymbol];
+          }
+          if (yVal == null) return;
+          ptX.push(snappedDate);
+          ptY.push(yVal);
+          ptText.push(pt.tooltip || pt.label || '');
+          ptColors.push(pt.color || '#a78bfa');
+        });
+
+        if (ptX.length > 0) {
+          traces.push({
+            type: 'scatter', mode: 'markers',
+            x: ptX, y: ptY,
+            name: 'Targets',
+            yaxis: 'y',
+            marker: { color: ptColors, size: 8, symbol: 'circle', line: { color: '#1a1a2e', width: 1.5 } },
+            text: ptText,
+            hovertemplate: '%{text}<extra></extra>',
+          });
+        }
+      }
+
+      // Y-axis tick formatters
+      const yTickFormatter = normalized
+        ? (v) => `${v.toFixed(0)}%`
+        : (v) => `${parseFloat(v).toFixed(0)}`;
+
+      darkLayout.yaxis.tickformat = normalized ? '.0f' : undefined;
+      darkLayout.yaxis.ticksuffix = normalized ? '%' : '';
+      darkLayout.yaxis2.tickformat = '.2s';
+
+      await Plotly.react(divRef.current, traces, darkLayout, {
+        displayModeBar: false,
+        responsive: true,
+        scrollZoom: true,
+      });
+
+      const ro = new ResizeObserver(() => {
+        if (divRef.current) Plotly.Plots.resize(divRef.current);
+      });
+      ro.observe(divRef.current);
+      divRef.current._ro = ro;
+    };
+
+    loadPlotly();
+
+    return () => {
+      if (divRef.current?._ro) {
+        divRef.current._ro.disconnect();
+      }
+    };
+  }, [chartData, tickers, chartType, normalized, showVolume, technicalIndicators, pairMode, pairConfig,
+    spreadData, indexData, regimePeriods, outperformPeriods, externalReferenceLines, externalReferencePoints,
+    isSeriesMode, visibleSeries, hasVolumeInSeries]);
+
+  return <div ref={divRef} className="w-full h-full" />;
 };
 
-// Custom OHLC Bar Shape
-const OHLCBar = (props) => {
-  const { x, y, width, height, payload, dataKey } = props;
-  const symbol = dataKey?.replace('_candleBody', '') || '';
+// Plotly oscillator sub-panel component
+const PlotlyOscillator = ({ chartData, traces: traceDefs, shapes: shapeDefs, yDomain, height = 192, chartTheme }) => {
+  const divRef = useRef(null);
 
-  const open = payload?.[`${symbol}_open`];
-  const high = payload?.[`${symbol}_high`];
-  const low = payload?.[`${symbol}_low`];
-  const close = payload?.[`${symbol}_close`];
+  useEffect(() => {
+    if (!divRef.current || !chartData || chartData.length === 0) return;
 
-  if (open === undefined || close === undefined || high === undefined || low === undefined) {
-    return null;
-  }
+    const loadPlotly = async () => {
+      const Plotly = (await import('plotly.js-dist-min')).default;
+      const dates = chartData.map(d => d.date);
 
-  const isBullish = close >= open;
-  const color = isBullish ? CANDLE_COLORS.up : CANDLE_COLORS.down;
+      const traces = traceDefs.map(td => ({
+        type: td.type || 'scatter',
+        mode: td.mode || 'lines',
+        x: dates,
+        y: chartData.map(d => d[td.dataKey]),
+        name: td.name,
+        line: td.line,
+        marker: td.marker,
+        connectgaps: true,
+      }));
 
-  const bodyMid = x + width / 2;
-  const tickWidth = Math.max(width * 0.4, 3);
+      const layout = {
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        font: { family: 'Inter, system-ui', color: '#9ca3af', size: 11 },
+        xaxis: {
+          gridcolor: chartTheme?.grid || '#1f2937',
+          linecolor: '#374151',
+          tickfont: { color: '#6b7280', size: 10 },
+          rangeslider: { visible: false },
+          type: 'category',
+        },
+        yaxis: {
+          gridcolor: chartTheme?.grid || '#1f2937',
+          linecolor: '#374151',
+          tickfont: { color: '#6b7280', size: 10 },
+          automargin: true,
+          ...(yDomain ? { range: yDomain } : {}),
+        },
+        margin: { t: 4, r: 8, b: 32, l: 50 },
+        legend: { font: { color: '#9ca3af', size: 10 }, bgcolor: 'rgba(0,0,0,0)' },
+        hoverlabel: { bgcolor: '#1a1f2e', bordercolor: '#374151', font: { color: '#f9fafb', size: 11 } },
+        hovermode: 'x unified',
+        showlegend: true,
+        shapes: shapeDefs || [],
+      };
 
-  // Calculate positions
-  const priceRange = Math.abs(open - close) || 0.01;
-  const highExtend = ((Math.max(open, close) - low) / priceRange) * height;
-  const lowExtend = ((high - Math.max(open, close)) / priceRange) * height;
+      await Plotly.react(divRef.current, traces, layout, { displayModeBar: false, responsive: true });
 
-  const topY = y - lowExtend;
-  const bottomY = y + height + highExtend;
-  const openY = isBullish ? y + height : y;
-  const closeY = isBullish ? y : y + height;
+      const ro = new ResizeObserver(() => {
+        if (divRef.current) Plotly.Plots.resize(divRef.current);
+      });
+      ro.observe(divRef.current);
+      divRef.current._ro = ro;
+    };
 
-  return (
-    <g>
-      {/* Vertical line (high to low) */}
-      <line x1={bodyMid} y1={topY} x2={bodyMid} y2={bottomY} stroke={color} strokeWidth={1.5} />
-      {/* Open tick (left) */}
-      <line x1={bodyMid - tickWidth} y1={openY} x2={bodyMid} y2={openY} stroke={color} strokeWidth={1.5} />
-      {/* Close tick (right) */}
-      <line x1={bodyMid} y1={closeY} x2={bodyMid + tickWidth} y2={closeY} stroke={color} strokeWidth={1.5} />
-    </g>
-  );
+    loadPlotly();
+
+    return () => {
+      if (divRef.current?._ro) divRef.current._ro.disconnect();
+    };
+  }, [chartData, traceDefs, shapeDefs, yDomain]);
+
+  return <div ref={divRef} style={{ width: '100%', height }} />;
 };
 
 // Calculate Heikin-Ashi values
@@ -1461,628 +1859,34 @@ const ChartWidget = ({
                 className="h-[420px] cursor-grab active:cursor-grabbing select-none"
                 onMouseDown={handleMouseDown}
               >
-                <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={chartDataWithCandles} onClick={() => setSelectedDot(null)}>
-                    {/* Regime Background Areas */}
-                    {pairMode && pairConfig.showRegime && regimePeriods.map((period, idx) => (
-                      <ReferenceArea
-                        key={`regime-${idx}`}
-                        x1={period.start}
-                        x2={period.end}
-                        yAxisId="price"
-                        fill={getRegimeColor(period.regime)}
-                        fillOpacity={1}
-                      />
-                    ))}
-
-                    {/* Outperform Highlight Areas */}
-                    {pairMode && pairConfig.showHighlight && outperformPeriods.map((period, idx) => (
-                      <ReferenceArea
-                        key={`outperform-${idx}`}
-                        x1={period.start}
-                        x2={period.end}
-                        yAxisId="price"
-                        fill="rgba(34, 197, 94, 0.15)"
-                        fillOpacity={1}
-                        stroke="rgba(34, 197, 94, 0.3)"
-                        strokeDasharray="3 3"
-                      />
-                    ))}
-
-                    <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
-                    <XAxis
-                      dataKey="date"
-                      tick={{ fill: chartTheme.text, fontSize: 11 }}
-                      tickFormatter={(date) => formatDate(date)}
-                      type="category"
-                      allowDuplicatedCategory={false}
-                    />
-                    <YAxis
-                      yAxisId="price"
-                      orientation="right"
-                      tick={{ fill: chartTheme.text, fontSize: 11 }}
-                      tickFormatter={(value) => normalized ? `${value.toFixed(0)}%` : `${value.toFixed(0)}`}
-                      domain={priceYDomain}
-                    />
-                    {showVolume && (isSeriesMode ? hasVolumeInSeries : tickers.some(t => t.type === 'stock' && t.visible)) && (
-                      <YAxis
-                        yAxisId="volume"
-                        orientation="left"
-                        tick={{ fill: chartTheme.text, fontSize: 11 }}
-                        tickFormatter={(value) => formatNumber(value)}
-                        domain={[0, 'auto']}
-                      />
-                    )}
-                    {/* Spread/Index Y-Axis (left side) - normalized to 1.0 base */}
-                    {pairMode && ((pairConfig.showSpread && spreadData.length > 0) || (pairConfig.showIndex && indexData.length > 0)) && (
-                      <YAxis
-                        yAxisId="spread"
-                        orientation="left"
-                        tick={{ fill: '#f59e0b', fontSize: 11 }}
-                        tickFormatter={(value) => value?.toFixed(2)}
-                        domain={['auto', 'auto']}
-                        label={{
-                          value: 'Normalized (1.0 = Base)',
-                          angle: -90,
-                          position: 'insideLeft',
-                          fill: '#9ca3af',
-                          fontSize: 10
-                        }}
-                      />
-                    )}
-                    <Tooltip
-                      contentStyle={{ backgroundColor: chartTheme.tooltip.background, border: `1px solid ${chartTheme.tooltip.border}` }}
-                      labelStyle={{ color: chartTheme.tooltip.text }}
-                      content={({ active, payload, label }) => {
-                        if (!active || !payload || payload.length === 0) return null;
-
-                        const data = payload[0]?.payload;
-                        const showOHLC = ['candlestick', 'ohlc', 'heikinashi'].includes(chartType) && !normalized;
-
-                        return (
-                          <div style={{
-                            backgroundColor: chartTheme.tooltip.background,
-                            border: `1px solid ${chartTheme.tooltip.border}`,
-                            padding: '8px 12px',
-                            borderRadius: '4px',
-                            fontSize: '12px'
-                          }}>
-                            <div style={{ color: chartTheme.tooltip.text, marginBottom: '6px', fontWeight: 600 }}>
-                              {formatDate(label)}
-                            </div>
-                            {/* Series mode tooltip */}
-                            {isSeriesMode && visibleSeries.map(s => {
-                              const val = data[s.id];
-                              return val !== undefined ? (
-                                <div key={s.id} style={{ color: s.color || CHART_COLORS[0] }}>
-                                  {s.name}: {normalized ? `${val?.toFixed(2)}%` : formatPrice(val)}
-                                </div>
-                              ) : null;
-                            })}
-                            {/* Symbol mode tooltip */}
-                            {!isSeriesMode && tickers.filter(t => t.visible && t.type === 'stock').map(ticker => {
-                              const sym = ticker.symbol;
-                              if (showOHLC && data[`${sym}_open`] !== undefined) {
-                                const o = data[`${sym}_open`];
-                                const h = data[`${sym}_high`];
-                                const l = data[`${sym}_low`];
-                                const c = data[`${sym}_close`];
-                                const change = o ? ((c - o) / o * 100).toFixed(2) : 0;
-                                const isUp = c >= o;
-                                return (
-                                  <div key={sym} style={{ marginBottom: '4px' }}>
-                                    <div style={{ color: ticker.color, fontWeight: 600 }}>{sym}</div>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 8px', color: '#9ca3af' }}>
-                                      <span>O: {formatPrice(o)}</span>
-                                      <span>H: {formatPrice(h)}</span>
-                                      <span>C: <span style={{ color: isUp ? CANDLE_COLORS.up : CANDLE_COLORS.down }}>{formatPrice(c)}</span></span>
-                                      <span>L: {formatPrice(l)}</span>
-                                    </div>
-                                    <div style={{ color: isUp ? CANDLE_COLORS.up : CANDLE_COLORS.down, fontSize: '11px' }}>
-                                      {isUp ? '+' : ''}{change}%
-                                    </div>
-                                  </div>
-                                );
-                              } else {
-                                const val = data[sym];
-                                return val !== undefined ? (
-                                  <div key={sym} style={{ color: ticker.color }}>
-                                    {sym}: {normalized ? `${val?.toFixed(2)}%` : formatPrice(val)}
-                                  </div>
-                                ) : null;
-                              }
-                            })}
-                            {tickers.filter(t => t.visible && t.type === 'indicator').map(ticker => {
-                              const val = data[ticker.symbol];
-                              return val !== undefined ? (
-                                <div key={ticker.symbol} style={{ color: ticker.color }}>
-                                  {ticker.name || ticker.symbol}: {val?.toFixed(2)}
-                                </div>
-                              ) : null;
-                            })}
-                            {pairMode && pairConfig.showSpread && data.spread !== undefined && (
-                              <div style={{ color: '#f59e0b' }}>
-                                Spread: {data.spread?.toFixed(3)}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      }}
-                    />
-                    <Legend />
-
-                    {/* Volume bars for stocks only */}
-                    {!isSeriesMode && showVolume && tickers.filter(t => t.type === 'stock' && t.visible).map((ticker) => (
-                      <Bar
-                        key={`${ticker.symbol}_volume`}
-                        yAxisId="volume"
-                        dataKey={`${ticker.symbol}_volume`}
-                        fill={ticker.color}
-                        opacity={0.3}
-                        name={`${ticker.symbol} Vol`}
-                      />
-                    ))}
-
-                    {/* Series mode: render lines for each series */}
-                    {isSeriesMode && visibleSeries.map((s) => (
-                      <Line
-                        key={s.id}
-                        yAxisId="price"
-                        type="monotone"
-                        dataKey={s.id}
-                        stroke={s.color || CHART_COLORS[0]}
-                        strokeWidth={2}
-                        dot={false}
-                        connectNulls={true}
-                        name={s.name}
-                      />
-                    ))}
-
-                    {/* Series mode: volume bars */}
-                    {isSeriesMode && showVolume && hasVolumeInSeries && visibleSeries.map((s) => (
-                      <Bar
-                        key={`${s.id}_volume`}
-                        yAxisId="volume"
-                        dataKey={`${s.id}_volume`}
-                        fill={s.color || CHART_COLORS[0]}
-                        opacity={0.3}
-                        name={`${s.name} Vol`}
-                      />
-                    ))}
-
-                    {/* Symbol mode: Chart rendering based on chart type */}
-                    {!isSeriesMode && tickers.filter(t => t.visible).map((ticker) => {
-                      // For indicators, always use line chart
-                      if (ticker.type === 'indicator') {
-                        return (
-                          <Line
-                            key={ticker.symbol}
-                            yAxisId="price"
-                            type="monotone"
-                            dataKey={ticker.symbol}
-                            stroke={ticker.color}
-                            strokeWidth={3}
-                            strokeDasharray="5 5"
-                            dot={false}
-                            connectNulls={true}
-                            name={ticker.name || ticker.symbol}
-                          />
-                        );
-                      }
-
-                      // For stocks, render based on chart type
-                      switch (chartType) {
-                        case 'area':
-                          return (
-                            <Area
-                              key={ticker.symbol}
-                              yAxisId="price"
-                              type="monotone"
-                              dataKey={ticker.symbol}
-                              stroke={ticker.color}
-                              strokeWidth={2}
-                              fill={ticker.color}
-                              fillOpacity={0.1}
-                              dot={false}
-                              connectNulls={true}
-                              name={ticker.name || ticker.symbol}
-                            />
-                          );
-
-                        case 'candlestick':
-                        case 'heikinashi':
-                          // Render candlestick using Bar with custom shape + invisible line for tooltip
-                          return !normalized ? (
-                            <React.Fragment key={ticker.symbol}>
-                              <Bar
-                                yAxisId="price"
-                                dataKey={`${ticker.symbol}_candleBody`}
-                                shape={(props) => <CandlestickBar {...props} dataKey={`${ticker.symbol}_candleBody`} />}
-                                name={ticker.name || ticker.symbol}
-                                isAnimationActive={false}
-                              />
-                              {/* Invisible line overlay for tooltip triggering */}
-                              <Line
-                                yAxisId="price"
-                                type="monotone"
-                                dataKey={`${ticker.symbol}_close`}
-                                stroke="transparent"
-                                strokeWidth={20}
-                                dot={false}
-                                activeDot={{ r: 4, fill: ticker.color, stroke: '#fff', strokeWidth: 2 }}
-                                connectNulls={true}
-                                name=""
-                                legendType="none"
-                              />
-                            </React.Fragment>
-                          ) : (
-                            <Line
-                              key={ticker.symbol}
-                              yAxisId="price"
-                              type="monotone"
-                              dataKey={ticker.symbol}
-                              stroke={ticker.color}
-                              strokeWidth={2}
-                              dot={false}
-                              connectNulls={true}
-                              name={ticker.name || ticker.symbol}
-                            />
-                          );
-
-                        case 'ohlc':
-                          // Render OHLC using Bar with custom shape + invisible line for tooltip
-                          return !normalized ? (
-                            <React.Fragment key={ticker.symbol}>
-                              <Bar
-                                yAxisId="price"
-                                dataKey={`${ticker.symbol}_candleBody`}
-                                shape={(props) => <OHLCBar {...props} dataKey={`${ticker.symbol}_candleBody`} />}
-                                name={ticker.name || ticker.symbol}
-                                isAnimationActive={false}
-                              />
-                              {/* Invisible line overlay for tooltip triggering */}
-                              <Line
-                                yAxisId="price"
-                                type="monotone"
-                                dataKey={`${ticker.symbol}_close`}
-                                stroke="transparent"
-                                strokeWidth={20}
-                                dot={false}
-                                activeDot={{ r: 4, fill: ticker.color, stroke: '#fff', strokeWidth: 2 }}
-                                connectNulls={true}
-                                name=""
-                                legendType="none"
-                              />
-                            </React.Fragment>
-                          ) : (
-                            <Line
-                              key={ticker.symbol}
-                              yAxisId="price"
-                              type="monotone"
-                              dataKey={ticker.symbol}
-                              stroke={ticker.color}
-                              strokeWidth={2}
-                              dot={false}
-                              connectNulls={true}
-                              name={ticker.name || ticker.symbol}
-                            />
-                          );
-
-                        case 'line':
-                        default:
-                          return (
-                            <Line
-                              key={ticker.symbol}
-                              yAxisId="price"
-                              type="monotone"
-                              dataKey={ticker.symbol}
-                              stroke={ticker.color}
-                              strokeWidth={2}
-                              dot={false}
-                              connectNulls={true}
-                              name={ticker.name || ticker.symbol}
-                            />
-                          );
-                      }
-                    })}
-
-                    {/* Technical Indicators */}
-                    {!normalized && technicalIndicators.filter(ti => ti.visible).map((indicator) => {
-                      const { indicatorId, symbol } = indicator;
-
-                      // Bollinger Bands
-                      if (indicatorId === 'BBANDS') {
-                        return (
-                          <React.Fragment key={`${symbol}_${indicatorId}`}>
-                            <Line
-                              yAxisId="price"
-                              type="monotone"
-                              dataKey={`${symbol}_${indicatorId}_upper`}
-                              stroke={INDICATOR_COLORS.BBANDS_upper}
-                              strokeWidth={1}
-                              strokeDasharray="2 2"
-                              dot={false}
-                              connectNulls={true}
-                              name={`${symbol} BB Upper`}
-                            />
-                            <Line
-                              yAxisId="price"
-                              type="monotone"
-                              dataKey={`${symbol}_${indicatorId}_middle`}
-                              stroke={INDICATOR_COLORS.BBANDS_middle}
-                              strokeWidth={1.5}
-                              dot={false}
-                              connectNulls={true}
-                              name={`${symbol} BB Middle`}
-                            />
-                            <Line
-                              yAxisId="price"
-                              type="monotone"
-                              dataKey={`${symbol}_${indicatorId}_lower`}
-                              stroke={INDICATOR_COLORS.BBANDS_lower}
-                              strokeWidth={1}
-                              strokeDasharray="2 2"
-                              dot={false}
-                              connectNulls={true}
-                              name={`${symbol} BB Lower`}
-                            />
-                          </React.Fragment>
-                        );
-                      }
-
-                      // Simple overlay indicators (SMA, EMA)
-                      if (['SMA_20', 'SMA_50', 'SMA_200', 'EMA_12', 'EMA_26'].includes(indicatorId)) {
-                        return (
-                          <Line
-                            key={`${symbol}_${indicatorId}`}
-                            yAxisId="price"
-                            type="monotone"
-                            dataKey={`${symbol}_${indicatorId}`}
-                            stroke={INDICATOR_COLORS[indicatorId]}
-                            strokeWidth={1.5}
-                            dot={false}
-                            connectNulls={true}
-                            name={`${symbol} ${indicator.name}`}
-                          />
-                        );
-                      }
-
-                      return null;
-                    })}
-
-                    {normalized && <ReferenceLine yAxisId="price" y={0} stroke={chartTheme.text} strokeDasharray="3 3" />}
-
-                    {/* External Reference Lines */}
-                    {!normalized && externalReferenceLines?.map((line, idx) => (
-                      <ReferenceLine
-                        key={`ext-ref-${idx}`}
-                        yAxisId="price"
-                        y={line.y}
-                        stroke={line.color}
-                        strokeDasharray={line.dashed ? '6 3' : '0'}
-                        strokeWidth={line.dashed ? 1 : 1.5}
-                        strokeOpacity={line.dashed ? 0.6 : 0.8}
-                        label={{ value: line.label, fill: line.color, fontSize: 10, position: 'right' }}
-                      />
-                    ))}
-
-                    {/* External Reference Points (analyst dots) */}
-                    {!normalized && externalReferencePoints?.length > 0 && (
-                      <Customized component={(props) => {
-                        const { xAxisMap, yAxisMap } = props;
-                        const yAxis = yAxisMap && (yAxisMap.price || yAxisMap[0] || Object.values(yAxisMap)[0]);
-                        const xAxis = xAxisMap && (xAxisMap[0] || Object.values(xAxisMap)[0]);
-                        if (!yAxis || !xAxis) return null;
-
-                        const yScale = yAxis.scale;
-                        const xScale = xAxis.scale;
-                        if (!yScale || !xScale) return null;
-
-                        // Build date→data lookup from chart data
-                        const dataByDate = {};
-                        (chartDataWithCandles || []).forEach(d => {
-                          if (d.date) dataByDate[d.date] = d;
-                        });
-                        const chartDates = Object.keys(dataByDate);
-                        if (chartDates.length === 0) return null;
-
-                        // Find the primary stock symbol for price lookup
-                        const primarySymbol = tickers.find(t => t.type === 'stock')?.symbol;
-
-                        const findClosestDate = (targetDate) => {
-                          if (!targetDate) return chartDates[chartDates.length - 1];
-                          const target = new Date(targetDate).getTime();
-                          let closest = chartDates[0];
-                          let minDiff = Math.abs(new Date(closest).getTime() - target);
-                          for (const d of chartDates) {
-                            const diff = Math.abs(new Date(d).getTime() - target);
-                            if (diff < minDiff) { minDiff = diff; closest = d; }
-                          }
-                          return closest;
-                        };
-
-                        return (
-                          <g className="analyst-dots">
-                            {externalReferencePoints.map((pt, idx) => {
-                              const snappedDate = findClosestDate(pt.x);
-                              const px = xScale(snappedDate);
-
-                              // Resolve y: use pt.y if given, otherwise look up stock price at that date
-                              let yVal = pt.y;
-                              if (yVal == null && primarySymbol && dataByDate[snappedDate]) {
-                                yVal = dataByDate[snappedDate][primarySymbol];
-                              }
-                              if (yVal == null) return null;
-                              const py = yScale(yVal);
-
-                              if (py == null || px == null || isNaN(py) || isNaN(px)) return null;
-                              const isSelected = selectedDot && selectedDot._idx === idx;
-                              const onClick = (e) => {
-                                e.stopPropagation();
-                                setSelectedDot(isSelected ? null : { ...pt, _idx: idx, _px: px, _py: py });
-                              };
-
-                              // ── Buy / Sell signal: triangle marker ──────────
-                              const isBuy  = pt.label === '▲';
-                              const isSell = pt.label === '▼';
-                              if (isBuy || isSell) {
-                                const sz      = isSelected ? 9 : 7;
-                                const stemLen = 14;
-                                // Buy marker sits below price (larger Y), Sell above (smaller Y)
-                                const markerCY = isBuy ? py + stemLen + sz : py - stemLen - sz;
-                                // Up-pointing triangle for buy, down-pointing for sell
-                                const triPts  = isBuy
-                                  ? `-${sz},${sz} ${sz},${sz} 0,-${sz}`
-                                  : `-${sz},-${sz} ${sz},-${sz} 0,${sz}`;
-                                const labelY  = isBuy ? markerCY + sz + 11 : markerCY - sz - 4;
-                                const stemY2  = isBuy ? py + stemLen : py - stemLen;
-                                const tooltipY = isBuy ? markerCY + sz + 4 : markerCY - sz - 76;
-
-                                return (
-                                  <g key={`ref-pt-${idx}`} onClick={onClick} style={{ cursor: 'pointer' }}>
-                                    {/* Vertical stem */}
-                                    <line
-                                      x1={px} y1={py}
-                                      x2={px} y2={stemY2}
-                                      stroke={pt.color}
-                                      strokeWidth={1.5}
-                                      strokeOpacity={0.65}
-                                    />
-                                    {/* Hit-area (invisible, larger) */}
-                                    <circle cx={px} cy={markerCY} r={sz + 4} fill="transparent" />
-                                    {/* Triangle */}
-                                    <polygon
-                                      points={triPts}
-                                      transform={`translate(${px},${markerCY})`}
-                                      fill={pt.color}
-                                      fillOpacity={isSelected ? 1 : 0.88}
-                                      stroke={isSelected ? '#ffffff' : '#0a0a0f'}
-                                      strokeWidth={isSelected ? 1.5 : 1}
-                                    />
-                                    {/* BUY / SELL label */}
-                                    <text
-                                      x={px} y={labelY}
-                                      textAnchor="middle"
-                                      fill={pt.color}
-                                      fontSize={8}
-                                      fontWeight="700"
-                                      style={{ letterSpacing: '0.5px', userSelect: 'none' }}
-                                    >
-                                      {isBuy ? 'BUY' : 'SELL'}
-                                    </text>
-                                    {/* Tooltip on click */}
-                                    {isSelected && (
-                                      <foreignObject
-                                        x={px + 14}
-                                        y={tooltipY}
-                                        width={210}
-                                        height={90}
-                                        style={{ overflow: 'visible' }}
-                                      >
-                                        <div xmlns="http://www.w3.org/1999/xhtml"
-                                          className="bg-[#1a1a2e] border border-gray-600 rounded-lg px-3 py-2 text-xs shadow-xl"
-                                          style={{ whiteSpace: 'nowrap' }}
-                                        >
-                                          {(pt.tooltip || '').split('\n').map((line, i) => (
-                                            <div key={i} className={i === 0 ? 'font-semibold' : 'text-gray-400'}
-                                              style={{ color: i === 0 ? pt.color : undefined }}>
-                                              {line}
-                                            </div>
-                                          ))}
-                                        </div>
-                                      </foreignObject>
-                                    )}
-                                  </g>
-                                );
-                              }
-
-                              // ── Default: circle (analyst targets, etc.) ─────
-                              return (
-                                <g key={`ref-pt-${idx}`}
-                                  onClick={onClick}
-                                >
-                                  <circle
-                                    cx={px}
-                                    cy={py}
-                                    r={isSelected ? 7 : 5}
-                                    fill={pt.color || '#a78bfa'}
-                                    fillOpacity={isSelected ? 1 : 0.85}
-                                    stroke={isSelected ? '#fff' : '#1a1a2e'}
-                                    strokeWidth={isSelected ? 2 : 1.5}
-                                    style={{ cursor: 'pointer' }}
-                                  />
-                                  {isSelected && (
-                                    <foreignObject
-                                      x={px + 12}
-                                      y={py - 50}
-                                      width={200}
-                                      height={80}
-                                      style={{ overflow: 'visible' }}
-                                    >
-                                      <div xmlns="http://www.w3.org/1999/xhtml"
-                                        className="bg-[#1a1a2e] border border-gray-600 rounded-lg px-3 py-2 text-xs shadow-xl"
-                                        style={{ whiteSpace: 'nowrap' }}
-                                      >
-                                        {(pt.tooltip || pt.label || '').split('\n').map((line, i) => (
-                                          <div key={i} className={i === 0 ? 'text-white font-medium' : 'text-gray-400'}>{line}</div>
-                                        ))}
-                                      </div>
-                                    </foreignObject>
-                                  )}
-                                </g>
-                              );
-                            })}
-                          </g>
-                        );
-                      }} />
-                    )}
-
-                    {/* Pair Analysis Index Line (KOSPI) */}
-                    {pairMode && pairConfig.showIndex && indexData.length > 0 && (
-                      <Line
-                        yAxisId="spread"
-                        type="monotone"
-                        dataKey="indexNormalized"
-                        stroke="#3b82f6"
-                        strokeWidth={2}
-                        strokeDasharray="4 2"
-                        dot={false}
-                        connectNulls={true}
-                        name={pairConfig.regimeSymbol === '^KS11' ? 'KOSPI' : pairConfig.regimeSymbol}
-                      />
-                    )}
-
-                    {/* Pair Analysis Spread Line */}
-                    {pairMode && pairConfig.showSpread && spreadData.length > 0 && (
-                      <>
-                        <Line
-                          yAxisId="spread"
-                          type="monotone"
-                          dataKey="spread"
-                          stroke="#f59e0b"
-                          strokeWidth={2.5}
-                          dot={false}
-                          connectNulls={true}
-                          name="Spread"
-                        />
-                        <ReferenceLine
-                          yAxisId="spread"
-                          y={1}
-                          stroke="#f59e0b"
-                          strokeDasharray="5 5"
-                          strokeOpacity={0.7}
-                          label={{
-                            value: 'Base (1.0)',
-                            fill: '#f59e0b',
-                            fontSize: 10,
-                            position: 'left'
-                          }}
-                        />
-                      </>
-                    )}
-
-                  </ComposedChart>
-                </ResponsiveContainer>
+                <PlotlyStockChart
+                  chartData={displayChartData}
+                  tickers={tickers}
+                  chartType={chartType}
+                  normalized={normalized}
+                  showVolume={showVolume}
+                  technicalIndicators={technicalIndicators}
+                  pairMode={pairMode}
+                  pairConfig={pairConfig}
+                  spreadData={spreadData}
+                  indexData={indexData}
+                  regimePeriods={regimePeriods}
+                  outperformPeriods={outperformPeriods}
+                  externalReferenceLines={externalReferenceLines}
+                  externalReferencePoints={externalReferencePoints}
+                  chartTheme={chartTheme}
+                  isSeriesMode={isSeriesMode}
+                  visibleSeries={visibleSeries}
+                  hasVolumeInSeries={hasVolumeInSeries}
+                  formatPrice={formatPrice}
+                  formatDate={formatDate}
+                  formatNumber={formatNumber}
+                  INDICATOR_COLORS={INDICATOR_COLORS}
+                  CANDLE_COLORS={CANDLE_COLORS}
+                  getRegimeColor={getRegimeColor}
+                  selectedDot={selectedDot}
+                  setSelectedDot={setSelectedDot}
+                />
               </div>
 
               {/* Zoom/Pan Controls */}
@@ -2241,42 +2045,21 @@ const ChartWidget = ({
                 <div className="mb-2">
                   <h4 className="text-sm font-semibold text-gray-400">RSI (Relative Strength Index)</h4>
                 </div>
-                <div className="h-48">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
-                      <XAxis
-                        dataKey="date"
-                        tick={{ fill: chartTheme.text, fontSize: 11 }}
-                        tickFormatter={(date) => formatDate(date)}
-                        type="category"
-                      />
-                      <YAxis
-                        tick={{ fill: chartTheme.text, fontSize: 11 }}
-                        domain={[0, 100]}
-                      />
-                      <Tooltip
-                        contentStyle={{ backgroundColor: chartTheme.tooltip.background, border: `1px solid ${chartTheme.tooltip.border}` }}
-                        labelStyle={{ color: chartTheme.tooltip.text }}
-                        labelFormatter={(date) => formatDate(date)}
-                      />
-                      <ReferenceLine y={70} stroke="#ef4444" strokeDasharray="3 3" label={{ value: 'Overbought', fill: '#ef4444', fontSize: 10 }} />
-                      <ReferenceLine y={30} stroke="#22c55e" strokeDasharray="3 3" label={{ value: 'Oversold', fill: '#22c55e', fontSize: 10 }} />
-                      {technicalIndicators.filter(ti => ti.indicatorId === 'RSI' && ti.visible).map(indicator => (
-                        <Line
-                          key={`${indicator.symbol}_RSI`}
-                          type="monotone"
-                          dataKey={`${indicator.symbol}_RSI`}
-                          stroke={INDICATOR_COLORS.RSI}
-                          strokeWidth={2}
-                          dot={false}
-                          connectNulls={true}
-                          name={`${indicator.symbol} RSI`}
-                        />
-                      ))}
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                </div>
+                <PlotlyOscillator
+                  chartData={displayChartData}
+                  chartTheme={chartTheme}
+                  height={192}
+                  yDomain={[0, 100]}
+                  traces={technicalIndicators.filter(ti => ti.indicatorId === 'RSI' && ti.visible).map(indicator => ({
+                    dataKey: `${indicator.symbol}_RSI`,
+                    name: `${indicator.symbol} RSI`,
+                    line: { color: INDICATOR_COLORS.RSI, width: 2 },
+                  }))}
+                  shapes={[
+                    { type: 'line', xref: 'paper', yref: 'y', x0: 0, x1: 1, y0: 70, y1: 70, line: { color: '#ef4444', dash: 'dot', width: 1 } },
+                    { type: 'line', xref: 'paper', yref: 'y', x0: 0, x1: 1, y0: 30, y1: 30, line: { color: '#22c55e', dash: 'dot', width: 1 } },
+                  ]}
+                />
               </div>
             )}
 
@@ -2286,57 +2069,32 @@ const ChartWidget = ({
                 <div className="mb-2">
                   <h4 className="text-sm font-semibold text-gray-400">MACD (Moving Average Convergence Divergence)</h4>
                 </div>
-                <div className="h-48">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
-                      <XAxis
-                        dataKey="date"
-                        tick={{ fill: chartTheme.text, fontSize: 11 }}
-                        tickFormatter={(date) => formatDate(date)}
-                        type="category"
-                      />
-                      <YAxis
-                        tick={{ fill: chartTheme.text, fontSize: 11 }}
-                        domain={['auto', 'auto']}
-                      />
-                      <Tooltip
-                        contentStyle={{ backgroundColor: chartTheme.tooltip.background, border: `1px solid ${chartTheme.tooltip.border}` }}
-                        labelStyle={{ color: chartTheme.tooltip.text }}
-                        labelFormatter={(date) => formatDate(date)}
-                      />
-                      <ReferenceLine y={0} stroke={chartTheme.text} strokeDasharray="3 3" />
-                      {technicalIndicators.filter(ti => ti.indicatorId === 'MACD' && ti.visible).map(indicator => (
-                        <React.Fragment key={`${indicator.symbol}_MACD`}>
-                          <Bar
-                            dataKey={`${indicator.symbol}_MACD_histogram`}
-                            fill={INDICATOR_COLORS.MACD}
-                            opacity={0.3}
-                            name={`${indicator.symbol} Histogram`}
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey={`${indicator.symbol}_MACD_macd`}
-                            stroke={INDICATOR_COLORS.MACD}
-                            strokeWidth={2}
-                            dot={false}
-                            connectNulls={true}
-                            name={`${indicator.symbol} MACD`}
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey={`${indicator.symbol}_MACD_signal`}
-                            stroke={INDICATOR_COLORS.MACD_signal}
-                            strokeWidth={2}
-                            dot={false}
-                            connectNulls={true}
-                            name={`${indicator.symbol} Signal`}
-                          />
-                        </React.Fragment>
-                      ))}
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                </div>
+                <PlotlyOscillator
+                  chartData={displayChartData}
+                  chartTheme={chartTheme}
+                  height={192}
+                  traces={technicalIndicators.filter(ti => ti.indicatorId === 'MACD' && ti.visible).flatMap(indicator => [
+                    {
+                      type: 'bar',
+                      dataKey: `${indicator.symbol}_MACD_histogram`,
+                      name: `${indicator.symbol} Histogram`,
+                      marker: { color: INDICATOR_COLORS.MACD, opacity: 0.3 },
+                    },
+                    {
+                      dataKey: `${indicator.symbol}_MACD_macd`,
+                      name: `${indicator.symbol} MACD`,
+                      line: { color: INDICATOR_COLORS.MACD, width: 2 },
+                    },
+                    {
+                      dataKey: `${indicator.symbol}_MACD_signal`,
+                      name: `${indicator.symbol} Signal`,
+                      line: { color: INDICATOR_COLORS.MACD_signal, width: 2 },
+                    },
+                  ])}
+                  shapes={[
+                    { type: 'line', xref: 'paper', yref: 'y', x0: 0, x1: 1, y0: 0, y1: 0, line: { color: '#9ca3af', dash: 'dot', width: 1 } },
+                  ]}
+                />
               </div>
             )}
 
@@ -2346,52 +2104,28 @@ const ChartWidget = ({
                 <div className="mb-2">
                   <h4 className="text-sm font-semibold text-gray-400">Stochastic Oscillator</h4>
                 </div>
-                <div className="h-48">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
-                      <XAxis
-                        dataKey="date"
-                        tick={{ fill: chartTheme.text, fontSize: 11 }}
-                        tickFormatter={(date) => formatDate(date)}
-                        type="category"
-                      />
-                      <YAxis
-                        tick={{ fill: chartTheme.text, fontSize: 11 }}
-                        domain={[0, 100]}
-                      />
-                      <Tooltip
-                        contentStyle={{ backgroundColor: chartTheme.tooltip.background, border: `1px solid ${chartTheme.tooltip.border}` }}
-                        labelStyle={{ color: chartTheme.tooltip.text }}
-                        labelFormatter={(date) => formatDate(date)}
-                      />
-                      <ReferenceLine y={80} stroke="#ef4444" strokeDasharray="3 3" label={{ value: 'Overbought', fill: '#ef4444', fontSize: 10 }} />
-                      <ReferenceLine y={20} stroke="#22c55e" strokeDasharray="3 3" label={{ value: 'Oversold', fill: '#22c55e', fontSize: 10 }} />
-                      {technicalIndicators.filter(ti => ti.indicatorId === 'STOCH' && ti.visible).map(indicator => (
-                        <React.Fragment key={`${indicator.symbol}_STOCH`}>
-                          <Line
-                            type="monotone"
-                            dataKey={`${indicator.symbol}_STOCH_k`}
-                            stroke={INDICATOR_COLORS.STOCH_k}
-                            strokeWidth={2}
-                            dot={false}
-                            connectNulls={true}
-                            name={`${indicator.symbol} %K`}
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey={`${indicator.symbol}_STOCH_d`}
-                            stroke={INDICATOR_COLORS.STOCH_d}
-                            strokeWidth={2}
-                            dot={false}
-                            connectNulls={true}
-                            name={`${indicator.symbol} %D`}
-                          />
-                        </React.Fragment>
-                      ))}
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                </div>
+                <PlotlyOscillator
+                  chartData={displayChartData}
+                  chartTheme={chartTheme}
+                  height={192}
+                  yDomain={[0, 100]}
+                  traces={technicalIndicators.filter(ti => ti.indicatorId === 'STOCH' && ti.visible).flatMap(indicator => [
+                    {
+                      dataKey: `${indicator.symbol}_STOCH_k`,
+                      name: `${indicator.symbol} %K`,
+                      line: { color: INDICATOR_COLORS.STOCH_k, width: 2 },
+                    },
+                    {
+                      dataKey: `${indicator.symbol}_STOCH_d`,
+                      name: `${indicator.symbol} %D`,
+                      line: { color: INDICATOR_COLORS.STOCH_d, width: 2 },
+                    },
+                  ])}
+                  shapes={[
+                    { type: 'line', xref: 'paper', yref: 'y', x0: 0, x1: 1, y0: 80, y1: 80, line: { color: '#ef4444', dash: 'dot', width: 1 } },
+                    { type: 'line', xref: 'paper', yref: 'y', x0: 0, x1: 1, y0: 20, y1: 20, line: { color: '#22c55e', dash: 'dot', width: 1 } },
+                  ]}
+                />
               </div>
             )}
 
@@ -2401,40 +2135,17 @@ const ChartWidget = ({
                 <div className="mb-2">
                   <h4 className="text-sm font-semibold text-gray-400">ATR (Average True Range)</h4>
                 </div>
-                <div className="h-48">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
-                      <XAxis
-                        dataKey="date"
-                        tick={{ fill: chartTheme.text, fontSize: 11 }}
-                        tickFormatter={(date) => formatDate(date)}
-                        type="category"
-                      />
-                      <YAxis
-                        tick={{ fill: chartTheme.text, fontSize: 11 }}
-                        domain={['auto', 'auto']}
-                      />
-                      <Tooltip
-                        contentStyle={{ backgroundColor: chartTheme.tooltip.background, border: `1px solid ${chartTheme.tooltip.border}` }}
-                        labelStyle={{ color: chartTheme.tooltip.text }}
-                        labelFormatter={(date) => formatDate(date)}
-                      />
-                      {technicalIndicators.filter(ti => ti.indicatorId === 'ATR' && ti.visible).map(indicator => (
-                        <Line
-                          key={`${indicator.symbol}_ATR`}
-                          type="monotone"
-                          dataKey={`${indicator.symbol}_ATR`}
-                          stroke={INDICATOR_COLORS.ATR}
-                          strokeWidth={2}
-                          dot={false}
-                          connectNulls={true}
-                          name={`${indicator.symbol} ATR`}
-                        />
-                      ))}
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                </div>
+                <PlotlyOscillator
+                  chartData={displayChartData}
+                  chartTheme={chartTheme}
+                  height={192}
+                  traces={technicalIndicators.filter(ti => ti.indicatorId === 'ATR' && ti.visible).map(indicator => ({
+                    dataKey: `${indicator.symbol}_ATR`,
+                    name: `${indicator.symbol} ATR`,
+                    line: { color: INDICATOR_COLORS.ATR, width: 2 },
+                  }))}
+                  shapes={[]}
+                />
               </div>
             )}
 
@@ -2444,42 +2155,17 @@ const ChartWidget = ({
                 <div className="mb-2">
                   <h4 className="text-sm font-semibold text-gray-400">OBV (On-Balance Volume)</h4>
                 </div>
-                <div className="h-48">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
-                      <XAxis
-                        dataKey="date"
-                        tick={{ fill: chartTheme.text, fontSize: 11 }}
-                        tickFormatter={(date) => formatDate(date)}
-                        type="category"
-                      />
-                      <YAxis
-                        tick={{ fill: chartTheme.text, fontSize: 11 }}
-                        domain={['auto', 'auto']}
-                        tickFormatter={(value) => formatNumber(value)}
-                      />
-                      <Tooltip
-                        contentStyle={{ backgroundColor: chartTheme.tooltip.background, border: `1px solid ${chartTheme.tooltip.border}` }}
-                        labelStyle={{ color: chartTheme.tooltip.text }}
-                        labelFormatter={(date) => formatDate(date)}
-                        formatter={(value) => [formatNumber(value), 'OBV']}
-                      />
-                      {technicalIndicators.filter(ti => ti.indicatorId === 'OBV' && ti.visible).map(indicator => (
-                        <Line
-                          key={`${indicator.symbol}_OBV`}
-                          type="monotone"
-                          dataKey={`${indicator.symbol}_OBV`}
-                          stroke={INDICATOR_COLORS.OBV}
-                          strokeWidth={2}
-                          dot={false}
-                          connectNulls={true}
-                          name={`${indicator.symbol} OBV`}
-                        />
-                      ))}
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                </div>
+                <PlotlyOscillator
+                  chartData={displayChartData}
+                  chartTheme={chartTheme}
+                  height={192}
+                  traces={technicalIndicators.filter(ti => ti.indicatorId === 'OBV' && ti.visible).map(indicator => ({
+                    dataKey: `${indicator.symbol}_OBV`,
+                    name: `${indicator.symbol} OBV`,
+                    line: { color: INDICATOR_COLORS.OBV, width: 2 },
+                  }))}
+                  shapes={[]}
+                />
               </div>
             )}
           </div>

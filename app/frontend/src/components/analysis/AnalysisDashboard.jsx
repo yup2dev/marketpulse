@@ -7,7 +7,7 @@ import { BarChart3, LayoutDashboard, FileText, Building2, GitCompare } from 'luc
 import AnalysisOverviewTab from './AnalysisOverviewTab';
 import AnalysisFinancialsTab from './AnalysisFinancialsTab';
 import AnalysisInstitutionalTab from './AnalysisInstitutionalTab';
-import AnalysisComparisonTab from './AnalysisComparisonTab';
+import MultiStockChartTab from './MultiStockChartTab';
 import StockSelectorModal from '../common/StockSelectorModal';
 
 // Stock Context for sharing selected stock across tabs
@@ -46,7 +46,7 @@ function AnalysisDashboardContent() {
       case 'institutional':
         return <AnalysisInstitutionalTab />;
       case 'comparison':
-        return <AnalysisComparisonTab />;
+        return <MultiStockChartTab />;
       default:
         return <AnalysisOverviewTab />;
     }

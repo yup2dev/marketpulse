@@ -14,7 +14,7 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, 
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
 
-from index_analyzer.models.database import Portfolio, Holding, Transaction
+from index_analyzer.models.orm import Portfolio, Holding, Transaction
 
 
 class ExportService:

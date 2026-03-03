@@ -2,18 +2,8 @@
  * Economic Regime Dashboard - Data-driven growth vs inflation analysis
  */
 import { useState, useEffect } from 'react';
-import {
-  ScatterChart,
-  Scatter,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  ReferenceLine,
-  Cell
-} from 'recharts';
 import { ArrowUp, ArrowDown, RefreshCw } from 'lucide-react';
+import CommonChart from '../common/CommonChart';
 import { API_BASE } from '../../config/api';
 
 const REGIME_CONFIG = {
@@ -81,36 +71,19 @@ export default function RegimeDashboard() {
     }
   };
 
-  const CustomTooltip = ({ active, payload }) => {
-    if (active && payload && payload.length > 0) {
-      const data = payload[0].payload;
-      if (!data || !data.regime) return null;
-
-      const config = REGIME_CONFIG[data.regime];
-      if (!config) return null;
-
-      return (
-        <div className="bg-[#0d0d12] border border-gray-700 rounded-lg p-3 shadow-lg">
-          <div className={`font-semibold ${config.textColor} mb-2`}>{config.name}</div>
-          <div className="text-xs space-y-1 text-gray-300">
-            <div>Date: {new Date(data.date).toLocaleDateString()}</div>
-            <div>Growth Score: {data.growth_score?.toFixed(1)}</div>
-            <div>Inflation Score: {data.inflation_score?.toFixed(1)}</div>
-            {data.gdp_growth != null && <div>GDP Growth: {data.gdp_growth.toFixed(1)}%</div>}
-            {data.cpi_yoy != null && <div>CPI YoY: {data.cpi_yoy.toFixed(1)}%</div>}
-          </div>
-        </div>
-      );
-    }
-    return null;
-  };
-
   const mostRecentData = history.length > 0 ? history[history.length - 1] : null;
   const config = mostRecentData ? REGIME_CONFIG[mostRecentData.regime] : null;
 
   const scatterData = history.map((h, index) => ({
     ...h,
     isCurrent: index === history.length - 1
+  }));
+
+  // For CommonChart: show growth_score and inflation_score over time
+  const chartData = history.map(h => ({
+    date: h.date ? new Date(h.date).toLocaleDateString('en-US', { year: '2-digit', month: 'short' }) : h.date,
+    growth_score: h.growth_score,
+    inflation_score: h.inflation_score,
   }));
 
   if (loading) {
@@ -207,44 +180,19 @@ export default function RegimeDashboard() {
         </div>
         <div className="p-4">
           {history.length > 0 ? (
-            <ResponsiveContainer width="100%" height={400}>
-              <ScatterChart margin={{ top: 20, right: 20, bottom: 40, left: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis
-                  type="number"
-                  dataKey="growth_score"
-                  domain={[-100, 100]}
-                  stroke="#9ca3af"
-                  label={{ value: 'Growth Score', position: 'bottom', fill: '#9ca3af', offset: 20 }}
-                />
-                <YAxis
-                  type="number"
-                  dataKey="inflation_score"
-                  domain={[-100, 100]}
-                  stroke="#9ca3af"
-                  label={{ value: 'Inflation Score', angle: -90, position: 'left', fill: '#9ca3af' }}
-                />
-                <ReferenceLine x={0} stroke="#6b7280" strokeWidth={2} />
-                <ReferenceLine y={0} stroke="#6b7280" strokeWidth={2} />
-                <Tooltip content={<CustomTooltip />} />
-                <Scatter name="Regime Data" data={scatterData}>
-                  {scatterData.map((entry, index) => {
-                    const entryConfig = REGIME_CONFIG[entry.regime];
-                    const isLatest = entry.isCurrent;
-                    return (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={entryConfig?.color || '#6b7280'}
-                        opacity={isLatest ? 1 : 0.4}
-                        r={isLatest ? 12 : 4}
-                        stroke={isLatest ? "#fff" : "none"}
-                        strokeWidth={isLatest ? 3 : 0}
-                      />
-                    );
-                  })}
-                </Scatter>
-              </ScatterChart>
-            </ResponsiveContainer>
+            <CommonChart
+              data={chartData}
+              series={[
+                { key: 'growth_score',    name: 'Growth Score',    color: '#10b981' },
+                { key: 'inflation_score', name: 'Inflation Score', color: '#f59e0b' },
+              ]}
+              xKey="date"
+              type="line"
+              height={400}
+              showTypeSelector={false}
+              referenceLines={[{ value: 0, color: '#6b7280', label: '0' }]}
+              tooltipFormatter={(v) => Number(v).toFixed(1)}
+            />
           ) : (
             <div className="h-[400px] flex items-center justify-center text-gray-400">
               No historical data available

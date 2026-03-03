@@ -4,74 +4,63 @@
 import { useState, useEffect, useCallback } from 'react';
 import { UserCheck } from 'lucide-react';
 import BaseWidget from '../common/BaseWidget';
-import WidgetTable from '../common/WidgetTable';
+import CommonTable from '../../common/CommonTable';
 import { API_BASE } from '../../../config/api';
 
-const formatNumber = (value) => {
-  if (value === null || value === undefined) return '-';
-  if (Math.abs(value) >= 1e9) return `${(value / 1e9).toFixed(2)}B`;
-  if (Math.abs(value) >= 1e6) return `${(value / 1e6).toFixed(2)}M`;
-  if (Math.abs(value) >= 1e3) return `${(value / 1e3).toFixed(2)}K`;
-  return value.toLocaleString();
-};
-
 const formatCurrency = (value) => {
-  if (value === null || value === undefined) return '-';
+  if (value == null) return '-';
   if (Math.abs(value) >= 1e9) return `$${(value / 1e9).toFixed(2)}B`;
   if (Math.abs(value) >= 1e6) return `$${(value / 1e6).toFixed(2)}M`;
   if (Math.abs(value) >= 1e3) return `$${(value / 1e3).toFixed(1)}K`;
   return `$${value.toLocaleString()}`;
 };
 
+const formatNumber = (value) => {
+  if (value == null) return '-';
+  if (Math.abs(value) >= 1e9) return `${(value / 1e9).toFixed(2)}B`;
+  if (Math.abs(value) >= 1e6) return `${(value / 1e6).toFixed(2)}M`;
+  if (Math.abs(value) >= 1e3) return `${(value / 1e3).toFixed(2)}K`;
+  return value.toLocaleString();
+};
+
 const COLUMNS = [
   {
     key: 'transaction_date',
     header: 'Date',
-    width: '90px',
-    filterable: true,
-    render: (row) => <span className="text-gray-400">{row.transaction_date}</span>,
-    exportValue: (row) => row.transaction_date ?? '',
+    formatter: 'date',
+    width: 90,
   },
   {
     key: 'insider_name',
     header: 'Name',
-    filterable: true,
-    render: (row) => <span className="text-white">{row.insider_name}</span>,
-    exportValue: (row) => row.insider_name ?? '',
+    renderFn: (value) => <span className="text-white">{value}</span>,
   },
   {
-    key: 'type',
+    key: 'acquisition_or_disposition',
     header: 'Type',
     align: 'center',
-    width: '60px',
-    render: (row) => (
+    width: 60,
+    renderFn: (value) => (
       <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${
-        row.acquisition_or_disposition === 'A' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+        value === 'A' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
       }`}>
-        {row.acquisition_or_disposition === 'A' ? 'Buy' : 'Sell'}
+        {value === 'A' ? 'Buy' : 'Sell'}
       </span>
     ),
-    exportValue: (row) => row.acquisition_or_disposition === 'A' ? 'Buy' : 'Sell',
   },
   {
     key: 'shares_traded',
     header: 'Shares',
     align: 'right',
     sortable: true,
-    filterable: false,
-    sortValue: (row) => row.shares_traded,
-    render: (row) => <span className="text-gray-300">{formatNumber(row.shares_traded)}</span>,
-    exportValue: (row) => row.shares_traded ?? '',
+    formatter: 'number',
   },
   {
     key: 'transaction_value',
     header: 'Value',
     align: 'right',
     sortable: true,
-    filterable: false,
-    sortValue: (row) => row.transaction_value,
-    render: (row) => <span className="text-white">{formatCurrency(row.transaction_value)}</span>,
-    exportValue: (row) => row.transaction_value ?? '',
+    formatter: 'magnitude',
   },
 ];
 
@@ -107,14 +96,11 @@ export default function OwnershipInsiderWidget({ symbol: initialSymbol = 'AAPL',
     if (!insiderSummary && insiderTransactions.length === 0) {
       return <div className="flex items-center justify-center h-full text-gray-500 text-xs">No data</div>;
     }
-
     const buyTotal = Math.abs(insiderSummary?.buy_value || 0);
     const sellTotal = Math.abs(insiderSummary?.sell_value || 0);
     const maxSummary = Math.max(buyTotal, sellTotal, 1);
-
     const topTx = insiderTransactions.slice(0, 6);
     const maxTxVal = Math.max(...topTx.map(t => Math.abs(t.transaction_value || 0)), 1);
-
     return (
       <div className="overflow-auto h-full p-3 space-y-4">
         {insiderSummary && (
@@ -130,7 +116,8 @@ export default function OwnershipInsiderWidget({ symbol: initialSymbol = 'AAPL',
                   <span className={`font-medium tabular-nums ml-2 flex-shrink-0 ${b.textClass}`}>{formatCurrency(b.value)}</span>
                 </div>
                 <div className="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden">
-                  <div className="h-1.5 rounded-full transition-all duration-500" style={{ width: `${(b.value / maxSummary) * 100}%`, backgroundColor: b.color }} />
+                  <div className="h-1.5 rounded-full transition-all duration-500"
+                    style={{ width: `${(b.value / maxSummary) * 100}%`, backgroundColor: b.color }} />
                 </div>
               </div>
             ))}
@@ -151,7 +138,8 @@ export default function OwnershipInsiderWidget({ symbol: initialSymbol = 'AAPL',
                     </span>
                   </div>
                   <div className="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden">
-                    <div className="h-1.5 rounded-full transition-all duration-500" style={{ width: `${(val / maxTxVal) * 100}%`, backgroundColor: isBuy ? '#22c55e' : '#ef4444' }} />
+                    <div className="h-1.5 rounded-full transition-all duration-500"
+                      style={{ width: `${(val / maxTxVal) * 100}%`, backgroundColor: isBuy ? '#22c55e' : '#ef4444' }} />
                   </div>
                 </div>
               );
@@ -161,21 +149,6 @@ export default function OwnershipInsiderWidget({ symbol: initialSymbol = 'AAPL',
       </div>
     );
   };
-
-  const renderTable = () => (
-    <div className="h-full px-3 pb-3 pt-1">
-      <WidgetTable
-        columns={COLUMNS}
-        data={insiderTransactions}
-        loading={loading}
-        size="compact"
-        showFilters
-        pageSize={10}
-        emptyMessage="No insider transaction data"
-        exportFilename={`insider-activity_${symbol}`}
-      />
-    </div>
-  );
 
   return (
     <BaseWidget
@@ -192,7 +165,16 @@ export default function OwnershipInsiderWidget({ symbol: initialSymbol = 'AAPL',
       showPeriodSelector={false}
       syncable
     >
-      {viewMode === 'chart' ? renderChart() : renderTable()}
+      {viewMode === 'chart' ? renderChart() : (
+        <CommonTable
+          columns={COLUMNS}
+          data={insiderTransactions}
+          searchable
+          exportable
+          compact
+          pageSize={10}
+        />
+      )}
     </BaseWidget>
   );
 }
