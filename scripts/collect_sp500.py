@@ -24,7 +24,8 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 
-from index_analyzer.models.database import default_db, Base
+from index_analyzer.models.orm import Base
+from index_analyzer.utils.db import default_db
 
 def main():
     # 1. 테이블 생성 (신규 테이블 포함)
@@ -39,7 +40,7 @@ def main():
     print("      - Peer 관계 → mbs_in_stk_relations")
     print()
 
-    from index_analyzer.pipeline.stock_collect_module import run_sp500_initial_collection
+    from index_analyzer.services.stock_service import run_sp500_initial_collection
     stats = run_sp500_initial_collection()
 
     print()
