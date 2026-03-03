@@ -4,7 +4,7 @@ User-saved custom factor definitions
 """
 from datetime import datetime
 from sqlalchemy import Column, String, Integer, Text, DateTime, ForeignKey, Index
-from index_analyzer.models.database import Base
+from index_analyzer.models.orm import Base
 
 
 class QuantFactor(Base):

@@ -9,10 +9,8 @@
  *  4. Variance Gap    — κ mean-reversion: gap(v₀ − θ) contraction/expansion
  */
 import React, { useState } from 'react';
-import { Play, Info, Save } from 'lucide-react';
+import { Play, Info } from 'lucide-react';
 import DateRangePicker from '../common/DateRangePicker';
-import { quantAPI } from '../../config/api';
-import toast from 'react-hot-toast';
 
 // ── Strategy catalogue ────────────────────────────────────────────────────────
 
@@ -132,26 +130,6 @@ const buildDefaultParams = () => {
   return out;
 };
 
-const getSignalText = (id, cur) => {
-  if (id === 'heston_vol_regime') return {
-    buy:  `RealVol / √θ < ${cur.entry_mult} (low-vol regime)`,
-    sell: `RealVol / √θ > ${cur.exit_mult} (vol spike)`,
-  };
-  if (id === 'heston_delta_signal') return {
-    buy:  `Heston Δ crosses above ${cur.delta_buy}`,
-    sell: `Heston Δ crosses below ${cur.delta_sell}`,
-  };
-  if (id === 'heston_price_ratio') return {
-    buy:  `Premium z-score > ${cur.entry_z} (fear peak, contrarian)`,
-    sell: `Premium z-score < -${cur.exit_z} (premium collapse)`,
-  };
-  if (id === 'heston_variance_gap') return {
-    buy:  `VarGap contracts from >= ${cur.spike_thresh}% (vol compressing)`,
-    sell: `VarGap < -${cur.low_thresh}% (spike risk)`,
-  };
-  return { buy: '', sell: '' };
-};
-
 const HestonStrategyTab = ({ onRun, loading }) => {
   const [strategyId, setStrategyId] = useState('heston_vol_regime');
   const [params, setParams]         = useState(buildDefaultParams);
@@ -162,8 +140,6 @@ const HestonStrategyTab = ({ onRun, loading }) => {
   const [takeProfit, setTakeProfit] = useState(20.0);
   const [capital, setCapital]       = useState(10000);
   const [showInfo, setShowInfo]     = useState(false);
-  const [name, setName]             = useState('');
-  const [saving, setSaving]         = useState(false);
 
   const strategy  = HESTON_STRATEGIES.find(s => s.id === strategyId);
   const colors    = COLOR_MAP[strategy.color];
@@ -185,39 +161,6 @@ const HestonStrategyTab = ({ onRun, loading }) => {
         initial_capital: capital,
       },
     });
-  };
-
-  const handleSave = async () => {
-    if (!name.trim()) { toast.error('전략 이름을 입력하세요'); return; }
-    setSaving(true);
-    try {
-      const p = params[strategyId];
-      const sig = getSignalText(strategyId, p);
-      const strat = HESTON_STRATEGIES.find(s => s.id === strategyId);
-      await quantAPI.createStrategy({
-        name:           name.trim(),
-        strategy_type:  strategyId,
-        formula:        strat?.formula || strategyId,
-        variables:      null,
-        buy_condition:  sig.buy,
-        sell_condition: sig.sell,
-        parameters:     JSON.stringify({
-          ...p,
-          ticker,
-          start_date:      startDate,
-          end_date:        endDate,
-          stop_loss_pct:   stopLoss,
-          take_profit_pct: takeProfit,
-          initial_capital: capital,
-        }),
-        notes: '',
-      });
-      toast.success(`"${name.trim()}" 저장 완료`);
-    } catch (err) {
-      toast.error(err.message || '저장 실패');
-    } finally {
-      setSaving(false);
-    }
   };
 
   const cur = params[strategyId];

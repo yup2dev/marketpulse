@@ -5,8 +5,9 @@ from typing import Deque, Set, Optional, Tuple, List, Iterator, Dict
 from bs4 import BeautifulSoup
 
 from ..models.schemas import CrawlConfig
-from .http_client import HttpClient
-from .url_classifier import URLClassifier, URLHelper
+from ..utils.http import HttpClient
+from ..utils.url import URLHelper
+from .classifier import URLClassifier
 
 log = logging.getLogger("multiseed-extractor")
 

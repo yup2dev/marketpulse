@@ -1,39 +1,27 @@
 """
 Command Handler - Redis Queue에서 Spring 명령 수신 및 처리
 """
-import logging
-import json
+from ..utils.logging import get_logger
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 class CommandHandler:
     """Spring에서 보낸 명령 처리"""
 
     def __init__(self, event_bus):
-        """
-        Args:
-            event_bus: RedisEventBus 인스턴스
-        """
         self.event_bus = event_bus
 
     def handle_command(self, message: dict):
         """
         명령 처리
 
-        Args:
-            message: Redis Queue에서 받은 메시지
-
         Expected format:
-            {
-                "command": "crawl" | "analyze" | "status",
-                "params": {...}
-            }
+            {"command": "crawl" | "analyze" | "status", "params": {...}}
         """
         try:
             command = message.get('command')
             params = message.get('params', {})
-
             log.info(f"Received command: {command} with params: {params}")
 
             if command == 'crawl':
@@ -51,25 +39,17 @@ class CommandHandler:
     def _handle_crawl(self, params: dict):
         """크롤링 명령 처리"""
         try:
-            from index_analyzer.pipeline.in_module import crawl_with_stream
-
+            from ..services.crawl_service import crawl_with_stream
             log.info("Starting manual crawl...")
             count = crawl_with_stream(self.event_bus)
             log.info(f"Crawl completed: {count} articles")
-
-            # 상태 발행
             self.event_bus.publish_status({
-                'command': 'crawl',
-                'status': 'completed',
-                'count': count
+                'command': 'crawl', 'status': 'completed', 'count': count
             })
-
         except Exception as e:
             log.error(f"Crawl failed: {e}", exc_info=True)
             self.event_bus.publish_status({
-                'command': 'crawl',
-                'status': 'failed',
-                'error': str(e)
+                'command': 'crawl', 'status': 'failed', 'error': str(e)
             })
 
     def _handle_analyze(self, params: dict):
@@ -80,7 +60,5 @@ class CommandHandler:
         """상태 조회 명령 처리"""
         log.info("Status command received")
         self.event_bus.publish_status({
-            'command': 'status',
-            'status': 'running',
-            'message': 'Worker is running'
+            'command': 'status', 'status': 'running', 'message': 'Worker is running'
         })

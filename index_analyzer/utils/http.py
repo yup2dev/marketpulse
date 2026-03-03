@@ -1,6 +1,9 @@
+"""Shared HTTP client utility"""
 import requests
 from typing import Optional
+from .logging import get_logger
 
+log = get_logger(__name__)
 
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "

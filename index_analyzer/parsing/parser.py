@@ -4,7 +4,7 @@ from typing import Optional, Tuple, List
 from bs4 import BeautifulSoup
 
 from ..models.schemas import ImageInfo
-from ..crawling.url_classifier import URLHelper
+from ..utils.url import URLHelper
 
 DEFAULT_PARSER = "lxml"
 CHART_HINT_RE = re.compile(

@@ -7,12 +7,13 @@ Job 목록:
   weekly_relations_job - Peer/경쟁사 갱신   (매주 일요일 오전 2시)
   monthly_collect_job  - S&P 500 전체 수집  (매월 1일 오전 1시)
 """
-import logging
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
 
-log = logging.getLogger(__name__)
+from ..utils.logging import get_logger
+
+log = get_logger(__name__)
 
 scheduler = None
 event_bus_ref = None
@@ -23,7 +24,7 @@ event_bus_ref = None
 def _daily_stock_job():
     """일별 주식 가격·시총 갱신 Job"""
     try:
-        from index_analyzer.pipeline.stock_collect_module import run_daily_profile_update
+        from ..services.stock_service import run_daily_profile_update
         stats = run_daily_profile_update()
         log.info(f"[Scheduler] daily_stock_job 완료: {stats}")
     except Exception as e:
@@ -33,7 +34,7 @@ def _daily_stock_job():
 def _weekly_relations_job():
     """주별 Peer/경쟁사 관계 갱신 Job"""
     try:
-        from index_analyzer.pipeline.stock_collect_module import run_weekly_relations_refresh
+        from ..services.stock_service import run_weekly_relations_refresh
         stats = run_weekly_relations_refresh()
         log.info(f"[Scheduler] weekly_relations_job 완료: {stats}")
     except Exception as e:
@@ -43,7 +44,7 @@ def _weekly_relations_job():
 def _monthly_collect_job():
     """월별 S&P 500 전체 재수집 Job"""
     try:
-        from index_analyzer.pipeline.stock_collect_module import run_sp500_initial_collection
+        from ..services.stock_service import run_sp500_initial_collection
         stats = run_sp500_initial_collection()
         log.info(f"[Scheduler] monthly_collect_job 완료: {stats}")
     except Exception as e:
@@ -53,22 +54,16 @@ def _monthly_collect_job():
 # ── 스케줄러 시작/종료 ────────────────────────────────────────────────────────
 
 def start_scheduler(event_bus=None):
-    """
-    APScheduler 시작
-
-    Args:
-        event_bus: RedisEventBus 인스턴스
-    """
+    """APScheduler 시작"""
     global scheduler, event_bus_ref
     event_bus_ref = event_bus
 
     try:
-        from index_analyzer.core.config import settings
-        from index_analyzer.pipeline.in_module import crawl_with_stream
+        from ..config.settings import settings
+        from ..services.crawl_service import crawl_with_stream
 
         scheduler = BackgroundScheduler()
 
-        # ── 뉴스 크롤러 (매 1시간) ──────────────────────────────────────────
         scheduler.add_job(
             func=lambda: crawl_with_stream(event_bus_ref) if event_bus_ref else None,
             trigger=IntervalTrigger(hours=settings.CRAWL_INTERVAL_HOURS),
@@ -77,7 +72,6 @@ def start_scheduler(event_bus=None):
             replace_existing=True,
         )
 
-        # ── 일별 주식 가격 업데이트 (매일 오전 6시) ─────────────────────────
         scheduler.add_job(
             func=_daily_stock_job,
             trigger=CronTrigger(hour=6, minute=0),
@@ -86,7 +80,6 @@ def start_scheduler(event_bus=None):
             replace_existing=True,
         )
 
-        # ── 주별 Peer/경쟁사 갱신 (매주 일요일 오전 2시) ─────────────────────
         scheduler.add_job(
             func=_weekly_relations_job,
             trigger=CronTrigger(day_of_week='sun', hour=2, minute=0),
@@ -95,7 +88,6 @@ def start_scheduler(event_bus=None):
             replace_existing=True,
         )
 
-        # ── 월별 S&P 500 전체 수집 (매월 1일 오전 1시) ───────────────────────
         scheduler.add_job(
             func=_monthly_collect_job,
             trigger=CronTrigger(day=1, hour=1, minute=0),

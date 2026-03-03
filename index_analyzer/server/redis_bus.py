@@ -8,13 +8,14 @@ Flowchart 매핑:
 - R3: pub:status_update (Python → Spring)
 """
 import json
-import logging
 import time
 from typing import Optional, Dict, Any, Callable, List, Tuple
 from datetime import datetime
 import redis
 
-log = logging.getLogger(__name__)
+from ..utils.logging import get_logger
+
+log = get_logger(__name__)
 
 
 class RedisEventBus:
@@ -24,9 +25,7 @@ class RedisEventBus:
         self.redis = redis_client
         self.running = False
 
-    # ===================================================================
-    # R1: Queue Pattern (Spring → Python 명령)
-    # ===================================================================
+    # ── Queue Pattern (Spring → Python 명령) ──────────────────────────────────
 
     def listen_command_queue(
         self,
@@ -35,22 +34,13 @@ class RedisEventBus:
         timeout: int = 5,
         max_retries: int = 5
     ):
-        """
-        명령 Queue 구독 (BLPOP) - Redis 재연결 로직 포함
-
-        Args:
-            queue_name: Queue 이름 (예: 'marketpulse:commands')
-            callback: 메시지 처리 함수
-            timeout: BLPOP 타임아웃 (초)
-            max_retries: 최대 재시도 횟수
-        """
+        """명령 Queue 구독 (BLPOP) - Redis 재연결 로직 포함"""
         self.running = True
         retry_count = 0
         log.info(f"[Queue] Listening on: {queue_name}")
 
         while self.running:
             try:
-                # 연결 상태 확인
                 if retry_count > 0:
                     log.info(f"[Queue] Reconnection attempt {retry_count}/{max_retries}")
                     self.redis.ping()
@@ -61,7 +51,6 @@ class RedisEventBus:
                 if message:
                     queue, raw_data = message
                     data = json.loads(raw_data.decode('utf-8'))
-
                     log.info(f"[Queue] Received: {data.get('task_type')}")
                     callback(data)
 
@@ -72,7 +61,7 @@ class RedisEventBus:
                     self.running = False
                     break
                 log.warning(f"[Queue] Connection error (attempt {retry_count}/{max_retries}): {e}")
-                time.sleep(min(5 * retry_count, 30))  # 지수 백오프 (최대 30초)
+                time.sleep(min(5 * retry_count, 30))
             except json.JSONDecodeError as e:
                 log.error(f"[Queue] Invalid JSON: {e}")
                 retry_count = 0
@@ -82,16 +71,7 @@ class RedisEventBus:
                 time.sleep(1)
 
     def send_command(self, queue_name: str, command: Dict[str, Any]) -> bool:
-        """
-        명령 Queue에 메시지 발행 (RPUSH)
-
-        Args:
-            queue_name: Queue 이름
-            command: 명령 딕셔너리
-
-        Returns:
-            성공 여부
-        """
+        """명령 Queue에 메시지 발행 (RPUSH)"""
         try:
             self.redis.rpush(queue_name, json.dumps(command))
             log.debug(f"[Queue] Sent command: {command.get('task_type')}")
@@ -105,41 +85,15 @@ class RedisEventBus:
         self.running = False
         log.info("[Queue] Listener stopped")
 
-    # ===================================================================
-    # R2: Stream Pattern (Crawler → Analyzer 파이프라인)
-    # ===================================================================
+    # ── Stream Pattern (Crawler → Analyzer 파이프라인) ────────────────────────
 
-    def publish_to_stream(
-        self,
-        stream_name: str,
-        data: Dict[str, Any],
-        maxlen: int = 10000
-    ) -> Optional[str]:
-        """
-        Stream에 메시지 발행 (XADD)
-
-        Args:
-            stream_name: Stream 이름 (예: 'stream:new_articles')
-            data: 발행할 데이터
-            maxlen: 최대 길이 (오래된 메시지 자동 삭제)
-
-        Returns:
-            메시지 ID (예: '1234567890-0')
-        """
+    def publish_to_stream(self, stream_name: str, data: Dict[str, Any], maxlen: int = 10000) -> Optional[str]:
+        """Stream에 메시지 발행 (XADD)"""
         try:
-            # 모든 값을 문자열로 변환
             str_data = {k: str(v) for k, v in data.items()}
-
-            msg_id = self.redis.xadd(
-                stream_name,
-                str_data,
-                maxlen=maxlen,
-                approximate=True  # 성능 최적화
-            )
-
+            msg_id = self.redis.xadd(stream_name, str_data, maxlen=maxlen, approximate=True)
             log.debug(f"[Stream] Published to {stream_name}: {msg_id}")
             return msg_id.decode('utf-8') if isinstance(msg_id, bytes) else msg_id
-
         except Exception as e:
             log.error(f"[Stream] Failed to publish: {e}")
             return None
@@ -154,29 +108,12 @@ class RedisEventBus:
         block: int = 5000,
         max_retries: int = 5
     ):
-        """
-        Stream 구독 및 처리 (Consumer Group) - Redis 재연결 로직 포함
-
-        Args:
-            stream_name: Stream 이름
-            consumer_group: Consumer Group 이름
-            consumer_name: Consumer 이름
-            callback: 메시지 처리 함수
-            count: 한 번에 읽을 메시지 수
-            block: 대기 시간 (밀리초)
-            max_retries: 최대 재시도 횟수
-        """
+        """Stream 구독 및 처리 (Consumer Group) - Redis 재연결 로직 포함"""
         self.running = True
         retry_count = 0
 
-        # Consumer Group 생성 (이미 존재하면 무시)
         try:
-            self.redis.xgroup_create(
-                stream_name,
-                consumer_group,
-                id='0',
-                mkstream=True
-            )
+            self.redis.xgroup_create(stream_name, consumer_group, id='0', mkstream=True)
             log.info(f"[Stream] Created consumer group: {consumer_group}")
         except redis.ResponseError as e:
             if "BUSYGROUP" not in str(e):
@@ -186,19 +123,14 @@ class RedisEventBus:
 
         while self.running:
             try:
-                # 연결 상태 확인
                 if retry_count > 0:
                     log.info(f"[Stream] Reconnection attempt {retry_count}/{max_retries}")
                     self.redis.ping()
                     retry_count = 0
 
-                # XREADGROUP으로 메시지 읽기
                 messages = self.redis.xreadgroup(
-                    consumer_group,
-                    consumer_name,
-                    {stream_name: '>'},  # '>'는 아직 전달되지 않은 메시지
-                    count=count,
-                    block=block
+                    consumer_group, consumer_name,
+                    {stream_name: '>'}, count=count, block=block
                 )
 
                 if not messages:
@@ -207,26 +139,17 @@ class RedisEventBus:
                 for stream, msg_list in messages:
                     for msg_id, data in msg_list:
                         try:
-                            # bytes to str 변환
                             decoded_data = {
                                 k.decode('utf-8') if isinstance(k, bytes) else k:
                                 v.decode('utf-8') if isinstance(v, bytes) else v
                                 for k, v in data.items()
                             }
-
                             msg_id_str = msg_id.decode('utf-8') if isinstance(msg_id, bytes) else msg_id
-
                             log.debug(f"[Stream] Processing message: {msg_id_str}")
-
-                            # 메시지 처리
                             callback(decoded_data)
-
-                            # ACK (처리 완료 확인)
                             self.redis.xack(stream_name, consumer_group, msg_id)
-
                         except Exception as e:
                             log.error(f"[Stream] Error processing message {msg_id}: {e}", exc_info=True)
-                            # 실패한 메시지는 ACK하지 않음 (재처리 가능)
 
             except redis.ConnectionError as e:
                 retry_count += 1
@@ -235,7 +158,7 @@ class RedisEventBus:
                     self.running = False
                     break
                 log.warning(f"[Stream] Connection error (attempt {retry_count}/{max_retries}): {e}")
-                time.sleep(min(5 * retry_count, 30))  # 지수 백오프
+                time.sleep(min(5 * retry_count, 30))
             except Exception as e:
                 log.error(f"[Stream] Unexpected error: {e}", exc_info=True)
                 retry_count = 0
@@ -246,9 +169,7 @@ class RedisEventBus:
         self.running = False
         log.info("[Stream] Consumer stopped")
 
-    # ===================================================================
-    # R3: Pub/Sub Pattern (Python → Spring 상태 전송)
-    # ===================================================================
+    # ── Pub/Sub Pattern (Python → Spring 상태 전송) ───────────────────────────
 
     def publish_status(
         self,
@@ -257,18 +178,7 @@ class RedisEventBus:
         task_type: Optional[str] = None,
         data: Optional[Dict] = None
     ) -> bool:
-        """
-        상태 업데이트 발행 (PUBLISH)
-
-        Args:
-            channel: 채널 이름 (예: 'marketpulse:status')
-            status: 상태 (started, progress, completed, failed)
-            task_type: 작업 유형
-            data: 추가 데이터
-
-        Returns:
-            성공 여부
-        """
+        """상태 업데이트 발행 (PUBLISH)"""
         try:
             message = {
                 'status': status,
@@ -276,46 +186,26 @@ class RedisEventBus:
                 'timestamp': datetime.utcnow().isoformat(),
                 'data': data or {}
             }
-
-            # Pub/Sub 채널로 발행
             subscribers = self.redis.publish(channel, json.dumps(message))
-
             log.debug(f"[Pub/Sub] Published status '{status}' to {subscribers} subscribers")
 
-            # 영속적 저장 (선택적)
             if task_type:
                 self.redis.hset(
                     f'task:status:{task_type}',
-                    mapping={
-                        'status': status,
-                        'timestamp': message['timestamp'],
-                        'data': json.dumps(data or {})
-                    }
+                    mapping={'status': status, 'timestamp': message['timestamp'], 'data': json.dumps(data or {})}
                 )
-                self.redis.expire(f'task:status:{task_type}', 3600)  # 1시간 TTL
+                self.redis.expire(f'task:status:{task_type}', 3600)
 
             return True
-
         except Exception as e:
             log.error(f"[Pub/Sub] Failed to publish status: {e}")
             return False
 
-    def subscribe_status(
-        self,
-        channel: str,
-        callback: Callable[[Dict], None]
-    ):
-        """
-        상태 채널 구독 (SUBSCRIBE)
-
-        Args:
-            channel: 채널 이름
-            callback: 메시지 처리 함수
-        """
+    def subscribe_status(self, channel: str, callback: Callable[[Dict], None]):
+        """상태 채널 구독 (SUBSCRIBE)"""
         try:
             pubsub = self.redis.pubsub()
             pubsub.subscribe(channel)
-
             log.info(f"[Pub/Sub] Subscribed to: {channel}")
 
             for message in pubsub.listen():
@@ -333,25 +223,14 @@ class RedisEventBus:
         except Exception as e:
             log.error(f"[Pub/Sub] Error: {e}", exc_info=True)
 
-    # ===================================================================
-    # Utility Methods
-    # ===================================================================
+    # ── Utility ──────────────────────────────────────────────────────────────
 
     def get_task_status(self, task_type: str) -> Optional[Dict]:
-        """
-        작업 상태 조회
-
-        Args:
-            task_type: 작업 유형
-
-        Returns:
-            상태 딕셔너리
-        """
+        """작업 상태 조회"""
         try:
             status_data = self.redis.hgetall(f'task:status:{task_type}')
             if not status_data:
                 return None
-
             return {
                 k.decode('utf-8') if isinstance(k, bytes) else k:
                 v.decode('utf-8') if isinstance(v, bytes) else v
@@ -362,15 +241,7 @@ class RedisEventBus:
             return None
 
     def get_stream_info(self, stream_name: str) -> Optional[Dict]:
-        """
-        Stream 정보 조회
-
-        Args:
-            stream_name: Stream 이름
-
-        Returns:
-            Stream 정보
-        """
+        """Stream 정보 조회"""
         try:
             info = self.redis.xinfo_stream(stream_name)
             return {
@@ -383,65 +254,32 @@ class RedisEventBus:
             log.error(f"Error getting stream info: {e}")
             return None
 
-    def get_pending_messages(
-        self,
-        stream_name: str,
-        consumer_group: str
-    ) -> List[Tuple]:
-        """
-        미처리 메시지 조회
-
-        Args:
-            stream_name: Stream 이름
-            consumer_group: Consumer Group
-
-        Returns:
-            미처리 메시지 리스트
-        """
+    def get_pending_messages(self, stream_name: str, consumer_group: str) -> List[Tuple]:
+        """미처리 메시지 조회"""
         try:
-            pending = self.redis.xpending(stream_name, consumer_group)
-            return pending
+            return self.redis.xpending(stream_name, consumer_group)
         except Exception as e:
             log.error(f"Error getting pending messages: {e}")
             return []
 
 
 def create_redis_event_bus(redis_url: str, max_connections: int = 50) -> Optional[RedisEventBus]:
-    """
-    RedisEventBus 인스턴스 생성 (Connection Pooling 적용)
-
-    Args:
-        redis_url: Redis 연결 URL
-        max_connections: Connection Pool 최대 연결 수
-
-    Returns:
-        RedisEventBus 인스턴스
-    """
+    """RedisEventBus 인스턴스 생성 (Connection Pooling 적용)"""
     try:
-        # Connection Pool 생성 (재사용 가능한 연결 관리)
         pool = redis.ConnectionPool.from_url(
             redis_url,
             max_connections=max_connections,
-            socket_timeout=30,  # 5 -> 30초로 증가 (Windows 환경)
-            socket_connect_timeout=10,  # 5 -> 10초로 증가
+            socket_timeout=30,
+            socket_connect_timeout=10,
             socket_keepalive=True,
-            socket_keepalive_options={
-                1: 1,  # TCP_KEEPIDLE (Linux)
-                2: 1,  # TCP_KEEPINTVL (Linux)
-                3: 3   # TCP_KEEPCNT (Linux)
-            },
-            decode_responses=False,  # bytes로 받기 (수동 디코딩)
+            socket_keepalive_options={1: 1, 2: 1, 3: 3},
+            decode_responses=False,
             retry_on_timeout=True,
-            health_check_interval=30  # 30초마다 연결 상태 체크
+            health_check_interval=30
         )
-
-        # Redis 클라이언트 생성 (Pool 사용)
         redis_client = redis.Redis(connection_pool=pool)
-
-        # 연결 테스트
         redis_client.ping()
-        log.info(f"Redis Event Bus connected with connection pool (max={max_connections}): {redis_url}")
-
+        log.info(f"Redis Event Bus connected (max={max_connections}): {redis_url}")
         return RedisEventBus(redis_client)
 
     except redis.ConnectionError as e:

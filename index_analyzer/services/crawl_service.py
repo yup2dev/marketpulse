@@ -1,40 +1,26 @@
 """
-IN Module - 뉴스 입수 (독립 모듈)
-뉴스 크롤링 및 Stream 발행
-
-역할:
-- 뉴스 사이트 크롤링
-- MBS_IN_ARTICLE 저장
-- Redis Stream 'stream:new_articles' 발행
-
-파이프라인: IN (Crawler) → Stream → PROC → CALC → RCMD
+Crawl Service - 뉴스 입수 서비스
+Extracted from: pipeline/in_module.py
 """
-import logging
 import yaml
 from pathlib import Path
 from typing import List, Dict, Optional
 from datetime import datetime
-
-from sqlalchemy.dialects.mysql.mariadb import loader
 from sqlalchemy.orm import Session
 
-from index_analyzer.models.schemas import CrawlConfig
-from index_analyzer.crawling.crawler import Crawler
-from index_analyzer.crawling.url_classifier import URLClassifier
-from index_analyzer.parsing.heuristics import ArticleHeuristics
-from index_analyzer.parsing.parser import Parser
+from ..models.schemas import CrawlConfig
+from ..crawling.crawler import Crawler
+from ..crawling.classifier import URLClassifier
+from ..parsing.heuristics import ArticleHeuristics
+from ..parsing.parser import Parser
+from ..utils.db import get_sqlite_db, generate_id, generate_batch_id
+from ..utils.logging import get_logger
+from ..models.orm import MBS_IN_ARTICLE
+from ..config.settings import settings
+from .ticker_service import TickerExtractor
+from .sentiment_service import SentimentAnalyzer
 
-from index_analyzer.models.database import (
-    get_sqlite_db,
-    MBS_IN_ARTICLE, MBS_IN_STK_STBD, MBS_IN_ETF_STBD,
-    generate_id, generate_batch_id
-)
-
-from index_analyzer.core.config import settings
-from index_analyzer.pipeline.proc_module_ticker import TickerExtractor
-from index_analyzer.pipeline.proc_module_sentiment import SentimentAnalyzer
-
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 
 class CrawlerService:
@@ -46,30 +32,22 @@ class CrawlerService:
     """
 
     def __init__(self):
-        """초기화"""
         self.sites_config_path = Path(__file__).parent.parent.parent / "sites.yaml"
         self.ticker_extractor = TickerExtractor()
         self.sentiment_analyzer = SentimentAnalyzer(use_transformers=settings.USE_TRANSFORMERS)
 
-        # 데이터베이스 연결
         db_path = Path(settings.SQLITE_PATH)
         db_path.parent.mkdir(parents=True, exist_ok=True)
         self.db = get_sqlite_db(str(db_path))
         self.db.create_tables()
 
-        # 배치 ID 생성 (세션당 한번)
         self.current_batch_id = generate_batch_id()
 
         log.info(f"CrawlerService initialized with DB: {db_path}")
         log.info(f"Current batch ID: {self.current_batch_id}")
 
     def load_sites_config(self) -> Dict[str, List[str]]:
-        """
-        sites.yaml 로드
-
-        Returns:
-            {site_name: [seed_urls]}
-        """
+        """sites.yaml 로드"""
         if not self.sites_config_path.exists():
             log.error(f"sites.yaml not found at {self.sites_config_path}")
             return {}
@@ -81,8 +59,6 @@ class CrawlerService:
         for site_name, site_config in config.items():
             if not isinstance(site_config, dict):
                 continue
-
-            # seed_urls 또는 SEED_URLS 키 찾기 (대소문자 무관)
             seed_urls = site_config.get('seed_urls') or site_config.get('SEED_URLS') or []
             if seed_urls:
                 sites[site_name] = seed_urls
@@ -98,25 +74,11 @@ class CrawlerService:
         content: str,
         published_time: Optional[datetime]
     ) -> Optional[str]:
-        """
-        MBS_IN_ARTICLE 테이블에 저장 (크롤러 입수 데이터)
-
-        Args:
-            source_cd: 출처 코드 (사이트명)
-            url: 기사 URL
-            title: 제목
-            content: 본문
-            published_time: 발행 시간
-
-        Returns:
-            저장된 news_id (중복이면 None)
-        """
+        """MBS_IN_ARTICLE 테이블에 저장"""
         session: Session = self.db.get_session()
         try:
-            # news_id 생성
             news_id = generate_id('NEWS-')
 
-            # 중복 체크 (URL 기반)
             existing = session.query(MBS_IN_ARTICLE).filter(
                 MBS_IN_ARTICLE.title == title
             ).first()
@@ -126,18 +88,16 @@ class CrawlerService:
                 session.close()
                 return None
 
-            # 발행 시간 처리
             published_dt = published_time if published_time else datetime.utcnow()
             base_ymd = published_dt.date()
 
-            # MBS_IN_ARTICLE 생성
             article = MBS_IN_ARTICLE(
                 news_id=news_id,
                 base_ymd=base_ymd,
                 source_cd=source_cd,
-                url=url,  # URL 추가
+                url=url,
                 title=title,
-                content=content or "",  # summary가 저장됨
+                content=content or "",
                 publish_dt=published_dt,
                 ingest_batch_id=self.current_batch_id
             )
@@ -145,7 +105,6 @@ class CrawlerService:
             session.commit()
 
             log.info(f"[MBS_IN] Saved article (ID: {news_id}): {title[:60]}")
-
             session.close()
             return news_id
 
@@ -155,7 +114,8 @@ class CrawlerService:
             session.close()
             return None
 
-# ===== 스케줄러에서 호출할 전역 함수 =====
+
+# ===== 싱글톤 =====
 
 _crawler_service: Optional[CrawlerService] = None
 
@@ -170,15 +130,12 @@ def get_crawler_service() -> CrawlerService:
 
 def crawl_with_stream(event_bus):
     """
-    Stream 기반 뉴스 크롤링 (D4: Crawler Module)
+    Stream 기반 뉴스 크롤링
 
     흐름:
     1. 뉴스 크롤링
     2. 기본 정보만 DB 저장 (sentiment 제외)
     3. Redis Stream에 article_id 발행 → Analyzer가 처리
-
-    Args:
-        event_bus: RedisEventBus 인스턴스
 
     Returns:
         Stream에 발행된 기사 수
@@ -201,7 +158,6 @@ def crawl_with_stream(event_bus):
             log.info(f"[Stream Crawler] Crawling {site_name}...")
 
             try:
-                # 크롤 설정
                 crawl_cfg = CrawlConfig(
                     max_total=settings.CRAWLER_MAX_WORKERS * 2,
                     max_depth=2,
@@ -210,15 +166,12 @@ def crawl_with_stream(event_bus):
                     user_agent="Mozilla/5.0 (MarketPulse Bot)"
                 )
 
-                # 크롤러 초기화
                 heuristics = ArticleHeuristics(allow=(), deny=())
                 classifier = URLClassifier()
                 crawler = Crawler(crawl_cfg, heuristics, classifier, max_depth=2)
 
-                # 크롤링 및 즉시 처리 (PROC → IN 저장)
                 for url, depth in crawler.discover(seed_urls):
                     try:
-                        # HTML 파싱
                         html = crawler.http.get_html(url, timeout=crawl_cfg.timeout_get)
                         if not html:
                             continue
@@ -232,26 +185,22 @@ def crawl_with_stream(event_bus):
 
                         log.info(f"[Crawl] Found: {title[:60]}...")
 
-                        # ===== PROC 즉시 실행 =====
-                        # 1. 감정 분석
                         sentiment_result = service.sentiment_analyzer.analyze(content)
-                        sentiment_score = sentiment_result.get('sentiment_score', 0.0)
-                        sentiment_label = sentiment_result.get('sentiment_label', 'neutral')
+                        sentiment_score = sentiment_result.get('score', 0.0)
+                        sentiment_label = sentiment_result.get('label', 'neutral')
 
-                        # 2. 티커 추출
                         tickers = service.ticker_extractor.extract(content, title)
 
-                        # 3. 요약 생성
-                        summary = service.sentiment_analyzer.summarize(content) if hasattr(service.sentiment_analyzer, 'summarize') else content[:200]
+                        summary = (
+                            service.sentiment_analyzer.summarize(content)
+                            if hasattr(service.sentiment_analyzer, 'summarize')
+                            else content[:200]
+                        )
 
                         log.info(f"[PROC] Sentiment: {sentiment_label} ({sentiment_score:.2f}), Tickers: {tickers}, Summary length: {len(summary)}")
 
-                        # ===== IN 테이블에 저장 (content = summary) =====
                         news_id = service._save_to_mbs_in_article(
-                            site_name,
-                            url,
-                            title,
-                            summary,  # content에 summary 저장
+                            site_name, url, title, summary,
                             parser.extract_published_time()
                         )
 

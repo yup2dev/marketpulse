@@ -1,5 +1,5 @@
 """
-Database Models - MBS Schema (README ERD 기준)
+ORM Models - MBS Schema (README ERD 기준)
 데이터 흐름: IN (입수) → PROC (가공) → CALC (계산) → RCMD (추천)
 
 명명 규칙:
@@ -25,34 +25,27 @@ Base = declarative_base()
 # =============================================================================
 
 class MBS_IN_STBD_MST(Base):
-    """
-    입수 - 상태판 마스터
-    시스템에서 수집/추적할 종목 목록 관리
-    실제 가격 데이터는 MBS_IN_STK_STBD, MBS_IN_ETF_STBD, MBS_IN_BOND_STBD, MBS_IN_CMDTY_STBD에 저장
-    """
+    """입수 - 상태판 마스터"""
     __tablename__ = 'mbs_in_stbd_mst'
 
-    ticker_cd = Column(String(20), primary_key=True)  # 종목 코드 (예: AAPL, SPY, GC=F, ^TNX)
-    ticker_nm = Column(String(200), nullable=False)  # 종목명
-    asset_type = Column(String(20), nullable=False, index=True)  # stock, etf, bond, commodity
+    ticker_cd = Column(String(20), primary_key=True)
+    ticker_nm = Column(String(200), nullable=False)
+    asset_type = Column(String(20), nullable=False, index=True)
 
-    # 추가 정보
-    sector = Column(String(100), index=True)  # 섹터 (Technology, Energy 등)
-    industry = Column(String(100))  # 산업 (Software, Oil & Gas 등)
-    exchange = Column(String(50))  # 거래소 (NYSE, NASDAQ, NYMEX 등)
-    country = Column(String(50))  # 국가
-    curr = Column(String(10), default='USD')  # 통화
+    sector = Column(String(100), index=True)
+    industry = Column(String(100))
+    exchange = Column(String(50))
+    country = Column(String(50))
+    curr = Column(String(10), default='USD')
 
-    # 채권 전용 필드
-    bond_type = Column(String(50))  # Treasury, Corporate, Municipal
-    maturity = Column(String(20))  # 만기 (10Y, 30Y)
+    bond_type = Column(String(50))
+    maturity = Column(String(20))
 
-    # 관리 정보
-    data_source = Column(String(50))  # wikipedia, yfinance, manual
-    is_active = Column(Boolean, default=True, index=True)  # 활성 여부
-    start_date = Column(Date, index=True)  # 수집 시작일
-    end_date = Column(Date)  # 수집 종료일 (is_active=False인 경우)
-    remarks = Column(Text)  # 비고
+    data_source = Column(String(50))
+    is_active = Column(Boolean, default=True, index=True)
+    start_date = Column(Date, index=True)
+    end_date = Column(Date)
+    remarks = Column(Text)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -85,29 +78,23 @@ class MBS_IN_STBD_MST(Base):
 
 
 class MBS_IN_INDX_STBD(Base):
-    """
-    입수 - 지수 상태판 마스터
-    시스템에서 사용할 주요 지수(Index/Universe) 정보 관리
-    """
+    """입수 - 지수 상태판 마스터"""
     __tablename__ = 'mbs_in_indx_stbd'
 
-    indx_cd = Column(String(50), primary_key=True)  # 지수 코드 (예: sp500, nasdaq100, dow30)
-    indx_nm = Column(String(200), nullable=False)  # 지수명 (예: S&P 500, NASDAQ 100)
-    indx_type = Column(String(20), nullable=False, index=True)  # universe, benchmark
+    indx_cd = Column(String(50), primary_key=True)
+    indx_nm = Column(String(200), nullable=False)
+    indx_type = Column(String(20), nullable=False, index=True)
 
-    # API 연동 정보
-    fmp_endpoint = Column(String(100))  # FMP API 엔드포인트 (예: sp500_constituent)
-    api_symbol = Column(String(20))  # API에서 사용하는 심볼 (예: SPY, QQQ - benchmark용)
+    fmp_endpoint = Column(String(100))
+    api_symbol = Column(String(20))
 
-    # 메타 정보
-    description = Column(Text)  # 설명
-    category = Column(String(50))  # 카테고리 (Large Cap, Small Cap, Tech, etc.)
-    region = Column(String(50), default='US')  # 지역 (US, Global, etc.)
+    description = Column(Text)
+    category = Column(String(50))
+    region = Column(String(50), default='US')
 
-    # 관리 정보
-    is_active = Column(Boolean, default=True, index=True)  # 활성 여부
-    display_order = Column(Integer, default=0)  # 표시 순서
-    remarks = Column(Text)  # 비고
+    is_active = Column(Boolean, default=True, index=True)
+    display_order = Column(Integer, default=0)
+    remarks = Column(Text)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -135,25 +122,21 @@ class MBS_IN_INDX_STBD(Base):
 
 
 class MBS_IN_ARTICLE(Base):
-    """
-    입수 - 뉴스 기사 원본
-    크롤러가 수집한 raw 데이터
-    """
+    """입수 - 뉴스 기사 원본"""
     __tablename__ = 'mbs_in_article'
 
     news_id = Column(String(50), primary_key=True)
     base_ymd = Column(Date, nullable=False, index=True)
-    source_cd = Column(String(50), nullable=False, index=True)  # 출판사/뉴스 출처
-    url = Column(Text)  # 기사 URL
+    source_cd = Column(String(50), nullable=False, index=True)
+    url = Column(Text)
     title = Column(Text, nullable=False)
-    content = Column(Text)  # 요약본 (summary)
+    content = Column(Text)
     publish_dt = Column(DateTime, index=True)
-    ingest_batch_id = Column(String(50), index=True)  # 동일 입수 배치 식별자
+    ingest_batch_id = Column(String(50), index=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # Relationships
     processed_articles = relationship("MBS_PROC_ARTICLE", back_populates="source_article")
 
     __table_args__ = (
@@ -175,10 +158,7 @@ class MBS_IN_ARTICLE(Base):
 
 
 class MBS_IN_STK_STBD(Base):
-    """
-    입수 - 주식 상태판
-    크롤러가 수집한 주식 가격 데이터
-    """
+    """입수 - 주식 상태판"""
     __tablename__ = 'mbs_in_stk_stbd'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -213,10 +193,7 @@ class MBS_IN_STK_STBD(Base):
 
 
 class MBS_IN_ETF_STBD(Base):
-    """
-    입수 - ETF 상태판
-    크롤러가 수집한 ETF 가격 데이터
-    """
+    """입수 - ETF 상태판"""
     __tablename__ = 'mbs_in_etf_stbd'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -251,20 +228,17 @@ class MBS_IN_ETF_STBD(Base):
 
 
 class MBS_IN_BOND_STBD(Base):
-    """
-    입수 - 채권 상태판
-    크롤러가 수집한 채권 가격 데이터
-    """
+    """입수 - 채권 상태판"""
     __tablename__ = 'mbs_in_bond_stbd'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     bond_cd = Column(String(20), nullable=False, index=True)
     bond_nm = Column(String(100))
-    bond_type = Column(String(50), index=True)  # Treasury, Corporate, Municipal 등
-    maturity = Column(String(20))  # 만기 (예: 10Y, 30Y)
+    bond_type = Column(String(50), index=True)
+    maturity = Column(String(20))
     curr = Column(String(10), default='USD')
     close_price = Column(DECIMAL(20, 4))
-    yield_rate = Column(DECIMAL(10, 4))  # 수익률
+    yield_rate = Column(DECIMAL(10, 4))
     change_rate = Column(DECIMAL(10, 4))
     base_ymd = Column(Date, nullable=False, index=True)
     ingest_batch_id = Column(String(50), index=True)
@@ -294,17 +268,14 @@ class MBS_IN_BOND_STBD(Base):
 
 
 class MBS_IN_CMDTY_STBD(Base):
-    """
-    입수 - 원자재 상태판
-    크롤러가 수집한 원자재 선물 가격 데이터
-    """
+    """입수 - 원자재 상태판"""
     __tablename__ = 'mbs_in_cmdty_stbd'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     cmdty_cd = Column(String(20), nullable=False, index=True)
     cmdty_nm = Column(String(100))
-    sector = Column(String(100), index=True)  # Energy, Metals, Agriculture 등
-    exchange = Column(String(50))  # NYMEX, COMEX, CBOT 등
+    sector = Column(String(100), index=True)
+    exchange = Column(String(50))
     curr = Column(String(10), default='USD')
     close_price = Column(DECIMAL(20, 4))
     change_rate = Column(DECIMAL(10, 4))
@@ -335,34 +306,27 @@ class MBS_IN_CMDTY_STBD(Base):
 
 
 class MBS_IN_FINANCIAL_METRICS(Base):
-    """
-    입수 - 기업 재무지표
-    yfinance로 수집한 재무제표 데이터
-    """
+    """입수 - 기업 재무지표"""
     __tablename__ = 'mbs_in_financial_metrics'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     stk_cd = Column(String(20), nullable=False, index=True)
     stk_nm = Column(String(100))
 
-    # 재무비율
-    debt_to_asset = Column(DECIMAL(10, 4))  # 부채비율 (총부채/총자산)
-    debt_to_equity = Column(DECIMAL(10, 4))  # 부채자본비율 (총부채/자본)
-    current_ratio = Column(DECIMAL(10, 4))  # 유동비율
-    quick_ratio = Column(DECIMAL(10, 4))  # 당좌비율
+    debt_to_asset = Column(DECIMAL(10, 4))
+    debt_to_equity = Column(DECIMAL(10, 4))
+    current_ratio = Column(DECIMAL(10, 4))
+    quick_ratio = Column(DECIMAL(10, 4))
 
-    # 수익성 지표
-    roe = Column(DECIMAL(10, 4))  # ROE (자기자본이익률)
-    roa = Column(DECIMAL(10, 4))  # ROA (총자산이익률)
-    profit_margin = Column(DECIMAL(10, 4))  # 순이익률
+    roe = Column(DECIMAL(10, 4))
+    roa = Column(DECIMAL(10, 4))
+    profit_margin = Column(DECIMAL(10, 4))
 
-    # 밸류에이션
-    pe_ratio = Column(DECIMAL(10, 4))  # PER (주가수익비율)
-    pb_ratio = Column(DECIMAL(10, 4))  # PBR (주가순자산비율)
-    market_cap = Column(DECIMAL(20, 2))  # 시가총액
+    pe_ratio = Column(DECIMAL(10, 4))
+    pb_ratio = Column(DECIMAL(10, 4))
+    market_cap = Column(DECIMAL(20, 2))
 
-    # 날짜
-    fiscal_period = Column(String(20))  # 회계기간 (예: 2024Q3, 2023FY)
+    fiscal_period = Column(String(20))
     base_ymd = Column(Date, nullable=False, index=True)
     ingest_batch_id = Column(String(50), index=True)
 
@@ -395,37 +359,32 @@ class MBS_IN_FINANCIAL_METRICS(Base):
 
 
 class MBS_IN_STK_PROFILE(Base):
-    """
-    입수 - 종목 상세 프로필
-    FMP에서 수집한 기업 상세 정보 (S&P 500 등)
-    """
+    """입수 - 종목 상세 프로필"""
     __tablename__ = 'mbs_in_stk_profile'
 
-    stk_cd = Column(String(20), primary_key=True)   # 종목 코드
-    stk_nm = Column(String(200))                     # 회사명
-    sector = Column(String(100), index=True)         # 섹터
-    industry = Column(String(100), index=True)       # 산업
-    description = Column(Text)                       # 사업 설명
-    website = Column(String(300))                    # 웹사이트
-    ceo = Column(String(100))                        # CEO
-    employees = Column(Integer)                      # 임직원 수
-    country = Column(String(50))                     # 국가
-    exchange = Column(String(50))                    # 거래소
-    currency = Column(String(10), default='USD')     # 통화
-    ipo_date = Column(Date)                          # IPO 날짜
-    image_url = Column(String(500))                  # 로고 URL
+    stk_cd = Column(String(20), primary_key=True)
+    stk_nm = Column(String(200))
+    sector = Column(String(100), index=True)
+    industry = Column(String(100), index=True)
+    description = Column(Text)
+    website = Column(String(300))
+    ceo = Column(String(100))
+    employees = Column(Integer)
+    country = Column(String(50))
+    exchange = Column(String(50))
+    currency = Column(String(10), default='USD')
+    ipo_date = Column(Date)
+    image_url = Column(String(500))
 
-    # 재무 요약 (최신 스냅샷)
-    market_cap = Column(DECIMAL(20, 2))              # 시가총액
-    price = Column(DECIMAL(20, 4))                   # 현재가
-    beta = Column(DECIMAL(10, 4))                    # 베타
+    market_cap = Column(DECIMAL(20, 2))
+    price = Column(DECIMAL(20, 4))
+    beta = Column(DECIMAL(10, 4))
 
-    # 지수 소속 여부
     in_sp500 = Column(Boolean, default=False, index=True)
     in_nasdaq100 = Column(Boolean, default=False)
     in_dow30 = Column(Boolean, default=False)
 
-    data_source = Column(String(50))                 # fmp / yahoo / manual
+    data_source = Column(String(50))
     last_updated = Column(DateTime)
 
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -464,22 +423,18 @@ class MBS_IN_STK_PROFILE(Base):
 
 
 class MBS_IN_STK_RELATIONS(Base):
-    """
-    입수 - 종목 관계
-    경쟁사(competitor), 동종업계(peer), 고객사(customer), 공급사(supplier_t1/t2), 파트너(partner)
-    """
+    """입수 - 종목 관계"""
     __tablename__ = 'mbs_in_stk_relations'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    stk_cd = Column(String(20), nullable=False, index=True)       # 기준 종목
-    related_cd = Column(String(20), nullable=False, index=True)   # 관련 종목
+    stk_cd = Column(String(20), nullable=False, index=True)
+    related_cd = Column(String(20), nullable=False, index=True)
     relation_type = Column(String(30), nullable=False, index=True)
-    # competitor / peer / customer / supplier_t1 / supplier_t2 / partner
 
-    related_nm = Column(String(200))                              # 관련 종목명
-    detail = Column(Text)                                         # 관계 상세 설명
-    confidence = Column(DECIMAL(5, 4), default=1.0)              # 신뢰도 0-1
-    data_source = Column(String(50))                              # fmp_peers / yahoo / manual
+    related_nm = Column(String(200))
+    detail = Column(Text)
+    confidence = Column(DECIMAL(5, 4), default=1.0)
+    data_source = Column(String(50))
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -504,14 +459,11 @@ class MBS_IN_STK_RELATIONS(Base):
 
 
 class MBS_IN_INDX_MEMBER(Base):
-    """
-    입수 - 지수 구성종목
-    S&P 500, NASDAQ 100, Dow 30 구성종목 이력
-    """
+    """입수 - 지수 구성종목"""
     __tablename__ = 'mbs_in_indx_member'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    indx_cd = Column(String(50), nullable=False, index=True)   # sp500 / nasdaq100 / dow30
+    indx_cd = Column(String(50), nullable=False, index=True)
     stk_cd = Column(String(20), nullable=False, index=True)
     stk_nm = Column(String(200))
     sector = Column(String(100))
@@ -544,25 +496,20 @@ class MBS_IN_INDX_MEMBER(Base):
 
 
 class MBS_IN_BOND_ISSUANCE(Base):
-    """
-    입수 - 기업채권 발행량
-    FRED API나 기타 소스로 수집한 채권 발행 데이터
-    """
+    """입수 - 기업채권 발행량"""
     __tablename__ = 'mbs_in_bond_issuance'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    issuer_cd = Column(String(20), index=True)  # 발행사 코드
-    issuer_nm = Column(String(200))  # 발행사명
+    issuer_cd = Column(String(20), index=True)
+    issuer_nm = Column(String(200))
 
-    # 채권 정보
-    bond_type = Column(String(50), index=True)  # Corporate, High-Yield, Investment-Grade
-    issuance_amount = Column(DECIMAL(20, 2))  # 발행액 (USD)
-    maturity_date = Column(Date)  # 만기일
-    coupon_rate = Column(DECIMAL(10, 4))  # 쿠폰 이자율
+    bond_type = Column(String(50), index=True)
+    issuance_amount = Column(DECIMAL(20, 2))
+    maturity_date = Column(Date)
+    coupon_rate = Column(DECIMAL(10, 4))
 
-    # 날짜
-    issue_date = Column(Date, nullable=False, index=True)  # 발행일
-    base_ymd = Column(Date, nullable=False, index=True)  # 기준일
+    issue_date = Column(Date, nullable=False, index=True)
+    base_ymd = Column(Date, nullable=False, index=True)
     ingest_batch_id = Column(String(50), index=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -588,32 +535,27 @@ class MBS_IN_BOND_ISSUANCE(Base):
 
 
 # =============================================================================
-# USER & PORTFOLIO Layer: 사용자 및 포트폴리오 관리
+# USER & PORTFOLIO Layer
 # =============================================================================
 
 class User(Base):
-    """
-    사용자 계정 정보
-    """
+    """사용자 계정 정보"""
     __tablename__ = 'users'
 
-    user_id = Column(String(50), primary_key=True)  # UUID
+    user_id = Column(String(50), primary_key=True)
     email = Column(String(255), unique=True, nullable=False, index=True)
     username = Column(String(100), unique=True, nullable=False, index=True)
     hashed_password = Column(String(255), nullable=False)
 
-    # 사용자 정보
     full_name = Column(String(200))
     is_active = Column(Boolean, default=True, index=True)
     is_verified = Column(Boolean, default=False)
-    role = Column(String(20), default='user')  # user, premium, admin
+    role = Column(String(20), default='user')
 
-    # 타임스탬프
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     last_login = Column(DateTime)
 
-    # Relationships
     portfolios = relationship("Portfolio", back_populates="user", cascade="all, delete-orphan")
     watchlists = relationship("Watchlist", back_populates="user", cascade="all, delete-orphan")
     alerts = relationship("Alert", back_populates="user", cascade="all, delete-orphan")
@@ -639,29 +581,23 @@ class User(Base):
 
 
 class Portfolio(Base):
-    """
-    사용자 포트폴리오
-    """
+    """사용자 포트폴리오"""
     __tablename__ = 'portfolios'
 
-    portfolio_id = Column(String(50), primary_key=True)  # UUID
+    portfolio_id = Column(String(50), primary_key=True)
     user_id = Column(String(50), ForeignKey('users.user_id'), nullable=False, index=True)
 
-    # 포트폴리오 정보
     name = Column(String(200), nullable=False)
     description = Column(Text)
     currency = Column(String(10), default='USD')
     is_default = Column(Boolean, default=False)
 
-    # 설정
-    benchmark = Column(String(20))  # SPY, QQQ 등
-    rebalance_frequency = Column(String(20))  # daily, weekly, monthly, quarterly
+    benchmark = Column(String(20))
+    rebalance_frequency = Column(String(20))
 
-    # 타임스탬프
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # Relationships
     user = relationship("User", back_populates="portfolios")
     holdings = relationship("Holding", back_populates="portfolio", cascade="all, delete-orphan")
     transactions = relationship("Transaction", back_populates="portfolio", cascade="all, delete-orphan")
@@ -687,34 +623,26 @@ class Portfolio(Base):
 
 
 class Transaction(Base):
-    """
-    거래 기록
-    """
+    """거래 기록"""
     __tablename__ = 'transactions'
 
-    transaction_id = Column(String(50), primary_key=True)  # UUID
+    transaction_id = Column(String(50), primary_key=True)
     portfolio_id = Column(String(50), ForeignKey('portfolios.portfolio_id'), nullable=False, index=True)
 
-    # 거래 정보
     ticker_cd = Column(String(20), nullable=False, index=True)
-    transaction_type = Column(String(20), nullable=False)  # buy, sell, dividend
+    transaction_type = Column(String(20), nullable=False)
     quantity = Column(DECIMAL(20, 8), nullable=False)
     price = Column(DECIMAL(20, 4), nullable=False)
     commission = Column(DECIMAL(20, 4), default=0)
     tax = Column(DECIMAL(20, 4), default=0)
+    total_amount = Column(DECIMAL(20, 4))
 
-    # 계산 필드
-    total_amount = Column(DECIMAL(20, 4))  # quantity * price + commission + tax
-
-    # 날짜
     transaction_date = Column(DateTime, nullable=False, index=True)
     notes = Column(Text)
 
-    # 타임스탬프
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # Relationships
     portfolio = relationship("Portfolio", back_populates="transactions")
 
     __table_args__ = (
@@ -742,30 +670,24 @@ class Transaction(Base):
 
 
 class Holding(Base):
-    """
-    현재 보유 종목 (계산된 값)
-    """
+    """현재 보유 종목"""
     __tablename__ = 'holdings'
 
-    holding_id = Column(String(50), primary_key=True)  # UUID
+    holding_id = Column(String(50), primary_key=True)
     portfolio_id = Column(String(50), ForeignKey('portfolios.portfolio_id'), nullable=False, index=True)
 
-    # 보유 정보
     ticker_cd = Column(String(20), nullable=False, index=True)
     quantity = Column(DECIMAL(20, 8), nullable=False)
-    avg_cost = Column(DECIMAL(20, 4), nullable=False)  # 평균 매입가
-    current_price = Column(DECIMAL(20, 4))  # 현재가 (실시간 업데이트)
+    avg_cost = Column(DECIMAL(20, 4), nullable=False)
+    current_price = Column(DECIMAL(20, 4))
 
-    # 계산 필드
-    total_cost = Column(DECIMAL(20, 4))  # quantity * avg_cost
-    market_value = Column(DECIMAL(20, 4))  # quantity * current_price
-    unrealized_pnl = Column(DECIMAL(20, 4))  # market_value - total_cost
-    unrealized_pnl_pct = Column(DECIMAL(10, 4))  # (market_value - total_cost) / total_cost * 100
+    total_cost = Column(DECIMAL(20, 4))
+    market_value = Column(DECIMAL(20, 4))
+    unrealized_pnl = Column(DECIMAL(20, 4))
+    unrealized_pnl_pct = Column(DECIMAL(10, 4))
 
-    # 타임스탬프
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # Relationships
     portfolio = relationship("Portfolio", back_populates="holdings")
 
     __table_args__ = (
@@ -791,26 +713,24 @@ class Holding(Base):
 
 
 class Watchlist(Base):
-    """
-    관심 종목 리스트
-    """
+    """관심 종목 리스트"""
     __tablename__ = 'watchlists'
 
-    watchlist_id = Column(String(50), primary_key=True)  # UUID
+    watchlist_id = Column(String(50), primary_key=True)
     user_id = Column(String(50), ForeignKey('users.user_id'), nullable=False, index=True)
 
-    # 관심종목 정보
     name = Column(String(200), nullable=False, default='기본 관심종목')
     description = Column(Text)
-    tickers = Column(Text)  # DEPRECATED: JSON array of ticker codes (kept for backward compatibility)
+    tickers = Column(Text)
 
-    # 타임스탬프
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # Relationships
     user = relationship("User", back_populates="watchlists")
-    items = relationship("WatchlistItem", back_populates="watchlist", cascade="all, delete-orphan", order_by="WatchlistItem.sort_order")
+    items = relationship(
+        "WatchlistItem", back_populates="watchlist",
+        cascade="all, delete-orphan", order_by="WatchlistItem.sort_order"
+    )
 
     __table_args__ = (
         Index('idx_watchlist_user', 'user_id'),
@@ -818,13 +738,11 @@ class Watchlist(Base):
 
     def to_dict(self) -> dict:
         import json
-        # Support both old (tickers) and new (items) structure
         tickers_list = []
         if self.items:
             tickers_list = [item.ticker_cd for item in self.items]
         elif self.tickers:
             tickers_list = json.loads(self.tickers)
-
         return {
             'watchlist_id': self.watchlist_id,
             'user_id': self.user_id,
@@ -838,25 +756,17 @@ class Watchlist(Base):
 
 
 class WatchlistItem(Base):
-    """
-    관심 종목 항목 (정규화된 구조)
-    """
+    """관심 종목 항목"""
     __tablename__ = 'watchlist_items'
 
     item_id = Column(String(50), primary_key=True, default=lambda: str(uuid.uuid4()))
     watchlist_id = Column(String(50), ForeignKey('watchlists.watchlist_id'), nullable=False, index=True)
     ticker_cd = Column(String(20), nullable=False, index=True)
 
-    # 순서 관리
     sort_order = Column(Integer, default=0, index=True)
-
-    # 메모 (선택사항)
     notes = Column(Text)
-
-    # 타임스탬프
     added_at = Column(DateTime, default=datetime.utcnow)
 
-    # Relationships
     watchlist = relationship("Watchlist", back_populates="items")
 
     __table_args__ = (
@@ -877,36 +787,28 @@ class WatchlistItem(Base):
 
 
 class Alert(Base):
-    """
-    가격/뉴스 알림
-    """
+    """가격/뉴스 알림"""
     __tablename__ = 'alerts'
 
-    alert_id = Column(String(50), primary_key=True)  # UUID
+    alert_id = Column(String(50), primary_key=True)
     user_id = Column(String(50), ForeignKey('users.user_id'), nullable=False, index=True)
 
-    # 알림 정보
-    alert_type = Column(String(20), nullable=False, index=True)  # price, news, technical
+    alert_type = Column(String(20), nullable=False, index=True)
     ticker_cd = Column(String(20), index=True)
 
-    # 조건
-    condition_type = Column(String(20))  # above, below, percent_change, etc.
+    condition_type = Column(String(20))
     threshold_value = Column(DECIMAL(20, 4))
 
-    # 설정
     is_active = Column(Boolean, default=True, index=True)
-    notification_method = Column(String(50), default='email')  # email, push, both
+    notification_method = Column(String(50), default='email')
     message = Column(Text)
 
-    # 실행 정보
     last_triggered = Column(DateTime)
     trigger_count = Column(Integer, default=0)
 
-    # 타임스탬프
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # Relationships
     user = relationship("User", back_populates="alerts")
 
     __table_args__ = (
@@ -934,22 +836,16 @@ class Alert(Base):
 
 
 class AlertHistory(Base):
-    """
-    알림 발생 이력
-    """
+    """알림 발생 이력"""
     __tablename__ = 'alert_history'
 
     history_id = Column(String(50), primary_key=True, default=lambda: str(uuid.uuid4()))
     alert_id = Column(String(50), ForeignKey('alerts.alert_id'), nullable=False, index=True)
 
-    # 발생 정보
     triggered_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
-    triggered_value = Column(DECIMAL(20, 4))  # 알림 발생 시의 값
-    message = Column(Text)  # 발송된 메시지
-    is_sent = Column(Boolean, default=False)  # 알림 발송 성공 여부
-
-    # Relationships
-    # No relationship to Alert to avoid circular dependency
+    triggered_value = Column(DECIMAL(20, 4))
+    message = Column(Text)
+    is_sent = Column(Boolean, default=False)
 
     __table_args__ = (
         Index('idx_alert_history_alert', 'alert_id'),
@@ -968,29 +864,22 @@ class AlertHistory(Base):
 
 
 class SavedScreener(Base):
-    """
-    저장된 스크리너 조건
-    """
+    """저장된 스크리너 조건"""
     __tablename__ = 'saved_screeners'
 
-    screener_id = Column(String(50), primary_key=True)  # UUID
+    screener_id = Column(String(50), primary_key=True)
     user_id = Column(String(50), ForeignKey('users.user_id'), nullable=False, index=True)
 
-    # 스크리너 정보
     name = Column(String(200), nullable=False)
     description = Column(Text)
-    filters = Column(Text, nullable=False)  # JSON object with filter criteria
+    filters = Column(Text, nullable=False)
 
-    # 설정
     is_active = Column(Boolean, default=True)
-    run_frequency = Column(String(20))  # manual, daily, weekly
+    run_frequency = Column(String(20))
 
-    # 타임스탬프
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     last_run = Column(DateTime)
-
-    # No relationship needed - user_id is just FK
 
     __table_args__ = (
         Index('idx_screener_user', 'user_id'),
@@ -1013,33 +902,29 @@ class SavedScreener(Base):
 
 
 # =============================================================================
-# PROC Layer: 가공 (ML/요약 처리)
+# PROC Layer: 가공
 # =============================================================================
 
 class MBS_PROC_ARTICLE(Base):
-    """
-    가공 - 기사 분석 결과
-    ML을 통한 요약, 감성분석, 종목 매칭 결과
-    """
+    """가공 - 기사 분석 결과"""
     __tablename__ = 'mbs_proc_article'
 
     proc_id = Column(String(50), primary_key=True)
     news_id = Column(String(50), ForeignKey('mbs_in_article.news_id'), nullable=False, index=True)
-    stk_cd = Column(String(20), index=True)  # 매칭된 종목 코드
+    stk_cd = Column(String(20), index=True)
 
-    summary_text = Column(Text)  # ML 요약
-    match_score = Column(DECIMAL(10, 4))  # 기사-종목 연관도 (0-1)
-    price_impact = Column(DECIMAL(10, 4))  # 기사에 따른 가격 영향도
-    sentiment_score = Column(DECIMAL(10, 4))  # 감성 점수 (-1 ~ 1)
-    price = Column(DECIMAL(20, 4))  # 기사 시점 가격
+    summary_text = Column(Text)
+    match_score = Column(DECIMAL(10, 4))
+    price_impact = Column(DECIMAL(10, 4))
+    sentiment_score = Column(DECIMAL(10, 4))
+    price = Column(DECIMAL(20, 4))
 
     base_ymd = Column(Date, nullable=False, index=True)
-    source_batch_id = Column(String(50), index=True)  # MBS_IN의 INGEST_BATCH_ID 참조
+    source_batch_id = Column(String(50), index=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # Relationships
     source_article = relationship("MBS_IN_ARTICLE", back_populates="processed_articles")
     calc_metrics = relationship("MBS_CALC_METRIC", back_populates="source_proc")
 
@@ -1065,29 +950,25 @@ class MBS_PROC_ARTICLE(Base):
 
 
 # =============================================================================
-# CALC Layer: 계산 (메트릭 계산)
+# CALC Layer: 계산
 # =============================================================================
 
 class MBS_CALC_METRIC(Base):
-    """
-    계산 - 메트릭 계산 결과
-    RISK, DELTA, VEGA 등의 계산된 메트릭
-    """
+    """계산 - 메트릭 계산 결과"""
     __tablename__ = 'mbs_calc_metric'
 
     calc_id = Column(String(50), primary_key=True)
     stk_cd = Column(String(20), nullable=False, index=True)
     base_ymd = Column(Date, nullable=False, index=True)
 
-    metric_type = Column(String(20), nullable=False, index=True)  # RISK / DELTA / VEGA / IV / BETA
-    metric_val = Column(DECIMAL(20, 8))  # 메트릭 값
+    metric_type = Column(String(20), nullable=False, index=True)
+    metric_val = Column(DECIMAL(20, 8))
 
     source_proc_id = Column(String(50), ForeignKey('mbs_proc_article.proc_id'), index=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # Relationships
     source_proc = relationship("MBS_PROC_ARTICLE", back_populates="calc_metrics")
     recommendations = relationship("MBS_RCMD_RESULT", back_populates="source_calc")
 
@@ -1110,33 +991,28 @@ class MBS_CALC_METRIC(Base):
 
 
 # =============================================================================
-# RCMD Layer: 추천 / 결과 (Spring에서 사용)
+# RCMD Layer: 추천
 # =============================================================================
 
 class MBS_RCMD_RESULT(Base):
-    """
-    추천 - 추천 결과
-    NEWS / STOCK / PORTFOLIO 추천 결과
-    """
+    """추천 - 추천 결과"""
     __tablename__ = 'mbs_rcmd_result'
 
     rcmd_id = Column(String(50), primary_key=True)
 
-    # 참조 (nullable, 추천 타입에 따라 다름)
     ref_news_id = Column(String(50), ForeignKey('mbs_in_article.news_id'), index=True)
     ref_stk_cd = Column(String(20), index=True)
     ref_calc_id = Column(String(50), ForeignKey('mbs_calc_metric.calc_id'), index=True)
 
-    rcmd_type = Column(String(20), nullable=False, index=True)  # NEWS / STOCK / PORTFOLIO
-    score = Column(DECIMAL(10, 4))  # 추천 점수
-    reason = Column(Text)  # 추천 이유
+    rcmd_type = Column(String(20), nullable=False, index=True)
+    score = Column(DECIMAL(10, 4))
+    reason = Column(Text)
 
     base_ymd = Column(Date, nullable=False, index=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # Relationships
     source_calc = relationship("MBS_CALC_METRIC", back_populates="recommendations", foreign_keys=[ref_calc_id])
 
     __table_args__ = (
@@ -1159,97 +1035,15 @@ class MBS_RCMD_RESULT(Base):
 
 
 # =============================================================================
-# Database Session 설정
+# Backward-compatible re-exports from utils.db
 # =============================================================================
-class Database:
-    """데이터베이스 관리 클래스"""
-
-    def __init__(self, database_url: str):
-        # SQLite는 pool_size, max_overflow 지원 안함
-        if database_url.startswith('sqlite'):
-            self.engine = create_engine(
-                database_url,
-                echo=False,
-                connect_args={'check_same_thread': False}
-            )
-        else:
-            # PostgreSQL, MySQL 등
-            self.engine = create_engine(
-                database_url,
-                echo=False,
-                pool_size=10,
-                max_overflow=20
-            )
-        self.SessionLocal = sessionmaker(
-            autocommit=False,
-            autoflush=False,
-            bind=self.engine
-        )
-
-    def create_tables(self):
-        """테이블 생성"""
-        Base.metadata.create_all(bind=self.engine)
-
-    def drop_tables(self):
-        """테이블 삭제 (주의!)"""
-        Base.metadata.drop_all(bind=self.engine)
-
-    def get_session(self):
-        """세션 생성"""
-        return self.SessionLocal()
-
-
-# SQLite용 간단한 설정 (개발/테스트용)
-def get_sqlite_db(db_path: str = "marketpulse.db"):
-    """SQLite 데이터베이스 생성"""
-    return Database(f"sqlite:///{db_path}")
-
-
-# PostgreSQL용 설정 (프로덕션용)
-def get_postgresql_db(
-    host: str = "localhost",
-    port: int = 5432,
-    database: str = "marketpulse",
-    user: str = "postgres",
-    password: str = "password"
-):
-    """PostgreSQL 데이터베이스 생성"""
-    url = f"postgresql://{user}:{password}@{host}:{port}/{database}"
-    return Database(url)
-
-
-# =============================================================================
-# Helper Functions
-# =============================================================================
-
-def generate_id(prefix: str = '') -> str:
-    """ID 생성 헬퍼 함수"""
-    return f"{prefix}{uuid.uuid4().hex[:16]}"
-
-
-def generate_batch_id() -> str:
-    """배치 ID 생성 (YYYYMMDD-HHMMSS-UUID)"""
-    from datetime import datetime
-    now = datetime.now()
-    timestamp = now.strftime('%Y%m%d-%H%M%S')
-    short_uuid = uuid.uuid4().hex[:8]
-    return f"{timestamp}-{short_uuid}"
-
-
-# =============================================================================
-# Default DB Instance (SQLite)
-# =============================================================================
-import os
-from pathlib import Path
-
-# 프로젝트 루트 디렉토리
-PROJECT_ROOT = Path(__file__).parent.parent.parent
-DB_PATH = PROJECT_ROOT / "data" / "marketpulse.db"
-
-# 데이터 디렉토리 생성
-DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-
-# SQLite 기본 인스턴스
-default_db = get_sqlite_db(str(DB_PATH))
-engine = default_db.engine
-SessionLocal = default_db.SessionLocal
+from ..utils.db import (
+    Database,
+    get_sqlite_db,
+    get_postgresql_db,
+    generate_id,
+    generate_batch_id,
+    default_db,
+    engine,
+    SessionLocal,
+)

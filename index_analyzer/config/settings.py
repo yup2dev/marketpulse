@@ -1,13 +1,11 @@
 """
-Configuration Management
+Configuration Management — merged from config/constants.py + core/config.py
 환경 변수 및 애플리케이션 설정 관리
 """
-import os
 from pathlib import Path
 from typing import Optional
 from pydantic_settings import BaseSettings
 from pydantic import Field
-from app.core.config import settings
 
 
 class Settings(BaseSettings):
@@ -62,6 +60,9 @@ class Settings(BaseSettings):
 
     # ===== API Keys =====
     OPENAI_API_KEY: Optional[str] = Field(default=None, description="OpenAI API 키")
+    FRED_API_KEY: Optional[str] = Field(default=None, description="FRED API 키")
+    ALPHAVANTAGE_API_KEY: Optional[str] = Field(default=None, description="Alpha Vantage API 키")
+    FMP_API_KEY: Optional[str] = Field(default=None, description="Financial Modeling Prep API 키")
 
     # ===== Crawler Settings =====
     CRAWLER_MAX_WORKERS: int = Field(default=5, description="크롤러 최대 워커 수")
@@ -75,6 +76,14 @@ class Settings(BaseSettings):
         description="ML 모델 캐시 디렉토리"
     )
 
+    # ===== Summarization Settings =====
+    SUMMARIZATION_MODEL: str = Field(
+        default="sshleifer/distilbart-cnn-12-6",
+        description="요약 모델"
+    )
+    SUMMARY_MAX_LENGTH: int = Field(default=150, description="요약 최대 길이 (토큰)")
+    SUMMARY_MIN_LENGTH: int = Field(default=50, description="요약 최소 길이 (토큰)")
+
     # ===== Logging =====
     LOG_LEVEL: str = Field(default="INFO", description="로그 레벨")
     LOG_FILE: str = Field(
@@ -83,9 +92,10 @@ class Settings(BaseSettings):
     )
 
     class Config:
-        env_file = ".env"
+        env_file = str(Path(__file__).parent.parent.parent / ".env")
         env_file_encoding = "utf-8"
         case_sensitive = True
+        extra = "ignore"
 
     @property
     def db_url(self) -> str:
@@ -99,18 +109,14 @@ class Settings(BaseSettings):
         """Redis URL 계산 (명시적 URL > 개별 설정)"""
         if self.REDIS_URL:
             return self.REDIS_URL
-
         if self.REDIS_PASSWORD:
             return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
-
         return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
 
     def is_postgres(self) -> bool:
-        """PostgreSQL 사용 여부"""
         return self.db_url.startswith("postgresql")
 
     def is_sqlite(self) -> bool:
-        """SQLite 사용 여부"""
         return self.db_url.startswith("sqlite")
 
 
