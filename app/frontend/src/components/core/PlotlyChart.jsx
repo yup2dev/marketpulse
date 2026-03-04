@@ -50,12 +50,9 @@ const DARK_LAYOUT = {
 };
 
 const PLOTLY_CONFIG = {
-  displayModeBar:   true,
+  displayModeBar:   false,
   displaylogo:      false,
   responsive:       true,
-  modeBarButtonsToRemove: [
-    'select2d', 'lasso2d', 'autoScale2d', 'toggleSpikelines',
-  ],
 };
 
 // ── Colour helpers ─────────────────────────────────────────────────────────────

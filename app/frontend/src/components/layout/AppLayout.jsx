@@ -16,8 +16,6 @@ import ThemeToggle from '../common/ThemeToggle';
 import MenuDropdown from '../common/MenuDropdown';
 import WidgetContextMenu from '../common/WidgetContextMenu';
 import { GlobalWidgetContext, useGlobalWidgetContext } from '../../contexts/GlobalWidgetContext';
-import WorkspaceBar from '../core/WorkspaceBar';
-
 export { useGlobalWidgetContext };
 
 // Menu path to URL route mapping
@@ -32,19 +30,6 @@ const ROUTE_MAP = {
   'watchlist':          '/watchlist',
   'quant':              '/quant',
   'strategy':           '/strategy',
-};
-
-// Map pathname → workspace screen name
-// Note: /, /stock, /macro, /portfolios are handled by TabDashboard (tab-scoped workspaces)
-// and don't use the WorkspaceBar.
-const SCREEN_MAP = {
-  '/backtest':   'backtest',
-  '/alerts':     'alerts',
-  '/screener':   'screener',
-  '/watchlist':  'watchlist',
-  '/quant':      'quant',
-  '/strategy':   'strategy',
-  '/trading':    'trading',
 };
 
 const AppLayout = () => {
@@ -124,20 +109,9 @@ const AppLayout = () => {
 
   // Check if menu is active based on pathname
   const isMenuActive = (menuPath) => {
-    const [basePath, queryString] = menuPath.split('?');
+    const [basePath] = menuPath.split('?');
     const route = ROUTE_MAP[basePath];
-    if (!route) return false;
-
-    if (location.pathname !== route) return false;
-
-    // If the menu item has a query string (e.g. ?tab=...), check tab match
-    if (queryString) {
-      const menuParams = new URLSearchParams(queryString);
-      const currentParams = new URLSearchParams(location.search);
-      return menuParams.get('tab') === currentParams.get('tab');
-    }
-
-    return true;
+    return !!route && location.pathname === route;
   };
 
   // Context value for child pages - memoized to prevent unnecessary re-renders
@@ -145,8 +119,6 @@ const AppLayout = () => {
     registerWidgets,
     unregisterWidgets,
   }), [registerWidgets, unregisterWidgets]);
-
-  const currentScreen = SCREEN_MAP[location.pathname] || null;
 
   return (
     <GlobalWidgetContext.Provider value={contextValue}>
@@ -284,15 +256,8 @@ const AppLayout = () => {
         </div>
       </header>
 
-      {/* WorkspaceBar — below the fixed header */}
-      {currentScreen && (
-        <div className="fixed top-14 left-0 right-0 z-40">
-          <WorkspaceBar screen={currentScreen} />
-        </div>
-      )}
-
-      {/* Main Content - with top padding for fixed header (56px) + workspace bar (32px) */}
-      <main className={`flex-1 ${currentScreen ? 'pt-[88px]' : 'pt-14'}`}>
+      {/* Main Content */}
+      <main className="flex-1 pt-14">
         <Outlet />
       </main>
 

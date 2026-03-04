@@ -6,7 +6,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { workspaceAPI } from '../config/api';
-import { DEFAULT_WORKSPACE_TEMPLATES } from '../registry/defaultWorkspaces';
+import { URL_WIDGET_MAP } from '../registry/urlWidgetMap';
 
 const useWorkspaceStore = create(
   persist(
@@ -87,15 +87,16 @@ const useWorkspaceStore = create(
 
       // ── Create a new workspace ────────────────────────────────────────────
       createWorkspace: async (screen, name) => {
-        const tmpl = DEFAULT_WORKSPACE_TEMPLATES[screen] || { widgets: [] };
+        const pageConfig = URL_WIDGET_MAP[screen] || {};
+        const defaultWidgets = pageConfig.defaultWidgets || [];
         try {
           const ws = await workspaceAPI.create({
             screen,
             name,
-            layout: tmpl.widgets.map(w => ({
+            layout: defaultWidgets.map(w => ({
               i: w.id, x: w.x, y: w.y, w: w.w, h: w.h,
             })),
-            widgets: tmpl.widgets,
+            widgets: defaultWidgets,
             is_default: false,
           });
           set(s => {

@@ -5,7 +5,7 @@ import ProtectedRoute from './components/common/ProtectedRoute';
 import AppLayout from './components/layout/AppLayout';
 import Login from './components/auth/Login';
 import Register from './components/auth/Register';
-import TabDashboard from './components/core/TabDashboard';
+import DashboardPage from './components/core/DashboardPage';
 import UnifiedBacktest from './components/backtest/UnifiedBacktest';
 import PortfolioDetail from './components/portfolio/PortfolioDetail';
 import AlertsDashboard from './components/alerts/AlertsDashboard';
@@ -69,11 +69,11 @@ function App() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<TabDashboard screen="dashboard" />} />
-          <Route path="stock" element={<TabDashboard screen="stock" />} />
-          <Route path="macro" element={<TabDashboard screen="macro" />} />
+          <Route index element={<DashboardPage />} />
+          <Route path="stock" element={<DashboardPage />} />
+          <Route path="macro" element={<DashboardPage />} />
           <Route path="backtest" element={<UnifiedBacktest />} />
-          <Route path="portfolios" element={<TabDashboard screen="portfolio" />} />
+          <Route path="portfolios" element={<DashboardPage />} />
           <Route path="portfolio/:portfolioId" element={<PortfolioDetail />} />
           <Route path="alerts" element={<AlertsDashboard />} />
           <Route path="screener" element={<ScreenerDashboard />} />

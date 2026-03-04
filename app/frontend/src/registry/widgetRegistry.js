@@ -47,7 +47,6 @@ export const WIDGET_REGISTRY = {
     icon: 'CandlestickChart',
     componentPath: 'widgets/ChartWidget',
     defaultSize: { w: 8, h: 6 },
-    minSize:     { w: 4, h: 4 },
     defaultConfig: { symbol: 'AAPL', chartType: 'candlestick', period: '3mo' },
   },
   'financial-table': {

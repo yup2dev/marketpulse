@@ -28,7 +28,8 @@ from app.backend.api.routes.workspace import router as workspace_router
 def _init_db():
     """Initialize database tables on startup"""
     try:
-        from index_analyzer.models.database import Base, get_sqlite_db
+        from index_analyzer.utils.db import get_sqlite_db
+        from index_analyzer.models.orm import Base
 
         db_path = Path(__file__).parent.parent.parent / "data" / "marketpulse.db"
         db_instance = get_sqlite_db(str(db_path))
