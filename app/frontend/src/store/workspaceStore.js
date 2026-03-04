@@ -67,8 +67,29 @@ const useWorkspaceStore = create(
 
       // ── Save current layout to backend ───────────────────────────────────
       saveLayout: async (screen, layout, widgets) => {
-        const id = get().activeId[screen];
-        if (!id) return;
+        let id = get().activeId[screen];
+
+        // No workspace yet — auto-create a default one
+        if (!id) {
+          try {
+            const ws = await workspaceAPI.create({
+              screen,
+              name: 'Default',
+              layout,
+              widgets,
+              is_default: true,
+            });
+            set(s => ({
+              workspaces: { ...s.workspaces, [screen]: [ws] },
+              activeId:   { ...s.activeId,   [screen]: ws.id },
+              pendingChanges: { ...s.pendingChanges, [screen]: false },
+            }));
+          } catch (err) {
+            console.error('Failed to auto-create workspace:', err);
+          }
+          return;
+        }
+
         try {
           const updated = await workspaceAPI.update(id, { layout, widgets });
           set(s => {

@@ -28,18 +28,23 @@ import WidgetMenu from './WidgetMenu';
 import StockSelectorModal from '../common/StockSelectorModal';
 import CreatePortfolioModal from '../portfolio/CreatePortfolioModal';
 import AddTransactionModal from '../portfolio/AddTransactionModal';
+import useNavigationStore from '../../store/navigationStore';
 
 export default function DashboardPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { isAuthenticated } = useAuthStore();
+  const { setLastSection, setLastSymbol } = useNavigationStore();
 
   const config = URL_WIDGET_MAP[location.pathname];
   const categories = config?.categories || [];
 
-  // Active tab from ?section= URL param (defaults to first category)
-  const activeSection = searchParams.get('section') || categories[0]?.id || '';
+  // Active tab: URL param → saved last section (sync read) → first category
+  const activeSection =
+    searchParams.get('section') ||
+    useNavigationStore.getState().lastSection[location.pathname] ||
+    categories[0]?.id || '';
   const activeCategory = categories.find(c => c.id === activeSection) || categories[0];
 
   // Workspace key: pathname + section (e.g. "/stock-financials")
@@ -47,12 +52,15 @@ export default function DashboardPage() {
 
   const handleTabChange = (sectionId) => {
     setSearchParams({ section: sectionId });
+    setLastSection(location.pathname, sectionId);
     addWidgetRef.current = null;
     setActiveWidgetIds([]);
   };
 
-  // Symbol state
-  const [symbol, setSymbol] = useState('AAPL');
+  // Symbol state — read synchronously from store (bypasses hydration timing)
+  const [symbol, setSymbol] = useState(
+    () => useNavigationStore.getState().lastSymbol
+  );
 
   // Widget menu state
   const [menuOpen, setMenuOpen] = useState(false);
@@ -146,7 +154,11 @@ export default function DashboardPage() {
               {config.needsSymbol && (
                 <StockSelectorModal
                   symbol={symbol}
-                  onSelect={(s) => setSymbol(s.symbol || s)}
+                  onSelect={(s) => {
+                    const sym = s.symbol || s;
+                    setSymbol(sym);
+                    setLastSymbol(sym);
+                  }}
                 />
               )}
 

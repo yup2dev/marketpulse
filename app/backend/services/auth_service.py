@@ -7,10 +7,7 @@ from typing import Optional
 import uuid
 
 from index_analyzer.models.orm import User
-try:
-    from ..auth.security import verify_password, get_password_hash, create_access_token, create_refresh_token
-except ImportError:
-    from auth.security import verify_password, get_password_hash, create_access_token, create_refresh_token
+from app.backend.auth.security import verify_password, get_password_hash, create_access_token, create_refresh_token
 
 
 class AuthService:
