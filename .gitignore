@@ -163,10 +163,9 @@ temp.py
 /.claude/
 
 # Test file
-test*.py
-*test.py
+test_*.py
 /test*
-*test/
+*test_/
 spring-boot*/
 /spring-boot*
 
@@ -181,7 +180,8 @@ CLEANUP_PLAN.md
 
 # Backup files
 *.backup
-*.fastapi_backup
+*.fastapi_
+up
 
 # Root level test files (should be in tests/ folder)
 /test_*.py
@@ -191,3 +191,5 @@ CLEANUP_PLAN.md
 
 *.png
 /app/frontend/node_modules*
+*/data
+*docker

@@ -198,5 +198,13 @@ class FREDUnemploymentFetcher(Fetcher[UnemploymentQueryParams, UnemploymentData]
                 log.warning(f"Error parsing unemployment observation {obs}: {e}")
                 continue
 
-            return unemployment_data_list
+        log.info(
+            f"Filtered unemployment data: {len(unemployment_data_list)} records "
+            f"(start: {query.start_date}, end: {query.end_date})"
+        )
+
+        # 날짜순으로 정렬
+        unemployment_data_list.sort(key=lambda x: x.date)
+
+        return unemployment_data_list
 

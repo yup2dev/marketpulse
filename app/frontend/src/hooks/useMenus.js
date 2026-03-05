@@ -1,0 +1,245 @@
+import { useState, useEffect } from 'react';
+import { API_BASE } from '../config/api';
+
+/**
+ * Custom hook to fetch and manage menu data from API
+ * Provides hierarchical menu structure with caching
+ */
+export const useMenus = () => {
+  const [menus, setMenus] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetchMenus();
+  }, []);
+
+  const fetchMenus = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Fetch hierarchical menu structure
+      const response = await fetch(`${API_BASE}/menu/hierarchy?pkg_type=MARKETPULSE`);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      setMenus(data);
+    } catch (err) {
+      console.error('Error fetching menus:', err);
+      setError(err.message);
+
+      // Fallback to hardcoded menus if API fails
+      setMenus(getFallbackMenus());
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const refresh = () => {
+    fetchMenus();
+  };
+
+  return { menus, loading, error, refresh };
+};
+
+/**
+ * Fallback menu structure if API is unavailable
+ * Mirrors the database structure for consistency
+ */
+const getFallbackMenus = () => [
+  {
+    menu_id: 'dashboard',
+    menu_name: 'Dashboard',
+    menu_icon: 'Grid3x3',
+    menu_path: 'professional',
+    display_seq: 1,
+    children: []
+  },
+  {
+    menu_id: 'analysis',
+    menu_name: 'Analysis',
+    menu_icon: 'LayoutDashboard',
+    menu_path: 'stock',
+    display_seq: 2,
+    children: [
+      {
+        menu_id: 'analysis-overview',
+        menu_name: 'Overview',
+        menu_path: 'stock?tab=overview',
+        display_seq: 1
+      },
+      {
+        menu_id: 'analysis-financials',
+        menu_name: 'Financials',
+        menu_path: 'stock?tab=financials',
+        display_seq: 2
+      },
+      {
+        menu_id: 'analysis-institutional',
+        menu_name: 'Institutional Holdings',
+        menu_path: 'stock?tab=institutional-holdings',
+        display_seq: 3
+      },
+      {
+        menu_id: 'analysis-comparison',
+        menu_name: 'Comparison Analysis',
+        menu_path: 'stock?tab=comparison-analysis',
+        display_seq: 4
+      },
+      {
+        menu_id: 'analysis-ownership',
+        menu_name: 'Ownership',
+        menu_path: 'stock?tab=ownership',
+        display_seq: 5
+      },
+      {
+        menu_id: 'analysis-calendar',
+        menu_name: 'Company Calendar',
+        menu_path: 'stock?tab=company-calendar',
+        display_seq: 6
+      },
+      {
+        menu_id: 'analysis-estimates',
+        menu_name: 'Estimates',
+        menu_path: 'stock?tab=estimates',
+        display_seq: 7
+      }
+    ]
+  },
+  {
+    menu_id: 'macro',
+    menu_name: 'Macro',
+    menu_icon: 'Globe',
+    menu_path: 'macro-analysis',
+    display_seq: 3,
+    children: [
+      {
+        menu_id: 'macro-overview',
+        menu_name: 'Overview',
+        menu_path: 'macro-analysis?tab=overview',
+        display_seq: 1
+      },
+      {
+        menu_id: 'macro-regime',
+        menu_name: 'Economic Regime',
+        menu_path: 'macro-analysis?tab=economic-regime',
+        display_seq: 2
+      },
+      {
+        menu_id: 'macro-fed',
+        menu_name: 'Fed Policy',
+        menu_path: 'macro-analysis?tab=fed-policy',
+        display_seq: 3
+      },
+      {
+        menu_id: 'macro-yield',
+        menu_name: 'Yield Curve',
+        menu_path: 'macro-analysis?tab=yield-curve',
+        display_seq: 4
+      },
+      {
+        menu_id: 'macro-inflation',
+        menu_name: 'Inflation',
+        menu_path: 'macro-analysis?tab=inflation',
+        display_seq: 5
+      },
+      {
+        menu_id: 'macro-labor',
+        menu_name: 'Labor Market',
+        menu_path: 'macro-analysis?tab=labor-market',
+        display_seq: 6
+      },
+      {
+        menu_id: 'macro-financial',
+        menu_name: 'Financial Conditions',
+        menu_path: 'macro-analysis?tab=financial-conditions',
+        display_seq: 7
+      },
+      {
+        menu_id: 'macro-sentiment',
+        menu_name: 'Sentiment',
+        menu_path: 'macro-analysis?tab=sentiment',
+        display_seq: 8
+      },
+      {
+        menu_id: 'macro-commodities',
+        menu_name: 'Commodities',
+        menu_path: 'macro-analysis?tab=commodities',
+        display_seq: 9
+      }
+    ]
+  },
+  {
+    menu_id: 'backtest',
+    menu_name: 'Backtest',
+    menu_icon: 'BarChart3',
+    menu_path: 'unified-backtest',
+    display_seq: 4,
+    children: []
+  },
+  {
+    menu_id: 'portfolio',
+    menu_name: 'Portfolio',
+    menu_icon: 'Briefcase',
+    menu_path: 'portfolio-settings',
+    display_seq: 5,
+    children: [
+      {
+        menu_id: 'portfolio-overview',
+        menu_name: 'Overview',
+        menu_path: 'portfolio-settings?tab=overview',
+        display_seq: 1
+      },
+      {
+        menu_id: 'portfolio-balances',
+        menu_name: 'Balances',
+        menu_path: 'portfolio-settings?tab=balances',
+        display_seq: 2
+      },
+      {
+        menu_id: 'portfolio-positions',
+        menu_name: 'Positions',
+        menu_path: 'portfolio-settings?tab=positions',
+        display_seq: 3
+      },
+      {
+        menu_id: 'portfolio-orders',
+        menu_name: 'Open Orders',
+        menu_path: 'portfolio-settings?tab=open-orders',
+        display_seq: 4
+      },
+      {
+        menu_id: 'portfolio-trade-history',
+        menu_name: 'Trade History',
+        menu_path: 'portfolio-settings?tab=trade-history',
+        display_seq: 5
+      },
+      {
+        menu_id: 'portfolio-dividends',
+        menu_name: 'Dividends',
+        menu_path: 'portfolio-settings?tab=dividends',
+        display_seq: 6
+      },
+      {
+        menu_id: 'portfolio-deposits',
+        menu_name: 'Deposits & Withdrawals',
+        menu_path: 'portfolio-settings?tab=deposits-withdrawals',
+        display_seq: 7
+      }
+    ]
+  },
+  {
+    menu_id: 'alerts',
+    menu_name: 'Alerts',
+    menu_icon: 'Bell',
+    menu_path: 'alerts',
+    display_seq: 6,
+    children: []
+  }
+];
+
+export default useMenus;

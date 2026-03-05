@@ -150,4 +150,12 @@ class FREDRetailSalesFetcher(Fetcher[RetailSalesQueryParams, RetailSalesData]):
                 log.warning(f"Error parsing retail sales observation {obs}: {e}")
                 continue
 
-            return rs_data_list
+        log.info(
+            f"Filtered retail sales data: {len(rs_data_list)} records "
+            f"(start: {query.start_date}, end: {query.end_date})"
+        )
+
+        # 날짜순으로 정렬
+        rs_data_list.sort(key=lambda x: x.date)
+
+        return rs_data_list

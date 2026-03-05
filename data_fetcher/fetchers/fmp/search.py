@@ -38,7 +38,7 @@ class SearchResult:
 class FMPSearchFetcher(Fetcher[SearchQueryParams, SearchResult]):
     """FMP 주식 검색 Fetcher"""
 
-    BASE_URL = "https://financialmodelingprep.com/api/v3"
+    BASE_URL = "https://financialmodelingprep.com/stable"
 
     @staticmethod
     def transform_query(params: Dict[str, Any]) -> SearchQueryParams:
@@ -70,20 +70,26 @@ class FMPSearchFetcher(Fetcher[SearchQueryParams, SearchResult]):
                 env_var="FMP_API_KEY"
             )
 
-            # API 엔드포인트
-            url = f"{FMPSearchFetcher.BASE_URL}/search"
-
-            # 파라미터 설정
+            # Try search-symbol first (for exact symbol matches)
+            url = f"{FMPSearchFetcher.BASE_URL}/search-symbol"
             params = {
                 "query": query.query,
                 "limit": query.limit,
                 "apikey": api_key
             }
 
-            # API 호출
             response = requests.get(url, params=params, timeout=30)
             response.raise_for_status()
+            data = response.json()
 
+            # If we got results, return them
+            if isinstance(data, list) and len(data) > 0:
+                return data
+
+            # Otherwise try search-name (for company name matches)
+            url = f"{FMPSearchFetcher.BASE_URL}/search-name"
+            response = requests.get(url, params=params, timeout=30)
+            response.raise_for_status()
             data = response.json()
 
             if not isinstance(data, list):
@@ -137,6 +143,14 @@ class FMPSearchFetcher(Fetcher[SearchQueryParams, SearchResult]):
             except (KeyError, ValueError) as e:
                 log.warning(f"Error parsing search result: {e}")
                 continue
+
+        # Sort results: USD currency first, then by symbol length (shorter = more common)
+        def sort_key(result: SearchResult) -> tuple:
+            is_usd = 1 if result.currency == "USD" else 0
+            has_dot = 1 if "." in result.symbol else 0
+            return (-is_usd, has_dot, len(result.symbol), result.symbol)
+
+        results.sort(key=sort_key)
 
         log.info(f"Found {len(results)} search results for '{query.query}'")
         return results

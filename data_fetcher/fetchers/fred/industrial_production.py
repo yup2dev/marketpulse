@@ -150,4 +150,12 @@ class FREDIndustrialProductionFetcher(Fetcher[IndustrialProductionQueryParams, I
                 log.warning(f"Error parsing industrial production observation {obs}: {e}")
                 continue
 
-            return ip_data_list
+        log.info(
+            f"Filtered industrial production data: {len(ip_data_list)} records "
+            f"(start: {query.start_date}, end: {query.end_date})"
+        )
+
+        # 날짜순으로 정렬
+        ip_data_list.sort(key=lambda x: x.date)
+
+        return ip_data_list

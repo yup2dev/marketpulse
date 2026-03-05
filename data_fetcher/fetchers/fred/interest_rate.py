@@ -164,4 +164,12 @@ class FREDInterestRateFetcher(Fetcher[InterestRateQueryParams, InterestRateData]
                 log.warning(f"Error parsing interest rate observation {obs}: {e}")
                 continue
 
-            return interest_data_list
+        log.info(
+            f"Filtered interest rate data: {len(interest_data_list)} records "
+            f"(start: {query.start_date}, end: {query.end_date})"
+        )
+
+        # 날짜순으로 정렬
+        interest_data_list.sort(key=lambda x: x.date)
+
+        return interest_data_list

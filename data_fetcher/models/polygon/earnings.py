@@ -36,7 +36,8 @@ class EarningsData(BaseData):
     fiscal_period: str = Field(
         description="회계기간 (Q1, Q2, Q3, Q4, FY)"
     )
-    fiscal_year: int = Field(
+    fiscal_year: Optional[int] = Field(
+        default=None,
         description="회계연도"
     )
     fiscal_quarter: Optional[int] = Field(

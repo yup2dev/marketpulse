@@ -1,6 +1,6 @@
-from .http_client import HttpClient
+from ..utils.http import HttpClient
 from .crawler import Crawler, Frontier
-from .url_classifier import URLClassifier, CategoryPolicy
+from .classifier import URLClassifier, CategoryPolicy
 
 __all__ = [
     "HttpClient",

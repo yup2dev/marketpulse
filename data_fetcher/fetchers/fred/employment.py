@@ -164,9 +164,12 @@ class FREDEmploymentFetcher(Fetcher[EmploymentQueryParams, EmploymentData]):
                 log.warning(f"Error parsing employment observation {obs}: {e}")
                 continue
 
+        log.info(
+            f"Filtered employment data: {len(employment_data_list)} records "
+            f"(start: {query.start_date}, end: {query.end_date})"
+        )
 
+        # 날짜순으로 정렬
+        employment_data_list.sort(key=lambda x: x.date)
 
-        
-
-
-                return employment_data_list
+        return employment_data_list

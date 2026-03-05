@@ -5,11 +5,11 @@
 
 // Components
 export { default as WidgetHeader } from './WidgetHeader';
-export { default as LoadingSpinner } from './LoadingSpinner';
-export { default as EmptyState, ErrorState, NoDataState } from './EmptyState';
+export { default as BaseWidget, PERIOD_OPTIONS } from './BaseWidget';
 
 // Utilities
 export * from '../../../utils/widgetUtils';
+export * from '../../../utils/exportUtils';
 
 // Configuration
 export * from './widgetConfig';

@@ -19,3 +19,18 @@ apscheduler>=3.10.0
 pytest>=7.4.0
 pytest-asyncio>=0.21.0
 httpx>=0.25.0
+
+# Authentication & Security
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+bcrypt==3.2.2
+
+# Email & Notifications
+fastapi-mail>=1.4.1
+
+# Data Export
+openpyxl>=3.1.0
+reportlab>=4.0.0
+
+# WebSocket for real-time updates
+websockets>=12.0

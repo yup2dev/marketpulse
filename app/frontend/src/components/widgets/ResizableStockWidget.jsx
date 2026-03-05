@@ -1,0 +1,168 @@
+import { useState, useEffect } from 'react';
+import { TrendingUp, TrendingDown, BarChart3, Table2, RefreshCw } from 'lucide-react';
+import PlotlyChart from '../core/PlotlyChart';
+import useTheme from '../../hooks/useTheme';
+import { formatNumber, formatPrice, formatPercent } from '../../utils/widgetUtils';
+import { API_BASE } from '../../config/api';
+import WidgetHeader from './common/WidgetHeader';
+
+const ResizableStockWidget = ({ symbol, onRemove, onExpand }) => {
+  const { classes, chartTheme } = useTheme();
+  const [quote, setQuote] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [viewMode, setViewMode] = useState('chart'); // 'chart' or 'table'
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (symbol) {
+      loadData();
+    }
+  }, [symbol]);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [quoteRes, historyRes] = await Promise.all([
+        fetch(`${API_BASE}/stock/quote/${symbol}`),
+        fetch(`${API_BASE}/stock/history/${symbol}?period=1mo`)
+      ]);
+
+      if (quoteRes.ok) {
+        setQuote(await quoteRes.json());
+      }
+
+      if (historyRes.ok) {
+        const histData = await historyRes.json();
+        setHistory(histData.data || []);
+      }
+    } catch (error) {
+      console.error('Error loading stock data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const isPositive = quote?.change_percent >= 0;
+
+  return (
+    <div className="h-full bg-[#0d0d12] rounded-lg border border-gray-800 flex flex-col overflow-hidden">
+      {/* Header */}
+      <WidgetHeader
+        icon={TrendingUp}
+        iconColor={isPositive ? 'text-green-400' : 'text-red-400'}
+        title={symbol}
+        subtitle={quote ? formatPercent(quote.change_percent) : ''}
+        loading={loading}
+        onRefresh={loadData}
+        onRemove={onRemove}
+      >
+        {/* View Toggle */}
+        <div className="flex bg-gray-800/50 rounded p-0.5 mr-2">
+          <button
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              setViewMode('chart');
+            }}
+            className={`p-1.5 rounded transition-colors ${
+              viewMode === 'chart' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
+            }`}
+            title="Chart View"
+          >
+            <BarChart3 size={14} />
+          </button>
+          <button
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              setViewMode('table');
+            }}
+            className={`p-1.5 rounded transition-colors ${
+              viewMode === 'table' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
+            }`}
+            title="Table View"
+          >
+            <Table2 size={14} />
+          </button>
+        </div>
+      </WidgetHeader>
+
+      {/* Content */}
+      <div className="flex-1 overflow-auto p-3">
+        {loading ? (
+          <div className="flex items-center justify-center h-full">
+            <RefreshCw className="animate-spin text-blue-500" size={24} />
+          </div>
+        ) : viewMode === 'chart' ? (
+          <div className="h-full flex flex-col gap-2">
+            {/* Price Info */}
+            {quote && (
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div>
+                  <div className="text-gray-400 text-xs">Price</div>
+                  <div className="text-white font-semibold">{formatPrice(quote.price)}</div>
+                </div>
+                <div>
+                  <div className="text-gray-400 text-xs">Change</div>
+                  <div className={`font-semibold ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
+                    {isPositive ? <TrendingUp className="inline" size={12} /> : <TrendingDown className="inline" size={12} />}
+                    {formatPrice(quote.change)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-gray-400 text-xs">Volume</div>
+                  <div className="text-white">{formatNumber(quote.volume)}</div>
+                </div>
+                <div>
+                  <div className="text-gray-400 text-xs">High / Low</div>
+                  <div className="text-white text-xs">{formatPrice(quote.high)} / {formatPrice(quote.low)}</div>
+                </div>
+              </div>
+            )}
+
+            {/* Chart */}
+            <div className="flex-1 min-h-[150px]">
+              <PlotlyChart
+                data={history.slice(-30)}
+                series={[{ key: 'close', name: symbol, color: isPositive ? '#22c55e' : '#ef4444' }]}
+                xKey="date"
+                type="line"
+                fillContainer
+                compact
+                showTypeSelector={false}
+                xFormatter={(d) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                yFormatter={formatPrice}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="h-full overflow-auto">
+            {/* Table View */}
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-[#0d0d12]">
+                <tr className="border-b border-gray-800">
+                  <th className="text-left py-2 text-gray-400 font-medium">Date</th>
+                  <th className="text-right py-2 text-gray-400 font-medium">Close</th>
+                  <th className="text-right py-2 text-gray-400 font-medium">Volume</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.slice(-10).reverse().map((item, idx) => (
+                  <tr key={idx} className="border-b border-gray-800 hover:bg-gray-800/50">
+                    <td className="py-2 text-gray-300">
+                      {new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </td>
+                    <td className="text-right text-white">{formatPrice(item.close)}</td>
+                    <td className="text-right text-gray-400">{formatNumber(item.volume)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default ResizableStockWidget;

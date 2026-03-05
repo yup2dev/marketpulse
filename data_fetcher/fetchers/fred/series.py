@@ -41,6 +41,7 @@ class FredSeriesFetcher:
         aggregation_method: Optional[str] = None,
         units: Optional[str] = None,
         limit: int = 10000,
+        sort_order: str = 'desc',  # Default to descending to get most recent data first
         **kwargs: Any
     ) -> List[Dict[str, Any]]:
         """
@@ -55,6 +56,7 @@ class FredSeriesFetcher:
             aggregation_method: 집계 방법 ('avg', 'sum', 'eop')
             units: 단위 변환 ('lin', 'chg', 'ch1', 'pch', 'pc1', 'pca', 'cch', 'cca', 'log')
             limit: 최대 관찰값 개수
+            sort_order: 정렬 순서 ('asc', 'desc') - desc = 최신 데이터 먼저
             **kwargs: 추가 파라미터
 
         Returns:
@@ -69,6 +71,7 @@ class FredSeriesFetcher:
             'api_key': api_key,
             'file_type': 'json',
             'limit': limit,
+            'sort_order': sort_order,
         }
 
         # 날짜 범위 설정

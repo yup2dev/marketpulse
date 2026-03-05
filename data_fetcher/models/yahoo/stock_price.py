@@ -1,6 +1,6 @@
 """Yahoo Finance Stock Price Model (주가 데이터)"""
-from datetime import date as date_type
-from typing import Optional
+from datetime import date as date_type, datetime
+from typing import Optional, Union
 from pydantic import Field
 from data_fetcher.models.base import BaseQueryParams, BaseData
 
@@ -25,7 +25,7 @@ class StockPriceQueryParams(BaseQueryParams):
     )
     interval: str = Field(
         default="1d",
-        description="데이터 간격 (1d, 1wk, 1mo)"
+        description="데이터 간격 (1m, 2m, 5m, 15m, 30m, 60m, 90m, 1h, 1d, 5d, 1wk, 1mo, 3mo)"
     )
 
 
@@ -33,7 +33,7 @@ class StockPriceData(BaseData):
     """주가 데이터"""
 
     symbol: str = Field(description="종목 코드")
-    date: date_type = Field(description="날짜")
+    date: Union[datetime, date_type] = Field(description="날짜/시간")
 
     # OHLCV 데이터
     open: float = Field(description="시가")
