@@ -89,7 +89,7 @@ export default function StockSentimentWidget({ symbol, onRemove }) {
               <div key={i} className="px-3 py-2 hover:bg-gray-800/30 transition-colors">
                 <div className="flex items-start justify-between gap-2">
                   <a
-                    href={item.url}
+                    href={item.article_url}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-[11px] text-gray-200 hover:text-white line-clamp-2 flex-1"
@@ -99,10 +99,10 @@ export default function StockSentimentWidget({ symbol, onRemove }) {
                   <SentimentBadge sentiment={item.sentiment} />
                 </div>
                 <div className="flex items-center gap-2 mt-1">
-                  <span className="text-[10px] text-gray-600">{item.source}</span>
+                  <span className="text-[10px] text-gray-600">{item.publisher}</span>
                   <span className="text-[10px] text-gray-700">·</span>
                   <span className="text-[10px] text-gray-600">
-                    {item.published_at ? new Date(item.published_at).toLocaleDateString() : ''}
+                    {item.published_utc ? new Date(item.published_utc).toLocaleDateString() : ''}
                   </span>
                 </div>
               </div>

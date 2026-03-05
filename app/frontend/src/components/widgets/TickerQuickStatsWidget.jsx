@@ -67,7 +67,7 @@ const TickerQuickStatsWidget = ({ symbol, onRemove }) => {
           <div className="space-y-4">
             {/* Company Header */}
             <div className="pb-4 border-b border-gray-800">
-              <h4 className="text-lg font-bold text-white mb-1">{info.name}</h4>
+              <h4 className="text-lg font-bold text-white mb-1">{info.company_name}</h4>
               <div className="text-sm text-gray-400">{info.sector} • {info.industry}</div>
             </div>
 

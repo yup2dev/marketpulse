@@ -545,7 +545,7 @@ export default function ComparisonAnalysisTab({ symbol: initialSymbol = 'AAPL' }
                       <div>
                         <div className="font-semibold text-white">{sym}</div>
                         <div className="text-xs text-gray-400 truncate max-w-[150px]">
-                          {info.name || info.shortName || sym}
+                          {info.company_name || info.shortName || sym}
                         </div>
                       </div>
                     </div>

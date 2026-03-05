@@ -263,8 +263,8 @@ export default function DashboardPage() {
             key={screenKey}
             screen={screenKey}
             defaultWidgets={defaultWidgets}
-            renderWidget={(widgetCfg, onRemoveWidget, addWidget) => {
-              if (addWidget && !addWidgetRef.current) addWidgetRef.current = addWidget;
+            onAddWidgetReady={(fn) => { addWidgetRef.current = fn; }}
+            renderWidget={(widgetCfg, onRemoveWidget) => {
               return (
                 <WidgetRenderer
                   widget={widgetCfg}

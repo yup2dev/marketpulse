@@ -1,7 +1,7 @@
 """
 Base Fetcher Abstract Class
 
-OpenBB 패턴을 따르는 기본 Fetcher 클래스
+기본 Fetcher 클래스
 Enhanced with async support, type safety, and testing capabilities.
 """
 import asyncio
@@ -272,6 +272,49 @@ class Fetcher(ABC, Generic[QueryParamsT, DataT]):
             return get_args(cls.__orig_bases__[0])[1]  # type: ignore
         except (AttributeError, IndexError):
             return BaseModel
+
+    @classmethod
+    def set_data(
+        cls,
+        result: Union[List[DataT], "AnnotatedResult[List[DataT]]", None],
+        **kwargs: Any
+    ) -> List[Dict[str, Any]]:
+        """
+        fetch_data() 결과를 화면에 표시 가능한 딕셔너리 리스트로 자동 변환
+
+        Args:
+            result: fetch_data()의 반환값 (Pydantic 모델 리스트 또는 AnnotatedResult)
+            **kwargs: 추가 옵션 (미사용, 확장성용)
+
+        Returns:
+            JSON 직렬화된 딕셔너리 리스트
+
+        Example:
+            result = await MyFetcher.fetch_data(params)
+            data = MyFetcher.set_data(result)
+        """
+        if result is None:
+            return []
+
+        # AnnotatedResult 언래핑
+        if isinstance(result, AnnotatedResult):
+            result = result.result
+
+        if not result:
+            return []
+
+        output = []
+        for item in result:
+            if isinstance(item, BaseModel):
+                # mode='json' → 날짜/시간 등 자동으로 ISO 문자열로 직렬화
+                output.append(item.model_dump(mode='json'))
+            elif isinstance(item, dict):
+                output.append(item)
+            else:
+                output.append(item)
+
+        return output
+
 
     @classmethod
     def test(

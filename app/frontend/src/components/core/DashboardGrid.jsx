@@ -29,6 +29,7 @@ export default function DashboardGrid({
   screen,
   defaultWidgets = [],
   renderWidget,
+  onAddWidgetReady,
   className = '',
   children,
 }) {
@@ -98,6 +99,10 @@ export default function DashboardGrid({
       return next;
     });
   }, [screen]);
+
+  useEffect(() => {
+    onAddWidgetReady?.(addWidget);
+  }, [addWidget, onAddWidgetReady]);
 
   useEffect(() => () => clearTimeout(saveTimerRef.current), []);
 

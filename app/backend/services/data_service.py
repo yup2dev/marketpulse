@@ -137,19 +137,7 @@ class DataService:
             log.debug(f"DATA_SERVICE - Final params: {params}")
 
             result = await YahooStockPriceFetcher.fetch_data(params)
-
-            if result:
-                return [
-                    {
-                        'date': data.date.isoformat() if data.date else None,
-                        'open': data.open,
-                        'high': data.high,
-                        'low': data.low,
-                        'close': data.close,
-                        'volume': data.volume
-                    }
-                    for data in result
-                ]
+            return YahooStockPriceFetcher.set_data(result)
         except Exception as e:
             log.error(f"Error fetching stock history: {e}")
 
@@ -160,21 +148,8 @@ class DataService:
         try:
             result = await YahooCompanyInfoFetcher.fetch_data({'symbol': symbol})
 
-            if result and len(result) > 0:
-                data = result[0]
-                return {
-                    'symbol': symbol,
-                    'name': data.company_name,
-                    'sector': data.sector,
-                    'industry': data.industry,
-                    'description': data.description,
-                    'website': data.website,
-                    'employees': data.employees if hasattr(data, 'employees') else None,
-                    'market_cap': data.market_cap,
-                    'country': data.country,
-                    'city': data.city if hasattr(data, 'city') else None,
-                    'address': data.address if hasattr(data, 'address') else None
-                }
+            if result:
+                return YahooCompanyInfoFetcher.set_data(result)[0]
         except Exception as e:
             log.error(f"Error fetching company info: {e}")
 
@@ -396,20 +371,7 @@ class DataService:
                 params['ticker'] = symbol
 
             result = await PolygonNewsFetcher.fetch_data(params)
-
-            if result:
-                return [
-                    {
-                        'title': news.title,
-                        'description': news.description,
-                        'url': news.article_url,
-                        'published_at': news.published_utc.isoformat() if news.published_utc else None,
-                        'source': news.publisher_name,
-                        'image_url': news.image_url,
-                        'tickers': news.tickers
-                    }
-                    for news in result[:limit]
-                ]
+            return PolygonNewsFetcher.set_data(result)[:limit]
         except Exception as e:
             log.error(f"Error fetching news: {e}")
 
@@ -732,31 +694,7 @@ class DataService:
             })
 
             if result:
-                earnings_list = []
-                for data in result:
-                    earnings_list.append({
-                        'fiscal_period': data.fiscal_period,
-                        'fiscal_year': data.fiscal_year,
-                        'fiscal_quarter': data.fiscal_quarter,
-                        'report_date': data.report_date.isoformat() if data.report_date else None,
-                        'period_end_date': data.period_end_date.isoformat() if data.period_end_date else None,
-                        'eps_actual': data.eps_actual,
-                        'eps_estimated': data.eps_estimated,
-                        'eps_surprise': data.eps_surprise,
-                        'eps_surprise_percent': data.eps_surprise_percent,
-                        'revenue_actual': data.revenue_actual,
-                        'revenue_estimated': data.revenue_estimated,
-                        'revenue_surprise': data.revenue_surprise,
-                        'revenue_surprise_percent': data.revenue_surprise_percent,
-                        'net_income': data.net_income,
-                        'operating_income': data.operating_income,
-                        'gross_profit': data.gross_profit
-                    })
-
-                return {
-                    'symbol': symbol,
-                    'earnings': earnings_list
-                }
+                return {'symbol': symbol, 'earnings': PolygonEarningsFetcher.set_data(result)}
         except Exception as e:
             log.error(f"Error fetching earnings: {e}")
 
@@ -854,22 +792,7 @@ class DataService:
             })
 
             if result:
-                holders = []
-                for data in result:
-                    holders.append({
-                        'name': data.name,
-                        'position': data.position,
-                        'shares': data.shares,
-                        'value': data.value,
-                        'latest_transaction_date': data.latest_transaction_date.isoformat() if data.latest_transaction_date else None,
-                        'position_direct': data.position_direct,
-                        'position_indirect': data.position_indirect
-                    })
-
-                return {
-                    'symbol': symbol,
-                    'holders': holders
-                }
+                return {'symbol': symbol, 'holders': YahooInsiderHoldersFetcher.set_data(result)}
         except Exception as e:
             log.error(f"Error fetching insider holders for {symbol}: {e}")
 
@@ -1213,19 +1136,7 @@ class DataService:
             })
 
             if result:
-                dividends = []
-                for data in result[:limit]:
-                    dividends.append({
-                        'date': data.date.strftime('%Y-%m-%d') if data.date else None,
-                        'amount': data.dividend,
-                        'dividend_yield': data.dividend_yield,
-                        'yoy_growth': data.yoy_growth
-                    })
-
-                return {
-                    'symbol': symbol,
-                    'history': dividends
-                }
+                return {'symbol': symbol, 'history': YahooDividendsFetcher.set_data(result)[:limit]}
         except Exception as e:
             log.error(f"Error fetching dividends for {symbol}: {e}")
 
@@ -2013,7 +1924,7 @@ class DataService:
                    Quality : ★★ (peers, supply-chain 아님)
         """
         import asyncio
-        from index_analyzer.pipeline.stock_collect_module import (
+        from index_analyzer.services.stock_service import (
             get_relations_from_db, get_profile_from_db
         )
 

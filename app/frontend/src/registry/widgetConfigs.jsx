@@ -55,19 +55,19 @@ export const UNIVERSAL_WIDGET_CONFIGS = {
     columns: [
       { key: 'date',   header: 'Date', formatter: 'date' },
       {
-        key: 'amount', header: 'Amount ($)', align: 'right',
+        key: 'dividend', header: 'Amount ($)', align: 'right',
         renderFn: (v) => v != null
           ? <span className="text-white">${Number(v).toFixed(4)}</span>
           : <span className="text-gray-500">-</span>,
       },
       {
-        key: 'yield', header: 'Yield (%)', align: 'right',
+        key: 'dividend_yield', header: 'Yield (%)', align: 'right',
         renderFn: (v) => v != null
           ? <span className="text-green-500">{(Number(v) * 100).toFixed(2)}%</span>
           : <span className="text-gray-500">-</span>,
       },
       {
-        key: 'growth', header: 'YoY (%)', align: 'right',
+        key: 'yoy_growth', header: 'YoY (%)', align: 'right',
         renderFn: (v) => posNeg(v),
       },
     ],
