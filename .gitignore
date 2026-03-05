@@ -191,5 +191,5 @@ up
 
 *.png
 /app/frontend/node_modules*
-*/data
+/data
 *docker

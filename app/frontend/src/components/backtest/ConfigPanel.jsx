@@ -1,11 +1,9 @@
 import React, { useState } from 'react';
 import { Play, Save, DollarSign, Briefcase, ChevronDown, RefreshCw } from 'lucide-react';
 import PortfolioStockSelector from './PortfolioStockSelector';
-import {
-  DateRangePicker,
-  BenchmarkSelector,
-  RebalancingSelector
-} from '../common';
+import DateRangePicker from '../common/DateRangePicker';
+import BenchmarkSelector from '../common/BenchmarkSelector';
+import RebalancingSelector from '../common/RebalancingSelector';
 
 const SectionLabel = ({ children }) => (
   <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-widest">{children}</span>
