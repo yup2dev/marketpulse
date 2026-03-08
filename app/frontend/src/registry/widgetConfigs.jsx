@@ -1,38 +1,35 @@
 /**
  * Universal Widget Configs
  *
- * 백엔드 엔드포인트만 추가하면 위젯이 자동으로 생성되는 config-driven 시스템.
+ * Pure data configuration — no inline React component definitions.
+ * Only Tier 1 (columns/chartConfig) and simplified Tier 2
+ * (renderBody returning only CommonTable or CommonChart) entries.
  *
  * Tier:
  *   Tier 1 — columns + chartConfig만 정의 (순수 config)
- *   Tier 2 — renderBody(data, state) => JSX  (커스텀 렌더)
- *   Tier 3 — component: SomeComponent        (컴포넌트 직접 위임)
+ *   Tier 2 — renderBody(data, state) => CommonTable | CommonChart only
  */
 
 import {
   DollarSign, Scissors, FileText, TrendingUp, TrendingDown, Activity, Building, Percent,
   BarChart3, UserCheck, Users, Briefcase, Flame, Landmark, Building2, Calendar,
   Grid3X3, Shield, Award, Minus, Newspaper, MessageSquare,
+  List, Globe,
+  ArrowUp, ArrowDown, Bell,
 } from 'lucide-react';
 import CommonChart from '../components/common/CommonChart';
 import CommonTable from '../components/common/CommonTable';
+import {
+  VerticalBarChart,
+  TabBar,
+  ProgressBarDisplay,
+  KVTable,
+  TransactionDisplay,
+  StockSentimentBody,
+} from '../components/core/widgetPatterns';
 
-// ── Tier 3 컴포넌트 import ────────────────────────────────────────────────────
-import YieldCurveChart        from '../components/macro/YieldCurveChart';
-import RegimeDashboard        from '../components/macro/RegimeDashboard';
-import KeyMetricsWidget       from '../components/widgets/KeyMetricsWidget';
-import FedPolicyStanceWidget  from '../components/widgets/macro/FedPolicyStanceWidget';
-import AnalystWidget          from '../components/widgets/AnalystWidget';
-import FinancialTableWidget   from '../components/widgets/FinancialTableWidget';
-import RevenueSegmentsWidget  from '../components/widgets/RevenueSegmentsWidget';
-import MacroCrossWidget       from '../components/widgets/MacroCrossWidget';
-import TickerInformation      from '../components/widgets/TickerInformation';
-import TickerQuickStatsWidget from '../components/widgets/TickerQuickStatsWidget';
-import ResizableStockWidget   from '../components/widgets/ResizableStockWidget';
-import LiveWatchlist          from '../components/widgets/LiveWatchlist';
-import MarketOverview         from '../components/widgets/MarketOverview';
+// ── Utility helpers ───────────────────────────────────────────────────────────
 
-// ── 유틸 헬퍼 ─────────────────────────────────────────────────────────────────
 const posNeg = (v) =>
   v == null
     ? <span className="text-gray-500">-</span>
@@ -67,7 +64,7 @@ const fmtNum = (value) => {
   return value.toLocaleString();
 };
 
-// Tier 2 renderBody 내부에서 CommonChart를 사용하는 thin wrapper
+// Thin wrapper: renderBody에서 CommonChart를 사용하기 위한 helper
 function ChartBody({ data, series, xKey, type, xFormatter, yFormatter, referenceLines }) {
   return (
     <CommonChart
@@ -83,7 +80,7 @@ function ChartBody({ data, series, xKey, type, xFormatter, yFormatter, reference
   );
 }
 
-// Governance keys for ManagementWidget config
+// Governance keys for management widget
 const GOVERNANCE_KEYS = [
   { key: 'audit_risk',              label: 'Audit Risk' },
   { key: 'board_risk',              label: 'Board Risk' },
@@ -93,120 +90,12 @@ const GOVERNANCE_KEYS = [
 ];
 const riskColor = (v) => !v ? '#6b7280' : v <= 3 ? '#22c55e' : v <= 7 ? '#eab308' : '#ef4444';
 
-// ── 공통 UI 헬퍼 ──────────────────────────────────────────────────────────────
+// ── UNIVERSAL_WIDGET_CONFIGS ──────────────────────────────────────────────────
 
-/** 세로 막대 차트 (SWOT, Moat, Scorecard, Sentiment 등에서 공용) */
-function VerticalBarChart({ bars, height = 140 }) {
-  const maxVal = Math.max(...bars.map(b => Math.abs(b.value ?? 0)), 1);
-  return (
-    <div className="flex flex-col" style={{ height }}>
-      <div className="flex justify-around mb-1">
-        {bars.map((b, i) => (
-          <span key={i} className={`text-[9px] font-medium tabular-nums flex-1 text-center ${b.textClass || 'text-gray-400'}`}>
-            {b.displayValue ?? b.value ?? 0}
-          </span>
-        ))}
-      </div>
-      <div className="flex-1 flex items-end justify-around gap-1.5 min-h-0">
-        {bars.map((b, i) => {
-          const val = Math.max(0, b.value ?? 0);
-          return (
-            <div key={i} className="flex-1 flex justify-center items-end h-full">
-              <div
-                className="w-full max-w-[48px] rounded-t transition-all duration-700"
-                style={{ height: `${(val / maxVal) * 100}%`, backgroundColor: b.color, minHeight: val > 0 ? '3px' : 0 }}
-              />
-            </div>
-          );
-        })}
-      </div>
-      <div className="flex justify-around border-t border-gray-800 pt-1.5 mt-1">
-        {bars.map((b, i) => (
-          <span key={i} className="text-[9px] text-gray-500 text-center flex-1 leading-tight">{b.label}</span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/** 뉴스 감성 탭 위젯 (StockSentimentWidget 이전) */
-function StockSentimentBody({ data, activeView, setActiveView }) {
-  const [trendRange, setTrendRange] = window.React.useState('30D');
-  const news  = data?.news || [];
-  const agg   = data?.aggregate || {};
-  const trend = data?.trend || [];
-  const filteredTrend = trendRange === '7D' ? trend.slice(-7) : trend.slice(-30);
-  const tabs  = ['news', 'trend', 'summary'];
-
-  return (
-    <>
-      <div className="flex border-b border-gray-800 px-3 pt-1">
-        {tabs.map(t => (
-          <button key={t} onClick={() => setActiveView(t)}
-            className={`px-3 py-1.5 text-[11px] font-medium border-b-2 transition-colors capitalize ${
-              activeView === t ? 'border-pink-400 text-pink-400' : 'border-transparent text-gray-500 hover:text-gray-300'
-            }`}>{t}</button>
-        ))}
-      </div>
-      <div className="flex-1 overflow-auto">
-        {(activeView ?? 'news') === 'news' && (
-          <div className="divide-y divide-gray-800">
-            {news.length > 0 ? news.slice(0, 20).map((item, i) => (
-              <div key={i} className="px-3 py-2 hover:bg-gray-800/30">
-                <div className="flex items-start justify-between gap-2">
-                  <a href={item.article_url} target="_blank" rel="noopener noreferrer"
-                    className="text-[11px] text-gray-200 hover:text-white line-clamp-2 flex-1">{item.title}</a>
-                  <span className={`text-[9px] font-medium capitalize flex-shrink-0 ${{ positive: 'text-green-400', negative: 'text-red-400', neutral: 'text-gray-400' }[item.sentiment] || 'text-gray-400'}`}>
-                    {item.sentiment}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-[10px] text-gray-600">{item.publisher}</span>
-                  <span className="text-[10px] text-gray-700">·</span>
-                  <span className="text-[10px] text-gray-600">{item.published_utc ? new Date(item.published_utc).toLocaleDateString() : ''}</span>
-                </div>
-              </div>
-            )) : <div className="text-center text-gray-500 text-xs py-8">No news data</div>}
-          </div>
-        )}
-        {(activeView ?? 'news') === 'trend' && (
-          <div className="h-full flex flex-col p-3">
-            <div className="flex gap-2 mb-2">
-              {['7D', '30D'].map(r => (
-                <button key={r} onClick={() => setTrendRange(r)}
-                  className={`px-2 py-0.5 text-[10px] rounded ${trendRange === r ? 'text-pink-400' : 'text-gray-500 hover:text-gray-300'}`}>{r}</button>
-              ))}
-            </div>
-            {filteredTrend.length > 0
-              ? <VerticalBarChart bars={filteredTrend.map(b => ({ label: b.date?.slice(5) || '', value: b.score ?? 0, displayValue: b.score ?? 0, color: '#ec4899', textClass: 'text-pink-400' }))} height={180} />
-              : <div className="text-center text-gray-500 text-xs py-8">No trend data</div>}
-          </div>
-        )}
-        {(activeView ?? 'news') === 'summary' && (
-          <div className="h-full flex flex-col p-3">
-            <div className="flex items-center justify-between mb-4 text-xs">
-              <span className="text-gray-500">Overall Sentiment Score</span>
-              <span className={`text-xl font-bold tabular-nums ${(agg.overall_score ?? 50) >= 60 ? 'text-green-400' : (agg.overall_score ?? 50) >= 40 ? 'text-yellow-400' : 'text-red-400'}`}>
-                {agg.overall_score ?? 50}<span className="text-xs text-gray-600 font-normal">/100</span>
-              </span>
-            </div>
-            <VerticalBarChart bars={[
-              { label: 'Positive', value: agg.positive ?? 0, color: '#22c55e', textClass: 'text-green-400' },
-              { label: 'Neutral',  value: agg.neutral  ?? 0, color: '#6b7280', textClass: 'text-gray-400' },
-              { label: 'Negative', value: agg.negative ?? 0, color: '#ef4444', textClass: 'text-red-400' },
-            ]} height={180} />
-          </div>
-        )}
-      </div>
-    </>
-  );
-}
-
-// ── UNIVERSAL_WIDGET_CONFIGS ─────────────────────────────────────────────────
 export const UNIVERSAL_WIDGET_CONFIGS = {
 
   // ════════════════════════════════════════════════════════════════
-  //  EXISTING WIDGETS
+  //  STOCK WIDGETS — Tier 1 (pure config)
   // ════════════════════════════════════════════════════════════════
 
   'dividend': {
@@ -278,7 +167,7 @@ export const UNIVERSAL_WIDGET_CONFIGS = {
   },
 
   // ════════════════════════════════════════════════════════════════
-  //  TIER 1 — 순수 config (9개)
+  //  MACRO WIDGETS — Tier 1 (pure config, 9개)
   // ════════════════════════════════════════════════════════════════
 
   'gdp-forecast': {
@@ -530,7 +419,7 @@ export const UNIVERSAL_WIDGET_CONFIGS = {
   },
 
   // ════════════════════════════════════════════════════════════════
-  //  TIER 2 — renderBody (9개)
+  //  STOCK WIDGETS — Tier 1 with dataTransform
   // ════════════════════════════════════════════════════════════════
 
   'earnings-history': {
@@ -538,65 +427,51 @@ export const UNIVERSAL_WIDGET_CONFIGS = {
     icon: Calendar,
     iconColor: 'text-amber-400',
     endpoint: '/stock/earnings/{symbol}',
-    dataPath: null,
+    dataTransform: (raw) => (raw?.earnings || (Array.isArray(raw) ? raw : [])).map(item => ({
+      period:  item.fiscal_period,
+      year:    item.fiscal_year,
+      eps:     item.eps_actual,
+      eps_est: item.eps_estimated,
+      revenue: item.revenue_actual,
+    })),
     displayType: 'table',
     requiresSymbol: true,
     syncable: true,
     source: 'Yahoo Finance',
-    renderBody: (rawResult) => {
-      const earnings = rawResult?.earnings || (Array.isArray(rawResult) ? rawResult : []);
-      const mapped = earnings.map(item => ({
-        period:  item.fiscal_period,
-        year:    item.fiscal_year,
-        date:    item.report_date || item.period_end_date,
-        eps:     item.eps_actual,
-        epsEst:  item.eps_estimated,
-        revenue: item.revenue_actual,
-      }));
-
-      return (
-        <div className="h-full overflow-auto p-2">
-          <table className="w-full text-xs">
-            <thead className="sticky top-0 bg-[#0d0d12]">
-              <tr className="border-b border-gray-800">
-                <th className="text-left py-2 px-2 text-gray-400 font-medium">Period</th>
-                <th className="text-center py-2 px-2 text-gray-400 font-medium">EPS</th>
-                <th className="text-right py-2 px-2 text-gray-400 font-medium">Est.</th>
-                <th className="text-right py-2 px-2 text-gray-400 font-medium">Revenue</th>
-              </tr>
-            </thead>
-            <tbody>
-              {mapped.map((row, idx) => {
-                const beat = row.epsEst && row.eps > row.epsEst;
-                const miss = row.epsEst && row.eps < row.epsEst;
-                const rev  = row.revenue;
-                const revStr = rev == null ? '-'
-                  : Math.abs(rev) >= 1e9 ? `$${(rev / 1e9).toFixed(2)}B`
-                  : Math.abs(rev) >= 1e6 ? `$${(rev / 1e6).toFixed(2)}M`
-                  : `$${rev.toLocaleString()}`;
-                return (
-                  <tr key={idx} className="border-b border-gray-800/50 hover:bg-gray-800/30">
-                    <td className="py-2 px-2">
-                      <span className="text-white font-medium">{row.period}</span>
-                      {row.year && <span className="text-gray-500 ml-1">{row.year}</span>}
-                    </td>
-                    <td className="py-2 px-2 text-center">
-                      {row.eps == null
-                        ? <span className="text-gray-500">-</span>
-                        : <span className={beat ? 'text-green-500' : miss ? 'text-red-500' : 'text-white'}>{Number(row.eps).toFixed(2)}</span>
-                      }
-                    </td>
-                    <td className="py-2 px-2 text-right text-gray-400">{row.epsEst != null ? Number(row.epsEst).toFixed(2) : '-'}</td>
-                    <td className="py-2 px-2 text-right text-white">{revStr}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      );
-    },
+    tableOptions: { searchable: false, exportable: true, compact: true, pageSize: 20 },
+    columns: [
+      {
+        key: 'period', header: 'Period',
+        renderFn: (v, row) => (
+          <span>
+            <span className="text-white font-medium">{v}</span>
+            {row.year && <span className="text-gray-500 ml-1">{row.year}</span>}
+          </span>
+        ),
+      },
+      {
+        key: 'eps', header: 'EPS', align: 'right',
+        renderFn: (v, row) => {
+          if (v == null) return <span className="text-gray-500">-</span>;
+          const beat = row.eps_est && v > row.eps_est;
+          const miss = row.eps_est && v < row.eps_est;
+          return <span className={beat ? 'text-green-500' : miss ? 'text-red-500' : 'text-white'}>{Number(v).toFixed(2)}</span>;
+        },
+      },
+      {
+        key: 'eps_est', header: 'Est.', align: 'right',
+        renderFn: (v) => v != null ? <span className="text-gray-400">{Number(v).toFixed(2)}</span> : <span className="text-gray-500">-</span>,
+      },
+      {
+        key: 'revenue', header: 'Revenue', align: 'right',
+        renderFn: (v) => v == null ? <span className="text-gray-500">-</span> : <span className="text-white">{fmtMagnitude(v)}</span>,
+      },
+    ],
   },
+
+  // ════════════════════════════════════════════════════════════════
+  //  STOCK WIDGETS — Tier 2 (renderBody using TransactionDisplay / ProgressBarDisplay / KVTable)
+  // ════════════════════════════════════════════════════════════════
 
   'insider': {
     title: 'Insider Trading',
@@ -608,99 +483,7 @@ export const UNIVERSAL_WIDGET_CONFIGS = {
     requiresSymbol: true,
     syncable: true,
     source: 'SEC / OpenBB',
-    renderBody: (rawData, { viewMode }) => {
-      const transactions = rawData?.transactions || [];
-      const summary      = rawData?.summary;
-
-      if (viewMode === 'table') {
-        return (
-          <div className="h-full overflow-auto p-2">
-            <table className="w-full text-xs">
-              <thead className="sticky top-0 bg-[#0d0d12]">
-                <tr className="border-b border-gray-800">
-                  <th className="text-left py-2 px-2 text-gray-400">Date</th>
-                  <th className="text-left py-2 px-2 text-gray-400">Name</th>
-                  <th className="text-center py-2 px-2 text-gray-400">Type</th>
-                  <th className="text-right py-2 px-2 text-gray-400">Shares</th>
-                  <th className="text-right py-2 px-2 text-gray-400">Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                {transactions.map((tx, i) => {
-                  const isBuy = tx.acquisition_or_disposition === 'A';
-                  return (
-                    <tr key={i} className="border-b border-gray-800/50 hover:bg-gray-800/30">
-                      <td className="py-1.5 px-2 text-gray-300">{tx.transaction_date}</td>
-                      <td className="py-1.5 px-2 text-white truncate max-w-[120px]">{tx.insider_name || 'Unknown'}</td>
-                      <td className="py-1.5 px-2 text-center">
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${isBuy ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                          {isBuy ? 'Buy' : 'Sell'}
-                        </span>
-                      </td>
-                      <td className="py-1.5 px-2 text-right text-gray-300">{fmtNum(tx.shares_traded)}</td>
-                      <td className="py-1.5 px-2 text-right text-white font-medium">{fmtMagnitude(Math.abs(tx.transaction_value || 0))}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        );
-      }
-
-      const buyTotal   = Math.abs(summary?.buy_value  || 0);
-      const sellTotal  = Math.abs(summary?.sell_value || 0);
-      const maxSummary = Math.max(buyTotal, sellTotal, 1);
-      const topTx      = transactions.slice(0, 6);
-      const maxTxVal   = Math.max(...topTx.map(t => Math.abs(t.transaction_value || 0)), 1);
-
-      return (
-        <div className="overflow-auto h-full p-3 space-y-4">
-          {summary && (
-            <div className="space-y-2.5">
-              <p className="text-[10px] text-gray-600 uppercase tracking-wide">Activity Summary</p>
-              {[
-                { label: 'Total Buys',  value: buyTotal,  color: '#22c55e', textClass: 'text-green-400' },
-                { label: 'Total Sells', value: sellTotal, color: '#ef4444', textClass: 'text-red-400' },
-              ].map(b => (
-                <div key={b.label}>
-                  <div className="flex items-center justify-between mb-0.5 text-xs">
-                    <span className="text-gray-300">{b.label}</span>
-                    <span className={`font-medium tabular-nums ml-2 flex-shrink-0 ${b.textClass}`}>{fmtMagnitude(b.value)}</span>
-                  </div>
-                  <div className="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden">
-                    <div className="h-1.5 rounded-full transition-all duration-500" style={{ width: `${(b.value / maxSummary) * 100}%`, backgroundColor: b.color }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          {topTx.length > 0 && (
-            <div className="space-y-2.5">
-              <p className="text-[10px] text-gray-600 uppercase tracking-wide">Recent Transactions</p>
-              {topTx.map((tx, i) => {
-                const isBuy = tx.acquisition_or_disposition === 'A';
-                const val   = Math.abs(tx.transaction_value || 0);
-                return (
-                  <div key={i}>
-                    <div className="flex items-center justify-between mb-0.5 text-xs">
-                      <span className="text-gray-300 truncate max-w-[70%]">{tx.insider_name || 'Unknown'}</span>
-                      <span className={`font-medium tabular-nums ml-2 flex-shrink-0 ${isBuy ? 'text-green-400' : 'text-red-400'}`}>
-                        {isBuy ? '+' : '-'}{fmtMagnitude(val)}
-                      </span>
-                    </div>
-                    <div className="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden">
-                      <div className="h-1.5 rounded-full transition-all duration-500"
-                        style={{ width: `${(val / maxTxVal) * 100}%`, backgroundColor: isBuy ? '#22c55e' : '#ef4444' }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      );
-    },
+    renderBody: (rawData, { viewMode }) => <TransactionDisplay rawData={rawData} viewMode={viewMode} />,
   },
 
   'ownership-insider': {
@@ -713,99 +496,7 @@ export const UNIVERSAL_WIDGET_CONFIGS = {
     requiresSymbol: true,
     syncable: true,
     source: 'SEC / OpenBB',
-    renderBody: (rawData, { viewMode }) => {
-      const transactions = rawData?.transactions || [];
-      const summary      = rawData?.summary;
-
-      if (viewMode === 'table') {
-        return (
-          <div className="h-full overflow-auto p-2">
-            <table className="w-full text-xs">
-              <thead className="sticky top-0 bg-[#0d0d12]">
-                <tr className="border-b border-gray-800">
-                  <th className="text-left py-2 px-2 text-gray-400">Date</th>
-                  <th className="text-left py-2 px-2 text-gray-400">Name</th>
-                  <th className="text-center py-2 px-2 text-gray-400">Type</th>
-                  <th className="text-right py-2 px-2 text-gray-400">Shares</th>
-                  <th className="text-right py-2 px-2 text-gray-400">Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                {transactions.map((tx, i) => {
-                  const isBuy = tx.acquisition_or_disposition === 'A';
-                  return (
-                    <tr key={i} className="border-b border-gray-800/50 hover:bg-gray-800/30">
-                      <td className="py-1.5 px-2 text-gray-300">{tx.transaction_date}</td>
-                      <td className="py-1.5 px-2 text-white">{tx.insider_name}</td>
-                      <td className="py-1.5 px-2 text-center">
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${isBuy ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                          {isBuy ? 'Buy' : 'Sell'}
-                        </span>
-                      </td>
-                      <td className="py-1.5 px-2 text-right text-gray-300">{fmtNum(tx.shares_traded)}</td>
-                      <td className="py-1.5 px-2 text-right text-white">{fmtMagnitude(Math.abs(tx.transaction_value || 0))}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        );
-      }
-
-      const buyTotal   = Math.abs(summary?.buy_value  || 0);
-      const sellTotal  = Math.abs(summary?.sell_value || 0);
-      const maxSummary = Math.max(buyTotal, sellTotal, 1);
-      const topTx      = transactions.slice(0, 6);
-      const maxTxVal   = Math.max(...topTx.map(t => Math.abs(t.transaction_value || 0)), 1);
-
-      return (
-        <div className="overflow-auto h-full p-3 space-y-4">
-          {summary && (
-            <div className="space-y-2.5">
-              <p className="text-[10px] text-gray-600 uppercase tracking-wide">Activity Summary</p>
-              {[
-                { label: 'Total Buys',  value: buyTotal,  color: '#22c55e', textClass: 'text-green-400' },
-                { label: 'Total Sells', value: sellTotal, color: '#ef4444', textClass: 'text-red-400' },
-              ].map(b => (
-                <div key={b.label}>
-                  <div className="flex items-center justify-between mb-0.5 text-xs">
-                    <span className="text-gray-300">{b.label}</span>
-                    <span className={`font-medium tabular-nums ml-2 flex-shrink-0 ${b.textClass}`}>{fmtMagnitude(b.value)}</span>
-                  </div>
-                  <div className="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden">
-                    <div className="h-1.5 rounded-full transition-all duration-500" style={{ width: `${(b.value / maxSummary) * 100}%`, backgroundColor: b.color }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          {topTx.length > 0 && (
-            <div className="space-y-2.5">
-              <p className="text-[10px] text-gray-600 uppercase tracking-wide">Recent Transactions</p>
-              {topTx.map((tx, i) => {
-                const isBuy = tx.acquisition_or_disposition === 'A';
-                const val   = Math.abs(tx.transaction_value || 0);
-                return (
-                  <div key={i}>
-                    <div className="flex items-center justify-between mb-0.5 text-xs">
-                      <span className="text-gray-300 truncate max-w-[70%]">{tx.insider_name || 'Unknown'}</span>
-                      <span className={`font-medium tabular-nums ml-2 flex-shrink-0 ${isBuy ? 'text-green-400' : 'text-red-400'}`}>
-                        {isBuy ? '+' : '-'}{fmtMagnitude(val)}
-                      </span>
-                    </div>
-                    <div className="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden">
-                      <div className="h-1.5 rounded-full transition-all duration-500"
-                        style={{ width: `${(val / maxTxVal) * 100}%`, backgroundColor: isBuy ? '#22c55e' : '#ef4444' }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      );
-    },
+    renderBody: (rawData, { viewMode }) => <TransactionDisplay rawData={rawData} viewMode={viewMode} />,
   },
 
   'ownership-overview': {
@@ -819,77 +510,37 @@ export const UNIVERSAL_WIDGET_CONFIGS = {
     syncable: true,
     source: 'SEC / Yahoo Finance',
     renderBody: (rawData, { viewMode }) => {
-      const ownershipData = rawData?.summary || {};
-      const instPct    = ownershipData.institutional_pct || 0;
-      const insiderPct = ownershipData.insider_pct       || 0;
-      const retailPct  = Math.max(0, 100 - instPct - insiderPct);
-      const shortPct   = ownershipData.short_interest    || 0;
-      const floatPct   = ownershipData.shares_outstanding && ownershipData.float_shares
-        ? ((ownershipData.float_shares / ownershipData.shares_outstanding) * 100).toFixed(1)
-        : '0';
+      const d        = rawData?.summary || {};
+      const instPct  = d.institutional_pct || 0;
+      const insPct   = d.insider_pct       || 0;
+      const shortPct = d.short_interest    || 0;
+      const floatPct = d.shares_outstanding && d.float_shares
+        ? ((d.float_shares / d.shares_outstanding) * 100).toFixed(1) : '0';
 
-      const bars = [
-        { label: 'Institutional',  value: instPct,    color: '#3b82f6', textClass: 'text-blue-400'  },
-        { label: 'Insider',        value: insiderPct, color: '#22c55e', textClass: 'text-green-400' },
-        { label: 'Retail / Other', value: retailPct,  color: '#f59e0b', textClass: 'text-amber-400' },
-        { label: 'Short Interest', value: shortPct,   color: '#ef4444', textClass: 'text-red-400'   },
-      ].filter(b => b.value > 0);
+      if (viewMode === 'table') return <KVTable rows={[
+        { label: 'Shares Outstanding',      value: fmtNum(d.shares_outstanding) },
+        { label: 'Float',                   value: fmtNum(d.float_shares) },
+        { label: 'Float %',                 value: `${floatPct}%` },
+        { label: 'Institutional Ownership', value: `${instPct.toFixed(1)}%`,  color: 'text-blue-400' },
+        { label: 'Insider Ownership',       value: `${insPct.toFixed(1)}%`,   color: 'text-green-400' },
+        { label: 'Short % of Float',        value: `${shortPct.toFixed(1)}%`, color: 'text-red-400' },
+        { label: 'Avg. Volume',             value: fmtNum(d.avg_volume) },
+      ]} />;
 
-      if (viewMode === 'table') {
-        const rows = [
-          { label: 'Shares Outstanding',     value: fmtNum(ownershipData.shares_outstanding) },
-          { label: 'Float',                  value: fmtNum(ownershipData.float_shares) },
-          { label: 'Float %',                value: `${floatPct}%` },
-          { label: 'Institutional Ownership', value: `${instPct.toFixed(1)}%`,    color: 'text-blue-400' },
-          { label: 'Insider Ownership',      value: `${insiderPct.toFixed(1)}%`, color: 'text-green-400' },
-          { label: 'Short % of Float',       value: `${shortPct.toFixed(1)}%`,   color: 'text-red-400' },
-          { label: 'Avg. Volume',            value: fmtNum(ownershipData.avg_volume) },
-        ];
-        return (
-          <table className="w-full text-xs">
-            <tbody>
-              {rows.map(({ label, value, color }) => (
-                <tr key={label} className="border-b border-gray-800 hover:bg-gray-800/20">
-                  <td className="py-2.5 px-4 text-gray-400">{label}</td>
-                  <td className={`py-2.5 px-4 text-right font-medium tabular-nums ${color || 'text-white'}`}>{value}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        );
-      }
-
-      const maxVal = Math.max(...bars.map(b => b.value), 1);
-      const stats = [
-        { label: 'Float %',        value: `${floatPct}%` },
-        { label: 'Short Interest', value: `${shortPct.toFixed(1)}%` },
-        { label: 'Shares Out',     value: fmtNum(ownershipData.shares_outstanding) },
-        { label: 'Avg Volume',     value: fmtNum(ownershipData.avg_volume) },
-      ];
-      return (
-        <div className="overflow-auto h-full p-3 space-y-3">
-          {bars.map(b => (
-            <div key={b.label}>
-              <div className="flex items-center justify-between mb-0.5 text-xs">
-                <span className="text-gray-300">{b.label}</span>
-                <span className={`font-medium tabular-nums ml-2 flex-shrink-0 ${b.textClass}`}>{b.value.toFixed(1)}%</span>
-              </div>
-              <div className="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden">
-                <div className="h-1.5 rounded-full transition-all duration-500"
-                  style={{ width: `${(b.value / maxVal) * 100}%`, backgroundColor: b.color }} />
-              </div>
-            </div>
-          ))}
-          <div className="border-t border-gray-800 pt-2.5 grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
-            {stats.map(({ label, value }) => (
-              <div key={label} className="flex justify-between items-center">
-                <span className="text-gray-500">{label}</span>
-                <span className="font-medium tabular-nums text-white">{value}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      );
+      return <ProgressBarDisplay
+        items={[
+          { label: 'Institutional',  value: instPct,  color: '#3b82f6', textClass: 'text-blue-400'  },
+          { label: 'Insider',        value: insPct,   color: '#22c55e', textClass: 'text-green-400' },
+          { label: 'Retail / Other', value: Math.max(0, 100 - instPct - insPct), color: '#f59e0b', textClass: 'text-amber-400' },
+          { label: 'Short Interest', value: shortPct, color: '#ef4444', textClass: 'text-red-400'   },
+        ].filter(b => b.value > 0)}
+        footerStats={[
+          { label: 'Float %',        value: `${floatPct}%` },
+          { label: 'Short Interest', value: `${shortPct.toFixed(1)}%` },
+          { label: 'Shares Out',     value: fmtNum(d.shares_outstanding) },
+          { label: 'Avg Volume',     value: fmtNum(d.avg_volume) },
+        ]}
+      />;
     },
   },
 
@@ -909,16 +560,12 @@ export const UNIVERSAL_WIDGET_CONFIGS = {
 
       return (
         <div className="h-full flex flex-col">
-          <div className="flex border-b border-gray-800 px-3 pt-1 flex-shrink-0">
-            {[{ id: 'team', label: 'Executive Team' }, { id: 'governance', label: 'Governance Risk' }].map(t => (
-              <button key={t.id} onClick={() => setActiveView(t.id)}
-                className={`px-3 py-1.5 text-[11px] font-medium border-b-2 transition-colors ${
-                  tab === t.id ? 'border-purple-400 text-purple-400' : 'border-transparent text-gray-500 hover:text-gray-300'
-                }`}>
-                {t.label}
-              </button>
-            ))}
-          </div>
+          <TabBar
+            tabs={[{ id: 'team', label: 'Executive Team' }, { id: 'governance', label: 'Governance Risk' }]}
+            activeTab={tab}
+            onSelect={setActiveView}
+            activeColor="text-purple-400 border-purple-400"
+          />
           <div className="flex-1 overflow-auto p-3">
             {tab === 'team' && (
               officers.length > 0 ? (
@@ -985,6 +632,10 @@ export const UNIVERSAL_WIDGET_CONFIGS = {
       );
     },
   },
+
+  // ════════════════════════════════════════════════════════════════
+  //  MACRO WIDGETS — Tier 2 (renderBody using ChartBody / CommonChart)
+  // ════════════════════════════════════════════════════════════════
 
   'yield-trends': {
     title: 'Yield Trends',
@@ -1106,16 +757,11 @@ export const UNIVERSAL_WIDGET_CONFIGS = {
 
       return (
         <div className="h-full flex flex-col">
-          <div className="flex items-center gap-1 px-3 py-1.5 border-b border-gray-800 flex-shrink-0">
-            {[{ id: 'yields', label: 'Yield Trends' }, { id: 'spreads', label: 'Spreads' }].map(t => (
-              <button key={t.id} onClick={() => setSubTab(t.id)}
-                className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
-                  subTab === t.id ? 'text-cyan-400 bg-cyan-400/10' : 'text-gray-400 hover:text-white hover:bg-gray-800'
-                }`}>
-                {t.label}
-              </button>
-            ))}
-          </div>
+          <TabBar
+            tabs={[{ id: 'yields', label: 'Yield Trends' }, { id: 'spreads', label: 'Spreads' }]}
+            activeTab={subTab}
+            onSelect={setSubTab}
+          />
           <div className="flex-1 min-h-0 p-3">
             {viewMode === 'chart' ? <div className="h-full">{renderChart()}</div> : renderTable()}
           </div>
@@ -1416,7 +1062,262 @@ export const UNIVERSAL_WIDGET_CONFIGS = {
   },
 
   // ════════════════════════════════════════════════════════════════
-  //  STOCK WIDGETS — Tier 2 (renderBody)
+  //  MACRO WIDGETS — Tier 2 (tab dashboards using CommonTable)
+  // ════════════════════════════════════════════════════════════════
+
+  'fin-conditions-tab': {
+    title: 'Financial Conditions',
+    icon: Activity,
+    iconColor: 'text-cyan-400',
+    endpoint: '/macro/financial-conditions',
+    dataPath: null,
+    source: 'Federal Reserve',
+    renderBody: (rawData, { activeView, setActiveView }) => {
+      if (!rawData) return <div className="flex items-center justify-center py-20 text-gray-500 text-sm">No data available</div>;
+
+      const COND = {
+        tight:   { label: 'TIGHT',   cls: 'bg-red-500/20 text-red-400 border-red-500/30' },
+        loose:   { label: 'LOOSE',   cls: 'bg-green-500/20 text-green-400 border-green-500/30' },
+        neutral: { label: 'NEUTRAL', cls: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' },
+      };
+      const condLevel = (v) => v == null ? 'neutral' : v > 0.5 ? 'tight' : v < -0.5 ? 'loose' : 'neutral';
+      const CondBadge = ({ signal }) => {
+        if (!signal) return <span className="text-gray-500">-</span>;
+        const b = COND[signal] || COND.neutral;
+        return <span className={`inline-block px-1.5 py-0.5 text-[10px] font-medium rounded border ${b.cls}`}>{b.label}</span>;
+      };
+
+      const fciValue = rawData?.fci_composite?.value ?? rawData?.fci_index;
+      const fciChange = rawData?.fci_composite?.change ?? rawData?.fci_change;
+      const igSpread  = rawData?.credit_spreads?.investment_grade?.spread ?? rawData?.ig_spread;
+      const igChange  = rawData?.credit_spreads?.investment_grade?.change ?? rawData?.ig_spread_change;
+      const hySpread  = rawData?.credit_spreads?.high_yield?.spread ?? rawData?.hy_spread;
+      const hyChange  = rawData?.credit_spreads?.high_yield?.change ?? rawData?.hy_spread_change;
+      const tedSpread = rawData?.liquidity?.ted_spread ?? rawData?.ted_spread;
+      const vixValue  = rawData?.volatility?.vix ?? rawData?.vix;
+
+      const overviewData = [];
+      if (fciValue  != null) overviewData.push({ metric: 'FCI Composite', display: fciValue.toFixed(2), changeValue: fciChange, changeDisplay: fciChange?.toFixed(2) || '-', signal: condLevel(fciValue) });
+      if (igSpread  != null) overviewData.push({ metric: 'IG Spread',     display: `${igSpread.toFixed(0)} bps`, changeValue: igChange, changeDisplay: igChange != null ? `${igChange.toFixed(0)} bps` : '-', signal: igSpread > 150 ? 'tight' : igSpread < 80 ? 'loose' : 'neutral' });
+      if (hySpread  != null) overviewData.push({ metric: 'HY Spread',     display: `${hySpread.toFixed(0)} bps`, changeValue: hyChange, changeDisplay: hyChange != null ? `${hyChange.toFixed(0)} bps` : '-', signal: hySpread > 400 ? 'tight' : hySpread < 300 ? 'loose' : 'neutral' });
+      if (tedSpread != null) overviewData.push({ metric: 'TED Spread',    display: `${tedSpread.toFixed(0)} bps`, changeValue: null, changeDisplay: '-', signal: tedSpread > 50 ? 'tight' : tedSpread < 20 ? 'loose' : 'neutral' });
+      if (vixValue  != null) overviewData.push({ metric: 'VIX',           display: vixValue.toFixed(1), changeValue: null, changeDisplay: '-', signal: vixValue > 25 ? 'tight' : vixValue < 15 ? 'loose' : 'neutral' });
+
+      const buildHealth = (obj) => !obj ? [] : Object.entries(obj).map(([k, v]) => ({
+        metric: k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+        display: typeof v === 'object' && v !== null ? (v.value != null ? v.value.toFixed(2) : JSON.stringify(v)) : typeof v === 'number' ? v.toFixed(2) : String(v),
+      }));
+      const consumerData  = buildHealth(rawData?.consumer_health);
+      const corporateData = buildHealth(rawData?.corporate_health);
+
+      const tabs = [{ id: 'overview', label: 'Overview' }];
+      if (consumerData.length  > 0) tabs.push({ id: 'consumer',  label: 'Consumer Health' });
+      if (corporateData.length > 0) tabs.push({ id: 'corporate', label: 'Corporate Health' });
+      const view = activeView || 'overview';
+
+      const OVERVIEW_COLS = [
+        { key: 'metric',       header: 'Metric',  renderFn: (v) => <span className="text-white">{v}</span> },
+        { key: 'display',      header: 'Value',   align: 'right', renderFn: (v) => <span className="text-white tabular-nums font-medium">{v}</span> },
+        { key: 'changeDisplay', header: 'Change', align: 'right', renderFn: (v, row) => {
+          if (row.changeValue == null) return <span className="text-gray-500">-</span>;
+          const color = row.changeValue > 0 ? 'text-red-400' : row.changeValue < 0 ? 'text-green-400' : 'text-gray-400';
+          return <span className={`tabular-nums ${color}`}>{row.changeValue > 0 ? '+' : ''}{v}</span>;
+        }},
+        { key: 'signal', header: 'Signal', align: 'right', renderFn: (v) => <CondBadge signal={v} /> },
+      ];
+      const HEALTH_COLS = [
+        { key: 'metric',  header: 'Metric', renderFn: (v) => <span className="text-white">{v}</span> },
+        { key: 'display', header: 'Value',  align: 'right', renderFn: (v) => <span className="text-white tabular-nums">{v}</span> },
+      ];
+
+      return (
+        <div className="h-full flex flex-col">
+          {tabs.length > 1 && (
+            <TabBar tabs={tabs.map(t => ({ id: t.id, label: t.label }))} activeTab={view} onSelect={setActiveView} />
+          )}
+          <div className="flex-1 overflow-auto">
+            {view === 'overview' ? (
+              <CommonTable columns={OVERVIEW_COLS} data={overviewData} searchable={false} exportable={false} compact pageSize={20} />
+            ) : view === 'consumer' ? (
+              <CommonTable columns={HEALTH_COLS} data={consumerData} searchable={false} exportable={false} compact pageSize={20} />
+            ) : (
+              <CommonTable columns={HEALTH_COLS} data={corporateData} searchable={false} exportable={false} compact pageSize={20} />
+            )}
+          </div>
+        </div>
+      );
+    },
+  },
+
+  'sentiment-tab': {
+    title: 'Market Sentiment',
+    icon: Flame,
+    iconColor: 'text-orange-400',
+    endpoint: '/macro/sentiment/composite',
+    dataPath: null,
+    source: 'CNN / AAII / CBOE',
+    renderBody: (rawData, { activeView, setActiveView }) => {
+      if (!rawData) return <div className="flex items-center justify-center py-20 text-gray-500 text-sm">No data available</div>;
+
+      const SENT = {
+        greed: { label: 'GREED', cls: 'bg-green-500/20 text-green-400 border-green-500/30' },
+        fear:  { label: 'FEAR',  cls: 'bg-red-500/20 text-red-400 border-red-500/30' },
+        neutral: { label: 'NEUTRAL', cls: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' },
+        'extreme greed': { label: 'EXT GREED', cls: 'bg-green-500/20 text-green-400 border-green-500/30' },
+        'extreme fear':  { label: 'EXT FEAR',  cls: 'bg-red-500/20 text-red-400 border-red-500/30' },
+        bullish: { label: 'BULLISH', cls: 'bg-green-500/20 text-green-400 border-green-500/30' },
+        bearish: { label: 'BEARISH', cls: 'bg-red-500/20 text-red-400 border-red-500/30' },
+      };
+      const sentLevel = (v) => v == null ? 'neutral' : v >= 80 ? 'extreme greed' : v >= 60 ? 'greed' : v >= 40 ? 'neutral' : v >= 20 ? 'fear' : 'extreme fear';
+      const SignalBadge = ({ signal }) => {
+        if (!signal) return <span className="text-gray-500">-</span>;
+        const b = SENT[signal] || { label: signal.toUpperCase(), cls: 'bg-gray-500/20 text-gray-400 border-gray-500/30' };
+        return <span className={`inline-block px-1.5 py-0.5 text-[10px] font-medium rounded border ${b.cls}`}>{b.label}</span>;
+      };
+
+      const compositeScore = rawData?.fear_greed_index?.value ?? rawData?.composite_score;
+      const aaiiBulls   = rawData?.positioning?.aaii_sentiment?.bullish ?? rawData?.aaii_bulls;
+      const aaiiBears   = rawData?.positioning?.aaii_sentiment?.bearish ?? rawData?.aaii_bears;
+      const aaiiNeutral = rawData?.positioning?.aaii_sentiment?.neutral  ?? rawData?.aaii_neutral;
+      const putCall     = rawData?.fear_greed_index?.components?.put_call_ratio?.value ?? rawData?.put_call;
+      const vixValue    = rawData?.volatility?.vix ?? rawData?.vix;
+      const fgComponents = rawData?.fear_greed_index?.components;
+
+      const overviewData = [];
+      if (compositeScore != null) overviewData.push({ metric: 'Fear & Greed Index', display: compositeScore.toFixed(0), signal: sentLevel(compositeScore) });
+      if (aaiiBulls   != null) overviewData.push({ metric: 'AAII Bullish', display: `${aaiiBulls.toFixed(1)}%`,   signal: aaiiBulls > 45 ? 'bullish' : aaiiBulls < 25 ? 'bearish' : 'neutral' });
+      if (aaiiBears   != null) overviewData.push({ metric: 'AAII Bearish', display: `${aaiiBears.toFixed(1)}%`,   signal: aaiiBears > 45 ? 'bearish' : aaiiBears < 25 ? 'bullish' : 'neutral' });
+      if (aaiiNeutral != null) overviewData.push({ metric: 'AAII Neutral', display: `${aaiiNeutral.toFixed(1)}%` });
+      if (aaiiBulls != null && aaiiBears != null) {
+        const sp = aaiiBulls - aaiiBears;
+        overviewData.push({ metric: 'Bull-Bear Spread', display: `${sp > 0 ? '+' : ''}${sp.toFixed(1)}%`, signal: sp > 20 ? 'bullish' : sp < -20 ? 'bearish' : 'neutral' });
+      }
+      if (putCall  != null) overviewData.push({ metric: 'Put/Call Ratio', display: putCall.toFixed(2), signal: putCall > 1 ? 'fear' : putCall < 0.7 ? 'greed' : 'neutral' });
+      if (vixValue != null) overviewData.push({ metric: 'VIX',            display: vixValue.toFixed(1), signal: vixValue > 25 ? 'fear' : vixValue < 15 ? 'greed' : 'neutral' });
+
+      const compData = !fgComponents ? [] : Object.entries(fgComponents).map(([k, comp]) => {
+        const label = k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        const display = typeof comp === 'object' && comp !== null ? (comp.value != null ? comp.value.toFixed(2) : '-') : typeof comp === 'number' ? comp.toFixed(2) : String(comp);
+        return { label, display, signal: typeof comp === 'object' ? comp.signal : null };
+      });
+      const aaiiData = [
+        ...(aaiiBulls   != null ? [{ category: 'Bullish', type: 'bullish', rawValue: aaiiBulls,   display: `${aaiiBulls.toFixed(1)}%` }] : []),
+        ...(aaiiNeutral != null ? [{ category: 'Neutral', type: 'neutral', rawValue: aaiiNeutral, display: `${aaiiNeutral.toFixed(1)}%` }] : []),
+        ...(aaiiBears   != null ? [{ category: 'Bearish', type: 'bearish', rawValue: aaiiBears,   display: `${aaiiBears.toFixed(1)}%` }] : []),
+      ];
+
+      const tabs = [{ id: 'overview', label: 'Overview' }];
+      if (compData.length > 0) tabs.push({ id: 'components', label: 'F&G Components' });
+      if (aaiiData.length > 0) tabs.push({ id: 'aaii',       label: 'AAII Survey' });
+      const view = activeView || 'overview';
+
+      const OVERVIEW_COLS = [
+        { key: 'metric',  header: 'Metric',  renderFn: (v) => <span className="text-white">{v}</span> },
+        { key: 'display', header: 'Value',   align: 'right', renderFn: (v) => <span className="text-white tabular-nums font-medium">{v}</span> },
+        { key: 'signal',  header: 'Signal',  align: 'right', renderFn: (v) => <SignalBadge signal={v} /> },
+      ];
+      const COMP_COLS = [
+        { key: 'label',   header: 'Component', renderFn: (v) => <span className="text-white">{v}</span> },
+        { key: 'display', header: 'Value',     align: 'right', renderFn: (v) => <span className="text-white tabular-nums">{v}</span> },
+        { key: 'signal',  header: 'Signal',    align: 'right', renderFn: (v) => <SignalBadge signal={v} /> },
+      ];
+      const AAII_COLS = [
+        { key: 'category', header: 'Category', renderFn: (v, row) => {
+          const color = row.type === 'bullish' ? 'text-green-400' : row.type === 'bearish' ? 'text-red-400' : 'text-yellow-400';
+          return <span className={`font-medium ${color}`}>{v}</span>;
+        }},
+        { key: 'display', header: 'Percentage', align: 'right', renderFn: (v) => <span className="text-white tabular-nums font-medium">{v}</span> },
+        { key: 'rawValue', header: '', sortable: false, renderFn: (v, row) => {
+          const color = row.type === 'bullish' ? 'bg-green-400' : row.type === 'bearish' ? 'bg-red-400' : 'bg-yellow-400';
+          return <div className="h-2 bg-gray-700 rounded-full overflow-hidden"><div className={`h-full ${color}`} style={{ width: `${Math.min(v || 0, 100)}%` }} /></div>;
+        }},
+      ];
+
+      return (
+        <div className="h-full flex flex-col">
+          {tabs.length > 1 && (
+            <TabBar tabs={tabs.map(t => ({ id: t.id, label: t.label }))} activeTab={view} onSelect={setActiveView} />
+          )}
+          <div className="flex-1 overflow-auto">
+            {view === 'overview' ? (
+              <CommonTable columns={OVERVIEW_COLS} data={overviewData} searchable={false} exportable={false} compact pageSize={20} />
+            ) : view === 'components' ? (
+              <CommonTable columns={COMP_COLS} data={compData} searchable={false} exportable={false} compact pageSize={20} />
+            ) : (
+              <CommonTable columns={AAII_COLS} data={aaiiData} searchable={false} exportable={false} compact pageSize={10} />
+            )}
+          </div>
+        </div>
+      );
+    },
+  },
+
+  'commodities-tab': {
+    title: 'FRED Economic Series',
+    icon: BarChart3,
+    iconColor: 'text-blue-400',
+    endpoint: '/macro/fred/series',
+    dataPath: 'series',
+    source: 'Federal Reserve (FRED)',
+    renderBody: (data, { activeView, setActiveView }) => {
+      const series = Array.isArray(data) ? data : [];
+      const categories = ['all', ...Array.from(new Set(series.map(s => s.category).filter(Boolean))).sort()];
+      const active = activeView || 'all';
+      const filtered = active === 'all' ? series : series.filter(s => s.category === active);
+
+      const COLUMNS = [
+        { key: 'name', header: 'Series', renderFn: (v, row) => (
+          <div>
+            <div className="text-white font-medium">{v}</div>
+            {(row.series_id || row.key) && <div className="text-[10px] text-gray-500">{row.series_id || row.key}</div>}
+          </div>
+        )},
+        { key: 'category', header: 'Category', renderFn: (v) => <span className="text-gray-400">{v || '-'}</span> },
+        { key: 'value', header: 'Value', align: 'right', sortable: true, renderFn: (v) => (
+          <span className="text-white tabular-nums font-medium">
+            {v == null ? '-' : Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+          </span>
+        )},
+        { key: 'change', header: 'Change', align: 'right', sortable: true, renderFn: (v) => {
+          if (v == null) return <span className="text-gray-500">-</span>;
+          const color = v > 0 ? 'text-green-400' : v < 0 ? 'text-red-400' : 'text-gray-400';
+          return (
+            <span className={`flex items-center justify-end gap-1 tabular-nums ${color}`}>
+              {v > 0 && <TrendingUp size={12} />}{v < 0 && <TrendingDown size={12} />}
+              {v > 0 ? '+' : ''}{Number(v).toFixed(2)}%
+            </span>
+          );
+        }},
+        { key: 'date', header: 'Date', align: 'right', renderFn: (v, row) => <span className="text-gray-400">{v || row.observation_date || '-'}</span> },
+      ];
+
+      return (
+        <div className="h-full flex flex-col">
+          {categories.length > 1 && (
+            <div className="flex items-center gap-1 px-4 py-2 border-b border-gray-800 overflow-x-auto">
+              {categories.map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => setActiveView(cat)}
+                  className={`px-3 py-1.5 text-xs font-medium whitespace-nowrap rounded transition-colors ${
+                    active === cat ? 'text-cyan-400 bg-cyan-400/10' : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                  }`}
+                >
+                  {cat === 'all' ? 'All' : cat}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="flex-1 overflow-auto">
+            <CommonTable columns={COLUMNS} data={filtered} searchable exportable compact pageSize={30} />
+          </div>
+        </div>
+      );
+    },
+  },
+
+  // ════════════════════════════════════════════════════════════════
+  //  STOCK WIDGETS — Tier 2 (renderBody using CommonChart / CommonTable)
   // ════════════════════════════════════════════════════════════════
 
   'earnings': {
@@ -1670,12 +1571,12 @@ export const UNIVERSAL_WIDGET_CONFIGS = {
       const ST = { bullish: 'text-green-400', bearish: 'text-red-400', positive: 'text-green-400', negative: 'text-red-400', neutral: 'text-gray-400' };
       return (
         <>
-          <div className="flex border-b border-gray-800 px-3 pt-1">
-            {TABS.map(t => (
-              <button key={t} onClick={() => setActiveView(t)}
-                className={`px-3 py-1.5 text-[11px] font-medium border-b-2 transition-colors capitalize ${tab === t ? 'border-indigo-400 text-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-300'}`}>{t}</button>
-            ))}
-          </div>
+          <TabBar
+            tabs={TABS.map(t => ({ id: t, label: t.charAt(0).toUpperCase() + t.slice(1) }))}
+            activeTab={tab}
+            onSelect={setActiveView}
+            activeColor="text-indigo-400 border-indigo-400"
+          />
           <div className="flex-1 overflow-auto p-3">
             {tab === 'overview' && (
               <div className="h-full flex flex-col">
@@ -1727,7 +1628,10 @@ export const UNIVERSAL_WIDGET_CONFIGS = {
     displayType: 'both',
     source: 'Yahoo Finance',
     renderBody: (data, { viewMode }) => {
-      const d = data || {};
+      // Backend returns {symbol, frequency, periods:[{date, income_statement, balance_sheet, cash_flow}]}
+      const rawData = data || {};
+      const periods = rawData.periods || [];
+      const d = periods[0] || rawData; // use most recent period, fallback to root
       const fmt = (num) => {
         if (num == null) return 'N/A';
         const abs = Math.abs(num);
@@ -1785,51 +1689,6 @@ export const UNIVERSAL_WIDGET_CONFIGS = {
   },
 
   // ════════════════════════════════════════════════════════════════
-  //  STOCK WIDGETS — Tier 3 (fullWidget component)
-  // ════════════════════════════════════════════════════════════════
-
-  'market-overview':   { component: MarketOverview },
-  'live-watchlist':    { component: LiveWatchlist },
-  'ticker-info':       { component: TickerInformation },
-  'ticker-information':{ component: TickerInformation },
-  'ticker-info-widget':{ component: TickerQuickStatsWidget },
-  'stock-quote':       { component: ResizableStockWidget },
-  'resizable-stock':   { component: ResizableStockWidget },
-  'analyst':           { component: AnalystWidget },
-  'financial-table':   { component: FinancialTableWidget },
-  'revenue-segments':  { component: RevenueSegmentsWidget },
-  'macro-cross':       { component: MacroCrossWidget },
-
-  // ════════════════════════════════════════════════════════════════
-  //  TIER 3 — fullWidget component (4개)
-  // ════════════════════════════════════════════════════════════════
-
-  'yield-curve': {
-    component: YieldCurveChart,
-  },
-
-  'regime': {
-    title: 'Economic Regime',
-    icon: TrendingUp,
-    iconColor: 'text-emerald-400',
-    endpoint: '/macro/regime/history?period={period}',
-    dataPath: 'history',
-    displayType: 'chart',
-    periodType: 'macro',
-    defaultPeriod: '5y',
-    source: 'Fed / BLS / BEA',
-    renderBody: (data) => <RegimeDashboard history={data} />,
-  },
-
-  'key-metrics': {
-    component: KeyMetricsWidget,
-  },
-
-  'fed-policy-stance': {
-    component: FedPolicyStanceWidget,
-  },
-
-  // ════════════════════════════════════════════════════════════════
   //  LEGACY chart examples (reference only)
   // ════════════════════════════════════════════════════════════════
 
@@ -1838,7 +1697,7 @@ export const UNIVERSAL_WIDGET_CONFIGS = {
     icon: BarChart3,
     iconColor: 'text-blue-400',
     endpoint: '/macro/overview/gdp-forecast',
-    dataPath: ['data', 'forecasts'],
+    dataPath: 'history',
     displayType: 'chart',
     periodType: 'macro',
     defaultPeriod: '2y',
@@ -1859,8 +1718,8 @@ export const UNIVERSAL_WIDGET_CONFIGS = {
     title: 'Fed Balance Sheet',
     icon: Building,
     iconColor: 'text-orange-400',
-    endpoint: '/macro/fed/balance-sheet',
-    dataPath: ['data', 'history'],
+    endpoint: '/macro/fed-balance-sheet',
+    dataPath: 'series',
     displayType: 'chart',
     periodType: 'macro',
     defaultPeriod: '3y',
@@ -1877,8 +1736,8 @@ export const UNIVERSAL_WIDGET_CONFIGS = {
     title: 'Real Rates',
     icon: Percent,
     iconColor: 'text-cyan-400',
-    endpoint: '/macro/rates/real-rates',
-    dataPath: ['data', 'history'],
+    endpoint: '/macro/real-rates',
+    dataPath: 'history',
     displayType: 'both',
     periodType: 'macro',
     defaultPeriod: '2y',
@@ -1887,17 +1746,143 @@ export const UNIVERSAL_WIDGET_CONFIGS = {
       type: 'line',
       xKey: 'date',
       series: [
-        { key: '5y_real',  name: '5Y Real',  color: '#3b82f6' },
-        { key: '10y_real', name: '10Y Real', color: '#8b5cf6' },
+        { key: 'real_5y',  name: '5Y Real',  color: '#3b82f6' },
+        { key: 'real_10y', name: '10Y Real', color: '#8b5cf6' },
       ],
       yFormatter: (v) => `${v}%`,
     },
     tableOptions: { searchable: false, exportable: true, compact: true, pageSize: 20 },
     columns: [
       { key: 'date',     header: 'Date', formatter: 'date' },
-      { key: '5y_real',  header: '5Y Real (%)',  align: 'right', renderFn: (v) => gray(v != null ? `${Number(v).toFixed(2)}%` : null) },
-      { key: '10y_real', header: '10Y Real (%)', align: 'right', renderFn: (v) => gray(v != null ? `${Number(v).toFixed(2)}%` : null) },
+      { key: 'real_5y',  header: '5Y Real (%)',  align: 'right', renderFn: (v) => gray(v != null ? `${Number(v).toFixed(2)}%` : null) },
+      { key: 'real_10y', header: '10Y Real (%)', align: 'right', renderFn: (v) => gray(v != null ? `${Number(v).toFixed(2)}%` : null) },
     ],
+  },
+
+  // ── Alert Widgets ─────────────────────────────────────────────────────────
+
+  'active-alerts': {
+    title: 'Active Alerts',
+    icon: Bell,
+    iconColor: 'text-yellow-400',
+    endpoint: '/alerts/',
+    dataPath: null,            // response is already an array
+    displayType: 'table',
+    columns: [
+      {
+        key: 'ticker_cd',
+        header: 'Ticker',
+        renderFn: (v) => v ? <span className="font-mono text-cyan-400 text-xs">{v}</span> : <span className="text-gray-600 text-xs">—</span>,
+      },
+      { key: 'alert_type',      header: 'Type',      renderFn: (v) => <span className="text-xs capitalize">{v}</span> },
+      { key: 'condition_type',  header: 'Condition',  renderFn: (v) => <span className="text-xs capitalize">{v?.replace('_', ' ')}</span> },
+      {
+        key: 'threshold_value',
+        header: 'Threshold',
+        align: 'right',
+        renderFn: (v) => <span className="tabular-nums text-xs">{v != null ? Number(v).toLocaleString() : '—'}</span>,
+      },
+      {
+        key: 'is_active',
+        header: 'Status',
+        align: 'center',
+        renderFn: (v) => (
+          <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium border ${
+            v ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-gray-700 text-gray-500 border-gray-600'
+          }`}>
+            {v ? 'Active' : 'Paused'}
+          </span>
+        ),
+      },
+      {
+        key: 'trigger_count',
+        header: 'Triggers',
+        align: 'right',
+        renderFn: (v) => <span className="tabular-nums text-xs text-gray-400">{v ?? 0}</span>,
+      },
+      {
+        key: 'last_triggered',
+        header: 'Last Triggered',
+        renderFn: (v) => <span className="text-xs text-gray-500">{v ? v.slice(0, 16).replace('T', ' ') : '—'}</span>,
+      },
+    ],
+    tableOptions: { searchable: true, exportable: false, compact: true, pageSize: 20 },
+  },
+
+  'alert-history': {
+    title: 'Alert History',
+    icon: Bell,
+    iconColor: 'text-yellow-400',
+    endpoint: '/alerts/history',
+    dataPath: 'history',
+    displayType: 'table',
+    columns: [
+      {
+        key: 'triggered_at',
+        header: 'Time',
+        sortable: true,
+        renderFn: (v) => <span className="tabular-nums text-xs text-gray-300">{v ? v.slice(0, 16).replace('T', ' ') : '—'}</span>,
+      },
+      { key: 'alert_id',         header: 'Alert ID',  renderFn: (v) => <span className="font-mono text-[10px] text-gray-500">{v?.slice(0, 8)}…</span> },
+      {
+        key: 'triggered_value',
+        header: 'Value',
+        align: 'right',
+        renderFn: (v) => <span className="tabular-nums text-xs">{v != null ? Number(v).toLocaleString() : '—'}</span>,
+      },
+      { key: 'message', header: 'Message', renderFn: (v) => <span className="text-xs text-gray-400 truncate max-w-[200px] inline-block">{v || '—'}</span> },
+      {
+        key: 'is_sent',
+        header: 'Sent',
+        align: 'center',
+        renderFn: (v) => <span className={`text-xs ${v ? 'text-green-400' : 'text-gray-600'}`}>{v ? '✓' : '—'}</span>,
+      },
+    ],
+    tableOptions: { searchable: false, exportable: false, compact: true, pageSize: 30 },
+  },
+
+  // ── Quant Widgets ─────────────────────────────────────────────────────────
+
+  'quant-strategies': {
+    title: 'Saved Strategies',
+    icon: TrendingUp,
+    iconColor: 'text-purple-400',
+    endpoint: '/quant/strategies',
+    dataPath: 'data',
+    displayType: 'table',
+    columns: [
+      { key: 'name',          header: 'Name',     renderFn: (v) => <span className="text-xs font-medium text-white">{v}</span> },
+      { key: 'strategy_type', header: 'Type',     renderFn: (v) => <span className="text-xs capitalize text-cyan-400">{v}</span> },
+      { key: 'notes',         header: 'Notes',    renderFn: (v) => <span className="text-xs text-gray-400 truncate max-w-[200px] inline-block">{v || '—'}</span> },
+      {
+        key: 'created_at',
+        header: 'Created',
+        sortable: true,
+        renderFn: (v) => <span className="tabular-nums text-xs text-gray-500">{v ? v.slice(0, 10) : '—'}</span>,
+      },
+    ],
+    tableOptions: { searchable: true, exportable: false, compact: true, pageSize: 20 },
+  },
+
+  'quant-factors': {
+    title: 'Custom Factors',
+    icon: Activity,
+    iconColor: 'text-purple-400',
+    endpoint: '/quant/factors',
+    dataPath: 'data',
+    displayType: 'table',
+    columns: [
+      { key: 'name',        header: 'Factor Name', renderFn: (v) => <span className="text-xs font-medium text-white">{v}</span> },
+      { key: 'description', header: 'Description', renderFn: (v) => <span className="text-xs text-gray-400 truncate max-w-[200px] inline-block">{v || '—'}</span> },
+      { key: 'formula',     header: 'Formula',     renderFn: (v) => <span className="font-mono text-[10px] text-cyan-300 truncate max-w-[150px] inline-block">{v || '—'}</span> },
+      {
+        key: 'created_at',
+        header: 'Created',
+        sortable: true,
+        renderFn: (v) => <span className="tabular-nums text-xs text-gray-500">{v ? v.slice(0, 10) : '—'}</span>,
+      },
+    ],
+    tableOptions: { searchable: true, exportable: false, compact: true, pageSize: 20 },
   },
 };
 

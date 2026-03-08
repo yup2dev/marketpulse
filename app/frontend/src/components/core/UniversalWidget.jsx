@@ -21,7 +21,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import BaseWidget from '../widgets/common/BaseWidget';
 import CommonTable from '../common/CommonTable';
 import CommonChart  from '../common/CommonChart';
-import { API_BASE } from '../../config/api';
+import { apiClient, API_BASE } from '../../config/api';
 import { UNIVERSAL_WIDGET_CONFIGS } from '../../registry/widgetConfigs';
 
 /**
@@ -52,6 +52,7 @@ export default function UniversalWidget({
   widgetId,
   config: configOverride,
   symbol: symbolProp,
+  portfolioId: portfolioIdProp,
   onRemove,
 }) {
   const cfg = configOverride || UNIVERSAL_WIDGET_CONFIGS[widgetId];
@@ -80,28 +81,28 @@ export default function UniversalWidget({
     try {
       const url = cfg.endpoint
         .replace('{symbol}', symbol)
-        .replace('{period}', period);
+        .replace('{period}', period)
+        .replace('{portfolioId}', portfolioIdProp || '');
 
-      const res = await fetch(`${API_BASE}${url}`);
-      if (!res.ok) {
-        setData([]);
-        setError(`HTTP ${res.status}`);
-        return;
-      }
-      const result = await res.json();
+      const result = await apiClient.get(`${API_BASE}${url}`);
       rawDataRef.current = result;
-      setData(cfg.dataPath !== undefined
-        ? extractData(result, cfg.dataPath)
-        : extractData(result, null)
-      );
+      if (cfg.dataTransform) {
+        // dataTransform: (rawResponse) => rows[] — JSX 없이 데이터 매핑
+        setData(cfg.dataTransform(result));
+      } else {
+        setData(cfg.dataPath !== undefined
+          ? extractData(result, cfg.dataPath)
+          : extractData(result, null)
+        );
+      }
     } catch (e) {
       console.error(`UniversalWidget[${widgetId}] fetch error:`, e);
       setData([]);
-      setError(e.message);
+      setError(e.message || `HTTP ${e.status || 'error'}`);
     } finally {
       setLoading(false);
     }
-  }, [symbol, period, cfg?.endpoint, cfg?.dataPath, widgetId]);
+  }, [symbol, period, portfolioIdProp, cfg?.endpoint, cfg?.dataPath, widgetId]);
 
   useEffect(() => {
     if (cfg?.endpoint) fetchData();
