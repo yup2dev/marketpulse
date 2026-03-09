@@ -26,8 +26,6 @@ import WidgetRenderer from './WidgetRenderer';
 import WidgetMenu from './WidgetMenu';
 
 import StockSelectorModal from '../common/StockSelectorModal';
-import CreatePortfolioModal from '../portfolio/CreatePortfolioModal';
-import AddTransactionModal from '../portfolio/AddTransactionModal';
 import useNavigationStore from '../../store/navigationStore';
 
 export default function DashboardPage() {
@@ -304,31 +302,6 @@ export default function DashboardPage() {
           onAdd={handleAddWidget}
         />
 
-        {/* ── Portfolio modals ────────────────────────────────────────────── */}
-        {config.needsPortfolio && (
-          <>
-            {portfolio.showCreateModal && (
-              <CreatePortfolioModal
-                onClose={() => portfolio.setShowCreateModal(false)}
-                onCreate={portfolio.handleCreatePortfolio}
-              />
-            )}
-            {portfolio.showAddTransaction && (
-              <AddTransactionModal
-                onClose={() => portfolio.setShowAddTransaction(false)}
-                onAdd={portfolio.handleAddTransaction}
-              />
-            )}
-            {portfolio.editingTransaction && (
-              <AddTransactionModal
-                isEditing
-                initialValues={portfolio.editingTransaction}
-                onClose={() => portfolio.setEditingTransaction(null)}
-                onEdit={portfolio.handleEditTransaction}
-              />
-            )}
-          </>
-        )}
       </div>
     </WidgetSyncProvider>
   );

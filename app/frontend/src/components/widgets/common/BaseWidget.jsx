@@ -15,6 +15,7 @@ import { GripVertical, X, RefreshCw, BarChart2, Table, Calendar, ChevronDown, Se
 import { API_BASE } from '../../../config/api';
 import { downloadCSV, downloadExcel, downloadChartPNG, makeFilename } from '../../../utils/exportUtils';
 import { useWidgetSync } from '../../../contexts/WidgetSyncContext';
+import useClickOutside from '../../../hooks/useClickOutside';
 
 // Symbol Selector Component
 function SymbolSelector({ symbol, onSymbolChange }) {
@@ -239,16 +240,7 @@ export default function BaseWidget({
   };
 
   // Close export menu on outside click
-  useEffect(() => {
-    if (!showExportMenu) return;
-    const handler = (e) => {
-      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target)) {
-        setShowExportMenu(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [showExportMenu]);
+  useClickOutside(exportMenuRef, showExportMenu ? () => setShowExportMenu(false) : null);
 
   const handleExport = (format) => {
     setShowExportMenu(false);
@@ -436,7 +428,7 @@ export default function BaseWidget({
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto min-h-0">
+      <div className="flex-1 overflow-auto min-h-0 relative">
         {loading ? (
           <div className="w-full h-full flex items-center justify-center">
             <div className="w-6 h-6 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />

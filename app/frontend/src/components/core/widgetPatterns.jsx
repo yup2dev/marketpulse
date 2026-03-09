@@ -15,26 +15,7 @@
  */
 
 import { useState } from 'react';
-
-// ── 공통 포매터 ────────────────────────────────────────────────────────────────
-export const fmtMagnitude = (value) => {
-  if (value == null) return '-';
-  const abs = Math.abs(value);
-  const sign = value < 0 ? '-' : '';
-  if (abs >= 1e9) return `${sign}$${(abs / 1e9).toFixed(2)}B`;
-  if (abs >= 1e6) return `${sign}$${(abs / 1e6).toFixed(2)}M`;
-  if (abs >= 1e3) return `${sign}$${(abs / 1e3).toFixed(1)}K`;
-  return `$${value.toLocaleString()}`;
-};
-
-export const fmtNum = (value) => {
-  if (value == null) return '-';
-  const abs = Math.abs(value);
-  if (abs >= 1e9) return `${(value / 1e9).toFixed(2)}B`;
-  if (abs >= 1e6) return `${(value / 1e6).toFixed(2)}M`;
-  if (abs >= 1e3) return `${(value / 1e3).toFixed(1)}K`;
-  return value.toLocaleString();
-};
+import { fmtMagnitude, fmtNum } from '../../utils/formatUtils';
 
 // ── VerticalBarChart ───────────────────────────────────────────────────────────
 /**

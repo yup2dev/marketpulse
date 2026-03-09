@@ -127,6 +127,11 @@ function SparklineCell({ sparkData, isPositive }) {
 }
 
 function renderCellContent(value, colDef, row) {
+  // Guard: object values are not renderable — show placeholder
+  if (value !== null && value !== undefined && typeof value === 'object' && !Array.isArray(value)) {
+    return <span className="text-gray-600 text-[10px]">—</span>;
+  }
+
   const formatted = formatCell(value, colDef.formatter);
 
   if (typeof colDef.renderFn === 'function') return colDef.renderFn(value, row);

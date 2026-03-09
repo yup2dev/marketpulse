@@ -2,7 +2,6 @@
 Provider Abstraction
 
 Defines the Provider pattern for organizing fetchers by data source.
-Inspired by OpenBB Platform's provider system.
 """
 import logging
 from typing import Any, Dict, List, Optional, Type

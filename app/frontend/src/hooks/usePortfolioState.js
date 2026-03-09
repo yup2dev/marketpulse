@@ -7,16 +7,9 @@ import toast from 'react-hot-toast';
 import { portfolioAPI } from '../config/api';
 import useAuthStore from '../store/authStore';
 
-// ── Formatters ──────────────────────────────────────────────────────────────
-export const formatCurrency = (v, dec = 2) => {
-  if (v == null) return '$0.00';
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: dec, maximumFractionDigits: dec }).format(v);
-};
-export const formatKRW = (v) => {
-  if (v == null) return '₩0';
-  return new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW', maximumFractionDigits: 0 }).format(Math.round(v));
-};
-export const formatPercent = (v) => v == null ? '0.00%' : `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`;
+// ── Formatters (re-exported from formatUtils — single source of truth) ───────
+import { fmtKRW } from '../utils/formatUtils';
+export { fmtUSD as formatCurrency, fmtKRW as formatKRW, fmtPercent as formatPercent } from '../utils/formatUtils';
 
 // ── Map raw DB holding → widget row ─────────────────────────────────────────
 const mapHolding = (h) => {
@@ -319,7 +312,7 @@ export default function usePortfolioState() {
     lastRefreshed, isRefreshingPrices,
     doRefreshPrices: () => selectedPortfolio && doRefreshPrices(selectedPortfolio.portfolio_id, false),
     // Currency
-    displayCurrency, exchangeRate, loadingRate, formatKRW,
+    displayCurrency, exchangeRate, loadingRate, formatKRW: fmtKRW,
     handleCurrencyToggle,
     // Period / filters
     selectedPeriod, setSelectedPeriod,

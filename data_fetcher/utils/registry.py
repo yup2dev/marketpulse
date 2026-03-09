@@ -2,7 +2,6 @@
 Fetcher Registry
 
 Automatic registration and discovery system for fetchers.
-Inspired by OpenBB Platform's provider registry pattern.
 """
 import logging
 from typing import Any, Dict, List, Optional, Type

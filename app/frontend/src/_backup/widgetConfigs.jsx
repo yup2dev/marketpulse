@@ -27,42 +27,7 @@ import {
   TransactionDisplay,
   StockSentimentBody,
 } from '../components/core/widgetPatterns';
-
-// ── Utility helpers ───────────────────────────────────────────────────────────
-
-const posNeg = (v) =>
-  v == null
-    ? <span className="text-gray-500">-</span>
-    : <span className={v >= 0 ? 'text-green-500' : 'text-red-500'}>
-        {`${v >= 0 ? '+' : ''}${(v * 100).toFixed(1)}%`}
-      </span>;
-
-const gray = (v) =>
-  v == null ? <span className="text-gray-500">-</span> : <span className="text-gray-300">{v}</span>;
-
-const fmtDate = (s) => {
-  const d = new Date(s);
-  return isNaN(d) ? s : d.toLocaleDateString('en-US', { year: '2-digit', month: 'short' });
-};
-
-const fmtMagnitude = (value) => {
-  if (value == null) return '-';
-  const abs = Math.abs(value);
-  const sign = value < 0 ? '-' : '';
-  if (abs >= 1e9) return `${sign}$${(abs / 1e9).toFixed(2)}B`;
-  if (abs >= 1e6) return `${sign}$${(abs / 1e6).toFixed(2)}M`;
-  if (abs >= 1e3) return `${sign}$${(abs / 1e3).toFixed(1)}K`;
-  return `$${value.toLocaleString()}`;
-};
-
-const fmtNum = (value) => {
-  if (value == null) return '-';
-  const abs = Math.abs(value);
-  if (abs >= 1e9) return `${(value / 1e9).toFixed(2)}B`;
-  if (abs >= 1e6) return `${(value / 1e6).toFixed(2)}M`;
-  if (abs >= 1e3) return `${(value / 1e3).toFixed(1)}K`;
-  return value.toLocaleString();
-};
+import { posNeg, gray, fmtDate, fmtMagnitude, fmtNum } from '../utils/formatUtils';
 
 // Thin wrapper: renderBody에서 CommonChart를 사용하기 위한 helper
 function ChartBody({ data, series, xKey, type, xFormatter, yFormatter, referenceLines }) {
