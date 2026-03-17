@@ -27,15 +27,18 @@
  *   hide         boolean  — hidden by default
  *
  * Props:
- *   data         array    — rows (objects)
- *   columns      array    — column definitions
- *   title        string   — optional header title
- *   pageSize     number   — rows per page (default 20)
- *   searchable   boolean  — show global search (default true)
- *   exportable   boolean  — show CSV export button (default true)
- *   compact      boolean  — smaller row height
- *   className    string
- *   onRowClick   fn(row)
+ *   data              array    — rows (objects)
+ *   columns           array    — column definitions
+ *   title             string   — optional header title
+ *   pageSize          number   — rows per page (default 20)
+ *   searchable        boolean  — show global search (default true)
+ *   exportable        boolean  — show CSV export button (default true)
+ *   compact           boolean  — smaller row height
+ *   className         string
+ *   onRowClick        fn(row)
+ *   renderExpanded    fn(row) => JSX  — render detail panel below expanded row
+ *                     When provided, a chevron toggle column is prepended.
+ *                     Only one row can be expanded at a time.
  */
 import {
   useReactTable,
@@ -51,6 +54,7 @@ import {
   ChevronUp, ChevronDown, ChevronsUpDown,
   Search, Download, ChevronLeft, ChevronRight,
   ChevronsLeft, ChevronsRight, SlidersHorizontal,
+  ChevronRight as ChevronRightIcon,
 } from 'lucide-react';
 
 // ── Formatters ────────────────────────────────────────────────────────────────
@@ -178,7 +182,8 @@ export default function CommonTable({
   compact = false,
   className = '',
   onRowClick,
-  rowClassName,   // (row) => string — extra CSS classes per row
+  rowClassName,         // (row) => string — extra CSS classes per row
+  renderExpanded,       // (row) => JSX   — detail panel below expanded row
 }) {
   const [sorting,       setSorting]       = useState([]);
   const [globalFilter,  setGlobalFilter]  = useState('');
@@ -186,10 +191,15 @@ export default function CommonTable({
     () => Object.fromEntries(colDefs.filter(c => c.hide).map(c => [c.key, false])),
   );
   const [showColPicker, setShowColPicker] = useState(false);
+  const [expandedRowId, setExpandedRowId] = useState(null);
+
+  const toggleExpand = (rowId) => {
+    setExpandedRowId(prev => prev === rowId ? null : rowId);
+  };
 
   // Build TanStack column defs
-  const tanColumns = useMemo(() =>
-    colDefs.map(col => {
+  const tanColumns = useMemo(() => {
+    const dataCols = colDefs.map(col => {
       const base = {
         id:            col.key,
         header:        col.header ?? col.key,
@@ -207,8 +217,25 @@ export default function CommonTable({
         base.accessorKey = col.key;
       }
       return base;
-    }),
-  [colDefs]);
+    });
+
+    if (!renderExpanded) return dataCols;
+
+    // Prepend expand-toggle column
+    return [
+      {
+        id: '__expand__',
+        header: '',
+        enableSorting: false,
+        size: 32,
+        minSize: 32,
+        cell: ({ row }) => null,   // rendered manually below
+        meta: { align: 'center', isExpandCol: true },
+      },
+      ...dataCols,
+    ];
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [colDefs, !!renderExpanded]);
 
   const table = useReactTable({
     data,
@@ -323,31 +350,64 @@ export default function CommonTable({
           <tbody>
             {table.getRowModel().rows.length === 0 ? (
               <tr>
-                <td colSpan={colDefs.length} className="text-center py-10 text-gray-500">
+                <td colSpan={tanColumns.length} className="text-center py-10 text-gray-500">
                   No data
                 </td>
               </tr>
             ) : (
-              table.getRowModel().rows.map(row => (
-                <tr
-                  key={row.id}
-                  onClick={() => onRowClick?.(row.original)}
-                  className={`border-b border-gray-800/50 transition-colors ${onRowClick ? 'cursor-pointer hover:bg-gray-800/40' : 'hover:bg-gray-800/20'} ${rowClassName ? rowClassName(row.original) : ''}`}
-                >
-                  {row.getVisibleCells().map(cell => {
-                    const align = cell.column.columnDef.meta?.align ?? 'left';
-                    return (
-                      <td
-                        key={cell.id}
-                        style={{ textAlign: align }}
-                        className={`px-3 ${rowH} text-gray-200 whitespace-nowrap`}
-                      >
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))
+              table.getRowModel().rows.flatMap(row => {
+                const isExpanded = expandedRowId === row.id;
+                const dataRow = (
+                  <tr
+                    key={row.id}
+                    onClick={() => {
+                      if (renderExpanded) toggleExpand(row.id);
+                      onRowClick?.(row.original);
+                    }}
+                    className={`border-b border-gray-800/50 transition-colors ${
+                      renderExpanded || onRowClick ? 'cursor-pointer hover:bg-gray-800/40' : 'hover:bg-gray-800/20'
+                    } ${isExpanded ? 'bg-gray-800/30' : ''} ${rowClassName ? rowClassName(row.original) : ''}`}
+                  >
+                    {row.getVisibleCells().map(cell => {
+                      const isExpandCol = cell.column.columnDef.meta?.isExpandCol;
+                      const align = cell.column.columnDef.meta?.align ?? 'left';
+                      if (isExpandCol) {
+                        return (
+                          <td key={cell.id} className={`px-2 ${rowH} text-gray-400 w-8`}>
+                            <ChevronRightIcon
+                              size={13}
+                              className={`transition-transform duration-150 ${isExpanded ? 'rotate-90 text-cyan-400' : ''}`}
+                            />
+                          </td>
+                        );
+                      }
+                      return (
+                        <td
+                          key={cell.id}
+                          style={{ textAlign: align }}
+                          className={`px-3 ${rowH} text-gray-200 whitespace-nowrap`}
+                        >
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+
+                if (!renderExpanded || !isExpanded) return [dataRow];
+
+                const detailRow = (
+                  <tr key={`${row.id}-detail`} className="bg-[#0a0a0f]">
+                    <td colSpan={tanColumns.length} className="p-0 border-b border-gray-800">
+                      <div className="border-l-2 border-cyan-800/50 ml-8">
+                        {renderExpanded(row.original)}
+                      </div>
+                    </td>
+                  </tr>
+                );
+
+                return [dataRow, detailRow];
+              })
             )}
           </tbody>
         </table>

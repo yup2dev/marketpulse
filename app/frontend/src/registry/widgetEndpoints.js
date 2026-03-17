@@ -13,6 +13,18 @@
 
 export const WIDGET_ENDPOINTS = {
 
+  // ── Institutional 13F ─────────────────────────────────────────────────────
+  'institutional-portfolios': {
+    title:    'Institutional Portfolios',
+    endpoint: '/portfolio/13f/institutions',
+    dataPath: 'institutions',
+    expandable: {
+      keyField: 'key',
+      endpoint: '/portfolio/13f/{key}',
+      dataPath: 'stocks',
+    },
+  },
+
   // ── Stock ──────────────────────────────────────────────────────────────────
   'dividend':              { title: 'Dividends',              endpoint: '/stock/dividends/{symbol}' },
   'stock-splits':          { title: 'Stock Splits',           endpoint: '/stock/splits/{symbol}' },
@@ -22,6 +34,7 @@ export const WIDGET_ENDPOINTS = {
   'insider':               { title: 'Insider Trading',        endpoint: '/stock/insider-trading/{symbol}' },
   'ownership-overview':    { title: 'Ownership Overview',     endpoint: '/stock/holders/{symbol}' },
   'ownership-institutional': { title: 'Institutional Holders', endpoint: '/stock/holders/{symbol}' },
+  'holder-breakdown':      { title: 'Holder Breakdown',        endpoint: '/stock/holders/{symbol}', dataPath: 'institutional' },
   'ownership-insider':     { title: 'Insider Activity',       endpoint: '/stock/insider-trading/{symbol}' },
   'management':            { title: 'Management',             endpoint: '/stock/management/{symbol}' },
   'swot':                  { title: 'SWOT Analysis',          endpoint: '/stock/swot/{symbol}' },

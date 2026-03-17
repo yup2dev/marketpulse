@@ -10,8 +10,9 @@ from datetime import datetime
 project_root = str(Path(__file__).parent.parent)
 sys.path.insert(0, project_root)
 
-from index_analyzer.models.database import get_sqlite_db
+from index_analyzer.utils.db import get_sqlite_db
 from index_analyzer.models.menu import MenuManagement
+from index_analyzer.models.orm import Base
 
 
 def init_menu_data():
@@ -20,6 +21,7 @@ def init_menu_data():
     # Get database session
     db_path = Path(__file__).parent.parent / "data" / "marketpulse.db"
     db_instance = get_sqlite_db(str(db_path))
+    Base.metadata.create_all(bind=db_instance.engine)
     session = db_instance.get_session()
 
     try:

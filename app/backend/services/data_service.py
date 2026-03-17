@@ -964,8 +964,9 @@ class DataService:
                         'name': row.get('Holder', ''),
                         'shares': int(row.get('Shares', 0)) if row.get('Shares') else 0,
                         'value': float(row.get('Value', 0)) if row.get('Value') else 0,
-                        'pct_held': float(row.get('% Out', 0)) if row.get('% Out') else 0,
-                        'date_reported': row.get('Date Reported').strftime('%Y-%m-%d') if row.get('Date Reported') else None
+                        'pct_held': float(row.get('pctHeld', row.get('% Out', 0)) or 0),
+                        'pct_change': float(row.get('pctChange', 0) or 0),
+                        'date_reported': row.get('Date Reported').strftime('%Y-%m-%d') if row.get('Date Reported') is not None else None
                     })
 
             # Process major holders summary

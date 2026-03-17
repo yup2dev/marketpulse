@@ -4,6 +4,8 @@ import { Toaster } from 'react-hot-toast';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import AppLayout from './components/core/AppLayout';
 import DashboardPage from './components/core/DashboardPage';
+import Login from './components/core/Login';
+import Register from './components/core/Register';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import useAuthStore from './store/authStore';
 
@@ -41,6 +43,11 @@ function App() {
           <Route path="macro" element={<DashboardPage />} />
           <Route path="portfolios" element={<DashboardPage />} />
         </Route>
+
+        {/* Auth */}
+        <Route path="login" element={<Login />} />
+        <Route path="signin" element={<Register />} />
+        <Route path="register" element={<Register />} />
 
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />

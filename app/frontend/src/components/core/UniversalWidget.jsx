@@ -9,9 +9,17 @@
  *
  * Chart type selector (Line / Bar / Stack / Pie) is shown in the header
  * only when viewing table-data as a chart.
+ *
+ * expandable config (in widgetEndpoints):
+ *   expandable: {
+ *     keyField:  'key',                    // field in parent row used as URL param
+ *     endpoint:  '/portfolio/13f/{key}',   // sub-endpoint template
+ *     dataPath:  'stocks',                 // field in response to use as rows (optional)
+ *   }
+ * dataPath: 'institutions'                 // top-level response field to unwrap rows from
  */
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { BarChart2, BarChart3, PieChart, TrendingUp, Layers } from 'lucide-react';
+import { BarChart2, PieChart, TrendingUp, Layers } from 'lucide-react';
 import BaseWidget    from '../widgets/common/BaseWidget';
 import CommonTable   from '../common/CommonTable';
 import CommonChart   from '../common/CommonChart';
@@ -25,6 +33,41 @@ import {
   autoColumns,
   buildChartFromRows,
 } from '../../utils/autoRender';
+
+// ── Sub-row detail panel (lazy fetch on expand) ───────────────────────────────
+function ExpandedRowDetail({ row, config }) {
+  const [data,    setData]    = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState(null);
+
+  useEffect(() => {
+    const keyVal = row[config.keyField];
+    const url    = config.endpoint.replace(`{${config.keyField}}`, encodeURIComponent(keyVal));
+    apiClient.get(`${API_BASE}${url}`)
+      .then(res => {
+        const arr = config.dataPath
+          ? (Array.isArray(res[config.dataPath]) ? res[config.dataPath] : [])
+          : normalizeTableRows(res);
+        setData(arr);
+      })
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (loading) return <div className="px-4 py-3 text-xs text-gray-500">Loading…</div>;
+  if (error)   return <div className="px-4 py-3 text-xs text-red-400">{error}</div>;
+  if (!data?.length) return <div className="px-4 py-3 text-xs text-gray-500">No data</div>;
+
+  return (
+    <CommonTable
+      data={data}
+      columns={autoColumns(data)}
+      compact
+      searchable={false}
+      exportable={false}
+    />
+  );
+}
 
 const CHART_TYPE_OPTIONS = [
   { id: 'line',       icon: TrendingUp, label: 'Line' },
@@ -41,9 +84,11 @@ export default function UniversalWidget({
   portfolioId,
   onRemove,
 }) {
-  const reg      = WIDGET_ENDPOINTS[widgetId] || {};
-  const endpoint = endpointProp || reg.endpoint;
-  const title    = titleProp    || reg.title  || widgetId;
+  const reg        = WIDGET_ENDPOINTS[widgetId] || {};
+  const endpoint   = endpointProp || reg.endpoint;
+  const title      = titleProp    || reg.title  || widgetId;
+  const expandable = reg.expandable;   // { keyField, endpoint, dataPath }
+  const dataPath   = reg.dataPath;     // top-level response key to unwrap rows
 
   const [symbol,    setSymbol]    = useState(symbolProp || 'AAPL');
   const [period,    setPeriod]    = useState('1y');
@@ -89,7 +134,11 @@ export default function UniversalWidget({
   const defaultView    = renderType === 'plotly' ? 'chart' : 'table';
   const activeView     = viewMode ?? defaultView;
 
-  const rows           = useMemo(() => normalizeTableRows(response), [response]);
+  const rows    = useMemo(() => {
+    if (!response) return [];
+    if (dataPath && Array.isArray(response[dataPath])) return response[dataPath];
+    return normalizeTableRows(response);
+  }, [response, dataPath]);
   const columns        = useMemo(() => autoColumns(rows), [rows]);
   const chartSpec      = useMemo(() => buildChartFromRows(rows), [rows]);
 
@@ -127,7 +176,13 @@ export default function UniversalWidget({
       </div>
     );
   } else if (activeView === 'table') {
-    body = <CommonTable columns={columns} data={rows} emptyMessage="No data available" />;
+    body = (
+      <CommonTable
+        columns={columns}
+        data={rows}
+        renderExpanded={expandable ? (row) => <ExpandedRowDetail row={row} config={expandable} /> : undefined}
+      />
+    );
   } else if (renderType === 'plotly') {
     // Backend sent Plotly JSON — render as-is
     body = (
@@ -165,7 +220,7 @@ export default function UniversalWidget({
       showPeriodSelector={requiresPeriod}
       viewMode={activeView}
       onViewModeChange={setViewMode}
-      showViewToggle={!!(renderType)}
+      showViewToggle={!!(renderType) && !expandable}
       headerExtra={chartTypeSelector}
     >
       {body}

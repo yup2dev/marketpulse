@@ -77,6 +77,18 @@ export const URL_WIDGET_MAP = {
         ],
       },
       {
+        id: 'institutional',
+        label: 'Institutional Holdings',
+        defaultWidgets: [
+          { id: 'inst-portfolios-1',  type: 'institutional-portfolios', x: 0, y: 0,  w: 12, h: 10 },
+          { id: 'holder-breakdown-1', type: 'holder-breakdown',         x: 0, y: 10, w: 12, h: 7  },
+        ],
+        widgets: [
+          { id: 'institutional-portfolios', name: 'Institutional Portfolios', description: '13F holdings by manager',              defaultSize: { w: 12, h: 10 } },
+          { id: 'holder-breakdown',         name: 'Holder Breakdown',         description: 'Holder weight & change (table/chart)', defaultSize: { w: 12, h: 7  } },
+        ],
+      },
+      {
         id: 'ownership',
         label: 'Ownership',
         defaultWidgets: [
@@ -85,9 +97,9 @@ export const URL_WIDGET_MAP = {
           { id: 'ownership-insider-1',       type: 'ownership-insider',       x: 6, y: 6, w: 6,  h: 6 },
         ],
         widgets: [
-          { id: 'ownership-overview',      name: 'Ownership Overview',    description: 'Ownership breakdown',       defaultSize: { w: 12, h: 6 } },
-          { id: 'ownership-institutional', name: 'Institutional Holders', description: 'Top institutional holders', defaultSize: { w: 6,  h: 6 } },
-          { id: 'ownership-insider',       name: 'Insider Activity',      description: 'Insider trading',           defaultSize: { w: 6,  h: 6 } },
+          { id: 'ownership-overview',      name: 'Ownership Overview',    description: 'Ownership breakdown',            defaultSize: { w: 12, h: 6 } },
+          { id: 'ownership-institutional', name: 'Institutional Holders', description: 'Top institutional holders',      defaultSize: { w: 6,  h: 6 } },
+          { id: 'ownership-insider',       name: 'Insider Activity',      description: 'Insider trading',                defaultSize: { w: 6,  h: 6 } },
         ],
       },
       {
