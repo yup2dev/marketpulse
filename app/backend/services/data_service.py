@@ -53,6 +53,19 @@ class DataService:
         'KOSDAQ': '^KQ11',
     }
 
+    async def _fetch(self, fetcher_cls, params: Dict, *, single: bool = False, limit: Optional[int] = None) -> Any:
+        """fetch_data → set_data → return 공통 패턴 헬퍼"""
+        try:
+            result = await fetcher_cls.fetch_data(params)
+            if result:
+                data = fetcher_cls.set_data(result)
+                if limit is not None:
+                    data = data[:limit]
+                return data[0] if single else data
+        except Exception as e:
+            log.error(f"[{fetcher_cls.__name__}] {e}")
+        return {} if single else []
+
     def _map_symbol(self, symbol: str) -> str:
         """심볼을 Yahoo Finance 형식으로 변환"""
         return self.SYMBOL_MAPPING.get(symbol.upper(), symbol)
@@ -83,17 +96,17 @@ class DataService:
             })
 
             if result:
-                latest = result[-1]
+                latest = YahooStockPriceFetcher.set_data(result)[-1]
                 return {
                     'symbol': symbol,
-                    'price': latest.close,
-                    'change': latest.close - latest.open if latest.open else 0,
-                    'change_percent': ((latest.close - latest.open) / latest.open * 100) if latest.open else 0,
-                    'volume': latest.volume,
-                    'timestamp': latest.date.isoformat() if latest.date else None,
-                    'high': latest.high,
-                    'low': latest.low,
-                    'open': latest.open
+                    'price': latest['close'],
+                    'change': latest['price_change'],
+                    'change_percent': latest['price_change_pct'],
+                    'volume': latest['volume'],
+                    'timestamp': latest['date'],
+                    'high': latest['high'],
+                    'low': latest['low'],
+                    'open': latest['open']
                 }
         except Exception as e:
             log.error(f"Error fetching stock quote: {e}")
@@ -109,51 +122,20 @@ class DataService:
         end_date: str = None
     ) -> List[Dict[str, Any]]:
         """Get historical stock prices"""
-        mapped_symbol = self._map_symbol(symbol)
-        try:
-            # Determine appropriate interval based on period if not specified
-            if not interval:
-                interval = self._get_default_interval(period)
-
-            params = {
-                'symbol': mapped_symbol,
-                'interval': interval
-            }
-
-            # Use custom date range if provided, otherwise use period
-            if start_date and end_date:
-                params['start_date'] = start_date
-                params['end_date'] = end_date
-                log.debug(f"DATA_SERVICE - Using date range: {start_date} to {end_date}")
-                # Do NOT set period when using date range
-            elif period:
-                params['period'] = period
-                log.debug(f"DATA_SERVICE - Using period: {period}")
-            else:
-                # Default to 1 month if nothing provided
-                params['period'] = '1mo'
-                log.debug(f"DATA_SERVICE - Using default period: 1mo")
-
-            log.debug(f"DATA_SERVICE - Final params: {params}")
-
-            result = await YahooStockPriceFetcher.fetch_data(params)
-            return YahooStockPriceFetcher.set_data(result)
-        except Exception as e:
-            log.error(f"Error fetching stock history: {e}")
-
-        return []
+        if not interval:
+            interval = self._get_default_interval(period)
+        params = {'symbol': self._map_symbol(symbol), 'interval': interval}
+        if start_date and end_date:
+            params.update({'start_date': start_date, 'end_date': end_date})
+        elif period:
+            params['period'] = period
+        else:
+            params['period'] = '1mo'
+        return await self._fetch(YahooStockPriceFetcher, params)
 
     async def get_company_info(self, symbol: str) -> Dict[str, Any]:
         """Get company information"""
-        try:
-            result = await YahooCompanyInfoFetcher.fetch_data({'symbol': symbol})
-
-            if result:
-                return YahooCompanyInfoFetcher.set_data(result)[0]
-        except Exception as e:
-            log.error(f"Error fetching company info: {e}")
-
-        return {}
+        return await self._fetch(YahooCompanyInfoFetcher, {'symbol': symbol}, single=True)
 
     async def get_key_metrics(self, symbol: str) -> Dict[str, Any]:
         """
@@ -234,58 +216,47 @@ class DataService:
         indicators = {}
 
         try:
-            # GDP
             gdp_result = await FREDGDPFetcher.fetch_data({})
-            if gdp_result and len(gdp_result) > 0:
-                gdp = gdp_result[0]
-                indicators['gdp'] = {
-                    'value': gdp.value,
-                    'date': gdp.date.isoformat() if gdp.date else None,
-                    'unit': gdp.unit
-                }
+            if gdp_result:
+                indicators['gdp'] = FREDGDPFetcher.set_data(gdp_result)[0]
         except Exception as e:
             log.error(f"Error fetching GDP: {e}")
 
         try:
-            # Unemployment
             unemployment_result = await FREDUnemploymentFetcher.fetch_data({})
-            if unemployment_result and len(unemployment_result) > 0:
-                unemployment = unemployment_result[0]
-                indicators['unemployment'] = {
-                    'value': unemployment.value,
-                    'date': unemployment.date.isoformat() if unemployment.date else None,
-                    'unit': '%'
-                }
+            if unemployment_result:
+                indicators['unemployment'] = FREDUnemploymentFetcher.set_data(unemployment_result)[0]
         except Exception as e:
             log.error(f"Error fetching unemployment: {e}")
 
         try:
-            # CPI (Inflation)
             cpi_result = await FREDCPIFetcher.fetch_data({})
-            if cpi_result and len(cpi_result) > 0:
-                cpi = cpi_result[0]
-                indicators['cpi'] = {
-                    'value': cpi.value,
-                    'date': cpi.date.isoformat() if cpi.date else None,
-                    'unit': 'Index'
-                }
+            if cpi_result:
+                indicators['cpi'] = FREDCPIFetcher.set_data(cpi_result)[0]
         except Exception as e:
             log.error(f"Error fetching CPI: {e}")
 
         try:
-            # Interest Rate - provide required rate_type parameter
             rate_result = await FREDInterestRateFetcher.fetch_data({'rate_type': 'DFF'})
-            if rate_result and len(rate_result) > 0:
-                rate = rate_result[0]
-                indicators['interest_rate'] = {
-                    'value': rate.value,
-                    'date': rate.date.isoformat() if rate.date else None,
-                    'unit': '%'
-                }
+            if rate_result:
+                indicators['interest_rate'] = FREDInterestRateFetcher.set_data(rate_result)[0]
         except Exception as e:
             log.error(f"Error fetching interest rate: {e}")
 
         return indicators
+
+    _INDICATOR_FETCHERS = {
+        'GDP':                  (FREDGDPFetcher,                  {}),
+        'UNEMPLOYMENT':         (FREDUnemploymentFetcher,         {}),
+        'CPI':                  (FREDCPIFetcher,                  {}),
+        'FED_FUNDS_RATE':       (FREDInterestRateFetcher,         {'rate_type': 'federal_funds'}),
+        'INTEREST_RATE':        (FREDInterestRateFetcher,         {'rate_type': 'federal_funds'}),
+        'RETAIL_SALES':         (FREDRetailSalesFetcher,          {}),
+        'CONSUMER_SENTIMENT':   (FREDConsumerSentimentFetcher,    {}),
+        'NONFARM_PAYROLL':      (FREDNonfarmPayrollFetcher,       {}),
+        'HOUSING_STARTS':       (FREDHousingStartsFetcher,        {}),
+        'INDUSTRIAL_PRODUCTION':(FREDIndustrialProductionFetcher, {}),
+    }
 
     async def get_indicator_history(self, indicator: str, period: str = "5y") -> List[Dict[str, Any]]:
         """
@@ -297,67 +268,18 @@ class DataService:
             period: Period string (1mo, 3mo, 6mo, 1y, 2y, 3y, 5y, 10y, max)
         """
         try:
-            # period를 start_date, end_date로 변환
+            entry = self._INDICATOR_FETCHERS.get(indicator)
+            if not entry:
+                return []
+
+            fetcher_cls, extra_params = entry
             start_date, end_date = parse_period_to_dates(period)
-
-            result = None
-
-            if indicator == 'GDP':
-                result = await FREDGDPFetcher.fetch_data({
-                    'start_date': start_date,
-                    'end_date': end_date
-                })
-            elif indicator == 'UNEMPLOYMENT':
-                result = await FREDUnemploymentFetcher.fetch_data({
-                    'start_date': start_date,
-                    'end_date': end_date
-                })
-            elif indicator == 'CPI':
-                result = await FREDCPIFetcher.fetch_data({
-                    'start_date': start_date,
-                    'end_date': end_date
-                })
-            elif indicator == 'FED_FUNDS_RATE' or indicator == 'INTEREST_RATE':
-                result = await FREDInterestRateFetcher.fetch_data({
-                    'rate_type': 'federal_funds',
-                    'start_date': start_date,
-                    'end_date': end_date
-                })
-            elif indicator == 'RETAIL_SALES':
-                result = await FREDRetailSalesFetcher.fetch_data({
-                    'start_date': start_date,
-                    'end_date': end_date
-                })
-            elif indicator == 'CONSUMER_SENTIMENT':
-                result = await FREDConsumerSentimentFetcher.fetch_data({
-                    'start_date': start_date,
-                    'end_date': end_date
-                })
-            elif indicator == 'NONFARM_PAYROLL':
-                result = await FREDNonfarmPayrollFetcher.fetch_data({
-                    'start_date': start_date,
-                    'end_date': end_date
-                })
-            elif indicator == 'HOUSING_STARTS':
-                result = await FREDHousingStartsFetcher.fetch_data({
-                    'start_date': start_date,
-                    'end_date': end_date
-                })
-            elif indicator == 'INDUSTRIAL_PRODUCTION':
-                result = await FREDIndustrialProductionFetcher.fetch_data({
-                    'start_date': start_date,
-                    'end_date': end_date
-                })
-
-            if result:
-                # rate 속성이 있으면 rate를, 없으면 value를 사용
-                return [
-                    {
-                        'date': data.date.isoformat() if data.date else None,
-                        'value': getattr(data, 'rate', None) or data.value
-                    }
-                    for data in result
-                ]
+            result = await fetcher_cls.fetch_data({
+                'start_date': start_date,
+                'end_date': end_date,
+                **extra_params
+            })
+            return fetcher_cls.set_data(result) if result else []
         except Exception as e:
             log.error(f"Error fetching indicator history: {e}")
 
@@ -365,79 +287,13 @@ class DataService:
 
     async def get_news(self, symbol: Optional[str] = None, limit: int = 10) -> List[Dict[str, Any]]:
         """Get market news"""
-        try:
-            params = {}
-            if symbol:
-                params['ticker'] = symbol
-
-            result = await PolygonNewsFetcher.fetch_data(params)
-            return PolygonNewsFetcher.set_data(result)[:limit]
-        except Exception as e:
-            log.error(f"Error fetching news: {e}")
-
-        return []
+        params = {'ticker': symbol} if symbol else {}
+        return await self._fetch(PolygonNewsFetcher, params, limit=limit)
 
     async def get_financials(self, symbol: str, freq: str = 'quarterly', limit: int = 4) -> Dict[str, Any]:
-        """
-        Get financial statements for a company
-
-        Args:
-            symbol: Stock symbol
-            freq: Frequency - 'quarterly' or 'annual'
-            limit: Number of periods to return (default 4)
-        """
-        try:
-            result = await YahooFinancialsFetcher.fetch_data({
-                'symbol': symbol,
-                'freq': freq
-            })
-
-            if result and len(result) > 0:
-                # Return multiple periods for comparison
-                periods = []
-                for data in result[:limit]:
-                    period = {
-                        'date': data.as_of_date.isoformat() if data.as_of_date else None,
-                        'period_type': freq,
-                        'income_statement': {
-                            'revenue': data.total_revenue,
-                            'cost_of_revenue': data.cost_of_revenue,
-                            'gross_profit': data.gross_profit,
-                            'operating_expenses': data.operating_expense,
-                            'operating_income': data.operating_income,
-                            'net_income': data.net_income,
-                            'ebitda': data.ebitda,
-                            'basic_eps': data.basic_eps,
-                            'diluted_eps': data.diluted_eps
-                        },
-                        'balance_sheet': {
-                            'total_assets': data.total_assets,
-                            'current_assets': data.current_assets,
-                            'cash': data.cash,
-                            'total_liabilities': data.total_liabilities_net_minority_interest,
-                            'current_liabilities': data.current_liabilities,
-                            'total_equity': data.stockholders_equity,
-                            'total_debt': data.total_debt
-                        },
-                        'cash_flow': {
-                            'operating_cash_flow': data.operating_cash_flow,
-                            'investing_cash_flow': data.investing_cash_flow,
-                            'financing_cash_flow': data.financing_cash_flow,
-                            'free_cash_flow': data.free_cash_flow,
-                            'capital_expenditure': data.capital_expenditure
-                        }
-                    }
-                    periods.append(period)
-
-                return {
-                    'symbol': symbol,
-                    'frequency': freq,
-                    'periods': periods
-                }
-        except Exception as e:
-            log.error(f"Error fetching financials: {e}")
-
-        return {}
+        """Get financial statements for a company"""
+        periods = await self._fetch(YahooFinancialsFetcher, {'symbol': symbol, 'freq': freq}, limit=limit)
+        return {'symbol': symbol, 'frequency': freq, 'periods': periods}
 
     async def get_quarterly_pnl(self, symbol: str, limit: int = 12) -> Dict[str, Any]:
         """
@@ -642,12 +498,12 @@ class DataService:
             if result:
                 return [
                     {
-                        'symbol': stock.symbol,
-                        'name': stock.name,
-                        'exchange': stock.exchange_short_name or stock.stock_exchange,
-                        'currency': stock.currency
+                        'symbol': s['symbol'],
+                        'name': s['name'],
+                        'exchange': s.get('exchange_short_name') or s.get('stock_exchange'),
+                        'currency': s.get('currency')
                     }
-                    for stock in result
+                    for s in FMPSearchFetcher.set_data(result)
                 ]
         except Exception as e:
             log.error(f"Error searching stocks from FMP for '{query}': {e}")
@@ -659,13 +515,14 @@ class DataService:
                 query_upper = query.upper()
                 results = [
                     {
-                        'symbol': stock.symbol,
-                        'name': stock.name,
-                        'exchange': 'NASDAQ',  # Most actives are typically NASDAQ/NYSE
+                        'symbol': s['symbol'],
+                        'name': s['name'],
+                        'exchange': 'NASDAQ',
                         'currency': 'USD'
                     }
-                    for stock in actives
-                    if query_upper in stock.symbol.upper() or query_upper in stock.name.upper()
+                    for s in FMPActiveStocksFetcher.set_data(actives)
+                    if query_upper in (s.get('symbol') or '').upper()
+                    or query_upper in (s.get('name') or '').upper()
                 ]
                 if results:
                     return results[:limit]
@@ -687,18 +544,8 @@ class DataService:
         Returns:
             Earnings data with EPS actual vs estimated
         """
-        try:
-            result = await PolygonEarningsFetcher.fetch_data({
-                'ticker': symbol,
-                'limit': limit
-            })
-
-            if result:
-                return {'symbol': symbol, 'earnings': PolygonEarningsFetcher.set_data(result)}
-        except Exception as e:
-            log.error(f"Error fetching earnings: {e}")
-
-        return {'symbol': symbol, 'earnings': []}
+        earnings = await self._fetch(PolygonEarningsFetcher, {'ticker': symbol, 'limit': limit})
+        return {'symbol': symbol, 'earnings': earnings}
 
     async def get_insider_trading(self, symbol: str, limit: int = 50) -> Dict[str, Any]:
         """
@@ -724,9 +571,9 @@ class DataService:
                 buy_value = 0
                 sell_value = 0
 
-                for data in result[:limit]:
-                    tx_value = data.transaction_value or 0
-                    tx_type = (data.transaction_type or '').lower()
+                for d in YahooInsiderTradingFetcher.set_data(result)[:limit]:
+                    tx_value = d.get('transaction_value') or 0
+                    tx_type = (d.get('transaction_type') or '').lower()
 
                     # Determine if buy or sell
                     is_buy = 'purchase' in tx_type or 'buy' in tx_type or 'acquisition' in tx_type
@@ -744,18 +591,18 @@ class DataService:
                         acquisition_disposition = None
 
                     transactions.append({
-                        'transaction_date': data.transaction_date.isoformat() if data.transaction_date else None,
+                        'transaction_date': d.get('transaction_date'),
                         'filing_date': None,
-                        'insider_name': data.insider_name,
-                        'insider_title': data.insider_title,
+                        'insider_name': d.get('insider_name'),
+                        'insider_title': d.get('insider_title'),
                         'is_director': None,
                         'is_officer': None,
-                        'transaction_type': data.transaction_type,
+                        'transaction_type': d.get('transaction_type'),
                         'acquisition_or_disposition': acquisition_disposition,
-                        'shares_traded': data.shares_traded,
-                        'price_per_share': data.price_per_share,
-                        'transaction_value': data.transaction_value,
-                        'shares_owned_after': data.shares_owned_after
+                        'shares_traded': d.get('shares_traded'),
+                        'price_per_share': d.get('price_per_share'),
+                        'transaction_value': d.get('transaction_value'),
+                        'shares_owned_after': d.get('shares_owned_after')
                     })
 
                 if transactions:
@@ -777,26 +624,9 @@ class DataService:
         return {'symbol': symbol, 'summary': {}, 'transactions': []}
 
     async def get_insider_holders(self, symbol: str) -> Dict[str, Any]:
-        """
-        Get insider holders (roster) information using Yahoo Finance
-
-        Args:
-            symbol: Stock symbol
-
-        Returns:
-            List of insider holders with their positions
-        """
-        try:
-            result = await YahooInsiderHoldersFetcher.fetch_data({
-                'symbol': symbol
-            })
-
-            if result:
-                return {'symbol': symbol, 'holders': YahooInsiderHoldersFetcher.set_data(result)}
-        except Exception as e:
-            log.error(f"Error fetching insider holders for {symbol}: {e}")
-
-        return {'symbol': symbol, 'holders': []}
+        """Get insider holders (roster) information"""
+        holders = await self._fetch(YahooInsiderHoldersFetcher, {'symbol': symbol})
+        return {'symbol': symbol, 'holders': holders}
 
     async def get_analyst_data(self, symbol: str) -> Dict[str, Any]:
         """
@@ -1121,27 +951,9 @@ class DataService:
             return {'symbol': symbol, 'events': [], 'earnings_history': [], 'dividend_info': {}}
 
     async def get_dividends(self, symbol: str, limit: int = 20) -> Dict[str, Any]:
-        """
-        Get dividend history for a company
-
-        Args:
-            symbol: Stock symbol
-            limit: Number of dividend records to return
-
-        Returns:
-            Dividend history with dates and amounts
-        """
-        try:
-            result = await YahooDividendsFetcher.fetch_data({
-                'symbol': symbol
-            })
-
-            if result:
-                return {'symbol': symbol, 'history': YahooDividendsFetcher.set_data(result)[:limit]}
-        except Exception as e:
-            log.error(f"Error fetching dividends for {symbol}: {e}")
-
-        return {'symbol': symbol, 'history': []}
+        """Get dividend history for a company"""
+        history = await self._fetch(YahooDividendsFetcher, {'symbol': symbol}, limit=limit)
+        return {'symbol': symbol, 'history': history}
 
     async def get_splits(self, symbol: str, limit: int = 20) -> Dict[str, Any]:
         """
@@ -1570,8 +1382,8 @@ class DataService:
             neutral = 0
             news_items = []
 
-            for article in result[:50]:
-                title = article.title or ''
+            for article in PolygonNewsFetcher.set_data(result)[:50]:
+                title = article.get('title') or ''
                 # Simple keyword-based sentiment
                 title_lower = title.lower()
                 pos_words = ['beat', 'surge', 'rally', 'gain', 'rise', 'up', 'growth', 'profit', 'record', 'strong', 'bullish', 'upgrade', 'buy']
@@ -1593,12 +1405,11 @@ class DataService:
                     sentiment_score = 50
                     neutral += 1
 
-                pub_at = article.published_utc.isoformat() if article.published_utc else None
                 news_items.append({
                     'title': title,
-                    'published_at': pub_at,
-                    'source': article.publisher_name,
-                    'url': article.article_url,
+                    'published_at': article.get('published_utc'),
+                    'source': article.get('publisher_name'),
+                    'url': article.get('article_url'),
                     'sentiment': sentiment,
                     'sentiment_score': sentiment_score,
                 })

@@ -129,6 +129,15 @@ export default function UniversalWidget({
     );
   }
 
+  // Portfolio widgets require a selected portfolio
+  if (endpoint.includes('{portfolioId}') && !portfolioId) {
+    return (
+      <div className="flex items-center justify-center h-full text-gray-600 text-xs p-4">
+        Select a portfolio to view this widget
+      </div>
+    );
+  }
+
   // ── Derived state ────────────────────────────────────────────────────────
   const renderType     = response ? detectRenderType(response) : null;
   const defaultView    = renderType === 'plotly' ? 'chart' : 'table';

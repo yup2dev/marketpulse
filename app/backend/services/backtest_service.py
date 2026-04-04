@@ -22,14 +22,26 @@ log = logging.getLogger(__name__)
 class BacktestService:
     """Service for backtesting trading strategies"""
 
+    async def _fetch(self, fetcher_cls, params: Dict, *, single: bool = False, limit=None):
+        try:
+            result = await fetcher_cls.fetch_data(params)
+            if result:
+                data = fetcher_cls.set_data(result)
+                if limit is not None:
+                    data = data[:limit]
+                return data[0] if single else data
+        except Exception as e:
+            log.error(f"[{fetcher_cls.__name__}] {e}")
+        return {} if single else []
+
     async def get_universe_stocks(self, universe_id: str) -> List[Dict[str, Any]]:
         """Get stocks from a predefined universe from Database"""
         # Fetch index constituents from Database via Fetcher
         symbols = []
         try:
-            constituents = await DBIndexConstituentsFetcher.fetch_data({'index': universe_id})
+            constituents = await self._fetch(DBIndexConstituentsFetcher, {'index': universe_id}, limit=20)
             if constituents:
-                symbols = [c.symbol for c in constituents[:20]]  # Limit to 20 for demo
+                symbols = [c['symbol'] for c in constituents]
                 log.info(f"Successfully fetched {len(symbols)} constituents from DB for {universe_id}")
         except Exception as e:
             log.error(f"Error fetching index constituents from DB for {universe_id}: {e}")
@@ -42,30 +54,20 @@ class BacktestService:
         stocks = []
         for symbol in symbols:
             try:
-                # Fetch real-time price data
-                result = await YahooStockPriceFetcher.fetch_data({
-                    'symbol': symbol,
-                    'interval': '1d'
-                })
-
-                if result and len(result) > 0:
-                    latest = result[-1]
-                    prev = result[-2] if len(result) > 1 else latest
-
-                    # Fetch real company name
-                    company_name = symbol  # Default to symbol
+                prices = await self._fetch(YahooStockPriceFetcher, {'symbol': symbol, 'interval': '1d'})
+                if prices:
+                    latest, prev = prices[-1], (prices[-2] if len(prices) > 1 else prices[-1])
+                    company_name = symbol
                     try:
-                        company_info = await YahooCompanyInfoFetcher.fetch_data({'symbol': symbol})
-                        if company_info and len(company_info) > 0:
-                            company_name = company_info[0].company_name
+                        info = await self._fetch(YahooCompanyInfoFetcher, {'symbol': symbol}, single=True)
+                        company_name = info.get('company_name', symbol) if info else symbol
                     except Exception:
-                        pass  # Use default if company info fetch fails
-
+                        pass
                     stocks.append({
                         'symbol': symbol,
                         'name': company_name,
-                        'price': round(latest.close, 2) if latest.close else 0,
-                        'change': round(((latest.close - prev.close) / prev.close * 100), 2) if prev.close else 0
+                        'price': round(latest['close'], 2) if latest.get('close') else 0,
+                        'change': round(((latest['close'] - prev['close']) / prev['close'] * 100), 2) if prev.get('close') else 0
                     })
             except Exception as e:
                 log.warning(f"Error fetching {symbol}: {e}")
@@ -107,16 +109,12 @@ class BacktestService:
             stock_data = {}
             for symbol in symbols:
                 try:
-                    result = await YahooStockPriceFetcher.fetch_data({
-                        'symbol': symbol,
-                        'start_date': start_date,
-                        'end_date': end_date,
-                        'interval': '1d'
+                    data = await self._fetch(YahooStockPriceFetcher, {
+                        'symbol': symbol, 'start_date': start_date,
+                        'end_date': end_date, 'interval': '1d'
                     })
-
-                    if result:
-                        # No need to filter - API returns data in the requested range
-                        stock_data[symbol] = result
+                    if data:
+                        stock_data[symbol] = data
                 except Exception as e:
                     log.warning(f"Error fetching {symbol}: {e}")
 
@@ -126,15 +124,13 @@ class BacktestService:
             # Fetch real benchmark data
             benchmark_data = {}
             try:
-                benchmark_result = await YahooStockPriceFetcher.fetch_data({
-                    'symbol': benchmark_symbol,
-                    'start_date': start_date,
-                    'end_date': end_date,
-                    'interval': '1d'
+                bench = await self._fetch(YahooStockPriceFetcher, {
+                    'symbol': benchmark_symbol, 'start_date': start_date,
+                    'end_date': end_date, 'interval': '1d'
                 })
-                if benchmark_result:
-                    benchmark_data[benchmark_symbol] = benchmark_result
-                    log.info(f"Successfully fetched benchmark {benchmark_symbol} with {len(benchmark_result)} data points")
+                if bench:
+                    benchmark_data[benchmark_symbol] = bench
+                    log.info(f"Successfully fetched benchmark {benchmark_symbol} with {len(bench)} data points")
                 else:
                     log.warning(f"No benchmark data for {benchmark_symbol}")
             except Exception as e:
@@ -182,39 +178,22 @@ class BacktestService:
         stock_data: Dict[str, List],
         initial_capital: float,
         rebalancing_period: str,
-        weights: Optional[Dict[str, float]] = None,  # symbol → weight_pct (0-100)
+        weights: Optional[Dict[str, float]] = None,
     ) -> List[Dict[str, Any]]:
         """Calculate portfolio performance with rebalancing and optional custom weights."""
-        # Get all dates
-        all_dates = set()
-        for symbol, data in stock_data.items():
-            for point in data:
-                if point.date:
-                    if hasattr(point.date, 'tzinfo'):
-                        date_obj = point.date.replace(tzinfo=None) if point.date.tzinfo else point.date
-                    else:
-                        from datetime import datetime as dt
-                        date_obj = dt.combine(point.date, dt.min.time())
-                    all_dates.add(date_obj)
+        from datetime import date as date_t
 
-        all_dates = sorted(list(all_dates))
-
-        if not all_dates:
-            return []
-
-        # Create price matrix
+        # Build price matrix: {date_str → {symbol → close}}
         prices = defaultdict(dict)
         for symbol, data in stock_data.items():
             for point in data:
-                if point.date and point.close:
-                    if hasattr(point.date, 'tzinfo'):
-                        date_obj = point.date.replace(tzinfo=None) if point.date.tzinfo else point.date
-                    else:
-                        from datetime import datetime as dt
-                        date_obj = dt.combine(point.date, dt.min.time())
-                    prices[date_obj][symbol] = point.close
+                if point.get('date') and point.get('close'):
+                    prices[point['date'][:10]][symbol] = point['close']
 
-        # Resolve per-symbol weights (as fractions summing to 1)
+        all_dates = sorted(prices.keys())
+        if not all_dates:
+            return []
+
         symbols = list(stock_data.keys())
         num_stocks = len(symbols)
         if weights and any(weights.get(s, 0) > 0 for s in symbols):
@@ -225,30 +204,23 @@ class BacktestService:
             w_frac = {s: 1 / num_stocks for s in symbols}
 
         holdings = {symbol: 0.0 for symbol in symbols}
-
-        # Initial allocation
         for symbol in symbols:
-            if all_dates[0] in prices and symbol in prices[all_dates[0]]:
+            if symbol in prices[all_dates[0]]:
                 holdings[symbol] = (initial_capital * w_frac[symbol]) / prices[all_dates[0]][symbol]
 
         portfolio_values = []
-        last_rebalance = all_dates[0]
+        last_rebalance = date_t.fromisoformat(all_dates[0])
 
-        for date in all_dates:
-            # Current portfolio value
-            current_value = sum(
-                holdings[s] * prices[date][s]
-                for s in symbols if s in prices[date]
-            )
+        for date_str in all_dates:
+            current_value = sum(holdings[s] * prices[date_str][s] for s in symbols if s in prices[date_str])
+            portfolio_values.append({'date': date_str, 'value': round(current_value, 2)})
 
-            portfolio_values.append({'date': date.isoformat(), 'value': round(current_value, 2)})
-
-            # Rebalance if needed
-            if self._should_rebalance(last_rebalance, date, rebalancing_period) and current_value > 0:
+            current_date = date_t.fromisoformat(date_str)
+            if self._should_rebalance(last_rebalance, current_date, rebalancing_period) and current_value > 0:
                 for symbol in symbols:
-                    if symbol in prices[date]:
-                        holdings[symbol] = (current_value * w_frac[symbol]) / prices[date][symbol]
-                last_rebalance = date
+                    if symbol in prices[date_str]:
+                        holdings[symbol] = (current_value * w_frac[symbol]) / prices[date_str][symbol]
+                last_rebalance = current_date
 
         return portfolio_values
 
@@ -258,59 +230,30 @@ class BacktestService:
         initial_capital: float
     ) -> List[Dict[str, Any]]:
         """Calculate buy-and-hold benchmark"""
-        # Get all dates
-        all_dates = set()
-        for symbol, data in stock_data.items():
-            for point in data:
-                if point.date:
-                    # Convert date to datetime if needed
-                    if hasattr(point.date, 'tzinfo'):
-                        date_obj = point.date.replace(tzinfo=None) if point.date.tzinfo else point.date
-                    else:
-                        from datetime import datetime as dt
-                        date_obj = dt.combine(point.date, dt.min.time())
-                    all_dates.add(date_obj)
-
-        all_dates = sorted(list(all_dates))
-
-        if not all_dates:
-            return []
-
-        # Create price matrix
         prices = defaultdict(dict)
         for symbol, data in stock_data.items():
             for point in data:
-                if point.date and point.close:
-                    # Convert date to datetime if needed
-                    if hasattr(point.date, 'tzinfo'):
-                        date_obj = point.date.replace(tzinfo=None) if point.date.tzinfo else point.date
-                    else:
-                        from datetime import datetime as dt
-                        date_obj = dt.combine(point.date, dt.min.time())
-                    prices[date_obj][symbol] = point.close
+                if point.get('date') and point.get('close'):
+                    prices[point['date'][:10]][symbol] = point['close']
 
-        # Buy and hold
-        num_stocks = len(stock_data)
-        allocation_per_stock = initial_capital / num_stocks
-        holdings = {}
+        all_dates = sorted(prices.keys())
+        if not all_dates:
+            return []
 
-        for symbol in stock_data.keys():
-            if all_dates[0] in prices and symbol in prices[all_dates[0]]:
-                holdings[symbol] = allocation_per_stock / prices[all_dates[0]][symbol]
+        allocation_per_stock = initial_capital / len(stock_data)
+        holdings = {
+            symbol: allocation_per_stock / prices[all_dates[0]][symbol]
+            for symbol in stock_data
+            if symbol in prices[all_dates[0]]
+        }
 
-        benchmark_values = []
-        for date in all_dates:
-            current_value = 0
-            for symbol, shares in holdings.items():
-                if symbol in prices[date]:
-                    current_value += shares * prices[date][symbol]
-
-            benchmark_values.append({
-                'date': date.isoformat(),
-                'value': round(current_value, 2)
-            })
-
-        return benchmark_values
+        return [
+            {
+                'date': date_str,
+                'value': round(sum(holdings.get(s, 0) * prices[date_str][s] for s in holdings if s in prices[date_str]), 2)
+            }
+            for date_str in all_dates
+        ]
 
     def _should_rebalance(
         self,
@@ -414,23 +357,16 @@ class BacktestService:
             year = pv['date'][:4]
             yearly_data[year].append(pv['value'])
 
-        # Fetch real benchmark data from the specified symbol
         benchmark_data = {}
         try:
-            benchmark_result = await YahooStockPriceFetcher.fetch_data({
-                'symbol': benchmark_symbol,
-                'start_date': start_date,
-                'end_date': end_date,
-                'interval': '1d'
+            bench = await self._fetch(YahooStockPriceFetcher, {
+                'symbol': benchmark_symbol, 'start_date': start_date,
+                'end_date': end_date, 'interval': '1d'
             })
-
-            if benchmark_result:
-                for point in benchmark_result:
-                    if point.date and point.close:
-                        year = point.date.isoformat()[:4]
-                        if year not in benchmark_data:
-                            benchmark_data[year] = []
-                        benchmark_data[year].append(point.close)
+            for point in bench:
+                if point.get('date') and point.get('close'):
+                    year = point['date'][:4]
+                    benchmark_data.setdefault(year, []).append(point['close'])
         except Exception as e:
             log.warning(f"Error fetching benchmark data for {benchmark_symbol}: {e}")
 

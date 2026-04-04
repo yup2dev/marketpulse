@@ -1029,9 +1029,10 @@ async def scan(
     })
     if not raw:
         raise ValueError(f"No price data found for {ticker}")
-    raw.sort(key=lambda p: p.date if hasattr(p.date, "isoformat") else str(p.date))
-    dates = [str(p.date)[:10] for p in raw]
-    closes = np.array([float(p.close) for p in raw], dtype=float)
+    data = YahooStockPriceFetcher.set_data(raw)
+    data.sort(key=lambda d: d['date'])
+    dates = [d['date'][:10] for d in data]
+    closes = np.array([d['close'] for d in data], dtype=float)
     if len(closes) < 20:
         raise ValueError(f"Insufficient data for {ticker}")
 
@@ -1098,11 +1099,10 @@ async def analyze(
     if not raw:
         raise ValueError(f"No price data found for {ticker}")
 
-    # Sort by date ascending
-    raw.sort(key=lambda p: p.date if hasattr(p.date, "isoformat") else str(p.date))
-
-    dates = [str(p.date)[:10] for p in raw]
-    closes = np.array([float(p.close) for p in raw], dtype=float)
+    data = YahooStockPriceFetcher.set_data(raw)
+    data.sort(key=lambda d: d['date'])
+    dates = [d['date'][:10] for d in data]
+    closes = np.array([d['close'] for d in data], dtype=float)
 
     def _safe(arr, fallback=None):
         if fallback is None:
@@ -1112,10 +1112,10 @@ async def analyze(
     # Full OHLCV series for factor-based strategies
     series = {
         "close":  closes,
-        "open":   _safe(np.array([float(p.open)   if getattr(p, "open",   None) else p.close for p in raw])),
-        "high":   _safe(np.array([float(p.high)   if getattr(p, "high",   None) else p.close for p in raw])),
-        "low":    _safe(np.array([float(p.low)    if getattr(p, "low",    None) else p.close for p in raw])),
-        "volume": _safe(np.array([float(p.volume) if getattr(p, "volume", None) else 1.0      for p in raw])),
+        "open":   _safe(np.array([d['open']   or d['close'] for d in data], dtype=float)),
+        "high":   _safe(np.array([d['high']   or d['close'] for d in data], dtype=float)),
+        "low":    _safe(np.array([d['low']    or d['close'] for d in data], dtype=float)),
+        "volume": _safe(np.array([d['volume'] or 1.0        for d in data], dtype=float)),
     }
 
     if len(closes) < 20:

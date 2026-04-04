@@ -391,6 +391,103 @@ class UserPortfolioService:
 
         db.commit()
 
+    @staticmethod
+    def get_portfolio_chart_data(db: Session, portfolio_id: str, user_id: str) -> Optional[dict]:
+        """
+        포트폴리오 차트 데이터 — Plotly JSON 형식 반환
+        거래 내역 기반 누적 비용(Cost Basis) + 현재 평가금액(Market Value) 시계열
+        """
+        portfolio = UserPortfolioService.get_portfolio(db, portfolio_id, user_id)
+        if not portfolio:
+            return None
+
+        transactions = db.query(Transaction).filter(
+            Transaction.portfolio_id == portfolio_id,
+            Transaction.transaction_type.in_(['buy', 'sell'])
+        ).order_by(Transaction.transaction_date.asc()).all()
+
+        holdings = UserPortfolioService.get_portfolio_holdings(db, portfolio_id)
+        current_market_value = float(sum(
+            h.market_value for h in holdings if h.market_value is not None
+        ))
+        current_cost_basis = float(sum(
+            h.total_cost for h in holdings if h.total_cost is not None
+        ))
+
+        if not transactions:
+            return {
+                "data": [],
+                "layout": {"title": {"text": "No transactions yet"}}
+            }
+
+        # Build cumulative cost series from transactions
+        dates = []
+        cost_series = []
+        cumulative_cost = 0.0
+
+        for txn in transactions:
+            qty   = float(txn.quantity)
+            price = float(txn.price)
+            comm  = float(txn.commission or 0)
+            tax   = float(txn.tax or 0)
+
+            if txn.transaction_type == 'buy':
+                cumulative_cost += qty * price + comm + tax
+            elif txn.transaction_type == 'sell':
+                cumulative_cost -= qty * price - comm - tax
+
+            date_str = txn.transaction_date.strftime('%Y-%m-%d')
+            if dates and dates[-1] == date_str:
+                cost_series[-1] = round(cumulative_cost, 2)
+            else:
+                dates.append(date_str)
+                cost_series.append(round(cumulative_cost, 2))
+
+        # Add today as the final point
+        today_str = datetime.utcnow().strftime('%Y-%m-%d')
+        if not dates or dates[-1] != today_str:
+            dates.append(today_str)
+            cost_series.append(round(current_cost_basis, 2))
+
+        # Value series: cost at each transaction point, market_value at the last (today)
+        value_series = cost_series[:-1] + [round(current_market_value, 2)]
+
+        pnl = current_market_value - current_cost_basis
+        value_color = '#22c55e' if pnl >= 0 else '#ef4444'
+
+        return {
+            "data": [
+                {
+                    "type": "scatter",
+                    "mode": "lines",
+                    "name": "Market Value",
+                    "x": dates,
+                    "y": value_series,
+                    "line": {"color": value_color, "width": 2},
+                    "fill": "tozeroy",
+                    "fillcolor": "rgba(34,197,94,0.08)" if pnl >= 0 else "rgba(239,68,68,0.08)",
+                },
+                {
+                    "type": "scatter",
+                    "mode": "lines",
+                    "name": "Cost Basis",
+                    "x": dates,
+                    "y": cost_series,
+                    "line": {"color": "#6b7280", "width": 1.5, "dash": "dot"},
+                },
+            ],
+            "layout": {
+                "showlegend": True,
+                "legend": {"orientation": "h", "y": 1.1, "x": 0},
+                "xaxis": {"showgrid": False, "color": "#6b7280"},
+                "yaxis": {"tickprefix": "$", "color": "#6b7280", "gridcolor": "#1f2937"},
+                "margin": {"l": 50, "r": 10, "t": 10, "b": 30},
+                "plot_bgcolor": "#0d0d12",
+                "paper_bgcolor": "#0d0d12",
+                "font": {"color": "#9ca3af", "size": 11},
+            }
+        }
+
     # ==================== Watchlist Management ====================
 
     @staticmethod

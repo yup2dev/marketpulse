@@ -60,4 +60,12 @@ export const WIDGET_ENDPOINTS = {
   'fin-conditions-tab':    { title: 'Financial Conditions',   endpoint: '/macro/financial-conditions' },
   'sentiment-tab':         { title: 'Market Sentiment',       endpoint: '/macro/sentiment/composite' },
   'commodities-tab':       { title: 'Commodities',            endpoint: '/macro/fred/series' },
+
+  // ── Portfolio ───────────────────────────────────────────────────────────────
+  'portfolio-stats':         { title: 'Portfolio Stats',    endpoint: '/user-portfolio/portfolios/{portfolioId}/summary' },
+  'portfolio-chart':         { title: 'Portfolio Chart',    endpoint: '/user-portfolio/portfolios/{portfolioId}/chart' },
+  'portfolio-holdings':      { title: 'Holdings',           endpoint: '/user-portfolio/portfolios/{portfolioId}/holdings' },
+  'portfolio-balances':      { title: 'Balances',           endpoint: '/user-portfolio/portfolios/{portfolioId}/holdings' },
+  'portfolio-positions':     { title: 'Positions',          endpoint: '/user-portfolio/portfolios/{portfolioId}/holdings' },
+  'portfolio-trade-history': { title: 'Trade History',      endpoint: '/user-portfolio/portfolios/{portfolioId}/transactions' },
 };

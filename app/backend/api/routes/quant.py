@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.backend.services import quant_service
 from app.backend.database.db_dependency import get_db
 from app.backend.auth.dependencies import get_current_user
+from app.backend.api.deps import route_handler
 from index_analyzer.models.quant_strategy import QuantStrategy
 from index_analyzer.models.quant_factor import QuantFactor
 
@@ -88,44 +89,34 @@ class StrategyNoteCreate(BaseModel):
 # ─── Backtest Endpoint ────────────────────────────────────────────────────────
 
 @router.post("/analyze")
+@route_handler
 async def quant_analyze(request: QuantAnalyzeRequest):
-    try:
-        result = await quant_service.analyze(
-            ticker=request.ticker,
-            start_date=request.start_date,
-            end_date=request.end_date,
-            strategy=request.strategy.model_dump(),
-        )
-        return {"data": result}
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        log.error(f"Quant analyze error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+    result = await quant_service.analyze(
+        ticker=request.ticker,
+        start_date=request.start_date,
+        end_date=request.end_date,
+        strategy=request.strategy.model_dump(),
+    )
+    return {"data": result}
 
 
 # ─── Scanner Endpoint ─────────────────────────────────────────────────────────
 
 @router.post("/scan")
+@route_handler
 async def quant_scan(request: ScanRequest):
-    try:
-        param_ranges = {k: v.model_dump() for k, v in request.param_ranges.items()}
-        result = await quant_service.scan(
-            ticker=request.ticker,
-            start_date=request.start_date,
-            end_date=request.end_date,
-            strategy_type=request.strategy_type,
-            param_ranges=param_ranges,
-            stop_loss_pct=request.stop_loss_pct,
-            take_profit_pct=request.take_profit_pct,
-            initial_capital=request.initial_capital,
-        )
-        return {"data": result}
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        log.error(f"Quant scan error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+    param_ranges = {k: v.model_dump() for k, v in request.param_ranges.items()}
+    result = await quant_service.scan(
+        ticker=request.ticker,
+        start_date=request.start_date,
+        end_date=request.end_date,
+        strategy_type=request.strategy_type,
+        param_ranges=param_ranges,
+        stop_loss_pct=request.stop_loss_pct,
+        take_profit_pct=request.take_profit_pct,
+        initial_capital=request.initial_capital,
+    )
+    return {"data": result}
 
 
 # ─── Strategy CRUD ────────────────────────────────────────────────────────────

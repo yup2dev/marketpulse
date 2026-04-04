@@ -33,6 +33,15 @@ const PLOTLY_CONFIG = {
   responsive:     true,
 };
 
+// Singleton promise so Plotly is only loaded once across all instances
+let _plotlyPromise = null;
+function loadPlotly() {
+  if (!_plotlyPromise) {
+    _plotlyPromise = import('plotly.js-dist-min').then(m => m.default || m);
+  }
+  return _plotlyPromise;
+}
+
 export default function PlotlyRawChart({ plotlyJson }) {
   const containerRef = useRef(null);
 
@@ -40,9 +49,9 @@ export default function PlotlyRawChart({ plotlyJson }) {
     const el = containerRef.current;
     if (!el || !plotlyJson?.data?.length) return;
 
-    const Plotly = window.Plotly;
+    const Plotly = await loadPlotly();
     if (!Plotly) {
-      console.warn('PlotlyRawChart: window.Plotly not loaded');
+      console.warn('PlotlyRawChart: could not load Plotly');
       return;
     }
 

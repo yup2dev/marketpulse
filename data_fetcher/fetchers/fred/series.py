@@ -8,11 +8,18 @@ import logging
 from datetime import date
 from typing import Any, Dict, List, Optional
 import requests
+from cachetools import TTLCache
+from threading import Lock
 
 log = logging.getLogger(__name__)
 
 FRED_API_BASE_URL = "https://api.stlouisfed.org/fred"
 FRED_SERIES_OBSERVATIONS_URL = f"{FRED_API_BASE_URL}/series/observations"
+
+# Cache FRED responses for 1 hour (3600s) — macro data changes infrequently.
+# maxsize=512 covers all series IDs used across the app with margin.
+_fred_cache: TTLCache = TTLCache(maxsize=512, ttl=3600)
+_fred_cache_lock = Lock()
 
 
 class FredSeriesFetcher:
@@ -97,6 +104,19 @@ class FredSeriesFetcher:
             if value is not None:
                 params[key] = value
 
+        # Build a cache key from all params (excluding api_key for safety)
+        cache_key = (
+            series_id, limit, sort_order,
+            params.get('observation_start'), params.get('observation_end'),
+            frequency, aggregation_method, units,
+            tuple(sorted((k, v) for k, v in kwargs.items() if v is not None))
+        )
+        with _fred_cache_lock:
+            cached = _fred_cache.get(cache_key)
+        if cached is not None:
+            log.debug(f"Cache hit for FRED series: {series_id}")
+            return cached
+
         try:
             log.debug(f"Fetching FRED series: {series_id}")
             response = requests.get(
@@ -119,6 +139,8 @@ class FredSeriesFetcher:
                 return []
 
             log.debug(f"Fetched {len(observations)} observations for {series_id}")
+            with _fred_cache_lock:
+                _fred_cache[cache_key] = observations
             return observations
 
         except requests.HTTPError as e:

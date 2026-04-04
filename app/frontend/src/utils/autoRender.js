@@ -166,6 +166,23 @@ export function normalizeTableRows(response) {
         }
       }
     }
+
+    // Dashboard fallback: nested-object response (e.g. labor/dashboard, financial-conditions)
+    // Flatten each top-level section into one row: { section, ...primitiveFields }
+    if (!rows.length) {
+      const sections = Object.entries(response).filter(
+        ([, v]) => v !== null && typeof v === 'object' && !Array.isArray(v)
+      );
+      if (sections.length > 0) {
+        rows = sections.map(([section, obj]) => {
+          const primitives = { section };
+          for (const [k, v] of Object.entries(obj)) {
+            if (v === null || typeof v !== 'object') primitives[k] = v;
+          }
+          return primitives;
+        });
+      }
+    }
   }
 
   // Flatten one level of nesting (e.g. income_statement.revenue → revenue)

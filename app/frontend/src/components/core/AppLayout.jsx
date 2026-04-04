@@ -20,6 +20,10 @@ const ROUTE_MAP = {
   'stock':              '/stock',
   'macro-analysis':     '/macro',
   'portfolio-settings': '/portfolios',
+  'alerts':             '/alerts',
+  'unified-backtest':   '/backtest',
+  'quant':              '/quant',
+  'strategy':           '/strategy',
 };
 
 const AppLayout = () => {

@@ -2,6 +2,7 @@
 Macro Economic Service
 Provides comprehensive macroeconomic data and analysis
 """
+import asyncio
 import sys
 import logging
 from pathlib import Path
@@ -22,6 +23,7 @@ from data_fetcher.fetchers.fred.housing_starts import FREDHousingStartsFetcher
 from data_fetcher.fetchers.fred.industrial_production import FREDIndustrialProductionFetcher
 from data_fetcher.fetchers.fred.series import FredSeriesFetcher
 from data_fetcher.fetchers.alphavantage.forex import AlphaVantageForexFetcher
+from data_fetcher.fetchers.bond.bond_prices import FMPBondPricesFetcher
 from data_fetcher.utils.helpers import parse_period_to_dates
 from data_fetcher.utils.api_keys import get_api_key
 from app.backend.constants.fred_series import (
@@ -156,116 +158,46 @@ class MacroService:
         {'from': 'AUD', 'to': 'USD', 'name': 'Australian Dollar to US Dollar'},
     ]
 
+    async def _fetch(self, fetcher_cls, params: Dict, *, single: bool = False, limit=None):
+        """fetch_data → set_data → return 공통 패턴 헬퍼"""
+        try:
+            result = await fetcher_cls.fetch_data(params)
+            if result:
+                data = fetcher_cls.set_data(result)
+                if limit is not None:
+                    data = data[:limit]
+                return data[0] if single else data
+        except Exception as e:
+            log.error(f"[{fetcher_cls.__name__}] {e}")
+        return {} if single else []
+
+    _OVERVIEW_SPECS = [
+        # (key,                 fetcher_cls,                   unit,                   params,                         use_last)
+        # use_last=False → data[0] (GDP fetcher: FRED desc order, no re-sort → newest first)
+        # use_last=True  → data[-1] (fetchers that sort ascending → newest at end)
+        ('gdp',                FREDGDPFetcher,               'Billions of Dollars',  {},                             False),
+        ('unemployment',       FREDUnemploymentFetcher,       'Percent',              {},                             True),
+        ('cpi',                FREDCPIFetcher,                'Index',                {},                             True),
+        ('fed_funds_rate',     FREDInterestRateFetcher,       'Percent',              {'rate_type': 'federal_funds'}, True),
+        ('retail_sales',       FREDRetailSalesFetcher,        'Millions of Dollars',  {},                             True),
+        ('consumer_sentiment', FREDConsumerSentimentFetcher,  'Index',                {},                             True),
+    ]
+
     async def get_economic_indicators_overview(self) -> Dict[str, Any]:
         """Get overview of all major economic indicators (latest values) - Parallel fetching for speed"""
         import asyncio
 
-        indicators = {}
+        async def fetch_one(key, fetcher_cls, unit, params, use_last):
+            data = await self._fetch(fetcher_cls, params)
+            if not data:
+                return None
+            latest = data[-1] if use_last else data[0]
+            prev   = data[-2] if use_last else (data[1] if len(data) > 1 else None)
+            change = self._calculate_change([latest, prev]) if prev else None
+            return (key, {**latest, 'unit': unit, 'change': change})
 
-        # Define all fetch tasks
-        async def fetch_gdp():
-            try:
-                gdp_data = await FREDGDPFetcher.fetch_data({})
-                if gdp_data and len(gdp_data) > 0:
-                    return ('gdp', {
-                        'value': gdp_data[0].value,
-                        'date': gdp_data[0].date.isoformat() if gdp_data[0].date else None,
-                        'unit': 'Billions of Dollars',
-                        'change': self._calculate_change(gdp_data[:2]) if len(gdp_data) > 1 else None
-                    })
-            except Exception as e:
-                log.error(f"Error fetching GDP: {e}")
-            return None
-
-        async def fetch_unemployment():
-            try:
-                unemployment_data = await FREDUnemploymentFetcher.fetch_data({})
-                if unemployment_data and len(unemployment_data) > 0:
-                    return ('unemployment', {
-                        'value': unemployment_data[0].value,
-                        'date': unemployment_data[0].date.isoformat() if unemployment_data[0].date else None,
-                        'unit': 'Percent',
-                        'change': self._calculate_change(unemployment_data[:2]) if len(unemployment_data) > 1 else None
-                    })
-            except Exception as e:
-                log.error(f"Error fetching unemployment: {e}")
-            return None
-
-        async def fetch_cpi():
-            try:
-                cpi_data = await FREDCPIFetcher.fetch_data({})
-                if cpi_data and len(cpi_data) > 0:
-                    return ('cpi', {
-                        'value': cpi_data[0].value,
-                        'date': cpi_data[0].date.isoformat() if cpi_data[0].date else None,
-                        'unit': 'Index',
-                        'change': self._calculate_change(cpi_data[:2]) if len(cpi_data) > 1 else None
-                    })
-            except Exception as e:
-                log.error(f"Error fetching CPI: {e}")
-            return None
-
-        async def fetch_fed_funds():
-            try:
-                rate_data = await FREDInterestRateFetcher.fetch_data({'rate_type': 'federal_funds'})
-                if rate_data and len(rate_data) > 0:
-                    latest = rate_data[-1]
-                    prev = rate_data[-2] if len(rate_data) > 1 else None
-                    return ('fed_funds_rate', {
-                        'value': latest.rate,
-                        'date': latest.date.isoformat() if latest.date else None,
-                        'unit': 'Percent',
-                        'change': ((latest.rate - prev.rate) / prev.rate * 100) if prev and prev.rate else None
-                    })
-            except Exception as e:
-                log.error(f"Error fetching Fed Funds Rate: {e}")
-            return None
-
-        async def fetch_retail_sales():
-            try:
-                retail_data = await FREDRetailSalesFetcher.fetch_data({})
-                if retail_data and len(retail_data) > 0:
-                    return ('retail_sales', {
-                        'value': retail_data[0].value,
-                        'date': retail_data[0].date.isoformat() if retail_data[0].date else None,
-                        'unit': 'Millions of Dollars',
-                        'change': self._calculate_change(retail_data[:2]) if len(retail_data) > 1 else None
-                    })
-            except Exception as e:
-                log.error(f"Error fetching retail sales: {e}")
-            return None
-
-        async def fetch_consumer_sentiment():
-            try:
-                sentiment_data = await FREDConsumerSentimentFetcher.fetch_data({})
-                if sentiment_data and len(sentiment_data) > 0:
-                    return ('consumer_sentiment', {
-                        'value': sentiment_data[0].value,
-                        'date': sentiment_data[0].date.isoformat() if sentiment_data[0].date else None,
-                        'unit': 'Index',
-                        'change': self._calculate_change(sentiment_data[:2]) if len(sentiment_data) > 1 else None
-                    })
-            except Exception as e:
-                log.error(f"Error fetching consumer sentiment: {e}")
-            return None
-
-        # Execute all fetches in parallel
-        results = await asyncio.gather(
-            fetch_gdp(),
-            fetch_unemployment(),
-            fetch_cpi(),
-            fetch_fed_funds(),
-            fetch_retail_sales(),
-            fetch_consumer_sentiment()
-        )
-
-        # Collect results
-        for result in results:
-            if result:
-                key, value = result
-                indicators[key] = value
-
-        return indicators
+        results = await asyncio.gather(*[fetch_one(*spec) for spec in self._OVERVIEW_SPECS])
+        return {k: v for k, v in (r for r in results if r)}
 
     async def get_indicator_history(
         self,
@@ -328,51 +260,21 @@ class MacroService:
         indicator_info = indicator_map[indicator_key]
         start_date, end_date = parse_period_to_dates(period)
 
-        try:
-            # Fetch historical data
-            params = indicator_info['params'].copy()
-            if 'start_date' not in params:
-                params['start_date'] = start_date
-            if 'end_date' not in params:
-                params['end_date'] = end_date
+        params = {**indicator_info['params'], 'start_date': start_date, 'end_date': end_date}
+        raw = await self._fetch(indicator_info['fetcher'], params)
 
-            data = await indicator_info['fetcher'].fetch_data(params)
+        chart_data = [
+            {'date': d['date'], 'value': round(d['value'], 2) if d.get('value') is not None else None}
+            for d in raw
+            if d.get('date') and d.get('value') is not None
+        ]
 
-            if not data:
-                return {
-                    'key': indicator_key,
-                    'name': indicator_info['name'],
-                    'unit': indicator_info['unit'],
-                    'data': []
-                }
-
-            # Format data for charts
-            chart_data = []
-            for item in data:
-                # Handle different data structures
-                if hasattr(item, 'rate'):  # Interest rate data
-                    value = item.rate
-                elif hasattr(item, 'value'):  # GDP, CPI, etc.
-                    value = item.value
-                else:
-                    continue
-
-                if hasattr(item, 'date') and item.date:
-                    chart_data.append({
-                        'date': item.date.isoformat(),
-                        'value': round(value, 2) if value is not None else None
-                    })
-
-            return {
-                'key': indicator_key,
-                'name': indicator_info['name'],
-                'unit': indicator_info['unit'],
-                'data': chart_data
-            }
-
-        except Exception as e:
-            log.error(f"Error fetching indicator history for {indicator_key}: {e}")
-            raise
+        return {
+            'key': indicator_key,
+            'name': indicator_info['name'],
+            'unit': indicator_info['unit'],
+            'data': chart_data
+        }
 
     async def get_fred_series_data(
         self,
@@ -505,22 +407,19 @@ class MacroService:
                     'interval': 'daily'
                 })
 
-                if data and len(data) > 0:
-                    latest = data[0]
-                    prev = data[1] if len(data) > 1 else None
-
-                    change = None
-                    if prev and prev.close:
-                        change = ((latest.close - prev.close) / prev.close) * 100
-
+                if data:
+                    items = AlphaVantageForexFetcher.set_data(data)
+                    latest = items[0]
+                    prev = items[1] if len(items) > 1 else None
+                    change = ((latest['close'] - prev['close']) / prev['close'] * 100) if prev and prev.get('close') else None
                     rates.append({
                         'pair': f"{pair['from']}/{pair['to']}",
                         'name': pair['name'],
-                        'rate': latest.close,
-                        'date': latest.date.isoformat() if latest.date else None,
+                        'rate': latest['close'],
+                        'date': latest['date'],
                         'change': change,
-                        'high': latest.high,
-                        'low': latest.low
+                        'high': latest['high'],
+                        'low': latest['low']
                     })
 
             except Exception as e:
@@ -546,15 +445,9 @@ class MacroService:
             start_date, _ = parse_period_to_dates(period)
 
             filtered_data = [
-                {
-                    'date': d.date.isoformat() if d.date else None,
-                    'open': d.open,
-                    'high': d.high,
-                    'low': d.low,
-                    'close': d.close
-                }
-                for d in data
-                if d.date and d.date >= start_date
+                {'date': d['date'], 'open': d['open'], 'high': d['high'], 'low': d['low'], 'close': d['close']}
+                for d in AlphaVantageForexFetcher.set_data(data)
+                if d.get('date') and d['date'] >= str(start_date)
             ]
 
             return {
@@ -637,13 +530,14 @@ class MacroService:
         return data
 
     def _calculate_change(self, data: List) -> Optional[float]:
-        """Calculate percentage change between two data points"""
-        if len(data) < 2:
+        """Calculate percentage change between two data points (supports dicts and Pydantic models)"""
+        if len(data) < 2 or data[1] is None:
             return None
 
-        current = data[0].value if hasattr(data[0], 'value') else None
-        previous = data[1].value if hasattr(data[1], 'value') else None
+        def _val(x):
+            return x.get('value') if isinstance(x, dict) else getattr(x, 'value', None)
 
+        current, previous = _val(data[0]), _val(data[1])
         if current is None or previous is None or previous == 0:
             return None
 
@@ -674,28 +568,16 @@ class MacroService:
 
             # Fetch Growth components
             # 1. GDP Growth Rate (already in % from FRED)
-            # FRED series A191RA1Q225SBEA: Real GDP, Percent Change from Preceding Period, SAAR
-            gdp_data = await FREDGDPFetcher.fetch_data({})
-            # GDP data comes DESC (most recent first)
-            if gdp_data and len(gdp_data) > 0:
-                # value is already the growth rate %
-                components['gdp_growth'] = gdp_data[0].value
-            else:
-                components['gdp_growth'] = 0
+            gdp_data = await self._fetch(FREDGDPFetcher, {})
+            components['gdp_growth'] = gdp_data[0]['value'] if gdp_data else 0
 
             # 2. Industrial Production YoY
             try:
-                indpro_data = await FREDIndustrialProductionFetcher.fetch_data({})
-                # Check data ordering
-                if indpro_data and len(indpro_data) > 0:
-                    # Sort DESC by date
-                    indpro_sorted = sorted(indpro_data, key=lambda x: x.date, reverse=True)
-                    if len(indpro_sorted) >= 13:  # Need 12 months for YoY
-                        current_ip = indpro_sorted[0].value
-                        year_ago_ip = indpro_sorted[12].value
-                        components['industrial_production_yoy'] = ((current_ip - year_ago_ip) / year_ago_ip * 100) if year_ago_ip else 0
-                    else:
-                        components['industrial_production_yoy'] = 0
+                indpro = await self._fetch(FREDIndustrialProductionFetcher, {})
+                indpro_sorted = sorted(indpro, key=lambda x: x['date'], reverse=True)
+                if len(indpro_sorted) >= 13:
+                    current_ip, year_ago_ip = indpro_sorted[0]['value'], indpro_sorted[12]['value']
+                    components['industrial_production_yoy'] = ((current_ip - year_ago_ip) / year_ago_ip * 100) if year_ago_ip else 0
                 else:
                     components['industrial_production_yoy'] = 0
             except Exception as e:
@@ -704,16 +586,11 @@ class MacroService:
 
             # 3. Employment YoY (using Nonfarm Payroll)
             try:
-                employment_data = await FREDNonfarmPayrollFetcher.fetch_data({})
-                if employment_data and len(employment_data) > 0:
-                    # Sort DESC by date
-                    emp_sorted = sorted(employment_data, key=lambda x: x.date, reverse=True)
-                    if len(emp_sorted) >= 13:
-                        current_emp = emp_sorted[0].value
-                        year_ago_emp = emp_sorted[12].value
-                        components['employment_yoy'] = ((current_emp - year_ago_emp) / year_ago_emp * 100) if year_ago_emp else 0
-                    else:
-                        components['employment_yoy'] = 0
+                emp = await self._fetch(FREDNonfarmPayrollFetcher, {})
+                emp_sorted = sorted(emp, key=lambda x: x['date'], reverse=True)
+                if len(emp_sorted) >= 13:
+                    current_emp, year_ago_emp = emp_sorted[0]['value'], emp_sorted[12]['value']
+                    components['employment_yoy'] = ((current_emp - year_ago_emp) / year_ago_emp * 100) if year_ago_emp else 0
                 else:
                     components['employment_yoy'] = 0
             except Exception as e:
@@ -722,55 +599,43 @@ class MacroService:
 
             # Fetch Inflation components
             # 4. CPI YoY
-            cpi_data = await FREDCPIFetcher.fetch_data({})
-            if cpi_data and len(cpi_data) > 0:
-                # Sort DESC by date (CPI comes ASC)
-                cpi_sorted = sorted(cpi_data, key=lambda x: x.date, reverse=True)
-                if len(cpi_sorted) >= 13:  # Need 12 months for YoY
-                    current_cpi = cpi_sorted[0].value
-                    year_ago_cpi = cpi_sorted[12].value
-                    components['cpi_yoy'] = ((current_cpi - year_ago_cpi) / year_ago_cpi * 100) if year_ago_cpi else 0
-                else:
-                    components['cpi_yoy'] = 0
+            cpi_data = await self._fetch(FREDCPIFetcher, {})
+            cpi_sorted = sorted(cpi_data, key=lambda x: x['date'], reverse=True)
+            if len(cpi_sorted) >= 13:
+                current_cpi, year_ago_cpi = cpi_sorted[0]['value'], cpi_sorted[12]['value']
+                components['cpi_yoy'] = ((current_cpi - year_ago_cpi) / year_ago_cpi * 100) if year_ago_cpi else 0
             else:
                 components['cpi_yoy'] = 0
 
             # Calculate composite scores
             # Growth Score: weighted average, normalized to -100 to +100
-            # Typical ranges: GDP -5 to +10%, IndPro -10 to +10%, Employment -2 to +4%
             growth_score = (
-                (components['gdp_growth'] / 5.0) * 100 * 0.5 +  # GDP weighted 50%
-                (components['industrial_production_yoy'] / 10.0) * 100 * 0.25 +  # IndPro 25%
-                (components['employment_yoy'] / 3.0) * 100 * 0.25  # Employment 25%
+                (components['gdp_growth'] / 5.0) * 100 * 0.5 +
+                (components['industrial_production_yoy'] / 10.0) * 100 * 0.25 +
+                (components['employment_yoy'] / 3.0) * 100 * 0.25
             )
-            growth_score = max(-100, min(100, growth_score))  # Clamp
+            growth_score = max(-100, min(100, growth_score))
 
-            # Inflation Score: normalized
-            # CPI YoY: -2% to +10% range, centered at 2% target
+            # Inflation Score: normalized (CPI YoY: -2% to +10%, centered at 2% target)
             inflation_score = (components['cpi_yoy'] - 2.0) / 6.0 * 100
             inflation_score = max(-100, min(100, inflation_score))
 
-            # Calculate momentum (quarterly for GDP, monthly for CPI)
+            # Calculate momentum
             growth_momentum = 0.0
             inflation_momentum = 0.0
 
-            if gdp_data and len(gdp_data) >= 2:
-                # Momentum = difference in growth rates (not percentage of percentage!)
-                growth_momentum = gdp_data[0].value - gdp_data[1].value
+            if len(gdp_data) >= 2:
+                growth_momentum = gdp_data[0]['value'] - gdp_data[1]['value']
 
-            if cpi_data and len(cpi_data) > 0:
-                cpi_sorted = sorted(cpi_data, key=lambda x: x.date, reverse=True)
-                if len(cpi_sorted) >= 4:
-                    # CPI momentum: 3-month change in YoY rate
-                    current_cpi_yoy = components['cpi_yoy']
-                    # Calculate YoY for 3 months ago
-                    if len(cpi_sorted) >= 16:  # Need 12 + 3 months
-                        three_mo_ago = cpi_sorted[3].value
-                        fifteen_mo_ago = cpi_sorted[15].value
-                        three_mo_cpi_yoy = ((three_mo_ago - fifteen_mo_ago) / fifteen_mo_ago * 100) if fifteen_mo_ago else current_cpi_yoy
-                        inflation_momentum = current_cpi_yoy - three_mo_cpi_yoy
-                    else:
-                        inflation_momentum = 0
+            if len(cpi_sorted) >= 4:
+                current_cpi_yoy = components['cpi_yoy']
+                if len(cpi_sorted) >= 16:
+                    three_mo_ago = cpi_sorted[3]['value']
+                    fifteen_mo_ago = cpi_sorted[15]['value']
+                    three_mo_cpi_yoy = ((three_mo_ago - fifteen_mo_ago) / fifteen_mo_ago * 100) if fifteen_mo_ago else current_cpi_yoy
+                    inflation_momentum = current_cpi_yoy - three_mo_cpi_yoy
+                else:
+                    inflation_momentum = 0
 
             # Determine regime
             regime = self._classify_regime(growth_score, inflation_score, components['cpi_yoy'])
@@ -846,57 +711,46 @@ class MacroService:
             }
         """
         try:
+            from datetime import date as date_t
             start_date, end_date = parse_period_to_dates(period)
+            s_str, e_str = str(start_date), str(end_date)
 
             # Fetch historical data
-            gdp_data = await FREDGDPFetcher.fetch_data({})
-            cpi_data = await FREDCPIFetcher.fetch_data({})
+            gdp_data = await self._fetch(FREDGDPFetcher, {})
+            cpi_data = await self._fetch(FREDCPIFetcher, {})
 
-            # Filter and sort by date
-            gdp_filtered = [d for d in gdp_data if d.date and start_date <= d.date <= end_date]
-            cpi_filtered = [d for d in cpi_data if d.date and start_date <= d.date <= end_date]
-
-            # Sort ascending for chronological order
-            gdp_filtered.sort(key=lambda x: x.date)
-            cpi_filtered.sort(key=lambda x: x.date)
-
-            # Sort CPI descending for easier YoY calc
-            cpi_all_sorted = sorted(cpi_data, key=lambda x: x.date, reverse=True)
+            # Filter and sort by date (ISO strings compare correctly)
+            gdp_filtered = sorted([d for d in gdp_data if d.get('date') and s_str <= d['date'] <= e_str], key=lambda x: x['date'])
+            cpi_filtered = sorted([d for d in cpi_data if d.get('date') and s_str <= d['date'] <= e_str], key=lambda x: x['date'])
+            cpi_all_sorted = sorted(cpi_data, key=lambda x: x['date'], reverse=True)
 
             history = []
 
             # Calculate regime for each GDP data point (quarterly)
             for gdp_point in gdp_filtered:
-                # GDP value is already growth rate %
-                gdp_growth = gdp_point.value
+                gdp_growth = gdp_point['value']
+                gdp_date = date_t.fromisoformat(gdp_point['date'][:10])
 
                 # Find closest CPI data point
-                closest_cpi = min(cpi_filtered, key=lambda x: abs((x.date - gdp_point.date).days))
+                closest_cpi = min(cpi_filtered, key=lambda x: abs((date_t.fromisoformat(x['date'][:10]) - gdp_date).days))
 
                 # Calculate CPI YoY
                 try:
-                    cpi_idx = next(i for i, c in enumerate(cpi_all_sorted) if c.date == closest_cpi.date)
+                    cpi_idx = next(i for i, c in enumerate(cpi_all_sorted) if c['date'] == closest_cpi['date'])
                     if cpi_idx + 12 < len(cpi_all_sorted):
-                        year_ago_cpi = cpi_all_sorted[cpi_idx + 12].value
-                        cpi_yoy = ((closest_cpi.value - year_ago_cpi) / year_ago_cpi * 100) if year_ago_cpi else 0
+                        year_ago_cpi = cpi_all_sorted[cpi_idx + 12]['value']
+                        cpi_yoy = ((closest_cpi['value'] - year_ago_cpi) / year_ago_cpi * 100) if year_ago_cpi else 0
                     else:
                         cpi_yoy = 0
                 except (StopIteration, ValueError):
                     cpi_yoy = 0
 
-                # Growth score (GDP is already %, just normalize)
-                growth_score = (gdp_growth / 5.0) * 100
-                growth_score = max(-100, min(100, growth_score))
-
-                # Inflation score
-                inflation_score = (cpi_yoy - 2.0) / 6.0 * 100
-                inflation_score = max(-100, min(100, inflation_score))
-
-                # Classify regime
+                growth_score = max(-100, min(100, (gdp_growth / 5.0) * 100))
+                inflation_score = max(-100, min(100, (cpi_yoy - 2.0) / 6.0 * 100))
                 regime = self._classify_regime(growth_score, inflation_score, cpi_yoy)
 
                 history.append({
-                    'date': gdp_point.date.isoformat(),
+                    'date': gdp_point['date'],
                     'regime': regime,
                     'growth_score': round(growth_score, 2),
                     'inflation_score': round(inflation_score, 2),
@@ -934,49 +788,34 @@ class MacroService:
         - Historical context
         """
         try:
-            # Fetch Fed Funds Rate history
-            rate_data = await FREDInterestRateFetcher.fetch_data({'rate_type': 'federal_funds'})
+            rates = await self._fetch(FREDInterestRateFetcher, {'rate_type': 'federal_funds'})
 
-            if not rate_data or len(rate_data) < 2:
+            if len(rates) < 2:
                 raise ValueError("Insufficient Fed Funds Rate data")
 
-            # Sort by date descending (most recent first)
-            rate_data_sorted = sorted(rate_data, key=lambda x: x.date, reverse=True)
+            rates_sorted = sorted(rates, key=lambda x: x['date'], reverse=True)
+            current_rate = rates_sorted[0]['rate']
+            current_date = rates_sorted[0]['date']
 
-            # Current rate
-            current_rate = rate_data_sorted[0].rate
-            current_date = rate_data_sorted[0].date
+            # Rate changes over 12 months
+            twelve_months_ago = str(datetime.now().date() - timedelta(days=365))
+            recent_rates = [r for r in rates_sorted if r.get('date') and r['date'] >= twelve_months_ago]
+            rate_changes_12m = sum(
+                1 for i in range(len(recent_rates) - 1)
+                if abs(recent_rates[i]['rate'] - recent_rates[i+1]['rate']) > 0.01
+            )
 
-            # Calculate rate changes over 12 months
-            twelve_months_ago = datetime.now().date() - timedelta(days=365)
-            recent_rates = [r for r in rate_data_sorted if r.date and r.date >= twelve_months_ago]
+            peak_rate = max(r['rate'] for r in rates_sorted)
+            trough_rate = min(r['rate'] for r in rates_sorted)
 
-            # Count rate changes
-            rate_changes_12m = 0
-            for i in range(len(recent_rates) - 1):
-                if abs(recent_rates[i].rate - recent_rates[i+1].rate) > 0.01:  # Significant change
-                    rate_changes_12m += 1
+            rate_level_score = ((current_rate - 2.0) / 3.0) * 50
 
-            # Historical context
-            peak_rate = max(r.rate for r in rate_data_sorted)
-            trough_rate = min(r.rate for r in rate_data_sorted)
+            three_months_ago = str(datetime.now().date() - timedelta(days=90))
+            three_month_rates = [r for r in rates_sorted if r.get('date') and r['date'] >= three_months_ago]
+            rate_momentum = (three_month_rates[0]['rate'] - three_month_rates[-1]['rate']) * 10 if len(three_month_rates) >= 2 else 0
 
-            # Calculate stance score (-100 to +100)
-            # Based on: rate level, rate momentum, change frequency
-            rate_level_score = ((current_rate - 2.0) / 3.0) * 50  # Normalized around 2% neutral
+            stance_score = max(-100, min(100, rate_level_score + rate_momentum))
 
-            # Momentum: compare current to 3 months ago
-            three_months_ago = datetime.now().date() - timedelta(days=90)
-            three_month_rates = [r for r in rate_data_sorted if r.date and r.date >= three_months_ago]
-            if len(three_month_rates) >= 2:
-                rate_momentum = (three_month_rates[0].rate - three_month_rates[-1].rate) * 10
-            else:
-                rate_momentum = 0
-
-            stance_score = rate_level_score + rate_momentum
-            stance_score = max(-100, min(100, stance_score))
-
-            # Classify stance
             if stance_score > 30:
                 stance = 'hawkish'
             elif stance_score < -30:
@@ -984,9 +823,6 @@ class MacroService:
             else:
                 stance = 'neutral'
 
-            # Simplified next meeting probabilities
-            # In reality, this would use Fed Funds Futures data
-            # For now, base on recent momentum
             if stance == 'hawkish' and current_rate < peak_rate - 0.5:
                 probs = {'hike': 65, 'hold': 30, 'cut': 5}
             elif stance == 'dovish' and current_rate > trough_rate + 0.5:
@@ -1002,9 +838,9 @@ class MacroService:
                     'lower': round(current_rate - 0.25, 2),
                     'upper': round(current_rate, 2)
                 },
-                'last_updated': current_date.isoformat() if current_date else None,
+                'last_updated': current_date,
                 'next_meeting': {
-                    'date': 'TBD',  # Would need FOMC calendar integration
+                    'date': 'TBD',
                     'probabilities': probs
                 },
                 'historical_context': {
@@ -1253,21 +1089,21 @@ class MacroService:
             )
 
             # Fetch CPI data
-            cpi_data = await FREDCPIFetcher.fetch_data({})
-            cpi_sorted = sorted(cpi_data, key=lambda x: x.date, reverse=True)
+            cpi_data = await self._fetch(FREDCPIFetcher, {})
+            cpi_sorted = sorted(cpi_data, key=lambda x: x['date'], reverse=True)
 
             # Calculate headline CPI metrics
             headline_cpi = {}
             if len(cpi_sorted) >= 13:
-                current_cpi = cpi_sorted[0].value
-                month_ago_cpi = cpi_sorted[1].value if len(cpi_sorted) > 1 else current_cpi
-                year_ago_cpi = cpi_sorted[12].value
+                current_cpi = cpi_sorted[0]['value']
+                month_ago_cpi = cpi_sorted[1]['value'] if len(cpi_sorted) > 1 else current_cpi
+                year_ago_cpi = cpi_sorted[12]['value']
 
                 headline_cpi = {
                     'current': round(current_cpi, 2),
                     'yoy': round(((current_cpi - year_ago_cpi) / year_ago_cpi * 100), 2),
                     'mom': round(((current_cpi - month_ago_cpi) / month_ago_cpi * 100), 2),
-                    'date': cpi_sorted[0].date.isoformat() if cpi_sorted[0].date else None
+                    'date': cpi_sorted[0]['date']
                 }
 
             # Fetch Core CPI (CPI Less Food and Energy)
@@ -1407,11 +1243,9 @@ class MacroService:
             # Unemployment metrics
             unemployment = {}
             try:
-                # U3 (official unemployment rate)
-                u3_data = await FREDUnemploymentFetcher.fetch_data({})
-                u3_sorted = sorted(u3_data, key=lambda x: x.date, reverse=True)
+                u3_data = await self._fetch(FREDUnemploymentFetcher, {})
+                u3_sorted = sorted(u3_data, key=lambda x: x['date'], reverse=True)
 
-                # U6 (broader unemployment) - FRED: U6RATE
                 u6_obs = FredSeriesFetcher.fetch_series(
                     series_id='U6RATE',
                     api_key=api_key,
@@ -1419,7 +1253,6 @@ class MacroService:
                     sort_order='desc'
                 )
 
-                # Labor Force Participation Rate - FRED: CIVPART
                 lfpr_obs = FredSeriesFetcher.fetch_series(
                     series_id='CIVPART',
                     api_key=api_key,
@@ -1428,8 +1261,8 @@ class MacroService:
                 )
 
                 if u3_sorted:
-                    current_u3 = u3_sorted[0].value
-                    prev_u3 = u3_sorted[1].value if len(u3_sorted) > 1 else current_u3
+                    current_u3 = u3_sorted[0]['value']
+                    prev_u3 = u3_sorted[1]['value'] if len(u3_sorted) > 1 else current_u3
 
                     # Determine trend
                     if current_u3 < prev_u3 - 0.1:
@@ -1451,11 +1284,9 @@ class MacroService:
             # Job market metrics
             job_market = {}
             try:
-                # Nonfarm Payrolls
-                payroll_data = await FREDNonfarmPayrollFetcher.fetch_data({})
-                payroll_sorted = sorted(payroll_data, key=lambda x: x.date, reverse=True)
+                payroll_data = await self._fetch(FREDNonfarmPayrollFetcher, {})
+                payroll_sorted = sorted(payroll_data, key=lambda x: x['date'], reverse=True)
 
-                # JOLTS Job Openings - JTSJOL
                 jolts_obs = FredSeriesFetcher.fetch_series(
                     series_id='JTSJOL',
                     api_key=api_key,
@@ -1463,7 +1294,6 @@ class MacroService:
                     sort_order='desc'
                 )
 
-                # Quits Rate - JTSQUR
                 quits_obs = FredSeriesFetcher.fetch_series(
                     series_id='JTSQUR',
                     api_key=api_key,
@@ -1471,7 +1301,6 @@ class MacroService:
                     sort_order='desc'
                 )
 
-                # Initial Jobless Claims - ICSA
                 claims_obs = FredSeriesFetcher.fetch_series(
                     series_id='ICSA',
                     api_key=api_key,
@@ -1479,7 +1308,6 @@ class MacroService:
                     sort_order='desc'
                 )
 
-                # Continuing Claims - CCSA
                 cont_claims_obs = FredSeriesFetcher.fetch_series(
                     series_id='CCSA',
                     api_key=api_key,
@@ -1487,9 +1315,9 @@ class MacroService:
                     sort_order='desc'
                 )
 
-                if payroll_sorted and len(payroll_sorted) >= 2:
-                    current_payroll = payroll_sorted[0].value
-                    prev_payroll = payroll_sorted[1].value
+                if len(payroll_sorted) >= 2:
+                    current_payroll = payroll_sorted[0]['value']
+                    prev_payroll = payroll_sorted[1]['value']
                     payroll_change = int(current_payroll - prev_payroll)
 
                     job_market = {
@@ -1573,12 +1401,12 @@ class MacroService:
             # Phillips Curve current point
             phillips_curve = {}
             try:
-                cpi_data = await FREDCPIFetcher.fetch_data({})
-                cpi_sorted = sorted(cpi_data, key=lambda x: x.date, reverse=True)
+                cpi_data = await self._fetch(FREDCPIFetcher, {})
+                cpi_sorted = sorted(cpi_data, key=lambda x: x['date'], reverse=True)
 
                 if unemployment.get('u3') and len(cpi_sorted) >= 13:
-                    current_cpi = cpi_sorted[0].value
-                    year_ago_cpi = cpi_sorted[12].value
+                    current_cpi = cpi_sorted[0]['value']
+                    year_ago_cpi = cpi_sorted[12]['value']
                     cpi_yoy = ((current_cpi - year_ago_cpi) / year_ago_cpi * 100)
 
                     phillips_curve = {
@@ -1594,7 +1422,31 @@ class MacroService:
             except Exception as e:
                 log.warning(f"Error calculating Phillips Curve: {e}")
 
+            # Build flat rows for frontend table rendering
+            rows = []
+            u = unemployment
+            if u:
+                rows.append({'section': 'Unemployment', 'metric': 'U3 Rate',           'value': u.get('u3'),               'unit': '%',   'status': u.get('trend')})
+                rows.append({'section': 'Unemployment', 'metric': 'U6 Rate',           'value': u.get('u6'),               'unit': '%'})
+                rows.append({'section': 'Unemployment', 'metric': 'Participation Rate','value': u.get('participation_rate'),'unit': '%'})
+            jm = job_market
+            if jm:
+                rows.append({'section': 'Job Market', 'metric': 'Nonfarm Payrolls',    'value': jm.get('nonfarm_payrolls'),    'unit': 'K'})
+                rows.append({'section': 'Job Market', 'metric': 'Payroll Change MoM',  'value': jm.get('payroll_change_mom'),  'unit': 'K'})
+                rows.append({'section': 'Job Market', 'metric': 'JOLTS Openings',      'value': jm.get('jolts_openings'),      'unit': 'K'})
+                rows.append({'section': 'Job Market', 'metric': 'Quits Rate',          'value': jm.get('quits_rate'),          'unit': '%'})
+                rows.append({'section': 'Job Market', 'metric': 'Initial Claims',      'value': jm.get('initial_claims'),      'unit': ''})
+                rows.append({'section': 'Job Market', 'metric': 'Continuing Claims',   'value': jm.get('continuing_claims'),   'unit': ''})
+            w = wages
+            if w:
+                rows.append({'section': 'Wages', 'metric': 'Hourly Earnings',    'value': w.get('hourly_earnings'),     'unit': '$/hr'})
+                rows.append({'section': 'Wages', 'metric': 'Earnings YoY',       'value': w.get('hourly_earnings_yoy'), 'unit': '%'})
+                rows.append({'section': 'Wages', 'metric': 'Unit Labor Cost',    'value': w.get('unit_labor_cost'),     'unit': ''})
+                rows.append({'section': 'Wages', 'metric': 'Productivity',       'value': w.get('productivity_growth'), 'unit': ''})
+            rows.append({'section': 'Heat Index', 'metric': 'Labor Market Heat', 'value': heat_index, 'unit': '/100'})
+
             return {
+                'data': [r for r in rows if r.get('value') is not None],
                 'unemployment': unemployment,
                 'job_market': job_market,
                 'wages': wages,
@@ -1618,37 +1470,39 @@ class MacroService:
             Historical unemployment and inflation data points
         """
         try:
+            from datetime import date as date_t
             start_date, end_date = parse_period_to_dates(period)
+            s_str, e_str = str(start_date), str(end_date)
 
-            # Fetch historical unemployment and CPI data
-            unemployment_data = await FREDUnemploymentFetcher.fetch_data({})
-            cpi_data = await FREDCPIFetcher.fetch_data({})
+            unemployment_data, cpi_data = await asyncio.gather(
+                self._fetch(FREDUnemploymentFetcher, {}),
+                self._fetch(FREDCPIFetcher, {})
+            )
 
-            # Filter by date range
-            unemployment_filtered = [u for u in unemployment_data if u.date and start_date <= u.date <= end_date]
-            cpi_filtered = [c for c in cpi_data if c.date and start_date <= c.date <= end_date]
+            unemployment_filtered = sorted(
+                [u for u in unemployment_data if u.get('date') and s_str <= u['date'] <= e_str],
+                key=lambda x: x['date']
+            )
+            cpi_filtered = sorted(
+                [c for c in cpi_data if c.get('date') and s_str <= c['date'] <= e_str],
+                key=lambda x: x['date']
+            )
+            cpi_all_sorted = sorted(cpi_data, key=lambda x: x['date'], reverse=True)
 
-            # Sort ascending
-            unemployment_filtered.sort(key=lambda x: x.date)
-            cpi_all_sorted = sorted(cpi_data, key=lambda x: x.date, reverse=True)
-
-            # Create Phillips Curve data points
             phillips_points = []
 
             for u_point in unemployment_filtered:
-                # Find closest CPI point
-                closest_cpi = min(cpi_filtered, key=lambda c: abs((c.date - u_point.date).days))
+                u_date = date_t.fromisoformat(u_point['date'][:10])
+                closest_cpi = min(cpi_filtered, key=lambda c: abs((date_t.fromisoformat(c['date'][:10]) - u_date).days))
 
-                # Calculate CPI YoY
                 try:
-                    cpi_idx = next(i for i, c in enumerate(cpi_all_sorted) if c.date == closest_cpi.date)
+                    cpi_idx = next(i for i, c in enumerate(cpi_all_sorted) if c['date'] == closest_cpi['date'])
                     if cpi_idx + 12 < len(cpi_all_sorted):
-                        year_ago_cpi = cpi_all_sorted[cpi_idx + 12].value
-                        cpi_yoy = ((closest_cpi.value - year_ago_cpi) / year_ago_cpi * 100)
-
+                        year_ago_cpi = cpi_all_sorted[cpi_idx + 12]['value']
+                        cpi_yoy = ((closest_cpi['value'] - year_ago_cpi) / year_ago_cpi * 100)
                         phillips_points.append({
-                            'date': u_point.date.isoformat(),
-                            'unemployment': round(u_point.value, 1),
+                            'date': u_point['date'],
+                            'unemployment': round(u_point['value'], 1),
                             'inflation': round(cpi_yoy, 1)
                         })
                 except (StopIteration, ValueError):
@@ -1793,83 +1647,68 @@ class MacroService:
             except Exception as e:
                 log.warning(f"Could not fetch credit spreads: {e}")
 
-            # Liquidity Indicators
-            liquidity = {}
+            # Liquidity Indicators — 각 시리즈를 개별 try/except로 분리
+            # TEDRATE (TED spread) discontinued by FRED in Feb 2023 — LIBOR 폐지로 미제공
+            ted_spread = None
+            cp_outstanding = None
+
+            # Commercial Paper Outstanding — FRED 시리즈 폐기로 미제공
+            cp_outstanding = None
+
+            liquidity = {
+                'ted_spread': ted_spread,
+                'libor_ois_spread': None,  # LIBOR 폐지, SOFR 대체 필요
+                'commercial_paper_outstanding': cp_outstanding,
+            }
+
+            # Consumer Health — 각 시리즈를 개별 try/except로 분리
+            credit_growth = None
+            cc_delinquency = None
+            auto_delinquency = None
+            mortgage_delinquency = None
+
             try:
-                # TED Spread - TEDRATE
-                ted_obs = FredSeriesFetcher.fetch_series(
-                    series_id='TEDRATE',
-                    api_key=api_key,
-                    limit=1,
-                    sort_order='desc'
-                )
-
-                # Commercial Paper Outstanding - COMPOUT (discontinued, use COMPNSA)
-                cp_obs = FredSeriesFetcher.fetch_series(
-                    series_id='COMPNSA',
-                    api_key=api_key,
-                    limit=1,
-                    sort_order='desc'
-                )
-
-                liquidity = {
-                    'ted_spread': round(float(ted_obs[0]['value']), 2) if ted_obs and ted_obs[0]['value'] != '.' else None,
-                    'libor_ois_spread': None,  # LIBOR discontinued, would need SOFR alternative
-                    'commercial_paper_outstanding': round(float(cp_obs[0]['value']), 1) if cp_obs and cp_obs[0]['value'] != '.' else None
-                }
-            except Exception as e:
-                log.warning(f"Could not fetch liquidity indicators: {e}")
-
-            # Consumer Health
-            consumer_health = {}
-            try:
-                # Consumer Credit Outstanding - TOTALSL
                 consumer_credit_obs = FredSeriesFetcher.fetch_series(
-                    series_id='TOTALSL',
-                    api_key=api_key,
-                    limit=13,
-                    sort_order='desc'
+                    series_id='TOTALSL', api_key=api_key, limit=13, sort_order='desc'
                 )
-
-                # Credit Card Delinquency Rate - DRCCLACBS
-                cc_delinq_obs = FredSeriesFetcher.fetch_series(
-                    series_id='DRCCLACBS',
-                    api_key=api_key,
-                    limit=1,
-                    sort_order='desc'
-                )
-
-                # Auto Loan Delinquency Rate - DREALACBS
-                auto_delinq_obs = FredSeriesFetcher.fetch_series(
-                    series_id='DREALACBS',
-                    api_key=api_key,
-                    limit=1,
-                    sort_order='desc'
-                )
-
-                # Mortgage Delinquency Rate - DRSFRMACBS
-                mortgage_delinq_obs = FredSeriesFetcher.fetch_series(
-                    series_id='DRSFRMACBS',
-                    api_key=api_key,
-                    limit=1,
-                    sort_order='desc'
-                )
-
-                # Calculate consumer credit growth
-                credit_growth = None
                 if consumer_credit_obs and len(consumer_credit_obs) >= 13:
                     current = float(consumer_credit_obs[0]['value'])
                     year_ago = float(consumer_credit_obs[12]['value'])
-                    credit_growth = ((current - year_ago) / year_ago * 100)
-
-                consumer_health = {
-                    'consumer_credit_growth': round(credit_growth, 2) if credit_growth else None,
-                    'credit_card_delinquency': round(float(cc_delinq_obs[0]['value']), 2) if cc_delinq_obs and cc_delinq_obs[0]['value'] != '.' else None,
-                    'auto_loan_delinquency': round(float(auto_delinq_obs[0]['value']), 2) if auto_delinq_obs and auto_delinq_obs[0]['value'] != '.' else None,
-                    'mortgage_delinquency': round(float(mortgage_delinq_obs[0]['value']), 2) if mortgage_delinq_obs and mortgage_delinq_obs[0]['value'] != '.' else None
-                }
+                    credit_growth = round((current - year_ago) / year_ago * 100, 2)
             except Exception as e:
-                log.warning(f"Could not fetch consumer health: {e}")
+                log.warning(f"Could not fetch consumer credit (TOTALSL): {e}")
+
+            try:
+                cc_obs = FredSeriesFetcher.fetch_series(
+                    series_id='DRCCLACBS', api_key=api_key, limit=1, sort_order='desc'
+                )
+                cc_delinquency = round(float(cc_obs[0]['value']), 2) if cc_obs and cc_obs[0]['value'] != '.' else None
+            except Exception as e:
+                log.warning(f"Could not fetch CC delinquency (DRCCLACBS): {e}")
+
+            try:
+                # DRCLACBS: Delinquency Rate on Consumer Loans, All Commercial Banks
+                auto_obs = FredSeriesFetcher.fetch_series(
+                    series_id='DRCLACBS', api_key=api_key, limit=1, sort_order='desc'
+                )
+                auto_delinquency = round(float(auto_obs[0]['value']), 2) if auto_obs and auto_obs[0]['value'] != '.' else None
+            except Exception as e:
+                log.warning(f"Could not fetch consumer loan delinquency (DRCLACBS): {e}")
+
+            try:
+                mortgage_obs = FredSeriesFetcher.fetch_series(
+                    series_id='DRSFRMACBS', api_key=api_key, limit=1, sort_order='desc'
+                )
+                mortgage_delinquency = round(float(mortgage_obs[0]['value']), 2) if mortgage_obs and mortgage_obs[0]['value'] != '.' else None
+            except Exception as e:
+                log.warning(f"Could not fetch mortgage delinquency (DRSFRMACBS): {e}")
+
+            consumer_health = {
+                'consumer_credit_growth': credit_growth,
+                'credit_card_delinquency': cc_delinquency,
+                'auto_loan_delinquency': auto_delinquency,
+                'mortgage_delinquency': mortgage_delinquency,
+            }
 
             # Corporate Health
             corporate_health = {}
@@ -1883,8 +1722,8 @@ class MacroService:
                 )
 
                 # GDP for debt-to-GDP ratio
-                gdp_data = await FREDGDPFetcher.fetch_data({})
-                gdp_sorted = sorted(gdp_data, key=lambda x: x.date, reverse=True)
+                gdp_data = await self._fetch(FREDGDPFetcher, {})
+                gdp_sorted = sorted(gdp_data, key=lambda x: x['date'], reverse=True)
 
                 # Calculate metrics
                 debt_to_gdp = None
@@ -1892,7 +1731,7 @@ class MacroService:
 
                 if corp_debt_obs and len(corp_debt_obs) >= 1 and gdp_sorted:
                     current_debt = float(corp_debt_obs[0]['value'])
-                    current_gdp = gdp_sorted[0].value
+                    current_gdp = gdp_sorted[0]['value']
 
                     # Debt is in millions, GDP in billions - convert
                     debt_to_gdp = (current_debt / 1000) / current_gdp * 100
@@ -1909,7 +1748,31 @@ class MacroService:
             except Exception as e:
                 log.warning(f"Could not fetch corporate health: {e}")
 
+            # Build flat rows for frontend table rendering
+            rows = []
+            if fci_composite:
+                rows.append({'section': 'FCI', 'metric': 'Chicago Fed NFCI', 'value': fci_composite.get('raw_value'), 'unit': '', 'status': fci_composite.get('status')})
+            cs = credit_spreads
+            if cs:
+                ig = cs.get('investment_grade') or {}
+                hy = cs.get('high_yield') or {}
+                bbb = cs.get('bbb_treasury') or {}
+                rows.append({'section': 'Credit Spreads', 'metric': 'Investment Grade',  'value': ig.get('spread'),  'unit': 'bps', 'percentile': ig.get('percentile')})
+                rows.append({'section': 'Credit Spreads', 'metric': 'High Yield OAS',    'value': hy.get('spread'),  'unit': 'bps', 'percentile': hy.get('percentile')})
+                rows.append({'section': 'Credit Spreads', 'metric': 'BBB Treasury',      'value': bbb.get('spread'), 'unit': 'bps'})
+                rows.append({'section': 'Credit Spreads', 'metric': 'Distressed Ratio',  'value': cs.get('distressed_ratio'), 'unit': '%'})
+            ch = consumer_health
+            if ch:
+                rows.append({'section': 'Consumer Health', 'metric': 'Credit Growth YoY',     'value': ch.get('consumer_credit_growth'), 'unit': '%'})
+                rows.append({'section': 'Consumer Health', 'metric': 'CC Delinquency',         'value': ch.get('credit_card_delinquency'), 'unit': '%'})
+                rows.append({'section': 'Consumer Health', 'metric': 'Consumer Loan Delinquency','value': ch.get('auto_loan_delinquency'), 'unit': '%'})
+                rows.append({'section': 'Consumer Health', 'metric': 'Mortgage Delinquency',   'value': ch.get('mortgage_delinquency'), 'unit': '%'})
+            corp = corporate_health
+            if corp:
+                rows.append({'section': 'Corporate Health', 'metric': 'Debt Growth YoY', 'value': corp.get('debt_growth_yoy'), 'unit': '%'})
+
             return {
+                'data': [r for r in rows if r.get('value') is not None],
                 'fci_composite': fci_composite,
                 'credit_spreads': credit_spreads,
                 'liquidity': liquidity,
@@ -2183,7 +2046,28 @@ class MacroService:
                 elif vix_value > 25 or hy_spread > 600:
                     cross_asset_signals['risk_on_off'] = 'risk_off'
 
+            # Build flat rows for frontend table rendering
+            rows = []
+            fg = fear_greed_index
+            if fg:
+                rows.append({'section': 'Fear & Greed', 'metric': 'Index',         'value': fg.get('value'), 'unit': '/100', 'status': fg.get('status')})
+            comps = fg.get('components', {}) if fg else {}
+            if comps.get('vix'):
+                rows.append({'section': 'Components', 'metric': 'VIX Score',       'value': comps['vix'].get('value'), 'unit': '', 'score': comps['vix'].get('score')})
+            if comps.get('high_yield_spread'):
+                rows.append({'section': 'Components', 'metric': 'HY Spread',       'value': comps['high_yield_spread'].get('value'), 'unit': 'bps', 'score': comps['high_yield_spread'].get('score')})
+            if comps.get('safe_haven_demand'):
+                rows.append({'section': 'Components', 'metric': 'Safe Haven',      'value': comps['safe_haven_demand'].get('score'), 'unit': '/100'})
+            vol = volatility
+            if vol:
+                rows.append({'section': 'Volatility',  'metric': 'VIX',            'value': vol.get('vix'),            'unit': '', 'percentile': vol.get('vix_percentile'), 'status': vol.get('vix_status')})
+            cas = cross_asset_signals
+            if cas:
+                rows.append({'section': 'Cross-Asset', 'metric': 'Risk On/Off',    'value': cas.get('risk_on_off'),    'unit': ''})
+                rows.append({'section': 'Cross-Asset', 'metric': 'Safe Haven Str.','value': cas.get('safe_haven_strength'), 'unit': '/100'})
+
             return {
+                'data': [r for r in rows if r.get('value') is not None],
                 'fear_greed_index': fear_greed_index,
                 'volatility': volatility,
                 'positioning': positioning,
@@ -2924,6 +2808,68 @@ class MacroService:
         except Exception as e:
             log.error(f"Error fetching real rates: {e}")
             raise
+
+
+    async def get_bond_prices(
+        self,
+        country: Optional[str] = None,
+        issuer_name: Optional[str] = None,
+        isin: Optional[str | List[str]] = None,
+        lei: Optional[str] = None,
+        currency: Optional[str | List[str]] = None,
+        coupon_min: Optional[float] = None,
+        coupon_max: Optional[float] = None,
+        issued_amount_min: Optional[int] = None,
+        issued_amount_max: Optional[int] = None,
+        maturity_date_min: Optional[str] = None,
+        maturity_date_max: Optional[str] = None,
+        ytm_min: Optional[float] = None,
+        ytm_max: Optional[float] = None,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
+        """
+        채권 가격 조회
+
+        Args:
+            country:           국가 (부분 매칭)
+            issuer_name:       발행기관 이름 (부분 매칭, 대소문자 무관)
+            isin:              ISIN (단일 문자열 또는 리스트)
+            lei:               발행기관 LEI
+            currency:          통화 코드 (USD, EUR 등)
+            coupon_min/max:    쿠폰금리 범위 (%)
+            issued_amount_min/max: 발행금액 범위
+            maturity_date_min/max: 만기일 범위 (YYYY-MM-DD)
+            ytm_min/max:       만기수익률 범위 (%)
+            limit:             최대 반환 건수
+
+        Returns:
+            채권 데이터 리스트 (dict)
+        """
+        from datetime import date as date_t
+
+        def _to_date(s):
+            return date_t.fromisoformat(s) if s else None
+
+        params = {
+            k: v for k, v in {
+                'country':           country,
+                'issuer_name':       issuer_name,
+                'isin':              isin,
+                'lei':               lei,
+                'currency':          currency,
+                'coupon_min':        coupon_min,
+                'coupon_max':        coupon_max,
+                'issued_amount_min': issued_amount_min,
+                'issued_amount_max': issued_amount_max,
+                'maturity_date_min': _to_date(maturity_date_min),
+                'maturity_date_max': _to_date(maturity_date_max),
+                'ytm_min':           ytm_min,
+                'ytm_max':           ytm_max,
+                'limit':             limit,
+            }.items() if v is not None
+        }
+
+        return await self._fetch(FMPBondPricesFetcher, params)
 
 
 # Global instance

@@ -173,3 +173,11 @@ class FREDInterestRateFetcher(Fetcher[InterestRateQueryParams, InterestRateData]
         interest_data_list.sort(key=lambda x: x.date)
 
         return interest_data_list
+
+    @classmethod
+    def set_data(cls, result, **kwargs):
+        """rate 필드를 value로 정규화하여 다른 FRED fetcher와 일관된 포맷 반환"""
+        data = super().set_data(result, **kwargs)
+        for d in data:
+            d['value'] = d.get('rate')
+        return data

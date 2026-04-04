@@ -11,6 +11,7 @@ import asyncio
 
 from app.backend.database.db_dependency import get_db
 from app.backend.auth.dependencies import get_current_active_user
+from app.backend.api.deps import route_handler
 from app.backend.services.user_portfolio_service import UserPortfolioService
 from app.backend.services.data_service import data_service
 from index_analyzer.models.orm import User
@@ -348,6 +349,22 @@ def get_portfolio_performance(
     return performance
 
 
+@router.get("/portfolios/{portfolio_id}/chart")
+def get_portfolio_chart(
+    portfolio_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    포트폴리오 차트 데이터 (Plotly JSON)
+    거래일 기준 비용·평가금액 시계열
+    """
+    result = UserPortfolioService.get_portfolio_chart_data(db, portfolio_id, current_user.user_id)
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Portfolio not found")
+    return result
+
+
 @router.get("/portfolios/{portfolio_id}/allocation")
 def get_portfolio_allocation(
     portfolio_id: str,
@@ -371,6 +388,7 @@ def get_portfolio_allocation(
 
 
 @router.get("/price-at-date")
+@route_handler
 async def get_price_at_date(
     ticker: str,
     date: str,
@@ -382,52 +400,46 @@ async def get_price_at_date(
     주말·공휴일이면 직전 거래일 기준으로 반환
     """
     from datetime import datetime as dt, timedelta
-    try:
-        target_date = dt.strptime(date[:10], '%Y-%m-%d')
-        # ±5일 윈도우로 주말·공휴일 처리
-        start = (target_date - timedelta(days=7)).strftime('%Y-%m-%d')
-        end   = (target_date + timedelta(days=2)).strftime('%Y-%m-%d')
 
-        history = await data_service.get_stock_history(
-            symbol=ticker,
-            start_date=start,
-            end_date=end,
-            interval='1d',
-        )
+    target_date = dt.strptime(date[:10], '%Y-%m-%d')
+    start = (target_date - timedelta(days=7)).strftime('%Y-%m-%d')
+    end   = (target_date + timedelta(days=2)).strftime('%Y-%m-%d')
 
-        if not history:
-            raise HTTPException(status_code=404, detail=f"{ticker} 가격 데이터 없음")
+    history = await data_service.get_stock_history(
+        symbol=ticker,
+        start_date=start,
+        end_date=end,
+        interval='1d',
+    )
 
-        # target_date 이하인 가장 최근 거래일 선택
-        target_d = target_date.date()
-        best = None
-        for bar in sorted(history, key=lambda b: b['date']):
-            bar_d = dt.fromisoformat(str(bar['date']).split('T')[0]).date()
-            if bar_d <= target_d:
-                best = bar
+    if not history:
+        raise HTTPException(status_code=404, detail=f"{ticker} 가격 데이터 없음")
 
-        if not best:
-            best = history[0]
+    target_d = target_date.date()
+    best = None
+    for bar in sorted(history, key=lambda b: b['date']):
+        bar_d = dt.fromisoformat(str(bar['date']).split('T')[0]).date()
+        if bar_d <= target_d:
+            best = bar
 
-        def safe_float(v):
-            try:
-                return round(float(v), 4) if v is not None else None
-            except Exception:
-                return None
+    if not best:
+        best = history[0]
 
-        return {
-            'ticker':  ticker.upper(),
-            'date':    str(best['date'])[:10],
-            'open':    safe_float(best.get('open')),
-            'high':    safe_float(best.get('high')),
-            'low':     safe_float(best.get('low')),
-            'close':   safe_float(best.get('close')),
-            'volume':  int(best['volume']) if best.get('volume') else None,
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    def safe_float(v):
+        try:
+            return round(float(v), 4) if v is not None else None
+        except Exception:
+            return None
+
+    return {
+        'ticker':  ticker.upper(),
+        'date':    str(best['date'])[:10],
+        'open':    safe_float(best.get('open')),
+        'high':    safe_float(best.get('high')),
+        'low':     safe_float(best.get('low')),
+        'close':   safe_float(best.get('close')),
+        'volume':  int(best['volume']) if best.get('volume') else None,
+    }
 
 
 @router.post("/portfolios/{portfolio_id}/refresh-prices")

@@ -239,6 +239,35 @@ const getFallbackMenus = () => [
     menu_path: 'alerts',
     display_seq: 6,
     children: []
+  },
+  {
+    menu_id: 'quant',
+    menu_name: 'Quant',
+    menu_icon: 'BarChart3',
+    menu_path: 'quant',
+    display_seq: 7,
+    children: [
+      {
+        menu_id: 'quant-research',
+        menu_name: 'Quant Research',
+        menu_path: 'quant',
+        display_seq: 1
+      },
+      {
+        menu_id: 'quant-strategy',
+        menu_name: 'Strategy Builder',
+        menu_path: 'strategy',
+        display_seq: 2
+      }
+    ]
+  },
+  {
+    menu_id: 'strategy',
+    menu_name: 'Strategy',
+    menu_icon: 'FlaskConical',
+    menu_path: 'strategy',
+    display_seq: 8,
+    children: []
   }
 ];
 
