@@ -77,6 +77,7 @@ def _macd(prices: np.ndarray, fast: int = 12, slow: int = 26, signal: int = 9):
 
 def _bollinger(prices: np.ndarray, period: int = 20, std_dev: float = 2.0):
     """Upper band, Middle (SMA), Lower band"""
+    period = int(period)
     mid = _sma(prices, period)
     upper = np.full(len(prices), np.nan)
     lower = np.full(len(prices), np.nan)
@@ -838,15 +839,187 @@ STRATEGY_ENGINES = {
     "macd_cross":             _run_macd_cross,
     "bb_breakout":            _run_bb_breakout,
     "custom":                 _run_custom,
-    # ── Heston Model FFT ──────────────────────────────────────────────────────
     "heston_vol_regime":      _heston_vol_regime,
     "heston_delta_signal":    _heston_delta_signal,
     "heston_price_ratio":     _heston_price_ratio,
     "heston_variance_gap":    _heston_variance_gap,
 }
 
+# ─── Single Source of Truth for Strategy Metadata ────────────────────────────
+# Frontend reads this via GET /api/quant/strategy-types.
+# Add a new engine → add an entry here; frontend picks it up automatically.
+STRATEGY_META: List[Dict] = [
+    {
+        "key": "ema_cross", "label": "EMA Cross", "group": "Technical",
+        "desc": "두 EMA의 골든/데스 크로스 신호",
+        "slow_scan": False,
+        "params": [
+            {"key": "fast", "label": "Fast EMA", "min": 5,   "max": 30,  "step": 5,    "default": 20},
+            {"key": "slow", "label": "Slow EMA", "min": 30,  "max": 150, "step": 10,   "default": 50},
+        ],
+    },
+    {
+        "key": "rsi", "label": "RSI", "group": "Technical",
+        "desc": "RSI 과매도/과매수 반전 전략",
+        "slow_scan": False,
+        "params": [
+            {"key": "rsi_period", "label": "RSI Period", "min": 7,  "max": 21, "step": 2, "default": 14},
+            {"key": "oversold",   "label": "Oversold",   "min": 20, "max": 40, "step": 5, "default": 30},
+            {"key": "overbought", "label": "Overbought", "min": 60, "max": 80, "step": 5, "default": 70},
+        ],
+    },
+    {
+        "key": "macd_cross", "label": "MACD", "group": "Technical",
+        "desc": "MACD 라인과 시그널 라인의 크로스오버",
+        "slow_scan": False,
+        "params": [
+            {"key": "fast",   "label": "Fast",   "min": 8,  "max": 20, "step": 2, "default": 12},
+            {"key": "slow",   "label": "Slow",   "min": 20, "max": 40, "step": 5, "default": 26},
+            {"key": "signal", "label": "Signal", "min": 5,  "max": 15, "step": 2, "default": 9},
+        ],
+    },
+    {
+        "key": "bb_breakout", "label": "BB Breakout", "group": "Technical",
+        "desc": "볼린저 밴드 하단 반등 매수, 상단 저항 매도",
+        "slow_scan": False,
+        "params": [
+            {"key": "period",  "label": "Period",  "min": 10,  "max": 30,  "step": 5,    "default": 20},
+            {"key": "std_dev", "label": "Std Dev", "min": 1.5, "max": 3.0, "step": 0.25, "default": 2.0},
+        ],
+    },
+    {
+        "key": "heston_vol_regime", "label": "Heston Vol Regime", "group": "Heston",
+        "desc": "실현변동성 / 장기평균(√θ) 비율로 저변동 국면 진입·고변동 국면 청산",
+        "slow_scan": False,
+        "params": [
+            {"key": "entry_mult", "label": "Entry Mult", "min": 0.4, "max": 1.0, "step": 0.2, "default": 0.8},
+            {"key": "exit_mult",  "label": "Exit Mult",  "min": 1.2, "max": 2.4, "step": 0.4, "default": 1.5},
+        ],
+    },
+    {
+        "key": "heston_delta_signal", "label": "Heston Delta Signal", "group": "Heston",
+        "desc": "Heston 콜옵션 델타가 임계값 돌파 시 방향성 신호 (FFT 연산)",
+        "slow_scan": True,
+        "params": [
+            {"key": "delta_buy",  "label": "Delta Buy",  "min": 0.50, "max": 0.70, "step": 0.05, "default": 0.60},
+            {"key": "delta_sell", "label": "Delta Sell", "min": 0.30, "max": 0.50, "step": 0.05, "default": 0.40},
+        ],
+    },
+    {
+        "key": "heston_price_ratio", "label": "Heston Premium MR", "group": "Heston",
+        "desc": "Heston 콜 프리미엄 Z-score 과열 시 역추세 매수, 붕괴 시 청산 (FFT 연산)",
+        "slow_scan": True,
+        "params": [
+            {"key": "entry_z", "label": "Entry Z", "min": 1.0, "max": 2.5, "step": 0.5, "default": 1.5},
+            {"key": "exit_z",  "label": "Exit Z",  "min": 0.2, "max": 1.0, "step": 0.2, "default": 0.5},
+        ],
+    },
+    {
+        "key": "heston_variance_gap", "label": "Heston Variance Gap", "group": "Heston",
+        "desc": "분산갭(v0−θ) 수축 시 진입, −임계값 이하 시 스파이크 위험 청산",
+        "slow_scan": False,
+        "params": [
+            {"key": "spike_thresh", "label": "Spike Thresh %", "min": 0.5, "max": 3.0, "step": 0.5, "default": 1.5},
+            {"key": "low_thresh",   "label": "Low Thresh %",   "min": 0.1, "max": 1.0, "step": 0.3, "default": 0.5},
+        ],
+    },
+    {
+        "key": "custom", "label": "Custom", "group": "Custom",
+        "desc": "Strategy Builder에서 직접 정의한 팩터 기반 전략",
+        "slow_scan": False,
+        "params": [],
+    },
+]
+
 
 # ─── Risk Management ───────────────────────────────────────────────────────────
+
+def _fix_lookahead(signals: List[Dict], series: Dict, dates: List[str]) -> List[Dict]:
+    """
+    Eliminate look-ahead bias: signal detected at close[i] → entry at open[i+1].
+    This prevents using the close price of the signal bar as entry.
+    """
+    date_to_idx = {d: i for i, d in enumerate(dates)}
+    opens = series.get("open", series["close"])
+    fixed = []
+    for sig in signals:
+        sig = dict(sig)
+        if sig["type"] == "buy":
+            idx = date_to_idx.get(sig["date"], -1)
+            next_idx = idx + 1
+            if 0 <= idx < len(dates) - 1 and not np.isnan(opens[next_idx]):
+                sig["price"] = float(opens[next_idx])
+        fixed.append(sig)
+    return fixed
+
+
+def _build_equity_curve(
+    trades: List[Dict],
+    initial_capital: float,
+    closes: np.ndarray,
+    dates: List[str],
+    commission_pct: float = 0.0,
+) -> Dict[str, List]:
+    """
+    Build day-by-day portfolio equity curve, drawdown series, and B&H benchmark.
+    """
+    date_to_idx = {d: i for i, d in enumerate(dates)}
+    commission_drag = 2.0 * commission_pct / 100.0  # round-trip
+
+    equity_vals: List[float] = []
+    capital = initial_capital
+    trade_ptr = 0
+    in_pos = False
+    entry_price: float = 0.0
+    pos_start_cap = capital
+
+    for i, date in enumerate(dates):
+        # Enter position
+        if not in_pos and trade_ptr < len(trades):
+            t = trades[trade_ptr]
+            if date == t["entry_date"]:
+                in_pos = True
+                entry_price = t["entry_price"]
+                pos_start_cap = capital
+
+        # Current portfolio value
+        if in_pos and entry_price > 0:
+            cur_val = pos_start_cap * (closes[i] / entry_price) * (1.0 - commission_drag)
+        else:
+            cur_val = capital
+        equity_vals.append(round(float(cur_val), 2))
+
+        # Exit position
+        if in_pos and trade_ptr < len(trades):
+            t = trades[trade_ptr]
+            if date == t["exit_date"]:
+                pnl_ratio = t["exit_price"] / t["entry_price"] if t["entry_price"] > 0 else 1.0
+                capital = pos_start_cap * pnl_ratio * (1.0 - commission_drag)
+                equity_vals[-1] = round(float(capital), 2)
+                in_pos = False
+                trade_ptr += 1
+
+    # Drawdown from equity curve
+    peak = equity_vals[0] if equity_vals else initial_capital
+    drawdown_vals: List[float] = []
+    for val in equity_vals:
+        if val > peak:
+            peak = val
+        dd = (val - peak) / peak * 100 if peak > 0 else 0.0
+        drawdown_vals.append(round(dd, 2))
+
+    # Buy-and-hold benchmark
+    bh_vals = []
+    if len(closes) > 0 and closes[0] > 0:
+        bh_vals = [round(initial_capital * float(closes[i] / closes[0]), 2) for i in range(len(closes))]
+
+    return {
+        "dates": dates,
+        "equity": equity_vals,
+        "drawdown": drawdown_vals,
+        "benchmark": bh_vals,
+    }
+
 
 def _apply_risk(raw_signals: List[Dict], closes: np.ndarray, dates: List[str],
                 stop_loss_pct: float, take_profit_pct: float) -> List[Dict]:
@@ -932,62 +1105,133 @@ def _build_trades(signals: List[Dict], initial_capital: float) -> List[Dict]:
     return trades
 
 
-def _calc_performance(trades: List[Dict], initial_capital: float,
-                      closes: np.ndarray, dates: List[str]) -> Dict[str, Any]:
-    """Calculate aggregate performance metrics."""
+def _calc_performance(
+    trades: List[Dict],
+    initial_capital: float,
+    closes: np.ndarray,
+    dates: List[str],
+    commission_pct: float = 0.0,
+) -> Dict[str, Any]:
+    """Calculate aggregate performance metrics with full quant analytics."""
+    commission_drag = 2.0 * commission_pct / 100.0
+
     if not trades:
         return {
             "total_return": 0.0, "annualized_return": 0.0,
-            "max_drawdown": 0.0, "sharpe": 0.0,
-            "win_rate": 0.0, "trade_count": 0,
+            "max_drawdown": 0.0, "sharpe": 0.0, "sortino": 0.0,
+            "calmar": 0.0, "profit_factor": 0.0, "expectancy": 0.0,
+            "recovery_factor": 0.0, "win_rate": 0.0, "trade_count": 0,
+            "avg_hold_days": 0, "max_consec_losses": 0,
             "initial_capital": initial_capital, "final_capital": initial_capital,
             "trades": [],
         }
 
+    # Final capital (with commission applied per trade)
     final_capital = initial_capital
     for t in trades:
-        final_capital *= (1 + t["pnl_pct"] / 100)
+        ratio = t["exit_price"] / t["entry_price"] if t["entry_price"] > 0 else 1.0
+        final_capital *= ratio * (1.0 - commission_drag)
 
-    total_return = (final_capital - initial_capital) / initial_capital * 100
+    total_return = (final_capital - initial_capital) / initial_capital * 100.0
 
-    # Annualized
+    # Annualized return
     try:
         start_dt = _parse_date(trades[0]["entry_date"])
-        end_dt = _parse_date(trades[-1]["exit_date"])
-        years = max((end_dt - start_dt).days / 365.25, 1 / 12)
+        end_dt   = _parse_date(trades[-1]["exit_date"])
+        years    = max((end_dt - start_dt).days / 365.25, 1.0 / 12.0)
     except Exception:
         years = 1.0
-    annualized_return = ((final_capital / initial_capital) ** (1 / years) - 1) * 100
+    annualized_return = ((final_capital / initial_capital) ** (1.0 / years) - 1.0) * 100.0
 
-    # Max drawdown on raw equity curve from daily closes
-    peak = closes[0]
+    # Build strategy daily returns (0 when out of market)
+    date_to_idx = {d: i for i, d in enumerate(dates)}
+    n = len(closes)
+    strat_returns = np.zeros(n - 1)
+    for t in trades:
+        ei = date_to_idx.get(t["entry_date"], -1)
+        xi = date_to_idx.get(t["exit_date"], -1)
+        if ei >= 0 and xi > ei:
+            for k in range(ei, min(xi, n - 1)):
+                if closes[k] > 0:
+                    strat_returns[k] = (closes[k + 1] - closes[k]) / closes[k]
+
+    rf_daily = 0.02 / 252.0
+    excess   = strat_returns - rf_daily
+    std_exc  = np.std(excess)
+    sharpe   = float(np.mean(excess) / std_exc * np.sqrt(252.0)) if std_exc > 0 else 0.0
+
+    # Sortino (penalise downside only)
+    downside = excess[excess < 0]
+    std_dn   = np.std(downside) if len(downside) > 0 else 0.0
+    sortino  = float(np.mean(excess) / std_dn * np.sqrt(252.0)) if std_dn > 0 else 0.0
+
+    # Max drawdown on strategy equity (trade-by-trade)
+    cap   = initial_capital
+    peak  = cap
     max_dd = 0.0
-    for c in closes:
-        if c > peak:
-            peak = c
-        dd = (c - peak) / peak * 100
+    for t in trades:
+        ratio = t["exit_price"] / t["entry_price"] if t["entry_price"] > 0 else 1.0
+        cap  *= ratio * (1.0 - commission_drag)
+        if cap > peak:
+            peak = cap
+        dd = (cap - peak) / peak * 100.0
         if dd < max_dd:
             max_dd = dd
 
-    # Sharpe
-    daily_returns = np.diff(closes) / closes[:-1]
-    rf_daily = 0.02 / 252
-    excess = daily_returns - rf_daily
-    sharpe = (np.mean(excess) / np.std(excess) * np.sqrt(252)) if np.std(excess) > 0 else 0.0
+    calmar          = annualized_return / abs(max_dd) if max_dd != 0 else 0.0
+    recovery_factor = total_return / abs(max_dd)      if max_dd != 0 else 0.0
 
-    # Win rate
-    wins = sum(1 for t in trades if t["pnl"] > 0)
-    win_rate = wins / len(trades) * 100
+    # Win/loss stats
+    wins_list   = [t for t in trades if t["pnl_pct"] > 0]
+    losses_list = [t for t in trades if t["pnl_pct"] <= 0]
+    wins        = len(wins_list)
+    win_rate    = wins / len(trades) * 100.0
+
+    gross_profit = sum(t["pnl"] for t in wins_list)
+    gross_loss   = abs(sum(t["pnl"] for t in losses_list))
+    profit_factor = gross_profit / gross_loss if gross_loss > 0 else 999.0
+
+    avg_win  = gross_profit / wins            if wins               > 0 else 0.0
+    avg_loss = gross_loss / len(losses_list)  if len(losses_list)   > 0 else 0.0
+    wr_dec   = wins / len(trades)
+    expectancy = wr_dec * avg_win - (1.0 - wr_dec) * avg_loss
+
+    # Average holding period
+    hold_days = []
+    for t in trades:
+        try:
+            d0 = _parse_date(t["entry_date"])
+            d1 = _parse_date(t["exit_date"])
+            hold_days.append((d1 - d0).days)
+        except Exception:
+            pass
+    avg_hold_days = round(sum(hold_days) / len(hold_days), 1) if hold_days else 0
+
+    # Max consecutive losses
+    max_consec = curr_loss = 0
+    for t in trades:
+        if t["pnl_pct"] <= 0:
+            curr_loss += 1
+            max_consec = max(max_consec, curr_loss)
+        else:
+            curr_loss = 0
 
     return {
-        "total_return": round(total_return, 2),
+        "total_return":      round(total_return, 2),
         "annualized_return": round(annualized_return, 2),
-        "max_drawdown": round(max_dd, 2),
-        "sharpe": round(float(sharpe), 2),
-        "win_rate": round(win_rate, 2),
-        "trade_count": len(trades),
-        "initial_capital": round(initial_capital, 2),
-        "final_capital": round(final_capital, 2),
+        "max_drawdown":      round(max_dd, 2),
+        "sharpe":            round(sharpe, 2),
+        "sortino":           round(sortino, 2),
+        "calmar":            round(calmar, 2),
+        "profit_factor":     round(min(profit_factor, 999.0), 2),
+        "expectancy":        round(expectancy, 2),
+        "recovery_factor":   round(recovery_factor, 2),
+        "win_rate":          round(win_rate, 2),
+        "trade_count":       len(trades),
+        "avg_hold_days":     avg_hold_days,
+        "max_consec_losses": max_consec,
+        "initial_capital":   round(initial_capital, 2),
+        "final_capital":     round(final_capital, 2),
         "trades": trades,
     }
 
@@ -1002,6 +1246,23 @@ def _parse_date(d: str):
 
 # ─── Public API ───────────────────────────────────────────────────────────────
 
+def _substitute_template(obj: Any, params: Dict[str, Any]) -> Any:
+    """
+    Deep-substitute '##name##' placeholders in a condition tree with values from params.
+    Works on dicts, lists, and strings. Numeric values pass through unchanged.
+    """
+    if isinstance(obj, str):
+        if obj.startswith("##") and obj.endswith("##"):
+            key = obj[2:-2]
+            return params.get(key, obj)
+        return obj
+    if isinstance(obj, dict):
+        return {k: _substitute_template(v, params) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_substitute_template(item, params) for item in obj]
+    return obj
+
+
 async def scan(
     ticker: str,
     start_date: str,
@@ -1011,6 +1272,11 @@ async def scan(
     stop_loss_pct: float = 0.0,
     take_profit_pct: float = 0.0,
     initial_capital: float = 10000.0,
+    commission_pct: float = 0.0,
+    buy_conditions: Optional[List] = None,
+    sell_conditions: Optional[List] = None,
+    buy_logic: str = "AND",
+    sell_logic: str = "OR",
 ) -> Dict[str, Any]:
     """
     Fetch price data ONCE, then run all parameter combinations.
@@ -1054,25 +1320,69 @@ async def scan(
     value_lists = [make_values(param_ranges[k]) for k in keys]
     combinations = [dict(zip(keys, combo)) for combo in itertools.product(*value_lists)]
 
+    # Build OHLCV series once for look-ahead fix
+    series_scan = {
+        "close":  closes,
+        "open":   np.array([d['open']   or d['close'] for d in data], dtype=float),
+        "high":   np.array([d['high']   or d['close'] for d in data], dtype=float),
+        "low":    np.array([d['low']    or d['close'] for d in data], dtype=float),
+        "volume": np.array([d['volume'] or 1.0        for d in data], dtype=float),
+    }
+
+    # For custom strategies, buy/sell condition templates are passed in and
+    # each combo's parameter values are substituted via ##name## placeholders.
+    is_custom = strategy_type == "custom"
+    buy_tpl   = buy_conditions  or []
+    sell_tpl  = sell_conditions or []
+
     results = []
+    skipped = 0
     for combo in combinations:
-        raw_signals = engine(closes, dates, combo)
-        signals = _apply_risk(raw_signals, closes, dates, stop_loss_pct, take_profit_pct) \
-                  if (stop_loss_pct > 0 or take_profit_pct > 0) else raw_signals
-        trades = _build_trades(signals, initial_capital)
-        perf = _calc_performance(trades, initial_capital, closes, dates)
-        row = {**combo}
-        row["total_return"] = perf["total_return"]
-        row["annualized_return"] = perf["annualized_return"]
-        row["max_drawdown"] = perf["max_drawdown"]
-        row["sharpe"] = perf["sharpe"]
-        row["win_rate"] = perf["win_rate"]
-        row["trade_count"] = perf["trade_count"]
-        results.append(row)
+        try:
+            if is_custom:
+                # Substitute scan params into condition templates
+                resolved_buy  = _substitute_template(buy_tpl,  combo)
+                resolved_sell = _substitute_template(sell_tpl, combo)
+                cfg = {
+                    "buy_conditions":  resolved_buy,
+                    "sell_conditions": resolved_sell,
+                    "buy_logic":       buy_logic,
+                    "sell_logic":      sell_logic,
+                    **combo,
+                }
+                raw_signals = engine(closes, dates, cfg, series_scan)
+            else:
+                raw_signals = engine(closes, dates, combo)
+
+            fixed_signals = _fix_lookahead(raw_signals, series_scan, dates)
+            signals = _apply_risk(fixed_signals, closes, dates, stop_loss_pct, take_profit_pct) \
+                      if (stop_loss_pct > 0 or take_profit_pct > 0) else fixed_signals
+            trades = _build_trades(signals, initial_capital)
+            perf = _calc_performance(trades, initial_capital, closes, dates, commission_pct)
+            row = {**combo}
+            row["total_return"]      = perf["total_return"]
+            row["annualized_return"] = perf["annualized_return"]
+            row["max_drawdown"]      = perf["max_drawdown"]
+            row["sharpe"]            = perf["sharpe"]
+            row["sortino"]           = perf["sortino"]
+            row["calmar"]            = perf["calmar"]
+            row["profit_factor"]     = perf["profit_factor"]
+            row["win_rate"]          = perf["win_rate"]
+            row["trade_count"]       = perf["trade_count"]
+            results.append(row)
+        except Exception as e:
+            log.warning(f"scan combo {combo} failed: {e}")
+            skipped += 1
+            continue
 
     results.sort(key=lambda r: r["sharpe"], reverse=True)
     best = results[0] if results else None
-    return {"results": results, "best": best, "total_combinations": len(results)}
+    return {
+        "results": results,
+        "best": best,
+        "total_combinations": len(results),
+        "skipped": skipped,
+    }
 
 
 async def analyze(
@@ -1131,15 +1441,18 @@ async def analyze(
     else:
         raw_signals = engine(closes, dates, strategy)
 
-    # ── Apply risk management ─────────────────────────────────────────────────
-    if stop_loss_pct > 0 or take_profit_pct > 0:
-        signals = _apply_risk(raw_signals, closes, dates, stop_loss_pct, take_profit_pct)
-    else:
-        signals = raw_signals
-
     # ── Build trades & performance ────────────────────────────────────────────
-    trades = _build_trades(signals, initial_capital)
-    performance = _calc_performance(trades, initial_capital, closes, dates)
+    commission_pct = float(strategy.get("commission_pct", 0.0))
+
+    # Fix look-ahead bias: entry at next bar's open, not signal bar's close
+    signals = _fix_lookahead(raw_signals, series, dates)
+    if stop_loss_pct > 0 or take_profit_pct > 0:
+        signals = _apply_risk(signals, closes, dates, stop_loss_pct, take_profit_pct)
+
+    trades      = _build_trades(signals, initial_capital)
+    performance = _calc_performance(trades, initial_capital, closes, dates, commission_pct)
+    equity_curve = _build_equity_curve(trades, initial_capital, closes, dates, commission_pct)
+    performance["equity_curve"] = equity_curve
 
     return {
         "ticker": ticker.upper(),

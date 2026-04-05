@@ -49,6 +49,7 @@ class StrategyConfig(BaseModel):
     stop_loss_pct: Optional[float] = 0.0
     take_profit_pct: Optional[float] = 0.0
     initial_capital: Optional[float] = 10000.0
+    commission_pct: Optional[float] = 0.0
 
 
 class QuantAnalyzeRequest(BaseModel):
@@ -73,6 +74,12 @@ class ScanRequest(BaseModel):
     stop_loss_pct: float = 0.0
     take_profit_pct: float = 0.0
     initial_capital: float = 10000.0
+    commission_pct: float = 0.0
+    # Custom strategy: condition templates with ##name## placeholders
+    buy_conditions: Optional[List] = None
+    sell_conditions: Optional[List] = None
+    buy_logic: Optional[str] = "AND"
+    sell_logic: Optional[str] = "OR"
 
 
 class StrategyNoteCreate(BaseModel):
@@ -84,6 +91,14 @@ class StrategyNoteCreate(BaseModel):
     sell_condition: Optional[str] = None
     parameters: Optional[str] = None  # JSON string
     notes: Optional[str] = None
+
+
+# ─── Strategy Types (single source of truth) ─────────────────────────────────
+
+@router.get("/strategy-types")
+def get_strategy_types():
+    """Return all built-in strategy metadata consumed by the frontend."""
+    return {"data": quant_service.STRATEGY_META}
 
 
 # ─── Backtest Endpoint ────────────────────────────────────────────────────────
@@ -115,6 +130,11 @@ async def quant_scan(request: ScanRequest):
         stop_loss_pct=request.stop_loss_pct,
         take_profit_pct=request.take_profit_pct,
         initial_capital=request.initial_capital,
+        commission_pct=request.commission_pct,
+        buy_conditions=request.buy_conditions,
+        sell_conditions=request.sell_conditions,
+        buy_logic=request.buy_logic  or "AND",
+        sell_logic=request.sell_logic or "OR",
     )
     return {"data": result}
 

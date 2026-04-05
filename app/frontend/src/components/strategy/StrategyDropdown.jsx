@@ -1,14 +1,24 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { ChevronDown, Trash2 } from 'lucide-react';
 
 const StrategyDropdown = ({ strategies, currentId, onLoad, onDelete }) => {
   const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const triggerRef = useRef(null);
   const active = strategies.find(s => s.id === currentId);
 
+  const handleToggle = () => {
+    if (!open && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setPos({ top: rect.bottom + 4, left: rect.left });
+    }
+    setOpen(o => !o);
+  };
+
   return (
-    <div className="relative">
+    <div className="relative" ref={triggerRef}>
       <button
-        onClick={() => setOpen(o => !o)}
+        onClick={handleToggle}
         className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded border text-[11px] font-medium transition-colors ${
           active
             ? 'bg-cyan-900/30 border-cyan-700/50 text-white'
@@ -21,8 +31,11 @@ const StrategyDropdown = ({ strategies, currentId, onLoad, onDelete }) => {
 
       {open && (
         <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute top-full left-0 mt-1 z-20 bg-[#0d0d12] border border-gray-700 rounded-lg shadow-xl overflow-hidden min-w-[220px]">
+          <div className="fixed inset-0 z-[50]" onClick={() => setOpen(false)} />
+          <div
+            className="fixed z-[51] bg-[#0d0d12] border border-gray-700 rounded-lg shadow-xl overflow-hidden min-w-[220px]"
+            style={{ top: pos.top, left: pos.left }}
+          >
             {strategies.length === 0 ? (
               <div className="px-3 py-4 text-[11px] text-gray-600 italic text-center">저장된 전략 없음</div>
             ) : (

@@ -1,8 +1,120 @@
-import { useMemo } from 'react';
-import { FlaskConical, Save, Plus, ArrowRight } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { FlaskConical, Save, Plus, ArrowRight, Code, ChevronDown, ChevronUp } from 'lucide-react';
 import { STRATEGY_FACTORS } from '../../data/strategyFactors';
 import ConditionSection from './ConditionSection';
 import AddedFactorRow from './AddedFactorRow';
+
+// ── Python-style pseudocode preview ──────────────────────────────────────────
+const OP_PYTHON = {
+  'crosses_above': '.crosses_above',
+  'crosses_below': '.crosses_below',
+  '>':  ' > ',
+  '<':  ' < ',
+  '>=': ' >= ',
+  '<=': ' <= ',
+  '==': ' == ',
+};
+
+function condToPython(row, varOptions) {
+  const leftOpt  = varOptions.find(o => o.key === row.leftKey) || varOptions[0];
+  if (!leftOpt) return '# (조건 미완성)';
+
+  const leftParts = leftOpt.label.split(' · ');
+  const leftVar   = leftParts[0];   // "rsi1"
+  const leftExpr  = leftParts.slice(1).join('.').replace(/\(.*\)/, '');  // "RSI" (strip params)
+  const fullLeft  = `${leftVar}`;   // use the varName directly
+
+  const isCross = row.op === 'crosses_above' || row.op === 'crosses_below';
+
+  if (row.rightType === 'value') {
+    if (isCross) return `${fullLeft}${OP_PYTHON[row.op] || row.op}(${row.rightValue ?? 0})`;
+    return `${fullLeft}${OP_PYTHON[row.op] || ` ${row.op} `}${row.rightValue ?? 0}`;
+  }
+  const rightOpt  = varOptions.find(o => o.key === row.rightKey) || varOptions[0];
+  const rightParts = rightOpt?.label.split(' · ') || ['?'];
+  const rightVar  = rightParts[0];
+  if (isCross) return `${fullLeft}${OP_PYTHON[row.op] || row.op}(${rightVar})`;
+  return `${fullLeft}${OP_PYTHON[row.op] || ` ${row.op} `}${rightVar}`;
+}
+
+function PseudoCodeView({ name, selectedFactors, buyConditions, sellConditions, buyLogic, sellLogic, varOptions }) {
+  const lines = useMemo(() => {
+    const out = [];
+    out.push({ type: 'comment',  text: `# Strategy: ${name || 'Unnamed'}` });
+    out.push({ type: 'blank' });
+
+    if (selectedFactors.length) {
+      out.push({ type: 'comment', text: '# Variables' });
+      selectedFactors.forEach(sf => {
+        const paramStr = Object.entries(sf.params || {}).map(([k, v]) => `${k}=${v}`).join(', ');
+        out.push({
+          type: 'assign',
+          varName: sf.varName,
+          expr: `ta.${sf.factorId.toUpperCase()}(${paramStr || 'close'})`,
+        });
+      });
+      out.push({ type: 'blank' });
+    }
+
+    if (buyConditions.length) {
+      out.push({ type: 'comment', text: `# Buy Signal  [${buyLogic}]` });
+      const conds = buyConditions.map(r => condToPython(r, varOptions));
+      const joinOp = buyLogic === 'AND' ? ' &\n    ' : ' |\n    ';
+      out.push({ type: 'signal', signal: 'buy', expr: conds.join(joinOp) });
+      out.push({ type: 'blank' });
+    }
+
+    if (sellConditions.length) {
+      out.push({ type: 'comment', text: `# Sell Signal  [${sellLogic}]` });
+      const conds = sellConditions.map(r => condToPython(r, varOptions));
+      const joinOp = sellLogic === 'AND' ? ' &\n    ' : ' |\n    ';
+      out.push({ type: 'signal', signal: 'sell', expr: conds.join(joinOp) });
+    }
+
+    return out;
+  }, [name, selectedFactors, buyConditions, sellConditions, buyLogic, sellLogic, varOptions]);
+
+  return (
+    <div className="font-mono text-[11px] leading-relaxed bg-[#06080c] border border-gray-800 rounded-lg overflow-hidden">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-800 bg-[#0a0a0f]">
+        <Code size={11} className="text-gray-600" />
+        <span className="text-[9px] text-gray-600 uppercase tracking-wider">Python Pseudocode</span>
+        <span className="ml-auto text-[9px] text-gray-700">live preview</span>
+      </div>
+      <div className="p-4 space-y-0.5 overflow-x-auto">
+        {lines.map((line, i) => {
+          if (line.type === 'blank') return <div key={i} className="h-2" />;
+          if (line.type === 'comment') return (
+            <div key={i} className="text-gray-600">{line.text}</div>
+          );
+          if (line.type === 'assign') return (
+            <div key={i}>
+              <span className="text-cyan-400">{line.varName}</span>
+              <span className="text-gray-500"> = </span>
+              <span className="text-yellow-400">{line.expr}</span>
+            </div>
+          );
+          if (line.type === 'signal') {
+            const varName = line.signal === 'buy' ? 'buy_signal' : 'sell_signal';
+            const color   = line.signal === 'buy' ? 'text-green-400' : 'text-red-400';
+            return (
+              <div key={i}>
+                <span className={color}>{varName}</span>
+                <span className="text-gray-500"> = (</span>
+                <span className="text-gray-200 whitespace-pre-wrap">{line.expr}</span>
+                <span className="text-gray-500">)</span>
+              </div>
+            );
+          }
+          return null;
+        })}
+        {lines.length === 0 && (
+          <div className="text-gray-700 italic">조건을 추가하면 코드가 자동 생성됩니다</div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function countFactorUsage(varName, buyConditions, sellConditions) {
   const all = [...buyConditions, ...sellConditions];
@@ -26,6 +138,8 @@ const StrategyEditorTab = ({
   notes, setNotes,
   onSave, onSaveNew, saving,
 }) => {
+  const [showCode, setShowCode] = useState(false);
+
   const factorById = useMemo(() => {
     const m = {};
     STRATEGY_FACTORS.forEach(f => { m[f.id] = f; });
@@ -172,6 +286,35 @@ const StrategyEditorTab = ({
               onLogicChange={onSellLogicChange}
             />
           </div>
+
+          {/* ── Python Code Preview (collapsible) ── */}
+          {(buyConditions.length > 0 || sellConditions.length > 0) && (
+            <div>
+              <div
+                onClick={() => setShowCode(v => !v)}
+                className="flex items-center gap-2 cursor-pointer select-none"
+              >
+                <div className="flex items-center gap-1.5 text-[9px] font-semibold text-gray-600 uppercase tracking-widest mb-2.5 pb-1.5 border-b border-gray-800/60 flex-1">
+                  <Code size={10} />
+                  수식 코드 미리보기
+                  <span className="normal-case font-normal text-gray-700 ml-1">
+                    {showCode ? '▲ 숨기기' : '▼ 펼치기'}
+                  </span>
+                </div>
+              </div>
+              {showCode && (
+                <PseudoCodeView
+                  name={name}
+                  selectedFactors={selectedFactors}
+                  buyConditions={buyConditions}
+                  sellConditions={sellConditions}
+                  buyLogic={buyLogic}
+                  sellLogic={sellLogic}
+                  varOptions={varOptions}
+                />
+              )}
+            </div>
+          )}
 
           <div>
             <SectionLabel>리스크 관리 (Risk Management)</SectionLabel>
