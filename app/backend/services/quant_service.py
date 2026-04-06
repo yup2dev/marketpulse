@@ -7,6 +7,7 @@ Uses numpy only — no additional dependencies.
 import sys
 import logging
 import numpy as np
+import pandas as pd
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -62,6 +63,9 @@ def _rsi(prices: np.ndarray, period: int = 14) -> np.ndarray:
 
 def _macd(prices: np.ndarray, fast: int = 12, slow: int = 26, signal: int = 9):
     """MACD line, Signal line, Histogram"""
+    fast   = int(fast   or 12)
+    slow   = int(slow   or 26)
+    signal = int(signal or 9)
     ema_fast = _ema(prices, fast)
     ema_slow = _ema(prices, slow)
     macd_line = ema_fast - ema_slow
@@ -92,8 +96,8 @@ def _bollinger(prices: np.ndarray, period: int = 20, std_dev: float = 2.0):
 
 def _run_ema_cross(closes: np.ndarray, dates: List[str], cfg: Dict) -> List[Dict]:
     """Golden/Death cross on two EMAs"""
-    fast = cfg.get("fast", 20)
-    slow = cfg.get("slow", 50)
+    fast = int(cfg.get("fast") or 20)
+    slow = int(cfg.get("slow") or 50)
     ema_fast = _ema(closes, fast)
     ema_slow = _ema(closes, slow)
 
@@ -115,9 +119,9 @@ def _run_ema_cross(closes: np.ndarray, dates: List[str], cfg: Dict) -> List[Dict
 
 def _run_rsi(closes: np.ndarray, dates: List[str], cfg: Dict) -> List[Dict]:
     """RSI oversold/overbought strategy"""
-    period = cfg.get("rsi_period", 14)
-    oversold = cfg.get("oversold", 30)
-    overbought = cfg.get("overbought", 70)
+    period     = int(cfg.get("rsi_period") or 14)
+    oversold   = float(cfg.get("oversold")   or 30)
+    overbought = float(cfg.get("overbought") or 70)
     rsi = _rsi(closes, period)
 
     signals = []
@@ -138,9 +142,9 @@ def _run_rsi(closes: np.ndarray, dates: List[str], cfg: Dict) -> List[Dict]:
 
 def _run_macd_cross(closes: np.ndarray, dates: List[str], cfg: Dict) -> List[Dict]:
     """MACD line crossing signal line"""
-    fast = cfg.get("fast", 12)
-    slow = cfg.get("slow", 26)
-    signal = cfg.get("signal", 9)
+    fast   = int(cfg.get("fast")   or 12)
+    slow   = int(cfg.get("slow")   or 26)
+    signal = int(cfg.get("signal") or 9)
     macd_line, signal_line, _ = _macd(closes, fast, slow, signal)
 
     signals = []
@@ -161,8 +165,8 @@ def _run_macd_cross(closes: np.ndarray, dates: List[str], cfg: Dict) -> List[Dic
 
 def _run_bb_breakout(closes: np.ndarray, dates: List[str], cfg: Dict) -> List[Dict]:
     """Bollinger Band breakout strategy"""
-    period = cfg.get("period", 20)
-    std_dev = cfg.get("std_dev", 2.0)
+    period  = int(cfg.get("period")  or 20)
+    std_dev = float(cfg.get("std_dev") or 2.0)
     upper, mid, lower = _bollinger(closes, period, std_dev)
 
     signals = []
@@ -833,6 +837,144 @@ def _heston_variance_gap(closes: np.ndarray, dates: List[str], cfg: Dict) -> Lis
     return signals
 
 
+# ─── Macro Helpers ─────────────────────────────────────────────────────────────
+
+# yfinance proxy tickers for macro variables
+_MACRO_TICKERS = {
+    "dxy":       "DX-Y.NYB",   # US Dollar Index
+    "vix":       "^VIX",        # CBOE Volatility Index
+    "yield_10y": "^TNX",        # 10-Year Treasury Yield
+    "yield_2y":  "^IRX",        # 13-Week T-Bill (proxy)
+    "wti":       "CL=F",        # WTI Crude Oil
+    "gold":      "GC=F",        # Gold Futures
+    "spy":       "SPY",         # S&P 500 ETF (market regime)
+}
+
+
+def _fetch_macro_aligned(key: str, dates: List[str]) -> np.ndarray:
+    """
+    Fetch a macro proxy series via yfinance and align (forward-fill) to stock dates.
+    Returns np.ndarray of float; NaN where unavailable.
+    """
+    import yfinance as yf
+
+    ticker_sym = _MACRO_TICKERS.get(key)
+    if not ticker_sym:
+        return np.full(len(dates), np.nan)
+    try:
+        start = dates[0]
+        # fetch a bit earlier to ensure enough history for forward-fill
+        df = yf.download(ticker_sym, start=start, end=dates[-1],
+                         progress=False, auto_adjust=True)
+        if df.empty:
+            return np.full(len(dates), np.nan)
+        # yfinance may return MultiIndex columns — flatten to a 1-D Series
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = ['_'.join(str(c) for c in col).strip() for col in df.columns]
+        close_col = next((c for c in df.columns if c.lower().startswith('close')), df.columns[0])
+        s = df[close_col].dropna()
+        date_to_val = {}
+        for idx, v in s.items():
+            try:
+                key = idx.date().isoformat() if hasattr(idx, 'date') else str(idx)[:10]
+            except Exception:
+                key = str(idx)[:10]
+            date_to_val[key] = float(v)
+        out = np.full(len(dates), np.nan)
+        last = np.nan
+        for i, d in enumerate(dates):
+            if d in date_to_val:
+                last = date_to_val[d]
+            out[i] = last
+        return out
+    except Exception as e:
+        log.warning(f"Macro fetch failed for {key} ({ticker_sym}): {e}")
+        return np.full(len(dates), np.nan)
+
+
+# ─── Macro Strategy Engines ────────────────────────────────────────────────────
+
+def _run_macro_dxy_trend(closes: np.ndarray, dates: List[str], cfg: Dict) -> List[Dict]:
+    """
+    Dollar Trend Filter: buy when DXY is falling (below EMA), sell when rising.
+    Risk-on when dollar weakens, risk-off when dollar strengthens.
+    """
+    ema_period = int(cfg.get("ema_period") or 20)
+    dxy = _fetch_macro_aligned("dxy", dates)
+    dxy_ema = _ema(dxy, ema_period)
+
+    signals, in_pos = [], False
+    for i in range(1, len(closes)):
+        if np.isnan(dxy[i]) or np.isnan(dxy_ema[i]):
+            continue
+        # BUY: DXY crosses below its EMA (dollar weakening → risk-on)
+        if not in_pos and dxy[i - 1] >= dxy_ema[i - 1] and dxy[i] < dxy_ema[i]:
+            signals.append({"date": dates[i], "type": "buy", "price": closes[i],
+                             "reason": f"DXY({dxy[i]:.2f}) < EMA{ema_period}({dxy_ema[i]:.2f}) — Dollar weakening, Risk-ON"})
+            in_pos = True
+        # SELL: DXY crosses above its EMA (dollar strengthening → risk-off)
+        elif in_pos and dxy[i - 1] <= dxy_ema[i - 1] and dxy[i] > dxy_ema[i]:
+            signals.append({"date": dates[i], "type": "sell", "price": closes[i],
+                             "reason": f"DXY({dxy[i]:.2f}) > EMA{ema_period}({dxy_ema[i]:.2f}) — Dollar strengthening, Risk-OFF"})
+            in_pos = False
+    return signals
+
+
+def _run_macro_vix_regime(closes: np.ndarray, dates: List[str], cfg: Dict) -> List[Dict]:
+    """
+    VIX Regime: buy in low-fear environment, exit when fear spikes.
+    """
+    entry_vix = float(cfg.get("entry_vix") or 20.0)
+    exit_vix  = float(cfg.get("exit_vix")  or 25.0)
+    vix = _fetch_macro_aligned("vix", dates)
+
+    signals, in_pos = [], False
+    for i in range(1, len(closes)):
+        if np.isnan(vix[i]) or np.isnan(vix[i - 1]):
+            continue
+        # BUY: VIX falls below entry threshold (complacency / uptrend)
+        if not in_pos and vix[i - 1] >= entry_vix and vix[i] < entry_vix:
+            signals.append({"date": dates[i], "type": "buy", "price": closes[i],
+                             "reason": f"VIX({vix[i]:.1f}) < {entry_vix} — Low fear regime, Risk-ON"})
+            in_pos = True
+        # SELL: VIX spikes above exit threshold (fear rising)
+        elif in_pos and vix[i - 1] <= exit_vix and vix[i] > exit_vix:
+            signals.append({"date": dates[i], "type": "sell", "price": closes[i],
+                             "reason": f"VIX({vix[i]:.1f}) > {exit_vix} — Fear spike, Risk-OFF"})
+            in_pos = False
+    return signals
+
+
+def _run_macro_yield_curve(closes: np.ndarray, dates: List[str], cfg: Dict) -> List[Dict]:
+    """
+    Yield Curve Regime: buy when curve is steepening (spread rising), exit when inverting.
+    Uses 10Y (^TNX) vs proxy short rate (^IRX).
+    """
+    sma_period  = int(cfg.get("sma_period")  or 20)
+    min_spread  = float(cfg.get("min_spread") or 0.0)   # min spread to enter (bps: 0 = non-inverted)
+
+    y10 = _fetch_macro_aligned("yield_10y", dates)
+    y2  = _fetch_macro_aligned("yield_2y",  dates)
+    spread = y10 - y2                                    # positive = normal curve
+    spread_sma = _sma(spread, sma_period)
+
+    signals, in_pos = [], False
+    for i in range(1, len(closes)):
+        if np.isnan(spread[i]) or np.isnan(spread_sma[i]):
+            continue
+        # BUY: spread crosses above SMA and > min_spread (curve normalising / steepening)
+        if not in_pos and spread[i - 1] <= spread_sma[i - 1] and spread[i] > spread_sma[i] and spread[i] > min_spread:
+            signals.append({"date": dates[i], "type": "buy", "price": closes[i],
+                             "reason": f"10Y-2Y spread({spread[i]:.2f}%) steepening above SMA — Curve normal"})
+            in_pos = True
+        # SELL: spread inverts (goes negative) or drops below SMA sharply
+        elif in_pos and spread[i] < min_spread:
+            signals.append({"date": dates[i], "type": "sell", "price": closes[i],
+                             "reason": f"10Y-2Y spread({spread[i]:.2f}%) < {min_spread}% — Curve inverted/flat, EXIT"})
+            in_pos = False
+    return signals
+
+
 STRATEGY_ENGINES = {
     "ema_cross":              _run_ema_cross,
     "rsi":                    _run_rsi,
@@ -843,6 +985,9 @@ STRATEGY_ENGINES = {
     "heston_delta_signal":    _heston_delta_signal,
     "heston_price_ratio":     _heston_price_ratio,
     "heston_variance_gap":    _heston_variance_gap,
+    "macro_dxy_trend":        _run_macro_dxy_trend,
+    "macro_vix_regime":       _run_macro_vix_regime,
+    "macro_yield_curve":      _run_macro_yield_curve,
 }
 
 # ─── Single Source of Truth for Strategy Metadata ────────────────────────────

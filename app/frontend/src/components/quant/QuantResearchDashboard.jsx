@@ -377,6 +377,8 @@ export default function QuantResearchDashboard() {
   const [strategyTypes, setStrategyTypes] = useState([]);
   // Passed to 3D Scanner so it mirrors current backtest strategy/params
   const [strategyCtx,  setStrategyCtx]   = useState(null);
+  // User-editable param overrides for current strategy (fast, slow, rsi_period…)
+  const [overrideParams, setOverrideParams] = useState({});
 
   const [ticker,     setTicker]     = useState('AAPL');
   const [startDate,  setStartDate]  = useState('2022-01-01');
@@ -393,6 +395,43 @@ export default function QuantResearchDashboard() {
     loadStrategies();
     quantAPI.strategyTypes().then(res => setStrategyTypes(res.data || [])).catch(() => {});
   }, []);
+
+  // ── 전략 선택 시: strategyCtx + risk 설정값 + overrideParams 자동 로딩 ──────
+  useEffect(() => {
+    if (!selectedId) { setStrategyCtx(null); setOverrideParams({}); return; }
+    const strategy = strategies.find(s => String(s.id) === String(selectedId));
+    if (!strategy) return;
+    let params = {};
+    try { params = JSON.parse(strategy.parameters || '{}'); } catch {}
+    const {
+      buy_conditions: buyConds, sell_conditions: sellConds,
+      buy_logic: buyLogic, sell_logic: sellLogic,
+      stop_loss_pct:   savedSL,
+      take_profit_pct: savedTP,
+      initial_capital: savedIC,
+      commission_pct:  savedCP,
+      ...numericParams
+    } = params;
+    // 저장된 risk 설정값으로 자동 채우기
+    if (savedSL  != null) setStopLoss(savedSL);
+    if (savedTP  != null) setTakeProfit(savedTP);
+    if (savedIC  != null) setCapital(savedIC);
+    if (savedCP  != null) setCommission(savedCP);
+    // 전략 numeric params를 override 패널에 로딩 (fast, slow, rsi_period 등)
+    setOverrideParams({ ...numericParams });
+
+    let selectedFactors = [];
+    try { selectedFactors = JSON.parse(strategy.variables || '[]'); } catch {}
+    setStrategyCtx({
+      type:            strategy.strategy_type,
+      params:          { ...numericParams },   // overrideParams은 handleRun 시 병합
+      buy_conditions:  buyConds,
+      sell_conditions: sellConds,
+      buy_logic:       buyLogic  || 'AND',
+      sell_logic:      sellLogic || 'OR',
+      selectedFactors,
+    });
+  }, [selectedId, strategies]);
 
   // ── Core backtest runner ──────────────────────────────────────────────────
   // afterTab  : which tab to switch to after success
@@ -460,6 +499,7 @@ export default function QuantResearchDashboard() {
       buy_logic:       buyLogic,
       sell_logic:      sellLogic,
       ...numericParams,
+      ...overrideParams,  // 사용자가 직접 편집한 값으로 덮어씀
     };
 
     // Sync 3D scanner — include conditions + selectedFactors for named param scanning
@@ -607,7 +647,7 @@ export default function QuantResearchDashboard() {
   const isTabDisabled = (id) => {
     if (id === 'chart')   return false;
     if (id === 'history') return runHistory.length === 0;
-    if (id === 'scan3d')  return !strategyCtx;
+    if (id === 'scan3d')  return !selectedId;   // 전략 선택 즉시 활성화
     return !performance;
   };
 
@@ -634,18 +674,18 @@ export default function QuantResearchDashboard() {
 
           {/* Optimization flow guide */}
           <div className="px-4 py-2.5 border-b border-gray-800/50 bg-[#060608] shrink-0">
-            <div className="flex items-center gap-1.5 text-[9px] text-gray-600">
+            <div className="flex items-center gap-1.5 text-[9px] text-gray-600 flex-wrap">
               <span className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-500">1</span>
               <span>전략 선택</span>
               <ArrowRight size={8} className="text-gray-700" />
-              <span className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-500">2</span>
-              <span>Backtest</span>
-              <ArrowRight size={8} className="text-gray-700" />
-              <span className="px-1.5 py-0.5 rounded bg-purple-900/50 text-purple-500">3</span>
+              <span className="px-1.5 py-0.5 rounded bg-purple-900/50 text-purple-500">2</span>
               <span className="text-purple-600">3D Scan</span>
               <ArrowRight size={8} className="text-gray-700" />
-              <span className="px-1.5 py-0.5 rounded bg-gray-800 text-gray-500">4</span>
-              <span>반복</span>
+              <span className="px-1.5 py-0.5 rounded bg-green-900/50 text-green-600">3</span>
+              <span className="text-green-700">Apply</span>
+              <ArrowRight size={8} className="text-gray-700" />
+              <span className="px-1.5 py-0.5 rounded bg-cyan-900/50 text-cyan-600">4</span>
+              <span className="text-cyan-700">Backtest</span>
             </div>
           </div>
 
@@ -680,26 +720,41 @@ export default function QuantResearchDashboard() {
                       <span className="text-gray-400">{selectedStrategy.sell_condition}</span>
                     </div>
                   )}
-                  {(() => {
-                    let p = {};
-                    try { p = JSON.parse(selectedStrategy.parameters || '{}'); } catch {}
-                    // Only show scalar (numeric/string) params — skip condition objects/arrays
-                    const SKIP_KEYS = ['stop_loss_pct','take_profit_pct','initial_capital',
-                      'commission_pct','buy_conditions','sell_conditions','buy_logic','sell_logic'];
-                    const entries = Object.entries(p).filter(([k, v]) =>
-                      !SKIP_KEYS.includes(k) && typeof v !== 'object'
-                    );
-                    if (!entries.length) return null;
-                    return (
-                      <div className="flex flex-wrap gap-1.5 pt-1 border-t border-gray-800/50">
-                        {entries.map(([k, v]) => (
-                          <span key={k} className="text-[9px] font-mono text-cyan-700">
-                            {k}=<span className="text-cyan-400">{String(v)}</span>
-                          </span>
+                  {/* 전략 파라미터 직접 편집 (fast, slow, rsi_period 등) */}
+                  {Object.keys(overrideParams).length > 0 && (
+                    <div className="pt-2 border-t border-gray-800/50 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[9px] text-gray-600 uppercase tracking-wider">Strategy Params</span>
+                        <button
+                          onClick={() => {
+                            let p = {};
+                            try { p = JSON.parse(selectedStrategy.parameters || '{}'); } catch {}
+                            const SKIP = ['stop_loss_pct','take_profit_pct','initial_capital','commission_pct','buy_conditions','sell_conditions','buy_logic','sell_logic','factor_ids'];
+                            const orig = Object.fromEntries(Object.entries(p).filter(([k,v]) => !SKIP.includes(k) && typeof v !== 'object'));
+                            setOverrideParams(orig);
+                          }}
+                          className="text-[9px] text-gray-700 hover:text-cyan-600 transition-colors"
+                          title="저장된 원래 값으로 되돌리기"
+                        >
+                          초기화
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {Object.entries(overrideParams).map(([k, v]) => (
+                          <div key={k} className="flex flex-col gap-0.5">
+                            <span className="text-[8px] text-gray-600 font-mono truncate">{k}</span>
+                            <input
+                              type="number"
+                              value={v}
+                              onChange={e => setOverrideParams(p => ({ ...p, [k]: Number(e.target.value) }))}
+                              step="any"
+                              className="w-full px-2 py-1 bg-[#0a0a0f] border border-cyan-900/50 rounded text-[11px] text-cyan-300 focus:outline-none focus:border-cyan-500 tabular-nums"
+                            />
+                          </div>
                         ))}
                       </div>
-                    );
-                  })()}
+                    </div>
+                  )}
                 </div>
               )}
             </section>
@@ -718,35 +773,34 @@ export default function QuantResearchDashboard() {
               />
             </section>
 
+            {/* Primary: 3D Scan (전략 선택 즉시 활성) */}
+            <button
+              onClick={() => setActiveResult('scan3d')}
+              disabled={!selectedId}
+              className="w-full flex items-center justify-center gap-2 py-2.5 bg-purple-700 hover:bg-purple-600 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-xs font-semibold rounded transition-colors"
+            >
+              <span className="text-[11px]">⬡</span> 3D Scan — 최적 파라미터 탐색
+            </button>
+
+            {/* Secondary: Run Backtest */}
             <button
               onClick={handleRun}
               disabled={loading || !selectedId}
-              className="w-full flex items-center justify-center gap-2 py-2.5 bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-xs font-semibold rounded transition-colors"
+              className="w-full flex items-center justify-center gap-2 py-2 border border-cyan-700/50 text-cyan-400 hover:bg-cyan-900/20 disabled:border-gray-700 disabled:text-gray-600 disabled:cursor-not-allowed text-xs font-medium rounded transition-colors"
             >
               {loading
-                ? <><span className="w-3.5 h-3.5 border border-white border-t-transparent rounded-full animate-spin" /> Running…</>
-                : <><Play size={13} /> Run Backtest</>
+                ? <><span className="w-3 h-3 border border-cyan-400 border-t-transparent rounded-full animate-spin" /> Running…</>
+                : <><Play size={12} /> Run Backtest</>
               }
             </button>
 
-            {/* Quick jump hints after first run */}
-            {strategyCtx && (
-              <div className="space-y-1.5 pt-1">
-                <button
-                  onClick={() => setActiveResult('scan3d')}
-                  className="w-full flex items-center justify-center gap-1.5 py-2 border border-purple-800/50 text-purple-400 hover:bg-purple-900/20 text-[11px] font-medium rounded transition-colors"
-                >
-                  <span className="text-[10px]">⬡</span> 3D Scan으로 최적화
-                </button>
-                {runHistory.length > 0 && (
-                  <button
-                    onClick={() => setActiveResult('history')}
-                    className="w-full flex items-center justify-center gap-1.5 py-1.5 text-[10px] text-gray-600 hover:text-gray-400 transition-colors"
-                  >
-                    <History size={11} /> 실행 이력 {runHistory.length}회
-                  </button>
-                )}
-              </div>
+            {runHistory.length > 0 && (
+              <button
+                onClick={() => setActiveResult('history')}
+                className="w-full flex items-center justify-center gap-1.5 py-1.5 text-[10px] text-gray-600 hover:text-gray-400 transition-colors"
+              >
+                <History size={11} /> 실행 이력 {runHistory.length}회
+              </button>
             )}
           </div>
         </div>
@@ -908,8 +962,8 @@ export default function QuantResearchDashboard() {
             </div>
           )}
 
-          {/* 3D Scan — keep mounted to preserve results across tab switches */}
-          {strategyCtx && (
+          {/* 3D Scan — 전략 선택 즉시 마운트, 탭 전환 시 상태 보존 */}
+          {selectedId && strategyCtx && (
             <div className="h-full overflow-hidden" style={{ display: activeResult === 'scan3d' ? 'flex' : 'none', flexDirection: 'column' }}>
               <StrategyScanner3D
                 ticker={ticker}

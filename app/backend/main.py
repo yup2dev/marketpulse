@@ -6,17 +6,19 @@ import sys
 from pathlib import Path
 from contextlib import asynccontextmanager
 
+from fastapi import FastAPI, Response
+
 # Add project root to path (must be before app imports)
 project_root = str(Path(__file__).parent.parent.parent)
 sys.path.insert(0, project_root)
 
-from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.backend.core.config import settings
 # Import new models so Base.metadata.create_all() picks them up
-import index_analyzer.models.quant_strategy  # noqa: F401
+import index_analyzer.models.quant_strategy       # noqa: F401
+import index_analyzer.models.quant_strategy_type  # noqa: F401
 import index_analyzer.models.orm  # noqa: F401 — ensures UserWorkspace is picked up by create_all
 from app.backend.api.routes import (
     stock, economic, news, dashboard, backtest, portfolio, macro,
@@ -112,6 +114,15 @@ async def root():
 
 @app.get("/health")
 async def health_check():
+    """Health check endpoint"""
+    return {
+        "status": "healthy",
+        "app": "MarketPulse Dashboard",
+        "version": settings.APP_VERSION,
+    }
+
+@app.get("/header")
+async def get_header(response : Response):
     """Health check endpoint"""
     return {
         "status": "healthy",

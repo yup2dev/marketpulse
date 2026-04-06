@@ -20,6 +20,7 @@ from app.backend.auth.dependencies import get_current_user
 from app.backend.api.deps import route_handler
 from index_analyzer.models.quant_strategy import QuantStrategy
 from index_analyzer.models.quant_factor import QuantFactor
+from index_analyzer.models.quant_strategy_type import QuantStrategyType
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -96,8 +97,12 @@ class StrategyNoteCreate(BaseModel):
 # ─── Strategy Types (single source of truth) ─────────────────────────────────
 
 @router.get("/strategy-types")
-def get_strategy_types():
-    """Return all built-in strategy metadata consumed by the frontend."""
+def get_strategy_types(db: Session = Depends(get_db)):
+    """Return strategy type metadata from DB (falls back to hardcoded if empty)."""
+    rows = db.query(QuantStrategyType).filter_by(use_yn='Y').order_by(QuantStrategyType.id).all()
+    if rows:
+        return {"data": [r.to_dict() for r in rows]}
+    # fallback: DB not seeded yet
     return {"data": quant_service.STRATEGY_META}
 
 

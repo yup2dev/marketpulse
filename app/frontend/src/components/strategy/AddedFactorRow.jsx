@@ -1,10 +1,25 @@
+import { useState } from 'react';
 import { X } from 'lucide-react';
 import { CATEGORY_META } from '../../data/strategyFactors';
 
 const AddedFactorRow = ({ item, factor, onUpdate, onRemove, usedCount = 0 }) => {
-  const setParam = (key, val) => {
-    onUpdate({ ...item, params: { ...item.params, [key]: Number(val) } });
+  // Local string state to allow free typing (e.g. "2." mid-decimal) without
+  // coercing to Number on every keystroke. Commits on blur.
+  const [drafts, setDrafts] = useState({});
+
+  const handleChange = (key, raw) => {
+    setDrafts(d => ({ ...d, [key]: raw }));
   };
+
+  const handleBlur = (key, raw) => {
+    const num = parseFloat(raw);
+    const committed = isNaN(num) ? (item.params?.[key] ?? 0) : num;
+    setDrafts(d => { const n = { ...d }; delete n[key]; return n; });
+    onUpdate({ ...item, params: { ...item.params, [key]: committed } });
+  };
+
+  const displayVal = (key, def) =>
+    key in drafts ? drafts[key] : String(item.params?.[key] ?? def);
 
   const catMeta = CATEGORY_META[factor?.category] || {};
   const dotColor = catMeta.color?.replace('text-', 'bg-') || 'bg-gray-500';
@@ -61,12 +76,13 @@ const AddedFactorRow = ({ item, factor, onUpdate, onRemove, usedCount = 0 }) => 
               <div className="flex items-center gap-1">
                 <input
                   type="number"
-                  value={item.params?.[p.name] ?? p.default}
-                  onChange={e => setParam(p.name, e.target.value)}
+                  value={displayVal(p.name, p.default)}
+                  onChange={e => handleChange(p.name, e.target.value)}
+                  onBlur={e => handleBlur(p.name, e.target.value)}
                   min={p.min}
                   max={p.max}
                   step={p.step ?? 1}
-                  className="w-16 px-2 py-1 bg-[#0a0a0f] border border-gray-700 rounded text-[11px] text-gray-200 focus:outline-none focus:border-cyan-500 tabular-nums"
+                  className="w-20 px-2 py-1 bg-[#0a0a0f] border border-gray-700 rounded text-[11px] text-gray-200 focus:outline-none focus:border-cyan-500 tabular-nums"
                 />
                 {(p.min != null || p.max != null) && (
                   <span className="text-[9px] text-gray-700 whitespace-nowrap">

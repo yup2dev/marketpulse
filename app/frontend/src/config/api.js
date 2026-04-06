@@ -120,6 +120,7 @@ export const quantAPI = {
   createStrategy:  (data)          => apiClient.post(`${API_BASE}/quant/strategies`, data),
   updateStrategy:  (id, data)      => apiClient.request(`${API_BASE}/quant/strategies/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteStrategy:  (id)            => apiClient.request(`${API_BASE}/quant/strategies/${id}`, { method: 'DELETE' }),
+  createSamples:   ()              => apiClient.post(`${API_BASE}/quant/strategies/samples`, {}),
   // Factor CRUD
   listFactors:     ()              => apiClient.get(`${API_BASE}/quant/factors`),
   createFactor:    (data)          => apiClient.post(`${API_BASE}/quant/factors`, data),
