@@ -4,7 +4,7 @@ from pydantic import Field
 from data_fetcher.models.base import BaseQueryParams, BaseData
 
 
-class EstimatesQueryParams(BaseQueryParams):
+class YFinanceEstimatesQueryParams(BaseQueryParams):
     """애널리스트 추정치 조회 파라미터"""
 
     symbol: str = Field(
@@ -12,7 +12,7 @@ class EstimatesQueryParams(BaseQueryParams):
     )
 
 
-class PriceTargetData(BaseData):
+class YFinancePriceTargetData(BaseData):
     """목표주가 데이터"""
 
     symbol: str = Field(description="종목 코드")
@@ -24,7 +24,7 @@ class PriceTargetData(BaseData):
     number_of_analysts: Optional[int] = Field(default=None, description="애널리스트 수")
 
 
-class EarningsEstimateData(BaseData):
+class YFinanceEarningsEstimateData(BaseData):
     """수익 추정치 데이터"""
 
     symbol: str = Field(description="종목 코드")
@@ -37,7 +37,7 @@ class EarningsEstimateData(BaseData):
     growth: Optional[float] = Field(default=None, description="성장률")
 
 
-class RevenueEstimateData(BaseData):
+class YFinanceRevenueEstimateData(BaseData):
     """매출 추정치 데이터"""
 
     symbol: str = Field(description="종목 코드")
@@ -50,7 +50,7 @@ class RevenueEstimateData(BaseData):
     growth: Optional[float] = Field(default=None, description="성장률")
 
 
-class GrowthEstimateData(BaseData):
+class YFinanceGrowthEstimateData(BaseData):
     """성장 추정치 데이터"""
 
     symbol: str = Field(description="종목 코드")
@@ -62,11 +62,11 @@ class GrowthEstimateData(BaseData):
     past_5_years: Optional[float] = Field(default=None, description="과거 5년 연평균 성장률")
 
 
-class EstimatesData(BaseData):
+class YFinanceEstimatesData(BaseData):
     """통합 추정치 데이터"""
 
     symbol: str = Field(description="종목 코드")
-    price_target: Optional[PriceTargetData] = Field(default=None, description="목표주가")
-    earnings_estimate: Optional[List[EarningsEstimateData]] = Field(default=None, description="수익 추정치")
-    revenue_estimate: Optional[List[RevenueEstimateData]] = Field(default=None, description="매출 추정치")
-    growth_estimate: Optional[GrowthEstimateData] = Field(default=None, description="성장 추정치")
+    price_target: Optional[YFinancePriceTargetData] = Field(default=None, description="목표주가")
+    earnings_estimate: Optional[List[YFinanceEarningsEstimateData]] = Field(default=None, description="수익 추정치")
+    revenue_estimate: Optional[List[YFinanceRevenueEstimateData]] = Field(default=None, description="매출 추정치")
+    growth_estimate: Optional[YFinanceGrowthEstimateData] = Field(default=None, description="성장 추정치")

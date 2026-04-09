@@ -7,25 +7,25 @@ import pandas as pd
 
 from data_fetcher.fetchers.base import Fetcher
 from data_fetcher.models.yahoo.insider_trading import (
-    InsiderTradingQueryParams,
-    InsiderTransactionData,
-    InsiderHolderData
+    YFinanceInsiderTradingQueryParams,
+    YFinanceInsiderTransactionData,
+    YFinanceInsiderHolderData
 )
 
 log = logging.getLogger(__name__)
 
 
-class YahooInsiderTradingFetcher(Fetcher[InsiderTradingQueryParams, InsiderTransactionData]):
+class YFinanceInsiderTradingFetcher(Fetcher[YFinanceInsiderTradingQueryParams, YFinanceInsiderTransactionData]):
     """Yahoo Finance 내부자 거래 Fetcher"""
 
     @staticmethod
-    def transform_query(params: Dict[str, Any]) -> InsiderTradingQueryParams:
+    def transform_query(params: Dict[str, Any]) -> YFinanceInsiderTradingQueryParams:
         """쿼리 파라미터 변환"""
-        return InsiderTradingQueryParams(**params)
+        return YFinanceInsiderTradingQueryParams(**params)
 
     @staticmethod
     def extract_data(
-        query: InsiderTradingQueryParams,
+        query: YFinanceInsiderTradingQueryParams,
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any
     ) -> Dict[str, Any]:
@@ -64,10 +64,10 @@ class YahooInsiderTradingFetcher(Fetcher[InsiderTradingQueryParams, InsiderTrans
 
     @staticmethod
     def transform_data(
-        query: InsiderTradingQueryParams,
+        query: YFinanceInsiderTradingQueryParams,
         data: Dict[str, Any],
         **kwargs: Any
-    ) -> List[InsiderTransactionData]:
+    ) -> List[YFinanceInsiderTransactionData]:
         """
         원시 데이터를 표준 모델로 변환
 
@@ -76,7 +76,7 @@ class YahooInsiderTradingFetcher(Fetcher[InsiderTradingQueryParams, InsiderTrans
             data: 내부자 거래 데이터
 
         Returns:
-            InsiderTransactionData 리스트
+            YFinanceInsiderTransactionData 리스트
         """
         transactions_df = data.get('transactions')
         symbol = data['symbol']
@@ -135,7 +135,7 @@ class YahooInsiderTradingFetcher(Fetcher[InsiderTradingQueryParams, InsiderTrans
                 # 소유 유형
                 ownership = row.get('Ownership', '')
 
-                transaction = InsiderTransactionData(
+                transaction = YFinanceInsiderTransactionData(
                     symbol=symbol,
                     insider_name=str(insider_name) if insider_name else None,
                     insider_title=str(insider_title) if insider_title else None,
@@ -158,17 +158,17 @@ class YahooInsiderTradingFetcher(Fetcher[InsiderTradingQueryParams, InsiderTrans
         return result
 
 
-class YahooInsiderHoldersFetcher(Fetcher[InsiderTradingQueryParams, InsiderHolderData]):
+class YFinanceInsiderHoldersFetcher(Fetcher[YFinanceInsiderTradingQueryParams, YFinanceInsiderHolderData]):
     """Yahoo Finance 내부자 보유 현황 Fetcher"""
 
     @staticmethod
-    def transform_query(params: Dict[str, Any]) -> InsiderTradingQueryParams:
+    def transform_query(params: Dict[str, Any]) -> YFinanceInsiderTradingQueryParams:
         """쿼리 파라미터 변환"""
-        return InsiderTradingQueryParams(**params)
+        return YFinanceInsiderTradingQueryParams(**params)
 
     @staticmethod
     def extract_data(
-        query: InsiderTradingQueryParams,
+        query: YFinanceInsiderTradingQueryParams,
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any
     ) -> Dict[str, Any]:
@@ -188,10 +188,10 @@ class YahooInsiderHoldersFetcher(Fetcher[InsiderTradingQueryParams, InsiderHolde
 
     @staticmethod
     def transform_data(
-        query: InsiderTradingQueryParams,
+        query: YFinanceInsiderTradingQueryParams,
         data: Dict[str, Any],
         **kwargs: Any
-    ) -> List[InsiderHolderData]:
+    ) -> List[YFinanceInsiderHolderData]:
         """원시 데이터를 표준 모델로 변환"""
         roster_df = data.get('roster')
         symbol = data['symbol']
@@ -223,7 +223,7 @@ class YahooInsiderHoldersFetcher(Fetcher[InsiderTradingQueryParams, InsiderHolde
                 if shares_col in row.index and pd.notna(row[shares_col]):
                     shares = int(row[shares_col])
 
-                holder = InsiderHolderData(
+                holder = YFinanceInsiderHolderData(
                     symbol=symbol,
                     name=str(row.get('Name', '')) if pd.notna(row.get('Name')) else None,
                     position=str(row.get('Position', '')) if pd.notna(row.get('Position')) else None,

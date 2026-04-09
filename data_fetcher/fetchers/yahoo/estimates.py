@@ -6,28 +6,28 @@ import pandas as pd
 
 from data_fetcher.fetchers.base import Fetcher
 from data_fetcher.models.yahoo.estimates import (
-    EstimatesQueryParams,
-    EstimatesData,
-    PriceTargetData,
-    EarningsEstimateData,
-    RevenueEstimateData,
-    GrowthEstimateData
+    YFinanceEstimatesQueryParams,
+    YFinanceEstimatesData,
+    YFinancePriceTargetData,
+    YFinanceEarningsEstimateData,
+    YFinanceRevenueEstimateData,
+    YFinanceGrowthEstimateData
 )
 
 log = logging.getLogger(__name__)
 
 
-class YahooEstimatesFetcher(Fetcher[EstimatesQueryParams, EstimatesData]):
+class YFinanceEstimatesFetcher(Fetcher[YFinanceEstimatesQueryParams, YFinanceEstimatesData]):
     """Yahoo Finance 애널리스트 추정치 Fetcher"""
 
     @staticmethod
-    def transform_query(params: Dict[str, Any]) -> EstimatesQueryParams:
+    def transform_query(params: Dict[str, Any]) -> YFinanceEstimatesQueryParams:
         """쿼리 파라미터 변환"""
-        return EstimatesQueryParams(**params)
+        return YFinanceEstimatesQueryParams(**params)
 
     @staticmethod
     def extract_data(
-        query: EstimatesQueryParams,
+        query: YFinanceEstimatesQueryParams,
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any
     ) -> Dict[str, Any]:
@@ -58,10 +58,10 @@ class YahooEstimatesFetcher(Fetcher[EstimatesQueryParams, EstimatesData]):
 
     @staticmethod
     def transform_data(
-        query: EstimatesQueryParams,
+        query: YFinanceEstimatesQueryParams,
         data: Dict[str, Any],
         **kwargs: Any
-    ) -> List[EstimatesData]:
+    ) -> List[YFinanceEstimatesData]:
         """
         원시 데이터를 표준 모델로 변환
 
@@ -70,7 +70,7 @@ class YahooEstimatesFetcher(Fetcher[EstimatesQueryParams, EstimatesData]):
             data: 추정치 딕셔너리
 
         Returns:
-            EstimatesData 리스트
+            YFinanceEstimatesData 리스트
         """
         try:
             info = data.get('info', {})
@@ -83,7 +83,7 @@ class YahooEstimatesFetcher(Fetcher[EstimatesQueryParams, EstimatesData]):
             price_target_data = None
             if price_targets is not None:
                 if isinstance(price_targets, dict):
-                    price_target_data = PriceTargetData(
+                    price_target_data = YFinancePriceTargetData(
                         symbol=query.symbol,
                         current_price=price_targets.get('current'),
                         target_high=price_targets.get('high'),
@@ -93,7 +93,7 @@ class YahooEstimatesFetcher(Fetcher[EstimatesQueryParams, EstimatesData]):
                         number_of_analysts=info.get('numberOfAnalystOpinions')
                     )
             elif info:
-                price_target_data = PriceTargetData(
+                price_target_data = YFinancePriceTargetData(
                     symbol=query.symbol,
                     current_price=info.get('currentPrice'),
                     target_high=info.get('targetHighPrice'),
@@ -108,7 +108,7 @@ class YahooEstimatesFetcher(Fetcher[EstimatesQueryParams, EstimatesData]):
             if earnings_est is not None and isinstance(earnings_est, pd.DataFrame):
                 for col in earnings_est.columns:
                     try:
-                        earnings_estimate_list.append(EarningsEstimateData(
+                        earnings_estimate_list.append(YFinanceEarningsEstimateData(
                             symbol=query.symbol,
                             period=str(col),
                             avg=float(earnings_est.loc['avg', col]) if 'avg' in earnings_est.index and pd.notna(earnings_est.loc['avg', col]) else None,
@@ -126,7 +126,7 @@ class YahooEstimatesFetcher(Fetcher[EstimatesQueryParams, EstimatesData]):
             if revenue_est is not None and isinstance(revenue_est, pd.DataFrame):
                 for col in revenue_est.columns:
                     try:
-                        revenue_estimate_list.append(RevenueEstimateData(
+                        revenue_estimate_list.append(YFinanceRevenueEstimateData(
                             symbol=query.symbol,
                             period=str(col),
                             avg=float(revenue_est.loc['avg', col]) if 'avg' in revenue_est.index and pd.notna(revenue_est.loc['avg', col]) else None,
@@ -146,7 +146,7 @@ class YahooEstimatesFetcher(Fetcher[EstimatesQueryParams, EstimatesData]):
                     # growth_estimates의 첫번째 컬럼이 해당 종목
                     symbol_col = query.symbol if query.symbol in growth_est.columns else growth_est.columns[0] if len(growth_est.columns) > 0 else None
                     if symbol_col:
-                        growth_estimate_data = GrowthEstimateData(
+                        growth_estimate_data = YFinanceGrowthEstimateData(
                             symbol=query.symbol,
                             current_quarter=float(growth_est.loc['Current Qtr.', symbol_col]) if 'Current Qtr.' in growth_est.index and pd.notna(growth_est.loc['Current Qtr.', symbol_col]) else None,
                             next_quarter=float(growth_est.loc['Next Qtr.', symbol_col]) if 'Next Qtr.' in growth_est.index and pd.notna(growth_est.loc['Next Qtr.', symbol_col]) else None,
@@ -158,7 +158,7 @@ class YahooEstimatesFetcher(Fetcher[EstimatesQueryParams, EstimatesData]):
                 except Exception as e:
                     log.warning(f"Error parsing growth estimates: {e}")
 
-            estimates_data = EstimatesData(
+            estimates_data = YFinanceEstimatesData(
                 symbol=query.symbol,
                 price_target=price_target_data,
                 earnings_estimate=earnings_estimate_list if earnings_estimate_list else None,

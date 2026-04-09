@@ -5,7 +5,7 @@ from pydantic import Field
 from data_fetcher.models.base import BaseQueryParams, BaseData
 
 
-class CalendarQueryParams(BaseQueryParams):
+class YFinanceCalendarQueryParams(BaseQueryParams):
     """회사 일정 조회 파라미터"""
 
     symbol: str = Field(
@@ -13,7 +13,7 @@ class CalendarQueryParams(BaseQueryParams):
     )
 
 
-class CalendarData(BaseData):
+class YFinanceCalendarData(BaseData):
     """회사 일정 데이터"""
 
     symbol: str = Field(description="종목 코드")

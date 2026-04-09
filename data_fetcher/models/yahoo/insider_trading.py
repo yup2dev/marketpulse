@@ -1,29 +1,30 @@
 """Yahoo Finance Insider Trading Models"""
 from datetime import date
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import Field
+from data_fetcher.models.base import BaseQueryParams, BaseData
 
 
-class InsiderTradingQueryParams(BaseModel):
+class YFinanceInsiderTradingQueryParams(BaseQueryParams):
     """Insider Trading 조회 파라미터"""
     symbol: str = Field(..., description="종목 심볼")
 
 
-class InsiderTransactionData(BaseModel):
+class YFinanceInsiderTransactionData(BaseData):
     """내부자 거래 데이터"""
     symbol: str
     insider_name: Optional[str] = None
     insider_title: Optional[str] = None
     transaction_date: Optional[date] = None
-    transaction_type: Optional[str] = None  # Sale, Purchase, etc.
-    ownership_type: Optional[str] = None  # Direct, Indirect
+    transaction_type: Optional[str] = None
+    ownership_type: Optional[str] = None
     shares_traded: Optional[int] = None
     price_per_share: Optional[float] = None
     transaction_value: Optional[float] = None
     shares_owned_after: Optional[int] = None
 
 
-class InsiderHolderData(BaseModel):
+class YFinanceInsiderHolderData(BaseData):
     """내부자 보유 정보"""
     symbol: str
     name: Optional[str] = None

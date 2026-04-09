@@ -5,7 +5,7 @@ from pydantic import Field
 from data_fetcher.models.base import BaseQueryParams, BaseData
 
 
-class FinancialsQueryParams(BaseQueryParams):
+class YFinanceFinancialsQueryParams(BaseQueryParams):
     """재무제표 조회 파라미터"""
 
     symbol: str = Field(
@@ -17,7 +17,7 @@ class FinancialsQueryParams(BaseQueryParams):
     )
 
 
-class FinancialsData(BaseData):
+class YFinanceFinancialsData(BaseData):
     """재무제표 데이터"""
 
     # 기본 정보

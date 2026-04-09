@@ -7,24 +7,24 @@ import pandas as pd
 
 from data_fetcher.fetchers.base import Fetcher
 from data_fetcher.models.yahoo.dividends import (
-    DividendsQueryParams,
-    DividendData
+    YFinanceDividendsQueryParams,
+    YFinanceDividendData
 )
 
 log = logging.getLogger(__name__)
 
 
-class YahooDividendsFetcher(Fetcher[DividendsQueryParams, DividendData]):
+class YFinanceDividendsFetcher(Fetcher[YFinanceDividendsQueryParams, YFinanceDividendData]):
     """Yahoo Finance 배당 데이터 Fetcher"""
 
     @staticmethod
-    def transform_query(params: Dict[str, Any]) -> DividendsQueryParams:
+    def transform_query(params: Dict[str, Any]) -> YFinanceDividendsQueryParams:
         """쿼리 파라미터 변환"""
-        return DividendsQueryParams(**params)
+        return YFinanceDividendsQueryParams(**params)
 
     @staticmethod
     def extract_data(
-        query: DividendsQueryParams,
+        query: YFinanceDividendsQueryParams,
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any
     ) -> Dict[str, Any]:
@@ -77,10 +77,10 @@ class YahooDividendsFetcher(Fetcher[DividendsQueryParams, DividendData]):
 
     @staticmethod
     def transform_data(
-        query: DividendsQueryParams,
+        query: YFinanceDividendsQueryParams,
         data: Dict[str, Any],
         **kwargs: Any
-    ) -> List[DividendData]:
+    ) -> List[YFinanceDividendData]:
         """
         원시 데이터를 표준 모델로 변환
 
@@ -89,7 +89,7 @@ class YahooDividendsFetcher(Fetcher[DividendsQueryParams, DividendData]):
             data: 배당 및 주가 데이터
 
         Returns:
-            DividendData 리스트
+            YFinanceDividendData 리스트
         """
         dividends = data['dividends']
         history = data['history']
@@ -130,7 +130,7 @@ class YahooDividendsFetcher(Fetcher[DividendsQueryParams, DividendData]):
 
                 prev_year_div[(year, quarter)] = float(dividend_amount)
 
-                dividend_data = DividendData(
+                dividend_data = YFinanceDividendData(
                     symbol=symbol,
                     date=div_date,
                     dividend=float(dividend_amount),

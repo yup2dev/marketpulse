@@ -7,24 +7,24 @@ import pandas as pd
 
 from data_fetcher.fetchers.base import Fetcher
 from data_fetcher.models.yahoo.stock_price import (
-    StockPriceQueryParams,
-    StockPriceData
+    YFinanceStockPriceQueryParams,
+    YFinanceStockPriceData
 )
 
 log = logging.getLogger(__name__)
 
 
-class YahooStockPriceFetcher(Fetcher[StockPriceQueryParams, StockPriceData]):
+class YFinanceStockPriceFetcher(Fetcher[YFinanceStockPriceQueryParams, YFinanceStockPriceData]):
     """Yahoo Finance 주가 데이터 Fetcher"""
 
     @staticmethod
-    def transform_query(params: Dict[str, Any]) -> StockPriceQueryParams:
+    def transform_query(params: Dict[str, Any]) -> YFinanceStockPriceQueryParams:
         """쿼리 파라미터 변환"""
-        return StockPriceQueryParams(**params)
+        return YFinanceStockPriceQueryParams(**params)
 
     @staticmethod
     def extract_data(
-        query: StockPriceQueryParams,
+        query: YFinanceStockPriceQueryParams,
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any
     ) -> pd.DataFrame:
@@ -82,10 +82,10 @@ class YahooStockPriceFetcher(Fetcher[StockPriceQueryParams, StockPriceData]):
 
     @staticmethod
     def transform_data(
-        query: StockPriceQueryParams,
+        query: YFinanceStockPriceQueryParams,
         data: pd.DataFrame,
         **kwargs: Any
-    ) -> List[StockPriceData]:
+    ) -> List[YFinanceStockPriceData]:
         """
         원시 데이터를 표준 모델로 변환
 
@@ -94,7 +94,7 @@ class YahooStockPriceFetcher(Fetcher[StockPriceQueryParams, StockPriceData]):
             data: pandas DataFrame
 
         Returns:
-            StockPriceData 리스트
+            YFinanceStockPriceData 리스트
         """
         if data.empty:
             return []
@@ -126,7 +126,7 @@ class YahooStockPriceFetcher(Fetcher[StockPriceQueryParams, StockPriceData]):
                 else:
                     date_value = idx.date()
 
-                stock_data = StockPriceData(
+                stock_data = YFinanceStockPriceData(
                     symbol=query.symbol,
                     date=date_value,
                     open=open_price,

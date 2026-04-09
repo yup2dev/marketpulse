@@ -5,24 +5,24 @@ import yfinance as yf
 
 from data_fetcher.fetchers.base import Fetcher
 from data_fetcher.models.yahoo.company_info import (
-    CompanyInfoQueryParams,
-    CompanyInfoData
+    YFinanceCompanyInfoQueryParams,
+    YFinanceCompanyInfoData
 )
 
 log = logging.getLogger(__name__)
 
 
-class YahooCompanyInfoFetcher(Fetcher[CompanyInfoQueryParams, CompanyInfoData]):
+class YFinanceCompanyInfoFetcher(Fetcher[YFinanceCompanyInfoQueryParams, YFinanceCompanyInfoData]):
     """Yahoo Finance 회사 정보 Fetcher"""
 
     @staticmethod
-    def transform_query(params: Dict[str, Any]) -> CompanyInfoQueryParams:
+    def transform_query(params: Dict[str, Any]) -> YFinanceCompanyInfoQueryParams:
         """쿼리 파라미터 변환"""
-        return CompanyInfoQueryParams(**params)
+        return YFinanceCompanyInfoQueryParams(**params)
 
     @staticmethod
     def extract_data(
-        query: CompanyInfoQueryParams,
+        query: YFinanceCompanyInfoQueryParams,
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any
     ) -> Dict[str, Any]:
@@ -47,10 +47,10 @@ class YahooCompanyInfoFetcher(Fetcher[CompanyInfoQueryParams, CompanyInfoData]):
 
     @staticmethod
     def transform_data(
-        query: CompanyInfoQueryParams,
+        query: YFinanceCompanyInfoQueryParams,
         data: Dict[str, Any],
         **kwargs: Any
-    ) -> List[CompanyInfoData]:
+    ) -> List[YFinanceCompanyInfoData]:
         """
         원시 데이터를 표준 모델로 변환
 
@@ -59,10 +59,10 @@ class YahooCompanyInfoFetcher(Fetcher[CompanyInfoQueryParams, CompanyInfoData]):
             data: 회사 정보 딕셔너리
 
         Returns:
-            CompanyInfoData 리스트
+            YFinanceCompanyInfoData 리스트
         """
         try:
-            company_info = CompanyInfoData(
+            company_info = YFinanceCompanyInfoData(
                 symbol=query.symbol,
                 company_name=data.get('longName'),
                 sector=data.get('sector'),

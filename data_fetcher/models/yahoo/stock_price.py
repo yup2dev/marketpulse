@@ -5,7 +5,7 @@ from pydantic import Field
 from data_fetcher.models.base import BaseQueryParams, BaseData
 
 
-class StockPriceQueryParams(BaseQueryParams):
+class YFinanceStockPriceQueryParams(BaseQueryParams):
     """주가 데이터 조회 파라미터"""
 
     symbol: str = Field(
@@ -29,7 +29,7 @@ class StockPriceQueryParams(BaseQueryParams):
     )
 
 
-class StockPriceData(BaseData):
+class YFinanceStockPriceData(BaseData):
     """주가 데이터"""
 
     symbol: str = Field(description="종목 코드")

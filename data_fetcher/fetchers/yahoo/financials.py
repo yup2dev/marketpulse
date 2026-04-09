@@ -6,24 +6,24 @@ from datetime import datetime
 
 from data_fetcher.fetchers.base import Fetcher
 from data_fetcher.models.yahoo.financials import (
-    FinancialsQueryParams,
-    FinancialsData
+    YFinanceFinancialsQueryParams,
+    YFinanceFinancialsData
 )
 
 log = logging.getLogger(__name__)
 
 
-class YahooFinancialsFetcher(Fetcher[FinancialsQueryParams, FinancialsData]):
+class YFinanceFinancialsFetcher(Fetcher[YFinanceFinancialsQueryParams, YFinanceFinancialsData]):
     """Yahoo Finance 재무제표 Fetcher"""
 
     @staticmethod
-    def transform_query(params: Dict[str, Any]) -> FinancialsQueryParams:
+    def transform_query(params: Dict[str, Any]) -> YFinanceFinancialsQueryParams:
         """쿼리 파라미터 변환"""
-        return FinancialsQueryParams(**params)
+        return YFinanceFinancialsQueryParams(**params)
 
     @staticmethod
     def extract_data(
-        query: FinancialsQueryParams,
+        query: YFinanceFinancialsQueryParams,
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any
     ) -> Dict[str, Any]:
@@ -65,10 +65,10 @@ class YahooFinancialsFetcher(Fetcher[FinancialsQueryParams, FinancialsData]):
 
     @staticmethod
     def transform_data(
-        query: FinancialsQueryParams,
+        query: YFinanceFinancialsQueryParams,
         data: Dict[str, Any],
         **kwargs: Any
-    ) -> List[FinancialsData]:
+    ) -> List[YFinanceFinancialsData]:
         """
         원시 데이터를 표준 모델로 변환
 
@@ -77,7 +77,7 @@ class YahooFinancialsFetcher(Fetcher[FinancialsQueryParams, FinancialsData]):
             data: 재무제표 딕셔너리
 
         Returns:
-            FinancialsData 리스트
+            YFinanceFinancialsData 리스트
         """
         try:
             income_stmt = data.get('income_stmt')
@@ -100,7 +100,7 @@ class YahooFinancialsFetcher(Fetcher[FinancialsQueryParams, FinancialsData]):
 
                 # Iterate through all columns (periods) in the income statement
                 for date_col in income_stmt.columns:
-                    financials = FinancialsData(
+                    financials = YFinanceFinancialsData(
                         symbol=query.symbol,
                         as_of_date=date_col.to_pydatetime() if hasattr(date_col, 'to_pydatetime') else datetime.now(),
 

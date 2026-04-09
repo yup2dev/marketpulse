@@ -7,24 +7,24 @@ import pandas as pd
 
 from data_fetcher.fetchers.base import Fetcher
 from data_fetcher.models.yahoo.calendar import (
-    CalendarQueryParams,
-    CalendarData
+    YFinanceCalendarQueryParams,
+    YFinanceCalendarData
 )
 
 log = logging.getLogger(__name__)
 
 
-class YahooCalendarFetcher(Fetcher[CalendarQueryParams, CalendarData]):
+class YFinanceCalendarFetcher(Fetcher[YFinanceCalendarQueryParams, YFinanceCalendarData]):
     """Yahoo Finance 회사 일정 Fetcher"""
 
     @staticmethod
-    def transform_query(params: Dict[str, Any]) -> CalendarQueryParams:
+    def transform_query(params: Dict[str, Any]) -> YFinanceCalendarQueryParams:
         """쿼리 파라미터 변환"""
-        return CalendarQueryParams(**params)
+        return YFinanceCalendarQueryParams(**params)
 
     @staticmethod
     def extract_data(
-        query: CalendarQueryParams,
+        query: YFinanceCalendarQueryParams,
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any
     ) -> Dict[str, Any]:
@@ -54,10 +54,10 @@ class YahooCalendarFetcher(Fetcher[CalendarQueryParams, CalendarData]):
 
     @staticmethod
     def transform_data(
-        query: CalendarQueryParams,
+        query: YFinanceCalendarQueryParams,
         data: Dict[str, Any],
         **kwargs: Any
-    ) -> List[CalendarData]:
+    ) -> List[YFinanceCalendarData]:
         """
         원시 데이터를 표준 모델로 변환
 
@@ -66,7 +66,7 @@ class YahooCalendarFetcher(Fetcher[CalendarQueryParams, CalendarData]):
             data: 일정 정보 딕셔너리
 
         Returns:
-            CalendarData 리스트
+            YFinanceCalendarData 리스트
         """
         try:
             calendar = data.get('calendar')
@@ -145,7 +145,7 @@ class YahooCalendarFetcher(Fetcher[CalendarQueryParams, CalendarData]):
             if not div_date and info.get('dividendDate'):
                 div_date = datetime.fromtimestamp(info['dividendDate']).date()
 
-            calendar_data = CalendarData(
+            calendar_data = YFinanceCalendarData(
                 symbol=query.symbol,
                 earnings_date=earnings_date,
                 earnings_date_end=earnings_date_end,
