@@ -15,11 +15,12 @@ log = logging.getLogger(__name__)
 # Ensure data_fetcher is in path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from data_fetcher.fetchers.yahoo.stock_price import YahooStockPriceFetcher
-from data_fetcher.fetchers.yahoo.company_info import YahooCompanyInfoFetcher
-from data_fetcher.fetchers.yahoo.financials import YahooFinancialsFetcher
-from data_fetcher.fetchers.yahoo.dividends import YahooDividendsFetcher
-from data_fetcher.fetchers.yahoo.insider_trading import YahooInsiderTradingFetcher, YahooInsiderHoldersFetcher
+from data_fetcher.fetchers.yahoo.stock_price import YFinanceStockPriceFetcher
+from data_fetcher.fetchers.yahoo.company_info import YFinanceCompanyInfoFetcher
+from data_fetcher.fetchers.yahoo.financials import YFinanceFinancialsFetcher
+from data_fetcher.fetchers.yahoo.dividends import YFinanceDividendsFetcher
+from data_fetcher.fetchers.yahoo.balance_sheet import YFinanceBalanceSheetFetcher
+from data_fetcher.fetchers.yahoo.insider_trading import YFinanceInsiderTradingFetcher, YFinanceInsiderHoldersFetcher
 from data_fetcher.fetchers.polygon.earnings import PolygonEarningsFetcher
 from data_fetcher.fetchers.polygon.insider_trading import PolygonInsiderTradingFetcher
 from data_fetcher.fetchers.fmp.analyst_recommendations import FMPAnalystRecommendationsFetcher
@@ -90,13 +91,13 @@ class DataService:
         """Get current stock quote"""
         mapped_symbol = self._map_symbol(symbol)
         try:
-            result = await YahooStockPriceFetcher.fetch_data({
+            result = await YFinanceStockPriceFetcher.fetch_data({
                 'symbol': mapped_symbol,
                 'interval': '1d'
             })
 
             if result:
-                latest = YahooStockPriceFetcher.set_data(result)[-1]
+                latest = YFinanceStockPriceFetcher.set_data(result)[-1]
                 return {
                     'symbol': symbol,
                     'price': latest['close'],
@@ -131,11 +132,11 @@ class DataService:
             params['period'] = period
         else:
             params['period'] = '1mo'
-        return await self._fetch(YahooStockPriceFetcher, params)
+        return await self._fetch(YFinanceStockPriceFetcher, params)
 
     async def get_company_info(self, symbol: str) -> Dict[str, Any]:
         """Get company information"""
-        return await self._fetch(YahooCompanyInfoFetcher, {'symbol': symbol}, single=True)
+        return await self._fetch(YFinanceCompanyInfoFetcher, {'symbol': symbol}, single=True)
 
     async def get_key_metrics(self, symbol: str) -> Dict[str, Any]:
         """
@@ -151,6 +152,8 @@ class DataService:
             import yfinance as yf
             ticker = yf.Ticker(symbol)
             info = ticker.info
+
+            ticker.get_balancesheet()
 
             return {
                 'symbol': symbol,
@@ -292,8 +295,12 @@ class DataService:
 
     async def get_financials(self, symbol: str, freq: str = 'quarterly', limit: int = 4) -> Dict[str, Any]:
         """Get financial statements for a company"""
-        periods = await self._fetch(YahooFinancialsFetcher, {'symbol': symbol, 'freq': freq}, limit=limit)
+        periods = await self._fetch(YFinanceFinancialsFetcher, {'symbol': symbol, 'freq': freq}, limit=limit)
         return {'symbol': symbol, 'frequency': freq, 'periods': periods}
+
+    async def get_balance_sheet(self, symbol: str, period: str = 'annual', limit: int = 5) -> List[Dict[str, Any]]:
+        """Get balance sheet data from yfinance."""
+        return await self._fetch(YFinanceBalanceSheetFetcher, {'symbol': symbol, 'period': period, 'limit': min(limit, 5)})
 
     async def get_quarterly_pnl(self, symbol: str, limit: int = 12) -> Dict[str, Any]:
         """
@@ -560,7 +567,7 @@ class DataService:
         """
         # Try Yahoo Finance first
         try:
-            result = await YahooInsiderTradingFetcher.fetch_data({
+            result = await YFinanceInsiderTradingFetcher.fetch_data({
                 'symbol': symbol
             })
 
@@ -571,7 +578,7 @@ class DataService:
                 buy_value = 0
                 sell_value = 0
 
-                for d in YahooInsiderTradingFetcher.set_data(result)[:limit]:
+                for d in YFinanceInsiderTradingFetcher.set_data(result)[:limit]:
                     tx_value = d.get('transaction_value') or 0
                     tx_type = (d.get('transaction_type') or '').lower()
 
@@ -625,7 +632,7 @@ class DataService:
 
     async def get_insider_holders(self, symbol: str) -> Dict[str, Any]:
         """Get insider holders (roster) information"""
-        holders = await self._fetch(YahooInsiderHoldersFetcher, {'symbol': symbol})
+        holders = await self._fetch(YFinanceInsiderHoldersFetcher, {'symbol': symbol})
         return {'symbol': symbol, 'holders': holders}
 
     async def get_analyst_data(self, symbol: str) -> Dict[str, Any]:
@@ -952,7 +959,7 @@ class DataService:
 
     async def get_dividends(self, symbol: str, limit: int = 20) -> Dict[str, Any]:
         """Get dividend history for a company"""
-        history = await self._fetch(YahooDividendsFetcher, {'symbol': symbol}, limit=limit)
+        history = await self._fetch(YFinanceDividendsFetcher, {'symbol': symbol}, limit=limit)
         return {'symbol': symbol, 'history': history}
 
     async def get_splits(self, symbol: str, limit: int = 20) -> Dict[str, Any]:
