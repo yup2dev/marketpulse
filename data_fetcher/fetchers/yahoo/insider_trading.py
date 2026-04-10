@@ -9,7 +9,8 @@ from data_fetcher.fetchers.base import Fetcher
 from data_fetcher.models.yahoo.insider_trading import (
     YFinanceInsiderTradingQueryParams,
     YFinanceInsiderTransactionData,
-    YFinanceInsiderHolderData
+    YFinanceInsiderHolderData,
+    YFinanceInsiderTradingSummaryData,
 )
 
 log = logging.getLogger(__name__)
@@ -242,3 +243,111 @@ class YFinanceInsiderHoldersFetcher(Fetcher[YFinanceInsiderTradingQueryParams, Y
 
         log.info(f"Fetched {len(result)} insider holders for {symbol}")
         return result
+
+
+class YFinanceInsiderTradingSummaryFetcher(Fetcher[YFinanceInsiderTradingQueryParams, YFinanceInsiderTradingSummaryData]):
+    """내부자 거래 집계 Fetcher (transactions + buy/sell summary)"""
+
+    @staticmethod
+    def transform_query(params: Dict[str, Any]) -> YFinanceInsiderTradingQueryParams:
+        return YFinanceInsiderTradingQueryParams(**params)
+
+    @staticmethod
+    def extract_data(
+        query: YFinanceInsiderTradingQueryParams,
+        credentials: Optional[Dict[str, str]] = None,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        try:
+            ticker = yf.Ticker(query.symbol)
+            return {'transactions': ticker.insider_transactions, 'symbol': query.symbol}
+        except Exception as e:
+            log.error(f"Error fetching insider trading for {query.symbol}: {e}")
+            raise
+
+    @staticmethod
+    def transform_data(
+        query: YFinanceInsiderTradingQueryParams,
+        data: Dict[str, Any],
+        **kwargs: Any,
+    ) -> List[YFinanceInsiderTradingSummaryData]:
+        symbol = data['symbol']
+        transactions_df = data.get('transactions')
+        limit = query.limit if hasattr(query, 'limit') else kwargs.get('limit', 50)
+
+        transactions = []
+        buy_count = buy_value = sell_count = sell_value = 0
+
+        if transactions_df is not None and not transactions_df.empty:
+            for _, row in transactions_df.iterrows():
+                try:
+                    tx_date = None
+                    if 'Start Date' in row and pd.notna(row['Start Date']):
+                        tx_date = row['Start Date']
+                        if isinstance(tx_date, pd.Timestamp):
+                            tx_date = tx_date.date().isoformat()
+                        else:
+                            tx_date = str(tx_date)[:10]
+
+                    tx_text = str(row.get('Text', '') or '')
+                    tx_text_lower = tx_text.lower()
+                    if 'sale' in tx_text_lower:
+                        tx_type = 'Sale'
+                    elif 'purchase' in tx_text_lower or 'buy' in tx_text_lower:
+                        tx_type = 'Purchase'
+                    elif 'gift' in tx_text_lower:
+                        tx_type = 'Gift'
+                    elif 'option' in tx_text_lower:
+                        tx_type = 'Option Exercise'
+                    else:
+                        tx_type = tx_text[:50] if tx_text else None
+
+                    shares = int(row['Shares']) if 'Shares' in row and pd.notna(row.get('Shares')) else None
+                    value = float(row['Value']) if 'Value' in row and pd.notna(row.get('Value')) else None
+                    price = (value / shares) if (value and shares and shares != 0) else None
+
+                    tx_type_lower = (tx_type or '').lower()
+                    is_buy = 'purchase' in tx_type_lower or 'buy' in tx_type_lower
+                    is_sell = 'sale' in tx_type_lower or 'sell' in tx_type_lower
+
+                    if is_buy:
+                        buy_count += 1
+                        buy_value += value or 0
+                        acq_disp = 'A'
+                    elif is_sell:
+                        sell_count += 1
+                        sell_value += value or 0
+                        acq_disp = 'D'
+                    else:
+                        acq_disp = None
+
+                    transactions.append({
+                        'transaction_date': tx_date,
+                        'filing_date': None,
+                        'insider_name': str(row.get('Insider', row.get('Name', ''))) or None,
+                        'insider_title': str(row.get('Position', row.get('Title', ''))) or None,
+                        'is_director': None,
+                        'is_officer': None,
+                        'transaction_type': tx_type,
+                        'acquisition_or_disposition': acq_disp,
+                        'shares_traded': shares,
+                        'price_per_share': price,
+                        'transaction_value': value,
+                        'shares_owned_after': None,
+                    })
+                except Exception as ex:
+                    log.warning(f"Error parsing insider transaction row: {ex}")
+                    continue
+
+        return [YFinanceInsiderTradingSummaryData(
+            symbol=symbol,
+            source='yahoo',
+            summary={
+                'buy_count': buy_count,
+                'sell_count': sell_count,
+                'buy_value': buy_value,
+                'sell_value': sell_value,
+                'net_value': buy_value - sell_value,
+            },
+            transactions=transactions[:limit],
+        )]

@@ -8,6 +8,7 @@ from data_fetcher.models.base import BaseQueryParams, BaseData
 class YFinanceInsiderTradingQueryParams(BaseQueryParams):
     """Insider Trading 조회 파라미터"""
     symbol: str = Field(..., description="종목 심볼")
+    limit: int = Field(default=50, description="반환할 최대 거래 수")
 
 
 class YFinanceInsiderTransactionData(BaseData):
@@ -34,3 +35,11 @@ class YFinanceInsiderHolderData(BaseData):
     latest_transaction_date: Optional[date] = None
     position_direct: Optional[int] = None
     position_indirect: Optional[int] = None
+
+
+class YFinanceInsiderTradingSummaryData(BaseData):
+    """내부자 거래 집계 데이터 (transactions + summary)"""
+    symbol: str
+    source: str = 'yahoo'
+    summary: dict = Field(default_factory=dict)
+    transactions: list = Field(default_factory=list)

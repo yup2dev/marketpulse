@@ -1,5 +1,5 @@
 """Yahoo Finance Estimates Model (애널리스트 추정치)"""
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from pydantic import Field
 from data_fetcher.models.base import BaseQueryParams, BaseData
 
@@ -7,9 +7,7 @@ from data_fetcher.models.base import BaseQueryParams, BaseData
 class YFinanceEstimatesQueryParams(BaseQueryParams):
     """애널리스트 추정치 조회 파라미터"""
 
-    symbol: str = Field(
-        description="종목 코드 (예: AAPL, MSFT)"
-    )
+    symbol: str = Field(description="종목 코드 (예: AAPL, MSFT)")
 
 
 class YFinancePriceTargetData(BaseData):
@@ -66,7 +64,18 @@ class YFinanceEstimatesData(BaseData):
     """통합 추정치 데이터"""
 
     symbol: str = Field(description="종목 코드")
-    price_target: Optional[YFinancePriceTargetData] = Field(default=None, description="목표주가")
-    earnings_estimate: Optional[List[YFinanceEarningsEstimateData]] = Field(default=None, description="수익 추정치")
-    revenue_estimate: Optional[List[YFinanceRevenueEstimateData]] = Field(default=None, description="매출 추정치")
-    growth_estimate: Optional[YFinanceGrowthEstimateData] = Field(default=None, description="성장 추정치")
+
+    # EPS 추정치: {period_key: {estimate, low, high, year_ago, num_analysts, growth}}
+    eps: Dict[str, Any] = Field(default_factory=dict)
+
+    # 매출 추정치: {period_key: {...}}
+    revenue: Dict[str, Any] = Field(default_factory=dict)
+
+    # 목표주가
+    price_target: Dict[str, Any] = Field(default_factory=dict)
+
+    # 애널리스트 컨센서스 레이팅
+    recommendations: Dict[str, Any] = Field(default_factory=dict)
+
+    # EPS 수정 이력
+    revisions: Dict[str, Any] = Field(default_factory=dict)

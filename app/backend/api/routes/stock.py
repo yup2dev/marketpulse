@@ -82,9 +82,14 @@ async def get_key_metrics(symbol: str):
     Returns valuation multiples, profitability ratios, liquidity metrics, and more
     """
     metrics = await data_service.get_key_metrics(symbol.upper())
-    if not metrics:
+    if metrics is None:
         raise HTTPException(status_code=404, detail=f"Metrics for {symbol} not found")
-    return metrics
+    d = metrics.model_dump(mode='json')
+    d['52_week_high'] = d.pop('week_52_high', None)
+    d['52_week_low']  = d.pop('week_52_low', None)
+    d['50_day_ma']    = d.pop('ma_50_day', None)
+    d['200_day_ma']   = d.pop('ma_200_day', None)
+    return d
 
 
 @router.get("/financials/{symbol}")
@@ -103,7 +108,7 @@ async def get_financials(symbol: str, freq: str = "quarterly", limit: int = 4):
     financials = await data_service.get_financials(symbol.upper(), freq, limit)
     if not financials:
         raise HTTPException(status_code=404, detail=f"Financials for {symbol} not found")
-    return financials
+    return {'symbol': symbol.upper(), 'frequency': freq, 'periods': financials}
 
 
 @router.get("/search")

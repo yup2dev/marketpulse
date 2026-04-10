@@ -30,9 +30,9 @@ from data_fetcher.models.fred import (
 
 # Yahoo Finance
 from data_fetcher.models.yahoo import (
-    DividendsQueryParams, DividendData,
-    StockPriceQueryParams, StockPriceData,
-    CompanyInfoQueryParams, CompanyInfoData,
+    YFinanceDividendsQueryParams, YFinanceDividendData,
+    YFinanceStockPriceQueryParams, YFinanceStockPriceData,
+    YFinanceCompanyInfoQueryParams, YFinanceCompanyInfoData,
 )
 
 # AlphaVantage
@@ -62,9 +62,9 @@ __all__ = [
     'NonfarmPayrollQueryParams', 'NonfarmPayrollData',
 
     # Yahoo Finance
-    'DividendsQueryParams', 'DividendData',
-    'StockPriceQueryParams', 'StockPriceData',
-    'CompanyInfoQueryParams', 'CompanyInfoData',
+    'YFinanceDividendsQueryParams', 'YFinanceDividendData',
+    'YFinanceStockPriceQueryParams', 'YFinanceStockPriceData',
+    'YFinanceCompanyInfoQueryParams', 'YFinanceCompanyInfoData',
 
     # AlphaVantage
     'EquityQuoteQueryParams', 'EquityQuoteData',
