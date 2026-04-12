@@ -74,11 +74,25 @@ function buildConditionTemplates(selectedFactors = [], buyConds = [], sellConds 
     return { ...fd, params: newParams };
   }
 
-  let threshIdx = 0;
+  const usedThreshNames = {};
+  function threshName(cond) {
+    const leftFactor = cond.left?.factor || 'val';
+    const inst = instances.find(fi => fi.backendNames.includes(leftFactor));
+    const base = inst ? inst.varName : leftFactor.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    const opTag = (cond.op || '').includes('>') ? 'gt'
+                : (cond.op || '').includes('<') ? 'lt' : 'eq';
+    let name = `${base}_${opTag}`;
+    if (name in usedThreshNames) {
+      usedThreshNames[name]++;
+      name = `${name}_${usedThreshNames[name]}`;
+    } else { usedThreshNames[name] = 1; }
+    return name;
+  }
+
   function templateCond(cond) {
     const nc = { ...cond, left: templateFactorDef(cond.left) };
     if (cond.right?.factor === 'VALUE' && typeof cond.right.value === 'number') {
-      nc.right = { factor: 'VALUE', value: `##threshold_${threshIdx++}##` };
+      nc.right = { factor: 'VALUE', value: `##${threshName(cond)}##` };
     } else {
       nc.right = templateFactorDef(cond.right);
     }
@@ -96,7 +110,8 @@ function applyParamsToFactors(selectedFactors, newParams) {
   return selectedFactors.map(sf => {
     const updated = { ...sf, params: { ...sf.params } };
     for (const [key, val] of Object.entries(newParams)) {
-      if (/^threshold_\d+$/.test(key)) continue;
+      // Skip threshold params (e.g. gold_px_gt, rsi14_lt, rsi14_lt_2)
+      if (/_(?:gt|lt|eq)(?:_\d+)?$/.test(key)) continue;
       const parts = key.split('_');
       // varName is everything except last segment (paramKey)
       const varName  = parts.slice(0, -1).join('_');

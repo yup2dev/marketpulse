@@ -594,12 +594,31 @@ function extractFactorScanParams(selectedFactors = [], buyConds = [], sellConds 
     return { ...fd, params: newParams };
   }
 
-  let threshIdx = 0;
+  // Build a descriptive threshold name from the condition context
+  const usedThreshNames = {};
+  function threshName(cond) {
+    // Use the left factor's varName (or factor key) + op direction
+    const leftFactor = cond.left?.factor || 'val';
+    const inst = instances.find(fi => fi.backendNames.includes(leftFactor));
+    const base = inst ? inst.varName : leftFactor.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    const opTag = (cond.op || '').includes('>') ? 'gt'
+                : (cond.op || '').includes('<') ? 'lt' : 'eq';
+    let name = `${base}_${opTag}`;
+    // Deduplicate: append _2, _3, etc. if already used
+    if (name in usedThreshNames) {
+      usedThreshNames[name]++;
+      name = `${name}_${usedThreshNames[name]}`;
+    } else {
+      usedThreshNames[name] = 1;
+    }
+    return name;
+  }
+
   function templateCond(cond) {
     const newCond = { ...cond };
     newCond.left = templateFactorDef(cond.left);
     if (cond.right?.factor === 'VALUE' && typeof cond.right.value === 'number') {
-      const name = `threshold_${threshIdx++}`;
+      const name = threshName(cond);
       scanParams[name] = cond.right.value;
       newCond.right = { factor: 'VALUE', value: `##${name}##` };
     } else {
@@ -642,12 +661,27 @@ function extractCustomScanParams(buyConds = [], sellConds = []) {
     return { ...fd, params: newParams };
   }
 
-  let threshIdx = 0;
+  const usedThreshNames = {};
+  function threshName(cond) {
+    const leftFactor = cond.left?.factor || 'val';
+    const base = leftFactor.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    const opTag = (cond.op || '').includes('>') ? 'gt'
+                : (cond.op || '').includes('<') ? 'lt' : 'eq';
+    let name = `${base}_${opTag}`;
+    if (name in usedThreshNames) {
+      usedThreshNames[name]++;
+      name = `${name}_${usedThreshNames[name]}`;
+    } else {
+      usedThreshNames[name] = 1;
+    }
+    return name;
+  }
+
   function templateCond(cond) {
     const newCond = { ...cond };
     newCond.left = templateFactorDef(cond.left);
     if (cond.right?.factor === 'VALUE' && typeof cond.right.value === 'number') {
-      const name = `threshold_${threshIdx++}`;
+      const name = threshName(cond);
       params[name] = cond.right.value;
       newCond.right = { factor: 'VALUE', value: `##${name}##` };
     } else {
@@ -684,16 +718,29 @@ const SCAN_MODES = [
 // ── Smart range: auto min/max/step based on value semantics ──────────────────
 // - Threshold / float values (RSI < 30, multiplier 1.5) → float-safe range
 // - Integer period params (EMA 20, RSI 14) → integer-friendly range
+// - Macro-scale values (gold 1800, CPI 300, DXY 105) → ±20% narrow band
 function smartRange(val, name) {
   const v   = Number(val);
-  const isThreshold = /^threshold_\d+$/.test(name);
-  const looksFloat  = !Number.isInteger(v) || isThreshold;
+  const isThresh = /_(?:gt|lt|eq)/.test(name);
+  const looksFloat  = !Number.isInteger(v) || isThresh;
+
+  // Large-scale macro values (gold ~1800, CPI ~300, DXY ~105, WTI ~75, etc.)
+  // Use ±20% band with smart step sizing
+  if (isThresh && Math.abs(v) > 50) {
+    const magnitude = Math.pow(10, Math.floor(Math.log10(Math.abs(v) || 1)));
+    const step = Math.max(0.5, Math.round(magnitude / 10 * 2) / 2);
+    return {
+      min:  Math.round(v * 0.8 / step) * step,
+      max:  Math.round(v * 1.2 / step) * step,
+      step,
+    };
+  }
 
   if (looksFloat) {
     const step = v < 5 ? 0.5 : v < 20 ? 1 : 2;
     return {
-      min:  Math.max(0.5, Math.round(v * 0.5 * 2) / 2),
-      max:  Math.min(999, Math.round(v * 1.5 * 2) / 2),
+      min:  Math.max(0, Math.round(v * 0.5 * 2) / 2),
+      max:  Math.round(v * 1.5 * 2) / 2,
       step,
     };
   }
@@ -1049,21 +1096,22 @@ export default function StrategyScanner3D({ ticker, startDate, endDate, strategy
                     const stepCount = Math.max(1, Math.floor((er.max - er.min) / (er.step || 0.5)) + 1);
                     // Label: "rsi1_period" → varName badge + param label
                     //        "threshold_0" → Threshold badge + index
-                    const isThreshold = /^threshold_\d+$/.test(name);
+                    const isThreshold = /_(?:gt|lt|eq)(?:_\d+)?$/.test(name);
                     const parts = name.split('_');
-                    // For varName-based: last segment is param key, rest is varName
-                    // e.g. rsi1_period → varName="rsi1", param="period"
-                    //      ema1_fast_period (if any) → varName="ema1", param="fast_period"
-                    const varName  = isThreshold ? null : parts.slice(0, -1).join('_');
-                    const paramKey = isThreshold ? parts[1] : parts[parts.length - 1];
+                    // For threshold: "gold_px_gt" → varName="gold_px", direction="gt"
+                    //                "rsi14_lt"   → varName="rsi14",   direction="lt"
+                    // For varName-based: "rsi14_period" → varName="rsi14", param="period"
+                    const dirMatch = name.match(/^(.+)_(gt|lt|eq)(?:_\d+)?$/);
+                    const varName  = isThreshold ? (dirMatch?.[1] || name) : parts.slice(0, -1).join('_');
+                    const paramKey = isThreshold ? (dirMatch?.[2] || '') : parts[parts.length - 1];
                     const paramLabel = paramKey.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
                     return (
                       <div key={name} className="bg-[#060608] border border-gray-800 rounded-lg p-3 space-y-2">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             {isThreshold ? (
-                              <span className="px-1.5 py-0.5 text-[9px] rounded bg-orange-900/30 border border-orange-700/40 text-orange-400 font-medium">
-                                Threshold
+                              <span className="px-1.5 py-0.5 text-[9px] rounded bg-orange-900/30 border border-orange-700/40 text-orange-400 font-mono font-medium">
+                                {varName}
                               </span>
                             ) : (
                               <span className="px-1.5 py-0.5 text-[9px] rounded bg-cyan-900/30 border border-cyan-700/40 text-cyan-400 font-mono font-medium">
@@ -1071,7 +1119,9 @@ export default function StrategyScanner3D({ ticker, startDate, endDate, strategy
                               </span>
                             )}
                             <span className="text-[11px] text-white font-medium">
-                              {isThreshold ? `임계값 ${paramKey}` : paramLabel}
+                              {isThreshold
+                                ? `${paramKey === 'gt' ? '>' : paramKey === 'lt' ? '<' : '='} 임계값`
+                                : paramLabel}
                             </span>
                           </div>
                           <span className={`text-[10px] font-mono tabular-nums font-semibold ${inRange ? 'text-cyan-400' : 'text-amber-400'}`}>

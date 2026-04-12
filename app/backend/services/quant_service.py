@@ -402,13 +402,13 @@ def _compute_factor(series: Dict, factor_def: Dict) -> np.ndarray:
         ml, ms, mh = _macd(c, int(p.get("fast", 12)), int(p.get("slow", 26)), int(p.get("signal", 9)))
         return {"MACD_LINE": ml, "MACD_SIGNAL": ms, "MACD_HIST": mh}[factor]
     if factor == "BB_UPPER":
-        u, _, _ = _bollinger(c, int(p.get("period", 20)), float(p.get("std_dev", 2.0)))
+        u, _, _ = _bollinger(c, int(p.get("period", 20)), float(p.get("std_dev", p.get("std", 2.0))))
         return u
     if factor == "BB_LOWER":
-        _, _, lo = _bollinger(c, int(p.get("period", 20)), float(p.get("std_dev", 2.0)))
+        _, _, lo = _bollinger(c, int(p.get("period", 20)), float(p.get("std_dev", p.get("std", 2.0))))
         return lo
     if factor == "BB_MID":
-        _, m, _ = _bollinger(c, int(p.get("period", 20)), float(p.get("std_dev", 2.0)))
+        _, m, _ = _bollinger(c, int(p.get("period", 20)), float(p.get("std_dev", p.get("std", 2.0))))
         return m
     if factor == "ATR":
         return _atr(series["high"], series["low"], c, int(p.get("period", 14)))
@@ -431,9 +431,12 @@ def _compute_factor(series: Dict, factor_def: Dict) -> np.ndarray:
         return np.ones(n)           # neutral: 1.0
     if factor in ("NEWS_SENTIMENT", "NEWS_VOLUME", "SENTIMENT_DELTA"):
         return np.zeros(n)          # neutral: 0.0
-    # Macro / Micro / Fundamental / Alt data — placeholder until data integration
+    # Macro / Fund / etc — use pre-fetched series if available, else NaN
     if factor.startswith(("MACRO_", "MICRO_", "FUND_", "SUPPLY_", "ALT_")):
-        return np.zeros(n)          # neutral: 0.0
+        if series is not None and factor in series:
+            return series[factor]
+        log.warning(f"External factor {factor} not pre-fetched — returning NaN")
+        return np.full(n, np.nan)
     if factor == "CLOSE":
         return c
     if factor == "OPEN":
@@ -905,6 +908,165 @@ def _fetch_macro_aligned(key: str, dates: List[str]) -> np.ndarray:
     except Exception as e:
         log.warning(f"Macro fetch failed for {key} ({ticker_sym}): {e}")
         return np.full(len(dates), np.nan)
+
+
+# ─── External Factor Pre-fetch (MACRO / FUND) ─────────────────────────────────
+#
+# _compute_factor receives a `series` dict.  If a key like "MACRO_BASE_RATE"
+# already exists in that dict, it is used directly — no fallback to zeros.
+#
+# The mapping below tells _prefetch_external_series *how* to populate each key:
+#   ("fred",  model, params_fn)  → QueryExecutor.fetch("fred", model, params_fn(dates))
+#   ("yahoo", symbol)            → QueryExecutor.fetch("yahoo", "stock_price", {symbol, ...})
+#   ("computed", deps, fn)       → fn(*fetched_deps)  (e.g. yield_curve = 10y − 2y)
+#   ("fred_raw", series_id)      → FredSeriesFetcher.fetch_series (for series without dedicated fetcher)
+
+_MACRO_FACTOR_SOURCES: Dict[str, tuple] = {
+    # ── Rates ───────────────────────────────────────────────────────────────
+    "MACRO_BASE_RATE": ("fred", "interest_rate",
+                        lambda d: {"rate_type": "federal_funds", "start_date": d[0], "end_date": d[-1]}),
+    "MACRO_YIELD_2Y":  ("fred", "interest_rate",
+                        lambda d: {"rate_type": "treasury_3m", "start_date": d[0], "end_date": d[-1]}),
+    "MACRO_YIELD_10Y": ("fred", "interest_rate",
+                        lambda d: {"rate_type": "treasury_10y", "start_date": d[0], "end_date": d[-1]}),
+    "MACRO_YIELD_CURVE": ("computed", ("MACRO_YIELD_10Y", "MACRO_YIELD_2Y"),
+                          lambda y10, y2: y10 - y2),
+    # ── Inflation ───────────────────────────────────────────────────────────
+    "MACRO_CPI":  ("fred", "cpi",
+                   lambda d: {"start_date": d[0], "end_date": d[-1]}),
+    "MACRO_PPI":  ("fred_raw", "PPIACO"),
+    # ── FX & Commodities ────────────────────────────────────────────────────
+    "MACRO_DXY":  ("yahoo", "DX-Y.NYB"),
+    "MACRO_WTI":  ("yahoo", "CL=F"),
+    "MACRO_GOLD": ("yahoo", "GC=F"),
+}
+
+
+def _align_to_dates(date_val_pairs: List[tuple], dates: List[str]) -> np.ndarray:
+    """
+    Forward-fill a sparse (date, value) list onto a dense stock-date array.
+    Handles both daily and monthly source data uniformly.
+    """
+    n = len(dates)
+    lookup = {d: v for d, v in date_val_pairs}
+    out = np.full(n, np.nan)
+    last = np.nan
+    for i, d in enumerate(dates):
+        if d in lookup:
+            last = lookup[d]
+        out[i] = last
+    return out
+
+
+def _extract_condition_factors(conditions: Optional[List]) -> set:
+    """Extract unique factor names referenced in a condition list."""
+    factors = set()
+    for cond in (conditions or []):
+        for side in ("left", "right"):
+            fd = cond.get(side, {})
+            f = fd.get("factor", "")
+            if f and f != "VALUE" and f != "CLOSE":
+                factors.add(f)
+    return factors
+
+
+async def _prefetch_external_series(
+    dates: List[str],
+    series: Dict[str, np.ndarray],
+    factor_names: set,
+) -> None:
+    """
+    Populate `series` dict with external (MACRO_ / FUND_) data fetched ONCE.
+    Only fetches factors that are (a) referenced in the strategy and (b) have
+    a known source in _MACRO_FACTOR_SOURCES.
+
+    Called before the scan/analyze loop so every _compute_factor call is a
+    simple dict lookup — no IO inside the hot loop.
+    """
+    # Resolve which factors we actually need (including computed deps)
+    needed = set()
+    for f in factor_names:
+        if f in _MACRO_FACTOR_SOURCES:
+            src = _MACRO_FACTOR_SOURCES[f]
+            if src[0] == "computed":
+                needed.update(src[1])   # add dependencies
+            needed.add(f)
+
+    # Fetch non-computed sources first
+    for factor_key in list(needed):
+        if factor_key in series:
+            continue  # already populated (e.g. by a previous call)
+        src = _MACRO_FACTOR_SOURCES.get(factor_key)
+        if src is None or src[0] == "computed":
+            continue
+
+        try:
+            if src[0] == "fred":
+                _, model, params_fn = src
+                models = await QueryExecutor.fetch("fred", model, params_fn(dates))
+                pairs = []
+                for m in models:
+                    d = m.model_dump(mode="json")
+                    date_str = str(d["date"])[:10]
+                    val = d.get("value") if d.get("value") is not None else d.get("rate")
+                    if val is not None:
+                        pairs.append((date_str, float(val)))
+                series[factor_key] = _align_to_dates(pairs, dates)
+
+            elif src[0] == "yahoo":
+                _, symbol = src
+                models = await QueryExecutor.fetch("yahoo", "stock_price", {
+                    "symbol": symbol,
+                    "start_date": dates[0],
+                    "end_date": dates[-1],
+                    "interval": "1d",
+                })
+                pairs = []
+                for m in models:
+                    d = m.model_dump(mode="json")
+                    pairs.append((str(d["date"])[:10], float(d["close"])))
+                series[factor_key] = _align_to_dates(pairs, dates)
+
+            elif src[0] == "fred_raw":
+                _, series_id = src
+                from data_fetcher.fetchers.fred.series import FredSeriesFetcher
+                from data_fetcher.utils.api_keys import get_api_key
+                from datetime import datetime as _dt
+                api_key = get_api_key(credentials=None, api_name="FRED", env_var="FRED_API_KEY")
+                obs = FredSeriesFetcher.fetch_series(
+                    series_id=series_id,
+                    api_key=api_key,
+                    start_date=_dt.strptime(dates[0], "%Y-%m-%d").date(),
+                    end_date=_dt.strptime(dates[-1], "%Y-%m-%d").date(),
+                    sort_order="asc",
+                    limit=5000,
+                )
+                pairs = [(o["date"], float(o["value"]))
+                         for o in obs if o.get("value") not in (None, ".")]
+                series[factor_key] = _align_to_dates(pairs, dates)
+
+            log.info(f"Pre-fetched {factor_key}: "
+                     f"{np.count_nonzero(~np.isnan(series[factor_key]))}/{len(dates)} non-NaN")
+
+        except Exception as e:
+            log.warning(f"Pre-fetch failed for {factor_key}: {e}")
+            series[factor_key] = np.full(len(dates), np.nan)
+
+    # Now resolve computed factors
+    for factor_key in needed:
+        if factor_key in series:
+            continue
+        src = _MACRO_FACTOR_SOURCES.get(factor_key)
+        if src is None or src[0] != "computed":
+            continue
+        _, deps, fn = src
+        dep_arrays = [series.get(dep, np.full(len(dates), np.nan)) for dep in deps]
+        try:
+            series[factor_key] = fn(*dep_arrays)
+            log.info(f"Computed {factor_key} from {deps}")
+        except Exception as e:
+            log.warning(f"Computed factor {factor_key} failed: {e}")
+            series[factor_key] = np.full(len(dates), np.nan)
 
 
 # ─── Macro Strategy Engines ────────────────────────────────────────────────────
@@ -1449,6 +1611,19 @@ async def scan(
         "volume": np.array([d['volume'] or 1.0        for d in data], dtype=float),
     }
 
+    # Pre-fetch external data (MACRO_, FUND_, etc.) referenced in conditions — once
+    ext_factors = set()
+    if template is not None:
+        import json as _json
+        _tpl_str = _json.dumps(template)
+        for fk in _MACRO_FACTOR_SOURCES:
+            if fk in _tpl_str:
+                ext_factors.add(fk)
+    ext_factors |= _extract_condition_factors(buy_conditions)
+    ext_factors |= _extract_condition_factors(sell_conditions)
+    if ext_factors:
+        await _prefetch_external_series(dates, series_scan, ext_factors)
+
     # Three dispatch paths per combo:
     #   1. Built-in preset with template in DB → substitute placeholders → _run_custom
     #   2. Custom: caller provides buy/sell condition templates with ##name## placeholders
@@ -1556,8 +1731,19 @@ async def analyze(
     # ── Run strategy ──────────────────────────────────────────────────────────
     # Templated preset: substitute scan params into template then dispatch to _run_custom.
     template = _load_template(strategy_type)
+
+    # Pre-fetch external data (MACRO_, FUND_, etc.) referenced in strategy conditions
+    ext_factors = _extract_condition_factors(strategy.get("buy_conditions"))
+    ext_factors |= _extract_condition_factors(strategy.get("sell_conditions"))
+    cfg = None
     if template is not None:
         cfg = _resolve_template_cfg(template, strategy)
+        ext_factors |= _extract_condition_factors(cfg.get("buy_conditions"))
+        ext_factors |= _extract_condition_factors(cfg.get("sell_conditions"))
+    if ext_factors:
+        await _prefetch_external_series(dates, series, ext_factors)
+
+    if cfg is not None:
         raw_signals = _run_custom(closes, dates, cfg, series)
     else:
         engine = STRATEGY_ENGINES.get(strategy_type)
