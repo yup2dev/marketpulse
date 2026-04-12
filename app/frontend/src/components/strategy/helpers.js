@@ -29,32 +29,77 @@ export function buildVarOptions(selectedFactors) {
   return [...opts, ...PRICE_VAR_OPTIONS];
 }
 
+/**
+ * Build a {varName → factorDef} map for the formula evaluator.
+ * The first expansion of each selectedFactor is exposed under its varName,
+ * so `ema1`, `rsi1`, `macd1` etc. can be referenced in formulas.
+ * Price names (close, high, low, open, volume) are always available.
+ */
+export function buildFormulaVariables(selectedFactors) {
+  const variables = {};
+  for (const sf of selectedFactors) {
+    const expansions = FACTOR_BACKEND_EXPANSIONS[sf.factorId];
+    if (!expansions || expansions.length === 0) continue;
+    variables[sf.varName] = { factor: expansions[0].back, params: sf.params || {} };
+    for (const exp of expansions) {
+      variables[`${sf.varName}_${exp.back.toLowerCase()}`] = {
+        factor: exp.back,
+        params: sf.params || {},
+      };
+    }
+  }
+  return variables;
+}
+
 /** Convert a condition row to backend-compatible {left, op, right} */
-export function toBECond(row, varOptions) {
-  const leftOpt  = varOptions.find(o => o.key === row.leftKey)  || varOptions[0];
+export function toBECond(row, varOptions, selectedFactors = []) {
+  const leftOpt   = varOptions.find(o => o.key === row.leftKey)  || varOptions[0];
+  const formulaVars = buildFormulaVariables(selectedFactors);
+
+  const makeLeft = () => {
+    if (row.leftType === 'formula') {
+      return {
+        factor:     'FORMULA',
+        expression: (row.leftFormula || '').trim(),
+        variables:  formulaVars,
+      };
+    }
+    return leftOpt?.factorDef || { factor: 'CLOSE', params: {} };
+  };
+
   let right;
   if (row.rightType === 'value') {
     right = { factor: 'VALUE', value: Number(row.rightValue) };
+  } else if (row.rightType === 'formula') {
+    right = {
+      factor:     'FORMULA',
+      expression: (row.rightFormula || '').trim(),
+      variables:  formulaVars,
+    };
   } else {
     const rightOpt = varOptions.find(o => o.key === row.rightKey)
       || varOptions.find(o => o.key !== row.leftKey)
       || varOptions[0];
     right = rightOpt?.factorDef || { factor: 'CLOSE', params: {} };
   }
+
   return {
-    left: leftOpt?.factorDef || { factor: 'CLOSE', params: {} },
+    left: makeLeft(),
     op:   row.op,
     right,
   };
 }
 
 export const mkCondRow = () => ({
-  id:         `c_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-  leftKey:    '',
-  op:         'crosses_above',
-  rightType:  'factor',
-  rightKey:   '',
-  rightValue: 0,
+  id:          `c_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+  leftType:    'factor',
+  leftKey:     '',
+  leftFormula: '',
+  op:          'crosses_above',
+  rightType:   'factor',
+  rightKey:    '',
+  rightValue:  0,
+  rightFormula: '',
 });
 
 // ── Backend ↔ UI condition conversion ────────────────────────────────────────
@@ -71,7 +116,7 @@ export function fromBECond(beCond, varOptions) {
   const { left, op, right } = beCond;
 
   const findOpt = (fd) => {
-    if (!fd?.factor || fd.factor === 'VALUE') return null;
+    if (!fd?.factor || fd.factor === 'VALUE' || fd.factor === 'FORMULA') return null;
     const exact = varOptions.find(
       o => o.factorDef?.factor === fd.factor && paramsMatch(o.factorDef?.params, fd.params),
     );
@@ -79,16 +124,22 @@ export function fromBECond(beCond, varOptions) {
     return varOptions.find(o => o.factorDef?.factor === fd.factor) || null;
   };
 
-  const leftOpt  = findOpt(left);
-  const isValue  = right?.factor === 'VALUE';
-  const rightOpt = isValue ? null : findOpt(right);
+  const leftIsFormula  = left?.factor  === 'FORMULA';
+  const rightIsFormula = right?.factor === 'FORMULA';
+  const rightIsValue   = right?.factor === 'VALUE';
+
+  const leftOpt  = leftIsFormula  ? null : findOpt(left);
+  const rightOpt = (rightIsFormula || rightIsValue) ? null : findOpt(right);
 
   return {
-    id:         `c_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-    leftKey:    leftOpt?.key  || '',
-    op:         op || 'crosses_above',
-    rightType:  isValue ? 'value' : 'factor',
-    rightKey:   rightOpt?.key || '',
-    rightValue: isValue ? (right?.value ?? 0) : 0,
+    id:           `c_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    leftType:     leftIsFormula ? 'formula' : 'factor',
+    leftKey:      leftOpt?.key  || '',
+    leftFormula:  leftIsFormula ? (left?.expression || '') : '',
+    op:           op || 'crosses_above',
+    rightType:    rightIsFormula ? 'formula' : (rightIsValue ? 'value' : 'factor'),
+    rightKey:     rightOpt?.key || '',
+    rightValue:   rightIsValue ? (right?.value ?? 0) : 0,
+    rightFormula: rightIsFormula ? (right?.expression || '') : '',
   };
 }

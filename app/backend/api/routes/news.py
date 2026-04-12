@@ -4,7 +4,7 @@ Endpoints for market news and articles
 """
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
-from app.backend.services.data_service import data_service
+from app.backend.services.polygon import market as polygon_market
 
 router = APIRouter()
 
@@ -20,7 +20,7 @@ async def get_news(
     - limit: Number of news articles (1-50)
     """
     try:
-        news = await data_service.get_news(
+        news = await polygon_market.get_news(
             symbol=symbol.upper() if symbol else None,
             limit=limit
         )

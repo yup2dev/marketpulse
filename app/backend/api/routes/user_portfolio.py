@@ -13,7 +13,7 @@ from app.backend.database.db_dependency import get_db
 from app.backend.auth.dependencies import get_current_active_user
 from app.backend.api.deps import route_handler
 from app.backend.services.user_portfolio_service import UserPortfolioService
-from app.backend.services.data_service import data_service
+from app.backend.services.yahoo import price as yahoo_price
 from index_analyzer.models.orm import User
 
 router = APIRouter(prefix="/user-portfolio", tags=["User Portfolio"])
@@ -405,7 +405,7 @@ async def get_price_at_date(
     start = (target_date - timedelta(days=7)).strftime('%Y-%m-%d')
     end   = (target_date + timedelta(days=2)).strftime('%Y-%m-%d')
 
-    history = await data_service.get_stock_history(
+    history = await yahoo_price.get_stock_history(
         symbol=ticker,
         start_date=start,
         end_date=end,
@@ -464,7 +464,7 @@ async def refresh_holding_prices(
 
     async def fetch_price(ticker):
         try:
-            quote = await data_service.get_stock_quote(ticker)
+            quote = await yahoo_price.get_stock_quote(ticker)
             price = quote.get('price')
             if price:
                 full_quote = {

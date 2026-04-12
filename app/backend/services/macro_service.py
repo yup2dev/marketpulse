@@ -22,10 +22,25 @@ from data_fetcher.fetchers.fred.employment import FREDEmploymentFetcher
 from data_fetcher.fetchers.fred.housing_starts import FREDHousingStartsFetcher
 from data_fetcher.fetchers.fred.industrial_production import FREDIndustrialProductionFetcher
 from data_fetcher.fetchers.fred.series import FredSeriesFetcher
-from data_fetcher.fetchers.alphavantage.forex import AlphaVantageForexFetcher
 from data_fetcher.fetchers.bond.bond_prices import FMPBondPricesFetcher
+from data_fetcher.query_executor import QueryExecutor
 from data_fetcher.utils.helpers import parse_period_to_dates
 from data_fetcher.utils.api_keys import get_api_key
+
+# Fetcher class → (provider, model) mapping for QueryExecutor
+_FETCHER_MAP = {
+    FREDGDPFetcher:                  ('fred', 'gdp'),
+    FREDUnemploymentFetcher:         ('fred', 'unemployment'),
+    FREDCPIFetcher:                  ('fred', 'cpi'),
+    FREDInterestRateFetcher:         ('fred', 'interest_rate'),
+    FREDRetailSalesFetcher:          ('fred', 'retail_sales'),
+    FREDConsumerSentimentFetcher:    ('fred', 'consumer_sentiment'),
+    FREDNonfarmPayrollFetcher:       ('fred', 'nonfarm_payroll'),
+    FREDEmploymentFetcher:           ('fred', 'employment'),
+    FREDHousingStartsFetcher:        ('fred', 'housing_starts'),
+    FREDIndustrialProductionFetcher: ('fred', 'industrial_production'),
+    FMPBondPricesFetcher:            ('fmp', 'bond_prices'),
+}
 from app.backend.constants.fred_series import (
     STICKY_CORE_CPI,
     FLEXIBLE_CORE_CPI,
@@ -159,11 +174,16 @@ class MacroService:
     ]
 
     async def _fetch(self, fetcher_cls, params: Dict, *, single: bool = False, limit=None):
-        """fetch_data → set_data → return 공통 패턴 헬퍼"""
+        """QueryExecutor.fetch → serialize → return 공통 패턴 헬퍼"""
         try:
-            result = await fetcher_cls.fetch_data(params)
-            if result:
-                data = fetcher_cls.set_data(result)
+            provider, model = _FETCHER_MAP[fetcher_cls]
+            raw = await QueryExecutor.fetch(provider, model, params)
+            models = raw if raw else []
+            if models:
+                data = [
+                    m.model_dump(mode='json') if hasattr(m, 'model_dump') else m
+                    for m in models
+                ]
                 if limit is not None:
                     data = data[:limit]
                 return data[0] if single else data
@@ -401,14 +421,14 @@ class MacroService:
 
         for pair in self.FOREX_PAIRS:
             try:
-                data = await AlphaVantageForexFetcher.fetch_data({
+                models = await QueryExecutor.fetch("alphavantage", "forex", {
                     'from_currency': pair['from'],
                     'to_currency': pair['to'],
                     'interval': 'daily'
                 })
 
-                if data:
-                    items = AlphaVantageForexFetcher.set_data(data)
+                if models:
+                    items = [m.model_dump(mode='json') if hasattr(m, 'model_dump') else m for m in models]
                     latest = items[0]
                     prev = items[1] if len(items) > 1 else None
                     change = ((latest['close'] - prev['close']) / prev['close'] * 100) if prev and prev.get('close') else None
@@ -436,7 +456,7 @@ class MacroService:
     ) -> Dict[str, Any]:
         """Get historical forex data"""
         try:
-            data = await AlphaVantageForexFetcher.fetch_data({
+            data = await QueryExecutor.fetch("alphavantage", "forex", {
                 'from_currency': from_currency,
                 'to_currency': to_currency,
                 'interval': 'daily'
@@ -444,9 +464,10 @@ class MacroService:
 
             start_date, _ = parse_period_to_dates(period)
 
+            rows = [m.model_dump(mode='json') if hasattr(m, 'model_dump') else m for m in data]
             filtered_data = [
                 {'date': d['date'], 'open': d['open'], 'high': d['high'], 'low': d['low'], 'close': d['close']}
-                for d in AlphaVantageForexFetcher.set_data(data)
+                for d in rows
                 if d.get('date') and d['date'] >= str(start_date)
             ]
 

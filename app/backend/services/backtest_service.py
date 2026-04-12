@@ -12,9 +12,17 @@ from collections import defaultdict
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from data_fetcher.fetchers.yahoo.stock_price import YahooStockPriceFetcher
-from data_fetcher.fetchers.yahoo.company_info import YahooCompanyInfoFetcher
+from data_fetcher.fetchers.yahoo.stock_price import YFinanceStockPriceFetcher
+from data_fetcher.fetchers.yahoo.company_info import YFinanceCompanyInfoFetcher
 from data_fetcher.fetchers.database.index_constituents import DBIndexConstituentsFetcher
+from data_fetcher.query_executor import QueryExecutor
+
+# Fetcher class → (provider, model) mapping for QueryExecutor
+_FETCHER_MAP = {
+    YFinanceStockPriceFetcher:    ('yahoo', 'stock_price'),
+    YFinanceCompanyInfoFetcher:   ('yahoo', 'company_info'),
+    DBIndexConstituentsFetcher:   ('db', 'index_constituents'),
+}
 
 log = logging.getLogger(__name__)
 
@@ -24,9 +32,14 @@ class BacktestService:
 
     async def _fetch(self, fetcher_cls, params: Dict, *, single: bool = False, limit=None):
         try:
-            result = await fetcher_cls.fetch_data(params)
-            if result:
-                data = fetcher_cls.set_data(result)
+            provider, model = _FETCHER_MAP[fetcher_cls]
+            raw = await QueryExecutor.fetch(provider, model, params)
+            models = raw if raw else []
+            if models:
+                data = [
+                    m.model_dump(mode='json') if hasattr(m, 'model_dump') else m
+                    for m in models
+                ]
                 if limit is not None:
                     data = data[:limit]
                 return data[0] if single else data
@@ -54,12 +67,12 @@ class BacktestService:
         stocks = []
         for symbol in symbols:
             try:
-                prices = await self._fetch(YahooStockPriceFetcher, {'symbol': symbol, 'interval': '1d'})
+                prices = await self._fetch(YFinanceStockPriceFetcher, {'symbol': symbol, 'interval': '1d'})
                 if prices:
                     latest, prev = prices[-1], (prices[-2] if len(prices) > 1 else prices[-1])
                     company_name = symbol
                     try:
-                        info = await self._fetch(YahooCompanyInfoFetcher, {'symbol': symbol}, single=True)
+                        info = await self._fetch(YFinanceCompanyInfoFetcher, {'symbol': symbol}, single=True)
                         company_name = info.get('company_name', symbol) if info else symbol
                     except Exception:
                         pass
@@ -109,7 +122,7 @@ class BacktestService:
             stock_data = {}
             for symbol in symbols:
                 try:
-                    data = await self._fetch(YahooStockPriceFetcher, {
+                    data = await self._fetch(YFinanceStockPriceFetcher, {
                         'symbol': symbol, 'start_date': start_date,
                         'end_date': end_date, 'interval': '1d'
                     })
@@ -124,7 +137,7 @@ class BacktestService:
             # Fetch real benchmark data
             benchmark_data = {}
             try:
-                bench = await self._fetch(YahooStockPriceFetcher, {
+                bench = await self._fetch(YFinanceStockPriceFetcher, {
                     'symbol': benchmark_symbol, 'start_date': start_date,
                     'end_date': end_date, 'interval': '1d'
                 })
@@ -359,7 +372,7 @@ class BacktestService:
 
         benchmark_data = {}
         try:
-            bench = await self._fetch(YahooStockPriceFetcher, {
+            bench = await self._fetch(YFinanceStockPriceFetcher, {
                 'symbol': benchmark_symbol, 'start_date': start_date,
                 'end_date': end_date, 'interval': '1d'
             })

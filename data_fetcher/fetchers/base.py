@@ -1,39 +1,29 @@
 """
 Base Fetcher Abstract Class
 
-기본 Fetcher 클래스
-Enhanced with async support, type safety, and testing capabilities.
+OpenBB 패턴을 따르는 기본 Fetcher 추상 클래스.
 """
 import asyncio
 import inspect
-from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, TypeVar, Generic, Union, get_args, get_origin
 from pydantic import BaseModel
 
 
-# Type variables for generic typing
-QueryParamsT = TypeVar('QueryParamsT', bound=BaseModel)
-DataT = TypeVar('DataT', bound=BaseModel)
-ReturnT = TypeVar('ReturnT')
+# ── Type Variables ─────────────────────────────────────────────────────────────
+Q = TypeVar("Q", bound=BaseModel)   # QueryParams 타입
+R = TypeVar("R")                    # 반환 데이터 타입 (List[Model] 또는 Model)
+
+_T = TypeVar("_T")                  # AnnotatedResult 내부용
 
 
-class AnnotatedResult(Generic[ReturnT]):
-    """
-    메타데이터를 포함한 결과 래퍼
+class AnnotatedResult(Generic[_T]):
+    """메타데이터를 포함한 결과 래퍼"""
 
-    OpenBB의 AnnotatedResult 패턴을 따름
-    """
-
-    def __init__(self, result: ReturnT, metadata: Optional[Dict[str, Any]] = None):
-        """
-        Args:
-            result: 실제 데이터 결과
-            metadata: 추가 메타데이터 (예: API 요청 정보, 경고 메시지 등)
-        """
+    def __init__(self, result: _T, metadata: Optional[Dict[str, Any]] = None):
         self.result = result
         self.metadata = metadata or {}
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"AnnotatedResult(result={self.result}, metadata={self.metadata})"
 
 
@@ -47,256 +37,177 @@ class classproperty:
         return self.func(owner)
 
 
-class Fetcher(ABC, Generic[QueryParamsT, DataT]):
-    """
-    기본 Fetcher 추상 클래스
+# ── Module-level helpers ───────────────────────────────────────────────────────
 
-    OpenBB 패턴을 따르며 다음 기능을 제공:
-    1. transform_query: 쿼리 파라미터 변환
-    2. extract_data/aextract_data: 데이터 추출 (동기/비동기)
-    3. transform_data: 데이터 변환 (표준 모델로)
-    4. fetch_data: 통합 데이터 조회 (async 지원)
-    5. test: 자동화된 테스트
+async def maybe_coroutine(func, **kwargs):
+    """함수가 코루틴이면 await, 아니면 바로 실행"""
+    result = func(**kwargs)
+    if inspect.iscoroutine(result):
+        return await result
+    return result
+
+
+# ── Fetcher ────────────────────────────────────────────────────────────────────
+
+class Fetcher(Generic[Q, R]):
+    """Abstract class for the fetcher.
 
     Type Parameters:
-        QueryParamsT: 쿼리 파라미터 타입 (BaseModel 상속)
-        DataT: 데이터 타입 (BaseModel 상속)
+        Q: QueryParams 타입 (BaseModel 상속)
+        R: 반환 데이터 엘리먼트 타입 (BaseModel 상속)
+
+    서브클래스는 다음 중 하나를 구현해야 합니다:
+        - extract_data   (동기)
+        - aextract_data  (비동기) → extract_data 로 자동 연결
 
     Example:
-        ```python
-        class MyQueryParams(BaseModel):
-            symbol: str
-
-        class MyData(BaseModel):
-            date: date
-            value: float
-
         class MyFetcher(Fetcher[MyQueryParams, MyData]):
             @staticmethod
-            def transform_query(params: Dict[str, Any]) -> MyQueryParams:
+            def transform_query(params):
                 return MyQueryParams(**params)
 
             @staticmethod
-            def extract_data(query: MyQueryParams, credentials=None, **kwargs):
-                # API 호출
-                return raw_data
+            async def aextract_data(query, credentials=None):
+                return await some_api_call(query.symbol)
 
             @staticmethod
-            def transform_data(query: MyQueryParams, data: Any, **kwargs) -> List[MyData]:
-                # 데이터 변환
-                return [MyData(...) for item in data]
-        ```
+            def transform_data(query, data, **kwargs):
+                return [MyData(**item) for item in data]
     """
 
-    # 자격증명 필요 여부 (서브클래스에서 오버라이드 가능)
-    require_credentials: bool = True
+    require_credentials: bool = True  # 모든 Fetcher의 공통 속성
+
+    # ── [1] 추상 메서드 (서브클래스가 구현) ───────────────────────────────────
 
     @staticmethod
-    @abstractmethod
-    def transform_query(params: Dict[str, Any]) -> QueryParamsT:
-        """
-        쿼리 파라미터 변환
-
-        Args:
-            params: 원시 쿼리 파라미터
-
-        Returns:
-            변환된 QueryParams 객체
-        """
+    def transform_query(params: dict[str, Any]) -> Q:
+        """Transform the params to the provider-specific query."""
         raise NotImplementedError
 
     @staticmethod
     async def aextract_data(
-        query: QueryParamsT,
-        credentials: Optional[Dict[str, str]] = None,
-        **kwargs: Any
+        query: Q,
+        credentials: dict[str, str] | None = None,
+        **kwargs: Any,
     ) -> Any:
-        """
-        비동기 데이터 추출 (API 호출)
-
-        서브클래스는 extract_data 또는 aextract_data 중 하나를 구현해야 함.
-        둘 다 구현된 경우 aextract_data가 우선.
-
-        Args:
-            query: 쿼리 파라미터
-            credentials: API 자격증명
-            **kwargs: 추가 파라미터
-
-        Returns:
-            원시 데이터
-        """
-        pass
+        """Asynchronously extract the data from the provider."""
 
     @staticmethod
     def extract_data(
-        query: QueryParamsT,
-        credentials: Optional[Dict[str, str]] = None,
-        **kwargs: Any
+        query: Q,
+        credentials: dict[str, str] | None = None,
+        **kwargs: Any,
     ) -> Any:
-        """
-        동기 데이터 추출 (API 호출)
-
-        서브클래스는 extract_data 또는 aextract_data 중 하나를 구현해야 함.
-
-        Args:
-            query: 쿼리 파라미터
-            credentials: API 자격증명
-            **kwargs: 추가 파라미터
-
-        Returns:
-            원시 데이터
-        """
-        pass
+        """Extract the data from the provider."""
 
     @staticmethod
-    @abstractmethod
-    def transform_data(
-        query: QueryParamsT,
-        data: Any,
-        **kwargs: Any
-    ) -> Union[List[DataT], AnnotatedResult[List[DataT]]]:
-        """
-        데이터 변환 (표준 모델로)
-
-        Args:
-            query: 쿼리 파라미터
-            data: 원시 데이터
-            **kwargs: 추가 파라미터
-
-        Returns:
-            표준 모델 리스트 또는 AnnotatedResult로 래핑된 리스트
-        """
+    def transform_data(query: Q, data: Any, **kwargs: Any) -> "R | AnnotatedResult[R]":
+        """Transform the provider-specific data."""
         raise NotImplementedError
 
-    def __init_subclass__(cls, *args, **kwargs):
-        """
-        서브클래스 초기화 시 extract_data/aextract_data 검증
+    # ── [2] 동기/비동기 처리 로직 ─────────────────────────────────────────────
 
-        OpenBB 패턴: aextract_data가 구현되면 extract_data를 async 버전으로 대체
-        """
+    def __init_subclass__(cls, *args, **kwargs):
+        """Initialize the subclass."""
         super().__init_subclass__(*args, **kwargs)
 
-        # aextract_data가 오버라이드되었는지 확인
-        has_async = cls.aextract_data != Fetcher.aextract_data
-        has_sync = cls.extract_data != Fetcher.extract_data
-
-        if has_async:
-            # aextract_data가 구현되면 이를 기본으로 사용
-            cls.extract_data = cls.aextract_data  # type: ignore
-        elif not has_sync:
-            # 둘 다 구현 안 되었으면 에러
+        # aextract_data가 구현되면 extract_data로도 사용
+        if cls.aextract_data != Fetcher.aextract_data:
+            cls.extract_data = cls.aextract_data  # type: ignore[method-assign]
+        elif cls.extract_data == Fetcher.extract_data:
             raise NotImplementedError(
-                f"{cls.__name__} must implement either extract_data or aextract_data"
+                "Fetcher subclass must implement either extract_data or aextract_data"
+                " method. If both are implemented, aextract_data will be used as the"
+                " default."
             )
+
+    # ── [3] 공통 실행 파이프라인 ───────────────────────────────────────────────
 
     @classmethod
     async def fetch_data(
         cls,
-        params: Dict[str, Any],
-        credentials: Optional[Dict[str, str]] = None,
-        **kwargs: Any
-    ) -> Union[List[DataT], AnnotatedResult[List[DataT]]]:
-        """
-        전체 데이터 조회 프로세스 (비동기)
+        params: dict[str, Any],
+        credentials: dict[str, str] | None = None,
+        **kwargs,
+    ) -> "R | AnnotatedResult[R]":
+        """Fetch data from a provider."""
+        # [1단계] 쿼리 변환
+        query = cls.transform_query(params=params)
 
-        Args:
-            params: 쿼리 파라미터
-            credentials: API 자격증명
-            **kwargs: 추가 파라미터
-
-        Returns:
-            표준 모델 데이터 리스트 또는 AnnotatedResult
-        """
-        # 1. 쿼리 변환
-        query = cls.transform_query(params)
-
-        # 2. 데이터 추출 (async/sync 자동 처리)
-        raw_data = await cls._maybe_coroutine(
+        # [2단계] 데이터 추출 (동기/비동기 자동 처리)
+        data = await maybe_coroutine(
             cls.extract_data,
             query=query,
             credentials=credentials,
-            **kwargs
+            **kwargs,
         )
 
-        # 3. 데이터 변환
-        transformed_data = cls.transform_data(query, raw_data, **kwargs)
-
-        return transformed_data
+        # [3단계] 데이터 변환
+        return cls.transform_data(query=query, data=data, **kwargs)
 
     @classmethod
     def fetch_data_sync(
         cls,
-        params: Dict[str, Any],
-        credentials: Optional[Dict[str, str]] = None,
-        **kwargs: Any
-    ) -> Union[List[DataT], AnnotatedResult[List[DataT]]]:
-        """
-        전체 데이터 조회 프로세스 (동기 - 편의 메서드)
-
-        내부적으로 fetch_data를 호출하고 결과를 기다림
-
-        Args:
-            params: 쿼리 파라미터
-            credentials: API 자격증명
-            **kwargs: 추가 파라미터
-
-        Returns:
-            표준 모델 데이터 리스트 또는 AnnotatedResult
-        """
+        params: dict[str, Any],
+        credentials: dict[str, str] | None = None,
+        **kwargs,
+    ) -> "R | AnnotatedResult[R]":
+        """동기 편의 메서드 (fetch_data 래퍼)"""
         return asyncio.run(cls.fetch_data(params, credentials, **kwargs))
 
-    @staticmethod
-    async def _maybe_coroutine(func, **kwargs):
-        """
-        함수가 코루틴이면 await, 아니면 바로 실행
-
-        OpenBB의 maybe_coroutine 패턴
-        """
-        result = func(**kwargs)
-        if inspect.iscoroutine(result):
-            return await result
-        return result
+    # ── [4] 타입 추출 ──────────────────────────────────────────────────────────
 
     @classproperty
     def query_params_type(cls) -> type:
-        """쿼리 파라미터 타입 반환"""
+        """Get the type of query (Q)."""
         try:
-            return get_args(cls.__orig_bases__[0])[0]  # type: ignore
+            return cls.__orig_bases__[0].__args__[0]  # type: ignore
+        except (AttributeError, IndexError):
+            return BaseModel
+
+    @classproperty
+    def return_type(cls) -> type:
+        """Get the type of return (R, AnnotatedResult 언래핑 포함)."""
+        try:
+            return_type = cls.__orig_bases__[0].__args__[1]  # type: ignore
+            if get_origin(return_type) is AnnotatedResult:
+                return_type = get_args(return_type)[0]
+            return return_type
         except (AttributeError, IndexError):
             return BaseModel
 
     @classproperty
     def data_type(cls) -> type:
-        """데이터 타입 반환"""
+        """Get the element data type (List[R] → R)."""
         try:
-            return get_args(cls.__orig_bases__[0])[1]  # type: ignore
+            raw = cls.__orig_bases__[0].__args__[1]  # type: ignore
+            return cls._get_data_type(raw)
         except (AttributeError, IndexError):
             return BaseModel
 
     @classmethod
+    def _get_data_type(cls, t: Any) -> type:
+        """List[X] → X, AnnotatedResult[List[X]] → X, X → X"""
+        origin = get_origin(t)
+        if origin is AnnotatedResult:
+            return cls._get_data_type(get_args(t)[0])
+        if origin is list:
+            args = get_args(t)
+            return args[0] if args else BaseModel
+        return t  # 단일 모델 타입 (기존 Fetcher[Q, DataModel] 호환)
+
+    # ── [5] 직렬화 유틸 (하위 호환) ───────────────────────────────────────────
+
+    @classmethod
     def set_data(
         cls,
-        result: Union[List[DataT], "AnnotatedResult[List[DataT]]", None],
-        **kwargs: Any
+        result: "Union[List[R], AnnotatedResult[List[R]], None]",
+        **kwargs: Any,
     ) -> List[Dict[str, Any]]:
-        """
-        fetch_data() 결과를 화면에 표시 가능한 딕셔너리 리스트로 자동 변환
-
-        Args:
-            result: fetch_data()의 반환값 (Pydantic 모델 리스트 또는 AnnotatedResult)
-            **kwargs: 추가 옵션 (미사용, 확장성용)
-
-        Returns:
-            JSON 직렬화된 딕셔너리 리스트
-
-        Example:
-            result = await MyFetcher.fetch_data(params)
-            data = MyFetcher.set_data(result)
-        """
+        """fetch_data() 결과를 dict 리스트로 직렬화"""
         if result is None:
             return []
 
-        # AnnotatedResult 언래핑
         if isinstance(result, AnnotatedResult):
             result = result.result
 
@@ -306,78 +217,51 @@ class Fetcher(ABC, Generic[QueryParamsT, DataT]):
         output = []
         for item in result:
             if isinstance(item, BaseModel):
-                # mode='json' → 날짜/시간 등 자동으로 ISO 문자열로 직렬화
-                output.append(item.model_dump(mode='json'))
-            elif isinstance(item, dict):
-                output.append(item)
+                output.append(item.model_dump(mode="json"))
             else:
                 output.append(item)
-
         return output
 
+    # ── [6] 테스트 헬퍼 ────────────────────────────────────────────────────────
 
     @classmethod
     def test(
         cls,
         params: Dict[str, Any],
         credentials: Optional[Dict[str, str]] = None,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> None:
-        """
-        Fetcher 테스트 메서드
-
-        Transform-Extract-Transform (TET) 패턴의 각 단계를 검증
-
-        Args:
-            params: 테스트용 쿼리 파라미터
-            credentials: API 자격증명
-            **kwargs: 추가 파라미터
-
-        Raises:
-            AssertionError: 테스트 실패 시
-
-        Example:
-            ```python
-            MyFetcher.test(
-                params={"symbol": "AAPL"},
-                credentials={"api_key": "test_key"}
-            )
-            ```
-        """
-        # 1. Transform Query 테스트
+        """Transform-Extract-Transform 각 단계 검증"""
         query = cls.transform_query(params)
         assert query is not None, "Query must not be None"
-        assert isinstance(query, cls.query_params_type), \
+        assert isinstance(query, cls.query_params_type), (
             f"Query type mismatch. Expected: {cls.query_params_type}, Got: {type(query)}"
+        )
 
-        # 2. Extract Data 테스트
-        raw_data = asyncio.run(cls._maybe_coroutine(
+        raw_data = asyncio.run(maybe_coroutine(
             cls.extract_data,
             query=query,
             credentials=credentials,
-            **kwargs
+            **kwargs,
         ))
         assert raw_data is not None, "Raw data must not be None"
         assert len(raw_data) > 0, "Raw data must not be empty"
 
-        # 3. Transform Data 테스트
         result = cls.transform_data(query, raw_data, **kwargs)
+        transformed = result.result if isinstance(result, AnnotatedResult) else result
 
-        # AnnotatedResult 언래핑
-        transformed_data = result.result if isinstance(result, AnnotatedResult) else result
+        assert transformed is not None, "Transformed data must not be None"
+        assert isinstance(transformed, list), "Transformed data must be a list"
+        assert len(transformed) > 0, "Transformed data must not be empty"
 
-        assert transformed_data is not None, "Transformed data must not be None"
-        assert isinstance(transformed_data, list), "Transformed data must be a list"
-        assert len(transformed_data) > 0, "Transformed data must not be empty"
-
-        # 첫 번째 아이템 타입 검증
-        first_item = transformed_data[0]
-        assert isinstance(first_item, cls.data_type), \
+        first_item = transformed[0]
+        assert isinstance(first_item, cls.data_type), (
             f"Data type mismatch. Expected: {cls.data_type}, Got: {type(first_item)}"
+        )
 
         print(f"✓ {cls.__name__} test passed!")
         print(f"  - Query: {query}")
-        print(f"  - Records fetched: {len(transformed_data)}")
+        print(f"  - Records fetched: {len(transformed)}")
         print(f"  - Sample data: {first_item}")
 
 

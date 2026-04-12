@@ -4,20 +4,28 @@ import { COND_OPERATORS } from './constants';
 function buildLogicSummary(conditions, logic, varOptions) {
   if (!conditions.length) return null;
 
+  const short = (opt) => {
+    if (!opt) return '?';
+    const parts = opt.label.split(' · ');
+    return parts.length > 1 ? parts.slice(1).join(' · ') : parts[0];
+  };
+
   const parts = conditions.map(row => {
-    const leftOpt = varOptions.find(o => o.key === row.leftKey) || varOptions[0];
     const opLabel = COND_OPERATORS.find(o => o.id === row.op)?.label || row.op;
 
-    const short = (opt) => {
-      if (!opt) return '?';
-      const parts = opt.label.split(' · ');
-      return parts.length > 1 ? parts.slice(1).join(' · ') : parts[0];
-    };
+    let leftLabel;
+    if (row.leftType === 'formula') {
+      leftLabel = `(${row.leftFormula || '…'})`;
+    } else {
+      const leftOpt = varOptions.find(o => o.key === row.leftKey) || varOptions[0];
+      leftLabel = short(leftOpt);
+    }
 
-    const leftLabel = short(leftOpt);
     let rightLabel;
     if (row.rightType === 'value') {
       rightLabel = `${row.rightValue}`;
+    } else if (row.rightType === 'formula') {
+      rightLabel = `(${row.rightFormula || '…'})`;
     } else {
       const rightOpt = varOptions.find(o => o.key === row.rightKey)
         || varOptions.find(o => o.key !== row.leftKey)

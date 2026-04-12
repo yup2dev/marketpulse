@@ -1,10 +1,14 @@
 """
 Quant Strategy Service
 Single-stock strategy backtesting with signal generation and performance metrics.
-Supports: EMA Cross, RSI, MACD Cross, BB Breakout
-Uses numpy only — no additional dependencies.
+
+Technical presets (EMA Cross / RSI / MACD / BB) are now expressed as templates
+stored in quant_strategy_types.template and executed through _run_custom.
+Heston (FFT-based) and macro engines keep their native implementations.
 """
+import ast
 import sys
+import json
 import logging
 import numpy as np
 import pandas as pd
@@ -13,7 +17,7 @@ from typing import Any, Dict, List, Optional
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from data_fetcher.fetchers.yahoo.stock_price import YahooStockPriceFetcher
+from data_fetcher.query_executor import QueryExecutor
 
 log = logging.getLogger(__name__)
 
@@ -93,97 +97,6 @@ def _bollinger(prices: np.ndarray, period: int = 20, std_dev: float = 2.0):
 
 
 # ─── Strategy Engines ──────────────────────────────────────────────────────────
-
-def _run_ema_cross(closes: np.ndarray, dates: List[str], cfg: Dict) -> List[Dict]:
-    """Golden/Death cross on two EMAs"""
-    fast = int(cfg.get("fast") or 20)
-    slow = int(cfg.get("slow") or 50)
-    ema_fast = _ema(closes, fast)
-    ema_slow = _ema(closes, slow)
-
-    signals = []
-    in_position = False
-    for i in range(1, len(closes)):
-        if np.isnan(ema_fast[i]) or np.isnan(ema_slow[i]):
-            continue
-        if not in_position and ema_fast[i - 1] <= ema_slow[i - 1] and ema_fast[i] > ema_slow[i]:
-            signals.append({"date": dates[i], "type": "buy", "price": closes[i],
-                             "reason": f"EMA{fast} × EMA{slow} Golden Cross"})
-            in_position = True
-        elif in_position and ema_fast[i - 1] >= ema_slow[i - 1] and ema_fast[i] < ema_slow[i]:
-            signals.append({"date": dates[i], "type": "sell", "price": closes[i],
-                             "reason": f"EMA{fast} × EMA{slow} Death Cross"})
-            in_position = False
-    return signals
-
-
-def _run_rsi(closes: np.ndarray, dates: List[str], cfg: Dict) -> List[Dict]:
-    """RSI oversold/overbought strategy"""
-    period     = int(cfg.get("rsi_period") or 14)
-    oversold   = float(cfg.get("oversold")   or 30)
-    overbought = float(cfg.get("overbought") or 70)
-    rsi = _rsi(closes, period)
-
-    signals = []
-    in_position = False
-    for i in range(1, len(closes)):
-        if np.isnan(rsi[i]) or np.isnan(rsi[i - 1]):
-            continue
-        if not in_position and rsi[i - 1] <= oversold and rsi[i] > oversold:
-            signals.append({"date": dates[i], "type": "buy", "price": closes[i],
-                             "reason": f"RSI({period}) bounce from oversold ({oversold})"})
-            in_position = True
-        elif in_position and rsi[i - 1] >= overbought and rsi[i] < overbought:
-            signals.append({"date": dates[i], "type": "sell", "price": closes[i],
-                             "reason": f"RSI({period}) exit from overbought ({overbought})"})
-            in_position = False
-    return signals
-
-
-def _run_macd_cross(closes: np.ndarray, dates: List[str], cfg: Dict) -> List[Dict]:
-    """MACD line crossing signal line"""
-    fast   = int(cfg.get("fast")   or 12)
-    slow   = int(cfg.get("slow")   or 26)
-    signal = int(cfg.get("signal") or 9)
-    macd_line, signal_line, _ = _macd(closes, fast, slow, signal)
-
-    signals = []
-    in_position = False
-    for i in range(1, len(closes)):
-        if np.isnan(macd_line[i]) or np.isnan(signal_line[i]):
-            continue
-        if not in_position and macd_line[i - 1] <= signal_line[i - 1] and macd_line[i] > signal_line[i]:
-            signals.append({"date": dates[i], "type": "buy", "price": closes[i],
-                             "reason": f"MACD({fast},{slow},{signal}) bullish crossover"})
-            in_position = True
-        elif in_position and macd_line[i - 1] >= signal_line[i - 1] and macd_line[i] < signal_line[i]:
-            signals.append({"date": dates[i], "type": "sell", "price": closes[i],
-                             "reason": f"MACD({fast},{slow},{signal}) bearish crossover"})
-            in_position = False
-    return signals
-
-
-def _run_bb_breakout(closes: np.ndarray, dates: List[str], cfg: Dict) -> List[Dict]:
-    """Bollinger Band breakout strategy"""
-    period  = int(cfg.get("period")  or 20)
-    std_dev = float(cfg.get("std_dev") or 2.0)
-    upper, mid, lower = _bollinger(closes, period, std_dev)
-
-    signals = []
-    in_position = False
-    for i in range(1, len(closes)):
-        if np.isnan(upper[i]) or np.isnan(lower[i]):
-            continue
-        if not in_position and closes[i - 1] <= lower[i - 1] and closes[i] > lower[i]:
-            signals.append({"date": dates[i], "type": "buy", "price": closes[i],
-                             "reason": f"BB({period},{std_dev}) bounce off lower band"})
-            in_position = True
-        elif in_position and closes[i - 1] >= upper[i - 1] and closes[i] < upper[i]:
-            signals.append({"date": dates[i], "type": "sell", "price": closes[i],
-                             "reason": f"BB({period},{std_dev}) rejected at upper band"})
-            in_position = False
-    return signals
-
 
 # ─── Additional Indicators ────────────────────────────────────────────────────
 
@@ -375,6 +288,97 @@ def _bs_greeks_series(close: np.ndarray, r: float, T: float,
     return {'delta': delta, 'gamma': gamma, 'theta': theta, 'vega': vega}
 
 
+# ─── Safe Formula Evaluator ───────────────────────────────────────────────────
+#
+# Expression → numpy array. Allowed: numbers, variable names, + - * / % **,
+# unary -, parentheses, abs(), min(), max(), log(), exp(), sqrt().
+# Comparison/logical ops are not supported here — a Formula is a SCALAR series;
+# comparisons happen in _eval_cond once the resulting array is plugged into a
+# condition's left/right side.
+
+_FORMULA_FUNCS = {
+    "abs":  np.abs,
+    "min":  np.minimum,
+    "max":  np.maximum,
+    "log":  np.log,
+    "exp":  np.exp,
+    "sqrt": np.sqrt,
+}
+
+_BIN_OPS = {
+    ast.Add:      np.add,
+    ast.Sub:      np.subtract,
+    ast.Mult:     np.multiply,
+    ast.Div:      np.divide,
+    ast.Mod:      np.mod,
+    ast.Pow:      np.power,
+    ast.FloorDiv: np.floor_divide,
+}
+
+
+def _eval_formula_node(node: ast.AST, resolved: Dict[str, np.ndarray], length: int) -> np.ndarray:
+    if isinstance(node, ast.Expression):
+        return _eval_formula_node(node.body, resolved, length)
+    if isinstance(node, ast.Constant):
+        if not isinstance(node.value, (int, float)):
+            raise ValueError(f"Formula: unsupported constant {node.value!r}")
+        return np.full(length, float(node.value))
+    if isinstance(node, ast.Num):  # py<3.8 fallback
+        return np.full(length, float(node.n))
+    if isinstance(node, ast.Name):
+        if node.id not in resolved:
+            raise ValueError(f"Formula: unknown variable '{node.id}'")
+        return resolved[node.id]
+    if isinstance(node, ast.UnaryOp):
+        v = _eval_formula_node(node.operand, resolved, length)
+        if isinstance(node.op, ast.USub): return -v
+        if isinstance(node.op, ast.UAdd): return v
+        raise ValueError("Formula: unsupported unary op")
+    if isinstance(node, ast.BinOp):
+        op_fn = _BIN_OPS.get(type(node.op))
+        if not op_fn:
+            raise ValueError(f"Formula: unsupported operator {type(node.op).__name__}")
+        l = _eval_formula_node(node.left,  resolved, length)
+        r = _eval_formula_node(node.right, resolved, length)
+        return op_fn(l, r)
+    if isinstance(node, ast.Call):
+        if not isinstance(node.func, ast.Name) or node.func.id not in _FORMULA_FUNCS:
+            raise ValueError(f"Formula: unknown function")
+        fn   = _FORMULA_FUNCS[node.func.id]
+        args = [_eval_formula_node(a, resolved, length) for a in node.args]
+        return fn(*args)
+    raise ValueError(f"Formula: unsupported syntax {type(node).__name__}")
+
+
+def _eval_formula(series: Dict, expression: str, variables: Dict[str, Dict]) -> np.ndarray:
+    """
+    Evaluate a formula like 'ema1 * 0.95 + 10' into a numpy series.
+    `variables` maps each free name in the expression to a factor_def which is
+    computed with _compute_factor on the same OHLCV series.
+    """
+    if not expression or not expression.strip():
+        return np.full(len(series["close"]), np.nan)
+    try:
+        tree = ast.parse(expression, mode="eval")
+    except SyntaxError as e:
+        raise ValueError(f"Formula syntax error: {e.msg}")
+    resolved: Dict[str, np.ndarray] = {}
+    length = len(series["close"])
+    for name in {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)}:
+        if name in _FORMULA_FUNCS:  # function names, not vars
+            continue
+        var_def = variables.get(name)
+        if not var_def:
+            # Allow bare price references as a fallback
+            upper = name.upper()
+            if upper in ("CLOSE", "OPEN", "HIGH", "LOW", "VOLUME"):
+                var_def = {"factor": upper, "params": {}}
+            else:
+                raise ValueError(f"Formula: variable '{name}' not defined")
+        resolved[name] = _compute_factor(series, var_def)
+    return _eval_formula_node(tree.body, resolved, length)
+
+
 # ─── Custom Factor Engine ──────────────────────────────────────────────────────
 
 def _compute_factor(series: Dict, factor_def: Dict) -> np.ndarray:
@@ -442,6 +446,12 @@ def _compute_factor(series: Dict, factor_def: Dict) -> np.ndarray:
         return series.get("volume", np.zeros(n))
     if factor == "VALUE":
         return np.full(n, float(factor_def.get("value", 0)))
+    if factor == "FORMULA":
+        return _eval_formula(
+            series,
+            factor_def.get("expression", ""),
+            factor_def.get("variables", {}) or {},
+        )
 
     # ── Options pricing (Carr-Madan FFT) ──────────────────────────────────────
     if factor.startswith("OPT_BS") or factor.startswith("OPT_HESTON"):
@@ -536,6 +546,11 @@ def _eval_cond(ls: np.ndarray, op: str, rs: np.ndarray, i: int) -> bool:
 
 def _factor_label(factor_def: Dict) -> str:
     f = factor_def.get("factor", "?")
+    if f == "FORMULA":
+        expr = factor_def.get("expression", "")
+        return f"({expr})" if expr else "(formula)"
+    if f == "VALUE":
+        return str(factor_def.get("value", 0))
     p = factor_def.get("params", {})
     if not p:
         return f
@@ -975,11 +990,10 @@ def _run_macro_yield_curve(closes: np.ndarray, dates: List[str], cfg: Dict) -> L
     return signals
 
 
+# Native (non-template) engines. Templated presets (ema_cross, rsi, macd_cross,
+# bb_breakout) are resolved through _load_template → _run_custom and do not
+# need an entry here.
 STRATEGY_ENGINES = {
-    "ema_cross":              _run_ema_cross,
-    "rsi":                    _run_rsi,
-    "macd_cross":             _run_macd_cross,
-    "bb_breakout":            _run_bb_breakout,
     "custom":                 _run_custom,
     "heston_vol_regime":      _heston_vol_regime,
     "heston_delta_signal":    _heston_delta_signal,
@@ -989,92 +1003,6 @@ STRATEGY_ENGINES = {
     "macro_vix_regime":       _run_macro_vix_regime,
     "macro_yield_curve":      _run_macro_yield_curve,
 }
-
-# ─── Single Source of Truth for Strategy Metadata ────────────────────────────
-# Frontend reads this via GET /api/quant/strategy-types.
-# Add a new engine → add an entry here; frontend picks it up automatically.
-STRATEGY_META: List[Dict] = [
-    {
-        "key": "ema_cross", "label": "EMA Cross", "group": "Technical",
-        "desc": "두 EMA의 골든/데스 크로스 신호",
-        "slow_scan": False,
-        "params": [
-            {"key": "fast", "label": "Fast EMA", "min": 5,   "max": 30,  "step": 5,    "default": 20},
-            {"key": "slow", "label": "Slow EMA", "min": 30,  "max": 150, "step": 10,   "default": 50},
-        ],
-    },
-    {
-        "key": "rsi", "label": "RSI", "group": "Technical",
-        "desc": "RSI 과매도/과매수 반전 전략",
-        "slow_scan": False,
-        "params": [
-            {"key": "rsi_period", "label": "RSI Period", "min": 7,  "max": 21, "step": 2, "default": 14},
-            {"key": "oversold",   "label": "Oversold",   "min": 20, "max": 40, "step": 5, "default": 30},
-            {"key": "overbought", "label": "Overbought", "min": 60, "max": 80, "step": 5, "default": 70},
-        ],
-    },
-    {
-        "key": "macd_cross", "label": "MACD", "group": "Technical",
-        "desc": "MACD 라인과 시그널 라인의 크로스오버",
-        "slow_scan": False,
-        "params": [
-            {"key": "fast",   "label": "Fast",   "min": 8,  "max": 20, "step": 2, "default": 12},
-            {"key": "slow",   "label": "Slow",   "min": 20, "max": 40, "step": 5, "default": 26},
-            {"key": "signal", "label": "Signal", "min": 5,  "max": 15, "step": 2, "default": 9},
-        ],
-    },
-    {
-        "key": "bb_breakout", "label": "BB Breakout", "group": "Technical",
-        "desc": "볼린저 밴드 하단 반등 매수, 상단 저항 매도",
-        "slow_scan": False,
-        "params": [
-            {"key": "period",  "label": "Period",  "min": 10,  "max": 30,  "step": 5,    "default": 20},
-            {"key": "std_dev", "label": "Std Dev", "min": 1.5, "max": 3.0, "step": 0.25, "default": 2.0},
-        ],
-    },
-    {
-        "key": "heston_vol_regime", "label": "Heston Vol Regime", "group": "Heston",
-        "desc": "실현변동성 / 장기평균(√θ) 비율로 저변동 국면 진입·고변동 국면 청산",
-        "slow_scan": False,
-        "params": [
-            {"key": "entry_mult", "label": "Entry Mult", "min": 0.4, "max": 1.0, "step": 0.2, "default": 0.8},
-            {"key": "exit_mult",  "label": "Exit Mult",  "min": 1.2, "max": 2.4, "step": 0.4, "default": 1.5},
-        ],
-    },
-    {
-        "key": "heston_delta_signal", "label": "Heston Delta Signal", "group": "Heston",
-        "desc": "Heston 콜옵션 델타가 임계값 돌파 시 방향성 신호 (FFT 연산)",
-        "slow_scan": True,
-        "params": [
-            {"key": "delta_buy",  "label": "Delta Buy",  "min": 0.50, "max": 0.70, "step": 0.05, "default": 0.60},
-            {"key": "delta_sell", "label": "Delta Sell", "min": 0.30, "max": 0.50, "step": 0.05, "default": 0.40},
-        ],
-    },
-    {
-        "key": "heston_price_ratio", "label": "Heston Premium MR", "group": "Heston",
-        "desc": "Heston 콜 프리미엄 Z-score 과열 시 역추세 매수, 붕괴 시 청산 (FFT 연산)",
-        "slow_scan": True,
-        "params": [
-            {"key": "entry_z", "label": "Entry Z", "min": 1.0, "max": 2.5, "step": 0.5, "default": 1.5},
-            {"key": "exit_z",  "label": "Exit Z",  "min": 0.2, "max": 1.0, "step": 0.2, "default": 0.5},
-        ],
-    },
-    {
-        "key": "heston_variance_gap", "label": "Heston Variance Gap", "group": "Heston",
-        "desc": "분산갭(v0−θ) 수축 시 진입, −임계값 이하 시 스파이크 위험 청산",
-        "slow_scan": False,
-        "params": [
-            {"key": "spike_thresh", "label": "Spike Thresh %", "min": 0.5, "max": 3.0, "step": 0.5, "default": 1.5},
-            {"key": "low_thresh",   "label": "Low Thresh %",   "min": 0.1, "max": 1.0, "step": 0.3, "default": 0.5},
-        ],
-    },
-    {
-        "key": "custom", "label": "Custom", "group": "Custom",
-        "desc": "Strategy Builder에서 직접 정의한 팩터 기반 전략",
-        "slow_scan": False,
-        "params": [],
-    },
-]
 
 
 # ─── Risk Management ───────────────────────────────────────────────────────────
@@ -1408,6 +1336,52 @@ def _substitute_template(obj: Any, params: Dict[str, Any]) -> Any:
     return obj
 
 
+_TEMPLATE_CACHE: Dict[str, Optional[Dict]] = {}
+
+
+def _load_template(strategy_type: str) -> Optional[Dict]:
+    """
+    Load the template JSON for a built-in strategy type. Returns None for
+    native engines (heston_*, macro_*, custom). Cached in-process.
+    """
+    if strategy_type in _TEMPLATE_CACHE:
+        return _TEMPLATE_CACHE[strategy_type]
+
+    from index_analyzer.utils.db import get_sqlite_db
+    from index_analyzer.models.quant_strategy_type import QuantStrategyType
+
+    db_path = Path(__file__).parent.parent.parent.parent / "data" / "marketpulse.db"
+    template: Optional[Dict] = None
+    try:
+        db_instance = get_sqlite_db(str(db_path))
+        session = db_instance.get_session()
+        try:
+            row = session.query(QuantStrategyType).filter_by(key=strategy_type).first()
+            if row and row.template:
+                template = json.loads(row.template)
+        finally:
+            session.close()
+    except Exception as e:
+        log.warning(f"Failed loading template for {strategy_type}: {e}")
+
+    _TEMPLATE_CACHE[strategy_type] = template
+    return template
+
+
+def _resolve_template_cfg(template: Dict, params: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Substitute ##name## placeholders in a template using `params` and return a
+    cfg dict ready for _run_custom (buy_conditions/sell_conditions/logics).
+    """
+    resolved = _substitute_template(template, params or {})
+    return {
+        "buy_conditions":  resolved.get("buy_conditions",  []) or [],
+        "sell_conditions": resolved.get("sell_conditions", []) or [],
+        "buy_logic":       resolved.get("buy_logic",  "AND"),
+        "sell_logic":      resolved.get("sell_logic", "OR"),
+    }
+
+
 async def scan(
     ticker: str,
     start_date: str,
@@ -1427,20 +1401,21 @@ async def scan(
     Fetch price data ONCE, then run all parameter combinations.
     param_ranges: { "fast": {"min":10,"max":30,"step":5}, "slow": {"min":40,"max":150,"step":10} }
     """
+    template = _load_template(strategy_type)
     engine = STRATEGY_ENGINES.get(strategy_type)
-    if engine is None:
+    if template is None and engine is None:
         raise ValueError(f"Unknown strategy type: {strategy_type}")
 
     # Fetch price data once
-    raw = await YahooStockPriceFetcher.fetch_data({
+    models = await QueryExecutor.fetch("yahoo", "stock_price", {
         "symbol": ticker,
         "start_date": start_date,
         "end_date": end_date,
         "interval": "1d",
     })
-    if not raw:
+    if not models:
         raise ValueError(f"No price data found for {ticker}")
-    data = YahooStockPriceFetcher.set_data(raw)
+    data = [m.model_dump(mode='json') for m in models]
     data.sort(key=lambda d: d['date'])
     dates = [d['date'][:10] for d in data]
     closes = np.array([d['close'] for d in data], dtype=float)
@@ -1474,8 +1449,10 @@ async def scan(
         "volume": np.array([d['volume'] or 1.0        for d in data], dtype=float),
     }
 
-    # For custom strategies, buy/sell condition templates are passed in and
-    # each combo's parameter values are substituted via ##name## placeholders.
+    # Three dispatch paths per combo:
+    #   1. Built-in preset with template in DB → substitute placeholders → _run_custom
+    #   2. Custom: caller provides buy/sell condition templates with ##name## placeholders
+    #   3. Native engine (heston_*, macro_*): pass combo straight through
     is_custom = strategy_type == "custom"
     buy_tpl   = buy_conditions  or []
     sell_tpl  = sell_conditions or []
@@ -1484,18 +1461,18 @@ async def scan(
     skipped = 0
     for combo in combinations:
         try:
-            if is_custom:
-                # Substitute scan params into condition templates
-                resolved_buy  = _substitute_template(buy_tpl,  combo)
-                resolved_sell = _substitute_template(sell_tpl, combo)
+            if template is not None:
+                cfg = _resolve_template_cfg(template, combo)
+                raw_signals = _run_custom(closes, dates, cfg, series_scan)
+            elif is_custom:
                 cfg = {
-                    "buy_conditions":  resolved_buy,
-                    "sell_conditions": resolved_sell,
+                    "buy_conditions":  _substitute_template(buy_tpl,  combo),
+                    "sell_conditions": _substitute_template(sell_tpl, combo),
                     "buy_logic":       buy_logic,
                     "sell_logic":      sell_logic,
                     **combo,
                 }
-                raw_signals = engine(closes, dates, cfg, series_scan)
+                raw_signals = _run_custom(closes, dates, cfg, series_scan)
             else:
                 raw_signals = engine(closes, dates, combo)
 
@@ -1545,16 +1522,16 @@ async def analyze(
     initial_capital = float(strategy.get("initial_capital", 10000.0))
 
     # ── Fetch price data ──────────────────────────────────────────────────────
-    raw = await YahooStockPriceFetcher.fetch_data({
+    models = await QueryExecutor.fetch("yahoo", "stock_price", {
         "symbol": ticker,
         "start_date": start_date,
         "end_date": end_date,
         "interval": "1d",
     })
-    if not raw:
+    if not models:
         raise ValueError(f"No price data found for {ticker}")
 
-    data = YahooStockPriceFetcher.set_data(raw)
+    data = [m.model_dump(mode='json') for m in models]
     data.sort(key=lambda d: d['date'])
     dates = [d['date'][:10] for d in data]
     closes = np.array([d['close'] for d in data], dtype=float)
@@ -1577,14 +1554,19 @@ async def analyze(
         raise ValueError(f"Insufficient data for {ticker}: only {len(closes)} bars")
 
     # ── Run strategy ──────────────────────────────────────────────────────────
-    engine = STRATEGY_ENGINES.get(strategy_type)
-    if engine is None:
-        raise ValueError(f"Unknown strategy type: {strategy_type}")
-
-    if strategy_type == "custom":
-        raw_signals = engine(closes, dates, strategy, series)
+    # Templated preset: substitute scan params into template then dispatch to _run_custom.
+    template = _load_template(strategy_type)
+    if template is not None:
+        cfg = _resolve_template_cfg(template, strategy)
+        raw_signals = _run_custom(closes, dates, cfg, series)
     else:
-        raw_signals = engine(closes, dates, strategy)
+        engine = STRATEGY_ENGINES.get(strategy_type)
+        if engine is None:
+            raise ValueError(f"Unknown strategy type: {strategy_type}")
+        if strategy_type == "custom":
+            raw_signals = engine(closes, dates, strategy, series)
+        else:
+            raw_signals = engine(closes, dates, strategy)
 
     # ── Build trades & performance ────────────────────────────────────────────
     commission_pct = float(strategy.get("commission_pct", 0.0))

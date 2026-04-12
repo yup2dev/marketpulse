@@ -25,6 +25,7 @@ from app.backend.api.routes import (
     auth, user_portfolio, screener, alerts, export, watchlist, menu, quant
 )
 from app.backend.api.routes.workspace import router as workspace_router
+from app.backend.api.routes.fundamental import router as fundamental_router
 
 
 def _init_db():
@@ -36,20 +37,27 @@ def _init_db():
         db_path = Path(__file__).parent.parent.parent / "data" / "marketpulse.db"
         db_instance = get_sqlite_db(str(db_path))
         Base.metadata.create_all(bind=db_instance.engine)
-        print("✓ Database tables initialized successfully")
+        print("[OK] Database tables initialized successfully")
 
         try:
             from scripts.init_menu_data import init_menu_data
             init_menu_data()
-            print("✓ Menu data initialized successfully")
+            print("[OK] Menu data initialized successfully")
         except Exception as e:
-            print(f"⚠ Menu data initialization skipped: {e}")
+            print(f"[SKIP] Menu data initialization skipped: {e}")
+
+        try:
+            from scripts.init_quant_strategy_types import init_quant_strategy_types
+            init_quant_strategy_types()
+        except Exception as e:
+            print(f"[SKIP] Strategy types seed skipped: {e}")
 
     except Exception as e:
-        print(f"✗ Startup initialization failed: {e}")
+        print(f"[FAIL] Startup initialization failed: {e}")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    import data_fetcher.providers_init  # noqa: F401 — registers all providers/fetchers
     _init_db()
     yield
 
@@ -90,6 +98,7 @@ app.include_router(portfolio.router, prefix="/api/portfolio", tags=["portfolio"]
 app.include_router(macro.router, prefix="/api/macro", tags=["macro"])
 app.include_router(quant.router, prefix="/api/quant", tags=["quant"])
 app.include_router(workspace_router, prefix="/api", tags=["workspace"])
+app.include_router(fundamental_router.router, prefix="/api/v1", tags=["equity-fundamental"])
 
 
 @app.get("/")

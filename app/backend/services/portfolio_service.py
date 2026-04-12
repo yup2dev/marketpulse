@@ -6,6 +6,7 @@ import logging
 from typing import Dict, Any, List
 
 from data_fetcher.fetchers.whalewisdom import WhaleWisdomFetcher
+from data_fetcher.query_executor import QueryExecutor
 
 log = logging.getLogger(__name__)
 
@@ -71,7 +72,7 @@ class PortfolioService:
         """
         try:
             params = {"institution_key": institution_key, "limit": limit}
-            results = await self.fetcher.fetch_data(params, credentials=None)
+            results = await QueryExecutor.fetch("whalewisdom", "institutional_holdings", params)
 
             if not results or len(results) == 0:
                 raise ValueError(f"Holdings not found for institution: {institution_key}")

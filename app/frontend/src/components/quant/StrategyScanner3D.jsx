@@ -867,10 +867,18 @@ export default function StrategyScanner3D({ ticker, startDate, endDate, strategy
     if (isCustomType && (!customScan || Object.keys(customScan.params).length === 0)) {
       toast.error('스캔 가능한 파라미터가 없습니다. 조건에 숫자 파라미터를 추가하세요.'); return;
     }
-    const maxCombos = safePreset?.slowScan ? 50 : (scanMode === 'fine' ? 2000 : scanMode === 'quick' ? 200 : 500);
+    const HARD_CAP = 100_000_000;  // 1억
+    const maxCombos = safePreset?.slowScan ? 10_000 : HARD_CAP;
     if (combCount > maxCombos) {
-      toast.error(`조합 수 초과 (${combCount} > 최대 ${maxCombos}). Step을 크게 하거나 Quick 모드를 사용하세요.`);
+      toast.error(`조합 수 초과 (${combCount.toLocaleString()} > 최대 ${maxCombos.toLocaleString()}). FFT 전략은 범위를 줄여주세요.`);
       return;
+    }
+    if (combCount > 1_000_000) {
+      const ok = window.confirm(
+        `${combCount.toLocaleString()}개 조합을 스캔하려 합니다.\n` +
+        `대규모 시뮬레이션은 수 분 ~ 수 시간이 걸릴 수 있습니다. 계속하시겠습니까?`
+      );
+      if (!ok) return;
     }
     setLoading(true);
     setResults([]);
@@ -939,8 +947,12 @@ export default function StrategyScanner3D({ ticker, startDate, endDate, strategy
             {safePreset ? safePreset.label : (stratType || '전략')} — 파라미터 최적화
           </span>
           {combCount > 0 && (
-            <span className={`text-[10px] tabular-nums px-1.5 py-0.5 rounded ${combCount > 1000 ? 'text-red-400 bg-red-900/20' : 'text-gray-500 bg-gray-800/50'}`}>
-              {combCount} 조합
+            <span className={`text-[10px] tabular-nums px-1.5 py-0.5 rounded ${
+              combCount > 1_000_000 ? 'text-red-400 bg-red-900/20'
+              : combCount > 10_000  ? 'text-amber-400 bg-amber-900/20'
+              : 'text-gray-500 bg-gray-800/50'
+            }`}>
+              {combCount.toLocaleString()} 조합
             </span>
           )}
           <div className="ml-auto text-gray-600">
@@ -964,7 +976,7 @@ export default function StrategyScanner3D({ ticker, startDate, endDate, strategy
                       ? 'bg-amber-900/15 border border-amber-700/30 text-amber-400/90'
                       : 'bg-purple-900/10 border border-purple-800/30 text-purple-300/80'
                   }`}>
-                    {safePreset?.slowScan && <span className="font-semibold">⚠ FFT 연산 전략 — 조합 수를 50개 이하로 유지하세요.<br /></span>}
+                    {safePreset?.slowScan && <span className="font-semibold">⚠ FFT 연산 전략 — 조합 수를 1만 개 이하로 권장합니다.<br /></span>}
                     {safePreset?.desc}
                   </div>
                 )}
@@ -1127,8 +1139,8 @@ export default function StrategyScanner3D({ ticker, startDate, endDate, strategy
                   className="w-full flex items-center justify-center gap-2 py-2.5 bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-xs font-semibold rounded transition-colors"
                 >
                   {loading
-                    ? <><span className="w-3.5 h-3.5 border border-white border-t-transparent rounded-full animate-spin" />스캔 중 ({combCount} 조합)…</>
-                    : <><Play size={12} />최적 파라미터 스캔 ({combCount} 조합)</>
+                    ? <><span className="w-3.5 h-3.5 border border-white border-t-transparent rounded-full animate-spin" />스캔 중 ({combCount.toLocaleString()} 조합)…</>
+                    : <><Play size={12} />최적 파라미터 스캔 ({combCount.toLocaleString()} 조합)</>
                   }
                 </button>
               </>

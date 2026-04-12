@@ -19,7 +19,9 @@ import {
   CATEGORY_META,
   AVAILABILITY_META,
 } from '../../data/strategyFactors';
-import { buildVarOptions, toBECond, fromBECond, mkCondRow, makeVarName, parseParams } from './helpers';
+import {
+  buildVarOptions, toBECond, fromBECond, mkCondRow, makeVarName, parseParams,
+} from './helpers';
 import { TABS, TAB_CATEGORY_MAP } from './constants';
 import StrategyDropdown from './StrategyDropdown';
 import StrategyEditorTab from './StrategyEditorTab';
@@ -236,8 +238,8 @@ const StrategyBuilderDashboard = () => {
   const onRemoveSell = (i) => setSellConditions(p => p.filter((_, idx) => idx !== i));
 
   const buildPayload = () => {
-    const buy_conditions  = buyConditions.map(r => toBECond(r, varOptions));
-    const sell_conditions = sellConditions.map(r => toBECond(r, varOptions));
+    const buy_conditions  = buyConditions.map(r => toBECond(r, varOptions, selectedFactors));
+    const sell_conditions = sellConditions.map(r => toBECond(r, varOptions, selectedFactors));
     return {
       name:           name.trim(),
       strategy_type:  'custom',

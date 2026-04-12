@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
-import { FlaskConical, Save, Plus, ArrowRight, Code, ChevronDown, ChevronUp } from 'lucide-react';
+import {
+  FlaskConical, Save, Plus, ArrowRight, Code, CheckCircle2, Circle, AlertCircle,
+} from 'lucide-react';
 import { STRATEGY_FACTORS } from '../../data/strategyFactors';
 import ConditionSection from './ConditionSection';
 import AddedFactorRow from './AddedFactorRow';
@@ -16,25 +18,23 @@ const OP_PYTHON = {
 };
 
 function condToPython(row, varOptions) {
-  const leftOpt  = varOptions.find(o => o.key === row.leftKey) || varOptions[0];
-  if (!leftOpt) return '# (조건 미완성)';
-
-  const leftParts = leftOpt.label.split(' · ');
-  const leftVar   = leftParts[0];   // "rsi1"
-  const leftExpr  = leftParts.slice(1).join('.').replace(/\(.*\)/, '');  // "RSI" (strip params)
-  const fullLeft  = `${leftVar}`;   // use the varName directly
-
   const isCross = row.op === 'crosses_above' || row.op === 'crosses_below';
 
-  if (row.rightType === 'value') {
-    if (isCross) return `${fullLeft}${OP_PYTHON[row.op] || row.op}(${row.rightValue ?? 0})`;
-    return `${fullLeft}${OP_PYTHON[row.op] || ` ${row.op} `}${row.rightValue ?? 0}`;
-  }
-  const rightOpt  = varOptions.find(o => o.key === row.rightKey) || varOptions[0];
-  const rightParts = rightOpt?.label.split(' · ') || ['?'];
-  const rightVar  = rightParts[0];
-  if (isCross) return `${fullLeft}${OP_PYTHON[row.op] || row.op}(${rightVar})`;
-  return `${fullLeft}${OP_PYTHON[row.op] || ` ${row.op} `}${rightVar}`;
+  const leftStr = (() => {
+    if (row.leftType === 'formula') return `(${row.leftFormula || '...'})`;
+    const leftOpt = varOptions.find(o => o.key === row.leftKey) || varOptions[0];
+    return leftOpt ? leftOpt.label.split(' · ')[0] : '?';
+  })();
+
+  const rightStr = (() => {
+    if (row.rightType === 'value')   return `${row.rightValue ?? 0}`;
+    if (row.rightType === 'formula') return `(${row.rightFormula || '...'})`;
+    const rightOpt = varOptions.find(o => o.key === row.rightKey) || varOptions[0];
+    return rightOpt ? rightOpt.label.split(' · ')[0] : '?';
+  })();
+
+  if (isCross) return `${leftStr}${OP_PYTHON[row.op] || row.op}(${rightStr})`;
+  return `${leftStr}${OP_PYTHON[row.op] || ` ${row.op} `}${rightStr}`;
 }
 
 function PseudoCodeView({ name, selectedFactors, buyConditions, sellConditions, buyLogic, sellLogic, varOptions }) {
@@ -118,10 +118,14 @@ function PseudoCodeView({ name, selectedFactors, buyConditions, sellConditions, 
 
 function countFactorUsage(varName, buyConditions, sellConditions) {
   const all = [...buyConditions, ...sellConditions];
-  return all.filter(row =>
-    row.leftKey?.startsWith(`f:${varName}::`) ||
-    row.rightKey?.startsWith(`f:${varName}::`)
-  ).length;
+  const nameRe = new RegExp(`\\b${varName}(?:_[a-z0-9_]+)?\\b`);
+  return all.filter(row => {
+    if (row.leftType === 'factor'  && row.leftKey?.startsWith(`f:${varName}::`))  return true;
+    if (row.rightType === 'factor' && row.rightKey?.startsWith(`f:${varName}::`)) return true;
+    if (row.leftType  === 'formula' && nameRe.test(row.leftFormula  || '')) return true;
+    if (row.rightType === 'formula' && nameRe.test(row.rightFormula || '')) return true;
+    return false;
+  }).length;
 }
 
 const StrategyEditorTab = ({
@@ -148,13 +152,43 @@ const StrategyEditorTab = ({
 
   const inputCls = 'w-full px-2.5 py-1.5 bg-[#0a0a0f] border border-gray-700/80 rounded text-[11px] text-white focus:outline-none focus:border-cyan-500/70 transition-colors';
 
-  const SectionLabel = ({ children }) => (
-    <div className="text-[9px] font-semibold text-gray-600 uppercase tracking-widest mb-2.5 pb-1.5 border-b border-gray-800/60">
-      {children}
-    </div>
-  );
+  const Section = ({ step, title, subtitle, accent = 'cyan', children, badge }) => {
+    const accentMap = {
+      cyan:   'text-cyan-400 border-cyan-800/50 bg-cyan-900/10',
+      green:  'text-green-400 border-green-800/50 bg-green-900/10',
+      red:    'text-red-400 border-red-800/50 bg-red-900/10',
+      amber:  'text-amber-400 border-amber-800/50 bg-amber-900/10',
+      gray:   'text-gray-400 border-gray-700/60 bg-gray-800/20',
+    };
+    return (
+      <section className="space-y-2.5">
+        <header className="flex items-baseline gap-2">
+          {step !== undefined && (
+            <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full border text-[10px] font-semibold tabular-nums ${accentMap[accent]}`}>
+              {step}
+            </span>
+          )}
+          <h3 className="text-[12px] font-semibold text-white">{title}</h3>
+          {subtitle && <span className="text-[10px] text-gray-600">— {subtitle}</span>}
+          {badge && <span className="ml-auto">{badge}</span>}
+        </header>
+        <div>{children}</div>
+      </section>
+    );
+  };
 
   const totalConditions = buyConditions.length + sellConditions.length;
+
+  // Validation flags for status strip
+  const checks = [
+    { label: '이름',       ok: name.trim().length > 0 },
+    { label: '변수',       ok: selectedFactors.length > 0 },
+    { label: '매수 조건',  ok: buyConditions.length > 0 },
+    { label: '매도 조건',  ok: sellConditions.length > 0 },
+    { label: '리스크',     ok: stopLoss > 0 && takeProfit > 0 },
+  ];
+  const okCount = checks.filter(c => c.ok).length;
+  const ready   = okCount === checks.length;
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -243,20 +277,52 @@ const StrategyEditorTab = ({
 
       {/* ══ RIGHT: Strategy Builder Panel ══ */}
       <div className="flex-1 flex flex-col overflow-hidden bg-[#0d0d12]">
-        <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
 
-          <div>
-            <SectionLabel>전략 이름</SectionLabel>
+        {/* Status strip */}
+        <div className="flex items-center gap-3 px-5 py-2.5 border-b border-gray-800 bg-[#0a0a0f] shrink-0">
+          <div className="flex items-center gap-1.5">
+            {ready
+              ? <CheckCircle2 size={13} className="text-green-400" />
+              : <AlertCircle  size={13} className="text-amber-400" />}
+            <span className={`text-[11px] font-semibold ${ready ? 'text-green-400' : 'text-amber-400'}`}>
+              {ready ? '전략 구성 완료' : `${okCount} / ${checks.length} 단계 완료`}
+            </span>
+          </div>
+          <div className="w-px h-4 bg-gray-800" />
+          <div className="flex items-center gap-2 flex-wrap">
+            {checks.map(c => (
+              <div key={c.label} className="flex items-center gap-1">
+                {c.ok
+                  ? <CheckCircle2 size={10} className="text-green-500" />
+                  : <Circle       size={10} className="text-gray-700" />}
+                <span className={`text-[10px] ${c.ok ? 'text-gray-400' : 'text-gray-600'}`}>
+                  {c.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-5 space-y-7">
+
+          <Section step={1} title="전략 이름" subtitle="전략을 식별할 이름" accent="cyan">
             <input
               className={inputCls}
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder="e.g. EMA Momentum + CPI Filter"
             />
-          </div>
+          </Section>
 
-          <div>
-            <SectionLabel>매수 조건 (Buy Conditions)</SectionLabel>
+          <Section
+            step={2}
+            title="매수 조건"
+            subtitle="진입 시점을 정의"
+            accent="green"
+            badge={buyConditions.length > 0 && (
+              <span className="text-[10px] text-green-500/70 tabular-nums">{buyConditions.length}개</span>
+            )}
+          >
             <ConditionSection
               title="▲ BUY"
               color="text-green-400"
@@ -269,10 +335,17 @@ const StrategyEditorTab = ({
               onRemove={onRemoveBuy}
               onLogicChange={onBuyLogicChange}
             />
-          </div>
+          </Section>
 
-          <div>
-            <SectionLabel>매도 조건 (Sell Conditions)</SectionLabel>
+          <Section
+            step={3}
+            title="매도 조건"
+            subtitle="청산 시점을 정의"
+            accent="red"
+            badge={sellConditions.length > 0 && (
+              <span className="text-[10px] text-red-500/70 tabular-nums">{sellConditions.length}개</span>
+            )}
+          >
             <ConditionSection
               title="▼ SELL"
               color="text-red-400"
@@ -285,23 +358,19 @@ const StrategyEditorTab = ({
               onRemove={onRemoveSell}
               onLogicChange={onSellLogicChange}
             />
-          </div>
+          </Section>
 
           {/* ── Python Code Preview (collapsible) ── */}
           {(buyConditions.length > 0 || sellConditions.length > 0) && (
-            <div>
-              <div
+            <section className="space-y-2">
+              <button
                 onClick={() => setShowCode(v => !v)}
-                className="flex items-center gap-2 cursor-pointer select-none"
+                className="flex items-center gap-2 text-[11px] text-gray-500 hover:text-cyan-400 transition-colors"
               >
-                <div className="flex items-center gap-1.5 text-[9px] font-semibold text-gray-600 uppercase tracking-widest mb-2.5 pb-1.5 border-b border-gray-800/60 flex-1">
-                  <Code size={10} />
-                  수식 코드 미리보기
-                  <span className="normal-case font-normal text-gray-700 ml-1">
-                    {showCode ? '▲ 숨기기' : '▼ 펼치기'}
-                  </span>
-                </div>
-              </div>
+                <Code size={11} />
+                <span className="font-medium">Python Pseudocode Preview</span>
+                <span className="text-gray-700">{showCode ? '▲ 숨기기' : '▼ 펼치기'}</span>
+              </button>
               {showCode && (
                 <PseudoCodeView
                   name={name}
@@ -313,37 +382,40 @@ const StrategyEditorTab = ({
                   varOptions={varOptions}
                 />
               )}
-            </div>
+            </section>
           )}
 
-          <div>
-            <SectionLabel>리스크 관리 (Risk Management)</SectionLabel>
+          <Section step={4} title="리스크 관리" subtitle="손절·익절·자본" accent="amber">
             <div className="grid grid-cols-3 gap-3">
               {[
-                { label: 'Stop Loss %',   val: stopLoss,   set: setStopLoss,   step: 0.5, min: 0.1, hint: '손실 제한' },
-                { label: 'Take Profit %', val: takeProfit, set: setTakeProfit, step: 0.5, min: 0.1, hint: '익절 목표' },
-                { label: 'Capital $',     val: capital,    set: setCapital,    step: 1000, min: 100, hint: '초기 자본' },
-              ].map(({ label, val, set, step, min, hint }) => (
+                { label: 'Stop Loss',   unit: '%', val: stopLoss,   set: setStopLoss,   step: 0.5, min: 0.1, hint: '손실 제한' },
+                { label: 'Take Profit', unit: '%', val: takeProfit, set: setTakeProfit, step: 0.5, min: 0.1, hint: '익절 목표' },
+                { label: 'Capital',     unit: '$', val: capital,    set: setCapital,    step: 1000, min: 100, hint: '초기 자본' },
+              ].map(({ label, unit, val, set, step, min, hint }) => (
                 <div key={label} className="flex flex-col gap-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[9px] text-gray-600">{label}</span>
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-[10px] font-medium text-gray-500">{label}</span>
                     <span className="text-[9px] text-gray-700">{hint}</span>
                   </div>
-                  <input
-                    type="number"
-                    className={`${inputCls} tabular-nums`}
-                    value={val}
-                    onChange={e => set(Number(e.target.value))}
-                    step={step}
-                    min={min}
-                  />
+                  <div className="relative">
+                    <input
+                      type="number"
+                      className={`${inputCls} tabular-nums pr-7`}
+                      value={val}
+                      onChange={e => set(Number(e.target.value))}
+                      step={step}
+                      min={min}
+                    />
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-600 pointer-events-none">
+                      {unit}
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>
-          </div>
+          </Section>
 
-          <div>
-            <SectionLabel>리서치 노트</SectionLabel>
+          <Section step={5} title="리서치 노트" subtitle="가정·시장 조건·엣지 케이스" accent="gray">
             <textarea
               className={`${inputCls} resize-none leading-relaxed`}
               rows={3}
@@ -351,31 +423,42 @@ const StrategyEditorTab = ({
               onChange={e => setNotes(e.target.value)}
               placeholder="Market conditions, assumptions, edge cases…"
             />
-          </div>
+          </Section>
         </div>
 
-        <div className="px-5 py-4 border-t border-gray-800 flex items-center gap-2 shrink-0 bg-[#0a0a0f]">
+        {/* Sticky action bar */}
+        <div className="px-5 py-3 border-t border-gray-800 flex items-center gap-2 shrink-0 bg-[#0a0a0f]">
           <button
             onClick={onSave}
-            disabled={saving}
-            className="flex items-center gap-1.5 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-xs font-semibold rounded transition-colors"
+            disabled={saving || !ready}
+            title={!ready ? '상단 체크리스트를 모두 완료하세요' : 'Save strategy'}
+            className="flex items-center gap-1.5 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-800 disabled:text-gray-600 disabled:cursor-not-allowed text-white text-xs font-semibold rounded transition-colors"
           >
             <Save size={12} />
             {saving ? 'Saving…' : 'Save'}
           </button>
           <button
             onClick={onSaveNew}
-            disabled={saving}
-            className="flex items-center gap-1.5 px-3 py-2 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white text-xs rounded transition-colors"
+            disabled={saving || !ready}
+            className="flex items-center gap-1.5 px-3 py-2 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-gray-200 text-xs rounded transition-colors"
           >
             <Plus size={12} /> Save as New
           </button>
 
-          {(buyConditions.length > 0 || sellConditions.length > 0) && (
-            <span className="ml-auto text-[10px] text-gray-600 tabular-nums">
-              매수 {buyConditions.length}개 · 매도 {sellConditions.length}개 조건
-            </span>
-          )}
+          <div className="ml-auto flex items-center gap-3 text-[10px] tabular-nums">
+            {selectedFactors.length > 0 && (
+              <span className="text-gray-500">
+                <span className="text-cyan-400 font-semibold">{selectedFactors.length}</span> 변수
+              </span>
+            )}
+            {totalConditions > 0 && (
+              <span className="text-gray-500">
+                매수 <span className="text-green-400 font-semibold">{buyConditions.length}</span>
+                {' · '}
+                매도 <span className="text-red-400 font-semibold">{sellConditions.length}</span>
+              </span>
+            )}
+          </div>
         </div>
       </div>
     </div>

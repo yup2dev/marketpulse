@@ -98,12 +98,9 @@ class StrategyNoteCreate(BaseModel):
 
 @router.get("/strategy-types")
 def get_strategy_types(db: Session = Depends(get_db)):
-    """Return strategy type metadata from DB (falls back to hardcoded if empty)."""
+    """Return strategy type metadata from DB (seeded by init_quant_strategy_types)."""
     rows = db.query(QuantStrategyType).filter_by(use_yn='Y').order_by(QuantStrategyType.id).all()
-    if rows:
-        return {"data": [r.to_dict() for r in rows]}
-    # fallback: DB not seeded yet
-    return {"data": quant_service.STRATEGY_META}
+    return {"data": [r.to_dict() for r in rows]}
 
 
 # ─── Backtest Endpoint ────────────────────────────────────────────────────────
