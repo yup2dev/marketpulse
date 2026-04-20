@@ -53,7 +53,9 @@ from data_fetcher.fetchers.fmp.income_statement import FMPIncomeStatementFetcher
 from data_fetcher.fetchers.fmp.analyst_estimates import FMPAnalystEstimatesFetcher
 from data_fetcher.fetchers.fmp.analyst_recommendations import FMPAnalystRecommendationsFetcher
 from data_fetcher.fetchers.fmp.search import FMPSearchFetcher
-from data_fetcher.fetchers.fmp.active_stocks import FMPActiveStocksFetcher
+from data_fetcher.fetchers.fmp.most_actives import FMPMostActivesFetcher
+from data_fetcher.fetchers.fmp.gainers import FMPGainersFetcher
+from data_fetcher.fetchers.fmp.losers import FMPLosersFetcher
 from data_fetcher.fetchers.bond.bond_prices import FMPBondPricesFetcher
 
 from data_fetcher.fetchers.polygon.news import PolygonNewsFetcher
@@ -167,7 +169,9 @@ fmp_provider = Provider(
         "analyst_data": FMPAnalystDataFetcher,
         "revenue_segments": FMPRevenueSegmentsFetcher,
         "search": FMPSearchFetcher,
-        "active_stocks": FMPActiveStocksFetcher,
+        "most_actives": FMPMostActivesFetcher,
+        "gainers": FMPGainersFetcher,
+        "losers": FMPLosersFetcher,
         "bond_prices": FMPBondPricesFetcher,
     },
     metadata={

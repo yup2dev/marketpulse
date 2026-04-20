@@ -109,16 +109,44 @@ class MarketManager:
         )
         return raw.result if isinstance(raw, AnnotatedResult) else raw
 
-    # ── 활성 종목 ─────────────────────────────────────────────────────────
+    # ── 시장 무버 (Most Actives / Gainers / Losers) ───────────────────────
     @classmethod
-    async def fmp_active_stocks_data(
+    async def fmp_most_actives_data(
         cls,
         credentials: Optional[Dict] = None,
     ) -> List[FMPActiveStockData]:
-        """FMP 활성 종목 조회"""
+        """FMP Most Actives 조회"""
         raw = await QueryExecutor.fetch(
             provider="fmp",
-            model="active_stocks",
+            model="most_actives",
+            params={},
+            credentials=credentials,
+        )
+        return raw.result if isinstance(raw, AnnotatedResult) else raw
+
+    @classmethod
+    async def fmp_gainers_data(
+        cls,
+        credentials: Optional[Dict] = None,
+    ) -> List[FMPActiveStockData]:
+        """FMP Biggest Gainers 조회"""
+        raw = await QueryExecutor.fetch(
+            provider="fmp",
+            model="gainers",
+            params={},
+            credentials=credentials,
+        )
+        return raw.result if isinstance(raw, AnnotatedResult) else raw
+
+    @classmethod
+    async def fmp_losers_data(
+        cls,
+        credentials: Optional[Dict] = None,
+    ) -> List[FMPActiveStockData]:
+        """FMP Biggest Losers 조회"""
+        raw = await QueryExecutor.fetch(
+            provider="fmp",
+            model="losers",
             params={},
             credentials=credentials,
         )

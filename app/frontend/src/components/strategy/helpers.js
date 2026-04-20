@@ -1,4 +1,5 @@
-import { FACTOR_BACKEND_EXPANSIONS, PRICE_VAR_OPTIONS } from './constants';
+import { PRICE_VAR_OPTIONS } from './constants';
+import { getBackendExpansions } from '../../data/factorCatalog';
 
 export const parseParams = (raw) => {
   try { return JSON.parse(raw || '{}'); } catch { return {}; }
@@ -11,9 +12,10 @@ export const makeVarName = (factor) =>
  *  Key uses varName (not factorId) so two instances of the same factorId
  *  (e.g. ema + ema2) get distinct keys and can be selected independently. */
 export function buildVarOptions(selectedFactors) {
+  const backends = getBackendExpansions();
   const opts = [];
   for (const sf of selectedFactors) {
-    const expansions = FACTOR_BACKEND_EXPANSIONS[sf.factorId];
+    const expansions = backends[sf.factorId];
     if (!expansions) continue;
     for (const exp of expansions) {
       const paramStr = Object.values(sf.params || {}).join(', ');
@@ -36,9 +38,10 @@ export function buildVarOptions(selectedFactors) {
  * Price names (close, high, low, open, volume) are always available.
  */
 export function buildFormulaVariables(selectedFactors) {
+  const backends = getBackendExpansions();
   const variables = {};
   for (const sf of selectedFactors) {
-    const expansions = FACTOR_BACKEND_EXPANSIONS[sf.factorId];
+    const expansions = backends[sf.factorId];
     if (!expansions || expansions.length === 0) continue;
     variables[sf.varName] = { factor: expansions[0].back, params: sf.params || {} };
     for (const exp of expansions) {

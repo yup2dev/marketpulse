@@ -21,6 +21,7 @@ from app.backend.api.deps import route_handler
 from index_analyzer.models.quant_strategy import QuantStrategy
 from index_analyzer.models.quant_factor import QuantFactor
 from index_analyzer.models.quant_strategy_type import QuantStrategyType
+from index_analyzer.models.quant_factor_catalog import QuantFactorCatalog
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -100,6 +101,20 @@ class StrategyNoteCreate(BaseModel):
 def get_strategy_types(db: Session = Depends(get_db)):
     """Return strategy type metadata from DB (seeded by init_quant_strategy_types)."""
     rows = db.query(QuantStrategyType).filter_by(use_yn='Y').order_by(QuantStrategyType.id).all()
+    return {"data": [r.to_dict() for r in rows]}
+
+
+# ─── Factor Catalog (system-wide factor definitions) ──────────────────────────
+
+@router.get("/factor-catalog")
+def get_factor_catalog(db: Session = Depends(get_db)):
+    """Return factor catalog from DB (seeded by init_quant_factor_catalog)."""
+    rows = (
+        db.query(QuantFactorCatalog)
+        .filter_by(use_yn='Y')
+        .order_by(QuantFactorCatalog.sort_order, QuantFactorCatalog.id)
+        .all()
+    )
     return {"data": [r.to_dict() for r in rows]}
 
 

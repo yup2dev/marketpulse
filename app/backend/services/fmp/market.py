@@ -44,7 +44,7 @@ async def search_stocks(query: str, limit: int = 10) -> List[Dict[str, Any]]:
             for r in results
         ]
     # Fallback: 활성 종목에서 필터링
-    raw_active = await QueryExecutor.fetch("fmp", "active_stocks", {})
+    raw_active = await QueryExecutor.fetch("fmp", "most_actives", {})
     actives = _unwrap(raw_active)
     if actives:
         q = query.upper()

@@ -521,6 +521,52 @@ export const STRATEGY_FACTORS = [
     ],
     availability: 'external',
   },
+  // ── Chart: Market Structure ────────────────────────────────────────────────
+  {
+    id: 'volume_profile',
+    name: 'Volume Profile',
+    nameKo: '볼륨 프로파일',
+    category: 'Chart',
+    sub: '시장 구조',
+    desc: '롤링 구간 가격별 거래량 분포. POC(최다거래가) / VAH·VAL(가치영역 상·하단)',
+    examples: 'POC, Value Area High, Value Area Low',
+    strategic: '수급 집중 가격대 기반 지지·저항 및 돌파 전략',
+    params: [
+      { name: 'lookback', label: 'Lookback (days)', default: 30, min: 5,  max: 120, step: 5 },
+      { name: 'bins',     label: 'Price Bins',      default: 20, min: 10, max: 60,  step: 5 },
+    ],
+    availability: 'available',
+  },
+  {
+    id: 'liquidity_sweep',
+    name: 'Liquidity Sweep',
+    nameKo: '유동성 스윕',
+    category: 'Chart',
+    sub: '시장 구조',
+    desc: '직전 N봉 고/저점 돌파 후 되돌림 이벤트 (0/1). 스탑 사냥 탐지',
+    examples: 'Sweep High (1=발생), Sweep Low (1=발생)',
+    strategic: '유동성 사냥 이후 반전 매매, 스탑 클러스터 회피',
+    params: [
+      { name: 'lookback', label: 'Lookback (bars)', default: 20, min: 5, max: 60, step: 5 },
+    ],
+    availability: 'available',
+  },
+  {
+    id: 'hmm_regime',
+    name: 'HMM Regime',
+    nameKo: '은닉 마르코프 국면',
+    category: 'Chart',
+    sub: '시장 구조',
+    desc: '수익률·변동성 기반 숨겨진 시장 국면 (0=약세, n_states-1=강세). 롤링 재학습',
+    examples: 'Regime State, Bull Probability',
+    strategic: '국면 필터 — 강세 국면 진입, 약세 국면 청산',
+    params: [
+      { name: 'n_states',     label: 'States',           default: 3,   min: 2,  max: 4,   step: 1 },
+      { name: 'train_window', label: 'Train Window',     default: 252, min: 60, max: 750, step: 10 },
+      { name: 'refit_every',  label: 'Refit Every',      default: 20,  min: 1,  max: 60,  step: 1 },
+    ],
+    availability: 'beta',
+  },
 ];
 
 export const CATEGORY_META = {
@@ -548,6 +594,11 @@ export const CATEGORY_META = {
     label: 'Options',
     color: 'text-violet-400',
     subs: ['옵션 프라이싱'],
+  },
+  Chart: {
+    label: 'Chart',
+    color: 'text-cyan-400',
+    subs: ['시장 구조'],
   },
 };
 

@@ -114,6 +114,7 @@ export default API_BASE_URL;
 // ─── Quant API ────────────────────────────────────────────────────────────────
 export const quantAPI = {
   strategyTypes:   ()              => apiClient.get(`${API_BASE}/quant/strategy-types`),
+  factorCatalog:   ()              => apiClient.get(`${API_BASE}/quant/factor-catalog`),
   analyze:         (payload)       => apiClient.post(`${API_BASE}/quant/analyze`, payload),
   scan:            (payload)       => apiClient.post(`${API_BASE}/quant/scan`, payload),
   listStrategies:  ()              => apiClient.get(`${API_BASE}/quant/strategies`),

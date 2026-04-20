@@ -14,11 +14,8 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import CommonTable from '../common/CommonTable';
 import { quantAPI } from '../../config/api';
-import {
-  STRATEGY_FACTORS,
-  CATEGORY_META,
-  AVAILABILITY_META,
-} from '../../data/strategyFactors';
+import { CATEGORY_META, AVAILABILITY_META } from '../../data/strategyFactors';
+import { useFactorCatalog } from '../../data/factorCatalog';
 import {
   buildVarOptions, toBECond, fromBECond, mkCondRow, makeVarName, parseParams,
 } from './helpers';
@@ -126,6 +123,7 @@ const buildFactorColumns = (selectedFactors, onToggle) => {
 
 const StrategyBuilderDashboard = () => {
   const navigate = useNavigate();
+  const { factors: STRATEGY_FACTORS } = useFactorCatalog();
 
   const [activeTab,   setActiveTab]   = useState('all');
   const [strategies,  setStrategies]  = useState([]);
@@ -314,7 +312,7 @@ const StrategyBuilderDashboard = () => {
       ? STRATEGY_FACTORS.filter(f => f.category === cat)
       : STRATEGY_FACTORS;
     return base.map(f => ({ ...f, _key: f.id }));
-  }, [activeTab]);
+  }, [activeTab, STRATEGY_FACTORS]);
 
   const columns = useMemo(
     () => buildFactorColumns(selectedFactors, handleToggleFactor),

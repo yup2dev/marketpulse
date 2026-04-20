@@ -1,15 +1,16 @@
-"""FMP Active Stocks Model (Pydantic)"""
+"""FMP Movers Models (Most Actives / Gainers / Losers 공용)."""
 from typing import Optional
-from pydantic import Field
+
 from data_fetcher.models.base import BaseQueryParams, BaseData
 
 
-class FMPActiveStocksQueryParams(BaseQueryParams):
-    type: str = Field(default="actives", description="'actives' | 'gainers' | 'losers'")
+class FMPMoversQueryParams(BaseQueryParams):
+    """시장 무버(most-actives/gainers/losers) 공용 쿼리 파라미터. 별도 인자 없음."""
+    pass
 
 
 class FMPActiveStockData(BaseData):
-    """활성 종목 데이터"""
+    """시장 무버 응답 데이터 (most-actives/gainers/losers 공용 스키마)."""
     symbol: str
     name: str
     change: Optional[float] = None

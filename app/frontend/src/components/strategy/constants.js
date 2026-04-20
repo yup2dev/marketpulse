@@ -5,6 +5,7 @@ export const TABS = [
   { id: 'macro',   label: 'Macro' },
   { id: 'micro',   label: 'Micro' },
   { id: 'stock',   label: 'Stock' },
+  { id: 'chart',   label: 'Chart' },
   { id: 'alt',     label: 'Alt Data' },
   { id: 'options', label: 'Options' },
 ];
@@ -13,6 +14,7 @@ export const TAB_CATEGORY_MAP = {
   macro:   'Macro',
   micro:   'Micro',
   stock:   'Stock',
+  chart:   'Chart',
   alt:     'Alt',
   options: 'Options',
 };
@@ -95,6 +97,21 @@ export const FACTOR_BACKEND_EXPANSIONS = {
   opt_heston: [
     { back: 'OPT_HESTON_PRICE', label: 'Heston Price' },
     { back: 'OPT_HESTON_DELTA', label: 'Heston Delta' },
+  ],
+
+  // ── Chart: Market Structure ─────────────────────────────────────────────────
+  volume_profile: [
+    { back: 'CHART_VP_POC', label: 'POC'  },
+    { back: 'CHART_VP_VAH', label: 'VAH'  },
+    { back: 'CHART_VP_VAL', label: 'VAL'  },
+  ],
+  liquidity_sweep: [
+    { back: 'CHART_LIQ_SWEEP_HIGH', label: 'Sweep High' },
+    { back: 'CHART_LIQ_SWEEP_LOW',  label: 'Sweep Low'  },
+  ],
+  hmm_regime: [
+    { back: 'CHART_HMM_STATE',     label: 'Regime State' },
+    { back: 'CHART_HMM_BULL_PROB', label: 'Bull Prob'    },
   ],
 };
 

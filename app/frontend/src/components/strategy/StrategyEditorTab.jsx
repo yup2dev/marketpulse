@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import {
-  FlaskConical, Save, Plus, ArrowRight, Code, CheckCircle2, Circle, AlertCircle,
+  FlaskConical, Save, Plus, ArrowRight, Code, CheckCircle2, Circle,
 } from 'lucide-react';
-import { STRATEGY_FACTORS } from '../../data/strategyFactors';
+import { useFactorCatalog } from '../../data/factorCatalog';
 import ConditionSection from './ConditionSection';
 import AddedFactorRow from './AddedFactorRow';
 
@@ -75,23 +75,23 @@ function PseudoCodeView({ name, selectedFactors, buyConditions, sellConditions, 
   }, [name, selectedFactors, buyConditions, sellConditions, buyLogic, sellLogic, varOptions]);
 
   return (
-    <div className="font-mono text-[11px] leading-relaxed bg-[#06080c] border border-gray-800 rounded-lg overflow-hidden">
+    <div className="font-mono text-xs leading-relaxed bg-[#06080c] border border-gray-800 rounded-lg overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-800 bg-[#0a0a0f]">
-        <Code size={11} className="text-gray-600" />
-        <span className="text-[9px] text-gray-600 uppercase tracking-wider">Python Pseudocode</span>
-        <span className="ml-auto text-[9px] text-gray-700">live preview</span>
+        <Code size={11} className="text-gray-400" />
+        <span className="text-[10px] text-gray-400 uppercase tracking-wider">Python Pseudocode</span>
+        <span className="ml-auto text-[10px] text-gray-500">live preview</span>
       </div>
       <div className="p-4 space-y-0.5 overflow-x-auto">
         {lines.map((line, i) => {
           if (line.type === 'blank') return <div key={i} className="h-2" />;
           if (line.type === 'comment') return (
-            <div key={i} className="text-gray-600">{line.text}</div>
+            <div key={i} className="text-gray-500">{line.text}</div>
           );
           if (line.type === 'assign') return (
             <div key={i}>
               <span className="text-cyan-400">{line.varName}</span>
-              <span className="text-gray-500"> = </span>
-              <span className="text-yellow-400">{line.expr}</span>
+              <span className="text-gray-400"> = </span>
+              <span className="text-gray-200">{line.expr}</span>
             </div>
           );
           if (line.type === 'signal') {
@@ -100,16 +100,16 @@ function PseudoCodeView({ name, selectedFactors, buyConditions, sellConditions, 
             return (
               <div key={i}>
                 <span className={color}>{varName}</span>
-                <span className="text-gray-500"> = (</span>
+                <span className="text-gray-400"> = (</span>
                 <span className="text-gray-200 whitespace-pre-wrap">{line.expr}</span>
-                <span className="text-gray-500">)</span>
+                <span className="text-gray-400">)</span>
               </div>
             );
           }
           return null;
         })}
         {lines.length === 0 && (
-          <div className="text-gray-700 italic">조건을 추가하면 코드가 자동 생성됩니다</div>
+          <div className="text-gray-500 italic">조건을 추가하면 코드가 자동 생성됩니다</div>
         )}
       </div>
     </div>
@@ -128,6 +128,34 @@ function countFactorUsage(varName, buyConditions, sellConditions) {
   }).length;
 }
 
+// ── Section primitive ────────────────────────────────────────────────────────
+// 단순화: border-left 한 줄, 숫자 원형 뱃지 1개, 배경 박스 제거.
+// accent는 cyan(기본)/green(buy)/red(sell) 3종만.
+const ACCENT = {
+  cyan:  { text: 'text-cyan-400',  border: 'border-cyan-600/60'  },
+  green: { text: 'text-green-400', border: 'border-green-600/60' },
+  red:   { text: 'text-red-400',   border: 'border-red-600/60'   },
+};
+
+function Section({ step, title, subtitle, accent = 'cyan', badge, children }) {
+  const a = ACCENT[accent] || ACCENT.cyan;
+  return (
+    <section className={`pl-3 border-l-2 ${a.border} space-y-2.5`}>
+      <header className="flex items-baseline gap-2">
+        {step !== undefined && (
+          <span className={`text-[11px] font-semibold tabular-nums ${a.text}`}>
+            {String(step).padStart(2, '0')}
+          </span>
+        )}
+        <h3 className="text-xs font-semibold text-gray-100">{title}</h3>
+        {subtitle && <span className="text-[11px] text-gray-500">— {subtitle}</span>}
+        {badge && <span className="ml-auto">{badge}</span>}
+      </header>
+      <div>{children}</div>
+    </section>
+  );
+}
+
 const StrategyEditorTab = ({
   selectedFactors, onUpdateFactor, onRemoveFactor,
   name, setName,
@@ -143,43 +171,19 @@ const StrategyEditorTab = ({
   onSave, onSaveNew, saving,
 }) => {
   const [showCode, setShowCode] = useState(false);
+  const { factors: STRATEGY_FACTORS } = useFactorCatalog();
 
   const factorById = useMemo(() => {
     const m = {};
     STRATEGY_FACTORS.forEach(f => { m[f.id] = f; });
     return m;
-  }, []);
+  }, [STRATEGY_FACTORS]);
 
-  const inputCls = 'w-full px-2.5 py-1.5 bg-[#0a0a0f] border border-gray-700/80 rounded text-[11px] text-white focus:outline-none focus:border-cyan-500/70 transition-colors';
-
-  const Section = ({ step, title, subtitle, accent = 'cyan', children, badge }) => {
-    const accentMap = {
-      cyan:   'text-cyan-400 border-cyan-800/50 bg-cyan-900/10',
-      green:  'text-green-400 border-green-800/50 bg-green-900/10',
-      red:    'text-red-400 border-red-800/50 bg-red-900/10',
-      amber:  'text-amber-400 border-amber-800/50 bg-amber-900/10',
-      gray:   'text-gray-400 border-gray-700/60 bg-gray-800/20',
-    };
-    return (
-      <section className="space-y-2.5">
-        <header className="flex items-baseline gap-2">
-          {step !== undefined && (
-            <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full border text-[10px] font-semibold tabular-nums ${accentMap[accent]}`}>
-              {step}
-            </span>
-          )}
-          <h3 className="text-[12px] font-semibold text-white">{title}</h3>
-          {subtitle && <span className="text-[10px] text-gray-600">— {subtitle}</span>}
-          {badge && <span className="ml-auto">{badge}</span>}
-        </header>
-        <div>{children}</div>
-      </section>
-    );
-  };
+  const inputCls = 'w-full px-2.5 py-1.5 bg-[#0a0a0f] border border-gray-700 rounded text-xs text-gray-100 focus:outline-none focus:border-cyan-500 transition-colors';
 
   const totalConditions = buyConditions.length + sellConditions.length;
 
-  // Validation flags for status strip
+  // Validation flags
   const checks = [
     { label: '이름',       ok: name.trim().length > 0 },
     { label: '변수',       ok: selectedFactors.length > 0 },
@@ -199,27 +203,27 @@ const StrategyEditorTab = ({
         <div className="px-4 py-3 border-b border-gray-800 bg-[#0a0a0f] shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-white">Variables</span>
+              <span className="text-xs font-semibold text-gray-100">Variables</span>
               {selectedFactors.length > 0 && (
-                <span className="text-[9px] px-1.5 py-0.5 bg-cyan-900/30 text-cyan-400 border border-cyan-800/40 rounded-full tabular-nums">
+                <span className="text-[10px] px-1.5 py-0.5 bg-cyan-900/30 text-cyan-400 border border-cyan-800/40 rounded-full tabular-nums">
                   {selectedFactors.length}
                 </span>
               )}
             </div>
             {selectedFactors.length > 0 && totalConditions > 0 && (
-              <span className="text-[9px] text-gray-600">
+              <span className="text-[10px] text-gray-500">
                 {totalConditions}개 조건 정의됨
               </span>
             )}
           </div>
 
           {selectedFactors.length === 0 ? (
-            <p className="text-[10px] text-gray-700 mt-1.5 leading-relaxed">
+            <p className="text-[11px] text-gray-500 mt-1.5 leading-relaxed">
               상단 탭 (Macro · Micro · Stock · Alt Data) 에서<br />
-              팩터를 <span className="text-cyan-600">+ Add</span>하면 여기에 표시됩니다
+              팩터를 <span className="text-cyan-400">+ Add</span>하면 여기에 표시됩니다
             </p>
           ) : (
-            <p className="text-[10px] text-gray-700 mt-1.5">
+            <p className="text-[11px] text-gray-500 mt-1.5">
               오른쪽 조건 빌더에서 팩터를 선택해 조건을 만드세요
             </p>
           )}
@@ -228,12 +232,12 @@ const StrategyEditorTab = ({
         <div className="flex-1 overflow-y-auto p-3 space-y-2">
           {selectedFactors.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center py-8">
-              <FlaskConical size={32} className="text-gray-800 mb-3" />
-              <p className="text-[11px] text-gray-700 max-w-[200px] leading-relaxed">
+              <FlaskConical size={32} className="text-gray-600 mb-3" />
+              <p className="text-[11px] text-gray-500 max-w-[200px] leading-relaxed">
                 팩터를 추가하면<br />여기에 카드로 표시되고<br />조건 빌더에서 사용할 수 있습니다
               </p>
-              <div className="mt-4 flex items-center gap-1.5 text-[10px] text-gray-700">
-                <ArrowRight size={11} className="text-cyan-800" />
+              <div className="mt-4 flex items-center gap-1.5 text-[11px] text-gray-500">
+                <ArrowRight size={11} className="text-cyan-500" />
                 <span>상단 탭 → + Add</span>
               </div>
             </div>
@@ -253,22 +257,22 @@ const StrategyEditorTab = ({
 
         {varOptions.filter(o => !o.key.startsWith('p:')).length > 0 && (
           <div className="border-t border-gray-800 px-3 py-3 bg-[#060608] shrink-0 max-h-[160px] overflow-y-auto">
-            <div className="text-[9px] font-semibold text-gray-700 uppercase tracking-widest mb-2">
+            <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-widest mb-2">
               조건 빌더 변수 목록
             </div>
             <div className="space-y-1">
               {varOptions.filter(o => !o.key.startsWith('p:')).map(o => {
                 const parts = o.label.split(' · ');
                 return (
-                  <div key={o.key} className="flex items-center gap-1.5 text-[10px]">
+                  <div key={o.key} className="flex items-center gap-1.5 text-[11px]">
                     <code className="text-cyan-400 font-mono shrink-0">{parts[0]}</code>
-                    <span className="text-gray-800">=</span>
-                    <span className="text-gray-600 truncate">{parts.slice(1).join(' · ')}</span>
+                    <span className="text-gray-500">=</span>
+                    <span className="text-gray-400 truncate">{parts.slice(1).join(' · ')}</span>
                   </div>
                 );
               })}
-              <div className="mt-1.5 pt-1.5 border-t border-gray-800/60">
-                <span className="text-[9px] text-gray-700">+ Close · High · Low · Open · Volume (항상 사용 가능)</span>
+              <div className="mt-1.5 pt-1.5 border-t border-gray-800">
+                <span className="text-[10px] text-gray-500">+ Close · High · Low · Open · Volume (항상 사용 가능)</span>
               </div>
             </div>
           </div>
@@ -278,24 +282,18 @@ const StrategyEditorTab = ({
       {/* ══ RIGHT: Strategy Builder Panel ══ */}
       <div className="flex-1 flex flex-col overflow-hidden bg-[#0d0d12]">
 
-        {/* Status strip */}
-        <div className="flex items-center gap-3 px-5 py-2.5 border-b border-gray-800 bg-[#0a0a0f] shrink-0">
-          <div className="flex items-center gap-1.5">
-            {ready
-              ? <CheckCircle2 size={13} className="text-green-400" />
-              : <AlertCircle  size={13} className="text-amber-400" />}
-            <span className={`text-[11px] font-semibold ${ready ? 'text-green-400' : 'text-amber-400'}`}>
-              {ready ? '전략 구성 완료' : `${okCount} / ${checks.length} 단계 완료`}
-            </span>
-          </div>
-          <div className="w-px h-4 bg-gray-800" />
-          <div className="flex items-center gap-2 flex-wrap">
+        {/* Compact status bar */}
+        <div className="flex items-center gap-3 px-5 py-2 border-b border-gray-800 bg-[#0a0a0f] shrink-0">
+          <span className={`text-[11px] font-semibold tabular-nums ${ready ? 'text-green-400' : 'text-cyan-400'}`}>
+            {okCount} / {checks.length} 완료
+          </span>
+          <div className="flex items-center gap-2">
             {checks.map(c => (
               <div key={c.label} className="flex items-center gap-1">
                 {c.ok
                   ? <CheckCircle2 size={10} className="text-green-500" />
-                  : <Circle       size={10} className="text-gray-700" />}
-                <span className={`text-[10px] ${c.ok ? 'text-gray-400' : 'text-gray-600'}`}>
+                  : <Circle       size={10} className="text-gray-500" />}
+                <span className={`text-[11px] ${c.ok ? 'text-gray-300' : 'text-gray-500'}`}>
                   {c.label}
                 </span>
               </div>
@@ -303,9 +301,9 @@ const StrategyEditorTab = ({
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-5 space-y-7">
+        <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
 
-          <Section step={1} title="전략 이름" subtitle="전략을 식별할 이름" accent="cyan">
+          <Section step={1} title="전략 이름" subtitle="전략을 식별할 이름">
             <input
               className={inputCls}
               value={name}
@@ -320,7 +318,7 @@ const StrategyEditorTab = ({
             subtitle="진입 시점을 정의"
             accent="green"
             badge={buyConditions.length > 0 && (
-              <span className="text-[10px] text-green-500/70 tabular-nums">{buyConditions.length}개</span>
+              <span className="text-[11px] text-green-400 tabular-nums">{buyConditions.length}개</span>
             )}
           >
             <ConditionSection
@@ -343,7 +341,7 @@ const StrategyEditorTab = ({
             subtitle="청산 시점을 정의"
             accent="red"
             badge={sellConditions.length > 0 && (
-              <span className="text-[10px] text-red-500/70 tabular-nums">{sellConditions.length}개</span>
+              <span className="text-[11px] text-red-400 tabular-nums">{sellConditions.length}개</span>
             )}
           >
             <ConditionSection
@@ -362,30 +360,32 @@ const StrategyEditorTab = ({
 
           {/* ── Python Code Preview (collapsible) ── */}
           {(buyConditions.length > 0 || sellConditions.length > 0) && (
-            <section className="space-y-2">
+            <section className="pl-3">
               <button
                 onClick={() => setShowCode(v => !v)}
-                className="flex items-center gap-2 text-[11px] text-gray-500 hover:text-cyan-400 transition-colors"
+                className="flex items-center gap-2 text-[11px] text-gray-400 hover:text-cyan-400 transition-colors"
               >
                 <Code size={11} />
                 <span className="font-medium">Python Pseudocode Preview</span>
-                <span className="text-gray-700">{showCode ? '▲ 숨기기' : '▼ 펼치기'}</span>
+                <span className="text-gray-500">{showCode ? '▲ 숨기기' : '▼ 펼치기'}</span>
               </button>
               {showCode && (
-                <PseudoCodeView
-                  name={name}
-                  selectedFactors={selectedFactors}
-                  buyConditions={buyConditions}
-                  sellConditions={sellConditions}
-                  buyLogic={buyLogic}
-                  sellLogic={sellLogic}
-                  varOptions={varOptions}
-                />
+                <div className="mt-2">
+                  <PseudoCodeView
+                    name={name}
+                    selectedFactors={selectedFactors}
+                    buyConditions={buyConditions}
+                    sellConditions={sellConditions}
+                    buyLogic={buyLogic}
+                    sellLogic={sellLogic}
+                    varOptions={varOptions}
+                  />
+                </div>
               )}
             </section>
           )}
 
-          <Section step={4} title="리스크 관리" subtitle="손절·익절·자본" accent="amber">
+          <Section step={4} title="리스크 관리" subtitle="손절·익절·자본">
             <div className="grid grid-cols-3 gap-3">
               {[
                 { label: 'Stop Loss',   unit: '%', val: stopLoss,   set: setStopLoss,   step: 0.5, min: 0.1, hint: '손실 제한' },
@@ -394,8 +394,8 @@ const StrategyEditorTab = ({
               ].map(({ label, unit, val, set, step, min, hint }) => (
                 <div key={label} className="flex flex-col gap-1">
                   <div className="flex items-baseline justify-between">
-                    <span className="text-[10px] font-medium text-gray-500">{label}</span>
-                    <span className="text-[9px] text-gray-700">{hint}</span>
+                    <span className="text-[11px] font-medium text-gray-300">{label}</span>
+                    <span className="text-[10px] text-gray-500">{hint}</span>
                   </div>
                   <div className="relative">
                     <input
@@ -406,7 +406,7 @@ const StrategyEditorTab = ({
                       step={step}
                       min={min}
                     />
-                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-600 pointer-events-none">
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-gray-500 pointer-events-none">
                       {unit}
                     </span>
                   </div>
@@ -415,7 +415,7 @@ const StrategyEditorTab = ({
             </div>
           </Section>
 
-          <Section step={5} title="리서치 노트" subtitle="가정·시장 조건·엣지 케이스" accent="gray">
+          <Section step={5} title="리서치 노트" subtitle="가정·시장 조건·엣지 케이스">
             <textarea
               className={`${inputCls} resize-none leading-relaxed`}
               rows={3}
@@ -432,7 +432,7 @@ const StrategyEditorTab = ({
             onClick={onSave}
             disabled={saving || !ready}
             title={!ready ? '상단 체크리스트를 모두 완료하세요' : 'Save strategy'}
-            className="flex items-center gap-1.5 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-800 disabled:text-gray-600 disabled:cursor-not-allowed text-white text-xs font-semibold rounded transition-colors"
+            className="flex items-center gap-1.5 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-800 disabled:text-gray-500 disabled:cursor-not-allowed text-white text-xs font-semibold rounded transition-colors"
           >
             <Save size={12} />
             {saving ? 'Saving…' : 'Save'}
@@ -445,14 +445,14 @@ const StrategyEditorTab = ({
             <Plus size={12} /> Save as New
           </button>
 
-          <div className="ml-auto flex items-center gap-3 text-[10px] tabular-nums">
+          <div className="ml-auto flex items-center gap-3 text-[11px] tabular-nums">
             {selectedFactors.length > 0 && (
-              <span className="text-gray-500">
+              <span className="text-gray-400">
                 <span className="text-cyan-400 font-semibold">{selectedFactors.length}</span> 변수
               </span>
             )}
             {totalConditions > 0 && (
-              <span className="text-gray-500">
+              <span className="text-gray-400">
                 매수 <span className="text-green-400 font-semibold">{buyConditions.length}</span>
                 {' · '}
                 매도 <span className="text-red-400 font-semibold">{sellConditions.length}</span>
