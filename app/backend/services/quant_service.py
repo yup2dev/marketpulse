@@ -22,422 +22,19 @@ from data_fetcher.query_executor import QueryExecutor
 log = logging.getLogger(__name__)
 
 
-# ─── Indicator Calculators ─────────────────────────────────────────────────────
-
-def _ema(prices: np.ndarray, period: int) -> np.ndarray:
-    """Exponential Moving Average"""
-    period = int(period)
-    result = np.full(len(prices), np.nan)
-    if len(prices) < period:
-        return result
-    result[period - 1] = np.mean(prices[:period])
-    k = 2.0 / (period + 1)
-    for i in range(period, len(prices)):
-        result[i] = prices[i] * k + result[i - 1] * (1 - k)
-    return result
-
-
-def _sma(prices: np.ndarray, period: int) -> np.ndarray:
-    """Simple Moving Average"""
-    period = int(period)
-    result = np.full(len(prices), np.nan)
-    for i in range(period - 1, len(prices)):
-        result[i] = np.mean(prices[i - period + 1 : i + 1])
-    return result
-
-
-def _rsi(prices: np.ndarray, period: int = 14) -> np.ndarray:
-    """Relative Strength Index"""
-    period = int(period)
-    result = np.full(len(prices), np.nan)
-    if len(prices) <= period:
-        return result
-    deltas = np.diff(prices)
-    gains = np.where(deltas > 0, deltas, 0.0)
-    losses = np.where(deltas < 0, -deltas, 0.0)
-    avg_gain = np.mean(gains[:period])
-    avg_loss = np.mean(losses[:period])
-    for i in range(period, len(deltas)):
-        avg_gain = (avg_gain * (period - 1) + gains[i]) / period
-        avg_loss = (avg_loss * (period - 1) + losses[i]) / period
-        rs = avg_gain / avg_loss if avg_loss != 0 else 1e9
-        result[i + 1] = 100 - (100 / (1 + rs))
-    return result
-
-
-def _macd(prices: np.ndarray, fast: int = 12, slow: int = 26, signal: int = 9):
-    """MACD line, Signal line, Histogram"""
-    fast   = int(fast   or 12)
-    slow   = int(slow   or 26)
-    signal = int(signal or 9)
-    ema_fast = _ema(prices, fast)
-    ema_slow = _ema(prices, slow)
-    macd_line = ema_fast - ema_slow
-    valid = ~np.isnan(macd_line)
-    signal_line = np.full(len(prices), np.nan)
-    if valid.sum() >= signal:
-        idx = np.where(valid)[0]
-        sig = _ema(macd_line[idx], signal)
-        signal_line[idx] = sig
-    histogram = macd_line - signal_line
-    return macd_line, signal_line, histogram
-
-
-def _bollinger(prices: np.ndarray, period: int = 20, std_dev: float = 2.0):
-    """Upper band, Middle (SMA), Lower band"""
-    period = int(period)
-    mid = _sma(prices, period)
-    upper = np.full(len(prices), np.nan)
-    lower = np.full(len(prices), np.nan)
-    for i in range(period - 1, len(prices)):
-        std = np.std(prices[i - period + 1 : i + 1], ddof=0)
-        upper[i] = mid[i] + std_dev * std
-        lower[i] = mid[i] - std_dev * std
-    return upper, mid, lower
-
-
-# ─── Strategy Engines ──────────────────────────────────────────────────────────
-
-# ─── Additional Indicators ────────────────────────────────────────────────────
-
-def _atr(high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int = 14) -> np.ndarray:
-    """Average True Range (Wilder smoothing)"""
-    period = int(period)
-    n = len(close)
-    result = np.full(n, np.nan)
-    if n < 2:
-        return result
-    tr = np.zeros(n)
-    tr[0] = high[0] - low[0]
-    for i in range(1, n):
-        tr[i] = max(high[i] - low[i], abs(high[i] - close[i - 1]), abs(low[i] - close[i - 1]))
-    if n < period:
-        return result
-    result[period - 1] = np.mean(tr[:period])
-    for i in range(period, n):
-        result[i] = (result[i - 1] * (period - 1) + tr[i]) / period
-    return result
-
-
-def _stochastic(high: np.ndarray, low: np.ndarray, close: np.ndarray,
-                k_period: int = 14, d_period: int = 3):
-    """Stochastic Oscillator %K and %D"""
-    k_period, d_period = int(k_period), int(d_period)
-    n = len(close)
-    k = np.full(n, np.nan)
-    for i in range(k_period - 1, n):
-        hh = np.max(high[i - k_period + 1 : i + 1])
-        ll = np.min(low[i - k_period + 1 : i + 1])
-        k[i] = (close[i] - ll) / (hh - ll) * 100 if hh != ll else 50.0
-    d = _sma(k, d_period)
-    return k, d
-
-
-def _zscore(prices: np.ndarray, window: int = 20) -> np.ndarray:
-    """Rolling Z-score: (price - SMA) / std"""
-    window = int(window)
-    result = np.full(len(prices), np.nan)
-    for i in range(window - 1, len(prices)):
-        window_data = prices[i - window + 1 : i + 1]
-        std = np.std(window_data, ddof=0)
-        if std > 0:
-            result[i] = (prices[i] - np.mean(window_data)) / std
-    return result
-
-
-def _percentile(prices: np.ndarray, window: int = 60) -> np.ndarray:
-    """Rolling percentile rank (0~100): how current price ranks within window"""
-    window = int(window)
-    result = np.full(len(prices), np.nan)
-    for i in range(window - 1, len(prices)):
-        window_data = prices[i - window + 1 : i + 1]
-        result[i] = (np.sum(window_data <= prices[i]) / window) * 100
-    return result
-
-
-def _vwap(high: np.ndarray, low: np.ndarray, close: np.ndarray, volume: np.ndarray) -> np.ndarray:
-    """Cumulative VWAP using typical price"""
-    tp = (high + low + close) / 3.0
-    safe_vol = np.where(volume == 0, 1, volume)
-    return np.cumsum(tp * safe_vol) / np.cumsum(safe_vol)
-
-
-# ─── Chart: Market Structure Factors ──────────────────────────────────────────
-
-def _volume_profile(
-    high: np.ndarray,
-    low: np.ndarray,
-    close: np.ndarray,
-    volume: np.ndarray,
-    lookback: int = 30,
-    bins: int = 20,
-) -> tuple:
-    """Rolling volume profile. Returns (poc, vah, val) price-level series."""
-    n = len(close)
-    poc = np.full(n, np.nan)
-    vah = np.full(n, np.nan)
-    val = np.full(n, np.nan)
-    if lookback < 2 or bins < 2:
-        return poc, vah, val
-
-    typical = (high + low + close) / 3.0
-    for i in range(lookback, n):
-        lo = i - lookback + 1
-        hi_p = float(np.max(high[lo:i + 1]))
-        lo_p = float(np.min(low[lo:i + 1]))
-        if hi_p <= lo_p:
-            continue
-        edges = np.linspace(lo_p, hi_p, bins + 1)
-        hist, _ = np.histogram(typical[lo:i + 1], bins=edges, weights=volume[lo:i + 1])
-        total = hist.sum()
-        if total <= 0:
-            continue
-        poc_idx = int(np.argmax(hist))
-        poc[i] = (edges[poc_idx] + edges[poc_idx + 1]) / 2.0
-
-        # Value area: expand from POC until 70% volume covered
-        target = 0.7 * total
-        acc = hist[poc_idx]
-        lo_idx, hi_idx = poc_idx, poc_idx
-        while acc < target and (lo_idx > 0 or hi_idx < bins - 1):
-            left  = hist[lo_idx - 1] if lo_idx > 0        else -1.0
-            right = hist[hi_idx + 1] if hi_idx < bins - 1 else -1.0
-            if right >= left:
-                hi_idx += 1
-                acc += hist[hi_idx]
-            else:
-                lo_idx -= 1
-                acc += hist[lo_idx]
-        val[i] = float(edges[lo_idx])
-        vah[i] = float(edges[hi_idx + 1])
-    return poc, vah, val
-
-
-def _liquidity_sweep(
-    high: np.ndarray,
-    low: np.ndarray,
-    close: np.ndarray,
-    lookback: int = 20,
-) -> tuple:
-    """Detect liquidity sweep events. Returns (sweep_high, sweep_low) as 0/1 arrays.
-
-    sweep_high[i] = 1  when bar i prints a high > max(high[i-lookback..i-1])
-                        but close[i] retraces below that prior high.
-    Symmetric for sweep_low.
-    """
-    n = len(close)
-    sh = np.zeros(n)
-    sl = np.zeros(n)
-    if lookback < 1:
-        return sh, sl
-    for i in range(lookback, n):
-        prev_hi = float(np.max(high[i - lookback:i]))
-        prev_lo = float(np.min(low[i - lookback:i]))
-        if high[i] > prev_hi and close[i] < prev_hi:
-            sh[i] = 1.0
-        if low[i] < prev_lo and close[i] > prev_lo:
-            sl[i] = 1.0
-    return sh, sl
-
-
-def _hmm_regime(
-    close: np.ndarray,
-    n_states: int = 3,
-    train_window: int = 252,
-    refit_every: int = 20,
-) -> tuple:
-    """Rolling Gaussian-HMM regime detection.
-
-    Returns (state, bull_prob) — state relabelled by ascending mean return so
-    0=bear, n_states-1=bull. Returns NaN arrays if hmmlearn is not installed.
-    """
-    n = len(close)
-    state = np.full(n, np.nan)
-    bull_prob = np.full(n, np.nan)
-
-    try:
-        from hmmlearn.hmm import GaussianHMM
-    except ImportError:
-        log.warning("hmmlearn not installed — HMM regime factor returns NaN")
-        return state, bull_prob
-
-    if n < train_window + 5:
-        return state, bull_prob
-
-    log_c = np.log(np.maximum(close, 1e-12))
-    rets = np.diff(log_c, prepend=log_c[0])
-    vol_win = 10
-    vol = np.zeros(n)
-    for i in range(vol_win, n):
-        vol[i] = float(np.std(rets[i - vol_win:i]))
-
-    model = None
-    relabel: np.ndarray = np.arange(n_states)
-    bull_idx = n_states - 1
-
-    for i in range(train_window, n):
-        refit = (model is None) or ((i - train_window) % max(refit_every, 1) == 0)
-        if refit:
-            X = np.column_stack([
-                rets[i - train_window:i + 1],
-                vol[i - train_window:i + 1],
-            ])
-            try:
-                model = GaussianHMM(
-                    n_components=int(n_states),
-                    covariance_type="diag",
-                    n_iter=50,
-                    random_state=42,
-                )
-                model.fit(X)
-                state_means = model.means_[:, 0]
-                order = np.argsort(state_means)        # ascending return → 0=bear
-                relabel = np.empty_like(order)
-                for rank, s in enumerate(order):
-                    relabel[s] = rank
-                bull_idx = int(order[-1])
-            except Exception as e:
-                log.warning(f"HMM refit failed at i={i}: {e}")
-                continue
-
-        X_now = np.column_stack([
-            rets[i - train_window:i + 1],
-            vol[i - train_window:i + 1],
-        ])
-        try:
-            hidden = model.predict(X_now)
-            post   = model.predict_proba(X_now)
-            state[i]     = float(relabel[hidden[-1]])
-            bull_prob[i] = float(post[-1, bull_idx])
-        except Exception:
-            pass
-    return state, bull_prob
-
-
-# ─── Shared Volatility Helper ─────────────────────────────────────────────────
-
-def _rolling_realized_var(closes: np.ndarray, window: int) -> np.ndarray:
-    """Annualised realised variance via log-return std².  Used by both the
-    custom factor engine and the Heston strategy engines."""
-    log_rets = np.log(closes[1:] / np.maximum(closes[:-1], 1e-12))
-    rv = np.full(len(closes), np.nan)
-    for i in range(window, len(closes)):
-        rv[i] = np.var(log_rets[i - window: i], ddof=0) * 252
-    return rv
-
-
-# ─── Options Pricing: Carr-Madan FFT ──────────────────────────────────────────
-#
-# C(k) = (e^{-αk}/π) ∫₀^∞ Re[e^{-iuk} · e^{-rT}·φ(u−i(α+1)) / (α²+α−u²+i(2α+1)u)] du
-# Reference: Carr & Madan (1999) "Option valuation using the fast Fourier transform"
-
-def _ncdf(x: np.ndarray) -> np.ndarray:
-    """Normal CDF via Abramowitz & Stegun approximation (max error 7.5e-8)."""
-    z = np.abs(x)
-    t = 1.0 / (1.0 + 0.2316419 * z)
-    poly = t * (0.319381530 + t * (-0.356563782 + t * (1.781477937
-                + t * (-1.821255978 + t * 1.330274429))))
-    cdf = 1.0 - np.exp(-0.5 * z * z) / np.sqrt(2.0 * np.pi) * poly
-    return np.where(x >= 0.0, cdf, 1.0 - cdf)
-
-
-def _npdf(x: np.ndarray) -> np.ndarray:
-    return np.exp(-0.5 * x * x) / np.sqrt(2.0 * np.pi)
-
-
-def _bs_cf_unit(u: np.ndarray, r: float, T: float, sigma: float) -> np.ndarray:
-    """Black-Scholes characteristic function of log(S_T) at S=1 (log S=0)."""
-    return np.exp(
-        1j * u * (r - 0.5 * sigma ** 2) * T
-        - 0.5 * sigma ** 2 * T * u ** 2
-    )
-
-
-def _heston_cf_unit(u: np.ndarray, r: float, T: float,
-                    v0: float, kappa: float, theta: float,
-                    xi: float, rho: float) -> np.ndarray:
-    """
-    Heston characteristic function at S=1.
-    Albrecher et al. (2007) numerically stable formulation.
-    """
-    b       = kappa - rho * xi * 1j * u
-    d       = np.sqrt(b ** 2 + xi ** 2 * (u ** 2 + 1j * u))
-    g       = (b - d) / (b + d)
-    exp_dT  = np.exp(-d * T)
-    A = (kappa * theta / xi ** 2) * (
-        (b - d) * T - 2.0 * np.log((1.0 - g * exp_dT) / (1.0 - g))
-    )
-    B = ((b - d) / xi ** 2) * (1.0 - exp_dT) / (1.0 - g * exp_dT)
-    return np.exp(A + B * v0 + 1j * u * r * T)
-
-
-def _fft_call_unit(K_rel: float, r: float, T: float, cf_unit,
-                   alpha: float = 1.5, N: int = 512, eta: float = 0.25) -> float:
-    """
-    European call price for unit spot S=1, strike K=K_rel via Carr-Madan FFT.
-    Actual series price: C(S_t, K_t = S_t*K_rel) = S_t * fft_call_unit(K_rel)
-    thanks to model homogeneity.
-    """
-    if K_rel <= 0 or T <= 1e-10:
-        return float(max(1.0 - K_rel * np.exp(-r * T), 0.0))
-
-    lam    = 2.0 * np.pi / (N * eta)
-    b      = N * lam / 2.0
-    k_grid = -b + lam * np.arange(N, dtype=float)
-    v      = eta * np.arange(N, dtype=float)
-
-    phi   = cf_unit(v - 1j * (alpha + 1.0))
-    denom = alpha ** 2 + alpha - v ** 2 + 1j * (2.0 * alpha + 1.0) * v
-    psi   = np.exp(-r * T) * phi / denom
-
-    # Modified Simpson weights
-    w = np.ones(N, dtype=float)
-    w[0] = w[-1] = 1.0 / 3.0
-    w[1:-1:2] = 4.0 / 3.0
-    w[2:-2:2] = 2.0 / 3.0
-    w *= eta
-
-    fft_out     = np.real(np.fft.fft(np.exp(1j * v * b) * psi * w))
-    call_prices = np.exp(-alpha * k_grid) / np.pi * fft_out
-
-    log_K = np.log(K_rel)
-    if log_K < k_grid[0] or log_K > k_grid[-1]:
-        return float(max(1.0 - K_rel * np.exp(-r * T), 0.0))
-    return float(max(np.interp(log_K, k_grid, call_prices), 0.0))
-
-
-def _fft_delta_unit(K_rel: float, r: float, T: float, cf_unit,
-                    eps: float = 0.005) -> float:
-    """Delta at S=1 via central finite difference in log S (2 extra FFT calls)."""
-    def cf_bump(shift):
-        return lambda u: cf_unit(u) * np.exp(1j * u * shift)
-
-    p_up = _fft_call_unit(K_rel, r, T, cf_bump( eps))
-    p_dn = _fft_call_unit(K_rel, r, T, cf_bump(-eps))
-    return (p_up - p_dn) / (2.0 * eps)
-
-
-def _bs_greeks_series(close: np.ndarray, r: float, T: float,
-                      sigma: float, moneyness: float) -> dict:
-    """
-    Analytical Black-Scholes Greeks for a rolling fixed-moneyness call.
-    K_t = close_t * (1 + moneyness)
-    """
-    T_s   = max(T, 1e-8)
-    sig_s = max(sigma, 1e-6)
-    K     = np.maximum(close * (1.0 + moneyness), 1e-8)
-    sq_T  = np.sqrt(T_s)
-    d1    = (np.log(close / K) + (r + 0.5 * sig_s ** 2) * T_s) / (sig_s * sq_T)
-    d2    = d1 - sig_s * sq_T
-    nd1   = _npdf(d1)
-    Nd1   = _ncdf(d1)
-    Nd2   = _ncdf(d2)
-    delta = Nd1
-    gamma = nd1 / np.maximum(close * sig_s * sq_T, 1e-12)
-    theta = ((-close * nd1 * sig_s / (2.0 * sq_T))
-             - r * K * np.exp(-r * T_s) * Nd2) / 365.0
-    vega  = close * nd1 * sq_T / 100.0
-    return {'delta': delta, 'gamma': gamma, 'theta': theta, 'vega': vega}
+# ─── Indicator Calculators (split out to app/backend/services/quant/) ────────
+from app.backend.services.quant.technical import (
+    _ema, _sma, _rsi, _macd, _bollinger,
+    _atr, _stochastic, _zscore, _percentile, _vwap,
+)
+from app.backend.services.quant.chart import (
+    _volume_profile, _liquidity_sweep, _hmm_regime,
+)
+from app.backend.services.quant.options import (
+    _rolling_realized_var,
+    _ncdf, _npdf, _bs_cf_unit, _heston_cf_unit,
+    _fft_call_unit, _fft_delta_unit, _bs_greeks_series,
+)
 
 
 # ─── Safe Formula Evaluator ───────────────────────────────────────────────────
@@ -1946,4 +1543,90 @@ async def analyze(
         "ticker": ticker.upper(),
         "signals": signals,
         "performance": performance,
+    }
+
+
+# ─── Factor Series (for Visualize page) ───────────────────────────────────────
+
+def _nan_to_none(arr: np.ndarray) -> list:
+    out = []
+    for v in arr:
+        if v is None:
+            out.append(None)
+        else:
+            try:
+                f = float(v)
+                out.append(None if np.isnan(f) or np.isinf(f) else f)
+            except (TypeError, ValueError):
+                out.append(None)
+    return out
+
+
+async def factor_series(
+    ticker: str,
+    start_date: str,
+    end_date: str,
+    factors: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Fetch OHLCV + compute requested factor series for chart overlays.
+
+    factors: [{"factor": "EMA", "params": {"period": 20}}, ...]
+             factor names match _compute_factor's dispatch keys (EMA, SMA, RSI,
+             BB_*, CHART_VP_*, CHART_LIQ_*, CHART_HMM_*, MACRO_*, etc.)
+    """
+    models = await QueryExecutor.fetch("yahoo", "stock_price", {
+        "symbol": ticker,
+        "start_date": start_date,
+        "end_date": end_date,
+        "interval": "1d",
+    })
+    if not models:
+        raise ValueError(f"No price data found for {ticker}")
+
+    data = [m.model_dump(mode='json') for m in models]
+    data.sort(key=lambda d: d['date'])
+    dates = [d['date'][:10] for d in data]
+    closes = np.array([d['close'] for d in data], dtype=float)
+    opens  = np.array([d['open']   or d['close'] for d in data], dtype=float)
+    highs  = np.array([d['high']   or d['close'] for d in data], dtype=float)
+    lows   = np.array([d['low']    or d['close'] for d in data], dtype=float)
+    vols   = np.array([d['volume'] or 1.0        for d in data], dtype=float)
+
+    series = {"close": closes, "open": opens, "high": highs, "low": lows, "volume": vols}
+
+    # Pre-fetch macro/micro/fund external series if any requested
+    ext = {f.get("factor", "") for f in factors}
+    ext = {k for k in ext if k.startswith(("MACRO_", "MICRO_", "FUND_", "SUPPLY_", "ALT_"))}
+    if ext:
+        await _prefetch_external_series(dates, series, ext)
+
+    out_series = []
+    for fdef in factors:
+        try:
+            arr = _compute_factor(series, fdef)
+            out_series.append({
+                "factor": fdef.get("factor"),
+                "params": fdef.get("params", {}),
+                "values": _nan_to_none(arr),
+            })
+        except Exception as e:
+            log.warning(f"factor_series compute failed for {fdef}: {e}")
+            out_series.append({
+                "factor": fdef.get("factor"),
+                "params": fdef.get("params", {}),
+                "values": [None] * len(closes),
+                "error": str(e),
+            })
+
+    return {
+        "ticker": ticker.upper(),
+        "dates": dates,
+        "ohlcv": {
+            "open":   _nan_to_none(opens),
+            "high":   _nan_to_none(highs),
+            "low":    _nan_to_none(lows),
+            "close":  _nan_to_none(closes),
+            "volume": _nan_to_none(vols),
+        },
+        "series": out_series,
     }

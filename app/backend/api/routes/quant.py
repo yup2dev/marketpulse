@@ -18,6 +18,7 @@ from app.backend.services import quant_service
 from app.backend.database.db_dependency import get_db
 from app.backend.auth.dependencies import get_current_user
 from app.backend.api.deps import route_handler
+from app.backend.api.market_data import to_response, timed
 from index_analyzer.models.quant_strategy import QuantStrategy
 from index_analyzer.models.quant_factor import QuantFactor
 from index_analyzer.models.quant_strategy_type import QuantStrategyType
@@ -84,6 +85,13 @@ class ScanRequest(BaseModel):
     sell_logic: Optional[str] = "OR"
 
 
+class FactorSeriesRequest(BaseModel):
+    ticker: str
+    start_date: str
+    end_date: str
+    factors: List[Dict[str, Any]]   # [{"factor": "EMA", "params": {"period": 20}}, ...]
+
+
 class StrategyNoteCreate(BaseModel):
     name: str
     strategy_type: str = "custom"
@@ -123,13 +131,16 @@ def get_factor_catalog(db: Session = Depends(get_db)):
 @router.post("/analyze")
 @route_handler
 async def quant_analyze(request: QuantAnalyzeRequest):
-    result = await quant_service.analyze(
-        ticker=request.ticker,
-        start_date=request.start_date,
-        end_date=request.end_date,
-        strategy=request.strategy.model_dump(),
-    )
-    return {"data": result}
+    extra: Dict[str, Any] = {}
+    with timed(extra):
+        result = await quant_service.analyze(
+            ticker=request.ticker,
+            start_date=request.start_date,
+            end_date=request.end_date,
+            strategy=request.strategy.model_dump(),
+        )
+    extra.update({"ticker": request.ticker, "strategy_type": request.strategy.type})
+    return to_response(result, provider="yahoo", extra=extra)
 
 
 # ─── Scanner Endpoint ─────────────────────────────────────────────────────────
@@ -138,22 +149,46 @@ async def quant_analyze(request: QuantAnalyzeRequest):
 @route_handler
 async def quant_scan(request: ScanRequest):
     param_ranges = {k: v.model_dump() for k, v in request.param_ranges.items()}
-    result = await quant_service.scan(
-        ticker=request.ticker,
-        start_date=request.start_date,
-        end_date=request.end_date,
-        strategy_type=request.strategy_type,
-        param_ranges=param_ranges,
-        stop_loss_pct=request.stop_loss_pct,
-        take_profit_pct=request.take_profit_pct,
-        initial_capital=request.initial_capital,
-        commission_pct=request.commission_pct,
-        buy_conditions=request.buy_conditions,
-        sell_conditions=request.sell_conditions,
-        buy_logic=request.buy_logic  or "AND",
-        sell_logic=request.sell_logic or "OR",
-    )
-    return {"data": result}
+    extra: Dict[str, Any] = {}
+    with timed(extra):
+        result = await quant_service.scan(
+            ticker=request.ticker,
+            start_date=request.start_date,
+            end_date=request.end_date,
+            strategy_type=request.strategy_type,
+            param_ranges=param_ranges,
+            stop_loss_pct=request.stop_loss_pct,
+            take_profit_pct=request.take_profit_pct,
+            initial_capital=request.initial_capital,
+            commission_pct=request.commission_pct,
+            buy_conditions=request.buy_conditions,
+            sell_conditions=request.sell_conditions,
+            buy_logic=request.buy_logic  or "AND",
+            sell_logic=request.sell_logic or "OR",
+        )
+    extra.update({
+        "ticker":        request.ticker,
+        "strategy_type": request.strategy_type,
+        "combinations":  len(result) if isinstance(result, list) else None,
+    })
+    return to_response(result, provider="yahoo", extra=extra)
+
+
+# ─── Factor Series (for Visualize page) ──────────────────────────────────────
+
+@router.post("/factor-series")
+@route_handler
+async def quant_factor_series(request: FactorSeriesRequest):
+    extra: Dict[str, Any] = {}
+    with timed(extra):
+        result = await quant_service.factor_series(
+            ticker=request.ticker,
+            start_date=request.start_date,
+            end_date=request.end_date,
+            factors=request.factors,
+        )
+    extra.update({"ticker": request.ticker, "factors": len(request.factors)})
+    return to_response(result, provider="yahoo", extra=extra)
 
 
 # ─── Strategy CRUD ────────────────────────────────────────────────────────────

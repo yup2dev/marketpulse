@@ -117,6 +117,7 @@ export const quantAPI = {
   factorCatalog:   ()              => apiClient.get(`${API_BASE}/quant/factor-catalog`),
   analyze:         (payload)       => apiClient.post(`${API_BASE}/quant/analyze`, payload),
   scan:            (payload)       => apiClient.post(`${API_BASE}/quant/scan`, payload),
+  factorSeries:    (payload)       => apiClient.post(`${API_BASE}/quant/factor-series`, payload),
   listStrategies:  ()              => apiClient.get(`${API_BASE}/quant/strategies`),
   createStrategy:  (data)          => apiClient.post(`${API_BASE}/quant/strategies`, data),
   updateStrategy:  (id, data)      => apiClient.request(`${API_BASE}/quant/strategies/${id}`, { method: 'PUT', body: JSON.stringify(data) }),

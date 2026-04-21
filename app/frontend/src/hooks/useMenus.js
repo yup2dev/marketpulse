@@ -268,6 +268,14 @@ const getFallbackMenus = () => [
     menu_path: 'strategy',
     display_seq: 8,
     children: []
+  },
+  {
+    menu_id: 'visualize',
+    menu_name: 'Visualize',
+    menu_icon: 'LineChart',
+    menu_path: 'visualize',
+    display_seq: 9,
+    children: []
   }
 ];
 
