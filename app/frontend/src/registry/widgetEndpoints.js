@@ -61,6 +61,9 @@ export const WIDGET_ENDPOINTS = {
   'sentiment-tab':         { title: 'Market Sentiment',       endpoint: '/macro/sentiment/composite' },
   'commodities-tab':       { title: 'Commodities',            endpoint: '/macro/fred/series' },
 
+  // ── QuantLib ───────────────────────────────────────────────────────────────
+  'option-pricing': { title: 'Option Pricing', endpoint: '/quantlib/pricing/option' },
+
   // ── Portfolio ───────────────────────────────────────────────────────────────
   'portfolio-stats':         { title: 'Portfolio Stats',    endpoint: '/user-portfolio/portfolios/{portfolioId}/summary' },
   'portfolio-chart':         { title: 'Portfolio Chart',    endpoint: '/user-portfolio/portfolios/{portfolioId}/chart' },

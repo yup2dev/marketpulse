@@ -114,3 +114,8 @@ class InsiderTradingData(BaseData):
         default=None,
         description="SEC 문서 링크"
     )
+
+    __alias_dict__ = {
+        "shares_owned_before": "shares_owned_before_transaction",
+        "shares_owned_after": "shares_owned_following_transaction",
+    }

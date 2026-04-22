@@ -1,12 +1,11 @@
 """FRED API GDP Data Fetcher"""
 import logging
-from datetime import datetime, date as date_type
 from typing import Any, Dict, List, Optional
 
 from data_fetcher.fetchers.base import Fetcher
 from data_fetcher.fetchers.fred.series import FredSeriesFetcher
 from data_fetcher.models.fred.gdp import GDPQueryParams, GDPData, GDPRealData
-from data_fetcher.utils.api_keys import CredentialsError, get_api_key
+from data_fetcher.utils.api_keys import get_api_key
 
 log = logging.getLogger(__name__)
 
@@ -108,61 +107,56 @@ class FREDGDPFetcher(Fetcher[GDPQueryParams, GDPData]):
         """
         observations = data.get('observations', [])
         series_id = data.get('series_id')
-        frequency = data.get('frequency')
         country = data.get('country', 'US')
+        is_real = series_id == FRED_SERIES_MAP['real']
+        Model = GDPRealData if is_real else GDPData
+        unit = 'Billions of Chained 2012 Dollars' if is_real else 'Billions of Dollars'
 
-        gdp_data_list = []
+        # FRED uses "." for missing values; normalize and filter
+        clean = []
+        for obs in observations:
+            value_str = obs.get('value')
+            date_str = obs.get('date')
+            if not date_str or value_str in (None, '.', ''):
+                continue
+            try:
+                value = float(value_str)
+            except (TypeError, ValueError):
+                continue
+            clean.append({'date': date_str, 'value': value})
+
+        if query.start_date:
+            sd = query.start_date.isoformat()
+            clean = [r for r in clean if r['date'] >= sd]
+        if query.end_date:
+            ed = query.end_date.isoformat()
+            clean = [r for r in clean if r['date'] <= ed]
+
+        clean.sort(key=lambda r: r['date'])
+
+        gdp_data_list: List[GDPData] = []
         previous_value = None
 
-        for obs in observations:
-            try:
-                date_str = obs.get('date')
-                value_str = obs.get('value')
+        for row in clean:
+            value = row['value']
 
-                if not date_str or value_str == '.' or value_str is None:
-                    continue
+            growth_rate = None
+            if previous_value and previous_value != 0:
+                growth_rate = ((value - previous_value) / previous_value) * 100
+            previous_value = value
 
-                value = float(value_str)
-                obs_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            payload = {
+                'date': row['date'],
+                'value': value,
+                'country': country,
+                'unit': unit,
+                'growth_rate': growth_rate,
+            }
+            if is_real:
+                payload['is_real'] = True
+                payload['base_year'] = 2016
 
-                # 사용자 지정 기간 필터링
-                if query.start_date and obs_date < query.start_date:
-                    continue
-                if query.end_date and obs_date > query.end_date:
-                    continue
-
-                # 성장률 계산
-                growth_rate = None
-                if previous_value and previous_value != 0:
-                    growth_rate = ((value - previous_value) / previous_value) * 100
-
-                previous_value = value
-
-                # 데이터 타입 결정
-                if series_id == FRED_SERIES_MAP['real']:
-                    gdp_obj = GDPRealData(
-                        date=obs_date,
-                        value=value,
-                        country=country,
-                        unit='Billions of Chained 2012 Dollars',
-                        growth_rate=growth_rate,
-                        is_real=True,
-                        base_year=2016
-                    )
-                else:
-                    gdp_obj = GDPData(
-                        date=obs_date,
-                        value=value,
-                        country=country,
-                        unit='Billions of Dollars',
-                        growth_rate=growth_rate
-                    )
-
-                gdp_data_list.append(gdp_obj)
-
-            except (ValueError, KeyError) as e:
-                log.warning(f"Error parsing GDP observation {obs}: {e}")
-                continue
+            gdp_data_list.append(Model.model_validate(payload))
 
         log.info(
             f"Filtered GDP data: {len(gdp_data_list)} records "

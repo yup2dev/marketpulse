@@ -1,12 +1,11 @@
 """FRED API CPI Data Fetcher"""
 import logging
-from datetime import datetime, date as date_type
 from typing import Any, Dict, List, Optional
 
 from data_fetcher.fetchers.base import Fetcher
 from data_fetcher.fetchers.fred.series import FredSeriesFetcher
 from data_fetcher.models.fred.cpi import CPIQueryParams, CPIData, CoreCPIData
-from data_fetcher.utils.api_keys import CredentialsError, get_api_key
+from data_fetcher.utils.api_keys import get_api_key
 
 log = logging.getLogger(__name__)
 
@@ -118,83 +117,73 @@ class FREDCPIFetcher(Fetcher[CPIQueryParams, CPIData]):
         """
         observations = data.get('observations', [])
         series_id = data.get('series_id')
-        frequency = data.get('frequency')
         country = data.get('country', 'US')
         category = data.get('category', 'All Items')
+        is_core = series_id == FRED_SERIES_MAP['all_items_core']
+        Model = CoreCPIData if is_core else CPIData
 
-        cpi_data_list = []
-        previous_value = None
-        previous_date = None
-
+        # FRED uses "." for missing values; normalize and filter
+        clean = []
         for obs in observations:
-            try:
-                date_str = obs.get('date')
-                value_str = obs.get('value')
-
-                if not date_str or value_str == '.' or value_str is None:
-                    continue
-
-                value = float(value_str)
-                obs_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-                # 사용자 지정 기간 필터링
-                if query.start_date and obs_date < query.start_date:
-                    continue
-                if query.end_date and obs_date > query.end_date:
-                    continue
-
-
-                # 변화율 계산
-                change_month = None
-                change_year = None
-
-                if previous_value and previous_value != 0:
-                    change_month = ((value - previous_value) / previous_value) * 100
-
-                # 연간 변화율은 12개월 이전 데이터가 필요 (간단히 구현)
-                if previous_date:
-                    month_diff = (obs_date.year - previous_date.year) * 12 + (obs_date.month - previous_date.month)
-                    if month_diff >= 12:
-                        change_year = ((value - previous_value) / previous_value) * 100
-
-                previous_value = value
-                previous_date = obs_date
-
-                # 데이터 타입 결정
-                is_core = series_id == FRED_SERIES_MAP['all_items_core']
-
-                if is_core:
-                    cpi_obj = CoreCPIData(
-                        date=obs_date,
-                        value=value,
-                        country=country,
-                        category=category,
-                        change_month=change_month,
-                        change_year=change_year,
-                        is_core=True,
-                        excluded_items='Food and Energy'
-                    )
-                else:
-                    cpi_obj = CPIData(
-                        date=obs_date,
-                        value=value,
-                        country=country,
-                        category=category,
-                        change_month=change_month,
-                        change_year=change_year
-                    )
-
-                cpi_data_list.append(cpi_obj)
-
-            except (ValueError, KeyError) as e:
-                log.warning(f"Error parsing CPI observation {obs}: {e}")
+            value_str = obs.get('value')
+            date_str = obs.get('date')
+            if not date_str or value_str in (None, '.', ''):
                 continue
+            try:
+                value = float(value_str)
+            except (TypeError, ValueError):
+                continue
+            clean.append({'date': date_str, 'value': value})
+
+        # 사용자 지정 기간 필터링 (문자열 비교 가능: YYYY-MM-DD)
+        if query.start_date:
+            sd = query.start_date.isoformat()
+            clean = [r for r in clean if r['date'] >= sd]
+        if query.end_date:
+            ed = query.end_date.isoformat()
+            clean = [r for r in clean if r['date'] <= ed]
+
+        clean.sort(key=lambda r: r['date'])
+
+        # 변화율 계산
+        cpi_data_list: List[CPIData] = []
+        previous_value = None
+        previous_ym: Optional[tuple] = None
+
+        for row in clean:
+            value = row['value']
+            y, m, _ = row['date'].split('-')
+            y, m = int(y), int(m)
+
+            change_month = None
+            change_year = None
+            if previous_value and previous_value != 0:
+                change_month = ((value - previous_value) / previous_value) * 100
+            if previous_ym and previous_value:
+                month_diff = (y - previous_ym[0]) * 12 + (m - previous_ym[1])
+                if month_diff >= 12:
+                    change_year = ((value - previous_value) / previous_value) * 100
+
+            previous_value = value
+            previous_ym = (y, m)
+
+            payload = {
+                'date': row['date'],
+                'value': value,
+                'country': country,
+                'category': category,
+                'change_month': change_month,
+                'change_year': change_year,
+            }
+            if is_core:
+                payload['is_core'] = True
+                payload['excluded_items'] = 'Food and Energy'
+
+            cpi_data_list.append(Model.model_validate(payload))
 
         log.info(
             f"Filtered CPI data: {len(cpi_data_list)} records "
             f"(start: {query.start_date}, end: {query.end_date})"
         )
-
-        # 날짜순으로 정렬
-        cpi_data_list.sort(key=lambda x: x.date)
 
         return cpi_data_list

@@ -8,6 +8,7 @@ python-dotenv>=1.0.0
 sqlalchemy>=2.0.0
 pandas>=2.0.0
 numpy>=1.26.0
+QuantLib>=1.40
 yfinance>=0.2.0
 redis>=5.0.0
 requests>=2.31.0

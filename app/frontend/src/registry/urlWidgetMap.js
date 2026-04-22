@@ -218,6 +218,25 @@ export const URL_WIDGET_MAP = {
     ],
   },
 
+  // ─── QuantLib (/quantlib) ────────────────────────────────────────────────────
+  '/quantlib': {
+    label: 'QuantLib',
+    needsSymbol: false,
+    needsPortfolio: false,
+    categories: [
+      {
+        id: 'pricing',
+        label: 'Pricing',
+        defaultWidgets: [
+          { id: 'option-pricing-1', type: 'option-pricing', x: 0, y: 0, w: 6, h: 14 },
+        ],
+        widgets: [
+          { id: 'option-pricing', name: 'Option Pricing', description: 'Black-Scholes / Binomial / MC — NPV & Greeks', defaultSize: { w: 6, h: 14 } },
+        ],
+      },
+    ],
+  },
+
   // ─── Portfolio (/portfolios) ─────────────────────────────────────────────────
   '/portfolios': {
     label: 'Portfolio',

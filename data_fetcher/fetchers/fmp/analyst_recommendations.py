@@ -1,7 +1,6 @@
 """FMP Analyst Recommendations Fetcher"""
 import logging
 import requests
-from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from data_fetcher.fetchers.base import Fetcher
@@ -99,75 +98,26 @@ class FMPAnalystRecommendationsFetcher(Fetcher[AnalystRecommendationsQueryParams
         data: List[Dict[str, Any]],
         **kwargs: Any
     ) -> List[AnalystRecommendationsData]:
+        """원시 데이터를 표준 모델로 변환.
+
+        두 엔드포인트(grades / price-target-consensus)가 섞여 들어오므로
+        정규화된 dict로 먼저 변환한 뒤 model_validate에 맡긴다.
         """
-        원시 데이터를 표준 모델로 변환
-
-        Args:
-            query: 쿼리 파라미터
-            data: 원시 데이터
-            **kwargs: 추가 파라미터
-
-        Returns:
-            AnalystRecommendationsData 리스트
-        """
-        if not data:
-            log.info(f"No analyst recommendations data for {query.symbol}")
-            return []
-
-        recommendations_list = []
-
+        results: List[AnalystRecommendationsData] = []
         for item in data:
-            try:
-                # Parse date
-                rec_date = None
-                if item.get("date"):
-                    try:
-                        rec_date = datetime.strptime(item["date"], "%Y-%m-%d").date()
-                    except (ValueError, AttributeError):
-                        pass
-                elif item.get("publishedDate"):
-                    try:
-                        rec_date = datetime.strptime(item["publishedDate"][:10], "%Y-%m-%d").date()
-                    except (ValueError, AttributeError, IndexError):
-                        pass
-
-                if not rec_date:
-                    continue
-
-                # Extract analyst and company info
-                analyst_name = item.get("gradingCompany") or item.get("analystName")
-                analyst_company = item.get("gradingCompany") or item.get("analystCompany")
-
-                # Parse price targets
-                price_target = item.get("priceTarget") or item.get("adjPriceTarget")
-
-                # Parse consensus from grade data
-                consensus_grade = item.get("newGrade") or item.get("previousGrade")
-
-                recommendations_data = AnalystRecommendationsData(
-                    symbol=item.get("symbol", query.symbol),
-                    date=rec_date,
-                    analyst_name=analyst_name,
-                    analyst_company=analyst_company,
-                    analyst_rating_strong_buy=None,  # FMP doesn't provide count breakdown
-                    analyst_rating_buy=None,
-                    analyst_rating_hold=None,
-                    analyst_rating_sell=None,
-                    analyst_rating_strong_sell=None,
-                    analyst_rating_consensus=consensus_grade,
-                    analyst_target_price=price_target,
-                    analyst_target_price_min=None,  # Available in separate endpoint
-                    analyst_target_price_max=None,
-                    analyst_target_price_avg=None,
-                    analyst_target_price_median=None,
-                    number_of_analysts=item.get("numberOfAnalysts") or item.get("numberOfAnalystsOpinions"),
-                )
-
-                recommendations_list.append(recommendations_data)
-
-            except (KeyError, ValueError) as e:
-                log.warning(f"Error parsing analyst recommendations data: {e}")
+            # 날짜: date 우선, 없으면 publishedDate(앞 10자리)로 대체
+            date_val = item.get("date") or (item.get("publishedDate") or "")[:10] or None
+            if not date_val:
                 continue
 
-        log.info(f"Fetched {len(recommendations_list)} analyst recommendations records for {query.symbol}")
-        return recommendations_list
+            normalized = {
+                "symbol": item.get("symbol", query.symbol),
+                "date": date_val,
+                "analyst_name": item.get("gradingCompany") or item.get("analystName"),
+                "analyst_company": item.get("gradingCompany") or item.get("analystCompany"),
+                "consensus_grade": item.get("newGrade") or item.get("previousGrade"),
+                "priceTarget": item.get("priceTarget") or item.get("adjPriceTarget"),
+                "numberOfAnalysts": item.get("numberOfAnalysts") or item.get("numberOfAnalystsOpinions"),
+            }
+            results.append(AnalystRecommendationsData.model_validate(normalized))
+        return results

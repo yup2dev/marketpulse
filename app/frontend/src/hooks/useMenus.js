@@ -174,14 +174,6 @@ const getFallbackMenus = () => [
     ]
   },
   {
-    menu_id: 'backtest',
-    menu_name: 'Backtest',
-    menu_icon: 'BarChart3',
-    menu_path: 'unified-backtest',
-    display_seq: 4,
-    children: []
-  },
-  {
     menu_id: 'portfolio',
     menu_name: 'Portfolio',
     menu_icon: 'Briefcase',
@@ -238,43 +230,6 @@ const getFallbackMenus = () => [
     menu_icon: 'Bell',
     menu_path: 'alerts',
     display_seq: 6,
-    children: []
-  },
-  {
-    menu_id: 'quant',
-    menu_name: 'Quant',
-    menu_icon: 'BarChart3',
-    menu_path: 'quant',
-    display_seq: 7,
-    children: [
-      {
-        menu_id: 'quant-research',
-        menu_name: 'Quant Research',
-        menu_path: 'quant',
-        display_seq: 1
-      },
-      {
-        menu_id: 'quant-strategy',
-        menu_name: 'Strategy Builder',
-        menu_path: 'strategy',
-        display_seq: 2
-      }
-    ]
-  },
-  {
-    menu_id: 'strategy',
-    menu_name: 'Strategy',
-    menu_icon: 'FlaskConical',
-    menu_path: 'strategy',
-    display_seq: 8,
-    children: []
-  },
-  {
-    menu_id: 'visualize',
-    menu_name: 'Visualize',
-    menu_icon: 'LineChart',
-    menu_path: 'visualize',
-    display_seq: 9,
     children: []
   }
 ];

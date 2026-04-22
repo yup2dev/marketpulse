@@ -103,3 +103,18 @@ class QuoteData(BaseData):
         default=None,
         description="타임스탬프"
     )
+
+    __alias_dict__ = {
+        "change_percent": "changesPercentage",
+        "day_low": "dayLow",
+        "day_high": "dayHigh",
+        "year_low": "yearLow",
+        "year_high": "yearHigh",
+        "market_cap": "marketCap",
+        "price_avg_50": "priceAvg50",
+        "price_avg_200": "priceAvg200",
+        "avg_volume": "avgVolume",
+        "previous_close": "previousClose",
+        "earnings_announcement": "earningsAnnouncement",
+        "shares_outstanding": "sharesOutstanding",
+    }

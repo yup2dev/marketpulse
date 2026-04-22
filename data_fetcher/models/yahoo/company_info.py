@@ -71,3 +71,37 @@ class YFinanceCompanyInfoData(BaseData):
     target_price: Optional[float] = Field(default=None, description="목표주가")
     recommendation: Optional[str] = Field(default=None, description="추천 의견")
     num_analysts: Optional[int] = Field(default=None, description="애널리스트 수")
+
+    __alias_dict__ = {
+        "company_name": "longName",
+        "description": "longBusinessSummary",
+        "market_cap": "marketCap",
+        "enterprise_value": "enterpriseValue",
+        "shares_outstanding": "sharesOutstanding",
+        "float_shares": "floatShares",
+        "pe_ratio": "trailingPE",
+        "pb_ratio": "priceToBook",
+        "ps_ratio": "priceToSalesTrailing12Months",
+        "peg_ratio": "pegRatio",
+        "profit_margin": "profitMargins",
+        "operating_margin": "operatingMargins",
+        "roe": "returnOnEquity",
+        "roa": "returnOnAssets",
+        "dividend_rate": "dividendRate",
+        "dividend_yield": "dividendYield",
+        "payout_ratio": "payoutRatio",
+        "current_price": "currentPrice",
+        "day_high": "dayHigh",
+        "day_low": "dayLow",
+        "week_52_high": "fiftyTwoWeekHigh",
+        "week_52_low": "fiftyTwoWeekLow",
+        "average_volume": "averageVolume",
+        "debt_to_equity": "debtToEquity",
+        "current_ratio": "currentRatio",
+        "quick_ratio": "quickRatio",
+        "revenue_growth": "revenueGrowth",
+        "earnings_growth": "earningsGrowth",
+        "target_price": "targetMeanPrice",
+        "recommendation": "recommendationKey",
+        "num_analysts": "numberOfAnalystOpinions",
+    }

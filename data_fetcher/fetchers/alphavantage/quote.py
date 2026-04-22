@@ -104,57 +104,15 @@ class AlphaVantageQuoteFetcher(Fetcher[EquityQuoteQueryParams, EquityQuoteData])
             return []
 
         try:
-            # Alpha Vantage의 JSON 키 이름이 특이함
-            # "01. symbol", "05. price" 같은 형식
-
-            def get_value(key_pattern: str) -> Optional[float]:
-                """키 패턴으로 값 추출 (예: "05. price")"""
-                for key, value in quote.items():
-                    if key_pattern in key:
-                        try:
-                            return float(value) if value else None
-                        except (ValueError, TypeError):
-                            return None
-                return None
-
-            # 주요 데이터 추출
-            symbol_val = quote.get('01. symbol', symbol)
-            last_price = get_value('05. price')
-            previous_close = get_value('08. previous close')
-            open_price = get_value('02. open')
-            high = get_value('03. high')
-            low = get_value('04. low')
-            volume = quote.get('06. volume')
-
-            # 변동 정보 계산
-            change = None
-            change_percent = None
-
-            if last_price and previous_close:
-                change = last_price - previous_close
-                change_percent = (change / previous_close * 100) if previous_close > 0 else None
-
-            # 거래량 정수화
-            try:
-                volume = int(volume) if volume else None
-            except (ValueError, TypeError):
-                volume = None
-
-            quote_data = EquityQuoteData(
-                symbol=symbol_val,
-                name=quote.get('01. symbol'),
-                last_price=last_price,
-                open=open_price,
-                high=high,
-                low=low,
-                previous_close=previous_close,
-                change=change,
-                change_percent=change_percent,
-                volume=volume,
-                currency='USD',
-                last_updated=datetime.now(),
-            )
-
+            quote_data = EquityQuoteData.model_validate({
+                **quote,
+                "currency": "USD",
+                "last_updated": datetime.now(),
+            })
+            if quote_data.last_price and quote_data.previous_close:
+                quote_data.change_percent = (
+                    (quote_data.last_price - quote_data.previous_close) / quote_data.previous_close * 100
+                )
             return [quote_data]
 
         except Exception as e:

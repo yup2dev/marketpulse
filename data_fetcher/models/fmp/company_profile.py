@@ -155,3 +155,18 @@ class CompanyProfileData(BaseData):
         default=None,
         description="펀드 여부"
     )
+
+    __alias_dict__ = {
+        "company_name": "companyName",
+        "volume_avg": "volAvg",
+        "market_cap": "mktCap",
+        "last_div": "lastDiv",
+        "exchange_short_name": "exchangeShortName",
+        "full_time_employees": "fullTimeEmployees",
+        "dcf_diff": "dcfDiff",
+        "ipo_date": "ipoDate",
+        "is_etf": "isEtf",
+        "is_actively_trading": "isActivelyTrading",
+        "is_adr": "isAdr",
+        "is_fund": "isFund",
+    }

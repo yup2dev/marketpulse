@@ -17,12 +17,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.backend.core.config import settings
 # Import new models so Base.metadata.create_all() picks them up
-import index_analyzer.models.quant_strategy       # noqa: F401
-import index_analyzer.models.quant_strategy_type  # noqa: F401
 import index_analyzer.models.orm  # noqa: F401 — ensures UserWorkspace is picked up by create_all
 from app.backend.api.routes import (
-    stock, economic, news, dashboard, backtest, portfolio, macro,
-    auth, user_portfolio, screener, alerts, export, watchlist, menu, quant
+    stock, economic, news, dashboard, portfolio, macro,
+    auth, user_portfolio, screener, alerts, export, watchlist, menu,
+    quantlib,
 )
 from app.backend.api.routes.workspace import router as workspace_router
 from app.backend.api.routes.fundamental import router as fundamental_router
@@ -45,12 +44,6 @@ def _init_db():
             print("[OK] Menu data initialized successfully")
         except Exception as e:
             print(f"[SKIP] Menu data initialization skipped: {e}")
-
-        try:
-            from scripts.init_quant_strategy_types import init_quant_strategy_types
-            init_quant_strategy_types()
-        except Exception as e:
-            print(f"[SKIP] Strategy types seed skipped: {e}")
 
     except Exception as e:
         print(f"[FAIL] Startup initialization failed: {e}")
@@ -93,12 +86,11 @@ app.include_router(stock.router, prefix="/api/stock", tags=["stock"])
 app.include_router(economic.router, prefix="/api/economic", tags=["economic"])
 app.include_router(news.router, prefix="/api/news", tags=["news"])
 app.include_router(dashboard.router, prefix="/api", tags=["dashboard"])
-app.include_router(backtest.router, prefix="/api/backtest", tags=["backtest"])
 app.include_router(portfolio.router, prefix="/api/portfolio", tags=["portfolio"])
 app.include_router(macro.router, prefix="/api/macro", tags=["macro"])
-app.include_router(quant.router, prefix="/api/quant", tags=["quant"])
 app.include_router(workspace_router, prefix="/api", tags=["workspace"])
 app.include_router(fundamental_router.router, prefix="/api/v1", tags=["equity-fundamental"])
+app.include_router(quantlib.router, prefix="/api/quantlib", tags=["quantlib"])
 
 
 @app.get("/")
@@ -114,7 +106,6 @@ async def root():
             "economic": "/api/economic",
             "news": "/api/news",
             "dashboard": "/api/dashboard",
-            "backtest": "/api/backtest",
             "portfolio": "/api/portfolio",
             "macro": "/api/macro",
         },

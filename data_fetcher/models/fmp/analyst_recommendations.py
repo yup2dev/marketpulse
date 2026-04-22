@@ -90,3 +90,9 @@ class AnalystRecommendationsData(BaseData):
         default=None,
         description="분석한 애널리스트 수"
     )
+
+    __alias_dict__ = {
+        "analyst_rating_consensus": "consensus_grade",
+        "analyst_target_price": "priceTarget",
+        "number_of_analysts": "numberOfAnalysts",
+    }

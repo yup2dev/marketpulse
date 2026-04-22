@@ -70,6 +70,8 @@ from data_fetcher.fetchers.social.sentiment import SocialSentimentFetcher
 from data_fetcher.fetchers.database.index_constituents import DBIndexConstituentsFetcher
 from data_fetcher.fetchers.whalewisdom.institutional_holdings import WhaleWisdomFetcher
 
+from data_fetcher.fetchers.quantlib.pricing import QuantLibPricingFetcher
+
 log = logging.getLogger(__name__)
 
 
@@ -237,6 +239,23 @@ whalewisdom_provider = Provider(
 )
 
 
+# ==================== QuantLib Provider ====================
+
+quantlib_provider = Provider(
+    name="quantlib",
+    description="QuantLib Suite — local quantitative computation (no external API)",
+    website="https://www.quantlib.org",
+    credentials=[],
+    fetcher_dict={
+        "pricing": QuantLibPricingFetcher,
+    },
+    metadata={
+        "rate_limit": "none (local computation)",
+        "data_coverage": "Option pricing, Greeks, curves, risk, volatility",
+    }
+)
+
+
 # ==================== Provider Registration ====================
 
 def register_all_providers():
@@ -249,6 +268,7 @@ def register_all_providers():
     ProviderRegistry.register(social_provider)
     ProviderRegistry.register(db_provider)
     ProviderRegistry.register(whalewisdom_provider)
+    ProviderRegistry.register(quantlib_provider)
 
     log.info(f"Registered {len(ProviderRegistry.list())} providers")
 
@@ -318,6 +338,14 @@ def register_all_fetchers():
             category=category,
             provider="whalewisdom",
             description=f"WhaleWisdom {category.upper()} data"
+        )(fetcher)
+
+    # QuantLib fetchers
+    for category, fetcher in quantlib_provider.fetcher_dict.items():
+        FetcherRegistry.register(
+            category=category,
+            provider="quantlib",
+            description=f"QuantLib {category.upper()} computation"
         )(fetcher)
 
     log.info(f"Registered {len(FetcherRegistry.list_categories())} fetcher categories")

@@ -1,7 +1,6 @@
 """Polygon.io Options Data Fetcher"""
 import logging
 import requests
-from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from data_fetcher.fetchers.base import Fetcher
@@ -122,42 +121,10 @@ class PolygonOptionsFetcher(
 
         for item in results:
             try:
-                # 만기일 파싱
-                expiration_date = datetime.strptime(
-                    item["expiration_date"], "%Y-%m-%d"
-                ).date()
-
-                # Bid-Ask 스프레드 계산
-                bid_ask_spread = None
-                bid = item.get("bid")
-                ask = item.get("ask")
-                if bid is not None and ask is not None:
-                    bid_ask_spread = ask - bid
-
-                option_data = OptionsContractData(
-                    ticker=item["ticker"],
-                    underlying_ticker=item["underlying_ticker"],
-                    contract_type=item["contract_type"],
-                    strike_price=item["strike_price"],
-                    expiration_date=expiration_date,
-                    last_price=item.get("last_price"),
-                    bid=bid,
-                    ask=ask,
-                    bid_ask_spread=bid_ask_spread,
-                    volume=item.get("volume"),
-                    open_interest=item.get("open_interest"),
-                    delta=item.get("delta"),
-                    gamma=item.get("gamma"),
-                    theta=item.get("theta"),
-                    vega=item.get("vega"),
-                    rho=item.get("rho"),
-                    implied_volatility=item.get("implied_volatility"),
-                    shares_per_contract=item.get("shares_per_contract", 100),
-                    exercise_style=item.get("exercise_style")
-                )
-
+                option_data = OptionsContractData.model_validate(item)
+                if option_data.bid is not None and option_data.ask is not None:
+                    option_data.bid_ask_spread = option_data.ask - option_data.bid
                 options_list.append(option_data)
-
             except (KeyError, ValueError) as e:
                 log.warning(f"Error parsing options data: {e}")
                 continue

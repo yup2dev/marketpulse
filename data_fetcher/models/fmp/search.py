@@ -16,3 +16,8 @@ class FMPSearchData(BaseData):
     currency: Optional[str] = None
     stock_exchange: Optional[str] = None
     exchange_short_name: Optional[str] = None
+
+    __alias_dict__ = {
+        "stock_exchange": "stockExchange",
+        "exchange_short_name": "exchangeShortName",
+    }

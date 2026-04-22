@@ -113,3 +113,14 @@ class EquityQuoteData(BaseData):
         default=None,
         description="시장 개장 여부"
     )
+
+    __alias_dict__ = {
+        "symbol": "01. symbol",
+        "open": "02. open",
+        "high": "03. high",
+        "low": "04. low",
+        "last_price": "05. price",
+        "volume": "06. volume",
+        "previous_close": "08. previous close",
+        "change": "09. change",
+    }

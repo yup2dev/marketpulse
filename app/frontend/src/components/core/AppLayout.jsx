@@ -5,7 +5,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import {
   TrendingUp, LayoutDashboard, BarChart3, Briefcase,
-  Globe, LogOut, Settings, ChevronDown, LineChart,
+  Globe, LogOut, Settings, ChevronDown,
 } from 'lucide-react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -21,10 +21,7 @@ const ROUTE_MAP = {
   'macro-analysis':     '/macro',
   'portfolio-settings': '/portfolios',
   'alerts':             '/alerts',
-  'unified-backtest':   '/backtest',
-  'quant':              '/quant',
-  'strategy':           '/strategy',
-  'visualize':          '/visualize',
+  'quantlib':           '/quantlib',
 };
 
 const AppLayout = () => {
@@ -123,18 +120,6 @@ const AppLayout = () => {
                 })
               )}
 
-              {/* Hardcoded: Visualize (not in DB menus) */}
-              {!menusLoading && !menus.some(m => m.menu_path === 'visualize') && (
-                <button
-                  onClick={() => navigate('/visualize')}
-                  className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-colors ${
-                    location.pathname === '/visualize' ? 'text-cyan-400' : 'text-gray-400 hover:text-white'
-                  }`}
-                >
-                  <LineChart size={14} className="opacity-70" />
-                  <span>Visualize</span>
-                </button>
-              )}
             </nav>
 
             {/* Right Section */}

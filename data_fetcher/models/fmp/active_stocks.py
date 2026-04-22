@@ -16,3 +16,7 @@ class FMPActiveStockData(BaseData):
     change: Optional[float] = None
     price: Optional[float] = None
     change_percentage: Optional[str] = None
+
+    __alias_dict__ = {
+        "change_percentage": "changesPercentage",
+    }

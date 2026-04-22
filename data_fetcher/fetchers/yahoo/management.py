@@ -36,13 +36,7 @@ class YFinanceManagementFetcher(Fetcher[YFinanceManagementQueryParams, YFinanceM
     ) -> List[YFinanceManagementData]:
         info = data or {}
         officers = [
-            YFinanceOfficerData(
-                name=o.get('name', ''),
-                title=o.get('title', ''),
-                age=o.get('age'),
-                total_pay=o.get('totalPay'),
-                year_born=o.get('yearBorn'),
-            )
+            YFinanceOfficerData.model_validate(o)
             for o in info.get('companyOfficers', [])
         ]
         governance = {

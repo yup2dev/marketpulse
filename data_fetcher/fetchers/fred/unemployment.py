@@ -1,12 +1,11 @@
 """FRED API Unemployment Data Fetcher"""
 import logging
-from datetime import datetime, date as date_type
 from typing import Any, Dict, List, Optional
 
 from data_fetcher.fetchers.base import Fetcher
 from data_fetcher.fetchers.fred.series import FredSeriesFetcher
 from data_fetcher.models.fred.unemployment import UnemploymentQueryParams, UnemploymentData
-from data_fetcher.utils.api_keys import CredentialsError, get_api_key
+from data_fetcher.utils.api_keys import get_api_key
 
 log = logging.getLogger(__name__)
 

@@ -8,9 +8,6 @@ import Login from './components/core/Login';
 import Register from './components/core/Register';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import useAuthStore from './store/authStore';
-import QuantResearchDashboard from './components/quant/QuantResearchDashboard';
-import StrategyBuilderDashboard from './components/strategy/StrategyBuilderDashboard';
-import VisualizePage from './components/visualize/VisualizePage';
 
 function App() {
   const initializeAuth = useAuthStore((s) => s.initializeAuth);
@@ -45,9 +42,7 @@ function App() {
           <Route path="stock" element={<DashboardPage />} />
           <Route path="macro" element={<DashboardPage />} />
           <Route path="portfolios" element={<DashboardPage />} />
-          <Route path="quant" element={<QuantResearchDashboard />} />
-          <Route path="strategy" element={<StrategyBuilderDashboard />} />
-          <Route path="visualize" element={<VisualizePage />} />
+          <Route path="quantlib" element={<DashboardPage />} />
         </Route>
 
         {/* Auth */}

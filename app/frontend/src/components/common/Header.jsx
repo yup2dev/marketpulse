@@ -18,7 +18,7 @@ const PAGE_ROUTES = {
 };
 
 // View paths (stay on dashboard)
-const VIEW_PATHS = ['professional', 'stock', 'macro-analysis', 'unified-backtest'];
+const VIEW_PATHS = ['professional', 'stock', 'macro-analysis'];
 
 const Header = () => {
   const navigate = useNavigate();

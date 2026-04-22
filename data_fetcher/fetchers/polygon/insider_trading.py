@@ -1,7 +1,6 @@
 """Polygon.io Insider Trading Fetcher"""
 import logging
 import requests
-from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from data_fetcher.fetchers.base import Fetcher
@@ -111,48 +110,10 @@ class PolygonInsiderTradingFetcher(
 
         for item in results:
             try:
-                # 날짜 파싱
-                transaction_date = datetime.strptime(
-                    item["transaction_date"], "%Y-%m-%d"
-                ).date()
-
-                filing_date = None
-                if item.get("filing_date"):
-                    filing_date = datetime.strptime(
-                        item["filing_date"], "%Y-%m-%d"
-                    ).date()
-
-                # 거래 금액 계산
-                transaction_value = None
-                shares = item.get("shares_traded")
-                price = item.get("price_per_share")
-                if shares and price:
-                    transaction_value = shares * price
-
-                insider_data = InsiderTradingData(
-                    ticker=query.ticker,
-                    transaction_date=transaction_date,
-                    filing_date=filing_date,
-                    insider_name=item["insider_name"],
-                    insider_title=item.get("insider_title"),
-                    is_director=item.get("is_director"),
-                    is_officer=item.get("is_officer"),
-                    is_ten_percent_owner=item.get("is_ten_percent_owner"),
-                    transaction_type=item["transaction_type"],
-                    transaction_code=item.get("transaction_code"),
-                    acquisition_or_disposition=item.get("acquisition_or_disposition"),
-                    shares_traded=shares,
-                    price_per_share=price,
-                    transaction_value=transaction_value,
-                    shares_owned_before=item.get("shares_owned_before_transaction"),
-                    shares_owned_after=item.get("shares_owned_following_transaction"),
-                    ownership_type=item.get("ownership_type"),
-                    sec_form_type=item.get("sec_form_type"),
-                    sec_link=item.get("sec_link")
-                )
-
+                insider_data = InsiderTradingData.model_validate({**item, "ticker": query.ticker})
+                if insider_data.transaction_value is None and insider_data.shares_traded and insider_data.price_per_share:
+                    insider_data.transaction_value = insider_data.shares_traded * insider_data.price_per_share
                 insider_list.append(insider_data)
-
             except (KeyError, ValueError) as e:
                 log.warning(f"Error parsing insider trading data: {e}")
                 continue

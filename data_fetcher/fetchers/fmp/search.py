@@ -45,17 +45,7 @@ class FMPSearchFetcher(Fetcher[FMPSearchQueryParams, FMPSearchData]):
         data: List[Dict[str, Any]],
         **kwargs: Any,
     ) -> List[FMPSearchData]:
-        results = [
-            FMPSearchData(
-                symbol=item.get("symbol", ""),
-                name=item.get("name", ""),
-                currency=item.get("currency"),
-                stock_exchange=item.get("stockExchange"),
-                exchange_short_name=item.get("exchangeShortName"),
-            )
-            for item in data
-        ]
-        # USD-first sort, prefer shorter / no-dot symbols
+        results = [FMPSearchData.model_validate(item) for item in data]
         results.sort(key=lambda s: (
             0 if s.currency == "USD" else 1,
             1 if "." in s.symbol else 0,

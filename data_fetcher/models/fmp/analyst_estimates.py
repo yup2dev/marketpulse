@@ -142,3 +142,30 @@ class AnalystEstimatesData(BaseData):
         default=None,
         description="판매관리비 추정 애널리스트 수"
     )
+
+    __alias_dict__ = {
+        "estimated_revenue_low": "estimatedRevenueLow",
+        "estimated_revenue_high": "estimatedRevenueHigh",
+        "estimated_revenue_avg": "estimatedRevenueAvg",
+        "number_analyst_estimated_revenue": "numberAnalystEstimatedRevenue",
+        "estimated_eps_low": "estimatedEpsLow",
+        "estimated_eps_high": "estimatedEpsHigh",
+        "estimated_eps_avg": "estimatedEpsAvg",
+        "number_analyst_estimated_eps": "numberAnalystsEstimatedEps",
+        "estimated_ebitda_low": "estimatedEbitdaLow",
+        "estimated_ebitda_high": "estimatedEbitdaHigh",
+        "estimated_ebitda_avg": "estimatedEbitdaAvg",
+        "number_analyst_estimated_ebitda": "numberAnalystsEstimatedEbitda",
+        "estimated_ebit_low": "estimatedEbitLow",
+        "estimated_ebit_high": "estimatedEbitHigh",
+        "estimated_ebit_avg": "estimatedEbitAvg",
+        "number_analyst_estimated_ebit": "numberAnalystsEstimatedEbit",
+        "estimated_net_income_low": "estimatedNetIncomeLow",
+        "estimated_net_income_high": "estimatedNetIncomeHigh",
+        "estimated_net_income_avg": "estimatedNetIncomeAvg",
+        "number_analyst_estimated_net_income": "numberAnalystsEstimatedNetIncome",
+        "estimated_sga_expense_low": "estimatedSgaExpenseLow",
+        "estimated_sga_expense_high": "estimatedSgaExpenseHigh",
+        "estimated_sga_expense_avg": "estimatedSgaExpenseAvg",
+        "number_analyst_estimated_sga_expense": "numberAnalystsEstimatedSgaExpense",
+    }

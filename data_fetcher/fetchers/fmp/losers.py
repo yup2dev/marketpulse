@@ -37,13 +37,4 @@ class FMPLosersFetcher(Fetcher[FMPMoversQueryParams, FMPActiveStockData]):
         data: List[Dict[str, Any]],
         **kwargs: Any,
     ) -> List[FMPActiveStockData]:
-        return [
-            FMPActiveStockData(
-                symbol=item.get("symbol", ""),
-                name=item.get("name", ""),
-                change=item.get("change"),
-                price=item.get("price"),
-                change_percentage=item.get("changesPercentage"),
-            )
-            for item in data
-        ]
+        return [FMPActiveStockData.model_validate(item) for item in data]

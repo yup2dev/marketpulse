@@ -16,6 +16,11 @@ class YFinanceOfficerData(BaseData):
     total_pay: Optional[int] = None
     year_born: Optional[int] = None
 
+    __alias_dict__ = {
+        "total_pay": "totalPay",
+        "year_born": "yearBorn",
+    }
+
 
 class YFinanceManagementData(BaseData):
     """경영진 및 거버넌스 데이터"""
