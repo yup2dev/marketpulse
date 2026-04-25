@@ -85,7 +85,7 @@ export default function DashboardGrid({
 
   const addWidget = useCallback((widgetDef) => {
     const newWidget = {
-      id:     `w_${Date.now()}`,
+      id:     `w_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       type:   widgetDef.id,
       x:      0,
       y:      Infinity,

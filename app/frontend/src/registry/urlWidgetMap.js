@@ -221,17 +221,35 @@ export const URL_WIDGET_MAP = {
   // ─── QuantLib (/quantlib) ────────────────────────────────────────────────────
   '/quantlib': {
     label: 'QuantLib',
-    needsSymbol: false,
+    needsSymbol: true,
     needsPortfolio: false,
     categories: [
       {
         id: 'pricing',
         label: 'Pricing',
         defaultWidgets: [
-          { id: 'option-pricing-1', type: 'option-pricing', x: 0, y: 0, w: 6, h: 14 },
+          { id: 'option-pricing-1', type: 'option-pricing', x: 0, y: 0, w: 8, h: 16 },
         ],
         widgets: [
-          { id: 'option-pricing', name: 'Option Pricing', description: 'Black-Scholes / Binomial / MC — NPV & Greeks', defaultSize: { w: 6, h: 14 } },
+          { id: 'option-pricing', name: 'Option Pricing', description: 'Black-Scholes / Binomial / MC — NPV & Greeks', defaultSize: { w: 8, h: 16 } },
+        ],
+      },
+      {
+        id: 'analytics',
+        label: 'Analytics',
+        defaultWidgets: [
+          { id: 'quant-summary-1',   type: 'quant-summary',   x: 0, y: 0,  w: 6, h: 10 },
+          { id: 'quant-normality-1', type: 'quant-normality', x: 6, y: 0,  w: 6, h: 10 },
+          { id: 'quant-capm-1',      type: 'quant-capm',      x: 0, y: 10, w: 6, h: 12 },
+          { id: 'quant-adf-1',       type: 'quant-adf',       x: 6, y: 10, w: 6, h: 12 },
+          { id: 'quant-rolling-1',   type: 'quant-rolling',   x: 0, y: 22, w: 12, h: 10 },
+        ],
+        widgets: [
+          { id: 'quant-summary',   name: 'Summary',     description: 'Descriptive stats (mean, std, skew, kurtosis, percentiles)', defaultSize: { w: 6, h: 10 } },
+          { id: 'quant-normality', name: 'Normality',   description: 'Jarque-Bera / Shapiro / KS / kurtosis / skew tests',         defaultSize: { w: 6, h: 10 } },
+          { id: 'quant-capm',      name: 'CAPM',        description: 'β / α / R² vs benchmark',                                    defaultSize: { w: 6, h: 12 } },
+          { id: 'quant-rolling',   name: 'Rolling',     description: 'Rolling Sharpe/Sortino/stdev/mean/skew/kurtosis/quantile',   defaultSize: { w: 12, h: 10 } },
+          { id: 'quant-adf',       name: 'ADF',         description: 'Augmented Dickey-Fuller stationarity test',                  defaultSize: { w: 6, h: 12 } },
         ],
       },
     ],

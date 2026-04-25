@@ -1,15 +1,33 @@
 /**
- * widgetEndpoints — minimal registry.
+ * widgetEndpoints — single source of truth for every widget type.
  *
- * OpenBB style: widgetId → { endpoint, title } only.
- * Rendering is fully data-driven — the API response shape determines
- * whether to show a Plotly chart or an auto-column table.
+ * Entry shape:
+ *   {
+ *     title:       string,
+ *     endpoint:    '/path/{symbol}'        // {placeholder} → from params or outer state
+ *     dataPath?:   'result' | 'a.b.c'       // dotted path to unwrap response → rows / object
+ *     display?:    'kv'                     // flat object → metric/value 2-col table
+ *     params?:     [{                       // inline form; values feed {placeholder} + querystring
+ *       name, label?, kind: 'text'|'number'|'date'|'select',
+ *       default, options?, step?, hint?, upper?
+ *     }]
+ *     expandable?: { keyField, endpoint, dataPath? }
+ *     component?:  Component                // escape hatch — only for portfolio widgets that need
+ *                                           //   non-API state (e.g. portfolioData)
+ *     propsFrom?:  ['symbol'|'portfolioId']  // which extra props to inject into custom component
+ *   }
  *
- * Add a new widget:
- *   1. Add an entry here (endpoint + title)
- *   2. Add it to urlWidgetMap.js (page / category / defaultWidgets)
- *   Done. No column definitions, no chartConfig, no dataTransform.
+ * Add a new widget: add an entry here, reference id in urlWidgetMap.js.
  */
+import PortfolioStatsWidget  from '../components/widgets/PortfolioStatsWidget';
+
+// ── date helpers (used by quant param defaults) ─────────────────────────────
+const isoDate = (d) => d.toISOString().slice(0, 10);
+const today      = () => isoDate(new Date());
+const yearsAgo   = (n) => { const d = new Date(); d.setFullYear(d.getFullYear() - n); return isoDate(d); };
+const monthsAhead = (n) => { const d = new Date(); d.setMonth(d.getMonth() + n); return isoDate(d); };
+
+const TARGET_OPTIONS = ['close', 'open', 'high', 'low', 'adj_close', 'return'];
 
 export const WIDGET_ENDPOINTS = {
 
@@ -61,11 +79,118 @@ export const WIDGET_ENDPOINTS = {
   'sentiment-tab':         { title: 'Market Sentiment',       endpoint: '/macro/sentiment/composite' },
   'commodities-tab':       { title: 'Commodities',            endpoint: '/macro/fred/series' },
 
-  // ── QuantLib ───────────────────────────────────────────────────────────────
-  'option-pricing': { title: 'Option Pricing', endpoint: '/quantlib/pricing/option' },
+  // ── QuantLib option pricing (form-driven, common-widget) ──────────────────
+  'option-pricing': {
+    title:    'Option Pricing',
+    endpoint: '/quantlib/pricing/option',
+    dataPath: 'result',
+    display:  'kv',
+    params: [
+      { name: 'option_type',     label: 'Type',     kind: 'select', default: 'call',
+        options: ['call', 'put'] },
+      { name: 'exercise_style',  label: 'Exercise', kind: 'select', default: 'european',
+        options: ['european', 'american'] },
+      { name: 'engine',          label: 'Engine',   kind: 'select', default: 'analytic',
+        options: [
+          { value: 'analytic', label: 'Analytic (Black-Scholes)' },
+          { value: 'binomial', label: 'Binomial (CRR)' },
+          { value: 'mc',       label: 'Monte Carlo' },
+        ] },
+      { name: 'spot',            label: 'Spot (S)',          kind: 'number', default: 100,    step: 0.01 },
+      { name: 'strike',          label: 'Strike (K)',        kind: 'number', default: 100,    step: 0.01 },
+      { name: 'evaluation_date', label: 'Eval Date',         kind: 'date',   default: today },
+      { name: 'expiry',          label: 'Expiry',            kind: 'date',   default: () => monthsAhead(3) },
+      { name: 'volatility',      label: 'Volatility (σ)',    kind: 'number', default: 0.20,   step: 0.01,  hint: '0.20 = 20%' },
+      { name: 'risk_free_rate',  label: 'Risk-Free (r)',     kind: 'number', default: 0.04,   step: 0.001, hint: '0.04 = 4%' },
+      { name: 'dividend_yield',  label: 'Dividend Yield (q)', kind: 'number', default: 0.0,   step: 0.001 },
+    ],
+  },
 
-  // ── Portfolio ───────────────────────────────────────────────────────────────
-  'portfolio-stats':         { title: 'Portfolio Stats',    endpoint: '/user-portfolio/portfolios/{portfolioId}/summary' },
+  // ── Quantitative analytics (yfinance + scipy + statsmodels) ───────────────
+  'quant-summary': {
+    title:    'Quant — Summary',
+    endpoint: '/quantitative/summary',
+    dataPath: 'result',
+    display:  'kv',
+    params: [
+      { name: 'symbol',     label: 'Symbol', kind: 'text',   default: 'AAPL', upper: true },
+      { name: 'target',     label: 'Target', kind: 'select', default: 'close', options: TARGET_OPTIONS },
+      { name: 'start_date', label: 'Start',  kind: 'date',   default: () => yearsAgo(2) },
+      { name: 'end_date',   label: 'End',    kind: 'date',   default: today },
+    ],
+  },
+  'quant-normality': {
+    title:    'Quant — Normality',
+    endpoint: '/quantitative/normality',
+    dataPath: 'result.tests',
+    params: [
+      { name: 'symbol',     label: 'Symbol', kind: 'text',   default: 'AAPL', upper: true },
+      { name: 'target',     label: 'Target', kind: 'select', default: 'return', options: TARGET_OPTIONS },
+      { name: 'start_date', label: 'Start',  kind: 'date',   default: () => yearsAgo(2) },
+      { name: 'end_date',   label: 'End',    kind: 'date',   default: today },
+    ],
+  },
+  'quant-capm': {
+    title:    'Quant — CAPM',
+    endpoint: '/quantitative/capm',
+    dataPath: 'result',
+    display:  'kv',
+    params: [
+      { name: 'symbol',         label: 'Symbol',    kind: 'text',   default: 'AAPL', upper: true },
+      { name: 'benchmark',      label: 'Benchmark', kind: 'text',   default: '^GSPC', upper: true },
+      { name: 'risk_free_rate', label: 'Risk-Free', kind: 'number', default: 0.04, step: 0.001, hint: '0.04 = 4%' },
+      { name: 'target',         label: 'Target',    kind: 'select', default: 'return', options: TARGET_OPTIONS },
+      { name: 'start_date',     label: 'Start',     kind: 'date',   default: () => yearsAgo(2) },
+      { name: 'end_date',       label: 'End',       kind: 'date',   default: today },
+    ],
+  },
+  'quant-rolling': {
+    title:    'Quant — Rolling',
+    endpoint: '/quantitative/rolling',
+    dataPath: 'result.points',
+    chart: {
+      defaultType:    'area',
+      referenceLines: [{ y: 0, color: '#475569', label: 'zero' }],
+    },
+    params: [
+      { name: 'symbol',         label: 'Symbol', kind: 'text',   default: 'AAPL', upper: true },
+      { name: 'metric',         label: 'Metric', kind: 'select', default: 'sharpe',
+        options: ['sharpe', 'sortino', 'stdev', 'mean', 'skew', 'kurtosis', 'quantile'] },
+      { name: 'window',         label: 'Window', kind: 'number', default: 21, step: 1 },
+      { name: 'target',         label: 'Target', kind: 'select', default: 'return', options: TARGET_OPTIONS },
+      { name: 'risk_free_rate', label: 'Risk-Free', kind: 'number', default: 0.04, step: 0.001 },
+      { name: 'quantile_pct',   label: 'Quantile (0-1)', kind: 'number', default: 0.5, step: 0.05, min: 0, max: 1 },
+      { name: 'start_date',     label: 'Start',  kind: 'date',   default: () => yearsAgo(2) },
+      { name: 'end_date',       label: 'End',    kind: 'date',   default: today },
+    ],
+  },
+  'quant-adf': {
+    title:    'Quant — ADF (Stationarity)',
+    endpoint: '/quantitative/unitroot',
+    dataPath: 'result',
+    display:  'kv',
+    params: [
+      { name: 'symbol',     label: 'Symbol', kind: 'text',   default: 'AAPL', upper: true },
+      { name: 'target',     label: 'Target', kind: 'select', default: 'close', options: TARGET_OPTIONS },
+      { name: 'regression', label: 'Regression', kind: 'select', default: 'c',
+        options: [
+          { value: 'c',   label: 'c (constant)' },
+          { value: 'ct',  label: 'ct (const + trend)' },
+          { value: 'ctt', label: 'ctt (quadratic trend)' },
+          { value: 'n',   label: 'n (none)' },
+        ],
+        hint: 'ADF regression form' },
+      { name: 'start_date', label: 'Start',  kind: 'date',   default: () => yearsAgo(2) },
+      { name: 'end_date',   label: 'End',    kind: 'date',   default: today },
+    ],
+  },
+
+  // ── Portfolio (custom + data-driven) ───────────────────────────────────────
+  'portfolio-stats': {
+    title:     'Portfolio Stats',
+    component: PortfolioStatsWidget,
+    propsFrom: ['portfolioId'],
+  },
   'portfolio-chart':         { title: 'Portfolio Chart',    endpoint: '/user-portfolio/portfolios/{portfolioId}/chart' },
   'portfolio-holdings':      { title: 'Holdings',           endpoint: '/user-portfolio/portfolios/{portfolioId}/holdings' },
   'portfolio-balances':      { title: 'Balances',           endpoint: '/user-portfolio/portfolios/{portfolioId}/holdings' },

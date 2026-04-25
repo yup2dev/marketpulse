@@ -1,28 +1,27 @@
 /**
- * WidgetRenderer — routes widget.type to the appropriate component.
+ * WidgetRenderer — generic dispatcher.
  *
- * - portfolio-stats → PortfolioStatsWidget (self-fetching stats cards)
- * - option-pricing  → OptionPricingWidget (form-driven QuantLib calculator)
- * - everything else → UniversalWidget (data-driven table/chart)
+ * Looks up `widget.type` in WIDGET_ENDPOINTS:
+ *   - entry has `component`  → render `<Component {...resolvedProps} />`
+ *   - entry has `endpoint`   → render UniversalWidget (auto table/chart)
+ *
+ * Custom-component entries declare which props to inject via `propsFrom`,
+ * e.g. `propsFrom: ['symbol', 'portfolioId']` resolves at render time.
  */
-import UniversalWidget      from './UniversalWidget';
-import PortfolioStatsWidget from '../widgets/PortfolioStatsWidget';
-import OptionPricingWidget  from '../widgets/OptionPricingWidget';
+import UniversalWidget from './UniversalWidget';
+import { WIDGET_ENDPOINTS } from '../../registry/widgetEndpoints';
 
 export default function WidgetRenderer({ widget, symbol, portfolioData, onRemove }) {
   const portfolioId = portfolioData?.selectedPortfolio?.portfolio_id;
+  const reg = WIDGET_ENDPOINTS[widget.type];
 
-  if (widget.type === 'portfolio-stats') {
-    return (
-      <PortfolioStatsWidget
-        portfolioId={portfolioId}
-        onRemove={onRemove}
-      />
+  if (reg?.component) {
+    const Component = reg.component;
+    const propBag = { symbol, portfolioId };
+    const injected = Object.fromEntries(
+      (reg.propsFrom || []).map((k) => [k, propBag[k]])
     );
-  }
-
-  if (widget.type === 'option-pricing') {
-    return <OptionPricingWidget onRemove={onRemove} />;
+    return <Component {...injected} onRemove={onRemove} />;
   }
 
   return (

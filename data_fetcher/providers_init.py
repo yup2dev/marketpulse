@@ -72,6 +72,12 @@ from data_fetcher.fetchers.whalewisdom.institutional_holdings import WhaleWisdom
 
 from data_fetcher.fetchers.quantlib.pricing import QuantLibPricingFetcher
 
+from data_fetcher.fetchers.quantitative.summary import QuantSummaryFetcher
+from data_fetcher.fetchers.quantitative.normality import QuantNormalityFetcher
+from data_fetcher.fetchers.quantitative.capm import QuantCAPMFetcher
+from data_fetcher.fetchers.quantitative.rolling import QuantRollingFetcher
+from data_fetcher.fetchers.quantitative.unitroot import QuantUnitRootFetcher
+
 log = logging.getLogger(__name__)
 
 
@@ -256,6 +262,27 @@ quantlib_provider = Provider(
 )
 
 
+# ==================== Quantitative Provider ====================
+
+quantitative_provider = Provider(
+    name="quantitative",
+    description="Quantitative Analysis Suite — descriptive stats, normality, CAPM, rolling metrics, ADF",
+    website="https://www.openbb.co",
+    credentials=[],
+    fetcher_dict={
+        "summary": QuantSummaryFetcher,
+        "normality": QuantNormalityFetcher,
+        "capm": QuantCAPMFetcher,
+        "rolling": QuantRollingFetcher,
+        "unitroot": QuantUnitRootFetcher,
+    },
+    metadata={
+        "rate_limit": "yfinance only",
+        "data_coverage": "any yfinance-available ticker",
+    },
+)
+
+
 # ==================== Provider Registration ====================
 
 def register_all_providers():
@@ -269,6 +296,7 @@ def register_all_providers():
     ProviderRegistry.register(db_provider)
     ProviderRegistry.register(whalewisdom_provider)
     ProviderRegistry.register(quantlib_provider)
+    ProviderRegistry.register(quantitative_provider)
 
     log.info(f"Registered {len(ProviderRegistry.list())} providers")
 
@@ -346,6 +374,14 @@ def register_all_fetchers():
             category=category,
             provider="quantlib",
             description=f"QuantLib {category.upper()} computation"
+        )(fetcher)
+
+    # Quantitative fetchers
+    for category, fetcher in quantitative_provider.fetcher_dict.items():
+        FetcherRegistry.register(
+            category=category,
+            provider="quantitative",
+            description=f"Quantitative {category.upper()} analysis"
         )(fetcher)
 
     log.info(f"Registered {len(FetcherRegistry.list_categories())} fetcher categories")

@@ -21,7 +21,7 @@ import index_analyzer.models.orm  # noqa: F401 — ensures UserWorkspace is pick
 from app.backend.api.routes import (
     stock, economic, news, dashboard, portfolio, macro,
     auth, user_portfolio, screener, alerts, export, watchlist, menu,
-    quantlib,
+    quantlib, quantitative,
 )
 from app.backend.api.routes.workspace import router as workspace_router
 from app.backend.api.routes.fundamental import router as fundamental_router
@@ -91,6 +91,7 @@ app.include_router(macro.router, prefix="/api/macro", tags=["macro"])
 app.include_router(workspace_router, prefix="/api", tags=["workspace"])
 app.include_router(fundamental_router.router, prefix="/api/v1", tags=["equity-fundamental"])
 app.include_router(quantlib.router, prefix="/api/quantlib", tags=["quantlib"])
+app.include_router(quantitative.router, prefix="/api/quantitative", tags=["quantitative"])
 
 
 @app.get("/")
