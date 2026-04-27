@@ -36,94 +36,55 @@ class FREDNonfarmPayrollFetcher(Fetcher[NonfarmPayrollQueryParams, NonfarmPayrol
         query: NonfarmPayrollQueryParams,
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any
-    ) -> Dict[str, Any]:
-        """
-        FRED API에서 비농업 취업자 데이터 추출
-
-        Args:
-            query: 쿼리 파라미터
-            credentials: FRED API 키 포함 {"api_key": "..."}
-            **kwargs: 추가 파라미터
-
-        Returns:
-            원시 데이터 딕셔너리
-
-        Raises:
-            CredentialsError: FRED API 키가 없을 경우
-        """
-        # API 키 필수 검증
+    ) -> List[Dict[str, Any]]:
         api_key = get_api_key(
             credentials=credentials,
             api_name="FRED",
             env_var="FRED_API_KEY"
         )
 
-        # US만 지원
         if query.country != 'US':
             log.warning(f"Only US Non-Farm Payroll is supported via FRED, got {query.country}")
 
-        # 업종별 시리즈 ID 선택
         sector = query.sector.lower()
-        series_id = FRED_SERIES_MAP.get(sector, FRED_SERIES_MAP['total'])
+        observations = FredSeriesFetcher.fetch_series(
+            series_id=FRED_SERIES_MAP.get(sector, FRED_SERIES_MAP['total']),
+            api_key=api_key,
+            start_date=query.start_date,
+            end_date=query.end_date,
+            limit=400,
+        )
 
+        unemployment_map: Dict[str, float] = {}
         try:
-            # FredSeriesFetcher를 사용하여 데이터 조회 (의존성 활용)
-            observations = FredSeriesFetcher.fetch_series(
-                series_id=series_id,
+            unemployment_obs = FredSeriesFetcher.fetch_series(
+                series_id='UNRATE',
                 api_key=api_key,
                 start_date=query.start_date,
                 end_date=query.end_date,
-                limit=400
+                limit=400,
             )
-
-            # 실업률 데이터 함께 조회
-            unemployment_data = {}
-            try:
-                unemployment_observations = FredSeriesFetcher.fetch_series(
-                    series_id='UNRATE',  # Unemployment Rate
-                    api_key=api_key,
-                    start_date=query.start_date,
-                    end_date=query.end_date,
-                    limit=400
-                )
-                unemployment_data = {obs['date']: float(obs['value']) for obs in unemployment_observations
-                                    if obs.get('value') and obs.get('value') != '.'}
-            except Exception as e:
-                log.warning(f"Could not fetch unemployment rate data: {e}")
-
-            return {
-                'observations': observations,
-                'series_id': series_id,
-                'sector': sector,
-                'country': query.country,
-                'unemployment_data': unemployment_data
+            unemployment_map = {
+                o['date']: float(o['value'])
+                for o in unemployment_obs
+                if o.get('value') and o.get('value') != '.'
             }
-
         except Exception as e:
-            log.error(f"Error fetching non-farm payroll data from FRED: {e}")
-            raise
+            log.warning(f"Could not fetch unemployment rate data: {e}")
+
+        for obs in observations:
+            obs['unemployment_rate'] = unemployment_map.get(obs.get('date'))
+        return observations
 
     @staticmethod
     def transform_data(
         query: NonfarmPayrollQueryParams,
-        data: Dict[str, Any],
+        data: List[Dict[str, Any]],
         **kwargs: Any
     ) -> List[NonfarmPayrollData]:
-        """
-        원시 데이터를 표준 모델로 변환
-
-        Args:
-            query: 쿼리 파라미터
-            data: 원시 데이터
-            **kwargs: 추가 파라미터
-
-        Returns:
-            NonfarmPayrollData 리스트
-        """
-        observations = data.get('observations', [])
-        unemployment_data = data.get('unemployment_data', {})
-        sector = data.get('sector', 'total')
-        country = data.get('country', 'US')
+        observations = data or []
+        sector = query.sector.lower()
+        country = query.country
 
         nfp_data_list = []
         previous_value = None
@@ -150,8 +111,8 @@ class FREDNonfarmPayrollFetcher(Fetcher[NonfarmPayrollQueryParams, NonfarmPayrol
                 if previous_value is not None:
                     mom_change = value - previous_value
 
-                # 실업률 값 조회
-                unemployment_rate = unemployment_data.get(date_str)
+                # 실업률 값 (extract에서 행마다 병합됨)
+                unemployment_rate = obs.get('unemployment_rate')
 
                 nfp_obj = NonfarmPayrollData(
                     date=obs_date,

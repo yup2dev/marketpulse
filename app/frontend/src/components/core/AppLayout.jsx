@@ -22,6 +22,7 @@ const ROUTE_MAP = {
   'portfolio-settings': '/portfolios',
   'alerts':             '/alerts',
   'quantlib':           '/quantlib',
+  'backtest':           '/backtest',
 };
 
 const AppLayout = () => {

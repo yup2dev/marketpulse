@@ -225,11 +225,19 @@ const getFallbackMenus = () => [
     ]
   },
   {
+    menu_id: 'backtest',
+    menu_name: 'Backtest',
+    menu_icon: 'LineChart',
+    menu_path: 'backtest',
+    display_seq: 6,
+    children: []
+  },
+  {
     menu_id: 'alerts',
     menu_name: 'Alerts',
     menu_icon: 'Bell',
     menu_path: 'alerts',
-    display_seq: 6,
+    display_seq: 7,
     children: []
   }
 ];

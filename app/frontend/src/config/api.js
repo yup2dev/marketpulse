@@ -4,7 +4,7 @@ export const API_BASE = `${API_BASE_URL}/api`;
 export const API_ENDPOINTS = {
   health: `${API_BASE_URL}/health`,
   stock: {
-    overview: `${API_BASE_URL}/api/stock/overview`,
+    overview: `${API_BASE_URL}8/api/stock/overview`,
     price:   (symbol) => `${API_BASE_URL}/api/stock/${symbol}/price`,
     history: (symbol) => `${API_BASE_URL}/api/stock/${symbol}/history`,
   },

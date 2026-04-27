@@ -34,81 +34,36 @@ class FREDGDPFetcher(Fetcher[GDPQueryParams, GDPData]):
         query: GDPQueryParams,
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any
-    ) -> Dict[str, Any]:
-        """
-        FRED API에서 GDP 데이터 추출
-
-        Args:
-            query: 쿼리 파라미터
-            credentials: FRED API 키 포함 {"api_key": "..."}
-            **kwargs: 추가 파라미터
-
-        Returns:
-            원시 데이터 딕셔너리
-
-        Raises:
-            CredentialsError: FRED API 키가 없을 경우
-        """
-        # API 키 필수 검증
+    ) -> List[Dict[str, Any]]:
         api_key = get_api_key(
             credentials=credentials,
             api_name="FRED",
             env_var="FRED_API_KEY"
         )
 
-        # US GDP만 지원
         if query.country != 'US':
             log.warning(f"Only US GDP is supported via FRED, got {query.country}")
 
-        # 데이터 빈도별 시리즈 ID 선택
         frequency = query.frequency.lower()
-        if frequency == 'quarterly':
-            series_id = FRED_SERIES_MAP['real']
-        else:  # annual
-            series_id = FRED_SERIES_MAP['nominal']
+        series_id = FRED_SERIES_MAP['real'] if frequency == 'quarterly' else FRED_SERIES_MAP['nominal']
 
-        try:
-            # FredSeriesFetcher를 사용하여 데이터 조회 (의존성 활용)
-            observations = FredSeriesFetcher.fetch_series(
-                series_id=series_id,
-                api_key=api_key,
-                start_date=query.start_date,
-                end_date=query.end_date,
-                limit=400
-            )
-
-            return {
-                'observations': observations,
-                'series_id': series_id,
-                'frequency': frequency,
-                'country': query.country
-            }
-
-        except Exception as e:
-            log.error(f"Error fetching GDP data from FRED: {e}")
-            raise
+        return FredSeriesFetcher.fetch_series(
+            series_id=series_id,
+            api_key=api_key,
+            start_date=query.start_date,
+            end_date=query.end_date,
+            limit=400,
+        )
 
     @staticmethod
     def transform_data(
         query: GDPQueryParams,
-        data: Dict[str, Any],
+        data: List[Dict[str, Any]],
         **kwargs: Any
     ) -> List[GDPData]:
-        """
-        원시 데이터를 표준 모델로 변환
-
-        Args:
-            query: 쿼리 파라미터
-            data: 원시 데이터
-            **kwargs: 추가 파라미터
-
-        Returns:
-            GDPData 리스트 (사용자 지정 기간으로 필터링됨)
-        """
-        observations = data.get('observations', [])
-        series_id = data.get('series_id')
-        country = data.get('country', 'US')
-        is_real = series_id == FRED_SERIES_MAP['real']
+        observations = data or []
+        country = query.country
+        is_real = query.frequency.lower() == 'quarterly'
         Model = GDPRealData if is_real else GDPData
         unit = 'Billions of Chained 2012 Dollars' if is_real else 'Billions of Dollars'
 

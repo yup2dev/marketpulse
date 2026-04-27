@@ -33,13 +33,16 @@ class YFinanceFilingsFetcher(Fetcher[YFinanceFilingsQueryParams, YFinanceFilingD
         data: List[Dict[str, Any]],
         **kwargs: Any,
     ) -> List[YFinanceFilingData]:
-        return [
-            YFinanceFilingData(
+        out: List[YFinanceFilingData] = []
+        for f in data:
+            d = f.get('date', '')
+            if hasattr(d, 'isoformat'):
+                d = d.isoformat()
+            out.append(YFinanceFilingData(
                 type=f.get('type', ''),
                 title=f.get('title', ''),
-                date=f.get('date', ''),
+                date=str(d) if d else '',
                 url=f.get('edgarUrl', '') or f.get('url', ''),
                 exhibits=f.get('exhibits'),
-            )
-            for f in data
-        ]
+            ))
+        return out

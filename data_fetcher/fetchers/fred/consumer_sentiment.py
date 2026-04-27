@@ -34,77 +34,36 @@ class FREDConsumerSentimentFetcher(Fetcher[ConsumerSentimentQueryParams, Consume
         query: ConsumerSentimentQueryParams,
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any
-    ) -> Dict[str, Any]:
-        """
-        FRED API에서 소비자 심리 지수 데이터 추출
-
-        Args:
-            query: 쿼리 파라미터
-            credentials: FRED API 키 포함 {"api_key": "..."}
-            **kwargs: 추가 파라미터
-
-        Returns:
-            원시 데이터 딕셔너리
-
-        Raises:
-            CredentialsError: FRED API 키가 없을 경우
-        """
-        # API 키 필수 검증
+    ) -> List[Dict[str, Any]]:
         api_key = get_api_key(
             credentials=credentials,
             api_name="FRED",
             env_var="FRED_API_KEY"
         )
 
-        # US만 지원
         if query.country != 'US':
             log.warning(f"Only US Consumer Sentiment is supported via FRED, got {query.country}")
 
-        # 데이터 타입별 시리즈 ID 선택
         frequency = query.frequency.lower()
         series_id = FRED_SERIES_MAP.get(frequency, FRED_SERIES_MAP['final'])
 
-        try:
-            # FredSeriesFetcher를 사용하여 데이터 조회 (의존성 활용)
-            observations = FredSeriesFetcher.fetch_series(
-                series_id=series_id,
-                api_key=api_key,
-                start_date=query.start_date,
-                end_date=query.end_date,
-                limit=400
-            )
-
-            return {
-                'observations': observations,
-                'series_id': series_id,
-                'frequency': frequency,
-                'country': query.country
-            }
-
-        except Exception as e:
-            log.error(f"Error fetching consumer sentiment data from FRED: {e}")
-            raise
+        return FredSeriesFetcher.fetch_series(
+            series_id=series_id,
+            api_key=api_key,
+            start_date=query.start_date,
+            end_date=query.end_date,
+            limit=400,
+        )
 
     @staticmethod
     def transform_data(
         query: ConsumerSentimentQueryParams,
-        data: Dict[str, Any],
+        data: List[Dict[str, Any]],
         **kwargs: Any
     ) -> List[ConsumerSentimentData]:
-        """
-        원시 데이터를 표준 모델로 변환
-
-        Args:
-            query: 쿼리 파라미터
-            data: 원시 데이터
-            **kwargs: 추가 파라미터
-
-        Returns:
-            ConsumerSentimentData 리스트
-        """
-        observations = data.get('observations', [])
-        frequency = data.get('frequency', 'final')
-        country = data.get('country', 'US')
+        observations = data or []
+        frequency = query.frequency.lower()
+        country = query.country
 
         cs_data_list = []
         previous_value = None

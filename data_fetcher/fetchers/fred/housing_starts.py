@@ -35,91 +35,53 @@ class FREDHousingStartsFetcher(Fetcher[HousingStartsQueryParams, HousingStartsDa
         query: HousingStartsQueryParams,
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any
-    ) -> Dict[str, Any]:
-        """
-        FRED API에서 주택 건설 착공 데이터 추출
-
-        Args:
-            query: 쿼리 파라미터
-            credentials: FRED API 키 포함 {"api_key": "..."}
-            **kwargs: 추가 파라미터
-
-        Returns:
-            원시 데이터 딕셔너리
-
-        Raises:
-            CredentialsError: FRED API 키가 없을 경우
-        """
-        # API 키 필수 검증
+    ) -> List[Dict[str, Any]]:
         api_key = get_api_key(
             credentials=credentials,
             api_name="FRED",
             env_var="FRED_API_KEY"
         )
 
-        # US만 지원
         if query.country != 'US':
             log.warning(f"Only US Housing Starts is supported via FRED, got {query.country}")
 
-        # 기본 시리즈 ID (총 주택)
-        series_id = FRED_SERIES_MAP['total']
+        observations = FredSeriesFetcher.fetch_series(
+            series_id=FRED_SERIES_MAP['total'],
+            api_key=api_key,
+            start_date=query.start_date,
+            end_date=query.end_date,
+            limit=400,
+        )
 
+        permits_map: Dict[str, float] = {}
         try:
-            # FredSeriesFetcher를 사용하여 데이터 조회 (의존성 활용)
-            observations = FredSeriesFetcher.fetch_series(
-                series_id=series_id,
+            permits_obs = FredSeriesFetcher.fetch_series(
+                series_id=FRED_SERIES_MAP['permits'],
                 api_key=api_key,
                 start_date=query.start_date,
                 end_date=query.end_date,
-                limit=400
+                limit=400,
             )
-
-            # 건축 허가 데이터도 함께 조회
-            permits_data = {}
-            try:
-                permits_observations = FredSeriesFetcher.fetch_series(
-                    series_id=FRED_SERIES_MAP['permits'],
-                    api_key=api_key,
-                    start_date=query.start_date,
-                    end_date=query.end_date,
-                    limit=400
-                )
-                permits_data = {obs['date']: float(obs['value']) for obs in permits_observations
-                               if obs.get('value') and obs.get('value') != '.'}
-            except Exception as e:
-                log.warning(f"Could not fetch building permits data: {e}")
-
-            return {
-                'observations': observations,
-                'series_id': series_id,
-                'country': query.country,
-                'permits_data': permits_data
+            permits_map = {
+                o['date']: float(o['value'])
+                for o in permits_obs
+                if o.get('value') and o.get('value') != '.'
             }
-
         except Exception as e:
-            log.error(f"Error fetching housing starts data from FRED: {e}")
-            raise
+            log.warning(f"Could not fetch building permits data: {e}")
+
+        for obs in observations:
+            obs['permits'] = permits_map.get(obs.get('date'))
+        return observations
 
     @staticmethod
     def transform_data(
         query: HousingStartsQueryParams,
-        data: Dict[str, Any],
+        data: List[Dict[str, Any]],
         **kwargs: Any
     ) -> List[HousingStartsData]:
-        """
-        원시 데이터를 표준 모델로 변환
-
-        Args:
-            query: 쿼리 파라미터
-            data: 원시 데이터
-            **kwargs: 추가 파라미터
-
-        Returns:
-            HousingStartsData 리스트
-        """
-        observations = data.get('observations', [])
-        permits_data = data.get('permits_data', {})
-        country = data.get('country', 'US')
+        observations = data or []
+        country = query.country
 
         hs_data_list = []
         previous_value = None
@@ -147,8 +109,8 @@ class FREDHousingStartsFetcher(Fetcher[HousingStartsQueryParams, HousingStartsDa
                 if previous_value and previous_value != 0:
                     mom_change = ((value - previous_value) / previous_value) * 100
 
-                # 건축 허가 값 조회
-                permits_value = permits_data.get(date_str)
+                # 건축 허가 값 (extract에서 행마다 병합됨)
+                permits_value = obs.get('permits')
 
                 hs_obj = HousingStartsData(
                     date=obs_date,

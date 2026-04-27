@@ -1,5 +1,6 @@
 """FRED API Unemployment Data Fetcher"""
 import logging
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from data_fetcher.fetchers.base import Fetcher
@@ -46,111 +47,64 @@ class FREDUnemploymentFetcher(Fetcher[UnemploymentQueryParams, UnemploymentData]
         query: UnemploymentQueryParams,
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any
-    ) -> Dict[str, Any]:
-        """
-        FRED API에서 실업률 데이터 추출
-
-        Args:
-            query: 쿼리 파라미터
-            credentials: FRED API 키 포함 {"api_key": "..."}
-            **kwargs: 추가 파라미터
-
-        Returns:
-            원시 데이터 딕셔너리
-
-        Raises:
-            CredentialsError: FRED API 키가 없을 경우
-        """
-        # API 키 필수 검증
+    ) -> List[Dict[str, Any]]:
         api_key = get_api_key(
             credentials=credentials,
             api_name="FRED",
             env_var="FRED_API_KEY"
         )
 
-        # US 실업률만 지원
         if query.country != 'US':
             log.warning(f"Only US unemployment rate is supported via FRED, got {query.country}")
 
-        # 연령대별 시리즈 ID 선택
         age_group = getattr(query, 'age_group', 'all').lower()
         series_key = AGE_GROUP_MAP.get(age_group, 'total')
-        series_id = FRED_SERIES_MAP[series_key]
 
-        # 추가 데이터 시리즈 (노동 통계)
+        observations = FredSeriesFetcher.fetch_series(
+            series_id=FRED_SERIES_MAP[series_key],
+            api_key=api_key,
+            start_date=query.start_date,
+            end_date=query.end_date,
+            limit=400,
+        )
+
+        # 보조 시리즈 (참가율, 고용률) → 날짜별 맵
+        aux_maps: Dict[str, Dict[str, float]] = {'participation': {}, 'employment': {}}
         labor_series = {
             'participation': FRED_SERIES_MAP['civilian'],
             'employment': FRED_SERIES_MAP['employed'],
         }
+        for key, sid in labor_series.items():
+            try:
+                aux_obs = FredSeriesFetcher.fetch_series(
+                    series_id=sid,
+                    api_key=api_key,
+                    start_date=query.start_date,
+                    end_date=query.end_date,
+                    limit=400,
+                )
+                aux_maps[key] = {
+                    o['date']: float(o['value'])
+                    for o in aux_obs
+                    if o.get('value') not in ('.', None)
+                }
+            except Exception as e:
+                log.warning(f"Error fetching auxiliary data {key}: {e}")
 
-        try:
-            # FredSeriesFetcher를 사용하여 데이터 조회 (의존성 활용)
-            observations = FredSeriesFetcher.fetch_series(
-                series_id=series_id,
-                api_key=api_key,
-                start_date=query.start_date,
-                end_date=query.end_date,
-                limit=400
-            )
-
-            # 보조 데이터 조회 (참가율)
-            auxiliary_data = {}
-            for data_type, sid in labor_series.items():
-                try:
-                    aux_observations = FredSeriesFetcher.fetch_series(
-                        series_id=sid,
-                        api_key=api_key,
-                        start_date=query.start_date,
-                        end_date=query.end_date,
-                        limit=400
-                    )
-                    auxiliary_data[data_type] = aux_observations
-                except Exception as e:
-                    log.warning(f"Error fetching auxiliary data {data_type}: {e}")
-
-            return {
-                'observations': observations,
-                'participation_data': auxiliary_data.get('participation', []),
-                'employment_data': auxiliary_data.get('employment', []),
-                'series_id': series_id,
-                'country': query.country,
-                'age_group': age_group
-            }
-
-        except Exception as e:
-            log.error(f"Error fetching unemployment data from FRED: {e}")
-            raise
+        for obs in observations:
+            d = obs.get('date')
+            obs['participation_rate'] = aux_maps['participation'].get(d)
+            obs['employment_ratio'] = aux_maps['employment'].get(d)
+        return observations
 
     @staticmethod
     def transform_data(
         query: UnemploymentQueryParams,
-        data: Dict[str, Any],
+        data: List[Dict[str, Any]],
         **kwargs: Any
     ) -> List[UnemploymentData]:
-        """
-        원시 데이터를 표준 모델로 변환
-
-        Args:
-            query: 쿼리 파라미터
-            data: 원시 데이터
-            **kwargs: 추가 파라미터
-
-        Returns:
-            UnemploymentData 리스트
-        """
-        observations = data.get('observations', [])
-        participation_data = data.get('participation_data', [])
-        employment_data = data.get('employment_data', [])
-        country = data.get('country', 'US')
-        age_group = data.get('age_group', 'all')
-
-        # 보조 데이터 맵 생성 (날짜별)
-        participation_map = {obs['date']: float(obs['value'])
-                            for obs in participation_data
-                            if obs.get('value') not in ['.', None]}
-        employment_map = {obs['date']: float(obs['value'])
-                         for obs in employment_data
-                         if obs.get('value') not in ['.', None]}
+        observations = data or []
+        country = query.country
 
         unemployment_data_list = []
 
@@ -171,9 +125,9 @@ class FREDUnemploymentFetcher(Fetcher[UnemploymentQueryParams, UnemploymentData]
                     continue
 
 
-                # 보조 데이터 가져오기
-                participation_rate = participation_map.get(date_str)
-                employment_ratio = employment_map.get(date_str)
+                # 보조 데이터 (extract에서 행마다 병합됨)
+                participation_rate = obs.get('participation_rate')
+                employment_ratio = obs.get('employment_ratio')
 
                 # 고용자 수 및 실업자 수 추정 (참고용)
                 # 실제로는 별도의 데이터 소스에서 가져와야 함

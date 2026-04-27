@@ -31,95 +31,52 @@ class FREDCPIFetcher(Fetcher[CPIQueryParams, CPIData]):
         """쿼리 파라미터 변환"""
         return CPIQueryParams(**params)
 
+    CATEGORY_MAP = {
+        'all items': 'all_items',
+        'core': 'all_items_core',
+        'food': 'food',
+        'energy': 'energy',
+        'transportation': 'transportation',
+        'medical': 'medical',
+    }
+
     @staticmethod
     def extract_data(
         query: CPIQueryParams,
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any
-    ) -> Dict[str, Any]:
-        """
-        FRED API에서 CPI 데이터 추출
-
-        Args:
-            query: 쿼리 파라미터
-            credentials: FRED API 키 포함 {"api_key": "..."}
-            **kwargs: 추가 파라미터
-
-        Returns:
-            원시 데이터 딕셔너리
-
-        Raises:
-            CredentialsError: FRED API 키가 없을 경우
-        """
-        # API 키 필수 검증
+    ) -> List[Dict[str, Any]]:
         api_key = get_api_key(
             credentials=credentials,
             api_name="FRED",
             env_var="FRED_API_KEY"
         )
 
-        # US CPI만 지원
         if query.country != 'US':
             log.warning(f"Only US CPI is supported via FRED, got {query.country}")
 
-        # 카테고리별 시리즈 ID 선택
         category = getattr(query, 'category', 'All Items').lower()
-        category_map = {
-            'all items': 'all_items',
-            'core': 'all_items_core',
-            'food': 'food',
-            'energy': 'energy',
-            'transportation': 'transportation',
-            'medical': 'medical',
-        }
-
-        series_key = category_map.get(category, 'all_items')
+        series_key = FREDCPIFetcher.CATEGORY_MAP.get(category, 'all_items')
         series_id = FRED_SERIES_MAP[series_key]
 
-        try:
-            # FredSeriesFetcher를 사용하여 데이터 조회 (의존성 활용)
-            observations = FredSeriesFetcher.fetch_series(
-                series_id=series_id,
-                api_key=api_key,
-                start_date=query.start_date,
-                end_date=query.end_date,
-                limit=400
-            )
-
-            return {
-                'observations': observations,
-                'series_id': series_id,
-                'frequency': query.frequency,
-                'country': query.country,
-                'category': category
-            }
-
-        except Exception as e:
-            log.error(f"Error fetching CPI data from FRED: {e}")
-            raise
+        return FredSeriesFetcher.fetch_series(
+            series_id=series_id,
+            api_key=api_key,
+            start_date=query.start_date,
+            end_date=query.end_date,
+            limit=400,
+        )
 
     @staticmethod
     def transform_data(
         query: CPIQueryParams,
-        data: Dict[str, Any],
+        data: List[Dict[str, Any]],
         **kwargs: Any
     ) -> List[CPIData]:
-        """
-        원시 데이터를 표준 모델로 변환
-
-        Args:
-            query: 쿼리 파라미터
-            data: 원시 데이터
-            **kwargs: 추가 파라미터
-
-        Returns:
-            CPIData 리스트
-        """
-        observations = data.get('observations', [])
-        series_id = data.get('series_id')
-        country = data.get('country', 'US')
-        category = data.get('category', 'All Items')
-        is_core = series_id == FRED_SERIES_MAP['all_items_core']
+        observations = data or []
+        country = query.country
+        category = getattr(query, 'category', 'All Items').lower()
+        is_core = category == 'core'
         Model = CoreCPIData if is_core else CPIData
 
         # FRED uses "." for missing values; normalize and filter

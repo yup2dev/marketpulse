@@ -295,16 +295,20 @@ export default function UniversalWidget({
       showViewToggle={showViewToggle}
       headerExtra={chartTypeSelector}
     >
-      {paramsSpec?.length ? (
-        <div className="px-2 pt-2">
-          <WidgetParamForm
-            spec={paramsSpec}
-            values={params}
-            onChange={setParam}
-          />
+      <div className="flex flex-col h-full min-h-0">
+        {paramsSpec?.length ? (
+          <div className="px-2 pt-2 flex-shrink-0">
+            <WidgetParamForm
+              spec={paramsSpec}
+              values={params}
+              onChange={setParam}
+            />
+          </div>
+        ) : null}
+        <div className="flex-1 relative min-h-0">
+          {body}
         </div>
-      ) : null}
-      {body}
+      </div>
     </BaseWidget>
   );
 }
