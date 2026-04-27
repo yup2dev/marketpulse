@@ -10,15 +10,19 @@
  *   display:   'kv'                                          (flat object → metric/value rows)
  *   params:    [{ name, kind, label, default, options?, step? }]
  *              — renders an inline form; values feed both `{name}` placeholders and querystring.
- *              — initial fetch runs with defaults; Run button manually re-fetches.
+ *              — initial fetch runs with defaults; Run button (in header) manually re-fetches.
  *   expandable: { keyField, endpoint, dataPath }             (sub-row drilldown)
+ *   chart:     { defaultType?, allowedTypes?, referenceLines?, yFormatter?, xFormatter? }
+ *              — defaultType ∈ 'line'|'area'|'bar'|'stackedBar'|'pie'|'donut'
+ *              — allowedTypes restricts the in-header type selector
  */
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { BarChart2, PieChart, TrendingUp, Layers, Play } from 'lucide-react';
-import BaseWidget    from '../widgets/common/BaseWidget';
-import CommonTable   from '../common/CommonTable';
-import CommonChart   from '../common/CommonChart';
-import PlotlyRawChart from './PlotlyRawChart';
+import BaseWidget         from '../widgets/common/BaseWidget';
+import WidgetParamForm    from '../widgets/common/WidgetParamForm';
+import CommonTable        from '../common/CommonTable';
+import CommonChart        from '../common/CommonChart';
+import ChartTypeSelector  from '../common/ChartTypeSelector';
+import PlotlyRawChart     from './PlotlyRawChart';
 import { apiClient, API_BASE } from '../../config/api';
 import { WIDGET_ENDPOINTS } from '../../registry/widgetEndpoints';
 import {
@@ -90,82 +94,6 @@ function ExpandedRowDetail({ row, config }) {
       searchable={false}
       exportable={false}
     />
-  );
-}
-
-const CHART_TYPE_OPTIONS = [
-  { id: 'line',       icon: TrendingUp, label: 'Line' },
-  { id: 'bar',        icon: BarChart2,  label: 'Bar' },
-  { id: 'stackedBar', icon: Layers,     label: 'Stacked' },
-  { id: 'pie',        icon: PieChart,   label: 'Pie' },
-];
-
-const inputCls =
-  'bg-[#0a0a0f] border border-gray-800 rounded px-2 py-1.5 text-xs text-gray-200 ' +
-  'outline-none focus:border-cyan-700 tabular-nums';
-
-// ── Param form ────────────────────────────────────────────────────────────────
-function ParamForm({ spec, values, onChange, onRun, loading }) {
-  const cols = Math.min(4, Math.max(2, spec.length <= 3 ? spec.length : 4));
-  return (
-    <div
-      className="border-b border-gray-800/60 pb-2 mb-2 space-y-2"
-      onMouseDown={(e) => e.stopPropagation()}
-    >
-      <div className={`grid gap-2`} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
-        {spec.map((p) => (
-          <div key={p.name} className="flex flex-col gap-1">
-            <label className="text-[10px] uppercase tracking-wide text-gray-500">{p.label || p.name}</label>
-            {p.kind === 'select' ? (
-              <select
-                className={inputCls}
-                value={values[p.name] ?? ''}
-                onChange={(e) => onChange(p.name, e.target.value)}
-              >
-                {(p.options || []).map((opt) => {
-                  const v = typeof opt === 'string' ? opt : opt.value;
-                  const l = typeof opt === 'string' ? opt : (opt.label ?? opt.value);
-                  return <option key={v} value={v}>{l}</option>;
-                })}
-              </select>
-            ) : p.kind === 'number' ? (
-              <input
-                type="number"
-                step={p.step ?? 'any'}
-                min={p.min}
-                max={p.max}
-                className={inputCls}
-                value={values[p.name] ?? ''}
-                onChange={(e) => onChange(p.name, e.target.value === '' ? '' : Number(e.target.value))}
-              />
-            ) : p.kind === 'date' ? (
-              <input
-                type="date"
-                className={inputCls}
-                value={values[p.name] ?? ''}
-                onChange={(e) => onChange(p.name, e.target.value)}
-              />
-            ) : (
-              <input
-                type="text"
-                className={inputCls}
-                value={values[p.name] ?? ''}
-                onChange={(e) => onChange(p.name, p.upper ? e.target.value.toUpperCase() : e.target.value)}
-              />
-            )}
-            {p.hint && <span className="text-[10px] text-gray-600">{p.hint}</span>}
-          </div>
-        ))}
-      </div>
-      <button
-        onClick={onRun}
-        disabled={loading}
-        className="w-full flex items-center justify-center gap-2 bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-700 disabled:text-gray-500 text-white font-semibold text-xs py-1.5 rounded transition-colors"
-      >
-        <Play size={11} />
-        {loading ? 'Computing…' : 'Run'}
-      </button>
-    </div>
   );
 }
 
@@ -293,21 +221,12 @@ export default function UniversalWidget({
 
   const showChartTypeSelector = activeView === 'chart' && renderType !== 'plotly' && display !== 'kv';
   const chartTypeSelector = showChartTypeSelector ? (
-    <div className="flex items-center bg-gray-800/80 rounded p-0.5 gap-0.5" onMouseDown={e => e.stopPropagation()}>
-      {CHART_TYPE_OPTIONS.map(({ id, icon: Icon, label }) => (
-        <button
-          key={id}
-          onClick={() => setChartType(id)}
-          title={label}
-          className={`px-1.5 py-0.5 rounded transition-colors ${
-            chartType === id
-              ? 'bg-cyan-700 text-white'
-              : 'text-gray-500 hover:text-gray-300'
-          }`}
-        >
-          <Icon size={11} />
-        </button>
-      ))}
+    <div onMouseDown={e => e.stopPropagation()}>
+      <ChartTypeSelector
+        value={chartType}
+        onChange={setChartType}
+        types={chartCfg.allowedTypes}
+      />
     </div>
   ) : null;
 
@@ -364,6 +283,7 @@ export default function UniversalWidget({
       title={title}
       loading={loading}
       onRefresh={fetchData}
+      onRun={paramsSpec?.length ? fetchData : undefined}
       onRemove={onRemove}
       symbol={requiresSymbol ? symbol : undefined}
       onSymbolChange={requiresSymbol ? setSymbol : undefined}
@@ -377,12 +297,10 @@ export default function UniversalWidget({
     >
       {paramsSpec?.length ? (
         <div className="px-2 pt-2">
-          <ParamForm
+          <WidgetParamForm
             spec={paramsSpec}
             values={params}
             onChange={setParam}
-            onRun={fetchData}
-            loading={loading}
           />
         </div>
       ) : null}

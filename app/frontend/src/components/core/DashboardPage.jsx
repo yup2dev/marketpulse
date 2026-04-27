@@ -26,6 +26,8 @@ import WidgetRenderer from './WidgetRenderer';
 import WidgetMenu from './WidgetMenu';
 
 import StockSelectorModal from '../common/StockSelectorModal';
+import CreatePortfolioModal from '../common/CreatePortfolioModal';
+import AddTransactionModal from '../common/AddTransactionModal';
 import useNavigationStore from '../../store/navigationStore';
 
 export default function DashboardPage() {
@@ -301,6 +303,31 @@ export default function DashboardPage() {
           activeWidgetIds={activeWidgetIds}
           onAdd={handleAddWidget}
         />
+
+        {/* ── Create-portfolio modal ──────────────────────────────────────── */}
+        {config.needsPortfolio && (
+          <CreatePortfolioModal
+            open={portfolio.showCreateModal}
+            onClose={() => portfolio.setShowCreateModal(false)}
+            onCreate={portfolio.handleCreatePortfolio}
+          />
+        )}
+
+        {/* ── Add / edit transaction modal ────────────────────────────────── */}
+        {config.needsPortfolio && (portfolio.showAddTransaction || portfolio.editingTransaction) && (
+          <AddTransactionModal
+            open
+            isEditing={!!portfolio.editingTransaction}
+            initialValues={portfolio.editingTransaction || undefined}
+            isSubmitting={portfolio.isSubmittingTransaction}
+            onClose={() => {
+              portfolio.setShowAddTransaction(false);
+              portfolio.setEditingTransaction(null);
+            }}
+            onAdd={portfolio.handleAddTransaction}
+            onEdit={portfolio.handleEditTransaction}
+          />
+        )}
 
       </div>
     </WidgetSyncProvider>

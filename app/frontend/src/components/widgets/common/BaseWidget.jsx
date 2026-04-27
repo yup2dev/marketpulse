@@ -11,7 +11,7 @@
  * - Source footer
  */
 import { useState, useRef, useEffect } from 'react';
-import { GripVertical, X, RefreshCw, BarChart2, Table, Calendar, ChevronDown, Search, Download, FileDown, FileSpreadsheet, Image, Link2, Link2Off } from 'lucide-react';
+import { GripVertical, X, RefreshCw, BarChart2, Table, Calendar, ChevronDown, Search, Download, FileDown, FileSpreadsheet, Image, Link2, Link2Off, Play } from 'lucide-react';
 import { API_BASE } from '../../../config/api';
 import { downloadCSV, downloadExcel, downloadChartPNG, makeFilename } from '../../../utils/exportUtils';
 import { useWidgetSync } from '../../../contexts/WidgetSyncContext';
@@ -157,6 +157,8 @@ export default function BaseWidget({
   children,
   loading = false,
   onRefresh,
+  onRun,
+  runLabel = 'Run',
   onRemove,
   // Symbol selector
   symbol,
@@ -399,6 +401,20 @@ export default function BaseWidget({
                 </div>
               )}
             </div>
+          )}
+
+          {/* Run (param-driven widgets) */}
+          {onRun && (
+            <button
+              onMouseDown={e => e.stopPropagation()}
+              onClick={onRun}
+              disabled={loading}
+              className="flex items-center gap-1 px-2 py-1 bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-700 disabled:text-gray-500 text-white text-[11px] font-semibold rounded transition-colors"
+              title={runLabel}
+            >
+              <Play size={11} />
+              <span>{loading ? 'Running…' : runLabel}</span>
+            </button>
           )}
 
           {/* Refresh */}
