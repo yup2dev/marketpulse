@@ -20,6 +20,10 @@
  * Add a new widget: add an entry here, reference id in urlWidgetMap.js.
  */
 import PortfolioStatsWidget  from '../components/widgets/PortfolioStatsWidget';
+import WatchlistWidget       from '../components/widgets/WatchlistWidget';
+import ScreenerWidget        from '../components/widgets/ScreenerWidget';
+import AlertsWidget          from '../components/widgets/AlertsWidget';
+import NewsFeedWidget        from '../components/widgets/NewsFeedWidget';
 
 // ── date helpers (used by quant param defaults) ─────────────────────────────
 const isoDate = (d) => d.toISOString().slice(0, 10);
@@ -183,6 +187,25 @@ export const WIDGET_ENDPOINTS = {
       { name: 'start_date', label: 'Start',  kind: 'date',   default: () => yearsAgo(2) },
       { name: 'end_date',   label: 'End',    kind: 'date',   default: today },
     ],
+  },
+
+  // ── Watchlist / Screener / Alerts / News (custom CRUD widgets) ─────────────
+  'watchlist': {
+    title:     'Watchlist',
+    component: WatchlistWidget,
+  },
+  'screener': {
+    title:     'Screener',
+    component: ScreenerWidget,
+  },
+  'alerts': {
+    title:     'Alerts',
+    component: AlertsWidget,
+  },
+  'news-feed': {
+    title:     'News Feed',
+    component: NewsFeedWidget,
+    propsFrom: ['symbol'],
   },
 
   // ── Portfolio (custom + data-driven) ───────────────────────────────────────

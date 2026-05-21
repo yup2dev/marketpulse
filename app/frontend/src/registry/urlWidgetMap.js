@@ -38,6 +38,10 @@ export const URL_WIDGET_MAP = {
           { id: 'pmi',                name: 'ISM PMI / LEI',      description: 'Manufacturing PMI & LEI',    defaultSize: { w: 8, h: 6 } },
           { id: 'stock-sentiment',    name: 'News Sentiment',     description: 'News sentiment & trend',     defaultSize: { w: 6, h: 8 } },
           { id: 'social-sentiment',   name: 'Social Sentiment',   description: 'Reddit & StockTwits',        defaultSize: { w: 6, h: 8 } },
+          { id: 'watchlist',          name: 'Watchlist',           description: 'Manage watchlists',          defaultSize: { w: 6, h: 8 } },
+          { id: 'screener',           name: 'Screener',            description: 'Screen stocks by criteria',  defaultSize: { w: 12, h: 10 } },
+          { id: 'news-feed',          name: 'News Feed',           description: 'Latest market news',         defaultSize: { w: 6, h: 8 } },
+          { id: 'alerts',             name: 'Alerts',              description: 'Price & event alerts',       defaultSize: { w: 6, h: 8 } },
         ],
       },
     ],
@@ -64,6 +68,8 @@ export const URL_WIDGET_MAP = {
           { id: 'ownership-overview', name: 'Ownership Overview', description: 'Ownership breakdown',      defaultSize: { w: 12, h: 6 } },
           { id: 'stock-sentiment',    name: 'News Sentiment',    description: 'News sentiment & trend',     defaultSize: { w: 6,  h: 8 } },
           { id: 'social-sentiment',   name: 'Social Sentiment',  description: 'Reddit & StockTwits',        defaultSize: { w: 6,  h: 8 } },
+          { id: 'news-feed',          name: 'News Feed',         description: 'Latest news for this stock', defaultSize: { w: 6,  h: 8 } },
+          { id: 'watchlist',          name: 'Watchlist',          description: 'Manage watchlists',          defaultSize: { w: 6,  h: 8 } },
         ],
       },
       {
@@ -303,6 +309,29 @@ export const URL_WIDGET_MAP = {
         ],
         widgets: [
           { id: 'portfolio-trade-history', name: 'Trade History', description: 'Transaction history', defaultSize: { w: 12, h: 10 } },
+        ],
+      },
+    ],
+  },
+
+  // ─── Alerts (/alerts) ──────────────────────────────────────────────────────
+  '/alerts': {
+    label: 'Alerts',
+    needsSymbol: false,
+    needsPortfolio: false,
+    categories: [
+      {
+        id: 'overview',
+        label: 'Overview',
+        defaultWidgets: [
+          { id: 'alerts-1',   type: 'alerts',    x: 0, y: 0, w: 6,  h: 10 },
+          { id: 'news-feed-1', type: 'news-feed', x: 6, y: 0, w: 6,  h: 10 },
+        ],
+        widgets: [
+          { id: 'alerts',    name: 'Alerts',    description: 'Price & event alerts',  defaultSize: { w: 6,  h: 10 } },
+          { id: 'news-feed', name: 'News Feed', description: 'Latest market news',    defaultSize: { w: 6,  h: 8  } },
+          { id: 'watchlist', name: 'Watchlist',  description: 'Manage watchlists',     defaultSize: { w: 6,  h: 8  } },
+          { id: 'screener',  name: 'Screener',   description: 'Screen stocks',         defaultSize: { w: 12, h: 10 } },
         ],
       },
     ],

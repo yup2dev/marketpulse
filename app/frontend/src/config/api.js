@@ -166,3 +166,47 @@ export const workspaceAPI = {
   delete:     (id)           => apiClient.request(`${API_BASE}/workspace/${id}`, { method: 'DELETE' }),
   setDefault: (id)           => apiClient.post(`${API_BASE}/workspace/${id}/default`),
 };
+
+// ─── Watchlist API ───────────────────────────────────────────────────────────
+const WL = `${API_BASE}/watchlist`;
+export const watchlistAPI = {
+  getAll:       ()              => apiClient.get(WL),
+  create:       (data)          => apiClient.post(WL, data),
+  getById:      (id)            => apiClient.get(`${WL}/${id}`),
+  update:       (id, data)      => apiClient.request(`${WL}/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete:       (id)            => apiClient.request(`${WL}/${id}`, { method: 'DELETE' }),
+  getItems:     (id)            => apiClient.get(`${WL}/${id}/items`),
+  addTicker:    (id, data)      => apiClient.post(`${WL}/${id}/items`, data),
+  removeTicker: (id, ticker)    => apiClient.request(`${WL}/${id}/items/${encodeURIComponent(ticker)}`, { method: 'DELETE' }),
+  reorder:      (id, orders)    => apiClient.request(`${WL}/${id}/items/reorder`, { method: 'PUT', body: JSON.stringify({ ticker_orders: orders }) }),
+};
+
+// ─── Screener API ────────────────────────────────────────────────────────────
+const SC = `${API_BASE}/screener`;
+export const screenerAPI = {
+  screen:       (filters, limit = 100) => apiClient.post(`${SC}/screen`, { filters, limit }),
+  getPresets:   ()                     => apiClient.get(`${SC}/presets`),
+  runPreset:    (id, limit = 100)      => apiClient.post(`${SC}/presets/${id}/run?limit=${limit}`),
+  getSectors:   ()                     => apiClient.get(`${SC}/sectors`),
+  save:         (data)                 => apiClient.post(`${SC}/save`, data),
+  getSaved:     ()                     => apiClient.get(`${SC}/saved`),
+  runSaved:     (id, limit = 100)      => apiClient.post(`${SC}/saved/${id}/run?limit=${limit}`),
+  deleteSaved:  (id)                   => apiClient.request(`${SC}/saved/${id}`, { method: 'DELETE' }),
+};
+
+// ─── Alert API ───────────────────────────────────────────────────────────────
+const AL = `${API_BASE}/alerts`;
+export const alertAPI = {
+  getAll:       (isActive)     => apiClient.get(`${AL}${isActive != null ? `?is_active=${isActive}` : ''}`),
+  create:       (data)         => apiClient.post(`${AL}/`, data),
+  update:       (id, data)     => apiClient.request(`${AL}/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  toggle:       (id)           => apiClient.post(`${AL}/${id}/toggle`),
+  delete:       (id)           => apiClient.request(`${AL}/${id}`, { method: 'DELETE' }),
+  getHistory:   (alertId, limit = 50) => apiClient.get(`${AL}/history${alertId ? `?alert_id=${alertId}&` : '?'}limit=${limit}`),
+  test:         (id)           => apiClient.post(`${AL}/${id}/test`),
+};
+
+// ─── News API ────────────────────────────────────────────────────────────────
+export const newsAPI = {
+  get: (symbol, limit = 20) => apiClient.get(`${API_BASE}/news${symbol ? `?symbol=${encodeURIComponent(symbol)}&` : '?'}limit=${limit}`),
+};
