@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
+        env_ignore_empty=True,
         extra="ignore",
         case_sensitive=False,
     )
@@ -19,13 +20,13 @@ class Settings(BaseSettings):
     DEBUG: bool = False
 
     # Security
-    SECRET_KEY: str = "change-me-in-production"
+    SECRET_KEY: str = "dev-only-key-override-in-env"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
-    # CORS
-    CORS_ORIGINS: List[str] = ["http://localhost:5173"]
+    # CORS — comma-separated in env: CORS_ORIGINS=https://example.com,http://localhost:5173
+    CORS_ORIGINS: List[str] = ["http://localhost:5173", "http://localhost:3000"]
 
     # Database
     SQLITE_PATH: str = "data/marketpulse.db"
