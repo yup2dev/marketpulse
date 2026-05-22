@@ -38,6 +38,18 @@ from data_fetcher.utils.helpers import (
     deduplicate_list,
     filter_none_values
 )
+from data_fetcher.utils.cache import CacheManager
+from data_fetcher.utils.exceptions import (
+    FetcherError,
+    ProviderError,
+    APIError,
+    AuthenticationError,
+    DataValidationError,
+    NetworkError,
+)
+from data_fetcher.utils.error_handler import ErrorHandler
+from data_fetcher.utils.rate_limiter import RateLimiter
+from data_fetcher.utils.enhanced_fetcher import EnhancedFetcher
 
 __all__ = [
     # Credentials
@@ -78,4 +90,16 @@ __all__ = [
     'format_number',
     'deduplicate_list',
     'filter_none_values',
+
+    # Cache & Error Handling
+    'CacheManager',
+    'FetcherError',
+    'ProviderError',
+    'APIError',
+    'AuthenticationError',
+    'DataValidationError',
+    'NetworkError',
+    'ErrorHandler',
+    'RateLimiter',
+    'EnhancedFetcher',
 ]

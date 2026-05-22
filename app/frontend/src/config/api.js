@@ -206,6 +206,15 @@ export const alertAPI = {
   test:         (id)           => apiClient.post(`${AL}/${id}/test`),
 };
 
+// ─── Notes API ──────────────────────────────────────────────────────────────
+const NT = `${API_BASE}/notes`;
+export const notesAPI = {
+  getAll:   (ticker)       => apiClient.get(`${NT}${ticker ? `?ticker_cd=${encodeURIComponent(ticker)}` : ''}`),
+  create:   (data)         => apiClient.post(NT, data),
+  update:   (id, data)     => apiClient.request(`${NT}/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete:   (id)           => apiClient.request(`${NT}/${id}`, { method: 'DELETE' }),
+};
+
 // ─── News API ────────────────────────────────────────────────────────────────
 export const newsAPI = {
   get: (symbol, limit = 20) => apiClient.get(`${API_BASE}/news${symbol ? `?symbol=${encodeURIComponent(symbol)}&` : '?'}limit=${limit}`),

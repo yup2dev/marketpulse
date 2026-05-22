@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Search, X } from 'lucide-react';
-import { API_BASE } from '../../config/api';
+import { apiClient, API_BASE } from '../../config/api';
 
 const TickerSearch = ({ onSelect, placeholder = "Search stocks..." }) => {
   const [query, setQuery] = useState('');
@@ -22,28 +22,24 @@ const TickerSearch = ({ onSelect, placeholder = "Search stocks..." }) => {
 
   useEffect(() => {
     const searchStocks = async () => {
-      if (query.length < 1) {
+      if (query.length < 2) {
         setResults([]);
         return;
       }
 
       setLoading(true);
       try {
-        const response = await fetch(`${API_BASE}/stock/search?query=${encodeURIComponent(query)}`);
-        if (response.ok) {
-          const data = await response.json();
-          setResults(data.results || []);
-          setIsOpen(true);
-        }
-      } catch (error) {
-        console.error('Error searching stocks:', error);
+        const data = await apiClient.get(`${API_BASE}/stock/search?query=${encodeURIComponent(query)}&limit=12`);
+        setResults(data.results || []);
+        setIsOpen(true);
+      } catch {
         setResults([]);
       } finally {
         setLoading(false);
       }
     };
 
-    const debounceTimer = setTimeout(searchStocks, 300);
+    const debounceTimer = setTimeout(searchStocks, 150);
     return () => clearTimeout(debounceTimer);
   }, [query]);
 

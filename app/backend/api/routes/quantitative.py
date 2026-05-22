@@ -107,3 +107,52 @@ async def unitroot(
     params["regression"] = regression
     result = await analysis_service.get_unitroot(params)
     return {"result": result.model_dump(mode="json") if result else None}
+
+
+@router.get("/correlation")
+@route_handler
+async def correlation(
+    symbols: str = Query(..., description="Comma-separated ticker symbols (2-10)"),
+    start_date: Optional[date_type] = Query(None),
+    end_date: Optional[date_type] = Query(None),
+    period: str = Query("1y", description="Fallback period if dates not given"),
+):
+    """다중 종목 상관계수 매트릭스."""
+    import yfinance as yf
+    import numpy as np
+    from datetime import datetime, timedelta
+
+    tickers = [s.strip().upper() for s in symbols.split(",") if s.strip()]
+    if len(tickers) < 2:
+        raise ValueError("At least 2 symbols required")
+    if len(tickers) > 10:
+        raise ValueError("Maximum 10 symbols allowed")
+
+    period_map = {"1mo": 30, "3mo": 90, "6mo": 180, "1y": 365, "2y": 730, "5y": 1825}
+    if not start_date:
+        days = period_map.get(period, 365)
+        start_date = (datetime.now() - timedelta(days=days)).date()
+    if not end_date:
+        end_date = datetime.now().date()
+
+    data = yf.download(tickers, start=str(start_date), end=str(end_date), auto_adjust=True, progress=False)
+    if data.empty:
+        raise ValueError("No price data found for given symbols")
+
+    closes = data["Close"] if len(tickers) > 1 else data[["Close"]].rename(columns={"Close": tickers[0]})
+    returns = closes.pct_change().dropna()
+
+    if returns.empty:
+        raise ValueError("Insufficient data for correlation")
+
+    corr = returns.corr()
+    labels = list(corr.columns)
+    matrix = []
+    for sym in labels:
+        row = []
+        for sym2 in labels:
+            v = corr.loc[sym, sym2]
+            row.append(round(float(v), 4) if np.isfinite(v) else 0)
+        matrix.append(row)
+
+    return {"labels": labels, "matrix": matrix, "period": period, "rows": len(returns)}

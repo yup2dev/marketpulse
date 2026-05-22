@@ -311,6 +311,67 @@ async def get_real_rates(period: str = "5y"):
     return await macro_service.get_real_rates(period)
 
 
+@router.get("/economic-calendar")
+@route_handler
+async def get_economic_calendar():
+    """이번 주 주요 경제지표 발표 일정."""
+    from datetime import datetime, timedelta
+
+    today = datetime.now().date()
+    weekday = today.weekday()
+    monday = today - timedelta(days=weekday)
+    friday = monday + timedelta(days=4)
+
+    indicators = [
+        {"name": "GDP (Advanced)", "frequency": "Quarterly", "source": "BEA",
+         "impact": "high", "category": "Growth"},
+        {"name": "Nonfarm Payrolls", "frequency": "Monthly", "source": "BLS",
+         "impact": "high", "category": "Employment"},
+        {"name": "CPI", "frequency": "Monthly", "source": "BLS",
+         "impact": "high", "category": "Inflation"},
+        {"name": "PPI", "frequency": "Monthly", "source": "BLS",
+         "impact": "medium", "category": "Inflation"},
+        {"name": "Retail Sales", "frequency": "Monthly", "source": "Census Bureau",
+         "impact": "high", "category": "Consumer"},
+        {"name": "Initial Jobless Claims", "frequency": "Weekly", "source": "DOL",
+         "impact": "medium", "category": "Employment"},
+        {"name": "Consumer Sentiment (UMich)", "frequency": "Monthly", "source": "UMich",
+         "impact": "medium", "category": "Sentiment"},
+        {"name": "ISM Manufacturing PMI", "frequency": "Monthly", "source": "ISM",
+         "impact": "high", "category": "Manufacturing"},
+        {"name": "ISM Services PMI", "frequency": "Monthly", "source": "ISM",
+         "impact": "high", "category": "Services"},
+        {"name": "FOMC Minutes / Rate Decision", "frequency": "8x/year", "source": "Fed",
+         "impact": "high", "category": "Monetary Policy"},
+        {"name": "Housing Starts", "frequency": "Monthly", "source": "Census Bureau",
+         "impact": "medium", "category": "Housing"},
+        {"name": "Industrial Production", "frequency": "Monthly", "source": "Fed",
+         "impact": "medium", "category": "Manufacturing"},
+        {"name": "Durable Goods Orders", "frequency": "Monthly", "source": "Census Bureau",
+         "impact": "medium", "category": "Manufacturing"},
+        {"name": "PCE Price Index", "frequency": "Monthly", "source": "BEA",
+         "impact": "high", "category": "Inflation"},
+        {"name": "Trade Balance", "frequency": "Monthly", "source": "Census Bureau",
+         "impact": "medium", "category": "Trade"},
+        {"name": "Continuing Claims", "frequency": "Weekly", "source": "DOL",
+         "impact": "low", "category": "Employment"},
+        {"name": "Consumer Confidence (CB)", "frequency": "Monthly", "source": "Conference Board",
+         "impact": "medium", "category": "Sentiment"},
+        {"name": "Existing Home Sales", "frequency": "Monthly", "source": "NAR",
+         "impact": "medium", "category": "Housing"},
+        {"name": "New Home Sales", "frequency": "Monthly", "source": "Census Bureau",
+         "impact": "medium", "category": "Housing"},
+        {"name": "EIA Crude Oil Inventories", "frequency": "Weekly", "source": "EIA",
+         "impact": "medium", "category": "Energy"},
+    ]
+
+    return {
+        "week_start": monday.isoformat(),
+        "week_end": friday.isoformat(),
+        "indicators": indicators,
+    }
+
+
 @router.get("/bonds")
 @route_handler
 async def get_bond_prices(

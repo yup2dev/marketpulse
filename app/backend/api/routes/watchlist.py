@@ -8,8 +8,9 @@ from typing import List, Optional
 from pydantic import BaseModel
 
 from app.backend.database.db_dependency import get_db
-from app.backend.auth.dependencies import get_current_user
+from app.backend.auth.dependencies import get_current_active_user
 from app.backend.services.watchlist_service import WatchlistService
+from index_analyzer.models.orm import User
 
 router = APIRouter(prefix="/watchlist", tags=["watchlist"])
 
@@ -48,7 +49,7 @@ class ReorderItemsRequest(BaseModel):
 @router.get("")
 async def get_watchlists(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     사용자의 모든 관심종목 리스트 조회
@@ -57,7 +58,7 @@ async def get_watchlists(
         관심종목 리스트 목록
     """
     try:
-        user_id = current_user.get("user_id")
+        user_id = current_user.user_id
         watchlists = WatchlistService.get_user_watchlists(db, user_id)
         return {"success": True, "data": watchlists}
     except Exception as e:
@@ -71,7 +72,7 @@ async def get_watchlists(
 async def create_watchlist(
     request: CreateWatchlistRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     새 관심종목 리스트 생성
@@ -83,7 +84,7 @@ async def create_watchlist(
         생성된 관심종목 리스트
     """
     try:
-        user_id = current_user.get("user_id")
+        user_id = current_user.user_id
         watchlist = WatchlistService.create_watchlist(
             db,
             user_id,
@@ -102,7 +103,7 @@ async def create_watchlist(
 async def get_watchlist(
     watchlist_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     특정 관심종목 리스트 조회
@@ -114,7 +115,7 @@ async def get_watchlist(
         관심종목 리스트
     """
     try:
-        user_id = current_user.get("user_id")
+        user_id = current_user.user_id
         watchlist = WatchlistService.get_watchlist_by_id(db, watchlist_id, user_id)
 
         if not watchlist:
@@ -138,7 +139,7 @@ async def update_watchlist(
     watchlist_id: str,
     request: UpdateWatchlistRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     관심종목 리스트 정보 수정
@@ -151,7 +152,7 @@ async def update_watchlist(
         수정된 관심종목 리스트
     """
     try:
-        user_id = current_user.get("user_id")
+        user_id = current_user.user_id
         watchlist = WatchlistService.update_watchlist(
             db,
             watchlist_id,
@@ -180,7 +181,7 @@ async def update_watchlist(
 async def delete_watchlist(
     watchlist_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     관심종목 리스트 삭제
@@ -192,7 +193,7 @@ async def delete_watchlist(
         성공 메시지
     """
     try:
-        user_id = current_user.get("user_id")
+        user_id = current_user.user_id
         success = WatchlistService.delete_watchlist(db, watchlist_id, user_id)
 
         if not success:
@@ -219,7 +220,7 @@ async def delete_watchlist(
 async def get_watchlist_items(
     watchlist_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     관심종목 리스트의 항목들 조회
@@ -231,7 +232,7 @@ async def get_watchlist_items(
         관심종목 항목 리스트 (가격 정보 포함)
     """
     try:
-        user_id = current_user.get("user_id")
+        user_id = current_user.user_id
         items = WatchlistService.get_watchlist_items(db, watchlist_id, user_id)
         return {"success": True, "data": items}
     except Exception as e:
@@ -246,7 +247,7 @@ async def add_ticker_to_watchlist(
     watchlist_id: str,
     request: AddTickerRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     관심종목 리스트에 종목 추가
@@ -259,7 +260,7 @@ async def add_ticker_to_watchlist(
         추가된 항목
     """
     try:
-        user_id = current_user.get("user_id")
+        user_id = current_user.user_id
         item = WatchlistService.add_ticker_to_watchlist(
             db,
             watchlist_id,
@@ -289,7 +290,7 @@ async def remove_ticker_from_watchlist(
     watchlist_id: str,
     ticker_cd: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     관심종목 리스트에서 종목 제거
@@ -302,7 +303,7 @@ async def remove_ticker_from_watchlist(
         성공 메시지
     """
     try:
-        user_id = current_user.get("user_id")
+        user_id = current_user.user_id
         success = WatchlistService.remove_ticker_from_watchlist(
             db,
             watchlist_id,
@@ -331,7 +332,7 @@ async def reorder_watchlist_items(
     watchlist_id: str,
     request: ReorderItemsRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     관심종목 항목 순서 변경
@@ -344,7 +345,7 @@ async def reorder_watchlist_items(
         성공 메시지
     """
     try:
-        user_id = current_user.get("user_id")
+        user_id = current_user.user_id
         success = WatchlistService.reorder_watchlist_items(
             db,
             watchlist_id,

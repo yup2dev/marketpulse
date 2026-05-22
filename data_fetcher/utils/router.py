@@ -1,63 +1,75 @@
 """
 Enhanced Data Router
 
-OpenBB-style router with automatic provider discovery and multi-provider support.
+OpenBB-style router with automatic provider discovery, multi-provider support,
+caching, error handling, and rate limiting.
 """
 import logging
 from typing import Any, Dict, List, Optional
 
 from data_fetcher.utils.registry import FetcherRegistry
 from data_fetcher.provider import ProviderRegistry
+from data_fetcher.utils.cache import CacheManager
+from data_fetcher.utils.error_handler import ErrorHandler
+from data_fetcher.utils.rate_limiter import RateLimiter
+from data_fetcher.utils.enhanced_fetcher import EnhancedFetcher
 
 log = logging.getLogger(__name__)
 
 
 class RouterError(Exception):
-    """라우터 오류"""
     pass
 
 
 class DataRouter:
     """
-    개선된 데이터 라우터
-
-    Features:
-    - Automatic fetcher discovery via FetcherRegistry
-    - Multi-provider support (같은 카테고리에 여러 provider)
-    - Provider-based credentials management
-    - Metadata and documentation support
-
-    Example:
-        ```python
-        from data_fetcher.router import DataRouter
-
-        router = DataRouter()
-
-        # Fetch GDP data from FRED (default provider)
-        gdp_data = router.fetch(
-            category="gdp",
-            params={"country": "US", "frequency": "quarterly"},
-            credentials={"api_key": "your_key"}
-        )
-
-        # Or specify provider explicitly
-        gdp_data = router.fetch(
-            category="gdp",
-            provider="fred",
-            params={"country": "US"},
-            credentials={"api_key": "your_key"}
-        )
-        ```
+    Enhanced Data Router with caching, error handling, and rate limiting.
     """
 
-    def __init__(self):
-        """DataRouter 초기화"""
-        # Import providers_init to register all providers
+    def __init__(
+        self,
+        use_cache: bool = True,
+        cache_ttl: int = 3600,
+        max_retries: int = 3
+    ):
         try:
             import data_fetcher.providers_init
             log.debug("Providers initialized")
         except ImportError as e:
             log.warning(f"Failed to import providers_init: {e}")
+
+        self.use_cache = use_cache
+        self.cache_ttl = cache_ttl
+        self.cache_manager = CacheManager() if use_cache else None
+        self.error_handler = ErrorHandler(max_retries=max_retries)
+        self.rate_limiter = RateLimiter()
+
+        self.rate_limiter.set_limit("fred", 120, 60)
+        self.rate_limiter.set_limit("yahoo", 2000, 3600)
+        self.rate_limiter.set_limit("fmp", 250, 86400)
+
+        self._fetchers: Dict[str, EnhancedFetcher] = {}
+
+    def _get_enhanced_fetcher(
+        self,
+        category: str,
+        provider: str
+    ) -> EnhancedFetcher:
+        key = f"{provider}:{category}"
+
+        if key not in self._fetchers:
+            fetcher_class = FetcherRegistry.get(category, provider)
+            self._fetchers[key] = EnhancedFetcher(
+                fetcher_class=fetcher_class,
+                provider=provider,
+                category=category,
+                cache_manager=self.cache_manager,
+                error_handler=self.error_handler,
+                rate_limiter=self.rate_limiter,
+                cache_ttl=self.cache_ttl
+            )
+
+        return self._fetchers[key]
 
     async def fetch(
         self,
@@ -65,57 +77,27 @@ class DataRouter:
         params: Dict[str, Any],
         provider: Optional[str] = None,
         credentials: Optional[Dict[str, str]] = None,
+        use_cache: Optional[bool] = None,
         **kwargs: Any
     ) -> List[Any]:
-        """
-        데이터 조회 (비동기)
+        use_cache = use_cache if use_cache is not None else self.use_cache
 
-        Args:
-            category: 데이터 카테고리 (예: "gdp", "cpi", "quote")
-            params: 쿼리 파라미터
-            provider: Provider 이름 (None이면 자동 선택)
-            credentials: API 자격증명
-            **kwargs: 추가 파라미터
-
-        Returns:
-            표준 모델 데이터 리스트
-
-        Raises:
-            RouterError: 조회 실패 시
-
-        Example:
-            ```python
-            router = DataRouter()
-
-            # Default provider (async)
-            data = await router.fetch(
-                category="gdp",
-                params={"country": "US"}
-            )
-
-            # Specific provider
-            data = await router.fetch(
-                category="gdp",
-                provider="fred",
-                params={"country": "US"},
-                credentials={"api_key": "your_key"}
-            )
-            ```
-        """
         try:
-            # Get fetcher from registry
-            fetcher_class = FetcherRegistry.get(category, provider)
+            if provider is None:
+                providers = FetcherRegistry.list_providers(category)
+                provider = providers[0] if providers else None
 
-            # Fetch data (async)
-            result = await fetcher_class.fetch_data(params, credentials, **kwargs)
-
-            # Handle AnnotatedResult
-            from data_fetcher.fetchers.base import AnnotatedResult
-            data = result.result if isinstance(result, AnnotatedResult) else result
+            fetcher = self._get_enhanced_fetcher(category, provider)
+            data = await fetcher.fetch(
+                params=params,
+                credentials=credentials,
+                use_cache=use_cache,
+                **kwargs
+            )
 
             log.info(
-                f"Fetched {len(data)} records for category='{category}', "
-                f"provider='{provider or 'default'}'"
+                f"Fetched {len(data) if data else 0} records for "
+                f"category='{category}', provider='{provider}'"
             )
 
             return data

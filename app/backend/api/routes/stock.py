@@ -4,7 +4,7 @@ Endpoints for stock data, quotes, and historical prices
 """
 import logging
 from typing import Optional
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from app.backend.services.yahoo import price as yahoo_price
 from app.backend.services.yahoo import company as yahoo_company
@@ -121,12 +121,21 @@ async def get_financials(symbol: str, freq: str = "quarterly", limit: int = 4):
 
 @router.get("/search")
 @route_handler
-async def search_stocks(query: str = ""):
+async def search_stocks(query: str = "", limit: int = 12):
     """
-    Search for stocks by symbol or name
+    Search for stocks by symbol or name.
+    Uses in-memory symbol cache for instant results; falls back to FMP API.
+    """
+    from app.backend.services.symbol_cache import get_symbol_cache
 
-    Returns a list of matching stocks with their symbols and names
-    """
+    cache = get_symbol_cache()
+    await cache.ensure_loaded()
+
+    if cache.is_loaded:
+        results = cache.search(query.upper(), limit=limit)
+        if results:
+            return {"query": query, "results": results}
+
     results = await fmp_market.search_stocks(query.upper())
     return {"query": query, "results": results}
 
@@ -319,6 +328,90 @@ async def get_scorecard(symbol: str):
 async def get_company_relations_route(symbol: str):
     """Return curated supply-chain / competitor / customer / partner relationships."""
     return await get_company_relations(symbol.upper())
+
+
+@router.get("/sector-performance")
+@route_handler
+async def get_sector_performance():
+    """S&P 500 섹터별 퍼포먼스 (트리맵/히트맵용)."""
+    from app.backend.database.db_dependency import get_db_sync
+    from index_analyzer.models.orm import MBS_IN_STK_PROFILE
+
+    db = get_db_sync()
+    try:
+        profiles = (
+            db.query(MBS_IN_STK_PROFILE)
+            .filter(MBS_IN_STK_PROFILE.in_sp500 == True, MBS_IN_STK_PROFILE.sector.isnot(None))
+            .all()
+        )
+        sector_map = {}
+        for p in profiles:
+            s = p.sector or "Other"
+            if s not in sector_map:
+                sector_map[s] = {"sector": s, "stocks": [], "total_market_cap": 0}
+            mcap = float(p.market_cap) if p.market_cap else 0
+            sector_map[s]["stocks"].append({
+                "symbol": p.stk_cd,
+                "name": p.stk_nm,
+                "sector": s,
+                "industry": p.industry,
+                "market_cap": mcap,
+                "price": float(p.price) if p.price else None,
+            })
+            sector_map[s]["total_market_cap"] += mcap
+
+        sectors = sorted(sector_map.values(), key=lambda x: x["total_market_cap"], reverse=True)
+        for sec in sectors:
+            sec["count"] = len(sec["stocks"])
+            sec["stocks"] = sorted(sec["stocks"], key=lambda x: x["market_cap"], reverse=True)[:20]
+
+        return {"sectors": sectors}
+    finally:
+        db.close()
+
+
+@router.get("/compare")
+@route_handler
+async def compare_stocks(
+    symbols: str = Query(..., description="Comma-separated symbols (2-4)"),
+):
+    """2~4 종목 비교 데이터."""
+    tickers = [s.strip().upper() for s in symbols.split(",") if s.strip()]
+    if len(tickers) < 2:
+        raise ValueError("At least 2 symbols required")
+    if len(tickers) > 4:
+        raise ValueError("Maximum 4 symbols allowed")
+
+    results = []
+    for sym in tickers:
+        try:
+            q = await yahoo_price.get_stock_quote(sym) or {}
+            metrics_obj = await yahoo_company.get_key_metrics(sym)
+            m = metrics_obj.model_dump(mode="json") if metrics_obj else {}
+            results.append({
+                "symbol": sym,
+                "name": m.get("symbol", sym),
+                "price": q.get("price"),
+                "change": q.get("change"),
+                "changesPercentage": q.get("change_percent"),
+                "marketCap": m.get("market_cap"),
+                "volume": q.get("volume"),
+                "pe": m.get("pe_ratio"),
+                "eps": m.get("eps_trailing"),
+                "beta": m.get("beta"),
+                "dividend_yield": m.get("dividend_yield"),
+                "roe": m.get("roe"),
+                "roa": m.get("roa"),
+                "debt_to_equity": m.get("debt_to_equity"),
+                "profit_margin": m.get("net_margin"),
+                "revenue_growth": m.get("revenue_growth"),
+                "52w_high": m.get("week_52_high"),
+                "52w_low": m.get("week_52_low"),
+            })
+        except Exception:
+            results.append({"symbol": sym, "error": "Failed to fetch data"})
+
+    return {"stocks": results}
 
 
 @router.get("/indicator/{indicator}")

@@ -1034,6 +1034,42 @@ class MBS_RCMD_RESULT(Base):
         }
 
 
+class UserNote(Base):
+    """사용자 메모"""
+    __tablename__ = 'user_notes'
+
+    note_id = Column(String(50), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String(50), ForeignKey('users.user_id'), nullable=False, index=True)
+    ticker_cd = Column(String(20), index=True)
+    title = Column(String(200))
+    content = Column(Text, nullable=False, default='')
+    color = Column(String(20), default='default')
+    pinned = Column(Boolean, default=False)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User")
+
+    __table_args__ = (
+        Index('idx_note_user', 'user_id'),
+        Index('idx_note_ticker', 'user_id', 'ticker_cd'),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            'note_id': self.note_id,
+            'user_id': self.user_id,
+            'ticker_cd': self.ticker_cd,
+            'title': self.title,
+            'content': self.content,
+            'color': self.color,
+            'pinned': self.pinned,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
 class UserWorkspace(Base):
     """사용자 워크스페이스 레이아웃 저장"""
     __tablename__ = 'user_workspaces'

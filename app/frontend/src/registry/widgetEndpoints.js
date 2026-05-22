@@ -19,11 +19,18 @@
  *
  * Add a new widget: add an entry here, reference id in urlWidgetMap.js.
  */
-import PortfolioStatsWidget  from '../components/widgets/PortfolioStatsWidget';
-import WatchlistWidget       from '../components/widgets/WatchlistWidget';
-import ScreenerWidget        from '../components/widgets/ScreenerWidget';
-import AlertsWidget          from '../components/widgets/AlertsWidget';
-import NewsFeedWidget        from '../components/widgets/NewsFeedWidget';
+import PortfolioStatsWidget    from '../components/widgets/PortfolioStatsWidget';
+import WatchlistWidget         from '../components/widgets/WatchlistWidget';
+import ScreenerWidget          from '../components/widgets/ScreenerWidget';
+import AlertsWidget            from '../components/widgets/AlertsWidget';
+import NewsFeedWidget          from '../components/widgets/NewsFeedWidget';
+import SparklineWidget         from '../components/widgets/SparklineWidget';
+import ComparisonWidget        from '../components/widgets/ComparisonWidget';
+import HeatmapWidget           from '../components/widgets/HeatmapWidget';
+import CorrelationWidget       from '../components/widgets/CorrelationWidget';
+import NoteWidget              from '../components/widgets/NoteWidget';
+import EconomicCalendarWidget  from '../components/widgets/EconomicCalendarWidget';
+import TerminalWidget          from '../components/widgets/TerminalWidget';
 
 // ── date helpers (used by quant param defaults) ─────────────────────────────
 const isoDate = (d) => d.toISOString().slice(0, 10);
@@ -206,6 +213,38 @@ export const WIDGET_ENDPOINTS = {
     title:     'News Feed',
     component: NewsFeedWidget,
     propsFrom: ['symbol'],
+  },
+
+  // ── Visualization widgets ──────────────────────────────────────────────────
+  'sparkline': {
+    title:     'Mini Charts',
+    component: SparklineWidget,
+  },
+  'comparison': {
+    title:     'Stock Comparison',
+    component: ComparisonWidget,
+  },
+  'heatmap': {
+    title:     'Sector Heatmap',
+    component: HeatmapWidget,
+  },
+  'correlation': {
+    title:     'Correlation Matrix',
+    component: CorrelationWidget,
+  },
+
+  // ── Interactive widgets ───────────────────────────────────────────────────
+  'economic-calendar': {
+    title:     'Economic Calendar',
+    component: EconomicCalendarWidget,
+  },
+  'terminal': {
+    title:     'Terminal',
+    component: TerminalWidget,
+  },
+  'notes': {
+    title:     'Notes',
+    component: NoteWidget,
   },
 
   // ── Portfolio (custom + data-driven) ───────────────────────────────────────

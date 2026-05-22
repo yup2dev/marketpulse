@@ -21,7 +21,7 @@ import index_analyzer.models.orm  # noqa: F401 — ensures UserWorkspace is pick
 from app.backend.api.routes import (
     stock, economic, news, dashboard, portfolio, macro,
     auth, user_portfolio, screener, alerts, export, watchlist, menu,
-    quantlib, quantitative,
+    quantlib, quantitative, notes,
 )
 from app.backend.api.routes.workspace import router as workspace_router
 from app.backend.api.routes.fundamental import router as fundamental_router
@@ -52,6 +52,10 @@ def _init_db():
 async def lifespan(app: FastAPI):
     import data_fetcher.providers_init  # noqa: F401 — registers all providers/fetchers
     _init_db()
+
+    from app.backend.services.symbol_cache import get_symbol_cache
+    await get_symbol_cache().ensure_loaded()
+
     yield
 
 
@@ -92,6 +96,7 @@ app.include_router(workspace_router, prefix="/api", tags=["workspace"])
 app.include_router(fundamental_router.router, prefix="/api/v1", tags=["equity-fundamental"])
 app.include_router(quantlib.router, prefix="/api/quantlib", tags=["quantlib"])
 app.include_router(quantitative.router, prefix="/api/quantitative", tags=["quantitative"])
+app.include_router(notes.router, prefix="/api", tags=["notes"])
 
 
 @app.get("/")

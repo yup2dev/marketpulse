@@ -7,10 +7,15 @@
  *   - Alert trigger history timeline (uses TimelineList)
  */
 import { useState, useEffect, useCallback } from 'react';
-import { Bell, BellOff, Plus, Trash2, X, History, Zap, AlertTriangle } from 'lucide-react';
+import { Bell, BellOff, Plus, Trash2, X, Zap, AlertTriangle } from 'lucide-react';
 import BaseWidget from './common/BaseWidget';
 import TimelineList, { Badge, formatTimeAgo } from './common/TimelineList';
 import { alertAPI } from '../../config/api';
+
+const inputCls =
+  'w-full bg-[#0a0a0f] border border-gray-800 rounded px-2 py-1.5 text-[11px] text-gray-200 outline-none focus:border-cyan-700 tabular-nums';
+const selectCls =
+  'w-full bg-[#0a0a0f] border border-gray-800 rounded px-2 py-1.5 text-[11px] text-gray-200 outline-none focus:border-cyan-700';
 
 const ALERT_TYPES = [
   { value: 'price',     label: 'Price' },
@@ -45,66 +50,61 @@ function CreateAlertForm({ onSubmit, onCancel }) {
   };
 
   return (
-    <div className="px-3 py-2 border-b border-gray-800 bg-[#0a0a0f] space-y-2">
+    <div className="px-3 py-3 border-b border-gray-800/60 space-y-2.5">
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-medium text-gray-300">New Alert</span>
-        <button onClick={onCancel} className="p-0.5 text-gray-500 hover:text-gray-300">
+        <span className="text-[10px] uppercase tracking-wide text-gray-400 font-medium">New Alert</span>
+        <button onClick={onCancel} className="p-0.5 text-gray-500 hover:text-gray-300 transition-colors">
           <X size={12} />
         </button>
       </div>
 
       <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="text-[10px] text-gray-500 block mb-0.5">Type</label>
-          <select
-            value={form.alert_type}
-            onChange={e => set('alert_type', e.target.value)}
-            className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-[11px] text-white outline-none focus:border-cyan-500"
-          >
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] uppercase tracking-wide text-gray-500">Type</label>
+          <select value={form.alert_type} onChange={e => set('alert_type', e.target.value)} className={selectCls}>
             {ALERT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
           </select>
         </div>
-        <div>
-          <label className="text-[10px] text-gray-500 block mb-0.5">Ticker</label>
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] uppercase tracking-wide text-gray-500">Ticker</label>
           <input
             value={form.ticker_cd}
             onChange={e => set('ticker_cd', e.target.value)}
             placeholder="AAPL"
-            className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-[11px] text-white outline-none focus:border-cyan-500 uppercase"
+            className={`${inputCls} uppercase`}
           />
         </div>
-        <div>
-          <label className="text-[10px] text-gray-500 block mb-0.5">Condition</label>
-          <select
-            value={form.condition_type}
-            onChange={e => set('condition_type', e.target.value)}
-            className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-[11px] text-white outline-none focus:border-cyan-500"
-          >
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] uppercase tracking-wide text-gray-500">Condition</label>
+          <select value={form.condition_type} onChange={e => set('condition_type', e.target.value)} className={selectCls}>
             {CONDITION_TYPES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
           </select>
         </div>
-        <div>
-          <label className="text-[10px] text-gray-500 block mb-0.5">Threshold</label>
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] uppercase tracking-wide text-gray-500">Threshold</label>
           <input
             type="number"
             value={form.threshold_value}
             onChange={e => set('threshold_value', e.target.value)}
             placeholder="150.00"
             step="0.01"
-            className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-[11px] text-white outline-none focus:border-cyan-500 tabular-nums"
+            className={inputCls}
           />
         </div>
       </div>
-      <input
-        value={form.message}
-        onChange={e => set('message', e.target.value)}
-        placeholder="Note (optional)"
-        className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-[11px] text-white outline-none focus:border-cyan-500"
-      />
+      <div className="flex flex-col gap-1">
+        <label className="text-[10px] uppercase tracking-wide text-gray-500">Note</label>
+        <input
+          value={form.message}
+          onChange={e => set('message', e.target.value)}
+          placeholder="Optional description..."
+          className={inputCls}
+        />
+      </div>
       <button
         onClick={handleSubmit}
         disabled={!form.ticker_cd || !form.threshold_value}
-        className="w-full flex items-center justify-center gap-1 px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-700 disabled:text-gray-500 text-white text-xs font-medium rounded transition-colors"
+        className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-700 disabled:text-gray-500 text-white text-xs font-medium rounded transition-colors"
       >
         <Zap size={11} /> Create Alert
       </button>
@@ -287,12 +287,12 @@ export default function AlertsWidget({ onRemove }) {
                 />
               ))
             ) : (
-              <div className="flex flex-col items-center justify-center h-full text-gray-500 text-xs gap-2 px-4">
-                <AlertTriangle size={20} className="text-gray-700" />
-                <p>No alerts configured</p>
+              <div className="flex flex-col items-center justify-center h-full text-gray-500 text-xs gap-3 px-4">
+                <Bell size={24} className="text-gray-700" />
+                <p className="text-gray-400">Set up alerts to track price movements</p>
                 <button
                   onClick={() => setCreating(true)}
-                  className="flex items-center gap-1 px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white text-xs rounded transition-colors"
+                  className="flex items-center gap-1.5 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-medium rounded transition-colors"
                 >
                   <Plus size={12} /> Create Alert
                 </button>
