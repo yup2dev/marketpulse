@@ -3,9 +3,10 @@ import asyncio
 from typing import Any, Dict, List, Optional
 
 from data_fetcher.query_executor import QueryExecutor
-from data_fetcher.fetchers.base import AnnotatedResult
 from data_fetcher.fetchers.polygon.orderbook import fetch_stock_orderbook
 from data_fetcher.models.yahoo.stock_price import YFinanceStockPriceData
+from app.backend.core.cache import cached
+from app.backend.services._base import unwrap
 
 _SYMBOL_MAPPING = {
     'KOSPI200.KS': '^KS200',
@@ -29,6 +30,7 @@ def _default_interval(period: Optional[str]) -> str:
     }.get(period or '', '1d')
 
 
+@cached(ttl=60)
 async def get_stock_quote(symbol: str) -> Dict[str, Any]:
     """최신 주가 조회."""
     raw = await QueryExecutor.fetch(
@@ -36,7 +38,7 @@ async def get_stock_quote(symbol: str) -> Dict[str, Any]:
         model="stock_price",
         params={"symbol": _map_symbol(symbol), "interval": "1d", "period": "5d"},
     )
-    prices: List[YFinanceStockPriceData] = raw.result if isinstance(raw, AnnotatedResult) else raw
+    prices: List[YFinanceStockPriceData] = unwrap(raw)
     if prices:
         latest = prices[-1]
         return {
@@ -53,6 +55,7 @@ async def get_stock_quote(symbol: str) -> Dict[str, Any]:
     return {}
 
 
+@cached(ttl=900)
 async def get_stock_history(
     symbol: str,
     period: Optional[str] = None,
@@ -70,7 +73,7 @@ async def get_stock_history(
     else:
         params = {"symbol": mapped, "interval": interval, "period": period or "1mo"}
     raw = await QueryExecutor.fetch(provider="yahoo", model="stock_price", params=params)
-    return raw.result if isinstance(raw, AnnotatedResult) else raw
+    return unwrap(raw)
 
 
 async def get_stock_orderbook(symbol: str) -> dict:

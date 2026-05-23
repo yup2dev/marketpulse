@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from app.backend.core.cache import cached
 from data_fetcher.fetchers.fred.gdp import FREDGDPFetcher
 from data_fetcher.fetchers.fred.unemployment import FREDUnemploymentFetcher
 from data_fetcher.fetchers.fred.cpi import FREDCPIFetcher
@@ -203,6 +204,7 @@ class MacroService:
         ('consumer_sentiment', FREDConsumerSentimentFetcher,  'Index',                {},                             True),
     ]
 
+    @cached(ttl=3600)
     async def get_economic_indicators_overview(self) -> Dict[str, Any]:
         """Get overview of all major economic indicators (latest values) - Parallel fetching for speed"""
         import asyncio
@@ -219,6 +221,7 @@ class MacroService:
         results = await asyncio.gather(*[fetch_one(*spec) for spec in self._OVERVIEW_SPECS])
         return {k: v for k, v in (r for r in results if r)}
 
+    @cached(ttl=3600)
     async def get_indicator_history(
         self,
         indicator_key: str,
@@ -296,6 +299,7 @@ class MacroService:
             'data': chart_data
         }
 
+    @cached(ttl=3600)
     async def get_fred_series_data(
         self,
         series_key: str,
@@ -352,6 +356,7 @@ class MacroService:
             log.error(f"Error fetching FRED series {series_key}: {e}")
             raise
 
+    @cached(ttl=3600)
     async def get_all_fred_series_overview(self) -> List[Dict[str, Any]]:
         """Get latest values for all additional FRED series"""
         results = []
@@ -400,6 +405,7 @@ class MacroService:
 
         return results
 
+    @cached(ttl=300)
     async def get_forex_rates(self) -> List[Dict[str, Any]]:
         """Get latest forex exchange rates"""
         rates = []
@@ -448,6 +454,7 @@ class MacroService:
 
         return rates
 
+    @cached(ttl=900)
     async def get_forex_history(
         self,
         from_currency: str,
@@ -480,6 +487,7 @@ class MacroService:
             log.error(f"Error fetching forex history: {e}")
             raise
 
+    @cached(ttl=300)
     async def get_commodity_ratios(self) -> Dict[str, Any]:
         """
         Calculate important commodity ratios
@@ -496,6 +504,7 @@ class MacroService:
 
         return ratios
 
+    @cached(ttl=900)
     async def get_ratio_history(
         self,
         ratio_type: str,
@@ -564,6 +573,7 @@ class MacroService:
 
         return ((current - previous) / previous) * 100
 
+    @cached(ttl=1800)
     async def get_current_regime(self) -> Dict[str, Any]:
         """
         Calculate current economic regime based on Growth and Inflation
@@ -703,6 +713,7 @@ class MacroService:
             else:
                 return 'deflation'  # Weak growth + low inflation = recession
 
+    @cached(ttl=3600)
     async def get_regime_history(self, period: str = '5y') -> Dict[str, Any]:
         """
         Get historical economic regime data
@@ -799,6 +810,7 @@ class MacroService:
             log.error(f"Error fetching regime history: {e}")
             raise
 
+    @cached(ttl=1800)
     async def get_fed_policy_stance(self) -> Dict[str, Any]:
         """
         Calculate Federal Reserve policy stance
@@ -876,6 +888,7 @@ class MacroService:
             log.error(f"Error calculating Fed policy stance: {e}")
             raise
 
+    @cached(ttl=3600)
     async def get_yield_curve(self) -> Dict[str, Any]:
         """
         Get current Treasury yield curve and calculate key metrics
@@ -964,6 +977,7 @@ class MacroService:
             log.error(f"Error fetching yield curve: {e}")
             raise
 
+    @cached(ttl=3600)
     async def get_yield_curve_history(self, period: str = '5y') -> Dict[str, Any]:
         """
         Get historical yield curve spread data
@@ -1096,6 +1110,7 @@ class MacroService:
             log.error(f"Error fetching yield curve history: {e}")
             raise
 
+    @cached(ttl=1800)
     async def get_inflation_decomposition(self) -> Dict[str, Any]:
         """
         Get detailed inflation breakdown and analysis
@@ -1248,6 +1263,7 @@ class MacroService:
             log.error(f"Error fetching inflation decomposition: {e}")
             raise
 
+    @cached(ttl=1800)
     async def get_labor_dashboard(self) -> Dict[str, Any]:
         """
         Get comprehensive labor market metrics
@@ -1480,6 +1496,7 @@ class MacroService:
             log.error(f"Error fetching labor dashboard: {e}")
             raise
 
+    @cached(ttl=3600)
     async def get_labor_history(self, period: str = '5y') -> Dict[str, Any]:
         """
         Get historical labor market data for Phillips Curve visualization
@@ -1538,6 +1555,7 @@ class MacroService:
             log.error(f"Error fetching labor history: {e}")
             raise
 
+    @cached(ttl=1800)
     async def get_financial_conditions(self) -> Dict[str, Any]:
         """
         Get comprehensive financial conditions analysis
@@ -1806,6 +1824,7 @@ class MacroService:
             log.error(f"Error fetching financial conditions: {e}")
             raise
 
+    @cached(ttl=3600)
     async def get_financial_conditions_history(self, period: str = '5y') -> Dict[str, Any]:
         """
         Get historical financial conditions data
@@ -1880,6 +1899,7 @@ class MacroService:
             log.error(f"Error fetching financial conditions history: {e}")
             raise
 
+    @cached(ttl=1800)
     async def get_sentiment_composite(self) -> Dict[str, Any]:
         """
         Get comprehensive market sentiment analysis
@@ -2100,6 +2120,7 @@ class MacroService:
             log.error(f"Error fetching sentiment composite: {e}")
             raise
 
+    @cached(ttl=3600)
     async def get_sentiment_history(self, period: str = '5y') -> Dict[str, Any]:
         """
         Get historical sentiment data
@@ -2219,6 +2240,7 @@ class MacroService:
             raise
 
 
+    @cached(ttl=3600)
     async def get_gdp_forecast_data(self, period: str = "1y") -> Dict[str, Any]:
         """
         Get GDP forecast/contribution data for overview widget
@@ -2267,6 +2289,7 @@ class MacroService:
             log.error(f"Error fetching GDP forecast data: {e}")
             raise
 
+    @cached(ttl=3600)
     async def get_inflation_momentum_data(self, period: str = "3y") -> Dict[str, Any]:
         """
         Get inflation momentum data with 12M, 6M, 3M rates
@@ -2337,6 +2360,7 @@ class MacroService:
             log.error(f"Error fetching inflation momentum data: {e}")
             raise
 
+    @cached(ttl=3600)
     async def get_initial_claims_data(self, period: str = "2y") -> Dict[str, Any]:
         """
         Get initial unemployment claims data with 4-week MA
@@ -2395,6 +2419,7 @@ class MacroService:
             log.error(f"Error fetching initial claims data: {e}")
             raise
 
+    @cached(ttl=3600)
     async def get_jobs_breakdown_data(self, period: str = "5y") -> Dict[str, Any]:
         """
         Get employment breakdown (Private vs Government)
@@ -2483,6 +2508,7 @@ class MacroService:
             log.error(f"Error fetching jobs breakdown data: {e}")
             raise
 
+    @cached(ttl=3600)
     async def get_inflation_sector_history(self, period: str = "5y") -> Dict[str, Any]:
         """
         Get historical YoY CPI by sector (Food, Energy, Shelter, Medical, etc.)
@@ -2575,6 +2601,7 @@ class MacroService:
     # ------------------------------------------------------------------
     # Business Cycle: CFNAI + OECD CLI + Sahm Rule
     # ------------------------------------------------------------------
+    @cached(ttl=3600)
     async def get_pmi_data(self, period: str = '5y') -> Dict[str, Any]:
         """
         Get Chicago Fed National Activity Index (CFNAI), OECD Composite Leading Indicator,
@@ -2660,6 +2687,7 @@ class MacroService:
     # ------------------------------------------------------------------
     # Fed Balance Sheet / QT Monitor
     # ------------------------------------------------------------------
+    @cached(ttl=3600)
     async def get_fed_balance_sheet(self, period: str = '10y') -> Dict[str, Any]:
         """
         Get Federal Reserve total assets (balance sheet) history.
@@ -2736,6 +2764,7 @@ class MacroService:
     # ------------------------------------------------------------------
     # Real Rates: TIPS Yields + Breakeven Inflation
     # ------------------------------------------------------------------
+    @cached(ttl=3600)
     async def get_real_rates(self, period: str = '5y') -> Dict[str, Any]:
         """
         Get real (inflation-adjusted) Treasury yields and breakeven inflation rates.

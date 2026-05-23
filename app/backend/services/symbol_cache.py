@@ -87,10 +87,65 @@ class SymbolCache:
         except Exception as e:
             logger.warning(f"Failed to save cache file: {e}")
 
+    # 무료 플랜에서 stock-list 대신 사용할 기본 심볼 시드 (fallback)
+    _SEED_SYMBOLS = [
+        {"symbol": "AAPL",  "name": "Apple Inc.",               "exchange": "NASDAQ", "type": "stock"},
+        {"symbol": "MSFT",  "name": "Microsoft Corporation",    "exchange": "NASDAQ", "type": "stock"},
+        {"symbol": "NVDA",  "name": "NVIDIA Corporation",       "exchange": "NASDAQ", "type": "stock"},
+        {"symbol": "GOOGL", "name": "Alphabet Inc.",            "exchange": "NASDAQ", "type": "stock"},
+        {"symbol": "GOOG",  "name": "Alphabet Inc. Class C",    "exchange": "NASDAQ", "type": "stock"},
+        {"symbol": "AMZN",  "name": "Amazon.com Inc.",          "exchange": "NASDAQ", "type": "stock"},
+        {"symbol": "META",  "name": "Meta Platforms Inc.",      "exchange": "NASDAQ", "type": "stock"},
+        {"symbol": "TSLA",  "name": "Tesla Inc.",               "exchange": "NASDAQ", "type": "stock"},
+        {"symbol": "BRK.B", "name": "Berkshire Hathaway Inc.",  "exchange": "NYSE",   "type": "stock"},
+        {"symbol": "JPM",   "name": "JPMorgan Chase & Co.",     "exchange": "NYSE",   "type": "stock"},
+        {"symbol": "V",     "name": "Visa Inc.",                "exchange": "NYSE",   "type": "stock"},
+        {"symbol": "MA",    "name": "Mastercard Inc.",          "exchange": "NYSE",   "type": "stock"},
+        {"symbol": "JNJ",   "name": "Johnson & Johnson",        "exchange": "NYSE",   "type": "stock"},
+        {"symbol": "XOM",   "name": "Exxon Mobil Corporation",  "exchange": "NYSE",   "type": "stock"},
+        {"symbol": "UNH",   "name": "UnitedHealth Group Inc.",  "exchange": "NYSE",   "type": "stock"},
+        {"symbol": "WMT",   "name": "Walmart Inc.",             "exchange": "NYSE",   "type": "stock"},
+        {"symbol": "LLY",   "name": "Eli Lilly and Company",    "exchange": "NYSE",   "type": "stock"},
+        {"symbol": "AVGO",  "name": "Broadcom Inc.",            "exchange": "NASDAQ", "type": "stock"},
+        {"symbol": "AMD",   "name": "Advanced Micro Devices",   "exchange": "NASDAQ", "type": "stock"},
+        {"symbol": "ORCL",  "name": "Oracle Corporation",       "exchange": "NYSE",   "type": "stock"},
+        {"symbol": "INTC",  "name": "Intel Corporation",        "exchange": "NASDAQ", "type": "stock"},
+        {"symbol": "CRM",   "name": "Salesforce Inc.",          "exchange": "NYSE",   "type": "stock"},
+        {"symbol": "NFLX",  "name": "Netflix Inc.",             "exchange": "NASDAQ", "type": "stock"},
+        {"symbol": "ADBE",  "name": "Adobe Inc.",               "exchange": "NASDAQ", "type": "stock"},
+        {"symbol": "QCOM",  "name": "QUALCOMM Inc.",            "exchange": "NASDAQ", "type": "stock"},
+        {"symbol": "TXN",   "name": "Texas Instruments Inc.",   "exchange": "NASDAQ", "type": "stock"},
+        {"symbol": "PYPL",  "name": "PayPal Holdings Inc.",     "exchange": "NASDAQ", "type": "stock"},
+        {"symbol": "COST",  "name": "Costco Wholesale Corp.",   "exchange": "NASDAQ", "type": "stock"},
+        {"symbol": "PEP",   "name": "PepsiCo Inc.",             "exchange": "NASDAQ", "type": "stock"},
+        {"symbol": "KO",    "name": "The Coca-Cola Company",    "exchange": "NYSE",   "type": "stock"},
+        {"symbol": "PG",    "name": "Procter & Gamble Co.",     "exchange": "NYSE",   "type": "stock"},
+        {"symbol": "BAC",   "name": "Bank of America Corp.",    "exchange": "NYSE",   "type": "stock"},
+        {"symbol": "GS",    "name": "Goldman Sachs Group Inc.", "exchange": "NYSE",   "type": "stock"},
+        {"symbol": "MS",    "name": "Morgan Stanley",           "exchange": "NYSE",   "type": "stock"},
+        {"symbol": "CVX",   "name": "Chevron Corporation",      "exchange": "NYSE",   "type": "stock"},
+        {"symbol": "HD",    "name": "The Home Depot Inc.",      "exchange": "NYSE",   "type": "stock"},
+        {"symbol": "DIS",   "name": "The Walt Disney Company",  "exchange": "NYSE",   "type": "stock"},
+        {"symbol": "UBER",  "name": "Uber Technologies Inc.",   "exchange": "NYSE",   "type": "stock"},
+        {"symbol": "SPOT",  "name": "Spotify Technology S.A.", "exchange": "NYSE",   "type": "stock"},
+        {"symbol": "SHOP",  "name": "Shopify Inc.",             "exchange": "NYSE",   "type": "stock"},
+        {"symbol": "SQ",    "name": "Block Inc.",               "exchange": "NYSE",   "type": "stock"},
+        {"symbol": "PLTR",  "name": "Palantir Technologies",    "exchange": "NYSE",   "type": "stock"},
+        {"symbol": "ARM",   "name": "Arm Holdings plc",         "exchange": "NASDAQ", "type": "stock"},
+        {"symbol": "SMCI",  "name": "Super Micro Computer",     "exchange": "NASDAQ", "type": "stock"},
+        {"symbol": "SPY",   "name": "SPDR S&P 500 ETF Trust",  "exchange": "NYSE",   "type": "etf"},
+        {"symbol": "QQQ",   "name": "Invesco QQQ Trust",        "exchange": "NASDAQ", "type": "etf"},
+        {"symbol": "IWM",   "name": "iShares Russell 2000 ETF", "exchange": "NYSE",   "type": "etf"},
+        {"symbol": "GLD",   "name": "SPDR Gold Shares",         "exchange": "NYSE",   "type": "etf"},
+        {"symbol": "TLT",   "name": "iShares 20+ Year Treasury","exchange": "NASDAQ", "type": "etf"},
+        {"symbol": "VIX",   "name": "CBOE Volatility Index",    "exchange": "INDEX",  "type": "index"},
+    ]
+
     async def _fetch_from_api(self):
         api_key = os.environ.get("FMP_API_KEY", "")
         if not api_key:
-            logger.error("FMP_API_KEY not set, cannot fetch symbol list")
+            logger.warning("FMP_API_KEY not set — using seed symbol list for autocomplete")
+            self._use_seed_fallback()
             return
 
         def _do_fetch():
@@ -102,11 +157,16 @@ class SymbolCache:
         try:
             raw = await asyncio.get_event_loop().run_in_executor(None, _do_fetch)
         except Exception as e:
-            logger.error(f"FMP stock-list API failed: {e}")
+            logger.warning(
+                f"FMP stock-list unavailable ({e}) — "
+                "free tier may not include this endpoint; using seed symbol list"
+            )
+            self._use_seed_fallback()
             return
 
         if not isinstance(raw, list):
-            logger.error(f"Unexpected FMP response type: {type(raw)}")
+            logger.warning(f"Unexpected FMP stock-list response: {type(raw)} — using seed fallback")
+            self._use_seed_fallback()
             return
 
         symbols = []
@@ -128,6 +188,14 @@ class SymbolCache:
             self._build_index()
             self._save_to_file()
             logger.info(f"Symbol cache refreshed from API: {len(symbols)} symbols")
+
+    def _use_seed_fallback(self):
+        """API를 사용할 수 없을 때 정적 시드 리스트로 캐시를 채웁니다."""
+        if not self.is_loaded:
+            self._symbols = list(self._SEED_SYMBOLS)
+            self._loaded_at = time.time()
+            self._build_index()
+            logger.info(f"Symbol cache seeded with {len(self._symbols)} fallback symbols")
 
     def _build_index(self):
         self._by_symbol = {s["symbol"].upper(): s for s in self._symbols}

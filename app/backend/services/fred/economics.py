@@ -2,17 +2,12 @@
 from typing import Any, Dict, List
 
 from data_fetcher.query_executor import QueryExecutor
-from data_fetcher.fetchers.base import AnnotatedResult
 from data_fetcher.utils.helpers import parse_period_to_dates
+from app.backend.core.cache import cached
+from app.backend.services._base import unwrap, first
 
-
-def _unwrap(raw):
-    return raw.result if isinstance(raw, AnnotatedResult) else raw
-
-
-def _first(raw):
-    result = _unwrap(raw)
-    return result[0] if result else None
+_unwrap = unwrap
+_first = first
 
 
 _INDICATOR_MAP: Dict[str, tuple] = {
@@ -29,6 +24,7 @@ _INDICATOR_MAP: Dict[str, tuple] = {
 }
 
 
+@cached(ttl=3600)
 async def get_economic_indicators() -> Dict[str, Any]:
     """주요 경제지표 최신값 조회."""
     indicators: Dict[str, Any] = {}
@@ -44,6 +40,7 @@ async def get_economic_indicators() -> Dict[str, Any]:
     return indicators
 
 
+@cached(ttl=3600)
 async def get_indicator_history(indicator: str, period: str = "5y") -> List:
     """경제지표 이력 조회."""
     entry = _INDICATOR_MAP.get(indicator)

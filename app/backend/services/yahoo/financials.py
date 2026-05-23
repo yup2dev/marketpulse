@@ -2,7 +2,6 @@
 from typing import List, Optional
 
 from data_fetcher.query_executor import QueryExecutor
-from data_fetcher.fetchers.base import AnnotatedResult
 from data_fetcher.models.yahoo.financials import YFinanceFinancialsData
 from data_fetcher.models.yahoo.balance_sheet import YFinanceBalanceSheetData
 from data_fetcher.models.yahoo.quarterly_pnl import YFinanceQuarterlyPnLData
@@ -11,17 +10,11 @@ from data_fetcher.models.yahoo.dividends import YFinanceDividendData
 from data_fetcher.models.yahoo.splits import YFinanceSplitData
 from data_fetcher.models.yahoo.filings import YFinanceFilingData
 from data_fetcher.models.yahoo.calendar import YFinanceCalendarData
+from app.backend.core.cache import cached
+from app.backend.services._base import unwrap as _unwrap, first as _first
 
 
-def _unwrap(raw):
-    return raw.result if isinstance(raw, AnnotatedResult) else raw
-
-
-def _first(raw):
-    result = _unwrap(raw)
-    return result[0] if result else None
-
-
+@cached(ttl=1800)
 async def get_financials(
     symbol: str,
     freq: str = "quarterly",
@@ -31,6 +24,7 @@ async def get_financials(
     return _unwrap(raw)[:limit]
 
 
+@cached(ttl=1800)
 async def get_balance_sheet(
     symbol: str,
     period: str = "annual",
@@ -43,6 +37,7 @@ async def get_balance_sheet(
     return _unwrap(raw)
 
 
+@cached(ttl=1800)
 async def get_quarterly_pnl(
     symbol: str,
     limit: int = 12,
@@ -50,25 +45,30 @@ async def get_quarterly_pnl(
     return _first(await QueryExecutor.fetch("yahoo", "quarterly_pnl", {"symbol": symbol, "limit": limit}))
 
 
+@cached(ttl=1800)
 async def get_estimates(symbol: str) -> Optional[YFinanceEstimatesData]:
     return _first(await QueryExecutor.fetch("yahoo", "estimates", {"symbol": symbol}))
 
 
+@cached(ttl=3600)
 async def get_dividends(symbol: str, limit: int = 20) -> List[YFinanceDividendData]:
     raw = await QueryExecutor.fetch("yahoo", "dividends", {"symbol": symbol})
     return _unwrap(raw)[:limit]
 
 
+@cached(ttl=3600)
 async def get_splits(symbol: str, limit: int = 20) -> List[YFinanceSplitData]:
     raw = await QueryExecutor.fetch("yahoo", "splits", {"symbol": symbol, "limit": limit})
     return _unwrap(raw)
 
 
+@cached(ttl=3600)
 async def get_filings(symbol: str, limit: int = 20) -> List[YFinanceFilingData]:
     raw = await QueryExecutor.fetch("yahoo", "filings", {"symbol": symbol, "limit": limit})
     return _unwrap(raw)
 
 
+@cached(ttl=3600)
 async def get_calendar(
     symbol: str,
     start_date: Optional[str] = None,

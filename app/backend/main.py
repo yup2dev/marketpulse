@@ -25,6 +25,8 @@ from app.backend.api.routes import (
 )
 from app.backend.api.routes.workspace import router as workspace_router
 from app.backend.api.routes.fundamental import router as fundamental_router
+from app.backend.api.routes.providers import router as providers_router
+from app.backend.api.routes.ws import router as ws_router
 
 
 def _init_db():
@@ -56,7 +58,12 @@ async def lifespan(app: FastAPI):
     from app.backend.services.symbol_cache import get_symbol_cache
     await get_symbol_cache().ensure_loaded()
 
+    from app.backend.core.cache import cache
+    await cache.init(redis_url=settings.REDIS_URL if settings.QUEUE_ENABLED else None)
+
     yield
+
+    await cache.close()
 
 
 app = FastAPI(
@@ -97,6 +104,8 @@ app.include_router(fundamental_router.router, prefix="/api/v1", tags=["equity-fu
 app.include_router(quantlib.router, prefix="/api/quantlib", tags=["quantlib"])
 app.include_router(quantitative.router, prefix="/api/quantitative", tags=["quantitative"])
 app.include_router(notes.router, prefix="/api", tags=["notes"])
+app.include_router(providers_router, prefix="/api", tags=["providers"])
+app.include_router(ws_router, tags=["websocket"])
 
 
 @app.get("/")
@@ -126,6 +135,21 @@ async def health_check():
         "app": "MarketPulse Dashboard",
         "version": settings.APP_VERSION,
     }
+
+
+@app.get("/cache/stats")
+async def cache_stats():
+    """캐시 통계 (백엔드 타입, 히트율 등)"""
+    from app.backend.core.cache import cache
+    return cache.stats()
+
+
+@app.delete("/cache/{prefix}")
+async def cache_invalidate(prefix: str):
+    """특정 prefix 캐시 무효화 (관리용)"""
+    from app.backend.core.cache import cache
+    count = await cache.invalidate_prefix(prefix)
+    return {"invalidated": count, "prefix": prefix}
 
 @app.get("/header")
 async def get_header(response : Response):

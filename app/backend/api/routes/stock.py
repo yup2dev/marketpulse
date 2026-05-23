@@ -333,17 +333,16 @@ async def get_company_relations_route(symbol: str):
 @router.get("/sector-performance")
 @route_handler
 async def get_sector_performance():
-    """S&P 500 섹터별 퍼포먼스 (트리맵/히트맵용)."""
+    """S&P 500 섹터별 퍼포먼스 (트리맵/히트맵용). 등락률은 WebSocket 실시간 제공."""
     from app.backend.database.db_dependency import get_db_sync
     from index_analyzer.models.orm import MBS_IN_STK_PROFILE
 
     db = get_db_sync()
     try:
-        profiles = (
-            db.query(MBS_IN_STK_PROFILE)
-            .filter(MBS_IN_STK_PROFILE.in_sp500 == True, MBS_IN_STK_PROFILE.sector.isnot(None))
-            .all()
-        )
+        base_q = db.query(MBS_IN_STK_PROFILE).filter(MBS_IN_STK_PROFILE.sector.isnot(None))
+        sp500 = base_q.filter(MBS_IN_STK_PROFILE.in_sp500 == True).all()
+        profiles = sp500 if len(sp500) >= 50 else base_q.all()
+
         sector_map = {}
         for p in profiles:
             s = p.sector or "Other"
@@ -363,7 +362,7 @@ async def get_sector_performance():
         sectors = sorted(sector_map.values(), key=lambda x: x["total_market_cap"], reverse=True)
         for sec in sectors:
             sec["count"] = len(sec["stocks"])
-            sec["stocks"] = sorted(sec["stocks"], key=lambda x: x["market_cap"], reverse=True)[:20]
+            sec["stocks"] = sorted(sec["stocks"], key=lambda x: x["market_cap"], reverse=True)[:50]
 
         return {"sectors": sectors}
     finally:
