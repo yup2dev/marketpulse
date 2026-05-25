@@ -7,8 +7,9 @@
     async def get_something(symbol: str) -> dict: ...
 """
 import asyncio
-import json
+import base64
 import logging
+import pickle
 import time
 from functools import wraps
 from typing import Any, Callable, Optional
@@ -16,23 +17,24 @@ from typing import Any, Callable, Optional
 log = logging.getLogger(__name__)
 
 # --------------------------------------------------------------------------- #
-# JSON 직렬화
+# 직렬화 — pickle 기반 (Pydantic 모델 등 타입 보존)
+#
+# JSON 직렬화는 Pydantic 모델을 dict로 평탄화해, 캐시 HIT 시 호출부의
+# .model_dump()·속성 접근이 깨졌다. pickle은 객체 타입을 그대로 복원한다.
+# Redis(decode_responses=True)·인메모리 백엔드가 문자열을 다루므로 base64로 감싼다.
 # --------------------------------------------------------------------------- #
-
-class _JsonEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if hasattr(obj, "model_dump"):      # Pydantic v2
-            return obj.model_dump()
-        if hasattr(obj, "dict"):            # Pydantic v1
-            return obj.dict()
-        if hasattr(obj, "__dict__"):
-            return obj.__dict__
-        return super().default(obj)
-
 
 def _serialize(value: Any) -> Optional[str]:
     try:
-        return json.dumps(value, cls=_JsonEncoder, default=str)
+        return base64.b64encode(pickle.dumps(value)).decode("ascii")
+    except Exception:
+        return None
+
+
+def _deserialize(raw: str) -> Any:
+    """역직렬화 실패 시 None 반환 → 캐시 MISS로 취급(오래된 포맷 등)."""
+    try:
+        return pickle.loads(base64.b64decode(raw))
     except Exception:
         return None
 
@@ -194,10 +196,7 @@ class CacheManager:
         raw = await self._backend.get(key)
         if raw is None:
             return None
-        try:
-            return json.loads(raw)
-        except Exception:
-            return raw
+        return _deserialize(raw)
 
     async def set(self, key: str, value: Any, ttl: int) -> None:
         self._ensure_init()
@@ -266,7 +265,8 @@ def cached(ttl: int):
                 return hit
 
             result = await func(*args, **kwargs)
-            if result is not None:
+            # Don't cache None or empty containers — they may be transient errors
+            if result is not None and result != [] and result != {}:
                 await cache.set(key, result, ttl)
             return result
 

@@ -24,10 +24,11 @@ export const URL_WIDGET_MAP = {
         id: 'overview',
         label: 'Overview',
         defaultWidgets: [
-          { id: 'w1', type: 'gdp-forecast',       x: 0, y: 0, w: 6, h: 6 },
-          { id: 'w2', type: 'inflation-momentum', x: 6, y: 0, w: 6, h: 6 },
-          { id: 'w3', type: 'earnings',           x: 0, y: 6, w: 6, h: 6 },
-          { id: 'w4', type: 'insider',            x: 6, y: 6, w: 6, h: 6 },
+          { id: 'w0', type: 'sparkline',          x: 0, y: 0,  w: 12, h: 3 },
+          { id: 'w1', type: 'gdp-forecast',       x: 0, y: 3,  w: 6,  h: 6 },
+          { id: 'w2', type: 'inflation-momentum', x: 6, y: 3,  w: 6,  h: 6 },
+          { id: 'w3', type: 'earnings',           x: 0, y: 9,  w: 6,  h: 6 },
+          { id: 'w4', type: 'insider',            x: 6, y: 9,  w: 6,  h: 6 },
         ],
         widgets: [
           { id: 'gdp-forecast',       name: 'GDP Forecast',       description: 'Evolution of GDP forecast',  defaultSize: { w: 6, h: 6 } },
@@ -42,7 +43,7 @@ export const URL_WIDGET_MAP = {
           { id: 'screener',           name: 'Screener',            description: 'Screen stocks by criteria',  defaultSize: { w: 12, h: 10 } },
           { id: 'news-feed',          name: 'News Feed',           description: 'Latest market news',         defaultSize: { w: 6, h: 8 } },
           { id: 'alerts',             name: 'Alerts',              description: 'Price & event alerts',       defaultSize: { w: 6, h: 8 } },
-          { id: 'sparkline',          name: 'Mini Charts',         description: 'Sparkline grid overview',    defaultSize: { w: 6, h: 8 } },
+          { id: 'sparkline',          name: 'Index Charts',        description: 'Index ticker bar',           defaultSize: { w: 12, h: 3 } },
           { id: 'comparison',         name: 'Stock Comparison',    description: 'Compare 2-4 stocks',         defaultSize: { w: 8, h: 10 } },
           { id: 'heatmap',            name: 'Sector Heatmap',      description: 'S&P 500 sector treemap',     defaultSize: { w: 8, h: 8 } },
           { id: 'correlation',        name: 'Correlation Matrix',  description: 'Multi-stock correlations',   defaultSize: { w: 8, h: 10 } },
@@ -77,7 +78,7 @@ export const URL_WIDGET_MAP = {
           { id: 'social-sentiment',   name: 'Social Sentiment',  description: 'Reddit & StockTwits',        defaultSize: { w: 6,  h: 8 } },
           { id: 'news-feed',          name: 'News Feed',         description: 'Latest news for this stock', defaultSize: { w: 6,  h: 8 } },
           { id: 'watchlist',          name: 'Watchlist',          description: 'Manage watchlists',          defaultSize: { w: 6,  h: 8 } },
-          { id: 'sparkline',          name: 'Mini Charts',       description: 'Sparkline grid overview',    defaultSize: { w: 6,  h: 8 } },
+          { id: 'sparkline',          name: 'Index Charts',      description: 'Index ticker bar',           defaultSize: { w: 12, h: 3 } },
           { id: 'comparison',         name: 'Stock Comparison',  description: 'Compare 2-4 stocks',         defaultSize: { w: 8,  h: 10 } },
           { id: 'correlation',        name: 'Correlation Matrix',description: 'Multi-stock correlations',   defaultSize: { w: 8,  h: 10 } },
           { id: 'notes',              name: 'Notes',             description: 'Personal memo pad',          defaultSize: { w: 6,  h: 8 } },
@@ -326,6 +327,28 @@ export const URL_WIDGET_MAP = {
         ],
         widgets: [
           { id: 'portfolio-trade-history', name: 'Trade History', description: 'Transaction history', defaultSize: { w: 12, h: 10 } },
+        ],
+      },
+    ],
+  },
+
+  // ─── Screener (/screener) ───────────────────────────────────────────────────
+  '/screener': {
+    label: 'Screener',
+    needsSymbol: false,
+    needsPortfolio: false,
+    categories: [
+      {
+        id: 'screener',
+        label: 'Screener',
+        defaultWidgets: [
+          { id: 'screener-1', type: 'screener', x: 0, y: 0, w: 12, h: 14 },
+        ],
+        widgets: [
+          { id: 'screener',  name: 'Stock Screener', description: 'Filter stocks by fundamentals', defaultSize: { w: 12, h: 14 } },
+          { id: 'watchlist', name: 'Watchlist',       description: 'Manage watchlists',             defaultSize: { w: 6,  h: 8  } },
+          { id: 'heatmap',   name: 'Sector Heatmap',  description: 'S&P 500 sector treemap',        defaultSize: { w: 8,  h: 8  } },
+          { id: 'sparkline', name: 'Index Charts',    description: 'Index ticker bar',              defaultSize: { w: 12, h: 3  } },
         ],
       },
     ],

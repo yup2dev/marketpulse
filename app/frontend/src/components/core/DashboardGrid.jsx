@@ -3,8 +3,9 @@ import GridLayout from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 
-const COLS  = 12;
-const ROW_H = 60;
+const COLS   = 12;
+const ROW_H  = 60;
+const MARGIN = 8;
 
 function storageKey(screen) {
   return `grid-layout:${screen}`;
@@ -60,8 +61,8 @@ export default function DashboardGrid({
       y: w.y ?? 0,
       w: w.w ?? 4,
       h: w.h ?? 4,
-      minW: 2,
-      minH: 2,
+      minW: 1,
+      minH: 1,
     })),
   [widgets]);
 
@@ -119,8 +120,8 @@ export default function DashboardGrid({
           cols={COLS}
           rowHeight={ROW_H}
           width={containerWidth}
-          margin={[8, 8]}
-          containerPadding={[16, 16]}
+          margin={[MARGIN, MARGIN]}
+          containerPadding={[8, 8]}
           onLayoutChange={onLayoutChange}
           draggableHandle=".drag-handle-area, .drag-handle"
           resizeHandles={['se']}
@@ -130,7 +131,7 @@ export default function DashboardGrid({
           useCSSTransforms
         >
           {widgets.map(w => (
-            <div key={w.id}>
+            <div key={w.id} className="h-full">
               {renderWidget
                 ? renderWidget(w, () => removeWidget(w.id), addWidget)
                 : children}

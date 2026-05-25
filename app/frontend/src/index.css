@@ -3,38 +3,175 @@
 @tailwind utilities;
 
 /* ── Design System CSS Variables ─────────────────────────────────────────── */
-:root {
+:root,
+html.dark {
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
-  --color-bg-primary:   #0a0e14;
-  --color-bg-secondary: #111827;
-  --color-bg-tertiary:  #1f2937;
-  --color-border:       #374151;
-  --color-text-primary: #f9fafb;
-  --color-text-muted:   #9ca3af;
-  --color-accent:       #06b6d4;
-  --color-positive:     #22c55e;
-  --color-negative:     #ef4444;
+  --color-bg-primary:    #0a0e14;
+  --color-bg-secondary:  #111827;
+  --color-bg-tertiary:   #1f2937;
+  --color-bg-widget:     #0d0d12;
+  --color-border:        #374151;
+  --color-border-subtle: #1f2937;
+  --color-text-primary:  #f9fafb;
+  --color-text-secondary:#9ca3af;
+  --color-text-muted:    #6b7280;
+  --color-accent:        #06b6d4;
+  --color-positive:      #22c55e;
+  --color-negative:      #ef4444;
+  --color-header-bg:     #0d0d0d;
+}
+
+/* Light mode overrides */
+html.light {
+  --color-bg-primary:    #f5f7fa;
+  --color-bg-secondary:  #ffffff;
+  --color-bg-tertiary:   #f1f5f9;
+  --color-bg-widget:     #ffffff;
+  --color-border:        #e2e8f0;
+  --color-border-subtle: #e2e8f0;
+  --color-text-primary:  #0f172a;
+  --color-text-secondary:#475569;
+  --color-text-muted:    #94a3b8;
+  --color-accent:        #0891b2;
+  --color-positive:      #16a34a;
+  --color-negative:      #dc2626;
+  --color-header-bg:     #ffffff;
 }
 
 @layer base {
   body {
     @apply m-0;
     font-family: var(--font-sans);
+    background-color: var(--color-bg-primary);
+    color: var(--color-text-primary);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
-
-  /* Dark theme (default) */
-  body {
-    @apply bg-[#0a0e14] text-[#e6edf3];
-  }
-
-  /* Light theme */
-  .light body,
-  html.light {
-    @apply bg-[#f5f7fa] text-gray-900;
-  }
 }
+
+/* ── Theme-aware utility classes ──────────────────────────────────────────── */
+.widget-surface  { background-color: var(--color-bg-widget); }
+.widget-border   { border-color: var(--color-border); }
+.widget-content  { background-color: var(--color-bg-widget); color: var(--color-text-primary); }
+.surface-primary { background-color: var(--color-bg-primary); }
+.surface-secondary { background-color: var(--color-bg-secondary); }
+.text-themed-primary   { color: var(--color-text-primary); }
+.text-themed-secondary { color: var(--color-text-secondary); }
+.text-themed-muted     { color: var(--color-text-muted); }
+.border-themed { border-color: var(--color-border); }
+
+/* ── Light mode overrides (flat selectors — CSS nesting 미지원 환경 대응) ─── */
+
+/* 배경색 — 하드코딩 hex (브라우저 이스케이프 차이 대응: 양식 모두 작성) */
+html.light .bg-\[\#0d0d12\], html.light .bg-\[#0d0d12\],
+html.light .bg-\[\#0a0a0f\], html.light .bg-\[#0a0a0f\],
+html.light .bg-\[\#0a0e14\], html.light .bg-\[#0a0e14\],
+html.light .bg-\[\#111827\], html.light .bg-\[#111827\],
+html.light .bg-\[\#1a1a1f\], html.light .bg-\[#1a1a1f\],
+html.light .bg-\[\#12121a\], html.light .bg-\[#12121a\],
+html.light .bg-\[\#0d1117\], html.light .bg-\[#0d1117\] {
+  background-color: var(--color-bg-widget) !important;
+}
+
+/* 배경색 — Tailwind gray */
+html.light .bg-gray-950 { background-color: var(--color-bg-primary)    !important; }
+html.light .bg-gray-900 { background-color: var(--color-bg-secondary)  !important; }
+html.light .bg-gray-800 { background-color: var(--color-bg-tertiary)   !important; }
+html.light .bg-gray-700 { background-color: #d1d5db                    !important; }
+html.light .bg-gray-800\/50 { background-color: rgba(241,245,249,0.7)  !important; }
+html.light .bg-gray-900\/50 { background-color: rgba(255,255,255,0.7)  !important; }
+
+/* 텍스트 */
+html.light .text-white   { color: var(--color-text-primary)   !important; }
+html.light .text-gray-100,
+html.light .text-gray-200,
+html.light .text-gray-300 { color: var(--color-text-secondary) !important; }
+html.light .text-gray-400  { color: var(--color-text-secondary) !important; }
+html.light .text-gray-500  { color: var(--color-text-muted)     !important; }
+html.light .text-gray-600  { color: #64748b                     !important; }
+
+/* DashboardPage 서브헤더 등 text-gray-200 직접 사용 케이스 */
+html.light .text-gray-200  { color: var(--color-text-primary)   !important; }
+
+/* 테두리 */
+html.light .border-gray-800 { border-color: var(--color-border) !important; }
+html.light .border-gray-700 { border-color: var(--color-border) !important; }
+html.light .border-gray-600 { border-color: #cbd5e1             !important; }
+
+/* 배경색 — 누락된 하드코딩 hex */
+html.light .bg-\[\#0d0d0d\], html.light .bg-\[#0d0d0d\],
+html.light .bg-\[\#111118\], html.light .bg-\[#111118\],
+html.light .bg-\[\#1a1a2e\], html.light .bg-\[#1a1a2e\],
+html.light .bg-\[\#161b22\], html.light .bg-\[#161b22\] {
+  background-color: var(--color-bg-widget) !important;
+}
+
+/* 배경색 — gray 투명도 변형 (위젯 내부 패널/칩 등) */
+html.light .bg-gray-800\/80,
+html.light .bg-gray-800\/60,
+html.light .bg-gray-800\/40,
+html.light .bg-gray-800\/30,
+html.light .bg-gray-800\/20 { background-color: rgba(241,245,249,0.7) !important; }
+html.light .bg-gray-900\/50,
+html.light .bg-gray-900\/40 { background-color: rgba(255,255,255,0.8) !important; }
+html.light .bg-gray-700\/50 { background-color: #e2e8f0                !important; }
+html.light .bg-gray-600     { background-color: #cbd5e1                !important; }
+html.light .bg-gray-500\/15 { background-color: rgba(148,163,184,0.15) !important; }
+
+/* 테두리 — gray 투명도 변형 */
+html.light .border-gray-800\/60,
+html.light .border-gray-800\/50,
+html.light .border-gray-800\/40,
+html.light .border-gray-800\/30,
+html.light .border-gray-700\/60,
+html.light .border-gray-700\/50 { border-color: var(--color-border) !important; }
+html.light .border-gray-500,
+html.light .border-gray-500\/30 { border-color: #cbd5e1 !important; }
+
+/* 호버 */
+html.light .hover\:bg-gray-800:hover { background-color: var(--color-bg-tertiary) !important; }
+html.light .hover\:bg-gray-700:hover { background-color: #e2e8f0                  !important; }
+
+/* 드롭다운 / 팝업 */
+html.light .bg-\[\#1a1a1f\] {
+  background-color: var(--color-bg-secondary) !important;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.1);
+}
+
+/* 입력창 */
+html.light input[type="text"],
+html.light input[type="search"],
+html.light input[type="number"] {
+  color: var(--color-text-primary) !important;
+  background-color: var(--color-bg-tertiary) !important;
+}
+html.light ::placeholder { color: var(--color-text-muted) !important; }
+
+/* 그리드 */
+html.light .react-grid-layout { background-color: var(--color-bg-primary); }
+
+/* ── Split pane 구분선 (양쪽 테마에서 뚜렷하게 보이도록) ─────────────────────── */
+.split-resize-handle {
+  background-color: #4b5563;            /* dark: gray-600 */
+  transition: background-color 120ms ease;
+}
+html.light .split-resize-handle {
+  background-color: #94a3b8;            /* light: slate-400 */
+}
+.split-resize-handle:hover { background-color: var(--color-accent) !important; }
+/* 중앙 그립 표시 */
+.split-resize-handle::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: rgba(255, 255, 255, 0.55);
+  border-radius: 9999px;
+}
+.split-resize-handle.is-horizontal::after { width: 2px; height: 24px; }
+.split-resize-handle.is-vertical::after   { width: 24px; height: 2px; }
+html.light .split-resize-handle::after { background-color: rgba(255, 255, 255, 0.85); }
 
 /* React Grid Layout Styles */
 .react-grid-layout {

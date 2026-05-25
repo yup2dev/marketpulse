@@ -14,6 +14,18 @@ export default function CorrelationWidget({ onRemove }) {
   const [loading, setLoading] = useState(false);
   const [addInput, setAddInput] = useState('');
   const [hovered, setHovered] = useState(null);
+  const [dims, setDims] = useState({ w: 0, h: 0 });
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const ro = new ResizeObserver((entries) => {
+      const { width, height } = entries[0].contentRect;
+      setDims({ w: Math.floor(width), h: Math.floor(height) });
+    });
+    ro.observe(containerRef.current);
+    return () => ro.disconnect();
+  }, []);
 
   const fetchCorrelation = useCallback(async () => {
     if (symbols.length < 2) return;
@@ -43,17 +55,36 @@ export default function CorrelationWidget({ onRemove }) {
 
   const removeSymbol = (sym) => setSymbols((prev) => prev.filter((s) => s !== sym));
 
+  // Dynamic cell sizing: fit n×n matrix + label column + legend into available space
+  const n = labels.length;
+  // width: n cells + ~1.2x cell for row-label column
+  // height: n cells + 1 header row (≈ cellSize for vertical labels) + 30px legend
+  const cellSize = n > 0 && dims.w > 0 && dims.h > 0
+    ? Math.max(20, Math.min(60, Math.floor(Math.min(
+        dims.w / (n + 1.2),
+        (dims.h - 30) / (n + 1),
+      ))))
+    : 36;
+  const fontSize = Math.max(8, Math.min(11, cellSize * 0.27));
+  const verticalHeader = n > 5 || cellSize < 36;
+
   return (
     <BaseWidget
       title="Correlation Matrix"
       icon={Grid3X3}
-      loading={loading}
       onRefresh={fetchCorrelation}
       onRemove={onRemove}
       showViewToggle={false}
       showPeriodSelector={false}
     >
-      <div className="flex flex-col h-full min-h-0">
+      {/* absolute inset-0: widget-content is position:relative, so this fills it without h-full */}
+      <div className="absolute inset-0 flex flex-col">
+      {loading && (
+        <div className="absolute inset-0 flex items-center justify-center z-10 bg-black/20">
+          <div className="w-5 h-5 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      )}
+        {/* Toolbar */}
         <div className="flex items-center gap-2 px-3 pt-2 pb-1 flex-shrink-0 flex-wrap">
           <div className="flex gap-1">
             {PERIODS.map((p) => (
@@ -81,81 +112,107 @@ export default function CorrelationWidget({ onRemove }) {
           )}
         </div>
 
-        <div className="flex flex-wrap gap-1 px-3 pb-1">
-        {symbols.map((sym) => (
-          <span key={sym} className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 bg-gray-800 rounded text-gray-300 font-mono">
-            {sym}
-            <button onClick={() => removeSymbol(sym)} className="text-gray-600 hover:text-red-400">×</button>
-          </span>
-        ))}
-      </div>
+        {/* Symbol chips */}
+        <div className="flex flex-wrap gap-1 px-3 pb-1 flex-shrink-0">
+          {symbols.map((sym) => (
+            <span key={sym} className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 bg-gray-800 rounded text-gray-300 font-mono">
+              {sym}
+              <button onClick={() => removeSymbol(sym)} className="text-gray-600 hover:text-red-400">×</button>
+            </span>
+          ))}
+        </div>
 
-      <div className="flex-1 overflow-auto p-2">
-        {matrix && labels.length ? (
-          <div className="relative">
-            <table className="text-[10px] mx-auto">
-              <thead>
-                <tr>
-                  <th className="px-1 py-1" />
-                  {labels.map((l) => (
-                    <th key={l} className="px-2 py-1 text-gray-400 font-mono font-medium text-center" style={{ writingMode: labels.length > 6 ? 'vertical-rl' : undefined }}>
-                      {l}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {labels.map((rowLabel, ri) => (
-                  <tr key={rowLabel}>
-                    <td className="px-2 py-1 text-gray-400 font-mono font-medium text-right">{rowLabel}</td>
-                    {matrix[ri].map((val, ci) => {
-                      const bg = corrColor(val);
-                      const isHov = hovered && hovered[0] === ri && hovered[1] === ci;
-                      return (
-                        <td
-                          key={ci}
-                          onMouseEnter={() => setHovered([ri, ci])}
-                          onMouseLeave={() => setHovered(null)}
-                          className="text-center tabular-nums relative"
-                          style={{
-                            backgroundColor: bg,
-                            padding: '6px 8px',
-                            color: Math.abs(val) > 0.5 ? '#fff' : '#9ca3af',
-                            fontWeight: ri === ci ? 600 : 400,
-                            outline: isHov ? '2px solid #22d3ee' : 'none',
-                            outlineOffset: -1,
-                          }}
-                        >
-                          {val.toFixed(2)}
-                        </td>
-                      );
-                    })}
+        {/* containerRef directly on flex-1 div — ResizeObserver gets flex-allocated size */}
+        <div ref={containerRef} className="flex-1 min-h-0 overflow-hidden relative">
+          {matrix && labels.length ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <table style={{ borderCollapse: 'collapse', fontSize }}>
+                <thead>
+                  <tr>
+                    <th style={{ padding: `0 ${Math.max(4, cellSize * 0.15)}px` }} />
+                    {labels.map((l) => (
+                      <th
+                        key={l}
+                        className="text-gray-400 font-mono font-medium text-center"
+                        style={{
+                          padding: `4px ${Math.max(2, cellSize * 0.1)}px`,
+                          writingMode: verticalHeader ? 'vertical-rl' : undefined,
+                          transform: verticalHeader ? 'rotate(180deg)' : undefined,
+                          maxWidth: cellSize,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {l}
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {labels.map((rowLabel, ri) => (
+                    <tr key={rowLabel}>
+                      <td
+                        className="text-gray-400 font-mono font-medium text-right"
+                        style={{
+                          padding: `${Math.max(2, cellSize * 0.1)}px ${Math.max(4, cellSize * 0.2)}px`,
+                          whiteSpace: 'nowrap',
+                          fontSize,
+                        }}
+                      >
+                        {rowLabel}
+                      </td>
+                      {matrix[ri].map((val, ci) => {
+                        const isHov = hovered && hovered[0] === ri && hovered[1] === ci;
+                        return (
+                          <td
+                            key={ci}
+                            onMouseEnter={() => setHovered([ri, ci])}
+                            onMouseLeave={() => setHovered(null)}
+                            className="text-center tabular-nums"
+                            style={{
+                              backgroundColor: corrColor(val),
+                              width: cellSize,
+                              height: cellSize,
+                              padding: `${Math.max(2, cellSize * 0.1)}px ${Math.max(2, cellSize * 0.15)}px`,
+                              color: Math.abs(val) > 0.5 ? '#fff' : '#9ca3af',
+                              fontWeight: ri === ci ? 600 : 400,
+                              outline: isHov ? '2px solid #22d3ee' : 'none',
+                              outlineOffset: -1,
+                              fontSize,
+                            }}
+                          >
+                            {cellSize >= 30 ? val.toFixed(2) : val.toFixed(1)}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
 
-            {hovered && (
-              <div className="absolute bottom-1 right-1 bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[10px] text-gray-300">
-                {labels[hovered[0]]} × {labels[hovered[1]]}: <span className="text-white font-semibold">{matrix[hovered[0]][hovered[1]].toFixed(4)}</span>
+              {/* Legend */}
+              <div className="flex items-center justify-center gap-1 mt-2 flex-shrink-0">
+                <span className="text-[9px] text-gray-500">-1.0</span>
+                <div className="flex h-2.5 rounded overflow-hidden" style={{ width: Math.min(160, dims.w * 0.5) }}>
+                  {[...Array(20)].map((_, i) => (
+                    <div key={i} className="flex-1" style={{ backgroundColor: corrColor(-1 + (i / 19) * 2) }} />
+                  ))}
+                </div>
+                <span className="text-[9px] text-gray-500">+1.0</span>
               </div>
-            )}
 
-            <div className="flex items-center justify-center gap-1 mt-3">
-              <span className="text-[9px] text-gray-500">-1.0</span>
-              <div className="flex h-3 w-40 rounded overflow-hidden">
-                {[...Array(20)].map((_, i) => (
-                  <div key={i} className="flex-1" style={{ backgroundColor: corrColor(-1 + (i / 19) * 2) }} />
-                ))}
-              </div>
-              <span className="text-[9px] text-gray-500">+1.0</span>
+              {hovered && (
+                <div className="absolute bottom-2 right-2 bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[10px] text-gray-300 pointer-events-none z-10">
+                  {labels[hovered[0]]} × {labels[hovered[1]]}: <span className="text-white font-semibold">{matrix[hovered[0]][hovered[1]].toFixed(4)}</span>
+                </div>
+              )}
             </div>
-          </div>
-        ) : (
-          <div className="text-center text-gray-500 text-[11px] py-8">
-            Add at least 2 symbols
-          </div>
-        )}
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center text-gray-500 text-[11px]">
+              Add at least 2 symbols
+            </div>
+          )}
         </div>
       </div>
     </BaseWidget>
@@ -173,7 +230,7 @@ function corrColor(v) {
     const t = Math.min(-v, 1);
     const r = Math.round(13 + (239 - 13) * t);
     const g = Math.round(17 + (68 - 17) * t);
-    const b = Math.round(18 + (68 - 18) * t);
+    const b = Math.round(18 + (18 - 18) * t);
     return `rgb(${r},${g},${b})`;
   }
 }

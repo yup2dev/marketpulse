@@ -17,6 +17,33 @@ export const WIDGET_STYLES = {
   title: 'text-sm font-semibold text-white',
 };
 
+export const PERIOD_OPTIONS = {
+  short: [
+    { id: '1mo', label: '1M' },
+    { id: '3mo', label: '3M' },
+    { id: '6mo', label: '6M' },
+    { id: '1y',  label: '1Y' },
+  ],
+  medium: [
+    { id: '6mo', label: '6M' },
+    { id: '1y',  label: '1Y' },
+    { id: '2y',  label: '2Y' },
+    { id: '3y',  label: '3Y' },
+  ],
+  long: [
+    { id: '1y',  label: '1Y' },
+    { id: '3y',  label: '3Y' },
+    { id: '5y',  label: '5Y' },
+    { id: '10y', label: '10Y' },
+  ],
+  macro: [
+    { id: '1y',  label: '1Y' },
+    { id: '2y',  label: '2Y' },
+    { id: '3y',  label: '3Y' },
+    { id: '5y',  label: '5Y' },
+  ],
+};
+
 export const WIDGET_ICON_COLORS = {
   financial: 'text-blue-400',
   chart: 'text-emerald-400',

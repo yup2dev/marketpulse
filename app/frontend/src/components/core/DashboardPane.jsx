@@ -74,12 +74,12 @@ export default function DashboardPane({
 
   return (
     <div
-      className="flex flex-col h-full w-full bg-[#0a0a0f]"
+      className="flex flex-col h-full w-full surface-primary"
       onContextMenu={handleBgContext}
     >
       {/* ── Tab bar ─────────────────────────────────────────────────── */}
       {categories.length > 1 && (
-        <div className="flex items-center gap-0.5 px-2 pt-1 pb-0 border-b border-gray-800 bg-[#0d0d12] flex-shrink-0">
+        <div className="flex items-center gap-0.5 px-2 pt-1 pb-0 border-b widget-border widget-surface flex-shrink-0">
           <div className="flex gap-0.5 overflow-x-auto flex-1">
             {categories.map((cat) => (
               <button
@@ -133,7 +133,7 @@ export default function DashboardPane({
       {tabMenu && (
         <ContextMenuPortal>
           <div
-            className="fixed z-[100] bg-[#0d0d12] border border-gray-700 rounded-lg shadow-2xl py-1 min-w-[180px]"
+            className="fixed z-[100] widget-surface border widget-border rounded-lg shadow-2xl py-1 min-w-[180px]"
             style={{
               left: Math.min(tabMenu.x, window.innerWidth - 200),
               top: Math.min(tabMenu.y, window.innerHeight - 120),
@@ -183,7 +183,7 @@ export default function DashboardPane({
       {bgMenu && (
         <ContextMenuPortal>
           <div
-            className="fixed z-[100] bg-[#0d0d12] border border-gray-700 rounded-lg shadow-2xl py-1 min-w-[180px]"
+            className="fixed z-[100] widget-surface border widget-border rounded-lg shadow-2xl py-1 min-w-[180px]"
             style={{
               left: Math.min(bgMenu.x, window.innerWidth - 200),
               top: Math.min(bgMenu.y, window.innerHeight - 200),

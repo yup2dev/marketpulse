@@ -3,8 +3,15 @@ import hashlib
 import pickle
 from typing import Any, Optional
 from pathlib import Path
-import redis
 import logging
+
+# redis는 선택적 의존성 — 없으면 파일 캐시만 사용
+try:
+    import redis as _redis_lib
+    _HAS_REDIS = True
+except ImportError:
+    _redis_lib = None
+    _HAS_REDIS = False
 
 logger = logging.getLogger(__name__)
 
@@ -16,15 +23,21 @@ class CacheManager:
         local_cache_dir: str = "./cache",
         default_ttl: int = 3600
     ):
-        try:
-            self.redis_client = redis.from_url(redis_url)
-            self.redis_client.ping()
-            self.use_redis = True
-            logger.info("Redis cache connected")
-        except Exception:
-            self.redis_client = None
-            self.use_redis = False
-            logger.info("Redis unavailable, using local file cache only")
+        self.redis_client = None
+        self.use_redis = False
+
+        if _HAS_REDIS:
+            try:
+                self.redis_client = _redis_lib.from_url(redis_url)
+                self.redis_client.ping()
+                self.use_redis = True
+                logger.info("Redis cache connected")
+            except Exception:
+                self.redis_client = None
+                self.use_redis = False
+                logger.info("Redis unavailable, using local file cache only")
+        else:
+            logger.info("redis package not installed, using local file cache only")
 
         self.local_cache_dir = Path(local_cache_dir)
         self.local_cache_dir.mkdir(exist_ok=True)

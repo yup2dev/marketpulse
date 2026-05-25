@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Plus, Trash2, X, Star, Briefcase } from 'lucide-react';
 import BaseWidget from './common/BaseWidget';
 import StockListTable from './common/StockListTable';
 import SymbolAutocomplete from '../common/SymbolAutocomplete';
 import { watchlistAPI, portfolioAPI } from '../../config/api';
+import useQuoteSocket from '../../hooks/useQuoteSocket';
 
 export default function WatchlistWidget({ onRemove }) {
   const [mode, setMode] = useState('watchlist');
@@ -61,6 +62,9 @@ function WatchlistTab() {
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
 
+  const { quotes, connected, subscribe, unsubscribe } = useQuoteSocket();
+  const prevSymbolsRef = useRef([]);
+
   const fetchWatchlists = useCallback(async () => {
     try {
       const res = await watchlistAPI.getAll();
@@ -89,6 +93,17 @@ function WatchlistTab() {
 
   useEffect(() => { fetchWatchlists(); }, []);
   useEffect(() => { fetchItems(); }, [activeId, fetchItems]);
+
+  // WebSocket 심볼 구독 동기화
+  useEffect(() => {
+    const symbols = items.map(it => (it.ticker_cd || it.symbol || '').toUpperCase()).filter(Boolean);
+    const prev = prevSymbolsRef.current;
+    const toUnsub = prev.filter(s => !symbols.includes(s));
+    const toSub   = symbols.filter(s => !prev.includes(s));
+    if (toUnsub.length) unsubscribe(toUnsub);
+    if (toSub.length)   subscribe(toSub);
+    prevSymbolsRef.current = symbols;
+  }, [items, subscribe, unsubscribe]);
 
   const handleAddTicker = async (ticker) => {
     if (!activeId || !ticker) return;
@@ -189,7 +204,7 @@ function WatchlistTab() {
       </div>
 
       {/* Add ticker */}
-      {adding ? (
+      {adding && (
         <div className="px-2 py-2 border-b border-gray-800/50 flex-shrink-0">
           <div className="flex items-center gap-1.5">
             <div className="flex-1 min-w-0">
@@ -209,9 +224,18 @@ function WatchlistTab() {
             </button>
           </div>
         </div>
-      ) : activeId && (
-        <div className="flex items-center justify-between px-3 py-1.5 border-b border-gray-800/50 flex-shrink-0">
-          <span className="text-[10px] text-gray-600">{items.length} stock{items.length !== 1 ? 's' : ''}</span>
+      )}
+
+      {/* WS status + stock count */}
+      {activeId && !adding && (
+        <div className="flex items-center justify-between px-3 py-1 border-b border-gray-800/50 flex-shrink-0">
+          <div className="flex items-center gap-1.5">
+            <span
+              title={connected ? 'Live' : 'Reconnecting…'}
+              className={`w-1.5 h-1.5 rounded-full ${connected ? 'bg-green-400' : 'bg-yellow-500 animate-pulse'}`}
+            />
+            <span className="text-[10px] text-gray-600">{items.length} stock{items.length !== 1 ? 's' : ''}</span>
+          </div>
           <button
             onClick={() => setAdding(true)}
             className="flex items-center gap-1 px-2 py-0.5 text-[10px] text-cyan-400 hover:bg-cyan-500/10 rounded transition-colors"
@@ -240,7 +264,16 @@ function WatchlistTab() {
           </div>
         ) : (
           <StockListTable
-            items={items}
+            items={items.map(it => {
+              const sym = (it.ticker_cd || it.symbol || '').toUpperCase();
+              const q = quotes[sym];
+              if (!q) return it;
+              return {
+                ...it,
+                close_price:  q.price ?? it.close_price,
+                change_rate:  q.change_percent ?? it.change_rate,
+              };
+            })}
             showMarketCap={false}
             emptyMessage="No stocks added yet"
             actions={(item) => (

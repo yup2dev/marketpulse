@@ -8,14 +8,12 @@
 
 Code
 
----
-
 ## 데이터 흐름
 
 ### 1단계: 사용자 호출 (User Invocation)
 
 **Python SDK 호출:**
-```python
+python
 from openbb import obb
 
 # 자동으로 user_settings.json 로드
@@ -37,6 +35,7 @@ UI: Equity → Price → Historical → Symbol: AAPL → Query
 Python
 
 # 라우터 정의
+```
 router = Router(prefix="/equity/price")
 
 @router.command(model="EquityHistorical")
@@ -56,11 +55,12 @@ async def historical(
         * ProviderChoices: 선택된 Provider 결정
         * StandardParams: 표준 파라미터 (symbol, start_date 등)
         * ExtraParams: Provider별 특수 파라미터
+```
 
 3단계: Query 생성 및 실행
 
 Python
-
+```
 class Query:
     def __init__(self, cc, provider_choices, standard_params, extra_params):
         self.provider = provider_choices.provider  # "fmp"
@@ -81,11 +81,12 @@ class Query:
             params={**standard_dict, **extra_dict},
             credentials=self.cc.user_settings.credentials.model_dump(),
         )
+```
 
 4단계: Provider & Fetcher 조회
 
 Python
-
+```
 class QueryExecutor:
     async def execute(self, provider_name, model_name, params, credentials):
         # ① Provider 조회
@@ -104,12 +105,13 @@ class QueryExecutor:
         
         # ④ Fetcher 실행
         return await fetcher_class.fetch_data(params, filtered_credentials)
+```
 
 5단계: Fetcher 3단계 파이프라인
 Fetcher는 3가지 메서드로 구성됩니다:
 
 Python
-
+```
 class FMPEquityHistoricalFetcher(Fetcher):
     
     # ① 파라미터 변환: 표준 형식 → Provider 특정 형식
@@ -145,6 +147,8 @@ class FMPEquityHistoricalFetcher(Fetcher):
                 volume=int(item["volume"]),
             ))
         return results
+```
+
 각 단계의 목적:
 단계	입력	출력	목적
 transform_query	{"symbol": "AAPL"}	EquityHistoricalQueryParams(...)	Provider API 형식으로 변환

@@ -54,6 +54,11 @@ export default function useWorkspace(screen) {
     [screen, store.markDirty],
   );
 
+  const renameWorkspace = useCallback(
+    (id, name) => store.renameWorkspace(screen, id, name),
+    [screen, store.renameWorkspace],
+  );
+
   return {
     workspace,
     workspaces,
@@ -65,5 +70,6 @@ export default function useWorkspace(screen) {
     setActive,
     setDefault,
     markDirty,
+    renameWorkspace,
   };
 }

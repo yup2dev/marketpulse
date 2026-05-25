@@ -16,6 +16,7 @@ import { API_BASE } from '../../../config/api';
 import { downloadCSV, downloadExcel, downloadChartPNG, makeFilename } from '../../../utils/exportUtils';
 import { useWidgetSync } from '../../../contexts/WidgetSyncContext';
 import useClickOutside from '../../../hooks/useClickOutside';
+// import { PERIOD_OPTIONS } from '../constants';
 
 // Symbol Selector Component
 function SymbolSelector({ symbol, onSymbolChange }) {
@@ -260,9 +261,9 @@ export default function BaseWidget({
   };
 
   return (
-    <div className="bg-[#0d0d12] rounded-lg border border-gray-800 h-full flex flex-col overflow-hidden">
+    <div className="widget-surface rounded-lg border widget-border h-full flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-gray-800 bg-[#0d0d12] gap-2">
+      <div className="flex items-center justify-between px-3 py-2 border-b widget-border widget-surface gap-2">
         {/* Left: Drag handle + Title + Symbol */}
         <div className="flex items-center gap-2 cursor-move drag-handle-area flex-1 min-w-0">
           <GripVertical size={14} className="text-gray-600 flex-shrink-0" />
@@ -444,7 +445,7 @@ export default function BaseWidget({
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto min-h-0 relative">
+      <div className="flex-1 overflow-hidden min-h-0 relative widget-content">
         {loading ? (
           <div className="w-full h-full flex items-center justify-center">
             <div className="w-6 h-6 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />

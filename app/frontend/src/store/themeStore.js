@@ -13,24 +13,24 @@ const useThemeStore = create((set, get) => ({
 
   // Actions
   setTheme: (theme) => {
-    // Validate theme
     if (!['dark', 'light'].includes(theme)) {
       console.error('Invalid theme:', theme);
       return;
     }
 
-    // Update localStorage
     localStorage.setItem(THEME_STORAGE_KEY, theme);
 
-    // Update document class for Tailwind dark mode
     const root = document.documentElement;
     if (theme === 'dark') {
       root.classList.add('dark');
+      root.classList.remove('light');
+      root.setAttribute('data-theme', 'dark');
     } else {
       root.classList.remove('dark');
+      root.classList.add('light');
+      root.setAttribute('data-theme', 'light');
     }
 
-    // Update store
     set({ theme });
   },
 

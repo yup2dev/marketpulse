@@ -46,6 +46,8 @@ from data_fetcher.fetchers.yahoo.insider_trading import (
 from data_fetcher.fetchers.alphavantage.quote import AlphaVantageQuoteFetcher
 from data_fetcher.fetchers.alphavantage.timeseries import AlphaVantageTimeseriesFetcher
 from data_fetcher.fetchers.alphavantage.forex import AlphaVantageForexFetcher
+from data_fetcher.fetchers.alphavantage.company_overview import AlphaVantageCompanyOverviewFetcher
+from data_fetcher.fetchers.alphavantage.crypto import AlphaVantageCryptoFetcher
 
 from data_fetcher.fetchers.fmp.quote import FMPQuoteFetcher
 from data_fetcher.fetchers.fmp.company_profile import FMPCompanyProfileFetcher
@@ -62,9 +64,17 @@ from data_fetcher.fetchers.polygon.news import PolygonNewsFetcher
 from data_fetcher.fetchers.polygon.earnings import PolygonEarningsFetcher
 from data_fetcher.fetchers.polygon.insider_trading import PolygonInsiderTradingFetcher
 from data_fetcher.fetchers.polygon.sentiment import PolygonStockSentimentFetcher
+from data_fetcher.fetchers.polygon.options import PolygonOptionsFetcher
+from data_fetcher.fetchers.polygon.short_interest import PolygonShortInterestFetcher
+from data_fetcher.fetchers.polygon.technical_indicators import PolygonTechnicalIndicatorsFetcher
+
+from data_fetcher.fetchers.sec.insider_trading import SECInsiderTradingFetcher
+from data_fetcher.fetchers.sec.institutional_13f import SEC13FFetcher
+from data_fetcher.fetchers.sec.institutions_list import SECInstitutionsListFetcher
 
 from data_fetcher.fetchers.fmp.analyst_data import FMPAnalystDataFetcher
 from data_fetcher.fetchers.fmp.revenue_segments import FMPRevenueSegmentsFetcher
+from data_fetcher.fetchers.fmp.index_constituents import FMPIndexConstituentsFetcher
 
 from data_fetcher.fetchers.social.sentiment import SocialSentimentFetcher
 from data_fetcher.fetchers.database.index_constituents import DBIndexConstituentsFetcher
@@ -153,6 +163,8 @@ alphavantage_provider = Provider(
         "quote": AlphaVantageQuoteFetcher,
         "timeseries": AlphaVantageTimeseriesFetcher,
         "forex": AlphaVantageForexFetcher,
+        "company_overview": AlphaVantageCompanyOverviewFetcher,
+        "crypto": AlphaVantageCryptoFetcher,
     },
     metadata={
         "rate_limit": "5 requests/minute (free tier)",
@@ -181,6 +193,7 @@ fmp_provider = Provider(
         "gainers": FMPGainersFetcher,
         "losers": FMPLosersFetcher,
         "bond_prices": FMPBondPricesFetcher,
+        "index_constituents": FMPIndexConstituentsFetcher,
     },
     metadata={
         "rate_limit": "250 requests/day (free tier), 750/min (premium)",
@@ -201,6 +214,9 @@ polygon_provider = Provider(
         "earnings": PolygonEarningsFetcher,
         "insider_trading": PolygonInsiderTradingFetcher,
         "sentiment": PolygonStockSentimentFetcher,
+        "options": PolygonOptionsFetcher,
+        "short_interest": PolygonShortInterestFetcher,
+        "technical_indicators": PolygonTechnicalIndicatorsFetcher,
     },
     metadata={
         "rate_limit": "5 requests/minute (free tier)",
@@ -241,6 +257,25 @@ whalewisdom_provider = Provider(
     credentials=[],
     fetcher_dict={
         "institutional_holdings": WhaleWisdomFetcher,
+    },
+)
+
+
+# ==================== SEC Provider ====================
+
+sec_provider = Provider(
+    name="sec",
+    description="SEC EDGAR — insider trading (Forms 3/4/5), 13F institutional holdings",
+    website="https://www.sec.gov/edgar",
+    credentials=[],  # EDGAR is keyless (requires only a User-Agent header)
+    fetcher_dict={
+        "insider_trading": SECInsiderTradingFetcher,
+        "institutional_13f": SEC13FFetcher,
+        "institutions_list": SECInstitutionsListFetcher,
+    },
+    metadata={
+        "rate_limit": "10 requests/second (fair-access policy)",
+        "data_coverage": "US public company filings",
     },
 )
 
@@ -295,6 +330,7 @@ def register_all_providers():
     ProviderRegistry.register(social_provider)
     ProviderRegistry.register(db_provider)
     ProviderRegistry.register(whalewisdom_provider)
+    ProviderRegistry.register(sec_provider)
     ProviderRegistry.register(quantlib_provider)
     ProviderRegistry.register(quantitative_provider)
 
@@ -366,6 +402,14 @@ def register_all_fetchers():
             category=category,
             provider="whalewisdom",
             description=f"WhaleWisdom {category.upper()} data"
+        )(fetcher)
+
+    # SEC fetchers
+    for category, fetcher in sec_provider.fetcher_dict.items():
+        FetcherRegistry.register(
+            category=category,
+            provider="sec",
+            description=f"SEC {category.upper()} data"
         )(fetcher)
 
     # QuantLib fetchers

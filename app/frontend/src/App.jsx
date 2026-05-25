@@ -44,6 +44,7 @@ function App() {
           <Route path="macro" element={<DashboardPage />} />
           <Route path="portfolios" element={<DashboardPage />} />
           <Route path="quantlib" element={<DashboardPage />} />
+          <Route path="screener" element={<DashboardPage />} />
           <Route path="backtest" element={<BacktestPage />} />
         </Route>
 

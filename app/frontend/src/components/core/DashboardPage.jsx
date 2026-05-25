@@ -4,9 +4,10 @@
  * Split panes: available on all pages via right-click → "Split Right / Down".
  * Workspaces:  Dashboard (/) only — multiple saved layouts with selector.
  */
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { LayoutGrid, RefreshCw, Plus, ChevronDown, X, Copy, Trash2 } from 'lucide-react';
+import { LayoutGrid, RefreshCw, Plus, ChevronDown, X, Copy, Trash2, Save } from 'lucide-react';
+import useWorkspace from '../../hooks/useWorkspace';
 
 import { WidgetSyncProvider } from '../../contexts/WidgetSyncContext';
 import useAuthStore from '../../store/authStore';
@@ -28,23 +29,7 @@ import StockSelectorModal from '../common/StockSelectorModal';
 import CreatePortfolioModal from '../common/CreatePortfolioModal';
 import AddTransactionModal from '../common/AddTransactionModal';
 
-// ── Workspace persistence (Dashboard only) ──────────────────────────────────
-function loadWorkspaces() {
-  try {
-    const raw = localStorage.getItem('dashboard-workspaces');
-    if (raw) return JSON.parse(raw);
-  } catch {}
-  return [{ id: 'default', name: 'Default' }];
-}
-function saveWorkspaces(list) {
-  localStorage.setItem('dashboard-workspaces', JSON.stringify(list));
-}
-function loadActiveWsId() {
-  return localStorage.getItem('dashboard-active-ws') || 'default';
-}
-function saveActiveWsId(id) {
-  localStorage.setItem('dashboard-active-ws', id);
-}
+// ── Split tree helpers (localStorage — kept as offline fallback) ─────────────
 
 // ── Split tree persistence ──────────────────────────────────────────────────
 function splitTreeStorageKey(pathname, wsId) {
@@ -87,79 +72,111 @@ export default function DashboardPage() {
     categories[0]?.id ||
     '';
 
-  // ── Workspace state (Dashboard only) ────────────────────────────────────
-  const [workspaces, setWorkspaces] = useState(() =>
-    isDashboard ? loadWorkspaces() : [],
-  );
-  const [activeWsId, setActiveWsId] = useState(() =>
-    isDashboard ? loadActiveWsId() : null,
-  );
+  // ── Workspace state — backend via useWorkspace hook ─────────────────────
+  const {
+    workspace: activeWorkspace,
+    workspaces,
+    isLoading: wsLoading,
+    saveLayout: saveWsLayout,
+    createWorkspace: createWsInBackend,
+    deleteWorkspace: deleteWsFromBackend,
+    setActive: setWsActive,
+    renameWorkspace: renameWsInBackend,
+  } = useWorkspace(isDashboard ? 'dashboard' : null);
 
-  const wsId = isDashboard ? activeWsId : null;
+  const wsId = isDashboard ? (activeWorkspace?.id || null) : null;
+  const activeWsId = wsId;
+
+  // Debounce ref for split tree auto-save
+  const saveTreeTimerRef = useRef(null);
 
   const switchWorkspace = useCallback((id) => {
-    setActiveWsId(id);
-    saveActiveWsId(id);
-  }, []);
+    setWsActive(id);
+  }, [setWsActive]);
 
-  const createWorkspace = useCallback(() => {
+  const createWorkspace = useCallback(async () => {
     const nums = workspaces.map((w) => {
       const m = w.name.match(/^Dashboard\s+(\d+)$/);
       return m ? parseInt(m[1], 10) : 0;
     });
     const next = Math.max(0, ...nums) + 1;
-    const ws = { id: `ws_${Date.now()}`, name: `Dashboard ${next}` };
-    const updated = [...workspaces, ws];
-    setWorkspaces(updated);
-    saveWorkspaces(updated);
-    switchWorkspace(ws.id);
-  }, [workspaces, switchWorkspace]);
+    await createWsInBackend(`Dashboard ${next}`);
+  }, [workspaces, createWsInBackend]);
 
   const deleteWorkspace = useCallback(
-    (id) => {
+    async (id) => {
       if (workspaces.length <= 1) return;
-      const updated = workspaces.filter((w) => w.id !== id);
-      setWorkspaces(updated);
-      saveWorkspaces(updated);
       localStorage.removeItem(`split-tree:/-${id}`);
-      if (activeWsId === id) switchWorkspace(updated[0].id);
+      await deleteWsFromBackend(id);
     },
-    [workspaces, activeWsId, switchWorkspace],
+    [workspaces, deleteWsFromBackend],
   );
 
   const renameWorkspace = useCallback(
-    (id, name) => {
-      const updated = workspaces.map((w) =>
-        w.id === id ? { ...w, name } : w,
-      );
-      setWorkspaces(updated);
-      saveWorkspaces(updated);
+    async (id, name) => {
+      await renameWsInBackend(id, name);
     },
-    [workspaces],
+    [renameWsInBackend],
   );
 
-  // ── Split tree state ────────────────────────────────────────────────────
+  // ── Split tree state — backend preferred, localStorage fallback ─────────
+  const splitTreeFromBackend = useMemo(() => {
+    if (!activeWorkspace?.layout?.length) return null;
+    return activeWorkspace.layout[0]?.splitTree || null;
+  }, [activeWorkspace]);
+
   const [splitTree, setSplitTree] = useState(() =>
-    loadSplitTree(pathname, defaultSection, wsId),
+    loadSplitTree(pathname, defaultSection, null),
   );
+
+  // When active workspace changes, reload split tree (backend first, then local)
+  useEffect(() => {
+    if (splitTreeFromBackend) {
+      setSplitTree(splitTreeFromBackend);
+    } else {
+      setSplitTree(loadSplitTree(pathname, defaultSection, activeWsId));
+    }
+  }, [activeWorkspace?.id, splitTreeFromBackend]);
 
   const updateTree = useCallback(
     (newTree) => {
       setSplitTree(newTree);
-      saveSplitTree(pathname, newTree, wsId);
+      saveSplitTree(pathname, newTree, activeWsId); // localStorage fallback
+      // Debounced save to backend
+      if (isDashboard) {
+        clearTimeout(saveTreeTimerRef.current);
+        saveTreeTimerRef.current = setTimeout(() => {
+          saveWsLayout([{ splitTree: newTree }], []);
+        }, 1500);
+      }
     },
-    [pathname, wsId],
+    [pathname, activeWsId, isDashboard, saveWsLayout],
   );
 
-  // Reload tree when page or workspace changes
+  // Cleanup debounce on unmount
+  useEffect(() => () => clearTimeout(saveTreeTimerRef.current), []);
+
+  // Reload tree when page changes (not workspace — handled by workspace effect above)
   useEffect(() => {
-    setSplitTree(loadSplitTree(pathname, defaultSection, wsId));
-  }, [pathname, wsId]);
+    if (!isDashboard) {
+      setSplitTree(loadSplitTree(pathname, defaultSection, null));
+    }
+  }, [pathname]);
 
   // ── Symbol state ────────────────────────────────────────────────────────
+  const symbolFromUrl = searchParams.get('symbol')?.toUpperCase() || null;
+
   const [symbol, setSymbol] = useState(
-    () => useNavigationStore.getState().lastSymbol,
+    () => symbolFromUrl || useNavigationStore.getState().lastSymbol || 'AAPL',
   );
+
+  // Sync symbol when URL ?symbol= changes (CommandPalette navigates to /stock?symbol=XXX)
+  useEffect(() => {
+    if (symbolFromUrl && symbolFromUrl !== symbol) {
+      setSymbol(symbolFromUrl);
+      setLastSymbol(symbolFromUrl);
+    }
+  }, [symbolFromUrl]);
 
   // ── Widget menu (pane-aware) ────────────────────────────────────────────
   const [menuState, setMenuState] = useState({ open: false, paneId: null });
@@ -226,7 +243,7 @@ export default function DashboardPage() {
   // ── Auth guard ──────────────────────────────────────────────────────────
   if (config?.needsPortfolio && !isAuthenticated) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] bg-[#0a0a0f] text-gray-400 gap-3">
+      <div className="flex flex-col items-center justify-center min-h-[60vh] surface-primary text-gray-400 gap-3">
         <p className="text-sm">Sign in to view your portfolio</p>
         <button
           onClick={() => navigate('/login')}
@@ -249,11 +266,11 @@ export default function DashboardPage() {
   return (
     <WidgetSyncProvider defaultSymbol={symbol}>
       <div
-        className="flex flex-col bg-[#0a0a0f] text-white overflow-hidden"
+        className="flex flex-col surface-primary text-themed-primary overflow-hidden"
         style={{ height: 'calc(100vh - 3.5rem)' }}
       >
         {/* ── Sub-header ─────────────────────────────────────────────── */}
-        <div className="bg-[#0d0d12] border-b border-gray-800 px-4 flex-shrink-0">
+        <div className="widget-surface border-b widget-border px-4 flex-shrink-0">
           <div className="flex items-center justify-between py-2 gap-2">
             <div className="flex items-center gap-2">
               <LayoutGrid size={13} className="text-gray-500" />
@@ -273,6 +290,9 @@ export default function DashboardPage() {
             </div>
 
             <div className="flex items-center gap-2">
+              {isDashboard && wsLoading && (
+                <span className="text-[10px] text-gray-600 animate-pulse">동기화 중...</span>
+              )}
               {config.needsSymbol && (
                 <StockSelectorModal
                   symbol={symbol}
@@ -466,9 +486,9 @@ function WorkspaceSelector({
     setEditName(ws.name);
   };
 
-  const commitRename = () => {
+  const commitRename = async () => {
     if (editingId && editName.trim()) {
-      onRename(editingId, editName.trim());
+      await onRename(editingId, editName.trim());
     }
     setEditingId(null);
   };
@@ -545,8 +565,8 @@ function WorkspaceSelector({
             {/* Actions */}
             <div className="border-t border-gray-800 mt-1 pt-1">
               <button
-                onClick={() => {
-                  onCreate();
+                onClick={async () => {
+                  await onCreate();
                   setOpen(false);
                 }}
                 className="w-full flex items-center gap-2 px-3 py-2 text-xs text-cyan-400 hover:bg-gray-800/60 transition-colors"

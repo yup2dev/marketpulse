@@ -255,7 +255,7 @@ export default function CommonTable({
   const rowH = compact ? 'py-1' : 'py-2';
 
   return (
-    <div className={`flex flex-col h-full bg-[#0d0d12] text-gray-200 ${className}`}>
+    <div className={`flex flex-col h-full widget-surface text-themed-primary ${className}`}>
       {/* ── Toolbar ── */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-800 flex-shrink-0">
         {title && <span className="text-xs font-semibold text-gray-300 mr-2">{title}</span>}
@@ -285,7 +285,7 @@ export default function CommonTable({
             {showColPicker && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setShowColPicker(false)} />
-                <div className="absolute right-0 top-full mt-1 bg-[#111827] border border-gray-700 rounded-lg shadow-xl z-50 py-1 min-w-[160px]">
+                <div className="absolute right-0 top-full mt-1 surface-secondary border border-gray-700 rounded-lg shadow-xl z-50 py-1 min-w-[160px]">
                   {table.getAllLeafColumns().map(col => (
                     <label
                       key={col.id}
@@ -320,7 +320,7 @@ export default function CommonTable({
       {/* ── Table ── */}
       <div className="flex-1 overflow-auto min-h-0">
         <table className="w-full text-xs border-collapse">
-          <thead className="sticky top-0 z-10 bg-[#111827]">
+          <thead className="sticky top-0 z-10 surface-secondary">
             {table.getHeaderGroups().map(hg => (
               <tr key={hg.id}>
                 {hg.headers.map(header => {
@@ -397,7 +397,7 @@ export default function CommonTable({
                 if (!renderExpanded || !isExpanded) return [dataRow];
 
                 const detailRow = (
-                  <tr key={`${row.id}-detail`} className="bg-[#0a0a0f]">
+                  <tr key={`${row.id}-detail`} className="surface-primary">
                     <td colSpan={tanColumns.length} className="p-0 border-b border-gray-800">
                       <div className="border-l-2 border-cyan-800/50 ml-8">
                         {renderExpanded(row.original)}

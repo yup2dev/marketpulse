@@ -119,77 +119,88 @@ class ScreenerService:
             MBS_IN_STK_STBD.base_ymd == latest_date
         )
 
-        # 필터 적용
+        # ── 가격/섹터 필터 (mbs_in_stk_stbd) ──────────────────────────────────
         if "sector" in filters and filters["sector"]:
             query = query.filter(MBS_IN_STK_STBD.sector.in_(filters["sector"]))
 
-        if "market_cap_min" in filters:
-            query = query.filter(
-                MBS_IN_FINANCIAL_METRICS.market_cap >= filters["market_cap_min"]
-            )
+        if "price_min" in filters:
+            query = query.filter(MBS_IN_STK_STBD.close_price >= filters["price_min"])
+        if "price_max" in filters:
+            query = query.filter(MBS_IN_STK_STBD.close_price <= filters["price_max"])
 
+        # change_rate 또는 change_pct (프론트엔드 key=change_pct → change_pct_min/max 전송)
+        change_min = filters.get("change_rate_min") or filters.get("change_pct_min")
+        change_max = filters.get("change_rate_max") or filters.get("change_pct_max")
+        if change_min is not None:
+            query = query.filter(MBS_IN_STK_STBD.change_rate >= change_min)
+        if change_max is not None:
+            query = query.filter(MBS_IN_STK_STBD.change_rate <= change_max)
+
+        # ── 재무지표 필터 (mbs_in_financial_metrics) ────────────────────────
+        if "market_cap_min" in filters:
+            query = query.filter(MBS_IN_FINANCIAL_METRICS.market_cap >= filters["market_cap_min"])
         if "market_cap_max" in filters:
-            query = query.filter(
-                MBS_IN_FINANCIAL_METRICS.market_cap <= filters["market_cap_max"]
-            )
+            query = query.filter(MBS_IN_FINANCIAL_METRICS.market_cap <= filters["market_cap_max"])
 
         if "pe_ratio_min" in filters:
-            query = query.filter(
-                MBS_IN_FINANCIAL_METRICS.pe_ratio >= filters["pe_ratio_min"]
-            )
-
+            query = query.filter(MBS_IN_FINANCIAL_METRICS.pe_ratio >= filters["pe_ratio_min"])
         if "pe_ratio_max" in filters:
-            query = query.filter(
-                MBS_IN_FINANCIAL_METRICS.pe_ratio <= filters["pe_ratio_max"]
-            )
+            query = query.filter(MBS_IN_FINANCIAL_METRICS.pe_ratio <= filters["pe_ratio_max"])
 
-        if "price_min" in filters:
-            query = query.filter(
-                MBS_IN_STK_STBD.close_price >= filters["price_min"]
-            )
+        if "pb_ratio_min" in filters:
+            query = query.filter(MBS_IN_FINANCIAL_METRICS.pb_ratio >= filters["pb_ratio_min"])
+        if "pb_ratio_max" in filters:
+            query = query.filter(MBS_IN_FINANCIAL_METRICS.pb_ratio <= filters["pb_ratio_max"])
 
-        if "price_max" in filters:
-            query = query.filter(
-                MBS_IN_STK_STBD.close_price <= filters["price_max"]
-            )
-
-        if "change_rate_min" in filters:
-            query = query.filter(
-                MBS_IN_STK_STBD.change_rate >= filters["change_rate_min"]
-            )
-
-        if "change_rate_max" in filters:
-            query = query.filter(
-                MBS_IN_STK_STBD.change_rate <= filters["change_rate_max"]
-            )
-
-        # ROE 필터
         if "roe_min" in filters:
-            query = query.filter(
-                MBS_IN_FINANCIAL_METRICS.roe >= filters["roe_min"]
-            )
+            query = query.filter(MBS_IN_FINANCIAL_METRICS.roe >= filters["roe_min"])
+        if "roe_max" in filters:
+            query = query.filter(MBS_IN_FINANCIAL_METRICS.roe <= filters["roe_max"])
 
-        # 부채비율 필터
+        if "roa_min" in filters:
+            query = query.filter(MBS_IN_FINANCIAL_METRICS.roa >= filters["roa_min"])
+        if "roa_max" in filters:
+            query = query.filter(MBS_IN_FINANCIAL_METRICS.roa <= filters["roa_max"])
+
+        if "debt_to_equity_min" in filters:
+            query = query.filter(MBS_IN_FINANCIAL_METRICS.debt_to_equity >= filters["debt_to_equity_min"])
         if "debt_to_equity_max" in filters:
-            query = query.filter(
-                MBS_IN_FINANCIAL_METRICS.debt_to_equity <= filters["debt_to_equity_max"]
-            )
+            query = query.filter(MBS_IN_FINANCIAL_METRICS.debt_to_equity <= filters["debt_to_equity_max"])
 
-        # 결과 제한 및 조회
-        results = query.limit(limit).all()
+        if "current_ratio_min" in filters:
+            query = query.filter(MBS_IN_FINANCIAL_METRICS.current_ratio >= filters["current_ratio_min"])
+        if "current_ratio_max" in filters:
+            query = query.filter(MBS_IN_FINANCIAL_METRICS.current_ratio <= filters["current_ratio_max"])
 
-        # 결과 포맷팅
+        if "quick_ratio_min" in filters:
+            query = query.filter(MBS_IN_FINANCIAL_METRICS.quick_ratio >= filters["quick_ratio_min"])
+        if "quick_ratio_max" in filters:
+            query = query.filter(MBS_IN_FINANCIAL_METRICS.quick_ratio <= filters["quick_ratio_max"])
+
+        if "profit_margin_min" in filters:
+            query = query.filter(MBS_IN_FINANCIAL_METRICS.profit_margin >= filters["profit_margin_min"])
+        if "profit_margin_max" in filters:
+            query = query.filter(MBS_IN_FINANCIAL_METRICS.profit_margin <= filters["profit_margin_max"])
+
+        # 시가총액 내림차순 정렬 후 결과 제한
+        results = query.order_by(
+            MBS_IN_FINANCIAL_METRICS.market_cap.desc().nulls_last()
+        ).limit(limit).all()
+
         screened_stocks = []
         for stock, financial in results:
             stock_data = stock.to_dict()
             if financial:
                 stock_data.update({
-                    "market_cap": float(financial.market_cap) if financial.market_cap else None,
-                    "pe_ratio": float(financial.pe_ratio) if financial.pe_ratio else None,
-                    "pb_ratio": float(financial.pb_ratio) if financial.pb_ratio else None,
-                    "roe": float(financial.roe) if financial.roe else None,
-                    "roa": float(financial.roa) if financial.roa else None,
+                    "market_cap":     float(financial.market_cap)     if financial.market_cap     else None,
+                    "pe_ratio":       float(financial.pe_ratio)       if financial.pe_ratio       else None,
+                    "pb_ratio":       float(financial.pb_ratio)       if financial.pb_ratio       else None,
+                    "roe":            float(financial.roe)            if financial.roe            else None,
+                    "roa":            float(financial.roa)            if financial.roa            else None,
                     "debt_to_equity": float(financial.debt_to_equity) if financial.debt_to_equity else None,
+                    "current_ratio":  float(financial.current_ratio)  if financial.current_ratio  else None,
+                    "quick_ratio":    float(financial.quick_ratio)    if financial.quick_ratio    else None,
+                    "profit_margin":  float(financial.profit_margin)  if financial.profit_margin  else None,
                 })
             screened_stocks.append(stock_data)
 

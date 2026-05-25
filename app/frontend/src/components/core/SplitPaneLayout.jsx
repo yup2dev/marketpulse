@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react';
 
-const HANDLE = 5;
+const HANDLE = 4;
 const MIN_PCT = 15;
 
 // ── Tree helpers (exported for DashboardPage) ─────────────────────────────────
@@ -110,8 +110,8 @@ function ResizeHandle({ direction, onResize }) {
     <div
       ref={ref}
       onMouseDown={onMouseDown}
-      className={`flex-shrink-0 bg-gray-800/60 hover:bg-cyan-500/50 transition-colors ${
-        isH ? 'cursor-col-resize' : 'cursor-row-resize'
+      className={`flex-shrink-0 relative split-resize-handle ${
+        isH ? 'cursor-col-resize is-horizontal' : 'cursor-row-resize is-vertical'
       }`}
       style={{ [isH ? 'width' : 'height']: HANDLE }}
     />
@@ -143,14 +143,17 @@ export default function SplitPaneLayout({ tree, renderPane, onTreeChange }) {
     [tree, children, onTreeChange],
   );
 
+  const paneStyle0 = isH
+    ? { width: `calc(${sizes[0]}% - ${half}px)`, minWidth: 0, height: '100%' }
+    : { height: `calc(${sizes[0]}% - ${half}px)`, minHeight: 0, width: '100%' };
+
+  const paneStyle1 = isH
+    ? { width: `calc(${sizes[1]}% - ${half}px)`, minWidth: 0, height: '100%' }
+    : { height: `calc(${sizes[1]}% - ${half}px)`, minHeight: 0, width: '100%' };
+
   return (
-    <div className={`flex ${isH ? 'flex-row' : 'flex-col'} h-full w-full`}>
-      <div
-        className="overflow-hidden"
-        style={{
-          [isH ? 'width' : 'height']: `calc(${sizes[0]}% - ${half}px)`,
-        }}
-      >
+    <div className={`flex ${isH ? 'flex-row' : 'flex-col'} h-full w-full overflow-hidden`}>
+      <div className="overflow-hidden flex-shrink-0" style={paneStyle0}>
         <SplitPaneLayout
           tree={children[0]}
           renderPane={renderPane}
@@ -158,12 +161,7 @@ export default function SplitPaneLayout({ tree, renderPane, onTreeChange }) {
         />
       </div>
       <ResizeHandle direction={direction} onResize={handleResize} />
-      <div
-        className="overflow-hidden"
-        style={{
-          [isH ? 'width' : 'height']: `calc(${sizes[1]}% - ${half}px)`,
-        }}
-      >
+      <div className="overflow-hidden flex-shrink-0" style={paneStyle1}>
         <SplitPaneLayout
           tree={children[1]}
           renderPane={renderPane}
