@@ -16,7 +16,8 @@ const DEFAULT_ITEMS = [
   { sym: '^TNX',      label: '미국 10Y',  market: 'foreign' },
 ];
 
-const PERIOD   = '3mo';
+const PERIOD    = '1d';
+const INTERVAL  = '5m';
 const CARD_GAP = 8;
 const CARD_MIN = 160;
 const TABS_W   = 116;
@@ -64,7 +65,7 @@ export default function SparklineWidget({ onRemove }) {
         if (results[sym]?.length) return;
         try {
           const res = await apiClient.get(
-            `${API_BASE}/stock/history/${encodeURIComponent(sym)}?period=${PERIOD}&interval=1d`
+            `${API_BASE}/stock/history/${encodeURIComponent(sym)}?period=${PERIOD}&interval=${INTERVAL}`
           );
           results[sym] = (res.data || res.prices || [])
             .map((d) => d.close ?? d.Close)

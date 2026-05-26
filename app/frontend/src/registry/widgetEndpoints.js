@@ -22,6 +22,7 @@
 import PortfolioStatsWidget    from '../components/widgets/PortfolioStatsWidget';
 import WatchlistWidget         from '../components/widgets/WatchlistWidget';
 import ScreenerWidget          from '../components/widgets/ScreenerWidget';
+import MarketRankingWidget     from '../components/widgets/MarketRankingWidget';
 import AlertsWidget            from '../components/widgets/AlertsWidget';
 import NewsFeedWidget          from '../components/widgets/NewsFeedWidget';
 import SparklineWidget         from '../components/widgets/SparklineWidget';
@@ -194,6 +195,12 @@ export const WIDGET_ENDPOINTS = {
       { name: 'start_date', label: 'Start',  kind: 'date',   default: () => yearsAgo(2) },
       { name: 'end_date',   label: 'End',    kind: 'date',   default: today },
     ],
+  },
+
+  // ── Market Ranking ──────────────────────────────────────────────────────────
+  'market-ranking': {
+    title:     'Market Ranking',
+    component: MarketRankingWidget,
   },
 
   // ── Watchlist / Screener / Alerts / News (custom CRUD widgets) ─────────────

@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
-  SlidersHorizontal, Plus, X, Play, Save, Trash2, Edit2,
+  SlidersHorizontal, Plus, X, Trash2, Edit2,
   Filter, RefreshCw, Heart,
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import BaseWidget from './common/BaseWidget';
-import { screenerAPI } from '../../config/api';
+import CommonTable from '../common/CommonTable';
+import { screenerAPI, watchlistAPI } from '../../config/api';
 
 // ── 상수 ──────────────────────────────────────────────────────────────────────
 
@@ -294,7 +296,7 @@ function FilterConfigPanel({ item, value, onChange, sectors }) {
 
 // ── FilterPickerModal (카드형 오버레이) ───────────────────────────────────────
 
-function FilterPickerModal({ open, sectors, activeFilters, onFilterChange, onClose, onRun, loading, resultCount }) {
+function FilterPickerModal({ open, sectors, activeFilters, onFilterChange, onClose, onSave, loading, resultCount }) {
   const [tab,         setTab]         = useState('price');
   const [selectedKey, setSelectedKey] = useState(null);
   const [search,      setSearch]      = useState('');
@@ -362,9 +364,9 @@ function FilterPickerModal({ open, sectors, activeFilters, onFilterChange, onClo
 
       {/* 모달 카드 — 좌우 8px 여백, 위 8px, 아래는 container 기준 max-h로 제한 */}
       <div
-        className="absolute inset-x-2 top-2 z-50 flex flex-col rounded-xl shadow-2xl overflow-hidden"
+        className="absolute left-1/2 -translate-x-1/2 top-4 z-50 flex flex-col rounded-xl shadow-2xl overflow-hidden w-[420px] max-w-[calc(100%-16px)]"
         style={{
-          maxHeight: 'calc(100% - 16px)',
+          maxHeight: 'calc(100% - 32px)',
           backgroundColor: 'var(--color-bg-secondary)',
           border: '1px solid var(--color-border)',
         }}
@@ -488,131 +490,15 @@ function FilterPickerModal({ open, sectors, activeFilters, onFilterChange, onClo
                 초기화
               </button>
             )}
-            <button onClick={onRun} disabled={loading}
-              className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50
+            <button onClick={() => { onSave(); onClose(); }}
+              className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500
                 text-white text-xs font-semibold rounded-lg transition-colors">
-              {loading ? '검색 중…' : resultCount != null ? `${resultCount}개 주식보기` : '주식 검색'}
+              {loading ? '검색 중…' : resultCount != null ? `결과 보기 (${resultCount}개)` : '결과 보기'}
             </button>
           </div>
         </div>
       </div>
     </>
-  );
-}
-
-// ── 결과 테이블 ───────────────────────────────────────────────────────────────
-
-function MetricBadge({ value, suffix = '' }) {
-  if (value == null) return <span className="text-gray-600 text-[11px]">—</span>;
-  return <span className="text-[11px] tabular-nums" style={{ color: 'var(--color-text-secondary)' }}>{Number(value).toFixed(1)}{suffix}</span>;
-}
-
-function ResultsTable({ results, favorites, onToggleFavorite }) {
-  const thCls = 'py-2 px-2 text-[10px] font-semibold uppercase tracking-wide whitespace-nowrap';
-
-  return (
-    <table className="w-full min-w-[720px]">
-      <thead className="sticky top-0 z-10" style={{ backgroundColor: 'var(--color-bg-widget)' }}>
-        <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
-          <th className={`${thCls} w-7`} />
-          <th className={`${thCls} w-7 text-center`} style={{ color: 'var(--color-text-muted)' }}>#</th>
-          <th className={`${thCls} text-left`}  style={{ color: 'var(--color-text-muted)' }}>종목명</th>
-          <th className={`${thCls} text-right`} style={{ color: 'var(--color-text-muted)' }}>현재가</th>
-          <th className={`${thCls} text-right`} style={{ color: 'var(--color-text-muted)' }}>등락률</th>
-          <th className={`${thCls} text-left`}  style={{ color: 'var(--color-text-muted)' }}>업종</th>
-          <th className={`${thCls} text-right`} style={{ color: 'var(--color-text-muted)' }}>시총</th>
-          <th className={`${thCls} text-right`} style={{ color: 'var(--color-text-muted)' }}>P/E</th>
-          <th className={`${thCls} text-right`} style={{ color: 'var(--color-text-muted)' }}>P/B</th>
-          <th className={`${thCls} text-right`} style={{ color: 'var(--color-text-muted)' }}>ROE</th>
-          <th className={`${thCls} w-14`} />
-        </tr>
-      </thead>
-      <tbody>
-        {results.map((row, i) => {
-          const sym    = row.stk_cd || row.symbol || '';
-          const name   = row.stk_nm || row.name   || sym;
-          const price  = row.close_price ?? row.price;
-          const chgPct = row.change_rate  ?? row.change_pct;
-          const curr   = row.curr || 'USD';
-          const isFav  = favorites.includes(sym);
-          const pos    = chgPct == null ? null : chgPct >= 0;
-
-          return (
-            <tr key={sym || i}
-              className="group transition-colors"
-              style={{ borderBottom: '1px solid var(--color-border-subtle)' }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-bg-tertiary)'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = ''}
-            >
-              {/* 즐겨찾기 */}
-              <td className="py-2 px-2 text-center">
-                <button onClick={() => onToggleFavorite(sym)}
-                  className={`transition-colors ${isFav ? 'text-red-400' : 'text-gray-600 hover:text-gray-400'}`}>
-                  <Heart size={11} fill={isFav ? 'currentColor' : 'none'} />
-                </button>
-              </td>
-
-              {/* 순위 */}
-              <td className="py-2 px-1 text-center text-[11px] tabular-nums" style={{ color: 'var(--color-text-muted)' }}>{i + 1}</td>
-
-              {/* 종목명 */}
-              <td className="py-2 px-2">
-                <div className="flex items-center gap-2">
-                  <LogoCircle symbol={sym} size={26} />
-                  <div className="min-w-0">
-                    <div className="text-[12px] font-medium truncate max-w-[130px]" style={{ color: 'var(--color-text-primary)' }}>{name}</div>
-                    <div className="text-[10px] font-mono" style={{ color: 'var(--color-text-muted)' }}>{sym}</div>
-                  </div>
-                </div>
-              </td>
-
-              {/* 현재가 */}
-              <td className="py-2 px-2 text-right tabular-nums">
-                <span className="text-[12px] font-medium" style={{ color: 'var(--color-text-primary)' }}>{fmtPrice(price, curr)}</span>
-              </td>
-
-              {/* 등락률 */}
-              <td className="py-2 px-2 text-right tabular-nums">
-                {chgPct == null ? (
-                  <span className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>—</span>
-                ) : (
-                  <span className={`text-[12px] font-semibold ${pos ? 'text-green-500' : 'text-red-500'}`}>
-                    {pos ? '+' : ''}{Number(chgPct).toFixed(2)}%
-                  </span>
-                )}
-              </td>
-
-              {/* 업종 */}
-              <td className="py-2 px-2 max-w-[100px]">
-                <span className="text-[11px] truncate block" style={{ color: 'var(--color-text-secondary)' }}>{row.sector || '—'}</span>
-              </td>
-
-              {/* 시가총액 */}
-              <td className="py-2 px-2 text-right text-[11px] tabular-nums" style={{ color: 'var(--color-text-secondary)' }}>
-                {fmtMcap(row.market_cap, curr)}
-              </td>
-
-              {/* P/E */}
-              <td className="py-2 px-2 text-right"><MetricBadge value={row.pe_ratio} /></td>
-
-              {/* P/B */}
-              <td className="py-2 px-2 text-right"><MetricBadge value={row.pb_ratio} /></td>
-
-              {/* ROE */}
-              <td className="py-2 px-2 text-right"><MetricBadge value={row.roe} suffix="%" /></td>
-
-              {/* 구매 버튼 */}
-              <td className="py-2 px-2 text-center">
-                <button className="px-2 py-0.5 text-[11px] font-semibold text-blue-400
-                  bg-blue-500/10 hover:bg-blue-500/20 rounded transition-colors whitespace-nowrap">
-                  구매
-                </button>
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
   );
 }
 
@@ -708,6 +594,7 @@ export default function ScreenerWidget({ onRemove }) {
     screenerAPI.getPresets().then((r) => setPresets(r.presets || [])).catch(() => {});
     screenerAPI.getSectors().then((r) => setSectors(r.sectors || [])).catch(() => {});
     screenerAPI.getSaved().then((r) => setSaved(r || [])).catch(() => {});
+    watchlistAPI.getMyTickers().then((r) => setFavorites(r.tickers || [])).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -735,7 +622,6 @@ export default function ScreenerWidget({ onRemove }) {
 
   const handleRun = useCallback(async () => {
     setLoading(true);
-    setPickerOpen(false);
     try {
       const params = buildParams(activeFilters);
       const res = await screenerAPI.screen(params);
@@ -809,13 +695,18 @@ export default function ScreenerWidget({ onRemove }) {
   const handleSave = useCallback(async () => {
     const params = buildParams(activeFilters);
     try {
-      const s = await screenerAPI.save({ name: screenTitle, filters: params });
-      setSaved((prev) => {
-        const exists = prev.find((x) => x.screener_id === currentSaved?.screener_id);
-        return exists ? prev.map((x) => x.screener_id === s.screener_id ? s : x) : [...prev, s];
-      });
-      setCurrentSaved(s);
-      setActiveId(s.screener_id);
+      if (currentSaved?.screener_id) {
+        // 기존 스크리너 필터 조건만 업데이트
+        const s = await screenerAPI.update(currentSaved.screener_id, { filters: params, name: screenTitle });
+        setSaved((prev) => prev.map((x) => x.screener_id === s.screener_id ? s : x));
+        setCurrentSaved(s);
+      } else {
+        // 신규 저장
+        const s = await screenerAPI.save({ name: screenTitle, filters: params });
+        setSaved((prev) => [...prev, s]);
+        setCurrentSaved(s);
+        setActiveId(s.screener_id);
+      }
     } catch {}
   }, [activeFilters, buildParams, screenTitle, currentSaved]);
 
@@ -827,9 +718,158 @@ export default function ScreenerWidget({ onRemove }) {
     } catch {}
   }, [activeId]);
 
-  const toggleFavorite = useCallback((sym) => {
-    setFavorites((prev) => prev.includes(sym) ? prev.filter((s) => s !== sym) : [...prev, sym]);
-  }, []);
+  const toggleFavorite = useCallback(async (sym) => {
+    const isAdding = !favorites.includes(sym);
+    setFavorites((prev) => isAdding ? [...prev, sym] : prev.filter((s) => s !== sym));
+    try {
+      if (isAdding) {
+        await watchlistAPI.quickAdd(sym);
+        toast.success(`${sym}을(를) 관심종목에 추가했습니다.`);
+      } else {
+        await watchlistAPI.quickRemove(sym);
+        toast.success(`${sym}을(를) 관심종목에서 제거했습니다.`);
+      }
+    } catch {
+      setFavorites((prev) => isAdding ? prev.filter((s) => s !== sym) : [...prev, sym]);
+      toast.error('관심종목 업데이트에 실패했습니다.');
+    }
+  }, [favorites]);
+
+  // activeFilters 변경 시 500ms debounce 후 자동 검색 (커스텀 모드일 때만)
+  useEffect(() => {
+    if (!isCustomMode || !activeId) return;
+    const timer = setTimeout(() => { handleRun(); }, 500);
+    return () => clearTimeout(timer);
+  }, [activeFilters]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const columns = useMemo(() => [
+    {
+      key: '_fav',
+      header: '',
+      accessorFn: (row) => row.stk_cd || row.symbol || '',
+      renderFn: (sym) => (
+        <button onClick={(e) => { e.stopPropagation(); toggleFavorite(sym); }}
+          className={`p-1 rounded transition-colors ${
+            favorites.includes(sym)
+              ? 'text-red-400 hover:text-red-300'
+              : 'text-gray-500 hover:text-red-400'
+          }`}>
+          <Heart size={16} fill={favorites.includes(sym) ? 'currentColor' : 'none'} />
+        </button>
+      ),
+      sortable: false,
+      width: 40,
+      align: 'center',
+    },
+    {
+      key: '_rank',
+      header: '#',
+      accessorFn: (_row, i) => i + 1,
+      sortable: false,
+      align: 'center',
+      width: 40,
+    },
+    {
+      key: '_name',
+      header: '종목명',
+      accessorFn: (row) => row.stk_nm || row.name || row.stk_cd || row.symbol || '',
+      renderFn: (name, row) => {
+        const sym = row.stk_cd || row.symbol || '';
+        return (
+          <div className="flex items-center gap-2">
+            <LogoCircle symbol={sym} size={26} />
+            <div className="min-w-0">
+              <div className="text-[12px] font-medium truncate max-w-[130px]" style={{ color: 'var(--color-text-primary)' }}>{name}</div>
+              <div className="text-[10px] font-mono" style={{ color: 'var(--color-text-muted)' }}>{sym}</div>
+            </div>
+          </div>
+        );
+      },
+      sortable: true,
+      minWidth: 150,
+    },
+    {
+      key: '_price',
+      header: '현재가',
+      accessorFn: (row) => row.close_price ?? row.price,
+      renderFn: (price, row) => (
+        <span className="text-[12px] font-medium tabular-nums" style={{ color: 'var(--color-text-primary)' }}>
+          {fmtPrice(price, row.curr || 'USD')}
+        </span>
+      ),
+      align: 'right',
+      sortable: true,
+    },
+    {
+      key: '_change',
+      header: '등락률',
+      accessorFn: (row) => row.change_rate ?? row.change_pct,
+      renderFn: (v) => {
+        if (v == null) return <span style={{ color: 'var(--color-text-muted)' }}>—</span>;
+        const pos = v >= 0;
+        return (
+          <span className={`text-[12px] font-semibold tabular-nums ${pos ? 'text-green-500' : 'text-red-500'}`}>
+            {pos ? '+' : ''}{Number(v).toFixed(2)}%
+          </span>
+        );
+      },
+      align: 'right',
+      sortable: true,
+    },
+    {
+      key: 'sector',
+      header: '업종',
+      sortable: true,
+      formatter: 'none',
+    },
+    {
+      key: 'market_cap',
+      header: '시총',
+      renderFn: (v, row) => (
+        <span className="text-[11px] tabular-nums" style={{ color: 'var(--color-text-secondary)' }}>
+          {fmtMcap(v, row.curr || 'USD')}
+        </span>
+      ),
+      align: 'right',
+      sortable: true,
+    },
+    {
+      key: 'pe_ratio',
+      header: 'P/E',
+      formatter: 'number',
+      align: 'right',
+      sortable: true,
+    },
+    {
+      key: 'pb_ratio',
+      header: 'P/B',
+      formatter: 'number',
+      align: 'right',
+      sortable: true,
+    },
+    {
+      key: 'roe',
+      header: 'ROE',
+      renderFn: (v) => v == null
+        ? <span className="text-gray-600 text-[11px]">—</span>
+        : <span className="text-[11px] tabular-nums" style={{ color: 'var(--color-text-secondary)' }}>{Number(v).toFixed(1)}%</span>,
+      align: 'right',
+      sortable: true,
+    },
+    {
+      key: '_buy',
+      header: '',
+      accessorFn: () => null,
+      renderFn: () => (
+        <button className="px-2 py-0.5 text-[11px] font-semibold text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 rounded transition-colors whitespace-nowrap">
+          구매
+        </button>
+      ),
+      sortable: false,
+      align: 'center',
+      width: 56,
+    },
+  ], [favorites, toggleFavorite]);
 
   // 필터 칩 라벨 (메인 바용 — 간결하게)
   const chipLabel = (f) => {
@@ -879,7 +919,7 @@ export default function ScreenerWidget({ onRemove }) {
             activeFilters={activeFilters}
             onFilterChange={setActiveFilters}
             onClose={() => setPickerOpen(false)}
-            onRun={handleRun}
+            onSave={handleSave}
             loading={loading}
             resultCount={resultCount}
           />
@@ -939,22 +979,8 @@ export default function ScreenerWidget({ onRemove }) {
 
                 <div className="flex-1" />
 
-                {isCustomMode && (
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <button onClick={handleSave} disabled={!screenTitle}
-                      className="flex items-center gap-1 px-3 py-1.5 text-xs text-gray-400 hover:text-white
-                        border border-gray-700 hover:border-gray-500 rounded-full transition-colors disabled:opacity-40">
-                      <Save size={11} />
-                      저장
-                    </button>
-                    <button onClick={handleRun} disabled={loading}
-                      className="flex items-center gap-1 px-4 py-1.5 text-xs font-semibold text-white
-                        bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500
-                        rounded-full transition-colors">
-                      <Play size={11} />
-                      {loading ? '검색 중…' : '주식 검색'}
-                    </button>
-                  </div>
+                {isCustomMode && loading && (
+                  <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
                 )}
               </div>
 
@@ -976,10 +1002,10 @@ export default function ScreenerWidget({ onRemove }) {
                         <RefreshCw size={11} />
                       </button>
                     </div>
-                    <ResultsTable
-                      results={results}
-                      favorites={favorites}
-                      onToggleFavorite={toggleFavorite}
+                    <CommonTable
+                      data={results}
+                      columns={columns}
+                      compact
                     />
                   </>
                 ) : (

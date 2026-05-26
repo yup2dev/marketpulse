@@ -170,6 +170,7 @@ export const workspaceAPI = {
 // ─── Watchlist API ───────────────────────────────────────────────────────────
 const WL = `${API_BASE}/watchlist`;
 export const watchlistAPI = {
+  // 그룹 관리
   getAll:       ()              => apiClient.get(WL),
   create:       (data)          => apiClient.post(WL, data),
   getById:      (id)            => apiClient.get(`${WL}/${id}`),
@@ -179,9 +180,21 @@ export const watchlistAPI = {
   addTicker:    (id, data)      => apiClient.post(`${WL}/${id}/items`, data),
   removeTicker: (id, ticker)    => apiClient.request(`${WL}/${id}/items/${encodeURIComponent(ticker)}`, { method: 'DELETE' }),
   reorder:      (id, orders)    => apiClient.request(`${WL}/${id}/items/reorder`, { method: 'PUT', body: JSON.stringify({ ticker_orders: orders }) }),
+  // 빠른 추가/제거 (그룹 선택 없이)
+  getMyTickers: ()              => apiClient.get(`${WL}/my-tickers`),
+  quickAdd:     (ticker_cd)     => apiClient.post(`${WL}/quick-add`, { ticker_cd }),
+  quickRemove:  (ticker_cd)     => apiClient.request(`${WL}/quick-remove/${encodeURIComponent(ticker_cd)}`, { method: 'DELETE' }),
 };
 
 // ─── Screener API ────────────────────────────────────────────────────────────
+// ─── Ranking API ─────────────────────────────────────────────────────────────
+export const rankingAPI = {
+  get: ({ market = 'all', sortBy = 'gainers', period = '1d', limit = 50 } = {}) =>
+    apiClient.get(`${API_BASE}/stock/ranking?market=${market}&sort_by=${sortBy}&period=${period}&limit=${limit}`),
+  getLive: ({ market = 'all', sortBy = 'gainers', limit = 50 } = {}) =>
+    apiClient.get(`${API_BASE}/stock/ranking/live?market=${market}&sort_by=${sortBy}&limit=${limit}`),
+};
+
 const SC = `${API_BASE}/screener`;
 export const screenerAPI = {
   screen:       (filters, limit = 100) => apiClient.post(`${SC}/screen`, { filters, limit }),
@@ -189,6 +202,7 @@ export const screenerAPI = {
   runPreset:    (id, limit = 100)      => apiClient.post(`${SC}/presets/${id}/run?limit=${limit}`),
   getSectors:   ()                     => apiClient.get(`${SC}/sectors`),
   save:         (data)                 => apiClient.post(`${SC}/save`, data),
+  update:       (id, data)             => apiClient.request(`${SC}/saved/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   getSaved:     ()                     => apiClient.get(`${SC}/saved`),
   runSaved:     (id, limit = 100)      => apiClient.post(`${SC}/saved/${id}/run?limit=${limit}`),
   deleteSaved:  (id)                   => apiClient.request(`${SC}/saved/${id}`, { method: 'DELETE' }),
