@@ -77,8 +77,8 @@ class YFinanceStockPriceFetcher(Fetcher[YFinanceStockPriceQueryParams, YFinanceS
             return hist
 
         except Exception as e:
-            log.error(f"Error fetching stock price for {query.symbol}: {e}")
-            raise
+            log.warning(f"Error fetching stock price for {query.symbol}: {e}")
+            return pd.DataFrame()
 
     @staticmethod
     def transform_data(

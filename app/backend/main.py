@@ -61,8 +61,20 @@ async def lifespan(app: FastAPI):
     from app.backend.core.cache import cache
     await cache.init(redis_url=settings.REDIS_URL if settings.QUEUE_ENABLED else None)
 
+    # 실시간 랭킹 캐시 백그라운드 프리워밍 (콜드 로드를 사용자가 기다리지 않도록)
+    import asyncio
+    from app.backend.services.ranking_service import warmup_ranking_loop
+    warmup_task = asyncio.create_task(warmup_ranking_loop())
+
+    # 종목 리스트 초기 캐싱 + 5분 주기 백그라운드 갱신
+    from app.backend.services.stock_list_service import refresh_cache, stock_list_warmup_loop
+    await refresh_cache()
+    stock_list_task = asyncio.create_task(stock_list_warmup_loop())
+
     yield
 
+    warmup_task.cancel()
+    stock_list_task.cancel()
     await cache.close()
 
 
@@ -150,6 +162,14 @@ async def cache_invalidate(prefix: str):
     from app.backend.core.cache import cache
     count = await cache.invalidate_prefix(prefix)
     return {"invalidated": count, "prefix": prefix}
+
+
+@app.post("/cache/refresh")
+async def cache_refresh_stocks():
+    """종목 리스트 캐시 수동 갱신 (종목 추가/삭제 후 호출)"""
+    from app.backend.services.stock_list_service import refresh_cache
+    count = await refresh_cache()
+    return {"status": "ok", "count": count, "cache_key": "stocks:all"}
 
 @app.get("/header")
 async def get_header(response : Response):

@@ -42,6 +42,62 @@ class ReorderItemsRequest(BaseModel):
     ticker_orders: List[dict]  # [{"ticker_cd": "AAPL", "sort_order": 0}, ...]
 
 
+class QuickAddRequest(BaseModel):
+    """빠른 종목 추가 요청 (그룹 선택 없이)"""
+    ticker_cd: str
+
+
+# =============================================================================
+# Quick-Add Endpoints (그룹 없이 간단 추가/제거)
+# =============================================================================
+
+@router.get("/my-tickers")
+async def get_my_tickers(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    사용자가 관심 등록한 모든 종목 코드 목록 (그룹 무관 flat)
+    """
+    try:
+        tickers = WatchlistService.get_all_user_tickers(db, current_user.user_id)
+        return {"success": True, "tickers": tickers}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/quick-add")
+async def quick_add_ticker(
+    request: QuickAddRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    관심종목 빠른 추가 — 기본 그룹이 없으면 자동 생성
+    """
+    try:
+        result = WatchlistService.quick_add_ticker(db, current_user.user_id, request.ticker_cd)
+        return {"success": True, "data": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/quick-remove/{ticker_cd}")
+async def quick_remove_ticker(
+    ticker_cd: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    관심종목 빠른 제거 — 모든 그룹에서 제거
+    """
+    try:
+        WatchlistService.quick_remove_ticker(db, current_user.user_id, ticker_cd)
+        return {"success": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # =============================================================================
 # Watchlist Management Endpoints
 # =============================================================================

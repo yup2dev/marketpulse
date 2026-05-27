@@ -41,11 +41,15 @@ async def get_stock_quote(symbol: str) -> Dict[str, Any]:
     prices: List[YFinanceStockPriceData] = unwrap(raw)
     if prices:
         latest = prices[-1]
+        prev   = prices[-2] if len(prices) > 1 else None
+        # 전일 종가 대비 등락
+        change     = (latest.close - prev.close) if prev else None
+        change_pct = ((latest.close - prev.close) / prev.close * 100) if prev else latest.daily_return
         return {
             'symbol': symbol,
             'price': latest.close,
-            'change': latest.price_change,
-            'change_percent': latest.price_change_pct,
+            'change': change,
+            'change_percent': change_pct,
             'volume': latest.volume,
             'timestamp': latest.date,
             'high': latest.high,

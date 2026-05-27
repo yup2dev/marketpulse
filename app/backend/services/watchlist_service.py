@@ -19,6 +19,89 @@ from index_analyzer.models.orm import Watchlist, WatchlistItem, MBS_IN_STBD_MST
 class WatchlistService:
     """관심종목 서비스"""
 
+    DEFAULT_WATCHLIST_NAME = "관심종목"
+
+    @staticmethod
+    def _get_or_create_default(db: Session, user_id: str) -> "Watchlist":
+        """기본 관심종목 그룹을 가져오거나, 없으면 생성"""
+        watchlist = db.query(Watchlist).filter(Watchlist.user_id == user_id).first()
+        if watchlist:
+            return watchlist
+        watchlist = Watchlist(
+            watchlist_id=str(uuid.uuid4()),
+            user_id=user_id,
+            name=WatchlistService.DEFAULT_WATCHLIST_NAME,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+        )
+        db.add(watchlist)
+        db.commit()
+        db.refresh(watchlist)
+        return watchlist
+
+    @staticmethod
+    def get_all_user_tickers(db: Session, user_id: str) -> List[str]:
+        """사용자가 관심 등록한 모든 종목 코드 (그룹 무관 flat, 중복 제거)"""
+        watchlist_ids = [
+            wl.watchlist_id
+            for wl in db.query(Watchlist).filter(Watchlist.user_id == user_id).all()
+        ]
+        if not watchlist_ids:
+            return []
+        items = db.query(WatchlistItem).filter(
+            WatchlistItem.watchlist_id.in_(watchlist_ids)
+        ).all()
+        return list({item.ticker_cd for item in items})
+
+    @staticmethod
+    def quick_add_ticker(db: Session, user_id: str, ticker_cd: str) -> Dict:
+        """기본 그룹에 종목 추가 (없으면 그룹 자동 생성, 이미 있으면 무시)"""
+        watchlist = WatchlistService._get_or_create_default(db, user_id)
+
+        existing = db.query(WatchlistItem).filter(
+            and_(
+                WatchlistItem.watchlist_id == watchlist.watchlist_id,
+                WatchlistItem.ticker_cd == ticker_cd,
+            )
+        ).first()
+        if existing:
+            return existing.to_dict()
+
+        count = db.query(WatchlistItem).filter(
+            WatchlistItem.watchlist_id == watchlist.watchlist_id
+        ).count()
+        item = WatchlistItem(
+            item_id=str(uuid.uuid4()),
+            watchlist_id=watchlist.watchlist_id,
+            ticker_cd=ticker_cd,
+            sort_order=count,
+            added_at=datetime.utcnow(),
+        )
+        db.add(item)
+        watchlist.updated_at = datetime.utcnow()
+        db.commit()
+        db.refresh(item)
+        return item.to_dict()
+
+    @staticmethod
+    def quick_remove_ticker(db: Session, user_id: str, ticker_cd: str) -> None:
+        """모든 그룹에서 종목 제거"""
+        watchlist_ids = [
+            wl.watchlist_id
+            for wl in db.query(Watchlist).filter(Watchlist.user_id == user_id).all()
+        ]
+        if not watchlist_ids:
+            return
+        items = db.query(WatchlistItem).filter(
+            and_(
+                WatchlistItem.watchlist_id.in_(watchlist_ids),
+                WatchlistItem.ticker_cd == ticker_cd,
+            )
+        ).all()
+        for item in items:
+            db.delete(item)
+        db.commit()
+
     @staticmethod
     def get_user_watchlists(db: Session, user_id: str) -> List[Dict]:
         """

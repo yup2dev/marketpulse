@@ -78,6 +78,7 @@ from data_fetcher.fetchers.fmp.index_constituents import FMPIndexConstituentsFet
 
 from data_fetcher.fetchers.social.sentiment import SocialSentimentFetcher
 from data_fetcher.fetchers.database.index_constituents import DBIndexConstituentsFetcher
+from data_fetcher.fetchers.database.stock_list import DBStockListFetcher
 from data_fetcher.fetchers.whalewisdom.institutional_holdings import WhaleWisdomFetcher
 
 from data_fetcher.fetchers.quantlib.pricing import QuantLibPricingFetcher
@@ -245,6 +246,7 @@ db_provider = Provider(
     credentials=[],
     fetcher_dict={
         "index_constituents": DBIndexConstituentsFetcher,
+        "stock_list": DBStockListFetcher,
     },
 )
 

@@ -4,8 +4,11 @@ Endpoints for stock data, quotes, and historical prices
 """
 import logging
 from typing import Optional
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session
 
+from app.backend.database.db_dependency import get_db
+from app.backend.services.ranking_service import RankingService
 from app.backend.services.yahoo import price as yahoo_price
 from app.backend.services.yahoo import company as yahoo_company
 from app.backend.services.yahoo import financials as yahoo_financials
@@ -438,3 +441,30 @@ async def get_indicator_history(indicator: str, period: str = "5y"):
     if not history:
         raise HTTPException(status_code=404, detail=f"No data for indicator {indicator}")
     return {"indicator": indicator_upper, "period": period, "data": history}
+
+
+@router.get("/ranking/live")
+async def get_live_stock_ranking(
+    market:  str = Query("all",     description="all | domestic | overseas"),
+    sort_by: str = Query("gainers", description="gainers | losers | volume | trade_value"),
+    limit:   int = Query(50,        ge=1, le=200),
+):
+    """yfinance 배치 기반 실시간 랭킹 (60s 캐시)"""
+    results = await RankingService.get_live_ranking(
+        market=market, sort_by=sort_by, limit=limit
+    )
+    return {"results": results, "count": len(results)}
+
+
+@router.get("/ranking")
+async def get_stock_ranking(
+    market:  str = Query("all",     description="all | domestic | overseas"),
+    sort_by: str = Query("gainers", description="gainers | losers | volume | trade_value"),
+    period:  str = Query("1d",      description="realtime | 1d | 1w | 1mo | 3mo | 6mo | 1y"),
+    limit:   int = Query(50,        ge=1, le=200),
+):
+    """시장 랭킹 조회 (기간별 변동률)"""
+    results = await RankingService.get_ranking(
+        market=market, sort_by=sort_by, period=period, limit=limit
+    )
+    return {"results": results, "count": len(results)}
