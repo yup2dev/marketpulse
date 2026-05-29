@@ -176,8 +176,11 @@ class MacroService:
 
     async def _qe(self, fetcher_cls, params=None) -> List[Dict]:
         """_fetch 대체: _FETCHER_MAP → QueryExecutor.fetch → List[Dict]"""
+        from data_fetcher.fetchers.base import AnnotatedResult
         provider, model = _FETCHER_MAP[fetcher_cls]
         raw = await QueryExecutor.fetch(provider, model, params or {})
+        if isinstance(raw, AnnotatedResult):
+            raw = raw.result
         return [m.model_dump(mode='json') if hasattr(m, 'model_dump') else m for m in (raw or [])]
 
     async def _qe_series(self, series_id: str, *, limit: int = 10000, sort_order: str = 'asc',
@@ -727,26 +730,22 @@ class MacroService:
             else:
                 probs = {'hike': 20, 'hold': 60, 'cut': 20}
 
-            return {
-                'stance': stance,
-                'stance_score': round(stance_score, 2),
-                'fed_funds_rate': round(current_rate, 2),
-                'fed_funds_target_range': {
-                    'lower': round(current_rate - 0.25, 2),
-                    'upper': round(current_rate, 2)
-                },
-                'last_updated': current_date,
-                'next_meeting': {
-                    'date': 'TBD',
-                    'probabilities': probs
-                },
-                'historical_context': {
-                    'rate_changes_12m': rate_changes_12m,
-                    'peak_rate': round(peak_rate, 2),
-                    'trough_rate': round(trough_rate, 2),
-                    'percentile': round((current_rate - trough_rate) / (peak_rate - trough_rate) * 100, 1) if peak_rate != trough_rate else 50
-                }
-            }
+            percentile = round((current_rate - trough_rate) / (peak_rate - trough_rate) * 100, 1) if peak_rate != trough_rate else 50
+            return [
+                {'metric': 'Stance',           'value': stance,                        'unit': ''},
+                {'metric': 'Stance Score',     'value': round(stance_score, 2),         'unit': '/100'},
+                {'metric': 'Fed Funds Rate',   'value': round(current_rate, 2),         'unit': '%'},
+                {'metric': 'Target Lower',     'value': round(current_rate - 0.25, 2),  'unit': '%'},
+                {'metric': 'Target Upper',     'value': round(current_rate, 2),         'unit': '%'},
+                {'metric': 'Rate Changes 12M', 'value': rate_changes_12m,               'unit': 'times'},
+                {'metric': 'Peak Rate',        'value': round(peak_rate, 2),            'unit': '%'},
+                {'metric': 'Trough Rate',      'value': round(trough_rate, 2),          'unit': '%'},
+                {'metric': 'Rate Percentile',  'value': percentile,                     'unit': '%'},
+                {'metric': 'Hike Prob',        'value': probs['hike'],                  'unit': '%'},
+                {'metric': 'Hold Prob',        'value': probs['hold'],                  'unit': '%'},
+                {'metric': 'Cut Prob',         'value': probs['cut'],                   'unit': '%'},
+                {'metric': 'Last Updated',     'value': current_date,                   'unit': ''},
+            ]
 
         except Exception as e:
             log.error(f"Error calculating Fed policy stance: {e}")

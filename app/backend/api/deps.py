@@ -18,8 +18,33 @@ API Route Utilities
 import asyncio
 import logging
 from functools import wraps
+from typing import Any
 
 from fastapi import HTTPException
+
+from data_fetcher.fetchers.base import AnnotatedResult
+from data_fetcher.core.obbject import OBBject
+
+
+def wrap_result(raw: Any, provider: str) -> OBBject:
+    """
+    OpenBB OBBject.from_query 와 동일한 역할:
+      - AnnotatedResult  → result 리스트 추출 + metadata 보존
+      - List[DataModel]  → model_dump(mode='json') 직렬화
+      - List[dict]       → 그대로
+      - dict (snapshot)  → [dict] 단일 행
+    """
+    metadata: dict = {}
+    if isinstance(raw, AnnotatedResult):
+        metadata = raw.metadata or {}
+        raw = raw.result
+
+    items = raw if isinstance(raw, list) else ([raw] if raw is not None else [])
+    results = [
+        item.model_dump(mode="json") if hasattr(item, "model_dump") else item
+        for item in items
+    ]
+    return OBBject(results=results, provider=provider, metadata=metadata)
 
 
 def route_handler(func):

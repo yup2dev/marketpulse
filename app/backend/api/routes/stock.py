@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Query as FQuery
 from data_fetcher.core.obbject import OBBject
 from data_fetcher.fetchers.base import AnnotatedResult
 from data_fetcher.query_executor import QueryExecutor
-from app.backend.api.deps import route_handler
+from app.backend.api.deps import route_handler, wrap_result
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -20,27 +20,18 @@ def _unwrap(raw: Any) -> List[Any]:
 
 
 def _serialize(items: List[Any]) -> List[Dict]:
-    out = []
-    for item in items:
-        if hasattr(item, "model_dump"):
-            out.append(item.model_dump(mode="json"))
-        elif isinstance(item, dict):
-            out.append(item)
-        else:
-            out.append(item)
-    return out
+    return [
+        item.model_dump(mode="json") if hasattr(item, "model_dump") else item
+        for item in items
+    ]
 
 
-def _wrap(raw: Any, provider: str) -> OBBject:
-    return OBBject(results=_serialize(_unwrap(raw)), provider=provider)
+_wrap = wrap_result
 
 
 def _wrap_one(data: Any, provider: str) -> OBBject:
-    if data is None:
-        return OBBject(results=[], provider=provider)
-    if hasattr(data, "model_dump"):
-        return OBBject(results=[data.model_dump(mode="json")], provider=provider)
-    return OBBject(results=[data] if data else [], provider=provider)
+    """단일 객체(스냅샷)를 1행 OBBject로 감싼다."""
+    return wrap_result(data, provider)
 
 
 # ── Direct QueryExecutor → OBBject ────────────────────────────────────────────

@@ -6,19 +6,14 @@ from fastapi import APIRouter, Query as FQuery
 
 from data_fetcher.core.obbject import OBBject
 from app.backend.services.macro_service import macro_service
-from app.backend.api.deps import route_handler
+from app.backend.api.deps import route_handler, wrap_result
 
 log = logging.getLogger(__name__)
 router = APIRouter()
 
 
 def _wrap(data: Any, provider: str = "fred") -> OBBject:
-    items = data if isinstance(data, list) else ([data] if data is not None else [])
-    results = [
-        item.model_dump(mode="json") if hasattr(item, "model_dump") else item
-        for item in items
-    ]
-    return OBBject(results=results, provider=provider)
+    return wrap_result(data, provider)
 
 
 
