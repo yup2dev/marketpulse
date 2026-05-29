@@ -9,11 +9,12 @@ from datetime import datetime
 from decimal import Decimal
 import asyncio
 
-from app.backend.database.db_dependency import get_db
-from app.backend.auth.dependencies import get_current_active_user
+from app.backend.core.db import get_db
+from app.backend.core.auth.dependencies import get_current_active_user
 from app.backend.api.deps import route_handler
 from app.backend.services.user_portfolio_service import UserPortfolioService
-from app.backend.services.yahoo import price as yahoo_price
+from data_fetcher.query_executor import QueryExecutor
+from data_fetcher.fetchers.base import AnnotatedResult
 from index_analyzer.models.orm import User
 
 router = APIRouter(prefix="/user-portfolio", tags=["User Portfolio"])
@@ -405,20 +406,21 @@ async def get_price_at_date(
     start = (target_date - timedelta(days=7)).strftime('%Y-%m-%d')
     end   = (target_date + timedelta(days=2)).strftime('%Y-%m-%d')
 
-    history = await yahoo_price.get_stock_history(
-        symbol=ticker,
-        start_date=start,
-        end_date=end,
-        interval='1d',
-    )
+    raw = await QueryExecutor.fetch("yahoo", "stock_price", {
+        "symbol": ticker, "start_date": start, "end_date": end, "interval": "1d",
+    })
+    history = raw.result if isinstance(raw, AnnotatedResult) else (raw or [])
 
     if not history:
         raise HTTPException(status_code=404, detail=f"{ticker} 가격 데이터 없음")
 
     target_d = target_date.date()
+    def _get(bar, key):
+        return getattr(bar, key, None) if hasattr(bar, key) else (bar.get(key) if isinstance(bar, dict) else None)
+
     best = None
-    for bar in sorted(history, key=lambda b: b['date']):
-        bar_d = dt.fromisoformat(str(bar['date']).split('T')[0]).date()
+    for bar in sorted(history, key=lambda b: str(_get(b, 'date') or '')):
+        bar_d = dt.fromisoformat(str(_get(bar, 'date'))[:10]).date()
         if bar_d <= target_d:
             best = bar
 
@@ -433,12 +435,12 @@ async def get_price_at_date(
 
     return {
         'ticker':  ticker.upper(),
-        'date':    str(best['date'])[:10],
-        'open':    safe_float(best.get('open')),
-        'high':    safe_float(best.get('high')),
-        'low':     safe_float(best.get('low')),
-        'close':   safe_float(best.get('close')),
-        'volume':  int(best['volume']) if best.get('volume') else None,
+        'date':    str(_get(best, 'date'))[:10],
+        'open':    safe_float(_get(best, 'open')),
+        'high':    safe_float(_get(best, 'high')),
+        'low':     safe_float(_get(best, 'low')),
+        'close':   safe_float(_get(best, 'close')),
+        'volume':  int(_get(best, 'volume')) if _get(best, 'volume') else None,
     }
 
 
@@ -464,16 +466,23 @@ async def refresh_holding_prices(
 
     async def fetch_price(ticker):
         try:
-            quote = await yahoo_price.get_stock_quote(ticker)
-            price = quote.get('price')
+            raw = await QueryExecutor.fetch("yahoo", "quote", {"symbol": ticker})
+            items = raw.result if isinstance(raw, AnnotatedResult) else (raw or [])
+            if not items:
+                return (ticker, None, None)
+            q = items[0]
+            price = getattr(q, 'price', None) or (q.get('price') if isinstance(q, dict) else None)
+            def _f(key):
+                v = getattr(q, key, None) or (q.get(key) if isinstance(q, dict) else None)
+                return float(v) if v is not None else None
             if price:
                 full_quote = {
                     'price': float(price),
-                    'open': float(quote['open']) if quote.get('open') else float(price),
-                    'change': float(quote.get('change', 0)),
-                    'change_percent': float(quote.get('change_percent', 0)),
-                    'high': float(quote['high']) if quote.get('high') else float(price),
-                    'low': float(quote['low']) if quote.get('low') else float(price),
+                    'open':  _f('open')  or float(price),
+                    'change': _f('change') or 0,
+                    'change_percent': _f('change_percent') or 0,
+                    'high': _f('high')   or float(price),
+                    'low':  _f('low')    or float(price),
                 }
                 return (ticker, float(price), full_quote)
             return (ticker, None, None)

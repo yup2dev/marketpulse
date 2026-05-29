@@ -125,6 +125,6 @@ function FilterBtn({ active, onClick, children }) {
 }
 
 function fmtDate(iso) {
-  const d = new Date(iso + 'T00:00:00');
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  if (!iso) return '';
+  return iso.slice(0, 10);
 }

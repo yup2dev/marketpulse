@@ -139,7 +139,7 @@ function NoteCard({ note, onEdit, onPin, onDelete }) {
       )}
       <div className="flex items-center justify-between mt-1.5">
         <span className="text-[9px] text-gray-600">
-          {note.updated_at ? new Date(note.updated_at).toLocaleDateString() : ''}
+          {note.updated_at ? note.updated_at.slice(0, 10) : ''}
         </span>
         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <button onClick={(e) => { e.stopPropagation(); onPin(); }} className="text-gray-600 hover:text-cyan-400">

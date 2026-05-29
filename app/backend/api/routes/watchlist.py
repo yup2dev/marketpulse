@@ -7,8 +7,8 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import BaseModel
 
-from app.backend.database.db_dependency import get_db
-from app.backend.auth.dependencies import get_current_active_user
+from app.backend.core.db import get_db
+from app.backend.core.auth.dependencies import get_current_active_user
 from app.backend.services.watchlist_service import WatchlistService
 from index_analyzer.models.orm import User
 

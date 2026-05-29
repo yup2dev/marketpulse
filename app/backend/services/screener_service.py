@@ -56,7 +56,7 @@ async def _load_screener_universe() -> List[Dict]:
 
     # 2. 프로필 + 재무지표 — DB에서만 로딩 (기본 목록 쿼리 제거)
     def _query_enrichment():
-        from app.backend.database.db_dependency import get_db_sync
+        from app.backend.core.db import get_db_sync
         from index_analyzer.models.orm import MBS_IN_STK_PROFILE, MBS_IN_FINANCIAL_METRICS
 
         db = get_db_sync()

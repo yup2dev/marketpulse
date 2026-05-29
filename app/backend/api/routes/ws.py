@@ -6,7 +6,7 @@ from typing import Dict, Set
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 
-from app.backend.auth.security import decode_token
+from app.backend.core.auth.security import decode_token
 from app.backend.services.ranking_service import get_live_quotes_subset
 
 log = logging.getLogger(__name__)

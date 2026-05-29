@@ -192,38 +192,32 @@ export const formatPrice = (price, decimals = 2) => {
   return '$' + price.toFixed(decimals);
 };
 
-export const formatDate = (date, options = null) => {
+const _isoDate = (d) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
+export const formatDate = (date) => {
   if (!date) return 'N/A';
   try {
     const d = new Date(date);
+    if (isNaN(d)) return 'Invalid Date';
 
-    // If date string contains time info (has 'T' or includes time), show time for intraday
     const hasTime = typeof date === 'string' && (date.includes('T') || date.includes(':'));
-
-    if (options) {
-      return d.toLocaleDateString('en-US', options);
-    }
-
-    // For intraday data with time, show shorter format with time
     if (hasTime) {
       const hours = d.getHours();
       const minutes = d.getMinutes();
-      // If time is not midnight, it's likely intraday data
       if (hours !== 0 || minutes !== 0) {
-        return d.toLocaleString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          hour: 'numeric',
-          minute: '2-digit',
-          hour12: true
-        });
+        const hh = String(hours).padStart(2, '0');
+        const mm = String(minutes).padStart(2, '0');
+        return `${_isoDate(d)} ${hh}:${mm}`;
       }
     }
 
-    // Default date-only format
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
-  } catch (error) {
-    console.error('Error formatting date:', error);
+    return _isoDate(d);
+  } catch {
     return 'Invalid Date';
   }
 };

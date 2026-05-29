@@ -1,29 +1,30 @@
-"""
-News API Routes
-Endpoints for market news and articles
-"""
-from fastapi import APIRouter, HTTPException, Query
+"""News API Routes — OBBject pattern"""
 from typing import Optional
-from app.backend.services.polygon import market as polygon_market
+
+from fastapi import APIRouter, Query as FQuery
+
+from data_fetcher.core.obbject import OBBject
+from data_fetcher.fetchers.base import AnnotatedResult
+from data_fetcher.query_executor import QueryExecutor
+from app.backend.api.deps import route_handler
 
 router = APIRouter()
 
+
 @router.get("/")
+@route_handler
 async def get_news(
     symbol: Optional[str] = None,
-    limit: int = Query(10, ge=1, le=50)
-):
-    """
-    Get market news
-
-    - symbol: Optional stock symbol to filter news
-    - limit: Number of news articles (1-50)
-    """
-    try:
-        news = await polygon_market.get_news(
-            symbol=symbol.upper() if symbol else None,
-            limit=limit
-        )
-        return {"count": len(news), "articles": news}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    provider: str = "polygon",
+    limit: int = FQuery(10, ge=1, le=50),
+) -> OBBject:
+    params = {"limit": limit}
+    if symbol:
+        params["ticker"] = symbol.upper()
+    raw = await QueryExecutor.fetch(provider, "news", params)
+    items = raw.result if isinstance(raw, AnnotatedResult) else (raw or [])
+    serialized = [
+        item.model_dump(mode="json") if hasattr(item, "model_dump") else item
+        for item in items[:limit]
+    ]
+    return OBBject(results=serialized, provider=provider)

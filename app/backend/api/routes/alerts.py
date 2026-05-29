@@ -7,8 +7,8 @@ from pydantic import BaseModel
 from typing import Optional
 from decimal import Decimal
 
-from app.backend.database.db_dependency import get_db
-from app.backend.auth.dependencies import get_current_active_user
+from app.backend.core.db import get_db
+from app.backend.core.auth.dependencies import get_current_active_user
 from app.backend.services.alert_service import AlertService
 from index_analyzer.models.orm import User
 

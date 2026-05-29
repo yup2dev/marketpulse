@@ -1,27 +1,6 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 export const API_BASE = `${API_BASE_URL}/api`;
 
-export const API_ENDPOINTS = {
-  health: `${API_BASE_URL}/health`,
-  stock: {
-    overview: `${API_BASE_URL}8/api/stock/overview`,
-    price:   (symbol) => `${API_BASE_URL}/api/stock/${symbol}/price`,
-    history: (symbol) => `${API_BASE_URL}/api/stock/${symbol}/history`,
-  },
-  economic: {
-    indicators: `${API_BASE_URL}/api/economic/indicators`,
-    overview:   `${API_BASE_URL}/api/economic/overview`,
-  },
-  news: {
-    latest:   `${API_BASE_URL}/api/news/latest`,
-    bySymbol: (symbol) => `${API_BASE_URL}/api/news/${symbol}`,
-  },
-  dashboard: {
-    overview: `${API_BASE_URL}/api/dashboard/overview`,
-    summary:  `${API_BASE_URL}/api/dashboard/summary`,
-  },
-};
-
 // ─── Force-logout callback ────────────────────────────────────────────────────
 // Set by authStore so apiClient can trigger logout when tokens fully expire
 let _forceLogout = null;
@@ -149,13 +128,6 @@ export const exportAPI = {
   portfolioCSV:   (id) => apiClient.get(`${API_BASE}/export/portfolio/${id}/csv`),
   portfolioExcel: (id) => apiClient.get(`${API_BASE}/export/portfolio/${id}/excel`),
   portfolioPDF:   (id) => apiClient.get(`${API_BASE}/export/portfolio/${id}/pdf`),
-};
-
-// ─── Dashboard API ────────────────────────────────────────────────────────────
-export const dashboardAPI = {
-  getWatchlist:        ()       => apiClient.get(`${API_BASE}/dashboard/watchlist`),
-  addToWatchlist:      (symbol) => apiClient.post(`${API_BASE}/dashboard/watchlist`, { symbol }),
-  removeFromWatchlist: (symbol) => apiClient.request(`${API_BASE}/dashboard/watchlist/${symbol}`, { method: 'DELETE' }),
 };
 
 // ─── Workspace API ────────────────────────────────────────────────────────────

@@ -19,8 +19,20 @@ class YFinanceStockPriceFetcher(Fetcher[YFinanceStockPriceQueryParams, YFinanceS
 
     @staticmethod
     def transform_query(params: Dict[str, Any]) -> YFinanceStockPriceQueryParams:
-        """쿼리 파라미터 변환"""
-        return YFinanceStockPriceQueryParams(**params)
+        from data_fetcher.models.yahoo.stock_quote import SYMBOL_ALIASES
+
+        _INTERVAL_DEFAULTS = {
+            '1d': '5m',  '5d': '30m', '1mo': '1h',
+            '3mo': '1d', '6mo': '1d', '1y': '1d',
+            '2y': '1wk', '5y': '1wk', '10y': '1mo', 'max': '1mo',
+        }
+        p = dict(params)
+        # symbol 매핑 (한국 시장 별칭 → Yahoo Finance 티커)
+        p['symbol'] = SYMBOL_ALIASES.get(str(p.get('symbol', '')).upper(), p.get('symbol', ''))
+        # period → interval 기본값 자동 설정
+        if not p.get('interval') and p.get('period'):
+            p['interval'] = _INTERVAL_DEFAULTS.get(p['period'], '1d')
+        return YFinanceStockPriceQueryParams(**p)
 
     @staticmethod
     def extract_data(

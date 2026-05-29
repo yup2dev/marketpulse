@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
-from app.backend.database.db_dependency import get_db
+from app.backend.core.db import get_db
 from app.backend.services.menu_service import MenuService
 
 router = APIRouter(prefix="/menu", tags=["menu"])

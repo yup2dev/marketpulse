@@ -68,16 +68,23 @@ export const fmtNum = (value) => {
 
 // ── 날짜 ──────────────────────────────────────────────────────────────────────
 
+const _isoDate = (d) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
 export const fmtDate = (s) => {
   if (!s) return '-';
   const d = new Date(s);
-  return isNaN(d) ? s : d.toLocaleDateString('en-US', { year: '2-digit', month: 'short', day: 'numeric' });
+  return isNaN(d) ? s : _isoDate(d);
 };
 
 export const fmtDateShort = (s) => {
   if (!s) return '-';
   const d = new Date(s);
-  return isNaN(d) ? s : d.toLocaleDateString('en-US', { year: '2-digit', month: 'short' });
+  return isNaN(d) ? s : _isoDate(d);
 };
 
 // ── 파일명 (export용) ──────────────────────────────────────────────────────────

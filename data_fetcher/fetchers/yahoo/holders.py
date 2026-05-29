@@ -3,17 +3,16 @@ import logging
 from typing import Any, Dict, List, Optional
 import yfinance as yf
 
-from data_fetcher.fetchers.base import Fetcher
+from data_fetcher.fetchers.base import AnnotatedResult, Fetcher
 from data_fetcher.models.yahoo.holders import (
     YFinanceHoldersQueryParams,
-    YFinanceHoldersData,
     YFinanceInstitutionalHolderData,
 )
 
 log = logging.getLogger(__name__)
 
 
-class YFinanceHoldersFetcher(Fetcher[YFinanceHoldersQueryParams, YFinanceHoldersData]):
+class YFinanceHoldersFetcher(Fetcher[YFinanceHoldersQueryParams, YFinanceInstitutionalHolderData]):
 
     @staticmethod
     def transform_query(params: Dict[str, Any]) -> YFinanceHoldersQueryParams:
@@ -37,7 +36,7 @@ class YFinanceHoldersFetcher(Fetcher[YFinanceHoldersQueryParams, YFinanceHolders
         query: YFinanceHoldersQueryParams,
         data: Dict[str, Any],
         **kwargs: Any,
-    ) -> List[YFinanceHoldersData]:
+    ) -> "AnnotatedResult[List[YFinanceInstitutionalHolderData]]":
         institutional_df = data.get('institutional')
         major_df = data.get('major')
         info = data.get('info') or {}
@@ -55,24 +54,21 @@ class YFinanceHoldersFetcher(Fetcher[YFinanceHoldersQueryParams, YFinanceHolders
                     date_reported=date_rep.strftime('%Y-%m-%d') if date_rep is not None else None,
                 ))
 
-        summary: Dict[str, Any] = {}
+        summary_raw: Dict[str, Any] = {}
         if major_df is not None and not major_df.empty:
             for idx, row in major_df.iterrows():
                 value = row.iloc[0] if len(row) > 0 else None
                 if isinstance(value, str) and '%' in value:
                     value = float(value.replace('%', ''))
-                summary[idx] = value
+                summary_raw[idx] = value
 
-        return [YFinanceHoldersData(
-            symbol=query.symbol,
-            summary={
-                'institutional_pct': summary.get('% of Shares Held by Institutions', 0),
-                'insider_pct': summary.get('% of Shares Held by Insiders', 0),
-                'institutional_float_pct': summary.get('% of Float Held by Institutions', 0),
-                'shares_outstanding': info.get('sharesOutstanding', 0),
-                'float_shares': info.get('floatShares', 0),
-                'short_interest': info.get('shortPercentOfFloat', 0) * 100 if info.get('shortPercentOfFloat') else 0,
-                'short_ratio': info.get('shortRatio', 0),
-            },
-            institutional=institutions,
-        )]
+        metadata = {
+            'institutional_pct':       summary_raw.get('% of Shares Held by Institutions', 0),
+            'insider_pct':             summary_raw.get('% of Shares Held by Insiders', 0),
+            'institutional_float_pct': summary_raw.get('% of Float Held by Institutions', 0),
+            'shares_outstanding':      info.get('sharesOutstanding', 0),
+            'float_shares':            info.get('floatShares', 0),
+            'short_interest':          (info.get('shortPercentOfFloat', 0) or 0) * 100,
+            'short_ratio':             info.get('shortRatio', 0),
+        }
+        return AnnotatedResult(result=institutions, metadata=metadata)

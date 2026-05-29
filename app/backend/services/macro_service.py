@@ -22,10 +22,10 @@ from data_fetcher.fetchers.fred.nonfarm_payroll import FREDNonfarmPayrollFetcher
 from data_fetcher.fetchers.fred.employment import FREDEmploymentFetcher
 from data_fetcher.fetchers.fred.housing_starts import FREDHousingStartsFetcher
 from data_fetcher.fetchers.fred.industrial_production import FREDIndustrialProductionFetcher
-from data_fetcher.fetchers.fred.series import FredSeriesFetcher
 from data_fetcher.fetchers.bond.bond_prices import FMPBondPricesFetcher
 from data_fetcher.query_executor import QueryExecutor
 from data_fetcher.utils.helpers import parse_period_to_dates
+from data_fetcher.utils.api_keys import get_api_key
 from data_fetcher.utils.api_keys import get_api_key
 
 # Fetcher class → (provider, model) mapping for QueryExecutor
@@ -174,43 +174,29 @@ class MacroService:
         {'from': 'AUD', 'to': 'USD', 'name': 'Australian Dollar to US Dollar'},
     ]
 
-    async def _fetch(self, fetcher_cls, params: Dict, *, single: bool = False, limit=None):
-        """QueryExecutor.fetch → serialize → return 공통 패턴 헬퍼"""
-        try:
-            provider, model = _FETCHER_MAP[fetcher_cls]
-            raw = await QueryExecutor.fetch(provider, model, params)
-            models = raw if raw else []
-            if models:
-                data = [
-                    m.model_dump(mode='json') if hasattr(m, 'model_dump') else m
-                    for m in models
-                ]
-                if limit is not None:
-                    data = data[:limit]
-                return data[0] if single else data
-        except Exception as e:
-            log.error(f"[{fetcher_cls.__name__}] {e}")
-        return {} if single else []
+    async def _qe(self, fetcher_cls, params=None) -> List[Dict]:
+        """_fetch 대체: _FETCHER_MAP → QueryExecutor.fetch → List[Dict]"""
+        provider, model = _FETCHER_MAP[fetcher_cls]
+        raw = await QueryExecutor.fetch(provider, model, params or {})
+        return [m.model_dump(mode='json') if hasattr(m, 'model_dump') else m for m in (raw or [])]
 
-    _OVERVIEW_SPECS = [
-        # (key,                 fetcher_cls,                   unit,                   params,                         use_last)
-        # use_last=False → data[0] (GDP fetcher: FRED desc order, no re-sort → newest first)
-        # use_last=True  → data[-1] (fetchers that sort ascending → newest at end)
-        ('gdp',                FREDGDPFetcher,               'Billions of Dollars',  {},                             False),
-        ('unemployment',       FREDUnemploymentFetcher,       'Percent',              {},                             True),
-        ('cpi',                FREDCPIFetcher,                'Index',                {},                             True),
-        ('fed_funds_rate',     FREDInterestRateFetcher,       'Percent',              {'rate_type': 'federal_funds'}, True),
-        ('retail_sales',       FREDRetailSalesFetcher,        'Millions of Dollars',  {},                             True),
-        ('consumer_sentiment', FREDConsumerSentimentFetcher,  'Index',                {},                             True),
-    ]
+    async def _qe_series(self, series_id: str, *, limit: int = 10000, sort_order: str = 'asc',
+                         start_date=None, end_date=None) -> List[Dict]:
+        """_fetch_series 대체: FREDGenericSeriesFetcher via QueryExecutor"""
+        params: Dict = {'series_id': series_id, 'limit': limit, 'sort_order': sort_order}
+        if start_date: params['start_date'] = start_date
+        if end_date:   params['end_date']   = end_date
+        raw = await QueryExecutor.fetch('fred', 'series', params)
+        return [m.model_dump(mode='json') if hasattr(m, 'model_dump') else m for m in (raw or [])]
 
+    
     @cached(ttl=3600)
     async def get_economic_indicators_overview(self) -> Dict[str, Any]:
         """Get overview of all major economic indicators (latest values) - Parallel fetching for speed"""
         import asyncio
 
         async def fetch_one(key, fetcher_cls, unit, params, use_last):
-            data = await self._fetch(fetcher_cls, params)
+            data = await self._qe(fetcher_cls, params)
             if not data:
                 return None
             latest = data[-1] if use_last else data[0]
@@ -219,7 +205,7 @@ class MacroService:
             return (key, {**latest, 'unit': unit, 'change': change})
 
         results = await asyncio.gather(*[fetch_one(*spec) for spec in self._OVERVIEW_SPECS])
-        return {k: v for k, v in (r for r in results if r)}
+        return [{'indicator': k, **v} for k, v in (r for r in results if r)]
 
     @cached(ttl=3600)
     async def get_indicator_history(
@@ -284,7 +270,7 @@ class MacroService:
         start_date, end_date = parse_period_to_dates(period)
 
         params = {**indicator_info['params'], 'start_date': start_date, 'end_date': end_date}
-        raw = await self._fetch(indicator_info['fetcher'], params)
+        raw = await self._qe(indicator_info['fetcher'], params)
 
         chart_data = [
             {'date': d['date'], 'value': round(d['value'], 2) if d.get('value') is not None else None}
@@ -292,12 +278,7 @@ class MacroService:
             if d.get('date') and d.get('value') is not None
         ]
 
-        return {
-            'key': indicator_key,
-            'name': indicator_info['name'],
-            'unit': indicator_info['unit'],
-            'data': chart_data
-        }
+        return chart_data
 
     @cached(ttl=3600)
     async def get_fred_series_data(
@@ -319,38 +300,25 @@ class MacroService:
         start_date, end_date = parse_period_to_dates(period)
 
         try:
-            api_key = get_api_key(
-                credentials=None,
-                api_name="FRED",
-                env_var="FRED_API_KEY"
-            )
 
             # Fetch historical data in ascending order for charts
-            observations = FredSeriesFetcher.fetch_series(
-                series_id=series_info['id'],
-                api_key=api_key,
+            observations = await self._qe_series(
+                series_info['id'],
                 start_date=start_date,
                 end_date=end_date,
-                sort_order='asc'
+                sort_order='asc',
             )
 
             data = [
                 {
                     'date': obs['date'],
-                    'value': float(obs['value']) if obs['value'] != '.' else None
+                    'value': obs['value']
                 }
                 for obs in observations
                 if obs['value'] != '.'
             ]
 
-            return {
-                'series_key': series_key,
-                'series_id': series_info['id'],
-                'name': series_info['name'],
-                'category': series_info['category'],
-                'unit': series_info['unit'],
-                'data': data
-            }
+            return data
 
         except Exception as e:
             log.error(f"Error fetching FRED series {series_key}: {e}")
@@ -363,18 +331,12 @@ class MacroService:
 
         for key, info in self.FRED_SERIES.items():
             try:
-                api_key = get_api_key(
-                    credentials=None,
-                    api_name="FRED",
-                    env_var="FRED_API_KEY"
-                )
 
                 # Fetch with sort_order='desc' to get most recent data first
-                observations = FredSeriesFetcher.fetch_series(
-                    series_id=info['id'],
-                    api_key=api_key,
+                observations = await self._qe_series(
+                    info['id'],
                     limit=2,
-                    sort_order='desc'
+                    sort_order='desc',
                 )
 
                 if observations:
@@ -382,8 +344,8 @@ class MacroService:
                     latest = observations[0]
                     prev = observations[1] if len(observations) > 1 else None
 
-                    value = float(latest['value']) if latest['value'] != '.' else None
-                    prev_value = float(prev['value']) if prev and prev['value'] != '.' else None
+                    value = latest['value']
+                    prev_value = prev['value'] if prev else None
 
                     change = None
                     if value is not None and prev_value is not None and prev_value != 0:
@@ -478,10 +440,7 @@ class MacroService:
                 if d.get('date') and d['date'] >= str(start_date)
             ]
 
-            return {
-                'pair': f"{from_currency}/{to_currency}",
-                'data': filtered_data
-            }
+            return filtered_data
 
         except Exception as e:
             log.error(f"Error fetching forex history: {e}")
@@ -522,12 +481,7 @@ class MacroService:
         """
         log.warning(f"Ratio history for {ratio_type} is unavailable - FRED precious metal series deprecated")
 
-        return {
-            'ratio_type': ratio_type,
-            'name': f'{ratio_type} Ratio (Unavailable)',
-            'description': 'FRED precious metal series deprecated',
-            'data': []
-        }
+        return []
 
     def _calculate_ratio_series(
         self,
@@ -538,7 +492,7 @@ class MacroService:
         """Calculate ratio time series from two observation series"""
         # Create date map for denominator
         denom_map = {
-            obs['date']: float(obs['value']) if obs['value'] != '.' else None
+            obs['date']: obs['value']
             for obs in denominator_obs
         }
 
@@ -599,12 +553,12 @@ class MacroService:
 
             # Fetch Growth components
             # 1. GDP Growth Rate (already in % from FRED)
-            gdp_data = await self._fetch(FREDGDPFetcher, {})
+            gdp_data = await self._qe(FREDGDPFetcher, {})
             components['gdp_growth'] = gdp_data[0]['value'] if gdp_data else 0
 
             # 2. Industrial Production YoY
             try:
-                indpro = await self._fetch(FREDIndustrialProductionFetcher, {})
+                indpro = await self._qe(FREDIndustrialProductionFetcher, {})
                 indpro_sorted = sorted(indpro, key=lambda x: x['date'], reverse=True)
                 if len(indpro_sorted) >= 13:
                     current_ip, year_ago_ip = indpro_sorted[0]['value'], indpro_sorted[12]['value']
@@ -617,7 +571,7 @@ class MacroService:
 
             # 3. Employment YoY (using Nonfarm Payroll)
             try:
-                emp = await self._fetch(FREDNonfarmPayrollFetcher, {})
+                emp = await self._qe(FREDNonfarmPayrollFetcher, {})
                 emp_sorted = sorted(emp, key=lambda x: x['date'], reverse=True)
                 if len(emp_sorted) >= 13:
                     current_emp, year_ago_emp = emp_sorted[0]['value'], emp_sorted[12]['value']
@@ -630,7 +584,7 @@ class MacroService:
 
             # Fetch Inflation components
             # 4. CPI YoY
-            cpi_data = await self._fetch(FREDCPIFetcher, {})
+            cpi_data = await self._qe(FREDCPIFetcher, {})
             cpi_sorted = sorted(cpi_data, key=lambda x: x['date'], reverse=True)
             if len(cpi_sorted) >= 13:
                 current_cpi, year_ago_cpi = cpi_sorted[0]['value'], cpi_sorted[12]['value']
@@ -671,15 +625,15 @@ class MacroService:
             # Determine regime
             regime = self._classify_regime(growth_score, inflation_score, components['cpi_yoy'])
 
-            return {
+            return [{
                 'regime': regime,
                 'growth_score': round(growth_score, 2),
                 'inflation_score': round(inflation_score, 2),
                 'growth_momentum': round(growth_momentum, 2),
                 'inflation_momentum': round(inflation_momentum, 2),
                 'timestamp': datetime.now().isoformat(),
-                'components': {k: round(v, 2) for k, v in components.items()}
-            }
+                **{f'cmp_{k}': round(v, 2) for k, v in components.items()}
+            }]
 
         except Exception as e:
             log.error(f"Error calculating current regime: {e}")
@@ -714,102 +668,12 @@ class MacroService:
                 return 'deflation'  # Weak growth + low inflation = recession
 
     @cached(ttl=3600)
-    async def get_regime_history(self, period: str = '5y') -> Dict[str, Any]:
-        """
-        Get historical economic regime data
-
-        Args:
-            period: Time period (1y, 3y, 5y, 10y, max)
-
-        Returns:
-            {
-                'history': [
-                    {
-                        'date': str,
-                        'regime': str,
-                        'growth_score': float,
-                        'inflation_score': float
-                    },
-                    ...
-                ],
-                'regime_transitions': [
-                    {
-                        'date': str,
-                        'from': str,
-                        'to': str
-                    },
-                    ...
-                ]
-            }
-        """
-        try:
-            from datetime import date as date_t
-            start_date, end_date = parse_period_to_dates(period)
-            s_str, e_str = str(start_date), str(end_date)
-
-            # Fetch historical data
-            gdp_data = await self._fetch(FREDGDPFetcher, {})
-            cpi_data = await self._fetch(FREDCPIFetcher, {})
-
-            # Filter and sort by date (ISO strings compare correctly)
-            gdp_filtered = sorted([d for d in gdp_data if d.get('date') and s_str <= d['date'] <= e_str], key=lambda x: x['date'])
-            cpi_filtered = sorted([d for d in cpi_data if d.get('date') and s_str <= d['date'] <= e_str], key=lambda x: x['date'])
-            cpi_all_sorted = sorted(cpi_data, key=lambda x: x['date'], reverse=True)
-
-            history = []
-
-            # Calculate regime for each GDP data point (quarterly)
-            for gdp_point in gdp_filtered:
-                gdp_growth = gdp_point['value']
-                gdp_date = date_t.fromisoformat(gdp_point['date'][:10])
-
-                # Find closest CPI data point
-                closest_cpi = min(cpi_filtered, key=lambda x: abs((date_t.fromisoformat(x['date'][:10]) - gdp_date).days))
-
-                # Calculate CPI YoY
-                try:
-                    cpi_idx = next(i for i, c in enumerate(cpi_all_sorted) if c['date'] == closest_cpi['date'])
-                    if cpi_idx + 12 < len(cpi_all_sorted):
-                        year_ago_cpi = cpi_all_sorted[cpi_idx + 12]['value']
-                        cpi_yoy = ((closest_cpi['value'] - year_ago_cpi) / year_ago_cpi * 100) if year_ago_cpi else 0
-                    else:
-                        cpi_yoy = 0
-                except (StopIteration, ValueError):
-                    cpi_yoy = 0
-
-                growth_score = max(-100, min(100, (gdp_growth / 5.0) * 100))
-                inflation_score = max(-100, min(100, (cpi_yoy - 2.0) / 6.0 * 100))
-                regime = self._classify_regime(growth_score, inflation_score, cpi_yoy)
-
-                history.append({
-                    'date': gdp_point['date'],
-                    'regime': regime,
-                    'growth_score': round(growth_score, 2),
-                    'inflation_score': round(inflation_score, 2),
-                    'gdp_growth': round(gdp_growth, 2),
-                    'cpi_yoy': round(cpi_yoy, 2)
-                })
-
-            # Detect regime transitions
-            transitions = []
-            for i in range(1, len(history)):
-                if history[i]['regime'] != history[i-1]['regime']:
-                    transitions.append({
-                        'date': history[i]['date'],
-                        'from': history[i-1]['regime'],
-                        'to': history[i]['regime']
-                    })
-
-            return {
-                'history': history,
-                'regime_transitions': transitions,
-                'period': period
-            }
-
-        except Exception as e:
-            log.error(f"Error fetching regime history: {e}")
-            raise
-
+    async def get_regime_history(self, period: str = '5y') -> List:
+        """경제 레짐 시계열 — FREDRegimeHistoryFetcher 위임."""
+        start_date, end_date = parse_period_to_dates(period)
+        return await QueryExecutor.fetch('fred', 'regime_history', {
+            'start_date': start_date, 'end_date': end_date,
+        })
     @cached(ttl=1800)
     async def get_fed_policy_stance(self) -> Dict[str, Any]:
         """
@@ -821,7 +685,7 @@ class MacroService:
         - Historical context
         """
         try:
-            rates = await self._fetch(FREDInterestRateFetcher, {'rate_type': 'federal_funds'})
+            rates = await self._qe(FREDInterestRateFetcher, {'rate_type': 'federal_funds'})
 
             if len(rates) < 2:
                 raise ValueError("Insufficient Fed Funds Rate data")
@@ -889,226 +753,17 @@ class MacroService:
             raise
 
     @cached(ttl=3600)
-    async def get_yield_curve(self) -> Dict[str, Any]:
-        """
-        Get current Treasury yield curve and calculate key metrics
-
-        Returns full curve data, spreads, and shape analysis
-        """
-        try:
-            api_key = get_api_key(
-                credentials=None,
-                api_name="FRED",
-                env_var="FRED_API_KEY"
-            )
-
-            # Define Treasury maturities to fetch
-            maturities = [
-                {'key': '3m', 'series': 'DGS3MO', 'years': 0.25, 'name': '3-Month'},
-                {'key': '6m', 'series': 'DGS6MO', 'years': 0.5, 'name': '6-Month'},
-                {'key': '1y', 'series': 'DGS1', 'years': 1, 'name': '1-Year'},
-                {'key': '2y', 'series': 'DGS2', 'years': 2, 'name': '2-Year'},
-                {'key': '5y', 'series': 'DGS5', 'years': 5, 'name': '5-Year'},
-                {'key': '10y', 'series': 'DGS10', 'years': 10, 'name': '10-Year'},
-                {'key': '30y', 'series': 'DGS30', 'years': 30, 'name': '30-Year'}
-            ]
-
-            curve = []
-            yields_dict = {}
-
-            # Fetch current yield for each maturity
-            for mat in maturities:
-                try:
-                    obs = FredSeriesFetcher.fetch_series(
-                        series_id=mat['series'],
-                        api_key=api_key,
-                        limit=1,
-                        sort_order='desc'
-                    )
-                    if obs and obs[0]['value'] != '.':
-                        yield_value = float(obs[0]['value'])
-                        curve.append({
-                            'maturity': mat['name'],
-                            'years': mat['years'],
-                            'yield': yield_value
-                        })
-                        yields_dict[mat['key']] = yield_value
-                except Exception as e:
-                    log.warning(f"Could not fetch {mat['name']}: {e}")
-                    continue
-
-            # Calculate key spreads
-            spreads = {}
-            if '2y' in yields_dict and '10y' in yields_dict:
-                spreads['2y10y'] = round(yields_dict['10y'] - yields_dict['2y'], 2)
-            if '3m' in yields_dict and '10y' in yields_dict:
-                spreads['3m10y'] = round(yields_dict['10y'] - yields_dict['3m'], 2)
-            if '5y' in yields_dict and '30y' in yields_dict:
-                spreads['5y30y'] = round(yields_dict['30y'] - yields_dict['5y'], 2)
-
-            # Determine curve shape
-            inversion_signal = False
-            curve_shape = 'normal'
-
-            if '2y10y' in spreads:
-                if spreads['2y10y'] < 0:
-                    curve_shape = 'inverted'
-                    inversion_signal = True
-                elif spreads['2y10y'] < 0.25:
-                    curve_shape = 'flat'
-
-            # Historical percentile (simplified - would need historical data)
-            historical_percentile = {}
-            if '2y10y' in spreads:
-                # Typical range: -2% to +3%
-                percentile = ((spreads['2y10y'] + 2) / 5) * 100
-                historical_percentile['2y10y'] = round(max(0, min(100, percentile)), 1)
-
-            return {
-                'curve': curve,
-                'spreads': spreads,
-                'curve_shape': curve_shape,
-                'inversion_signal': inversion_signal,
-                'historical_percentile': historical_percentile,
-                'timestamp': datetime.now().isoformat()
-            }
-
-        except Exception as e:
-            log.error(f"Error fetching yield curve: {e}")
-            raise
+    async def get_yield_curve(self) -> List:
+        """미국채 수익률 곡선 스냅샷 — FREDYieldCurveFetcher 위임."""
+        return await QueryExecutor.fetch('fred', 'yield_curve', {})
 
     @cached(ttl=3600)
-    async def get_yield_curve_history(self, period: str = '5y') -> Dict[str, Any]:
-        """
-        Get historical yield curve spread data
-
-        Args:
-            period: Time period (1y, 3y, 5y, 10y, max)
-
-        Returns:
-            Historical spreads and inversion events
-        """
-        try:
-            start_date, end_date = parse_period_to_dates(period)
-
-            api_key = get_api_key(
-                credentials=None,
-                api_name="FRED",
-                env_var="FRED_API_KEY"
-            )
-
-            # Fetch historical data for key maturities
-            # Using FRED series IDs matching interest_rate.py FRED_SERIES_MAP
-            series_to_fetch = {
-                '3m': 'DTB3',     # 3-Month Treasury Bill
-                '6m': 'DTB6',     # 6-Month Treasury Bill
-                '1y': 'DGS1',     # 1-Year Treasury Rate
-                '2y': 'DGS2',     # 2-Year Treasury Rate
-                '5y': 'DGS5',     # 5-Year Treasury Rate
-                '10y': 'DGS10',   # 10-Year Treasury Rate
-                '30y': 'DGS30'    # 30-Year Treasury Rate
-            }
-
-            historical_data = {}
-            for key, series_id in series_to_fetch.items():
-                try:
-                    obs = FredSeriesFetcher.fetch_series(
-                        series_id=series_id,
-                        api_key=api_key,
-                        start_date=start_date,
-                        end_date=end_date,
-                        sort_order='asc'
-                    )
-                    historical_data[key] = {
-                        obs['date']: float(obs['value']) if obs['value'] != '.' else None
-                        for obs in obs
-                    }
-                except Exception as e:
-                    log.warning(f"Could not fetch historical data for {key}: {e}")
-                    historical_data[key] = {}
-
-            # Calculate historical spreads
-            spreads_history = []
-
-            # Get all dates where we have data
-            all_dates = sorted(set(
-                date for series_data in historical_data.values()
-                for date in series_data.keys()
-            ))
-
-            for date in all_dates:
-                point = {'date': date}
-
-                # 2y-10y spread
-                if (date in historical_data.get('2y', {}) and
-                    date in historical_data.get('10y', {}) and
-                    historical_data['2y'][date] is not None and
-                    historical_data['10y'][date] is not None):
-                    point['2y10y'] = round(
-                        historical_data['10y'][date] - historical_data['2y'][date],
-                        2
-                    )
-
-                # 3m-10y spread
-                if (date in historical_data.get('3m', {}) and
-                    date in historical_data.get('10y', {}) and
-                    historical_data['3m'][date] is not None and
-                    historical_data['10y'][date] is not None):
-                    point['3m10y'] = round(
-                        historical_data['10y'][date] - historical_data['3m'][date],
-                        2
-                    )
-
-                if len(point) > 1:  # Has date + at least one spread
-                    spreads_history.append(point)
-
-            # Detect inversion events (2y-10y spread goes negative)
-            inversions = []
-            in_inversion = False
-            inversion_start = None
-
-            for point in spreads_history:
-                if '2y10y' in point:
-                    if point['2y10y'] < 0 and not in_inversion:
-                        in_inversion = True
-                        inversion_start = point['date']
-                    elif point['2y10y'] >= 0 and in_inversion:
-                        inversions.append({
-                            'start': inversion_start,
-                            'end': point['date']
-                        })
-                        in_inversion = False
-                        inversion_start = None
-
-            # If still in inversion at end of period
-            if in_inversion:
-                inversions.append({
-                    'start': inversion_start,
-                    'end': spreads_history[-1]['date']
-                })
-
-            # Prepare individual yields history for charting
-            yields_history = []
-            for date in all_dates:
-                point = {'date': date}
-                # Add all available maturity yields
-                for key in ['3m', '6m', '1y', '2y', '5y', '10y', '30y']:
-                    if date in historical_data.get(key, {}) and historical_data[key][date] is not None:
-                        point[key] = round(historical_data[key][date], 2)
-
-                if len(point) > 1:  # Has date + at least one yield
-                    yields_history.append(point)
-
-            return {
-                'spreads_history': spreads_history,
-                'yields_history': yields_history,
-                'inversion_events': inversions,
-                'period': period
-            }
-
-        except Exception as e:
-            log.error(f"Error fetching yield curve history: {e}")
-            raise
+    async def get_yield_curve_history(self, period: str = '5y') -> List:
+        """수익률 곡선 시계열 — FREDYieldCurveHistoryFetcher 위임."""
+        start_date, end_date = parse_period_to_dates(period)
+        return await QueryExecutor.fetch('fred', 'yield_curve_history', {
+            'start_date': start_date, 'end_date': end_date,
+        })
 
     @cached(ttl=1800)
     async def get_inflation_decomposition(self) -> Dict[str, Any]:
@@ -1118,14 +773,9 @@ class MacroService:
         Returns inflation components, sticky vs flexible prices, and expectations
         """
         try:
-            api_key = get_api_key(
-                credentials=None,
-                api_name="FRED",
-                env_var="FRED_API_KEY"
-            )
 
             # Fetch CPI data
-            cpi_data = await self._fetch(FREDCPIFetcher, {})
+            cpi_data = await self._qe(FREDCPIFetcher, {})
             cpi_sorted = sorted(cpi_data, key=lambda x: x['date'], reverse=True)
 
             # Calculate headline CPI metrics
@@ -1145,11 +795,10 @@ class MacroService:
             # Fetch Core CPI (CPI Less Food and Energy)
             core_cpi = {}
             try:
-                core_obs = FredSeriesFetcher.fetch_series(
-                    series_id=CORE_CPI,
-                    api_key=api_key,
+                core_obs = await self._qe_series(
+                    CORE_CPI,
                     limit=13,
-                    sort_order='desc'
+                    sort_order='desc',
                 )
                 if core_obs and len(core_obs) >= 13:
                     current_core = float(core_obs[0]['value'])
@@ -1203,18 +852,16 @@ class MacroService:
             sticky_vs_flexible = {}
             try:
                 # Sticky CPI
-                sticky_obs = FredSeriesFetcher.fetch_series(
-                    series_id=STICKY_CORE_CPI,
-                    api_key=api_key,
+                sticky_obs = await self._qe_series(
+                    STICKY_CORE_CPI,
                     limit=1,
-                    sort_order='desc'
+                    sort_order='desc',
                 )
                 # Flexible CPI
-                flexible_obs = FredSeriesFetcher.fetch_series(
-                    series_id=FLEXIBLE_CORE_CPI,
-                    api_key=api_key,
+                flexible_obs = await self._qe_series(
+                    FLEXIBLE_CORE_CPI,
                     limit=1,
-                    sort_order='desc'
+                    sort_order='desc',
                 )
 
                 if sticky_obs and flexible_obs:
@@ -1229,18 +876,16 @@ class MacroService:
             expectations = {}
             try:
                 # 5-Year Breakeven
-                five_yr_obs = FredSeriesFetcher.fetch_series(
-                    series_id=BREAKEVEN_5Y,
-                    api_key=api_key,
+                five_yr_obs = await self._qe_series(
+                    BREAKEVEN_5Y,
                     limit=1,
-                    sort_order='desc'
+                    sort_order='desc',
                 )
                 # 10-Year Breakeven
-                ten_yr_obs = FredSeriesFetcher.fetch_series(
-                    series_id=BREAKEVEN_10Y,
-                    api_key=api_key,
+                ten_yr_obs = await self._qe_series(
+                    BREAKEVEN_10Y,
                     limit=1,
-                    sort_order='desc'
+                    sort_order='desc',
                 )
 
                 if five_yr_obs and five_yr_obs[0]['value'] != '.':
@@ -1250,1614 +895,125 @@ class MacroService:
             except Exception as e:
                 log.warning(f"Could not fetch breakeven rates: {e}")
 
-            return {
-                'headline_cpi': headline_cpi,
-                'core_cpi': core_cpi,
-                'components': components,
-                'sticky_vs_flexible': sticky_vs_flexible,
-                'expectations': expectations,
-                'timestamp': datetime.now().isoformat()
-            }
+            return components
 
         except Exception as e:
             log.error(f"Error fetching inflation decomposition: {e}")
             raise
 
     @cached(ttl=1800)
-    async def get_labor_dashboard(self) -> Dict[str, Any]:
-        """
-        Get comprehensive labor market metrics
-
-        Returns unemployment, job market, wages, and labor market heat index
-        """
-        try:
-            api_key = get_api_key(
-                credentials=None,
-                api_name="FRED",
-                env_var="FRED_API_KEY"
-            )
-
-            # Unemployment metrics
-            unemployment = {}
-            try:
-                u3_data = await self._fetch(FREDUnemploymentFetcher, {})
-                u3_sorted = sorted(u3_data, key=lambda x: x['date'], reverse=True)
-
-                u6_obs = FredSeriesFetcher.fetch_series(
-                    series_id='U6RATE',
-                    api_key=api_key,
-                    limit=2,
-                    sort_order='desc'
-                )
-
-                lfpr_obs = FredSeriesFetcher.fetch_series(
-                    series_id='CIVPART',
-                    api_key=api_key,
-                    limit=2,
-                    sort_order='desc'
-                )
-
-                if u3_sorted:
-                    current_u3 = u3_sorted[0]['value']
-                    prev_u3 = u3_sorted[1]['value'] if len(u3_sorted) > 1 else current_u3
-
-                    # Determine trend
-                    if current_u3 < prev_u3 - 0.1:
-                        trend = 'improving'
-                    elif current_u3 > prev_u3 + 0.1:
-                        trend = 'deteriorating'
-                    else:
-                        trend = 'stable'
-
-                    unemployment = {
-                        'u3': round(current_u3, 1),
-                        'u6': round(float(u6_obs[0]['value']), 1) if u6_obs and u6_obs[0]['value'] != '.' else None,
-                        'participation_rate': round(float(lfpr_obs[0]['value']), 1) if lfpr_obs and lfpr_obs[0]['value'] != '.' else None,
-                        'trend': trend
-                    }
-            except Exception as e:
-                log.warning(f"Error fetching unemployment data: {e}")
-
-            # Job market metrics
-            job_market = {}
-            try:
-                payroll_data = await self._fetch(FREDNonfarmPayrollFetcher, {})
-                payroll_sorted = sorted(payroll_data, key=lambda x: x['date'], reverse=True)
-
-                jolts_obs = FredSeriesFetcher.fetch_series(
-                    series_id='JTSJOL',
-                    api_key=api_key,
-                    limit=1,
-                    sort_order='desc'
-                )
-
-                quits_obs = FredSeriesFetcher.fetch_series(
-                    series_id='JTSQUR',
-                    api_key=api_key,
-                    limit=1,
-                    sort_order='desc'
-                )
-
-                claims_obs = FredSeriesFetcher.fetch_series(
-                    series_id='ICSA',
-                    api_key=api_key,
-                    limit=1,
-                    sort_order='desc'
-                )
-
-                cont_claims_obs = FredSeriesFetcher.fetch_series(
-                    series_id='CCSA',
-                    api_key=api_key,
-                    limit=1,
-                    sort_order='desc'
-                )
-
-                if len(payroll_sorted) >= 2:
-                    current_payroll = payroll_sorted[0]['value']
-                    prev_payroll = payroll_sorted[1]['value']
-                    payroll_change = int(current_payroll - prev_payroll)
-
-                    job_market = {
-                        'nonfarm_payrolls': int(current_payroll),
-                        'payroll_change_mom': payroll_change,
-                        'jolts_openings': int(float(jolts_obs[0]['value'])) if jolts_obs and jolts_obs[0]['value'] != '.' else None,
-                        'quits_rate': round(float(quits_obs[0]['value']), 1) if quits_obs and quits_obs[0]['value'] != '.' else None,
-                        'initial_claims': int(float(claims_obs[0]['value'])) if claims_obs and claims_obs[0]['value'] != '.' else None,
-                        'continuing_claims': int(float(cont_claims_obs[0]['value'])) if cont_claims_obs and cont_claims_obs[0]['value'] != '.' else None
-                    }
-            except Exception as e:
-                log.warning(f"Error fetching job market data: {e}")
-
-            # Wage metrics
-            wages = {}
-            try:
-                # Average Hourly Earnings - CES0500000003
-                earnings_obs = FredSeriesFetcher.fetch_series(
-                    series_id='CES0500000003',
-                    api_key=api_key,
-                    limit=13,
-                    sort_order='desc'
-                )
-
-                # Unit Labor Cost (nonfarm business) - ULCNFB
-                ulc_obs = FredSeriesFetcher.fetch_series(
-                    series_id='ULCNFB',
-                    api_key=api_key,
-                    limit=1,
-                    sort_order='desc'
-                )
-
-                # Nonfarm Business Productivity - OPHNFB
-                prod_obs = FredSeriesFetcher.fetch_series(
-                    series_id='OPHNFB',
-                    api_key=api_key,
-                    limit=5,
-                    sort_order='desc'
-                )
-
-                if earnings_obs and len(earnings_obs) >= 13:
-                    current_earnings = float(earnings_obs[0]['value'])
-                    year_ago_earnings = float(earnings_obs[12]['value'])
-                    earnings_yoy = ((current_earnings - year_ago_earnings) / year_ago_earnings * 100)
-
-                    wages = {
-                        'hourly_earnings': round(current_earnings, 2),
-                        'hourly_earnings_yoy': round(earnings_yoy, 2),
-                        'unit_labor_cost': round(float(ulc_obs[0]['value']), 1) if ulc_obs and ulc_obs[0]['value'] != '.' else None,
-                        'productivity_growth': round(float(prod_obs[0]['value']), 1) if prod_obs and prod_obs[0]['value'] != '.' else None
-                    }
-            except Exception as e:
-                log.warning(f"Error fetching wage data: {e}")
-
-            # Calculate Labor Market Heat Index (0-100)
-            heat_index = 50.0  # Default neutral
-            try:
-                # Factors: low unemployment, high job openings, high quits rate, low claims
-                heat_factors = []
-
-                if 'u3' in unemployment:
-                    # Lower unemployment = hotter (invert)
-                    u3_score = max(0, min(100, 100 - (unemployment['u3'] * 20)))
-                    heat_factors.append(u3_score)
-
-                if job_market.get('quits_rate'):
-                    # Higher quits = hotter labor market
-                    quits_score = min(100, job_market['quits_rate'] * 40)
-                    heat_factors.append(quits_score)
-
-                if job_market.get('initial_claims'):
-                    # Lower claims = hotter (normalize around 250k)
-                    claims_score = max(0, min(100, 100 - ((job_market['initial_claims'] - 200000) / 2000)))
-                    heat_factors.append(claims_score)
-
-                if heat_factors:
-                    heat_index = round(sum(heat_factors) / len(heat_factors), 1)
-            except Exception as e:
-                log.warning(f"Error calculating heat index: {e}")
-
-            # Phillips Curve current point
-            phillips_curve = {}
-            try:
-                cpi_data = await self._fetch(FREDCPIFetcher, {})
-                cpi_sorted = sorted(cpi_data, key=lambda x: x['date'], reverse=True)
-
-                if unemployment.get('u3') and len(cpi_sorted) >= 13:
-                    current_cpi = cpi_sorted[0]['value']
-                    year_ago_cpi = cpi_sorted[12]['value']
-                    cpi_yoy = ((current_cpi - year_ago_cpi) / year_ago_cpi * 100)
-
-                    phillips_curve = {
-                        'current_point': {
-                            'unemployment': round(unemployment['u3'], 1),
-                            'inflation': round(cpi_yoy, 1)
-                        },
-                        'historical_average': {
-                            'unemployment': 5.5,  # Historical average
-                            'inflation': 2.5
-                        }
-                    }
-            except Exception as e:
-                log.warning(f"Error calculating Phillips Curve: {e}")
-
-            # Build flat rows for frontend table rendering
-            rows = []
-            u = unemployment
-            if u:
-                rows.append({'section': 'Unemployment', 'metric': 'U3 Rate',           'value': u.get('u3'),               'unit': '%',   'status': u.get('trend')})
-                rows.append({'section': 'Unemployment', 'metric': 'U6 Rate',           'value': u.get('u6'),               'unit': '%'})
-                rows.append({'section': 'Unemployment', 'metric': 'Participation Rate','value': u.get('participation_rate'),'unit': '%'})
-            jm = job_market
-            if jm:
-                rows.append({'section': 'Job Market', 'metric': 'Nonfarm Payrolls',    'value': jm.get('nonfarm_payrolls'),    'unit': 'K'})
-                rows.append({'section': 'Job Market', 'metric': 'Payroll Change MoM',  'value': jm.get('payroll_change_mom'),  'unit': 'K'})
-                rows.append({'section': 'Job Market', 'metric': 'JOLTS Openings',      'value': jm.get('jolts_openings'),      'unit': 'K'})
-                rows.append({'section': 'Job Market', 'metric': 'Quits Rate',          'value': jm.get('quits_rate'),          'unit': '%'})
-                rows.append({'section': 'Job Market', 'metric': 'Initial Claims',      'value': jm.get('initial_claims'),      'unit': ''})
-                rows.append({'section': 'Job Market', 'metric': 'Continuing Claims',   'value': jm.get('continuing_claims'),   'unit': ''})
-            w = wages
-            if w:
-                rows.append({'section': 'Wages', 'metric': 'Hourly Earnings',    'value': w.get('hourly_earnings'),     'unit': '$/hr'})
-                rows.append({'section': 'Wages', 'metric': 'Earnings YoY',       'value': w.get('hourly_earnings_yoy'), 'unit': '%'})
-                rows.append({'section': 'Wages', 'metric': 'Unit Labor Cost',    'value': w.get('unit_labor_cost'),     'unit': ''})
-                rows.append({'section': 'Wages', 'metric': 'Productivity',       'value': w.get('productivity_growth'), 'unit': ''})
-            rows.append({'section': 'Heat Index', 'metric': 'Labor Market Heat', 'value': heat_index, 'unit': '/100'})
-
-            return {
-                'data': [r for r in rows if r.get('value') is not None],
-                'unemployment': unemployment,
-                'job_market': job_market,
-                'wages': wages,
-                'heat_index': heat_index,
-                'phillips_curve': phillips_curve,
-                'timestamp': datetime.now().isoformat()
-            }
-
-        except Exception as e:
-            log.error(f"Error fetching labor dashboard: {e}")
-            raise
-
+    async def get_labor_dashboard(self) -> List:
+        """노동시장 스냅샷 — FREDLaborDashboardFetcher 위임."""
+        return await QueryExecutor.fetch('fred', 'labor_dashboard', {})
     @cached(ttl=3600)
-    async def get_labor_history(self, period: str = '5y') -> Dict[str, Any]:
-        """
-        Get historical labor market data for Phillips Curve visualization
-
-        Args:
-            period: Time period (1y, 3y, 5y, 10y, max)
-
-        Returns:
-            Historical unemployment and inflation data points
-        """
-        try:
-            from datetime import date as date_t
-            start_date, end_date = parse_period_to_dates(period)
-            s_str, e_str = str(start_date), str(end_date)
-
-            unemployment_data, cpi_data = await asyncio.gather(
-                self._fetch(FREDUnemploymentFetcher, {}),
-                self._fetch(FREDCPIFetcher, {})
-            )
-
-            unemployment_filtered = sorted(
-                [u for u in unemployment_data if u.get('date') and s_str <= u['date'] <= e_str],
-                key=lambda x: x['date']
-            )
-            cpi_filtered = sorted(
-                [c for c in cpi_data if c.get('date') and s_str <= c['date'] <= e_str],
-                key=lambda x: x['date']
-            )
-            cpi_all_sorted = sorted(cpi_data, key=lambda x: x['date'], reverse=True)
-
-            phillips_points = []
-
-            for u_point in unemployment_filtered:
-                u_date = date_t.fromisoformat(u_point['date'][:10])
-                closest_cpi = min(cpi_filtered, key=lambda c: abs((date_t.fromisoformat(c['date'][:10]) - u_date).days))
-
-                try:
-                    cpi_idx = next(i for i, c in enumerate(cpi_all_sorted) if c['date'] == closest_cpi['date'])
-                    if cpi_idx + 12 < len(cpi_all_sorted):
-                        year_ago_cpi = cpi_all_sorted[cpi_idx + 12]['value']
-                        cpi_yoy = ((closest_cpi['value'] - year_ago_cpi) / year_ago_cpi * 100)
-                        phillips_points.append({
-                            'date': u_point['date'],
-                            'unemployment': round(u_point['value'], 1),
-                            'inflation': round(cpi_yoy, 1)
-                        })
-                except (StopIteration, ValueError):
-                    continue
-
-            return {
-                'phillips_curve_data': phillips_points,
-                'period': period
-            }
-
-        except Exception as e:
-            log.error(f"Error fetching labor history: {e}")
-            raise
+    async def get_labor_history(self, period: str = '5y') -> List:
+        """필립스 곡선 시계열 — FREDPhillipsCurveFetcher 위임."""
+        start_date, end_date = parse_period_to_dates(period)
+        return await QueryExecutor.fetch('fred', 'phillips_curve', {
+            'start_date': start_date, 'end_date': end_date,
+        })
+    @cached(ttl=1800)
+    async def get_financial_conditions(self) -> List:
+        """금융 여건 스냅샷 — FREDFinancialConditionsFetcher 위임."""
+        return await QueryExecutor.fetch('fred', 'financial_conditions', {})
+    @cached(ttl=3600)
+    async def get_financial_conditions_history(self, period: str = '5y') -> List:
+        """NFCI 시계열 — FREDFinancialConditionsHistoryFetcher 위임."""
+        start_date, end_date = parse_period_to_dates(period)
+        return await QueryExecutor.fetch('fred', 'financial_conditions_history', {
+            'start_date': start_date, 'end_date': end_date,
+        })
 
     @cached(ttl=1800)
-    async def get_financial_conditions(self) -> Dict[str, Any]:
-        """
-        Get comprehensive financial conditions analysis
-
-        Returns FCI, credit spreads, liquidity indicators, and health metrics
-        """
-        try:
-            api_key = get_api_key(
-                credentials=None,
-                api_name="FRED",
-                env_var="FRED_API_KEY"
-            )
-
-            # Financial Conditions Index (Chicago Fed NFCI)
-            fci_composite = {}
-            try:
-                # Chicago Fed National Financial Conditions Index - NFCI
-                nfci_obs = FredSeriesFetcher.fetch_series(
-                    series_id='NFCI',
-                    api_key=api_key,
-                    limit=1,
-                    sort_order='desc'
-                )
-
-                if nfci_obs and nfci_obs[0]['value'] != '.':
-                    nfci_value = float(nfci_obs[0]['value'])
-
-                    # Normalize to -100 to +100 scale (NFCI typically ranges from -1 to +2)
-                    normalized_value = (nfci_value / 2.0) * 100
-                    normalized_value = max(-100, min(100, normalized_value))
-
-                    # Determine status
-                    if nfci_value > 0.5:
-                        status = 'very_tight'
-                    elif nfci_value > 0:
-                        status = 'tight'
-                    elif nfci_value > -0.5:
-                        status = 'neutral'
-                    else:
-                        status = 'loose'
-
-                    fci_composite = {
-                        'value': round(normalized_value, 2),
-                        'raw_value': round(nfci_value, 2),
-                        'status': status,
-                        'sources': {
-                            'chicago_fed': round(nfci_value, 2)
-                        }
-                    }
-            except Exception as e:
-                log.warning(f"Could not fetch FCI: {e}")
-
-            # Credit Spreads
-            credit_spreads = {}
-            try:
-                # BAA Corporate Bond Yield - BAMLC0A4CBBB
-                baa_obs = FredSeriesFetcher.fetch_series(
-                    series_id='BAMLC0A4CBBB',
-                    api_key=api_key,
-                    limit=1,
-                    sort_order='desc'
-                )
-
-                # AAA Corporate Bond Yield - BAMLC0A1CAAA
-                aaa_obs = FredSeriesFetcher.fetch_series(
-                    series_id='BAMLC0A1CAAA',
-                    api_key=api_key,
-                    limit=1,
-                    sort_order='desc'
-                )
-
-                # High Yield Option-Adjusted Spread - BAMLH0A0HYM2
-                hy_obs = FredSeriesFetcher.fetch_series(
-                    series_id='BAMLH0A0HYM2',
-                    api_key=api_key,
-                    limit=1,
-                    sort_order='desc'
-                )
-
-                # BBB Option-Adjusted Spread - BAMLC0A4CBBBEY
-                bbb_spread_obs = FredSeriesFetcher.fetch_series(
-                    series_id='BAMLC0A4CBBBEY',
-                    api_key=api_key,
-                    limit=1,
-                    sort_order='desc'
-                )
-
-                # Calculate Investment Grade spread (approximate)
-                ig_spread = None
-                if aaa_obs and aaa_obs[0]['value'] != '.':
-                    aaa_yield = float(aaa_obs[0]['value'])
-                    # Assume 10Y Treasury around 4% (would fetch DGS10 for accuracy)
-                    ig_spread = aaa_yield * 100  # Convert to basis points approximation
-
-                # High Yield spread
-                hy_spread = None
-                hy_percentile = None
-                if hy_obs and hy_obs[0]['value'] != '.':
-                    hy_spread = float(hy_obs[0]['value'])
-                    # Estimate percentile (typical range: 200-800bp, crisis: >1000bp)
-                    hy_percentile = min(100, max(0, ((hy_spread - 200) / 800) * 100))
-
-                # BBB-Treasury spread
-                bbb_spread = None
-                if bbb_spread_obs and bbb_spread_obs[0]['value'] != '.':
-                    bbb_spread = float(bbb_spread_obs[0]['value'])
-
-                # Distressed ratio (simplified estimate)
-                distressed_ratio = 0
-                if hy_spread and hy_spread > 1000:
-                    distressed_ratio = min(50, (hy_spread - 1000) / 20)  # Rough estimate
-
-                credit_spreads = {
-                    'investment_grade': {
-                        'spread': round(ig_spread, 0) if ig_spread else None,
-                        'percentile': 50.0  # Placeholder
-                    },
-                    'high_yield': {
-                        'spread': round(hy_spread, 0) if hy_spread else None,
-                        'percentile': round(hy_percentile, 1) if hy_percentile else None
-                    },
-                    'bbb_treasury': {
-                        'spread': round(bbb_spread, 0) if bbb_spread else None,
-                        'description': 'Lower end of Investment Grade'
-                    },
-                    'distressed_ratio': round(distressed_ratio, 1)
-                }
-            except Exception as e:
-                log.warning(f"Could not fetch credit spreads: {e}")
-
-            # Liquidity Indicators — 각 시리즈를 개별 try/except로 분리
-            # TEDRATE (TED spread) discontinued by FRED in Feb 2023 — LIBOR 폐지로 미제공
-            ted_spread = None
-            cp_outstanding = None
-
-            # Commercial Paper Outstanding — FRED 시리즈 폐기로 미제공
-            cp_outstanding = None
-
-            liquidity = {
-                'ted_spread': ted_spread,
-                'libor_ois_spread': None,  # LIBOR 폐지, SOFR 대체 필요
-                'commercial_paper_outstanding': cp_outstanding,
-            }
-
-            # Consumer Health — 각 시리즈를 개별 try/except로 분리
-            credit_growth = None
-            cc_delinquency = None
-            auto_delinquency = None
-            mortgage_delinquency = None
-
-            try:
-                consumer_credit_obs = FredSeriesFetcher.fetch_series(
-                    series_id='TOTALSL', api_key=api_key, limit=13, sort_order='desc'
-                )
-                if consumer_credit_obs and len(consumer_credit_obs) >= 13:
-                    current = float(consumer_credit_obs[0]['value'])
-                    year_ago = float(consumer_credit_obs[12]['value'])
-                    credit_growth = round((current - year_ago) / year_ago * 100, 2)
-            except Exception as e:
-                log.warning(f"Could not fetch consumer credit (TOTALSL): {e}")
-
-            try:
-                cc_obs = FredSeriesFetcher.fetch_series(
-                    series_id='DRCCLACBS', api_key=api_key, limit=1, sort_order='desc'
-                )
-                cc_delinquency = round(float(cc_obs[0]['value']), 2) if cc_obs and cc_obs[0]['value'] != '.' else None
-            except Exception as e:
-                log.warning(f"Could not fetch CC delinquency (DRCCLACBS): {e}")
-
-            try:
-                # DRCLACBS: Delinquency Rate on Consumer Loans, All Commercial Banks
-                auto_obs = FredSeriesFetcher.fetch_series(
-                    series_id='DRCLACBS', api_key=api_key, limit=1, sort_order='desc'
-                )
-                auto_delinquency = round(float(auto_obs[0]['value']), 2) if auto_obs and auto_obs[0]['value'] != '.' else None
-            except Exception as e:
-                log.warning(f"Could not fetch consumer loan delinquency (DRCLACBS): {e}")
-
-            try:
-                mortgage_obs = FredSeriesFetcher.fetch_series(
-                    series_id='DRSFRMACBS', api_key=api_key, limit=1, sort_order='desc'
-                )
-                mortgage_delinquency = round(float(mortgage_obs[0]['value']), 2) if mortgage_obs and mortgage_obs[0]['value'] != '.' else None
-            except Exception as e:
-                log.warning(f"Could not fetch mortgage delinquency (DRSFRMACBS): {e}")
-
-            consumer_health = {
-                'consumer_credit_growth': credit_growth,
-                'credit_card_delinquency': cc_delinquency,
-                'auto_loan_delinquency': auto_delinquency,
-                'mortgage_delinquency': mortgage_delinquency,
-            }
-
-            # Corporate Health
-            corporate_health = {}
-            try:
-                # Nonfinancial Corporate Business Debt - BCNSDODNS
-                corp_debt_obs = FredSeriesFetcher.fetch_series(
-                    series_id='BCNSDODNS',
-                    api_key=api_key,
-                    limit=13,
-                    sort_order='desc'
-                )
-
-                # GDP for debt-to-GDP ratio
-                gdp_data = await self._fetch(FREDGDPFetcher, {})
-                gdp_sorted = sorted(gdp_data, key=lambda x: x['date'], reverse=True)
-
-                # Calculate metrics
-                debt_to_gdp = None
-                debt_growth = None
-
-                if corp_debt_obs and len(corp_debt_obs) >= 1 and gdp_sorted:
-                    current_debt = float(corp_debt_obs[0]['value'])
-                    current_gdp = gdp_sorted[0]['value']
-
-                    # Debt is in millions, GDP in billions - convert
-                    debt_to_gdp = (current_debt / 1000) / current_gdp * 100
-
-                    if len(corp_debt_obs) >= 5:  # Quarterly data
-                        year_ago_debt = float(corp_debt_obs[4]['value'])
-                        debt_growth = ((current_debt - year_ago_debt) / year_ago_debt * 100)
-
-                corporate_health = {
-                    'corporate_debt_to_gdp': round(debt_to_gdp, 1) if debt_to_gdp else None,
-                    'interest_coverage_ratio': None,  # Would need earnings data
-                    'debt_growth_yoy': round(debt_growth, 2) if debt_growth else None
-                }
-            except Exception as e:
-                log.warning(f"Could not fetch corporate health: {e}")
-
-            # Build flat rows for frontend table rendering
-            rows = []
-            if fci_composite:
-                rows.append({'section': 'FCI', 'metric': 'Chicago Fed NFCI', 'value': fci_composite.get('raw_value'), 'unit': '', 'status': fci_composite.get('status')})
-            cs = credit_spreads
-            if cs:
-                ig = cs.get('investment_grade') or {}
-                hy = cs.get('high_yield') or {}
-                bbb = cs.get('bbb_treasury') or {}
-                rows.append({'section': 'Credit Spreads', 'metric': 'Investment Grade',  'value': ig.get('spread'),  'unit': 'bps', 'percentile': ig.get('percentile')})
-                rows.append({'section': 'Credit Spreads', 'metric': 'High Yield OAS',    'value': hy.get('spread'),  'unit': 'bps', 'percentile': hy.get('percentile')})
-                rows.append({'section': 'Credit Spreads', 'metric': 'BBB Treasury',      'value': bbb.get('spread'), 'unit': 'bps'})
-                rows.append({'section': 'Credit Spreads', 'metric': 'Distressed Ratio',  'value': cs.get('distressed_ratio'), 'unit': '%'})
-            ch = consumer_health
-            if ch:
-                rows.append({'section': 'Consumer Health', 'metric': 'Credit Growth YoY',     'value': ch.get('consumer_credit_growth'), 'unit': '%'})
-                rows.append({'section': 'Consumer Health', 'metric': 'CC Delinquency',         'value': ch.get('credit_card_delinquency'), 'unit': '%'})
-                rows.append({'section': 'Consumer Health', 'metric': 'Consumer Loan Delinquency','value': ch.get('auto_loan_delinquency'), 'unit': '%'})
-                rows.append({'section': 'Consumer Health', 'metric': 'Mortgage Delinquency',   'value': ch.get('mortgage_delinquency'), 'unit': '%'})
-            corp = corporate_health
-            if corp:
-                rows.append({'section': 'Corporate Health', 'metric': 'Debt Growth YoY', 'value': corp.get('debt_growth_yoy'), 'unit': '%'})
-
-            return {
-                'data': [r for r in rows if r.get('value') is not None],
-                'fci_composite': fci_composite,
-                'credit_spreads': credit_spreads,
-                'liquidity': liquidity,
-                'consumer_health': consumer_health,
-                'corporate_health': corporate_health,
-                'timestamp': datetime.now().isoformat()
-            }
-
-        except Exception as e:
-            log.error(f"Error fetching financial conditions: {e}")
-            raise
-
+    async def get_sentiment_composite(self) -> List:
+        """시장 심리 스냅샷 — FREDSentimentCompositeFetcher 위임."""
+        return await QueryExecutor.fetch('fred', 'sentiment_composite', {})
     @cached(ttl=3600)
-    async def get_financial_conditions_history(self, period: str = '5y') -> Dict[str, Any]:
-        """
-        Get historical financial conditions data
-
-        Args:
-            period: Time period (1y, 3y, 5y, 10y, max)
-
-        Returns:
-            Historical FCI and credit spread data
-        """
-        try:
-            start_date, end_date = parse_period_to_dates(period)
-
-            api_key = get_api_key(
-                credentials=None,
-                api_name="FRED",
-                env_var="FRED_API_KEY"
-            )
-
-            # Fetch historical FCI
-            nfci_history = []
-            try:
-                nfci_obs = FredSeriesFetcher.fetch_series(
-                    series_id='NFCI',
-                    api_key=api_key,
-                    start_date=start_date,
-                    end_date=end_date,
-                    sort_order='asc'
-                )
-
-                nfci_history = [
-                    {
-                        'date': obs['date'],
-                        'value': float(obs['value'])
-                    }
-                    for obs in nfci_obs
-                    if obs['value'] != '.'
-                ]
-            except Exception as e:
-                log.warning(f"Could not fetch NFCI history: {e}")
-
-            # Fetch historical credit spreads
-            credit_spread_history = []
-            try:
-                # High Yield spread history
-                hy_obs = FredSeriesFetcher.fetch_series(
-                    series_id='BAMLH0A0HYM2',
-                    api_key=api_key,
-                    start_date=start_date,
-                    end_date=end_date,
-                    sort_order='asc'
-                )
-
-                credit_spread_history = [
-                    {
-                        'date': obs['date'],
-                        'high_yield_spread': float(obs['value'])
-                    }
-                    for obs in hy_obs
-                    if obs['value'] != '.'
-                ]
-            except Exception as e:
-                log.warning(f"Could not fetch credit spread history: {e}")
-
-            return {
-                'fci_history': nfci_history,
-                'credit_spread_history': credit_spread_history,
-                'period': period
-            }
-
-        except Exception as e:
-            log.error(f"Error fetching financial conditions history: {e}")
-            raise
-
-    @cached(ttl=1800)
-    async def get_sentiment_composite(self) -> Dict[str, Any]:
-        """
-        Get comprehensive market sentiment analysis
-
-        Returns Fear & Greed Index, volatility metrics, positioning, and cross-asset signals
-        """
-        try:
-            api_key = get_api_key(
-                credentials=None,
-                api_name="FRED",
-                env_var="FRED_API_KEY"
-            )
-
-            # Fear & Greed Index Components
-            components = {}
-
-            # 1. VIX (CBOE Volatility Index) - VIXCLS
-            vix_value = None
-            vix_score = 50  # Neutral default
-            try:
-                vix_obs = FredSeriesFetcher.fetch_series(
-                    series_id='VIXCLS',
-                    api_key=api_key,
-                    limit=1,
-                    sort_order='desc'
-                )
-                if vix_obs and vix_obs[0]['value'] != '.':
-                    vix_value = float(vix_obs[0]['value'])
-                    # Lower VIX = more greed, Higher VIX = more fear
-                    # Normalize: VIX 10-15 = greedy, 15-20 = neutral, 20-30 = fear, >30 = extreme fear
-                    if vix_value < 15:
-                        vix_score = 100 - ((vix_value - 10) / 5) * 30  # 70-100 range
-                    elif vix_value < 20:
-                        vix_score = 70 - ((vix_value - 15) / 5) * 40  # 30-70 range
-                    elif vix_value < 30:
-                        vix_score = 30 - ((vix_value - 20) / 10) * 20  # 10-30 range
-                    else:
-                        vix_score = max(0, 10 - ((vix_value - 30) / 10) * 10)  # 0-10 range
-
-                    components['vix'] = {
-                        'value': round(vix_value, 2),
-                        'score': round(vix_score, 1)
-                    }
-            except Exception as e:
-                log.warning(f"Could not fetch VIX: {e}")
-
-            # 2. SKEW Index (tail risk) - SKEW data not available in FRED, use placeholder
-            # In production, would fetch from CBOE
-            components['skew'] = {
-                'value': None,
-                'score': 50  # Neutral placeholder
-            }
-
-            # 3. Put/Call Ratio - Not directly in FRED, use placeholder
-            components['put_call_ratio'] = {
-                'value': None,
-                'score': 50  # Neutral placeholder
-            }
-
-            # 4. High Yield Spread (already have this)
-            hy_score = 50
-            try:
-                hy_obs = FredSeriesFetcher.fetch_series(
-                    series_id='BAMLH0A0HYM2',
-                    api_key=api_key,
-                    limit=1,
-                    sort_order='desc'
-                )
-                if hy_obs and hy_obs[0]['value'] != '.':
-                    hy_spread = float(hy_obs[0]['value'])
-                    # Lower spread = greed, Higher spread = fear
-                    # Normalize: <300bp = greedy, 300-500 = neutral, >500 = fear
-                    if hy_spread < 300:
-                        hy_score = 100 - ((300 - hy_spread) / 100) * 20
-                    elif hy_spread < 500:
-                        hy_score = 80 - ((hy_spread - 300) / 200) * 50
-                    else:
-                        hy_score = max(0, 30 - ((hy_spread - 500) / 500) * 30)
-
-                    components['high_yield_spread'] = {
-                        'value': round(hy_spread, 0),
-                        'score': round(hy_score, 1)
-                    }
-            except Exception as e:
-                log.warning(f"Could not fetch HY spread for sentiment: {e}")
-
-            # 5. Safe Haven Demand (Gold, Treasury yields)
-            safe_haven_score = 50
-            try:
-                # Gold price increase = fear, decrease = greed
-                # 10Y Treasury yield decrease = fear (flight to safety)
-                treasury_obs = FredSeriesFetcher.fetch_series(
-                    series_id='DGS10',
-                    api_key=api_key,
-                    limit=20,
-                    sort_order='desc'
-                )
-                if treasury_obs and len(treasury_obs) >= 20:
-                    current_yield = float(treasury_obs[0]['value'])
-                    avg_yield = sum(float(obs['value']) for obs in treasury_obs[:20] if obs['value'] != '.') / 20
-                    # If current < average, flight to safety (fear)
-                    yield_diff = current_yield - avg_yield
-                    safe_haven_score = 50 - (yield_diff * 10)  # Rough estimate
-                    safe_haven_score = max(0, min(100, safe_haven_score))
-
-                components['safe_haven_demand'] = {
-                    'score': round(safe_haven_score, 1)
-                }
-            except Exception as e:
-                log.warning(f"Could not calculate safe haven demand: {e}")
-
-            # Calculate composite Fear & Greed Index
-            valid_scores = [v['score'] for v in components.values() if 'score' in v and v['score'] is not None]
-            if valid_scores:
-                fear_greed_value = sum(valid_scores) / len(valid_scores)
-            else:
-                fear_greed_value = 50  # Neutral default
-
-            # Classify status
-            if fear_greed_value < 20:
-                status = 'extreme_fear'
-            elif fear_greed_value < 40:
-                status = 'fear'
-            elif fear_greed_value < 60:
-                status = 'neutral'
-            elif fear_greed_value < 80:
-                status = 'greed'
-            else:
-                status = 'extreme_greed'
-
-            fear_greed_index = {
-                'value': round(fear_greed_value, 1),
-                'status': status,
-                'components': components
-            }
-
-            # Volatility metrics
-            volatility = {}
-            if vix_value is not None:
-                # Estimate percentile (VIX historical range: 10-80, typical 15-25)
-                vix_percentile = min(100, max(0, ((vix_value - 10) / 70) * 100))
-
-                if vix_value < 15:
-                    vix_status = 'low'
-                elif vix_value < 20:
-                    vix_status = 'normal'
-                elif vix_value < 30:
-                    vix_status = 'elevated'
-                else:
-                    vix_status = 'high'
-
-                volatility = {
-                    'vix': round(vix_value, 2),
-                    'vix_percentile': round(vix_percentile, 1),
-                    'vix_status': vix_status,
-                    'skew': None  # CBOE SKEW not in FRED
-                }
-
-            # Positioning (simplified - real data would come from AAII, fund flows)
-            positioning = {
-                'aaii_sentiment': {
-                    'bullish': None,  # AAII data not in FRED
-                    'bearish': None,
-                    'neutral': None,
-                    'bull_bear_spread': None
-                },
-                'fund_flows': {
-                    'equity_flows': None,
-                    'bond_flows': None,
-                    'money_market_flows': None
-                }
-            }
-
-            # Cross-asset signals
-            cross_asset_signals = {
-                'stock_bond_correlation': None,  # Would need daily price data
-                'risk_on_off': 'mixed',  # Default
-                'safe_haven_strength': safe_haven_score
-            }
-
-            # Determine risk-on/off based on VIX and spreads
-            if vix_value and hy_obs:
-                if vix_value < 18 and hy_spread < 400:
-                    cross_asset_signals['risk_on_off'] = 'risk_on'
-                elif vix_value > 25 or hy_spread > 600:
-                    cross_asset_signals['risk_on_off'] = 'risk_off'
-
-            # Build flat rows for frontend table rendering
-            rows = []
-            fg = fear_greed_index
-            if fg:
-                rows.append({'section': 'Fear & Greed', 'metric': 'Index',         'value': fg.get('value'), 'unit': '/100', 'status': fg.get('status')})
-            comps = fg.get('components', {}) if fg else {}
-            if comps.get('vix'):
-                rows.append({'section': 'Components', 'metric': 'VIX Score',       'value': comps['vix'].get('value'), 'unit': '', 'score': comps['vix'].get('score')})
-            if comps.get('high_yield_spread'):
-                rows.append({'section': 'Components', 'metric': 'HY Spread',       'value': comps['high_yield_spread'].get('value'), 'unit': 'bps', 'score': comps['high_yield_spread'].get('score')})
-            if comps.get('safe_haven_demand'):
-                rows.append({'section': 'Components', 'metric': 'Safe Haven',      'value': comps['safe_haven_demand'].get('score'), 'unit': '/100'})
-            vol = volatility
-            if vol:
-                rows.append({'section': 'Volatility',  'metric': 'VIX',            'value': vol.get('vix'),            'unit': '', 'percentile': vol.get('vix_percentile'), 'status': vol.get('vix_status')})
-            cas = cross_asset_signals
-            if cas:
-                rows.append({'section': 'Cross-Asset', 'metric': 'Risk On/Off',    'value': cas.get('risk_on_off'),    'unit': ''})
-                rows.append({'section': 'Cross-Asset', 'metric': 'Safe Haven Str.','value': cas.get('safe_haven_strength'), 'unit': '/100'})
-
-            return {
-                'data': [r for r in rows if r.get('value') is not None],
-                'fear_greed_index': fear_greed_index,
-                'volatility': volatility,
-                'positioning': positioning,
-                'cross_asset_signals': cross_asset_signals,
-                'timestamp': datetime.now().isoformat()
-            }
-
-        except Exception as e:
-            log.error(f"Error fetching sentiment composite: {e}")
-            raise
-
-    @cached(ttl=3600)
-    async def get_sentiment_history(self, period: str = '5y') -> Dict[str, Any]:
-        """
-        Get historical sentiment data
-
-        Args:
-            period: Time period (1y, 3y, 5y, 10y, max)
-
-        Returns:
-            Historical VIX and calculated sentiment scores
-        """
-        try:
-            start_date, end_date = parse_period_to_dates(period)
-
-            api_key = get_api_key(
-                credentials=None,
-                api_name="FRED",
-                env_var="FRED_API_KEY"
-            )
-
-            # Fetch historical VIX
-            vix_history = []
-            try:
-                vix_obs = FredSeriesFetcher.fetch_series(
-                    series_id='VIXCLS',
-                    api_key=api_key,
-                    start_date=start_date,
-                    end_date=end_date,
-                    sort_order='asc'
-                )
-
-                vix_history = [
-                    {
-                        'date': obs['date'],
-                        'vix': float(obs['value'])
-                    }
-                    for obs in vix_obs
-                    if obs['value'] != '.'
-                ]
-            except Exception as e:
-                log.warning(f"Could not fetch VIX history: {e}")
-
-            # Fetch historical High Yield spreads for fear/greed calculation
-            hy_history = []
-            try:
-                hy_obs = FredSeriesFetcher.fetch_series(
-                    series_id='BAMLH0A0HYM2',
-                    api_key=api_key,
-                    start_date=start_date,
-                    end_date=end_date,
-                    sort_order='asc'
-                )
-
-                hy_history = [
-                    {
-                        'date': obs['date'],
-                        'hy_spread': float(obs['value'])
-                    }
-                    for obs in hy_obs
-                    if obs['value'] != '.'
-                ]
-            except Exception as e:
-                log.warning(f"Could not fetch HY spread history: {e}")
-
-            # Calculate historical Fear/Greed scores
-            # Merge VIX and HY data by date
-            sentiment_history = []
-            vix_dict = {v['date']: v['vix'] for v in vix_history}
-            hy_dict = {h['date']: h['hy_spread'] for h in hy_history}
-
-            all_dates = sorted(set(list(vix_dict.keys()) + list(hy_dict.keys())))
-
-            for date in all_dates:
-                vix_val = vix_dict.get(date)
-                hy_val = hy_dict.get(date)
-
-                scores = []
-
-                # Calculate VIX score
-                if vix_val is not None:
-                    if vix_val < 15:
-                        vix_score = 100 - ((vix_val - 10) / 5) * 30
-                    elif vix_val < 20:
-                        vix_score = 70 - ((vix_val - 15) / 5) * 40
-                    elif vix_val < 30:
-                        vix_score = 30 - ((vix_val - 20) / 10) * 20
-                    else:
-                        vix_score = max(0, 10 - ((vix_val - 30) / 10) * 10)
-                    scores.append(vix_score)
-
-                # Calculate HY score
-                if hy_val is not None:
-                    if hy_val < 300:
-                        hy_score = 100 - ((300 - hy_val) / 100) * 20
-                    elif hy_val < 500:
-                        hy_score = 80 - ((hy_val - 300) / 200) * 50
-                    else:
-                        hy_score = max(0, 30 - ((hy_val - 500) / 500) * 30)
-                    scores.append(hy_score)
-
-                if scores:
-                    fear_greed_score = sum(scores) / len(scores)
-                    sentiment_history.append({
-                        'date': date,
-                        'fear_greed_score': round(fear_greed_score, 1),
-                        'vix': round(vix_val, 2) if vix_val else None,
-                        'hy_spread': round(hy_val, 0) if hy_val else None
-                    })
-
-            return {
-                'sentiment_history': sentiment_history,
-                'vix_history': vix_history,
-                'period': period
-            }
-
-        except Exception as e:
-            log.error(f"Error fetching sentiment history: {e}")
-            raise
+    async def get_sentiment_history(self, period: str = '5y') -> List:
+        """VIX + HY 스프레드 심리 시계열 — FREDSentimentHistoryFetcher 위임."""
+        start_date, end_date = parse_period_to_dates(period)
+        return await QueryExecutor.fetch('fred', 'sentiment_history', {
+            'start_date': start_date, 'end_date': end_date,
+        })
 
 
     @cached(ttl=3600)
-    async def get_gdp_forecast_data(self, period: str = "1y") -> Dict[str, Any]:
-        """
-        Get GDP forecast/contribution data for overview widget
-
-        Args:
-            period: Time period (3mo, 6mo, 1y, 2y)
-
-        Returns:
-            Historical GDP growth data
-        """
-        try:
-            start_date, end_date = parse_period_to_dates(period)
-            api_key = get_api_key(
-                credentials=None,
-                api_name="FRED",
-                env_var="FRED_API_KEY"
-            )
-
-            # Fetch Real GDP growth rate data
-            gdp_obs = FredSeriesFetcher.fetch_series(
-                series_id='A191RL1Q225SBEA',  # Real GDP % change from preceding period
-                api_key=api_key,
-                start_date=start_date,
-                end_date=end_date,
-                sort_order='asc'
-            )
-
-            history = [
-                {
-                    'date': obs['date'],
-                    'value': float(obs['value'])
-                }
-                for obs in gdp_obs
-                if obs['value'] != '.'
-            ]
-
-            return {
-                'title': 'Evolution of Latest GDP Forecast',
-                'subtitle': 'GDP Contribution',
-                'unit': '% Change',
-                'history': history,
-                'source': 'FRED, Macrodispatch'
-            }
-
-        except Exception as e:
-            log.error(f"Error fetching GDP forecast data: {e}")
-            raise
+    async def get_gdp_forecast_data(self, period: str = "1y") -> List:
+        """실질 GDP 성장률 시계열 — 기존 FREDGDPFetcher 재사용."""
+        start_date, end_date = parse_period_to_dates(period)
+        return await QueryExecutor.fetch('fred', 'gdp', {
+            'frequency': 'quarterly',
+            'start_date': start_date,
+            'end_date': end_date,
+        })
 
     @cached(ttl=3600)
-    async def get_inflation_momentum_data(self, period: str = "3y") -> Dict[str, Any]:
-        """
-        Get inflation momentum data with 12M, 6M, 3M rates
-
-        Args:
-            period: Time period (1y, 2y, 3y, 5y)
-
-        Returns:
-            Inflation rates at different momentum timeframes
-        """
-        try:
-            start_date, end_date = parse_period_to_dates(period)
-            api_key = get_api_key(
-                credentials=None,
-                api_name="FRED",
-                env_var="FRED_API_KEY"
-            )
-
-            # Fetch CPI All Items
-            cpi_obs = FredSeriesFetcher.fetch_series(
-                series_id='CPIAUCSL',  # CPI All Urban Consumers
-                api_key=api_key,
-                start_date=start_date,
-                end_date=end_date,
-                sort_order='asc'
-            )
-
-            cpi_data = [
-                {'date': obs['date'], 'value': float(obs['value'])}
-                for obs in cpi_obs
-                if obs['value'] != '.'
-            ]
-
-            # Calculate momentum at different timeframes
-            history = []
-            for i in range(len(cpi_data)):
-                point = {'date': cpi_data[i]['date']}
-
-                # 12-month YoY
-                if i >= 12:
-                    yoy_12m = ((cpi_data[i]['value'] - cpi_data[i-12]['value']) / cpi_data[i-12]['value']) * 100
-                    point['yoy_12m'] = round(yoy_12m, 2)
-
-                # 6-month annualized
-                if i >= 6:
-                    change_6m = ((cpi_data[i]['value'] - cpi_data[i-6]['value']) / cpi_data[i-6]['value'])
-                    annualized_6m = ((1 + change_6m) ** 2 - 1) * 100
-                    point['yoy_6m'] = round(annualized_6m, 2)
-
-                # 3-month annualized
-                if i >= 3:
-                    change_3m = ((cpi_data[i]['value'] - cpi_data[i-3]['value']) / cpi_data[i-3]['value'])
-                    annualized_3m = ((1 + change_3m) ** 4 - 1) * 100
-                    point['yoy_3m'] = round(annualized_3m, 2)
-
-                if 'yoy_12m' in point:
-                    history.append(point)
-
-            return {
-                'title': 'Inflation Momentum',
-                'subtitle': 'YoY %',
-                'fed_target': 2.0,
-                'history': history,
-                'source': 'FRED, Macrodispatch'
-            }
-
-        except Exception as e:
-            log.error(f"Error fetching inflation momentum data: {e}")
-            raise
+    async def get_inflation_momentum_data(self, period: str = "3y") -> List:
+        """CPI 모멘텀 시계열 — FREDInflationMomentumFetcher 위임."""
+        start_date, end_date = parse_period_to_dates(period)
+        return await QueryExecutor.fetch('fred', 'inflation_momentum', {
+            'start_date': start_date,
+            'end_date': end_date,
+        })
 
     @cached(ttl=3600)
-    async def get_initial_claims_data(self, period: str = "2y") -> Dict[str, Any]:
-        """
-        Get initial unemployment claims data with 4-week MA
-
-        Args:
-            period: Time period (6mo, 1y, 2y, 5y)
-
-        Returns:
-            Weekly initial claims and 4-week moving average
-        """
-        try:
-            start_date, end_date = parse_period_to_dates(period)
-            api_key = get_api_key(
-                credentials=None,
-                api_name="FRED",
-                env_var="FRED_API_KEY"
-            )
-
-            # Fetch Initial Claims
-            claims_obs = FredSeriesFetcher.fetch_series(
-                series_id='ICSA',  # Initial Claims
-                api_key=api_key,
-                start_date=start_date,
-                end_date=end_date,
-                sort_order='asc'
-            )
-
-            claims_data = [
-                {'date': obs['date'], 'value': float(obs['value'])}
-                for obs in claims_obs
-                if obs['value'] != '.'
-            ]
-
-            # Calculate 4-week moving average
-            history = []
-            for i in range(len(claims_data)):
-                point = {
-                    'date': claims_data[i]['date'],
-                    'claims': claims_data[i]['value'] / 1000  # Convert to thousands
-                }
-
-                if i >= 3:
-                    ma_4w = sum(d['value'] for d in claims_data[i-3:i+1]) / 4 / 1000
-                    point['ma_4w'] = round(ma_4w, 1)
-
-                history.append(point)
-
-            return {
-                'title': 'Initial Claims',
-                'subtitle': 'Thousands',
-                'history': history,
-                'source': 'FRED, Macrodispatch'
-            }
-
-        except Exception as e:
-            log.error(f"Error fetching initial claims data: {e}")
-            raise
+    async def get_initial_claims_data(self, period: str = "2y") -> List:
+        """신규 실업급여 청구 시계열 — FREDInitialClaimsFetcher 위임."""
+        start_date, end_date = parse_period_to_dates(period)
+        return await QueryExecutor.fetch('fred', 'initial_claims', {
+            'start_date': start_date, 'end_date': end_date,
+        })
+    @cached(ttl=3600)
+    async def get_jobs_breakdown_data(self, period: str = "5y") -> List:
+        """민간·정부 고용 변화 시계열 — FREDJobsBreakdownFetcher 위임."""
+        start_date, end_date = parse_period_to_dates(period)
+        return await QueryExecutor.fetch('fred', 'jobs_breakdown', {
+            'start_date': start_date, 'end_date': end_date,
+        })
 
     @cached(ttl=3600)
-    async def get_jobs_breakdown_data(self, period: str = "5y") -> Dict[str, Any]:
-        """
-        Get employment breakdown (Private vs Government)
-
-        Args:
-            period: Time period (1y, 3y, 5y, 10y)
-
-        Returns:
-            Monthly private and government employment data
-        """
-        try:
-            start_date, end_date = parse_period_to_dates(period)
-            api_key = get_api_key(
-                credentials=None,
-                api_name="FRED",
-                env_var="FRED_API_KEY"
-            )
-
-            # Fetch Private Employment
-            private_obs = FredSeriesFetcher.fetch_series(
-                series_id='USPRIV',  # All Employees, Total Private
-                api_key=api_key,
-                start_date=start_date,
-                end_date=end_date,
-                sort_order='asc'
-            )
-
-            # Fetch Government Employment
-            govt_obs = FredSeriesFetcher.fetch_series(
-                series_id='USGOVT',  # All Employees, Government
-                api_key=api_key,
-                start_date=start_date,
-                end_date=end_date,
-                sort_order='asc'
-            )
-
-            private_dict = {
-                obs['date']: float(obs['value'])
-                for obs in private_obs
-                if obs['value'] != '.'
-            }
-
-            govt_dict = {
-                obs['date']: float(obs['value'])
-                for obs in govt_obs
-                if obs['value'] != '.'
-            }
-
-            # Merge by date
-            all_dates = sorted(set(list(private_dict.keys()) + list(govt_dict.keys())))
-
-            # Get baseline for change calculation
-            baseline_private = None
-            baseline_govt = None
-
-            history = []
-            for date in all_dates:
-                private_val = private_dict.get(date)
-                govt_val = govt_dict.get(date)
-
-                if private_val is not None and govt_val is not None:
-                    if baseline_private is None:
-                        baseline_private = private_val
-                        baseline_govt = govt_val
-
-                    # Calculate change from baseline (in thousands)
-                    private_change = private_val - baseline_private
-                    govt_change = govt_val - baseline_govt
-
-                    history.append({
-                        'date': date,
-                        'private': round(private_change, 0),
-                        'government': round(govt_change, 0),
-                        'private_level': round(private_val, 0),
-                        'government_level': round(govt_val, 0)
-                    })
-
-            return {
-                'title': 'Jobs: Private vs Government',
-                'subtitle': 'Change in Thousands',
-                'history': history,
-                'source': 'FRED, Macrodispatch'
-            }
-
-        except Exception as e:
-            log.error(f"Error fetching jobs breakdown data: {e}")
-            raise
-
-    @cached(ttl=3600)
-    async def get_inflation_sector_history(self, period: str = "5y") -> Dict[str, Any]:
-        """
-        Get historical YoY CPI by sector (Food, Energy, Shelter, Medical, etc.)
-
-        Args:
-            period: Time period (1y, 3y, 5y, 10y, max)
-
-        Returns:
-            {
-                'sectors': [{'key': str, 'name': str, 'color': str}, ...],
-                'history': [{'date': str, 'headline': float, 'core': float, ...}, ...],
-                'source': str
-            }
-        """
-        try:
-            # Extra 13 months before period start to compute YoY
-            start_date, end_date = parse_period_to_dates(period)
-            extended_start = start_date - timedelta(days=395)
-
-            api_key = get_api_key(
-                credentials=None,
-                api_name="FRED",
-                env_var="FRED_API_KEY"
-            )
-
-            # Fetch each sector series
-            sector_raw: Dict[str, List[Dict]] = {}
-            for key, meta in CPI_SECTOR_SERIES.items():
-                try:
-                    obs = FredSeriesFetcher.fetch_series(
-                        series_id=meta['id'],
-                        api_key=api_key,
-                        start_date=extended_start,
-                        end_date=end_date,
-                        sort_order='asc'
-                    )
-                    sector_raw[key] = [
-                        {'date': o['date'], 'value': float(o['value'])}
-                        for o in obs if o['value'] != '.'
-                    ]
-                except Exception as e:
-                    log.warning(f"Could not fetch CPI sector {key}: {e}")
-                    sector_raw[key] = []
-
-            # Compute YoY % change and align by date
-            sector_yoy: Dict[str, Dict[str, float]] = {}  # key -> {date: yoy}
-            for key, series in sector_raw.items():
-                yoy_map: Dict[str, float] = {}
-                for i in range(12, len(series)):
-                    try:
-                        v_now = series[i]['value']
-                        v_year_ago = series[i - 12]['value']
-                        if v_year_ago != 0:
-                            yoy = round((v_now - v_year_ago) / v_year_ago * 100, 2)
-                            yoy_map[series[i]['date']] = yoy
-                    except Exception:
-                        pass
-                sector_yoy[key] = yoy_map
-
-            # Build aligned timeline using headline as anchor (most complete)
-            anchor_dates = sorted(sector_yoy.get('headline', {}).keys())
-            # Only dates within actual period range
-            period_start_str = start_date.isoformat()
-            anchor_dates = [d for d in anchor_dates if d >= period_start_str]
-
-            history = []
-            for date_str in anchor_dates:
-                point: Dict[str, Any] = {'date': date_str}
-                for key in CPI_SECTOR_SERIES:
-                    val = sector_yoy.get(key, {}).get(date_str)
-                    if val is not None:
-                        point[key] = val
-                history.append(point)
-
-            sectors_meta = [
-                {'key': k, 'name': v['name'], 'color': v['color']}
-                for k, v in CPI_SECTOR_SERIES.items()
-            ]
-
-            return {
-                'sectors': sectors_meta,
-                'history': history,
-                'source': 'FRED / BLS'
-            }
-
-        except Exception as e:
-            log.error(f"Error fetching inflation sector history: {e}")
-            raise
+    async def get_inflation_sector_history(self, period: str = "5y") -> List:
+        """섹터별 CPI YoY 시계열 — FREDInflationSectorFetcher 위임."""
+        start_date, end_date = parse_period_to_dates(period)
+        return await QueryExecutor.fetch('fred', 'inflation_sector', {
+            'start_date': start_date, 'end_date': end_date,
+        })
 
     # ------------------------------------------------------------------
     # Business Cycle: CFNAI + OECD CLI + Sahm Rule
     # ------------------------------------------------------------------
     @cached(ttl=3600)
-    async def get_pmi_data(self, period: str = '5y') -> Dict[str, Any]:
-        """
-        Get Chicago Fed National Activity Index (CFNAI), OECD Composite Leading Indicator,
-        and Sahm Rule Recession Indicator — the best freely-available PMI proxies.
-
-        CFNAI:     composite of 85 monthly indicators, >0 = above-trend growth.
-        CFNAIDIFF: breadth — fraction of indicators contributing positively (>0 = majority expanding).
-        Sahm Rule: >0.5 = recession signal (highly accurate since 1970s).
-
-        FRED series:
-          CFNAI       - Chicago Fed National Activity Index (monthly)
-          CFNAIDIFF   - CFNAI Diffusion Index — breadth of 85 components (monthly)
-          SAHMCURRENT - Sahm Rule Real-time Recession Indicator (monthly)
-        """
-        try:
-            start_date, end_date = parse_period_to_dates(period)
-            api_key = get_api_key(credentials=None, api_name="FRED", env_var="FRED_API_KEY")
-
-            def _fetch(sid: str) -> List[Dict]:
-                return FredSeriesFetcher.fetch_series(
-                    series_id=sid, api_key=api_key,
-                    start_date=start_date, end_date=end_date,
-                    sort_order='asc'
-                )
-
-            def _parse(raw: List[Dict]) -> List[Dict]:
-                return [
-                    {'date': o['date'], 'value': round(float(o['value']), 4)}
-                    for o in raw if o['value'] not in ('.', '')
-                ]
-
-            cfnai_data = _parse(_fetch('CFNAI'))
-            diff_data  = _parse(_fetch('CFNAIDIFF'))
-            sahm_data  = _parse(_fetch('SAHMCURRENT'))
-
-            latest_cfnai = cfnai_data[-1] if cfnai_data else None
-            latest_diff  = diff_data[-1] if diff_data else None
-            latest_sahm  = sahm_data[-1] if sahm_data else None
-
-            # 3-month CFNAI trend
-            cfnai_trend = None
-            if len(cfnai_data) >= 3:
-                recent = [d['value'] for d in cfnai_data[-3:]]
-                cfnai_trend = round(recent[-1] - recent[0], 4)
-
-            # CFNAI 3-month moving average (reduce noise)
-            cfnai_ma3 = []
-            for i in range(2, len(cfnai_data)):
-                avg = round(sum(d['value'] for d in cfnai_data[i-2:i+1]) / 3, 4)
-                cfnai_ma3.append({'date': cfnai_data[i]['date'], 'value': avg})
-
-            return {
-                'cfnai': {
-                    'series': cfnai_data,
-                    'ma3': cfnai_ma3,
-                    'latest': latest_cfnai,
-                    'trend_3m': cfnai_trend,
-                    'status': 'expansion' if latest_cfnai and latest_cfnai['value'] >= 0 else 'contraction',
-                    'threshold': 0,
-                    'description': 'Chicago Fed CFNAI — 85-indicator composite (>0 = above-trend growth)',
-                },
-                'diff': {
-                    'series': diff_data,
-                    'latest': latest_diff,
-                    'threshold': 0,
-                    'description': 'CFNAI Diffusion Index — breadth of 85 components (>0 = majority expanding)',
-                },
-                'sahm': {
-                    'series': sahm_data,
-                    'latest': latest_sahm,
-                    'recession_signal': bool(latest_sahm and latest_sahm['value'] >= 0.5),
-                    'threshold': 0.5,
-                    'description': 'Sahm Rule Recession Indicator (≥0.5 = recession signal)',
-                },
-                'source': 'FRED / Chicago Fed / BLS',
-                'period': period,
-            }
-
-        except Exception as e:
-            log.error(f"Error fetching business cycle data: {e}")
-            raise
+    async def get_pmi_data(self, period: str = '5y') -> List:
+        """경기순환 지표 시계열 — FREDPMIFetcher 위임."""
+        start_date, end_date = parse_period_to_dates(period)
+        return await QueryExecutor.fetch('fred', 'pmi', {
+            'start_date': start_date,
+            'end_date': end_date,
+        })
 
     # ------------------------------------------------------------------
     # Fed Balance Sheet / QT Monitor
     # ------------------------------------------------------------------
     @cached(ttl=3600)
-    async def get_fed_balance_sheet(self, period: str = '10y') -> Dict[str, Any]:
-        """
-        Get Federal Reserve total assets (balance sheet) history.
-
-        FRED series:
-          WALCL - Total Assets, Eliminations from Consolidation (weekly, billions)
-        """
-        try:
-            import asyncio
-            start_date, end_date = parse_period_to_dates(period)
-            api_key = get_api_key(credentials=None, api_name="FRED", env_var="FRED_API_KEY")
-
-            def _fetch(sid: str) -> List[Dict]:
-                return FredSeriesFetcher.fetch_series(
-                    series_id=sid, api_key=api_key,
-                    start_date=start_date, end_date=end_date,
-                    sort_order='asc'
-                )
-
-            loop = asyncio.get_event_loop()
-            # WALCL is in thousands of millions (= billions of dollars)
-            raw = await loop.run_in_executor(None, _fetch, 'WALCL')
-
-            data = [
-                {'date': o['date'], 'value': round(float(o['value']) / 1000, 2)}  # → trillions
-                for o in raw if o['value'] not in ('.', '')
-            ]
-
-            latest = data[-1] if data else None
-            peak = max(data, key=lambda x: x['value']) if data else None
-            trough_after_peak = None
-            if peak:
-                idx = next((i for i, d in enumerate(data) if d['date'] == peak['date']), None)
-                if idx is not None and idx < len(data) - 1:
-                    post_peak = data[idx:]
-                    trough_after_peak = min(post_peak, key=lambda x: x['value'])
-
-            # Detect QE/QT regimes (expanding vs contracting)
-            regimes: List[Dict] = []
-            if len(data) >= 2:
-                current_regime = 'expanding' if data[1]['value'] > data[0]['value'] else 'contracting'
-                regime_start = data[0]['date']
-                for i in range(1, len(data)):
-                    direction = 'expanding' if data[i]['value'] >= data[i - 1]['value'] else 'contracting'
-                    if direction != current_regime:
-                        regimes.append({'type': current_regime, 'start': regime_start, 'end': data[i - 1]['date']})
-                        current_regime = direction
-                        regime_start = data[i]['date']
-                regimes.append({'type': current_regime, 'start': regime_start, 'end': data[-1]['date']})
-
-            # Keep only significant regime changes (> 3 months)
-            significant_regimes = [
-                r for r in regimes
-                if r['start'] < r['end'] and (
-                    datetime.fromisoformat(r['end']) - datetime.fromisoformat(r['start'])
-                ).days > 90
-            ]
-
-            return {
-                'series': data,
-                'latest': latest,
-                'peak': peak,
-                'trough_after_peak': trough_after_peak,
-                'regimes': significant_regimes,
-                'unit': 'Trillions USD',
-                'source': 'FRED / Federal Reserve',
-                'period': period,
-            }
-
-        except Exception as e:
-            log.error(f"Error fetching Fed balance sheet: {e}")
-            raise
+    async def get_fed_balance_sheet(self, period: str = '10y') -> List:
+        """연준 총자산 시계열 — FREDFedBalanceSheetFetcher 위임."""
+        start_date, end_date = parse_period_to_dates(period)
+        return await QueryExecutor.fetch(
+            'fred', 'fed_balance_sheet',
+            {'start_date': start_date, 'end_date': end_date},
+        )
 
     # ------------------------------------------------------------------
     # Real Rates: TIPS Yields + Breakeven Inflation
     # ------------------------------------------------------------------
     @cached(ttl=3600)
-    async def get_real_rates(self, period: str = '5y') -> Dict[str, Any]:
-        """
-        Get real (inflation-adjusted) Treasury yields and breakeven inflation rates.
-
-        Real rates = nominal yield − inflation breakeven.
-        Rising real rates → headwind for gold, equities, crypto.
-        Falling real rates → tailwind for risk assets.
-
-        FRED series:
-          DGS10   - 10Y Nominal Treasury Yield
-          DGS5    - 5Y Nominal Treasury Yield
-          DFII10  - 10Y TIPS Real Yield
-          DFII5   - 5Y TIPS Real Yield
-          T5YIE   - 5Y Breakeven Inflation Rate
-          T10YIE  - 10Y Breakeven Inflation Rate
-        """
-        try:
-            import asyncio
-            start_date, end_date = parse_period_to_dates(period)
-            api_key = get_api_key(credentials=None, api_name="FRED", env_var="FRED_API_KEY")
-
-            series_map = {
-                'nominal_10y': 'DGS10',
-                'nominal_5y': 'DGS5',
-                'real_10y': 'DFII10',
-                'real_5y': 'DFII5',
-                'breakeven_5y': 'T5YIE',
-                'breakeven_10y': 'T10YIE',
-            }
-
-            def _fetch(sid: str) -> List[Dict]:
-                return FredSeriesFetcher.fetch_series(
-                    series_id=sid, api_key=api_key,
-                    start_date=start_date, end_date=end_date,
-                    sort_order='asc'
-                )
-
-            loop = asyncio.get_event_loop()
-            results = await asyncio.gather(*[
-                loop.run_in_executor(None, _fetch, sid)
-                for sid in series_map.values()
-            ])
-
-            series_data: Dict[str, Dict[str, float]] = {}
-            for key, raw in zip(series_map.keys(), results):
-                series_data[key] = {
-                    o['date']: round(float(o['value']), 3)
-                    for o in raw if o['value'] not in ('.', '')
-                }
-
-            # Build unified timeline (use nominal_10y as anchor)
-            anchor_dates = sorted(series_data.get('nominal_10y', {}).keys())
-
-            history = []
-            for date_str in anchor_dates:
-                point: Dict[str, Any] = {'date': date_str}
-                for key in series_map:
-                    val = series_data[key].get(date_str)
-                    if val is not None:
-                        point[key] = val
-                if len(point) > 1:
-                    history.append(point)
-
-            # Latest readings
-            latest = history[-1] if history else {}
-
-            # Real rate regime
-            real_10y_now = latest.get('real_10y')
-            regime = 'positive' if real_10y_now and real_10y_now > 0 else 'negative' if real_10y_now is not None else None
-
-            # 52-week context
-            wk52_high = None
-            wk52_low = None
-            if history:
-                recent_year = history[-min(252, len(history)):]
-                vals = [p['real_10y'] for p in recent_year if 'real_10y' in p]
-                if vals:
-                    wk52_high = round(max(vals), 3)
-                    wk52_low = round(min(vals), 3)
-
-            return {
-                'history': history,
-                'latest': latest,
-                'regime': regime,
-                '52w_high': wk52_high,
-                '52w_low': wk52_low,
-                'source': 'FRED / US Treasury',
-                'period': period,
-            }
-
-        except Exception as e:
-            log.error(f"Error fetching real rates: {e}")
-            raise
+    async def get_real_rates(self, period: str = '5y') -> List:
+        """실질금리 시계열 — FREDRealRatesFetcher 위임."""
+        start_date, end_date = parse_period_to_dates(period)
+        return await QueryExecutor.fetch('fred', 'real_rates', {
+            'start_date': start_date,
+            'end_date': end_date,
+        })
 
 
     async def get_bond_prices(
@@ -2919,7 +1075,7 @@ class MacroService:
             }.items() if v is not None
         }
 
-        return await self._fetch(FMPBondPricesFetcher, params)
+        return await self._qe(FMPBondPricesFetcher, params)
 
 
 # Global instance

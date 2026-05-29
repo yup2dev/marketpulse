@@ -62,7 +62,7 @@ const fmt = {
   number:    v => v == null ? '—' : Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 }),
   percent:   v => v == null ? '—' : `${Number(v) >= 0 ? '+' : ''}${Number(v).toFixed(2)}%`,
   currency:  v => v == null ? '—' : `$${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-  date:      v => v == null ? '—' : new Date(v).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' }),
+  date:      v => { if (v == null) return '—'; const d = new Date(v); if (isNaN(d)) return v; const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`; },
   magnitude: v => {
     if (v == null) return '—';
     const n = Number(v);

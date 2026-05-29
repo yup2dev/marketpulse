@@ -1,56 +1,34 @@
-"""
-Portfolio Service
-Provides institutional portfolio and 13F holdings data
-"""
+"""Portfolio Service — 기관 13F 보유 데이터 조회."""
 import logging
 from typing import Dict, Any, List
 
-from data_fetcher.fetchers.whalewisdom import WhaleWisdomFetcher
 from data_fetcher.query_executor import QueryExecutor
 
 log = logging.getLogger(__name__)
 
 
 class PortfolioService:
-    """Service for institutional portfolio data"""
-
-    def __init__(self):
-        self.fetcher = WhaleWisdomFetcher
 
     async def get_institutions_list(
         self,
         use_dynamic: bool = True,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[Dict[str, Any]]:
-        """
-        Get list of all available institutions with 13F filings
-
-        Args:
-            use_dynamic: If True, fetch from SEC dynamically. If False, use featured list.
-            limit: Maximum number of institutions to return (only for dynamic)
-
-        Returns:
-            List of institutions with basic information
-        """
         try:
-            institutions_list = self.fetcher.get_institutions_list(
-                use_dynamic=use_dynamic,
-                limit=limit
+            results = await QueryExecutor.fetch(
+                'whalewisdom', 'institutions_list',
+                {'use_dynamic': use_dynamic, 'limit': limit},
             )
-
-            institutions = [
+            return [
                 {
-                    "key": inst.key,
-                    "name": inst.name,
-                    "manager": inst.manager,
-                    "cik": inst.cik,
-                    "description": inst.description
+                    'key':         inst.key,
+                    'name':        inst.name,
+                    'manager':     inst.manager,
+                    'cik':         inst.cik,
+                    'description': inst.description,
                 }
-                for inst in institutions_list
+                for inst in (results or [])
             ]
-
-            return institutions
-
         except Exception as e:
             log.error(f"Error fetching institutions list: {e}")
             raise
@@ -58,82 +36,63 @@ class PortfolioService:
     async def get_institution_portfolio(
         self,
         institution_key: str,
-        limit: int = 50
+        limit: int = 50,
     ) -> Dict[str, Any]:
-        """
-        Get detailed 13F holdings for a specific institution
-
-        Args:
-            institution_key: Institution identifier (e.g., 'berkshire', 'ark')
-            limit: Maximum number of holdings to return
-
-        Returns:
-            Portfolio data including holdings, metrics, and metadata
-        """
         try:
-            params = {"institution_key": institution_key, "limit": limit}
-            results = await QueryExecutor.fetch("whalewisdom", "institutional_holdings", params)
+            results = await QueryExecutor.fetch(
+                'whalewisdom', 'institutional_holdings',
+                {'institution_key': institution_key, 'limit': limit},
+            )
 
-            if not results or len(results) == 0:
+            if not results:
                 raise ValueError(f"Holdings not found for institution: {institution_key}")
 
             portfolio = results[0]
 
-            # Build response with actual fetcher data
-            def serialize_holding(stock):
+            def _serialize(stock):
                 d = {
-                    "symbol": stock.symbol,
-                    "name": stock.name,
-                    "cusip": stock.cusip,
-                    "value": stock.value,
-                    "shares": stock.shares,
-                    "weight": stock.weight,
+                    'symbol': stock.symbol,
+                    'name':   stock.name,
+                    'cusip':  stock.cusip,
+                    'value':  stock.value,
+                    'shares': stock.shares,
+                    'weight': stock.weight,
                 }
-                if stock.prev_shares is not None:
-                    d["prev_shares"] = stock.prev_shares
-                if stock.prev_value is not None:
-                    d["prev_value"] = stock.prev_value
-                if stock.share_change is not None:
-                    d["share_change"] = stock.share_change
-                if stock.share_change_pct is not None:
-                    d["share_change_pct"] = stock.share_change_pct
-                if stock.value_change is not None:
-                    d["value_change"] = stock.value_change
-                if stock.value_change_pct is not None:
-                    d["value_change_pct"] = stock.value_change_pct
-                if stock.status is not None:
-                    d["status"] = stock.status
+                for field in ('prev_shares', 'prev_value', 'share_change',
+                              'share_change_pct', 'value_change', 'value_change_pct', 'status'):
+                    val = getattr(stock, field, None)
+                    if val is not None:
+                        d[field] = val
                 return d
 
             holding = {
-                "id": portfolio.id,
-                "institution_key": portfolio.institution_key,
-                "manager": portfolio.manager,
-                "name": portfolio.name,
-                "description": portfolio.description,
-                "total_value": portfolio.total_value,
-                "num_holdings": portfolio.num_holdings,
-                "filing_date": portfolio.filing_date,
-                "period_end": portfolio.period_end,
-                "category": portfolio.category,
-                "previous_filing_date": portfolio.previous_filing_date,
-                "previous_value": portfolio.previous_value,
-                "value_change": portfolio.value_change,
-                "value_change_pct": portfolio.value_change_pct,
-                "num_new_positions": portfolio.num_new_positions,
-                "num_sold_out": portfolio.num_sold_out,
-                "num_increased": portfolio.num_increased,
-                "num_decreased": portfolio.num_decreased,
-                "turnover": portfolio.turnover,
-                "stocks": [serialize_holding(stock) for stock in portfolio.stocks],
-                "sold_positions": [serialize_holding(stock) for stock in portfolio.sold_positions],
+                'id':                    portfolio.id,
+                'institution_key':       portfolio.institution_key,
+                'manager':               portfolio.manager,
+                'name':                  portfolio.name,
+                'description':           portfolio.description,
+                'total_value':           portfolio.total_value,
+                'num_holdings':          portfolio.num_holdings,
+                'filing_date':           portfolio.filing_date,
+                'period_end':            portfolio.period_end,
+                'category':              portfolio.category,
+                'previous_filing_date':  portfolio.previous_filing_date,
+                'previous_value':        portfolio.previous_value,
+                'value_change':          portfolio.value_change,
+                'value_change_pct':      portfolio.value_change_pct,
+                'num_new_positions':     portfolio.num_new_positions,
+                'num_sold_out':          portfolio.num_sold_out,
+                'num_increased':         portfolio.num_increased,
+                'num_decreased':         portfolio.num_decreased,
+                'turnover':              portfolio.turnover,
+                'stocks':                [_serialize(s) for s in portfolio.stocks],
+                'sold_positions':        [_serialize(s) for s in portfolio.sold_positions],
             }
 
-            if hasattr(portfolio, 'performance') and portfolio.performance:
-                holding["performance"] = portfolio.performance
-
-            if hasattr(portfolio, 'top_sectors') and portfolio.top_sectors:
-                holding["top_sectors"] = portfolio.top_sectors
+            if getattr(portfolio, 'performance', None):
+                holding['performance'] = portfolio.performance
+            if getattr(portfolio, 'top_sectors', None):
+                holding['top_sectors'] = portfolio.top_sectors
 
             return holding
 
@@ -144,5 +103,4 @@ class PortfolioService:
             raise
 
 
-# Global instance
 portfolio_service = PortfolioService()

@@ -1,343 +1,320 @@
-"""
-Stock API Routes
-Endpoints for stock data, quotes, and historical prices
-"""
+"""Stock API Routes — OBBject pattern"""
 import logging
-from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from typing import Any, Dict, List, Optional
 
-from app.backend.database.db_dependency import get_db
-from app.backend.services.ranking_service import RankingService
-from app.backend.services.yahoo import price as yahoo_price
-from app.backend.services.yahoo import company as yahoo_company
-from app.backend.services.yahoo import financials as yahoo_financials
-from app.backend.services.yahoo import holders as yahoo_holders
-from app.backend.services.polygon import market as polygon_market
-from app.backend.services.fmp import market as fmp_market
-from app.backend.services.fred import economics as fred_economics
-from app.backend.services.social import sentiment as social_sentiment
-from app.backend.services.company_relations import get_company_relations
+from fastapi import APIRouter, HTTPException, Query as FQuery
+
+from data_fetcher.core.obbject import OBBject
+from data_fetcher.fetchers.base import AnnotatedResult
+from data_fetcher.query_executor import QueryExecutor
 from app.backend.api.deps import route_handler
 
 log = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.get("/quote/{symbol}")
-@route_handler
-async def get_stock_quote(symbol: str):
-    """Get current stock quote"""
-    quote = await yahoo_price.get_stock_quote(symbol.upper())
-    if not quote:
-        raise HTTPException(status_code=404, detail=f"Stock {symbol} not found")
-    return quote
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _unwrap(raw: Any) -> List[Any]:
+    return raw.result if isinstance(raw, AnnotatedResult) else (raw or [])
 
 
-@router.get("/history/{symbol}")
-@route_handler
-async def get_stock_history(
-    symbol: str,
-    period: Optional[str] = None,
-    interval: Optional[str] = None,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None
-):
-    """
-    Get historical stock prices
-
-    Periods: 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, max
-    Intervals: 1m, 2m, 5m, 15m, 30m, 60m, 90m, 1h, 1d, 5d, 1wk, 1mo, 3mo
-
-    Or use start_date and end_date (YYYY-MM-DD format) for custom range
-    """
-    log.debug(f"ROUTE PARAMS - symbol={symbol}, period={period}, interval={interval}, start_date={start_date}, end_date={end_date}")
-    history = await yahoo_price.get_stock_history(
-        symbol.upper(),
-        period,
-        interval=interval,
-        start_date=start_date,
-        end_date=end_date
-    )
-    if not history:
-        raise HTTPException(status_code=404, detail=f"No history for {symbol}")
-    return {"symbol": symbol.upper(), "period": period, "data": history}
+def _serialize(items: List[Any]) -> List[Dict]:
+    out = []
+    for item in items:
+        if hasattr(item, "model_dump"):
+            out.append(item.model_dump(mode="json"))
+        elif isinstance(item, dict):
+            out.append(item)
+        else:
+            out.append(item)
+    return out
 
 
-@router.get("/orderbook/{symbol}")
-@route_handler
-async def get_stock_orderbook(symbol: str):
-    """
-    Get approximate order book for a US stock.
-    Uses Polygon.io NBBO quotes aggregated by price level.
-    """
-    return await yahoo_price.get_stock_orderbook(symbol.upper())
+def _wrap(raw: Any, provider: str) -> OBBject:
+    return OBBject(results=_serialize(_unwrap(raw)), provider=provider)
 
+
+def _wrap_one(data: Any, provider: str) -> OBBject:
+    if data is None:
+        return OBBject(results=[], provider=provider)
+    if hasattr(data, "model_dump"):
+        return OBBject(results=[data.model_dump(mode="json")], provider=provider)
+    return OBBject(results=[data] if data else [], provider=provider)
+
+
+# ── Direct QueryExecutor → OBBject ────────────────────────────────────────────
 
 @router.get("/info/{symbol}")
 @route_handler
-async def get_company_info(symbol: str):
-    """Get company information"""
-    info = await yahoo_company.get_company_info(symbol.upper())
-    if not info:
-        raise HTTPException(status_code=404, detail=f"Company info for {symbol} not found")
-    return info
+async def get_company_info(symbol: str, provider: str = "yahoo") -> OBBject:
+    raw = await QueryExecutor.fetch(provider, "company_info", {"symbol": symbol.upper()})
+    return _wrap(raw, provider)
 
 
 @router.get("/metrics/{symbol}")
 @route_handler
-async def get_key_metrics(symbol: str):
-    """
-    Get key financial metrics and ratios for a stock
-
-    Returns valuation multiples, profitability ratios, liquidity metrics, and more
-    """
-    metrics = await yahoo_company.get_key_metrics(symbol.upper())
-    if metrics is None:
-        raise HTTPException(status_code=404, detail=f"Metrics for {symbol} not found")
-    d = metrics.model_dump(mode='json')
-    d['52_week_high'] = d.pop('week_52_high', None)
-    d['52_week_low']  = d.pop('week_52_low', None)
-    d['50_day_ma']    = d.pop('ma_50_day', None)
-    d['200_day_ma']   = d.pop('ma_200_day', None)
-    return d
+async def get_key_metrics(symbol: str, provider: str = "yahoo") -> OBBject:
+    raw = await QueryExecutor.fetch(provider, "key_metrics", {"symbol": symbol.upper()})
+    return _wrap(raw, provider)
 
 
 @router.get("/financials/{symbol}")
 @route_handler
-async def get_financials(symbol: str, freq: str = "quarterly", limit: int = 4):
-    """
-    Get financial statements
-
-    Args:
-        symbol: Stock symbol
-        freq: Frequency - 'quarterly' or 'annual' (default: quarterly)
-        limit: Number of periods to return (default: 4)
-    """
-    if freq not in ['quarterly', 'annual']:
-        raise HTTPException(status_code=400, detail="freq must be 'quarterly' or 'annual'")
-    financials = await yahoo_financials.get_financials(symbol.upper(), freq, limit)
-    if not financials:
-        raise HTTPException(status_code=404, detail=f"Financials for {symbol} not found")
-    return {'symbol': symbol.upper(), 'frequency': freq, 'periods': financials}
-
-
-@router.get("/search")
-@route_handler
-async def search_stocks(query: str = "", limit: int = 12):
-    """
-    Search for stocks by symbol or name.
-    Uses in-memory symbol cache for instant results; falls back to FMP API.
-    """
-    from app.backend.services.symbol_cache import get_symbol_cache
-
-    cache = get_symbol_cache()
-    await cache.ensure_loaded()
-
-    if cache.is_loaded:
-        results = cache.search(query.upper(), limit=limit)
-        if results:
-            return {"query": query, "results": results}
-
-    results = await fmp_market.search_stocks(query.upper())
-    return {"query": query, "results": results}
+async def get_financials(
+    symbol: str,
+    provider: str = "yahoo",
+    freq: str = "quarterly",
+    limit: int = 4,
+) -> OBBject:
+    raw = await QueryExecutor.fetch(provider, "financials", {"symbol": symbol.upper(), "freq": freq})
+    items = _unwrap(raw)[:limit]
+    return OBBject(results=_serialize(items), provider=provider)
 
 
 @router.get("/earnings/{symbol}")
 @route_handler
-async def get_earnings(symbol: str, limit: int = 8):
-    """
-    Get earnings data for a stock
-
-    Returns quarterly earnings with EPS actual vs estimated
-    """
-    return await polygon_market.get_earnings(symbol.upper(), limit)
+async def get_earnings(symbol: str, provider: str = "polygon", limit: int = 8) -> OBBject:
+    raw = await QueryExecutor.fetch(provider, "earnings", {"ticker": symbol.upper(), "limit": limit})
+    return _wrap(raw, provider)
 
 
 @router.get("/insider-trading/{symbol}")
 @route_handler
-async def get_insider_trading(symbol: str, limit: int = 50):
-    """
-    Get insider trading data for a stock
-
-    Returns recent insider transactions with buy/sell summary
-    """
-    return await yahoo_holders.get_insider_trading(symbol.upper(), limit)
+async def get_insider_trading(symbol: str, provider: str = "yahoo", limit: int = 50) -> OBBject:
+    raw = await QueryExecutor.fetch(
+        provider, "insider_trading_summary", {"symbol": symbol.upper(), "limit": limit}
+    )
+    return _wrap(raw, provider)
 
 
 @router.get("/insider-holders/{symbol}")
 @route_handler
-async def get_insider_holders(symbol: str):
-    """
-    Get insider roster/holders information for a stock
-
-    Returns list of insiders with their positions and share holdings
-    """
-    return await yahoo_holders.get_insider_holders(symbol.upper())
+async def get_insider_holders(symbol: str, provider: str = "yahoo") -> OBBject:
+    raw = await QueryExecutor.fetch(provider, "insider_holders", {"symbol": symbol.upper()})
+    return _wrap(raw, provider)
 
 
 @router.get("/analyst/{symbol}")
 @route_handler
-async def get_analyst_data(symbol: str):
-    """
-    Get analyst recommendations and price targets
-
-    Returns consensus rating, price targets, and analyst count
-    """
-    return await fmp_market.get_analyst_data(symbol.upper())
+async def get_analyst_data(symbol: str, provider: str = "fmp") -> OBBject:
+    raw = await QueryExecutor.fetch(provider, "analyst_data", {"symbol": symbol.upper()})
+    return _wrap(raw, provider)
 
 
 @router.get("/holders/{symbol}")
 @route_handler
-async def get_holders(symbol: str):
-    """
-    Get institutional and insider holder information
-
-    Returns ownership breakdown, institutional holders list, and share statistics
-    """
-    return await yahoo_holders.get_holders(symbol.upper())
+async def get_holders(symbol: str, provider: str = "yahoo") -> OBBject:
+    raw = await QueryExecutor.fetch(provider, "holders", {"symbol": symbol.upper()})
+    return _wrap(raw, provider)
 
 
 @router.get("/calendar/{symbol}")
 @route_handler
 async def get_calendar(
     symbol: str,
+    provider: str = "yahoo",
     start_date: Optional[str] = None,
-    end_date: Optional[str] = None
-):
-    """
-    Get company calendar events
-
-    Returns upcoming earnings dates, dividend dates, and other corporate events
-    """
-    return await yahoo_financials.get_calendar(
-        symbol.upper(),
-        start_date=start_date,
-        end_date=end_date
-    )
+    end_date: Optional[str] = None,
+) -> OBBject:
+    params: Dict[str, Any] = {"symbol": symbol.upper()}
+    if start_date:
+        params["start_date"] = start_date
+    if end_date:
+        params["end_date"] = end_date
+    raw = await QueryExecutor.fetch(provider, "calendar", params)
+    return _wrap(raw, provider)
 
 
 @router.get("/dividends/{symbol}")
 @route_handler
-async def get_dividends(symbol: str, limit: int = 20):
-    """
-    Get dividend history for a stock
-
-    Returns historical dividend payments with dates and amounts
-    """
-    return await yahoo_financials.get_dividends(symbol.upper(), limit)
+async def get_dividends(symbol: str, provider: str = "yahoo", limit: int = 20) -> OBBject:
+    raw = await QueryExecutor.fetch(provider, "dividends", {"symbol": symbol.upper()})
+    items = _unwrap(raw)[:limit]
+    return OBBject(results=_serialize(items), provider=provider)
 
 
 @router.get("/splits/{symbol}")
 @route_handler
-async def get_splits(symbol: str, limit: int = 20):
-    """
-    Get stock split history
-
-    Returns historical stock splits with dates and ratios
-    """
-    return await yahoo_financials.get_splits(symbol.upper(), limit)
+async def get_splits(symbol: str, provider: str = "yahoo", limit: int = 20) -> OBBject:
+    raw = await QueryExecutor.fetch(provider, "splits", {"symbol": symbol.upper()})
+    items = _unwrap(raw)[:limit]
+    return OBBject(results=_serialize(items), provider=provider)
 
 
 @router.get("/filings/{symbol}")
 @route_handler
-async def get_filings(symbol: str, limit: int = 20):
-    """
-    Get SEC filings for a stock
-
-    Returns recent SEC filings with links to EDGAR
-    """
-    return await yahoo_financials.get_filings(symbol.upper(), limit)
+async def get_filings(symbol: str, provider: str = "yahoo", limit: int = 20) -> OBBject:
+    raw = await QueryExecutor.fetch(provider, "filings", {"symbol": symbol.upper()})
+    items = _unwrap(raw)[:limit]
+    return OBBject(results=_serialize(items), provider=provider)
 
 
 @router.get("/quarterly-pnl/{symbol}")
 @route_handler
-async def get_quarterly_pnl(symbol: str, limit: int = 12):
-    """
-    Get quarterly P&L breakdown (Revenue, COGS, Gross Profit, OpEx, Net Income).
-    Source: yfinance quarterly income statement.
-    """
-    return await yahoo_financials.get_quarterly_pnl(symbol.upper(), limit=limit)
+async def get_quarterly_pnl(symbol: str, provider: str = "yahoo", limit: int = 12) -> OBBject:
+    raw = await QueryExecutor.fetch(
+        provider, "quarterly_pnl", {"symbol": symbol.upper(), "limit": limit}
+    )
+    return _wrap(raw, provider)
 
 
 @router.get("/revenue-segments/{symbol}")
 @route_handler
-async def get_revenue_segments(symbol: str, limit: int = 8):
-    """
-    Get revenue breakdown by product segment and geographic region.
-
-    Args:
-        symbol: Stock symbol (e.g. AAPL, MSFT, NVDA)
-        limit:  Number of annual periods to return (default 8)
-    """
-    return await fmp_market.get_revenue_segments(symbol.upper(), limit=limit)
+async def get_revenue_segments(symbol: str, provider: str = "fmp", limit: int = 8) -> OBBject:
+    raw = await QueryExecutor.fetch(
+        provider, "revenue_segments", {"symbol": symbol.upper(), "limit": limit}
+    )
+    return _wrap(raw, provider)
 
 
 @router.get("/estimates/{symbol}")
 @route_handler
-async def get_estimates(symbol: str):
-    """
-    Get analyst estimates for EPS and revenue
-
-    Returns consensus estimates, price targets, and analyst revisions
-    """
-    return await yahoo_financials.get_estimates(symbol.upper())
+async def get_estimates(symbol: str, provider: str = "yahoo") -> OBBject:
+    raw = await QueryExecutor.fetch(provider, "estimates", {"symbol": symbol.upper()})
+    return _wrap(raw, provider)
 
 
 @router.get("/management/{symbol}")
 @route_handler
-async def get_management(symbol: str):
-    """Get executive team and governance risk data"""
-    return await yahoo_company.get_management(symbol.upper())
+async def get_management(symbol: str, provider: str = "yahoo") -> OBBject:
+    raw = await QueryExecutor.fetch(provider, "management", {"symbol": symbol.upper()})
+    return _wrap(raw, provider)
 
 
 @router.get("/moat/{symbol}")
 @route_handler
-async def get_moat_analysis(symbol: str):
-    """Get 10-year economic moat analysis (ROE, ROIC, margins, FCF)"""
-    return await yahoo_company.get_moat_analysis(symbol.upper())
+async def get_moat_analysis(symbol: str, provider: str = "yahoo") -> OBBject:
+    raw = await QueryExecutor.fetch(provider, "moat", {"symbol": symbol.upper()})
+    return _wrap(raw, provider)
 
 
 @router.get("/swot/{symbol}")
 @route_handler
-async def get_swot(symbol: str):
-    """Get data-driven SWOT analysis"""
-    return await yahoo_company.get_swot(symbol.upper())
+async def get_swot(symbol: str, provider: str = "yahoo") -> OBBject:
+    raw = await QueryExecutor.fetch(provider, "swot", {"symbol": symbol.upper()})
+    return _wrap(raw, provider)
 
 
 @router.get("/sentiment/{symbol}")
 @route_handler
-async def get_stock_sentiment(symbol: str):
-    """Get news sentiment aggregation and trend"""
-    return await polygon_market.get_stock_sentiment(symbol.upper())
+async def get_stock_sentiment(symbol: str, provider: str = "polygon") -> OBBject:
+    raw = await QueryExecutor.fetch(provider, "sentiment", {"ticker": symbol.upper()})
+    return _wrap(raw, provider)
 
 
 @router.get("/reddit/{symbol}")
 @route_handler
-async def get_social_sentiment(symbol: str):
-    """Get Reddit + StockTwits social sentiment"""
-    return await social_sentiment.get_social_sentiment(symbol.upper())
+async def get_social_sentiment(symbol: str, provider: str = "social") -> OBBject:
+    raw = await QueryExecutor.fetch(provider, "sentiment", {"symbol": symbol.upper()})
+    return _wrap(raw, provider)
 
 
 @router.get("/scorecard/{symbol}")
 @route_handler
-async def get_scorecard(symbol: str):
-    """Get 5-category investment scorecard with overall grade"""
-    return await yahoo_company.get_scorecard(symbol.upper())
+async def get_scorecard(symbol: str, provider: str = "yahoo") -> OBBject:
+    raw = await QueryExecutor.fetch(provider, "scorecard", {"symbol": symbol.upper()})
+    return _wrap(raw, provider)
+
+
+@router.get("/quote/{symbol}")
+@route_handler
+async def get_stock_quote(symbol: str, provider: str = "yahoo") -> OBBject:
+    raw = await QueryExecutor.fetch(provider, "quote", {"symbol": symbol.upper()})
+    items = _unwrap(raw)
+    if not items:
+        raise HTTPException(status_code=404, detail=f"Stock {symbol} not found")
+    return _wrap(raw, provider)
+
+
+@router.get("/history/{symbol}")
+@route_handler
+async def get_stock_history(
+    symbol: str,
+    provider: str = "yahoo",
+    period: Optional[str] = None,
+    interval: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+) -> OBBject:
+    params: Dict[str, Any] = {"symbol": symbol.upper()}
+    if start_date and end_date:
+        params["start_date"] = start_date
+        params["end_date"]   = end_date
+        params["interval"]   = interval or "1d"
+    else:
+        params["period"]   = period or "1mo"
+        if interval:
+            params["interval"] = interval
+    raw = await QueryExecutor.fetch(provider, "stock_price", params)
+    if not _unwrap(raw):
+        raise HTTPException(status_code=404, detail=f"No history for {symbol}")
+    return _wrap(raw, provider)
+
+
+@router.get("/orderbook/{symbol}")
+@route_handler
+async def get_stock_orderbook(symbol: str, provider: str = "polygon") -> OBBject:
+    import asyncio
+    from data_fetcher.fetchers.polygon.orderbook import fetch_stock_orderbook
+    loop = asyncio.get_event_loop()
+    data = await loop.run_in_executor(None, fetch_stock_orderbook, symbol.upper())
+    return _wrap_one(data, provider)
+
+
+@router.get("/search")
+@route_handler
+async def search_stocks(
+    query: str = "",
+    provider: str = "fmp",
+    limit: int = 12,
+) -> OBBject:
+    from app.backend.services.symbol_cache import get_symbol_cache
+
+    # 1. 인메모리 심볼 캐시 (빠름)
+    cache = get_symbol_cache()
+    await cache.ensure_loaded()
+    if cache.is_loaded:
+        hits = cache.search(query.upper(), limit=limit)
+        if hits:
+            return OBBject(results=hits, provider="cache")
+
+    # 2. FMP search API
+    try:
+        raw = await QueryExecutor.fetch("fmp", "search", {"query": query.upper(), "limit": limit})
+        items = _unwrap(raw)
+        if items:
+            results = [
+                {
+                    "symbol":   r.symbol,
+                    "name":     r.name,
+                    "exchange": r.exchange_short_name or r.stock_exchange,
+                    "currency": r.currency,
+                }
+                if hasattr(r, "symbol") else r
+                for r in items
+            ]
+            return OBBject(results=results, provider=provider)
+    except Exception:
+        pass
+
+    # 3. symbol_cache 최종 폴백 (FMP 실패 시)
+    hits = cache.search(query.upper(), limit=limit)
+    return OBBject(results=hits, provider="cache")
 
 
 @router.get("/relations/{symbol}")
 @route_handler
-async def get_company_relations_route(symbol: str):
-    """Return curated supply-chain / competitor / customer / partner relationships."""
-    return await get_company_relations(symbol.upper())
+async def get_company_relations_route(symbol: str, provider: str = "db") -> OBBject:
+    from app.backend.services.company_relations import get_company_relations
+    data = await get_company_relations(symbol.upper())
+    return _wrap_one(data, provider)
 
 
 @router.get("/sector-performance")
 @route_handler
-async def get_sector_performance():
-    """S&P 500 섹터별 퍼포먼스 (트리맵/히트맵용). 등락률은 WebSocket 실시간 제공."""
-    from app.backend.database.db_dependency import get_db_sync
+async def get_sector_performance(provider: str = "db") -> OBBject:
+    from app.backend.core.db import get_db_sync
     from index_analyzer.models.orm import MBS_IN_STK_PROFILE
 
     db = get_db_sync()
@@ -346,7 +323,7 @@ async def get_sector_performance():
         sp500 = base_q.filter(MBS_IN_STK_PROFILE.in_sp500 == True).all()
         profiles = sp500 if len(sp500) >= 50 else base_q.all()
 
-        sector_map = {}
+        sector_map: Dict[str, Any] = {}
         for p in profiles:
             s = p.sector or "Other"
             if s not in sector_map:
@@ -367,7 +344,7 @@ async def get_sector_performance():
             sec["count"] = len(sec["stocks"])
             sec["stocks"] = sorted(sec["stocks"], key=lambda x: x["market_cap"], reverse=True)[:50]
 
-        return {"sectors": sectors}
+        return OBBject(results=sectors, provider=provider)
     finally:
         db.close()
 
@@ -375,9 +352,9 @@ async def get_sector_performance():
 @router.get("/compare")
 @route_handler
 async def compare_stocks(
-    symbols: str = Query(..., description="Comma-separated symbols (2-4)"),
-):
-    """2~4 종목 비교 데이터."""
+    symbols: str = FQuery(..., description="Comma-separated symbols (2-4)"),
+    provider: str = "yahoo",
+) -> OBBject:
     tickers = [s.strip().upper() for s in symbols.split(",") if s.strip()]
     if len(tickers) < 2:
         raise ValueError("At least 2 symbols required")
@@ -387,9 +364,12 @@ async def compare_stocks(
     results = []
     for sym in tickers:
         try:
-            q = await yahoo_price.get_stock_quote(sym) or {}
-            metrics_obj = await yahoo_company.get_key_metrics(sym)
-            m = metrics_obj.model_dump(mode="json") if metrics_obj else {}
+            quote_raw   = await QueryExecutor.fetch("yahoo", "quote",       {"symbol": sym})
+            metrics_raw = await QueryExecutor.fetch("yahoo", "key_metrics", {"symbol": sym})
+            q = _unwrap(quote_raw)
+            q = q[0].model_dump(mode="json") if q and hasattr(q[0], "model_dump") else (q[0] if q else {})
+            metrics_items = _unwrap(metrics_raw)
+            m = metrics_items[0].model_dump(mode="json") if metrics_items and hasattr(metrics_items[0], "model_dump") else (metrics_items[0] if metrics_items else {})
             results.append({
                 "symbol": sym,
                 "name": m.get("symbol", sym),
@@ -413,58 +393,69 @@ async def compare_stocks(
         except Exception:
             results.append({"symbol": sym, "error": "Failed to fetch data"})
 
-    return {"stocks": results}
+    return OBBject(results=results, provider=provider)
+
+
+_INDICATOR_MAP: Dict[str, tuple] = {
+    "GDP":                   ("gdp",                  {}),
+    "UNEMPLOYMENT":          ("unemployment",          {}),
+    "CPI":                   ("cpi",                  {}),
+    "FED_FUNDS_RATE":        ("interest_rate",         {"rate_type": "federal_funds"}),
+    "INTEREST_RATE":         ("interest_rate",         {"rate_type": "federal_funds"}),
+    "RETAIL_SALES":          ("retail_sales",          {}),
+    "CONSUMER_SENTIMENT":    ("consumer_sentiment",    {}),
+    "NONFARM_PAYROLL":       ("nonfarm_payroll",       {}),
+    "HOUSING_STARTS":        ("housing_starts",        {}),
+    "INDUSTRIAL_PRODUCTION": ("industrial_production", {}),
+}
 
 
 @router.get("/indicator/{indicator}")
 @route_handler
-async def get_indicator_history(indicator: str, period: str = "5y"):
-    """
-    Get historical data for an economic indicator
+async def get_indicator_history(
+    indicator: str,
+    period: str = "5y",
+    provider: str = "fred",
+) -> OBBject:
+    from data_fetcher.utils.helpers import parse_period_to_dates
 
-    Indicators: GDP, UNEMPLOYMENT, CPI, FED_FUNDS_RATE, RETAIL_SALES,
-                CONSUMER_SENTIMENT, NONFARM_PAYROLL, HOUSING_STARTS, INDUSTRIAL_PRODUCTION
-    Periods: 1mo, 3mo, 6mo, 1y, 2y, 3y, 5y, 10y, max
-    """
-    indicator_upper = indicator.upper()
-    valid_indicators = [
-        'GDP', 'UNEMPLOYMENT', 'CPI', 'FED_FUNDS_RATE', 'INTEREST_RATE',
-        'RETAIL_SALES', 'CONSUMER_SENTIMENT', 'NONFARM_PAYROLL',
-        'HOUSING_STARTS', 'INDUSTRIAL_PRODUCTION'
-    ]
-    if indicator_upper not in valid_indicators:
+    key = indicator.upper()
+    entry = _INDICATOR_MAP.get(key)
+    if not entry:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid indicator. Valid indicators: {', '.join(valid_indicators)}"
+            detail=f"Invalid indicator. Valid: {', '.join(_INDICATOR_MAP)}",
         )
-    history = await fred_economics.get_indicator_history(indicator_upper, period)
-    if not history:
-        raise HTTPException(status_code=404, detail=f"No data for indicator {indicator}")
-    return {"indicator": indicator_upper, "period": period, "data": history}
+    model, base_params = entry
+    start_date, end_date = parse_period_to_dates(period)
+    raw = await QueryExecutor.fetch("fred", model, {**base_params, "start_date": start_date, "end_date": end_date})
+    if not _unwrap(raw):
+        raise HTTPException(status_code=404, detail=f"No data for {indicator}")
+    return _wrap(raw, provider)
 
 
 @router.get("/ranking/live")
 async def get_live_stock_ranking(
-    market:  str = Query("all",     description="all | domestic | overseas"),
-    sort_by: str = Query("gainers", description="gainers | losers | volume | trade_value"),
-    limit:   int = Query(50,        ge=1, le=200),
-):
-    """yfinance 배치 기반 실시간 랭킹 (60s 캐시)"""
-    results = await RankingService.get_live_ranking(
-        market=market, sort_by=sort_by, limit=limit
-    )
-    return {"results": results, "count": len(results)}
+    market: str = FQuery("all", description="all | domestic | overseas"),
+    sort_by: str = FQuery("gainers", description="gainers | losers | volume | trade_value"),
+    limit: int = FQuery(50, ge=1, le=200),
+    provider: str = "yahoo",
+) -> OBBject:
+    from app.backend.services.ranking_service import RankingService
+    results = await RankingService.get_live_ranking(market=market, sort_by=sort_by, limit=limit)
+    return OBBject(results=results, provider=provider)
 
 
 @router.get("/ranking")
 async def get_stock_ranking(
-    market:  str = Query("all",     description="all | domestic | overseas"),
-    sort_by: str = Query("gainers", description="gainers | losers | volume | trade_value"),
-    period:  str = Query("1d",      description="realtime | 1d | 1w | 1mo | 3mo | 6mo | 1y"),
-    limit:   int = Query(50,        ge=1, le=200),
-):
-    """시장 랭킹 조회 (기간별 변동률)"""
+    market: str = FQuery("all", description="all | domestic | overseas"),
+    sort_by: str = FQuery("gainers", description="gainers | losers | volume | trade_value"),
+    period: str = FQuery("1d", description="realtime | 1d | 1w | 1mo | 3mo | 6mo | 1y"),
+    limit: int = FQuery(50, ge=1, le=200),
+    provider: str = "yahoo",
+) -> OBBject:
+    from app.backend.services.ranking_service import RankingService
     results = await RankingService.get_ranking(
         market=market, sort_by=sort_by, period=period, limit=limit
     )
-    return {"results": results, "count": len(results)}
+    return OBBject(results=results, provider=provider)

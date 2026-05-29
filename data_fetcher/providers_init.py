@@ -20,8 +20,27 @@ from data_fetcher.fetchers.fred.consumer_sentiment import FREDConsumerSentimentF
 from data_fetcher.fetchers.fred.housing_starts import FREDHousingStartsFetcher
 from data_fetcher.fetchers.fred.retail_sales import FREDRetailSalesFetcher
 from data_fetcher.fetchers.fred.nonfarm_payroll import FREDNonfarmPayrollFetcher
+from data_fetcher.fetchers.fred.generic_series import FREDGenericSeriesFetcher
+from data_fetcher.fetchers.fred.fed_balance_sheet import FREDFedBalanceSheetFetcher
+from data_fetcher.fetchers.fred.real_rates import FREDRealRatesFetcher
+from data_fetcher.fetchers.fred.pmi import FREDPMIFetcher
+from data_fetcher.fetchers.fred.yield_curve import FREDYieldCurveFetcher
+from data_fetcher.fetchers.fred.inflation_momentum import FREDInflationMomentumFetcher
+from data_fetcher.fetchers.fred.yield_curve_history import FREDYieldCurveHistoryFetcher
+from data_fetcher.fetchers.fred.initial_claims import FREDInitialClaimsFetcher
+from data_fetcher.fetchers.fred.jobs_breakdown import FREDJobsBreakdownFetcher
+from data_fetcher.fetchers.fred.financial_conditions_history import FREDFinancialConditionsHistoryFetcher
+from data_fetcher.fetchers.fred.sentiment_history import FREDSentimentHistoryFetcher
+from data_fetcher.fetchers.fred.inflation_sector import FREDInflationSectorFetcher
+from data_fetcher.fetchers.fred.regime_history import FREDRegimeHistoryFetcher
+from data_fetcher.fetchers.fred.phillips_curve import FREDPhillipsCurveFetcher
+from data_fetcher.fetchers.fred.financial_conditions import FREDFinancialConditionsFetcher
+from data_fetcher.fetchers.fred.sentiment_composite import FREDSentimentCompositeFetcher
+from data_fetcher.fetchers.fred.labor_dashboard import FREDLaborDashboardFetcher
 
 from data_fetcher.fetchers.yahoo.stock_price import YFinanceStockPriceFetcher
+from data_fetcher.fetchers.yahoo.stock_quote import YFinanceQuoteFetcher
+from data_fetcher.fetchers.yahoo.batch_quotes import YFinanceBatchQuotesFetcher
 from data_fetcher.fetchers.yahoo.dividends import YFinanceDividendsFetcher
 from data_fetcher.fetchers.yahoo.company_info import YFinanceCompanyInfoFetcher
 from data_fetcher.fetchers.yahoo.financials import YFinanceFinancialsFetcher
@@ -80,6 +99,7 @@ from data_fetcher.fetchers.social.sentiment import SocialSentimentFetcher
 from data_fetcher.fetchers.database.index_constituents import DBIndexConstituentsFetcher
 from data_fetcher.fetchers.database.stock_list import DBStockListFetcher
 from data_fetcher.fetchers.whalewisdom.institutional_holdings import WhaleWisdomFetcher
+from data_fetcher.fetchers.whalewisdom.institutions_list import InstitutionsListFetcher
 
 from data_fetcher.fetchers.quantlib.pricing import QuantLibPricingFetcher
 
@@ -110,6 +130,23 @@ fred_provider = Provider(
         "housing_starts": FREDHousingStartsFetcher,
         "retail_sales": FREDRetailSalesFetcher,
         "nonfarm_payroll": FREDNonfarmPayrollFetcher,
+        "series": FREDGenericSeriesFetcher,
+        "fed_balance_sheet":    FREDFedBalanceSheetFetcher,
+        "real_rates":           FREDRealRatesFetcher,
+        "pmi":                  FREDPMIFetcher,
+        "yield_curve":          FREDYieldCurveFetcher,
+        "inflation_momentum":           FREDInflationMomentumFetcher,
+        "yield_curve_history":          FREDYieldCurveHistoryFetcher,
+        "initial_claims":               FREDInitialClaimsFetcher,
+        "jobs_breakdown":               FREDJobsBreakdownFetcher,
+        "financial_conditions_history": FREDFinancialConditionsHistoryFetcher,
+        "sentiment_history":            FREDSentimentHistoryFetcher,
+        "inflation_sector":             FREDInflationSectorFetcher,
+        "regime_history":               FREDRegimeHistoryFetcher,
+        "phillips_curve":               FREDPhillipsCurveFetcher,
+        "financial_conditions":         FREDFinancialConditionsFetcher,
+        "sentiment_composite":          FREDSentimentCompositeFetcher,
+        "labor_dashboard":              FREDLaborDashboardFetcher,
     },
     metadata={
         "rate_limit": "120 requests/minute",
@@ -127,6 +164,8 @@ yahoo_provider = Provider(
     credentials=[],  # No API key required
     fetcher_dict={
         "stock_price": YFinanceStockPriceFetcher,
+        "quote":       YFinanceQuoteFetcher,
+        "batch_quotes": YFinanceBatchQuotesFetcher,
         "dividends": YFinanceDividendsFetcher,
         "company_info": YFinanceCompanyInfoFetcher,
         "financials": YFinanceFinancialsFetcher,
@@ -259,6 +298,7 @@ whalewisdom_provider = Provider(
     credentials=[],
     fetcher_dict={
         "institutional_holdings": WhaleWisdomFetcher,
+        "institutions_list": InstitutionsListFetcher,
     },
 )
 

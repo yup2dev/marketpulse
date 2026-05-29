@@ -16,7 +16,7 @@ const DEFAULT_ITEMS = [
   { sym: '^TNX',      label: '미국 10Y',  market: 'foreign' },
 ];
 
-const PERIOD    = '1d';
+const PERIOD    = '2d';
 const INTERVAL  = '5m';
 const CARD_GAP = 8;
 const CARD_MIN = 160;
@@ -42,6 +42,7 @@ function useMarketStatus() {
 export default function SparklineWidget({ onRemove }) {
   const [items,        setItems]        = useState(DEFAULT_ITEMS);
   const [history,      setHistory]      = useState({});
+  const [prevClose,    setPrevClose]    = useState({});
   const [loading,      setLoading]      = useState(true);
   const [addOpen,      setAddOpen]      = useState(false);
   const [addInput,     setAddInput]     = useState('');
@@ -60,6 +61,7 @@ export default function SparklineWidget({ onRemove }) {
   const fetchHistory = useCallback(async (syms = symbols) => {
     setLoading(true);
     const results = { ...history };
+    const prevCloses = { ...prevClose };
     await Promise.allSettled(
       syms.map(async (sym) => {
         if (results[sym]?.length) return;
@@ -67,15 +69,28 @@ export default function SparklineWidget({ onRemove }) {
           const res = await apiClient.get(
             `${API_BASE}/stock/history/${encodeURIComponent(sym)}?period=${PERIOD}&interval=${INTERVAL}`
           );
-          results[sym] = (res.data || res.prices || [])
-            .map((d) => d.close ?? d.Close)
-            .filter((v) => v != null);
+          const bars = (res.results || res.data || res.prices || []).filter((d) => (d.close ?? d.Close) != null);
+          if (bars.length === 0) { results[sym] = []; return; }
+
+          const todayStr = bars[bars.length - 1].date?.slice(0, 10);
+          const todayBars = [];
+          let lastPrevClose = null;
+          for (const b of bars) {
+            if (b.date?.slice(0, 10) === todayStr) {
+              todayBars.push(b.close ?? b.Close);
+            } else {
+              lastPrevClose = b.close ?? b.Close;
+            }
+          }
+          results[sym] = todayBars.length ? todayBars : bars.map((d) => d.close ?? d.Close);
+          if (lastPrevClose != null) prevCloses[sym] = lastPrevClose;
         } catch {
           results[sym] = [];
         }
       })
     );
     setHistory({ ...results });
+    setPrevClose({ ...prevCloses });
     setLoading(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [symbols.join(',')]);
@@ -276,10 +291,10 @@ export default function SparklineWidget({ onRemove }) {
             const prices  = history[sym] || [];
             const live    = quotes[sym];
             const lastP   = prices[prices.length - 1];
-            const firstP  = prices[0];
-            const histPct = firstP && lastP ? ((lastP - firstP) / firstP) * 100 : null;
             const price   = live?.price ?? lastP;
-            const pct     = live?.change_percent ?? histPct;
+            const pc      = prevClose[sym];
+            const pct     = pc && price ? ((price - pc) / pc) * 100
+                          : live?.change_percent ?? null;
             const isUp    = (pct ?? 0) >= 0;
 
             return (

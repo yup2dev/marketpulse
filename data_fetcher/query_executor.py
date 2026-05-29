@@ -26,9 +26,10 @@ Usage:
     )
 """
 import asyncio
+import json
 import logging
 import re
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Any, Dict, List, Optional, Protocol, Type, Union, runtime_checkable
 
 from pydantic import BaseModel
 
@@ -41,6 +42,107 @@ from data_fetcher.utils.api_keys import (
 )
 
 log = logging.getLogger(__name__)
+
+
+@runtime_checkable
+class CacheProtocol(Protocol):
+    """cache.get / cache.set 인터페이스 — app.backend에 의존하지 않음."""
+    async def get(self, key: str) -> Optional[Any]: ...
+    async def set(self, key: str, value: Any, ttl: int) -> None: ...
+
+
+# 모델별 기본 TTL(초).  0 = 캐시 안 함.
+_DEFAULT_TTL: Dict[str, int] = {
+    # ── Real-time (30-60s) ───────────────────────────────────────────────────
+    "stock_price":              60,
+    "batch_quotes":             30,
+    "orderbook":                30,
+    # ── Semi-fresh (5-15min) ────────────────────────────────────────────────
+    "news":                    300,
+    "earnings":                600,
+    "sentiment":               300,
+    "calendar":                600,
+    "options":                 300,
+    "short_interest":          900,
+    "technical_indicators":    300,
+    "quote":                    60,   # alphavantage / fmp quote
+    "most_actives":            120,
+    "gainers":                 120,
+    "losers":                  120,
+    # ── Daily (30-60min) ────────────────────────────────────────────────────
+    "financials":             1800,
+    "balance_sheet":          1800,
+    "quarterly_pnl":          1800,
+    "estimates":              1800,
+    "analyst_data":           1800,
+    "analyst_estimates":      1800,
+    "analyst_recommendations":1800,
+    "holders":                1800,
+    "insider_trading":        1800,
+    "insider_trading_summary":1800,
+    "insider_holders":        1800,
+    "dividends":              3600,
+    "splits":                 3600,
+    "filings":                3600,
+    "revenue_segments":       3600,
+    "search":                 1800,
+    "timeseries":             1800,
+    "series":                 3600,
+    "bond_prices":            3600,
+    # ── FRED macro (1h) ─────────────────────────────────────────────────────
+    "gdp":                          3600,
+    "cpi":                          3600,
+    "unemployment":                 3600,
+    "interest_rate":                3600,
+    "employment":                   3600,
+    "industrial_production":        3600,
+    "consumer_sentiment":           3600,
+    "housing_starts":               3600,
+    "retail_sales":                 3600,
+    "nonfarm_payroll":              3600,
+    # ── FRED composite / multi-series (1h) ─────────────────────────────────
+    "fed_balance_sheet":            3600,
+    "real_rates":                   3600,
+    "pmi":                          3600,
+    "yield_curve":                  1800,  # snapshot — intraday 변동
+    "yield_curve_history":          3600,
+    "inflation_momentum":           3600,
+    "inflation_sector":             3600,
+    "initial_claims":               3600,
+    "jobs_breakdown":               3600,
+    "phillips_curve":               7200,  # 분기별 GDP 기반 — 느리게 변함
+    "regime_history":               7200,
+    "financial_conditions_history": 3600,
+    "financial_conditions":         1800,  # snapshot — 크레딧 스프레드 일중 변동
+    "sentiment_composite":          1800,  # snapshot — VIX 일중 변동
+    "sentiment_history":            3600,
+    "labor_dashboard":              1800,  # snapshot — 다수 현재값
+    # ── Yahoo quote (별칭 구분) ─────────────────────────────────────────────
+    "quote":                          60,  # yahoo:quote (StockQuoteFetcher)
+    # ── Mostly static (1h+) ─────────────────────────────────────────────────
+    "company_info":           3600,
+    "key_metrics":            3600,
+    "management":             3600,
+    "moat":                   3600,
+    "swot":                   3600,
+    "scorecard":              3600,
+    "company_profile":        3600,
+    "company_overview":       3600,
+    "income_statement":       3600,
+    "index_constituents":     7200,
+    "stock_list":             7200,
+    "institutional_holdings": 3600,
+    "institutions_list":      7200,
+    "filing_13f":             7200,
+    "institutional_13f":      7200,
+    # ── No cache — computed on-the-fly ──────────────────────────────────────
+    "capm":                      0,
+    "rolling":                   0,
+    "normality":                 0,
+    "unitroot":                  0,
+    "summary":                   0,
+    "pricing":                   0,
+}
 
 
 # provider.name → API_ENV_MAPPING 키 매핑
@@ -188,12 +290,47 @@ class QueryExecutor:
     공통 실행 파이프라인
 
     단계:
-        [1] ProviderRegistry에서 Provider 조회
-        [2] provider.fetcher_dict에서 Fetcher 조회 (PascalCase → snake_case 자동 변환)
-        [3] 자격증명 로드 및 검증
-        [4] fetcher.fetch_data(params, credentials) 호출
+        [1] 캐시 조회 (hit → 즉시 반환)
+        [2] ProviderRegistry에서 Provider 조회
+        [3] provider.fetcher_dict에서 Fetcher 조회 (PascalCase → snake_case 자동 변환)
+        [4] 자격증명 로드 및 검증
+        [5] fetcher.fetch_data(params, credentials) 호출
             → transform_query → extract_data → transform_data
+        [6] 결과 캐시 저장
     """
+
+    _cache: Optional[CacheProtocol] = None
+    _ttl_map: Dict[str, int] = dict(_DEFAULT_TTL)
+
+    # ── 캐시 주입 ────────────────────────────────────────────────────────────
+
+    @classmethod
+    def configure(
+        cls,
+        cache: CacheProtocol,
+        ttl_map: Optional[Dict[str, int]] = None,
+    ) -> None:
+        """앱 시작 시 캐시 백엔드 주입. data_fetcher는 app.backend를 직접 import하지 않는다.
+
+        Args:
+            cache:   CacheProtocol을 구현한 객체 (CacheManager 등)
+            ttl_map: 모델별 TTL 오버라이드 (기본값 _DEFAULT_TTL 위에 병합)
+        """
+        cls._cache = cache
+        if ttl_map:
+            cls._ttl_map.update(ttl_map)
+        log.info(f"[QueryExecutor] Cache configured: {type(cache).__name__}")
+
+    @classmethod
+    def _cache_key(cls, provider: str, model: str, params: Dict[str, Any]) -> str:
+        params_str = json.dumps(params, sort_keys=True, default=str)
+        return f"qe:{provider}:{model}:{params_str}"
+
+    @classmethod
+    def _ttl(cls, model: str) -> int:
+        return cls._ttl_map.get(model, 0)
+
+    # ── 실행 ─────────────────────────────────────────────────────────────────
 
     @classmethod
     async def fetch(
@@ -202,50 +339,60 @@ class QueryExecutor:
         model: str,
         params: Dict[str, Any],
         credentials: Optional[Dict[str, str]] = None,
+        ttl: Optional[int] = None,
         **kwargs: Any,
     ) -> Union[List[Any], AnnotatedResult]:
-        """
-        비동기 실행
+        """비동기 실행.
 
         Args:
             provider:    Provider 이름 (예: "fmp", "yahoo", "fred")
             model:       Fetcher 모델 키 (예: "income_statement", "IncomeStatement")
             params:      Fetcher에 전달할 쿼리 파라미터
             credentials: API 자격증명 (None이면 환경 변수에서 자동 로드)
+            ttl:         캐시 TTL 초. None이면 _ttl_map 기본값 사용. 0이면 캐시 안 함.
             **kwargs:    fetch_data에 추가로 전달할 옵션
-
-        Returns:
-            List[DataModel] 또는 AnnotatedResult[List[DataModel]]
         """
-        # [공통 처리 1] Provider 조회
+        effective_ttl = cls._ttl(model) if ttl is None else ttl
+
+        # [1] 캐시 조회
+        cache_key: Optional[str] = None
+        if cls._cache and effective_ttl > 0:
+            cache_key = cls._cache_key(provider, model, params)
+            hit = await cls._cache.get(cache_key)
+            if hit is not None:
+                log.debug(f"[Cache HIT] {cache_key[:80]}")
+                return hit
+
+        # [2] Provider 조회
         try:
             provider_obj: Provider = ProviderRegistry.get(provider)
         except KeyError as e:
             raise QueryExecutorError(str(e)) from e
 
-        # [공통 처리 2] Fetcher 조회
+        # [3] Fetcher 조회
         fetcher_cls = _resolve_fetcher(provider_obj, model)
 
-        # [공통 처리 3] 자격증명 처리 및 검증
+        # [4] 자격증명 처리 및 검증
         resolved_creds = _load_credentials(provider_obj, credentials)
         provider_obj.validate_credentials(resolved_creds)
 
-        # [공통 처리 3.5] 미지원 파라미터 필터링 + 경고
-        filtered_params = _filter_extra_params(
-            fetcher_cls, params, provider, model
-        )
+        # [4.5] 미지원 파라미터 필터링 + 경고
+        filtered_params = _filter_extra_params(fetcher_cls, params, provider, model)
 
-        log.debug(
-            f"QueryExecutor: provider={provider}, model={model}, "
-            f"fetcher={fetcher_cls.__name__}"
-        )
+        log.debug(f"[QueryExecutor] provider={provider} model={model} fetcher={fetcher_cls.__name__}")
 
-        # [공통 처리 4] Fetcher.fetch_data() 호출
-        return await fetcher_cls.fetch_data(
+        # [5] Fetcher.fetch_data() 호출
+        result = await fetcher_cls.fetch_data(
             params=filtered_params,
             credentials=resolved_creds,
             **kwargs,
         )
+
+        # [6] 캐시 저장
+        if cls._cache and cache_key and result is not None:
+            await cls._cache.set(cache_key, result, effective_ttl)
+
+        return result
 
     @classmethod
     def fetch_sync(
@@ -254,9 +401,8 @@ class QueryExecutor:
         model: str,
         params: Dict[str, Any],
         credentials: Optional[Dict[str, str]] = None,
+        ttl: Optional[int] = None,
         **kwargs: Any,
     ) -> Union[List[Any], AnnotatedResult]:
-        """동기 실행 (fetch의 동기 래퍼)"""
-        return asyncio.run(
-            cls.fetch(provider, model, params, credentials, **kwargs)
-        )
+        """동기 실행 (fetch의 동기 래퍼)."""
+        return asyncio.run(cls.fetch(provider, model, params, credentials, ttl=ttl, **kwargs))

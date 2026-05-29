@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 import yfinance as yf
 import pandas as pd
 
-from data_fetcher.fetchers.base import Fetcher
+from data_fetcher.fetchers.base import AnnotatedResult, Fetcher
 from data_fetcher.models.yahoo.insider_trading import (
     YFinanceInsiderTradingQueryParams,
     YFinanceInsiderTransactionData,
@@ -245,7 +245,7 @@ class YFinanceInsiderHoldersFetcher(Fetcher[YFinanceInsiderTradingQueryParams, Y
         return result
 
 
-class YFinanceInsiderTradingSummaryFetcher(Fetcher[YFinanceInsiderTradingQueryParams, YFinanceInsiderTradingSummaryData]):
+class YFinanceInsiderTradingSummaryFetcher(Fetcher[YFinanceInsiderTradingQueryParams, YFinanceInsiderTransactionData]):
     """내부자 거래 집계 Fetcher (transactions + buy/sell summary)"""
 
     @staticmethod
@@ -339,15 +339,32 @@ class YFinanceInsiderTradingSummaryFetcher(Fetcher[YFinanceInsiderTradingQueryPa
                     log.warning(f"Error parsing insider transaction row: {ex}")
                     continue
 
-        return [YFinanceInsiderTradingSummaryData(
-            symbol=symbol,
-            source='yahoo',
-            summary={
-                'buy_count': buy_count,
+        # 각 거래를 YFinanceInsiderTransactionData로 변환
+        result = []
+        for tx in transactions[:limit]:
+            try:
+                result.append(YFinanceInsiderTransactionData(
+                    symbol=symbol,
+                    insider_name=tx.get('insider_name'),
+                    insider_title=tx.get('insider_title'),
+                    transaction_date=tx.get('transaction_date'),
+                    transaction_type=tx.get('transaction_type'),
+                    ownership_type=tx.get('acquisition_or_disposition'),
+                    shares_traded=tx.get('shares_traded'),
+                    price_per_share=tx.get('price_per_share'),
+                    transaction_value=tx.get('transaction_value'),
+                    shares_owned_after=tx.get('shares_owned_after'),
+                ))
+            except Exception as ex:
+                log.warning(f"Error converting transaction: {ex}")
+
+        return AnnotatedResult(
+            result=result,
+            metadata={
+                'buy_count':  buy_count,
                 'sell_count': sell_count,
-                'buy_value': buy_value,
+                'buy_value':  buy_value,
                 'sell_value': sell_value,
-                'net_value': buy_value - sell_value,
+                'net_value':  buy_value - sell_value,
             },
-            transactions=transactions[:limit],
-        )]
+        )

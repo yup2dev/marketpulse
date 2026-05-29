@@ -305,7 +305,7 @@ export function StockSentimentBody({ data, activeView, setActiveView }) {
                   <span className="text-[10px] text-gray-600">{item.publisher}</span>
                   <span className="text-[10px] text-gray-700">·</span>
                   <span className="text-[10px] text-gray-600">
-                    {item.published_utc ? new Date(item.published_utc).toLocaleDateString() : ''}
+                    {item.published_utc ? item.published_utc.slice(0, 10) : ''}
                   </span>
                 </div>
               </div>
