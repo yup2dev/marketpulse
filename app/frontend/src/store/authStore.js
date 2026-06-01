@@ -15,14 +15,18 @@ const _clearStorage = () => {
   localStorage.removeItem('user');
 };
 
+const _redirectToLogin = () => {
+  if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+    window.location.replace('/login');
+  }
+};
+
 const useAuthStore = create((set, get) => {
   // apiClient가 토큰을 모두 소진했을 때 호출하는 강제 로그아웃 콜백 등록
   setForceLogoutCallback(() => {
     _clearStorage();
-    set({ user: null, accessToken: null, refreshToken: null, isAuthenticated: false });
-    if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
-      window.location.replace('/login');
-    }
+    set({ user: null, accessToken: null, refreshToken: null, isAuthenticated: false, isInitializing: false });
+    _redirectToLogin();
   });
 
   return {
@@ -31,30 +35,41 @@ const useAuthStore = create((set, get) => {
     accessToken:     localStorage.getItem('access_token')  || null,
     refreshToken:    localStorage.getItem('refresh_token') || null,
     isAuthenticated: !!localStorage.getItem('access_token'),
+    isInitializing:  true,   // 앱 첫 로드 시 인증 확인 완료 전까지 true
     isLoading:       false,
     error:           null,
 
     // ── App startup: verify stored token, auto-refresh if expired ─────────────
-    // apiClient의 401 인터셉터가 refresh를 처리하므로 여기선 단순 verify만 수행
     initializeAuth: async () => {
       const token = localStorage.getItem('access_token');
+
+      // 토큰 없음 → 즉시 로그인 페이지로
       if (!token) {
-        set({ isAuthenticated: false, user: null });
+        set({ isAuthenticated: false, isInitializing: false, user: null });
         return;
       }
+
       try {
         // 401이 오면 apiClient 인터셉터가 자동으로 refresh → retry
+        // refresh도 실패하면 forceLogout 콜백 → _redirectToLogin()
         const response = await authAPI.verifyToken();
         const user = response?.user;
         if (user) {
           localStorage.setItem('user', JSON.stringify(user));
-          set({ user, isAuthenticated: true, accessToken: localStorage.getItem('access_token') });
+          set({ user, isAuthenticated: true, isInitializing: false, accessToken: localStorage.getItem('access_token') });
+        } else {
+          set({ isAuthenticated: true, isInitializing: false });
         }
       } catch {
-        // forceLogout 콜백이 이미 실행되었거나, 네트워크 오류(서버 다운 등)
-        // 서버가 꺼져 있는 경우 로컬 상태는 유지 (오프라인 허용)
+        // forceLogout이 이미 실행해 리다이렉트 중이거나 네트워크 오류(서버 다운)
         const stillHasToken = !!localStorage.getItem('access_token');
-        set({ isAuthenticated: stillHasToken });
+        if (!stillHasToken) {
+          // 토큰이 지워진 경우 (forceLogout 실행됨) → 리다이렉트 대기
+          set({ isAuthenticated: false, isInitializing: false });
+        } else {
+          // 서버 다운 등 네트워크 오류 → 오프라인 허용 (토큰은 유효할 수 있음)
+          set({ isAuthenticated: true, isInitializing: false });
+        }
       }
     },
 

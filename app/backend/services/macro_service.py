@@ -12,17 +12,17 @@ from datetime import datetime, timedelta
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from app.backend.core.cache import cached
-from data_fetcher.fetchers.fred.gdp import FREDGDPFetcher
-from data_fetcher.fetchers.fred.unemployment import FREDUnemploymentFetcher
-from data_fetcher.fetchers.fred.cpi import FREDCPIFetcher
-from data_fetcher.fetchers.fred.interest_rate import FREDInterestRateFetcher
-from data_fetcher.fetchers.fred.retail_sales import FREDRetailSalesFetcher
-from data_fetcher.fetchers.fred.consumer_sentiment import FREDConsumerSentimentFetcher
-from data_fetcher.fetchers.fred.nonfarm_payroll import FREDNonfarmPayrollFetcher
-from data_fetcher.fetchers.fred.employment import FREDEmploymentFetcher
-from data_fetcher.fetchers.fred.housing_starts import FREDHousingStartsFetcher
-from data_fetcher.fetchers.fred.industrial_production import FREDIndustrialProductionFetcher
-from data_fetcher.fetchers.bond.bond_prices import FMPBondPricesFetcher
+from data_fetcher.providers.fred.gdp import FREDGDPFetcher
+from data_fetcher.providers.fred.unemployment import FREDUnemploymentFetcher
+from data_fetcher.providers.fred.cpi import FREDCPIFetcher
+from data_fetcher.providers.fred.interest_rate import FREDInterestRateFetcher
+from data_fetcher.providers.fred.retail_sales import FREDRetailSalesFetcher
+from data_fetcher.providers.fred.consumer_sentiment import FREDConsumerSentimentFetcher
+from data_fetcher.providers.fred.nonfarm_payroll import FREDNonfarmPayrollFetcher
+from data_fetcher.providers.fred.employment import FREDEmploymentFetcher
+from data_fetcher.providers.fred.housing_starts import FREDHousingStartsFetcher
+from data_fetcher.providers.fred.industrial_production import FREDIndustrialProductionFetcher
+from data_fetcher.providers.bond.bond_prices import FMPBondPricesFetcher
 from data_fetcher.query_executor import QueryExecutor
 from data_fetcher.utils.helpers import parse_period_to_dates
 from data_fetcher.utils.api_keys import get_api_key
@@ -176,7 +176,7 @@ class MacroService:
 
     async def _qe(self, fetcher_cls, params=None) -> List[Dict]:
         """_fetch 대체: _FETCHER_MAP → QueryExecutor.fetch → List[Dict]"""
-        from data_fetcher.fetchers.base import AnnotatedResult
+        from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
         provider, model = _FETCHER_MAP[fetcher_cls]
         raw = await QueryExecutor.fetch(provider, model, params or {})
         if isinstance(raw, AnnotatedResult):

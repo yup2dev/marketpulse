@@ -205,3 +205,49 @@ export const notesAPI = {
 export const newsAPI = {
   get: (symbol, limit = 20) => apiClient.get(`${API_BASE}/news${symbol ? `?symbol=${encodeURIComponent(symbol)}&` : '?'}limit=${limit}`),
 };
+
+// ─── Universal Data Gateway ──────────────────────────────────────────────────
+// 새 Fetcher 추가 시 이 파일 수정 불필요.
+// 사용: dataAPI.fetch('fred', 'yield_curve')
+//       dataAPI.fetch('yahoo', 'quote', { symbol: 'AAPL' })
+//       dataAPI.fetch('fmp', 'income_statement', { symbol: 'AAPL' })
+export const dataAPI = {
+  fetch: (provider, model, params = {}) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== null)
+    ).toString();
+    const url = `${API_BASE}/data/${provider}/${model}${qs ? `?${qs}` : ''}`;
+    return apiClient.get(url);
+  },
+
+  // 자주 쓰는 단축키 — provider:model 쌍을 기억하지 않아도 됨
+  stock: {
+    quote:        (symbol, provider = 'yahoo')         => dataAPI.fetch(provider, 'quote', { symbol }),
+    history:      (symbol, params = {}, prov = 'yahoo')=> dataAPI.fetch(prov, 'stock_price', { symbol, ...params }),
+    profile:      (symbol)                             => dataAPI.fetch('fmp', 'company_profile', { symbol }),
+    income:       (symbol)                             => dataAPI.fetch('fmp', 'income_statement', { symbol }),
+    estimates:    (symbol)                             => dataAPI.fetch('fmp', 'analyst_estimates', { symbol }),
+    gainers:      ()                                   => dataAPI.fetch('fmp', 'gainers', {}),
+    losers:       ()                                   => dataAPI.fetch('fmp', 'losers', {}),
+    mostActives:  ()                                   => dataAPI.fetch('fmp', 'most_actives', {}),
+  },
+
+  macro: {
+    yieldCurve:          ()                  => dataAPI.fetch('fred', 'yield_curve', {}),
+    yieldHistory:        (period = '5y')     => dataAPI.fetch('fred', 'yield_curve_history', { period }),
+    gdp:                 (period = '5y')     => dataAPI.fetch('fred', 'gdp', { period }),
+    cpi:                 (period = '5y')     => dataAPI.fetch('fred', 'cpi', { period }),
+    unemployment:        (period = '5y')     => dataAPI.fetch('fred', 'unemployment', { period }),
+    interestRate:        (period = '5y')     => dataAPI.fetch('fred', 'interest_rate', { period }),
+    laborDashboard:      ()                  => dataAPI.fetch('fred', 'labor_dashboard', {}),
+    financialConditions: ()                  => dataAPI.fetch('fred', 'financial_conditions', {}),
+    sentimentComposite:  ()                  => dataAPI.fetch('fred', 'sentiment_composite', {}),
+    inflationMomentum:   (period = '3y')     => dataAPI.fetch('fred', 'inflation_momentum', { period }),
+    pmi:                 (period = '5y')     => dataAPI.fetch('fred', 'pmi', { period }),
+    fedBalanceSheet:     (period = '10y')    => dataAPI.fetch('fred', 'fed_balance_sheet', { period }),
+    realRates:           (period = '5y')     => dataAPI.fetch('fred', 'real_rates', { period }),
+    jobsBreakdown:       (period = '5y')     => dataAPI.fetch('fred', 'jobs_breakdown', { period }),
+    initialClaims:       (period = '2y')     => dataAPI.fetch('fred', 'initial_claims', { period }),
+    inflationSector:     (period = '5y')     => dataAPI.fetch('fred', 'inflation_sector', { period }),
+  },
+};

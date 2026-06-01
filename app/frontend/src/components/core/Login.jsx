@@ -9,7 +9,7 @@ import useAuthStore from '../../store/authStore';
 
 export default function Login() {
   const navigate = useNavigate();
-  const { login, isAuthenticated, isLoading, error, clearError } = useAuthStore();
+  const { login, isAuthenticated, isInitializing, isLoading, error, clearError } = useAuthStore();
   const {
     register,
     handleSubmit,
@@ -17,11 +17,11 @@ export default function Login() {
   } = useForm();
 
   useEffect(() => {
-    // 이미 로그인된 경우 대시보드로 리다이렉트
-    if (isAuthenticated) {
+    // 인증 확인 완료 후 이미 로그인된 경우 대시보드로 리다이렉트
+    if (!isInitializing && isAuthenticated) {
       navigate('/');
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, isInitializing, navigate]);
 
   useEffect(() => {
     // 에러 클리어

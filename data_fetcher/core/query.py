@@ -18,7 +18,7 @@ from __future__ import annotations
 from contextvars import ContextVar
 from typing import Any, Dict, List, Optional, Union
 
-from data_fetcher.fetchers.base import AnnotatedResult
+from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
 from data_fetcher.query_executor import QueryExecutor
 
 # CommandRouter가 엔드포인트 호출 직전에 설정하는 모델 이름 ContextVar

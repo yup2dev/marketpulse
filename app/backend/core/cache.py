@@ -5,6 +5,11 @@
 
     @cached(ttl=3600)
     async def get_something(symbol: str) -> dict: ...
+
+캐시 버전:
+    CACHE_VERSION을 올리면 기존 캐시 전체가 MISS로 처리된다.
+    Pydantic 모델 스키마 변경(필드 추가/제거/타입 변경) 시 반드시 올릴 것.
+    모든 키는 "v{N}:{original_key}" 형식으로 저장된다.
 """
 import asyncio
 import base64
@@ -15,6 +20,16 @@ from functools import wraps
 from typing import Any, Callable, Optional
 
 log = logging.getLogger(__name__)
+
+# 스키마 변경 시 이 값을 올리면 기존 캐시 전체 무효화.
+# QueryExecutor._cache_key, @cached 데코레이터 모두 이 prefix를 사용한다.
+CACHE_VERSION: int = 1
+
+
+def versioned_key(key: str) -> str:
+    """키에 스키마 버전 prefix를 붙인다."""
+    return f"v{CACHE_VERSION}:{key}"
+
 
 # --------------------------------------------------------------------------- #
 # 직렬화 — pickle 기반 (Pydantic 모델 등 타입 보존)
@@ -32,7 +47,7 @@ def _serialize(value: Any) -> Optional[str]:
 
 
 def _deserialize(raw: str) -> Any:
-    """역직렬화 실패 시 None 반환 → 캐시 MISS로 취급(오래된 포맷 등)."""
+    """역직렬화 실패 시 None 반환 → 캐시 MISS로 취급(오래된 포맷/버전 불일치 등)."""
     try:
         return pickle.loads(base64.b64decode(raw))
     except Exception:
@@ -193,24 +208,29 @@ class CacheManager:
 
     async def get(self, key: str) -> Optional[Any]:
         self._ensure_init()
-        raw = await self._backend.get(key)
+        raw = await self._backend.get(versioned_key(key))
         if raw is None:
             return None
-        return _deserialize(raw)
+        value = _deserialize(raw)
+        if value is None:
+            # 역직렬화 실패 → 오래된 포맷이므로 즉시 삭제 (MISS로 처리)
+            await self._backend.delete(versioned_key(key))
+        return value
 
     async def set(self, key: str, value: Any, ttl: int) -> None:
         self._ensure_init()
         serialized = _serialize(value)
         if serialized is not None:
-            await self._backend.set(key, serialized, ttl)
+            await self._backend.set(versioned_key(key), serialized, ttl)
 
     async def delete(self, key: str) -> None:
         self._ensure_init()
-        await self._backend.delete(key)
+        await self._backend.delete(versioned_key(key))
 
     async def invalidate_prefix(self, prefix: str) -> int:
         self._ensure_init()
-        return await self._backend.delete_prefix(prefix)
+        # prefix에도 버전을 적용
+        return await self._backend.delete_prefix(versioned_key(prefix))
 
     async def close(self) -> None:
         if self._backend:

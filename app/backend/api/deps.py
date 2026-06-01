@@ -22,7 +22,7 @@ from typing import Any
 
 from fastapi import HTTPException
 
-from data_fetcher.fetchers.base import AnnotatedResult
+from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
 from data_fetcher.core.obbject import OBBject
 
 

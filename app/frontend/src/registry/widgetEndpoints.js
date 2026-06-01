@@ -72,22 +72,22 @@ export const WIDGET_ENDPOINTS = {
   'social-sentiment':      { title: 'Social Sentiment',       endpoint: '/stock/reddit/{symbol}' },
   'financials':            { title: 'Financial Statements',   endpoint: '/stock/financials/{symbol}' },
 
-  // ── Macro ──────────────────────────────────────────────────────────────────
-  'gdp-forecast':          { title: 'GDP Forecast',           endpoint: '/macro/overview/gdp-forecast?period={period}' },
-  'inflation-momentum':    { title: 'Inflation Momentum',     endpoint: '/macro/overview/inflation-momentum?period={period}' },
-  'initial-claims':        { title: 'Initial Claims',         endpoint: '/macro/overview/initial-claims?period={period}' },
-  'jobs-breakdown':        { title: 'Jobs Breakdown',         endpoint: '/macro/overview/jobs-breakdown?period={period}' },
-  'yield-curve-snapshot':  { title: 'Yield Curve',            endpoint: '/macro/yield-curve' },
-  'yield-trends':          { title: 'Yield Trends',           endpoint: '/macro/yield-curve/history?period={period}' },
-  'real-rates':            { title: 'Real Rates (TIPS)',       endpoint: '/macro/real-rates?period={period}' },
-  'fed-balance-sheet':     { title: 'Fed Balance Sheet',      endpoint: '/macro/fed-balance-sheet?period={period}' },
-  'inflation-decomp':      { title: 'Inflation Decomposition', endpoint: '/macro/inflation/decomposition' },
-  'inflation-trends':      { title: 'Inflation Trends',       endpoint: '/macro/inflation/sector-history?period={period}' },
-  'labor-market-dashboard': { title: 'Labor Market',          endpoint: '/macro/labor/dashboard' },
-  'pmi':                   { title: 'ISM PMI / LEI',          endpoint: '/macro/business-cycle/pmi?period={period}' },
-  'fin-conditions-tab':    { title: 'Financial Conditions',   endpoint: '/macro/financial-conditions' },
-  'sentiment-tab':         { title: 'Market Sentiment',       endpoint: '/macro/sentiment/composite' },
-  'commodities-tab':       { title: 'Commodities',            endpoint: '/macro/fred/series' },
+  // ── Macro (Universal Data Gateway 경유) ───────────────────────────────────
+  'gdp-forecast':           { title: 'GDP Forecast',           endpoint: '/data/fred/gdp?period={period}' },
+  'inflation-momentum':     { title: 'Inflation Momentum',     endpoint: '/data/fred/inflation_momentum?period={period}' },
+  'initial-claims':         { title: 'Initial Claims',         endpoint: '/data/fred/initial_claims?period={period}' },
+  'jobs-breakdown':         { title: 'Jobs Breakdown',         endpoint: '/data/fred/jobs_breakdown?period={period}' },
+  'yield-curve-snapshot':   { title: 'Yield Curve',            endpoint: '/data/fred/yield_curve' },
+  'yield-trends':           { title: 'Yield Trends',           endpoint: '/data/fred/yield_curve_history?period={period}' },
+  'real-rates':             { title: 'Real Rates (TIPS)',       endpoint: '/data/fred/real_rates?period={period}' },
+  'fed-balance-sheet':      { title: 'Fed Balance Sheet',      endpoint: '/data/fred/fed_balance_sheet?period={period}' },
+  'inflation-decomp':       { title: 'Inflation Decomposition', endpoint: '/macro/inflation/decomposition' },
+  'inflation-trends':       { title: 'Inflation Trends',       endpoint: '/data/fred/inflation_sector?period={period}' },
+  'labor-market-dashboard': { title: 'Labor Market',           endpoint: '/data/fred/labor_dashboard' },
+  'pmi':                    { title: 'ISM PMI / LEI',           endpoint: '/data/fred/pmi?period={period}' },
+  'fin-conditions-tab':     { title: 'Financial Conditions',   endpoint: '/data/fred/financial_conditions' },
+  'sentiment-tab':          { title: 'Market Sentiment',       endpoint: '/data/fred/sentiment_composite' },
+  'commodities-tab':        { title: 'Commodities',            endpoint: '/macro/fred/series' },
 
   // ── QuantLib option pricing (form-driven, common-widget) ──────────────────
   'option-pricing': {

@@ -32,7 +32,7 @@ async def _load_from_db() -> List[Dict]:
     """
     try:
         from data_fetcher.query_executor import QueryExecutor
-        from data_fetcher.fetchers.base import AnnotatedResult
+        from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
 
         raw = await QueryExecutor.fetch(
             provider="db",

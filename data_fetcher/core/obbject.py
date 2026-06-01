@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
-from data_fetcher.fetchers.base import AnnotatedResult
+from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
 from data_fetcher.core.warnings import WarningsCollector
 
 if TYPE_CHECKING:

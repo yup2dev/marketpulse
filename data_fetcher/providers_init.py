@@ -6,108 +6,104 @@ This file should be imported to activate all providers.
 """
 import logging
 
-from data_fetcher.provider import Provider, ProviderRegistry
-from data_fetcher.utils.registry import FetcherRegistry
+from data_fetcher.abstract_provider.abstract.provider import Provider, ProviderRegistry
 
-# Import all fetchers
-from data_fetcher.fetchers.fred.gdp import FREDGDPFetcher
-from data_fetcher.fetchers.fred.cpi import FREDCPIFetcher
-from data_fetcher.fetchers.fred.unemployment import FREDUnemploymentFetcher
-from data_fetcher.fetchers.fred.interest_rate import FREDInterestRateFetcher
-from data_fetcher.fetchers.fred.employment import FREDEmploymentFetcher
-from data_fetcher.fetchers.fred.industrial_production import FREDIndustrialProductionFetcher
-from data_fetcher.fetchers.fred.consumer_sentiment import FREDConsumerSentimentFetcher
-from data_fetcher.fetchers.fred.housing_starts import FREDHousingStartsFetcher
-from data_fetcher.fetchers.fred.retail_sales import FREDRetailSalesFetcher
-from data_fetcher.fetchers.fred.nonfarm_payroll import FREDNonfarmPayrollFetcher
-from data_fetcher.fetchers.fred.generic_series import FREDGenericSeriesFetcher
-from data_fetcher.fetchers.fred.fed_balance_sheet import FREDFedBalanceSheetFetcher
-from data_fetcher.fetchers.fred.real_rates import FREDRealRatesFetcher
-from data_fetcher.fetchers.fred.pmi import FREDPMIFetcher
-from data_fetcher.fetchers.fred.yield_curve import FREDYieldCurveFetcher
-from data_fetcher.fetchers.fred.inflation_momentum import FREDInflationMomentumFetcher
-from data_fetcher.fetchers.fred.yield_curve_history import FREDYieldCurveHistoryFetcher
-from data_fetcher.fetchers.fred.initial_claims import FREDInitialClaimsFetcher
-from data_fetcher.fetchers.fred.jobs_breakdown import FREDJobsBreakdownFetcher
-from data_fetcher.fetchers.fred.financial_conditions_history import FREDFinancialConditionsHistoryFetcher
-from data_fetcher.fetchers.fred.sentiment_history import FREDSentimentHistoryFetcher
-from data_fetcher.fetchers.fred.inflation_sector import FREDInflationSectorFetcher
-from data_fetcher.fetchers.fred.regime_history import FREDRegimeHistoryFetcher
-from data_fetcher.fetchers.fred.phillips_curve import FREDPhillipsCurveFetcher
-from data_fetcher.fetchers.fred.financial_conditions import FREDFinancialConditionsFetcher
-from data_fetcher.fetchers.fred.sentiment_composite import FREDSentimentCompositeFetcher
-from data_fetcher.fetchers.fred.labor_dashboard import FREDLaborDashboardFetcher
+# Import all fetchers — new flat structure (providers/{name}/{endpoint}.py)
+from data_fetcher.providers.fred.gdp import FREDGDPFetcher
+from data_fetcher.providers.fred.cpi import FREDCPIFetcher
+from data_fetcher.providers.fred.unemployment import FREDUnemploymentFetcher
+from data_fetcher.providers.fred.interest_rate import FREDInterestRateFetcher
+from data_fetcher.providers.fred.employment import FREDEmploymentFetcher
+from data_fetcher.providers.fred.industrial_production import FREDIndustrialProductionFetcher
+from data_fetcher.providers.fred.consumer_sentiment import FREDConsumerSentimentFetcher
+from data_fetcher.providers.fred.housing_starts import FREDHousingStartsFetcher
+from data_fetcher.providers.fred.retail_sales import FREDRetailSalesFetcher
+from data_fetcher.providers.fred.nonfarm_payroll import FREDNonfarmPayrollFetcher
+from data_fetcher.providers.fred.generic_series import FREDGenericSeriesFetcher
+from data_fetcher.providers.fred.fed_balance_sheet import FREDFedBalanceSheetFetcher
+from data_fetcher.providers.fred.real_rates import FREDRealRatesFetcher
+from data_fetcher.providers.fred.pmi import FREDPMIFetcher
+from data_fetcher.providers.fred.yield_curve import FREDYieldCurveFetcher
+from data_fetcher.providers.fred.inflation_momentum import FREDInflationMomentumFetcher
+from data_fetcher.providers.fred.yield_curve_history import FREDYieldCurveHistoryFetcher
+from data_fetcher.providers.fred.initial_claims import FREDInitialClaimsFetcher
+from data_fetcher.providers.fred.jobs_breakdown import FREDJobsBreakdownFetcher
+from data_fetcher.providers.fred.financial_conditions_history import FREDFinancialConditionsHistoryFetcher
+from data_fetcher.providers.fred.sentiment_history import FREDSentimentHistoryFetcher
+from data_fetcher.providers.fred.inflation_sector import FREDInflationSectorFetcher
+from data_fetcher.providers.fred.regime_history import FREDRegimeHistoryFetcher
+from data_fetcher.providers.fred.phillips_curve import FREDPhillipsCurveFetcher
+from data_fetcher.providers.fred.financial_conditions import FREDFinancialConditionsFetcher
+from data_fetcher.providers.fred.sentiment_composite import FREDSentimentCompositeFetcher
+from data_fetcher.providers.fred.labor_dashboard import FREDLaborDashboardFetcher
 
-from data_fetcher.fetchers.yahoo.stock_price import YFinanceStockPriceFetcher
-from data_fetcher.fetchers.yahoo.stock_quote import YFinanceQuoteFetcher
-from data_fetcher.fetchers.yahoo.batch_quotes import YFinanceBatchQuotesFetcher
-from data_fetcher.fetchers.yahoo.dividends import YFinanceDividendsFetcher
-from data_fetcher.fetchers.yahoo.company_info import YFinanceCompanyInfoFetcher
-from data_fetcher.fetchers.yahoo.financials import YFinanceFinancialsFetcher
-from data_fetcher.fetchers.yahoo.balance_sheet import YFinanceBalanceSheetFetcher
-from data_fetcher.fetchers.yahoo.key_metrics import YFinanceKeyMetricsFetcher
-from data_fetcher.fetchers.yahoo.quarterly_pnl import YFinanceQuarterlyPnLFetcher
-from data_fetcher.fetchers.yahoo.holders import YFinanceHoldersFetcher
-from data_fetcher.fetchers.yahoo.calendar import YFinanceCalendarFetcher
-from data_fetcher.fetchers.yahoo.splits import YFinanceSplitsFetcher
-from data_fetcher.fetchers.yahoo.filings import YFinanceFilingsFetcher
-from data_fetcher.fetchers.yahoo.estimates import YFinanceEstimatesFetcher
-from data_fetcher.fetchers.yahoo.management import YFinanceManagementFetcher
-from data_fetcher.fetchers.yahoo.moat import YFinanceMoatFetcher
-from data_fetcher.fetchers.yahoo.swot import YFinanceSWOTFetcher
-from data_fetcher.fetchers.yahoo.scorecard import YFinanceScorecardFetcher
-from data_fetcher.fetchers.yahoo.insider_trading import (
+from data_fetcher.providers.yahoo.stock_price import YFinanceStockPriceFetcher
+from data_fetcher.providers.yahoo.stock_quote import YFinanceQuoteFetcher
+from data_fetcher.providers.yahoo.batch_quotes import YFinanceBatchQuotesFetcher
+from data_fetcher.providers.yahoo.dividends import YFinanceDividendsFetcher
+from data_fetcher.providers.yahoo.company_info import YFinanceCompanyInfoFetcher
+from data_fetcher.providers.yahoo.financials import YFinanceFinancialsFetcher
+from data_fetcher.providers.yahoo.balance_sheet import YFinanceBalanceSheetFetcher
+from data_fetcher.providers.yahoo.key_metrics import YFinanceKeyMetricsFetcher
+from data_fetcher.providers.yahoo.quarterly_pnl import YFinanceQuarterlyPnLFetcher
+from data_fetcher.providers.yahoo.holders import YFinanceHoldersFetcher
+from data_fetcher.providers.yahoo.calendar import YFinanceCalendarFetcher
+from data_fetcher.providers.yahoo.splits import YFinanceSplitsFetcher
+from data_fetcher.providers.yahoo.filings import YFinanceFilingsFetcher
+from data_fetcher.providers.yahoo.estimates import YFinanceEstimatesFetcher
+from data_fetcher.providers.yahoo.management import YFinanceManagementFetcher
+from data_fetcher.providers.yahoo.moat import YFinanceMoatFetcher
+from data_fetcher.providers.yahoo.swot import YFinanceSWOTFetcher
+from data_fetcher.providers.yahoo.scorecard import YFinanceScorecardFetcher
+from data_fetcher.providers.yahoo.insider_trading import (
     YFinanceInsiderTradingFetcher,
     YFinanceInsiderHoldersFetcher,
     YFinanceInsiderTradingSummaryFetcher,
 )
 
-from data_fetcher.fetchers.alphavantage.quote import AlphaVantageQuoteFetcher
-from data_fetcher.fetchers.alphavantage.timeseries import AlphaVantageTimeseriesFetcher
-from data_fetcher.fetchers.alphavantage.forex import AlphaVantageForexFetcher
-from data_fetcher.fetchers.alphavantage.company_overview import AlphaVantageCompanyOverviewFetcher
-from data_fetcher.fetchers.alphavantage.crypto import AlphaVantageCryptoFetcher
+from data_fetcher.providers.alphavantage.equity_quote import AlphaVantageQuoteFetcher, AlphaVantageTimeseriesFetcher
+from data_fetcher.providers.alphavantage.forex import AlphaVantageForexFetcher
+from data_fetcher.providers.alphavantage.company_overview import AlphaVantageCompanyOverviewFetcher
+from data_fetcher.providers.alphavantage.crypto import AlphaVantageCryptoFetcher
 
-from data_fetcher.fetchers.fmp.quote import FMPQuoteFetcher
-from data_fetcher.fetchers.fmp.company_profile import FMPCompanyProfileFetcher
-from data_fetcher.fetchers.fmp.income_statement import FMPIncomeStatementFetcher
-from data_fetcher.fetchers.fmp.analyst_estimates import FMPAnalystEstimatesFetcher
-from data_fetcher.fetchers.fmp.analyst_recommendations import FMPAnalystRecommendationsFetcher
-from data_fetcher.fetchers.fmp.search import FMPSearchFetcher
-from data_fetcher.fetchers.fmp.most_actives import FMPMostActivesFetcher
-from data_fetcher.fetchers.fmp.gainers import FMPGainersFetcher
-from data_fetcher.fetchers.fmp.losers import FMPLosersFetcher
-from data_fetcher.fetchers.bond.bond_prices import FMPBondPricesFetcher
+from data_fetcher.providers.fmp.equity_quote import FMPQuoteFetcher
+from data_fetcher.providers.fmp.company_profile import FMPCompanyProfileFetcher
+from data_fetcher.providers.fmp.income_statement import FMPIncomeStatementFetcher
+from data_fetcher.providers.fmp.analyst_estimates import FMPAnalystEstimatesFetcher
+from data_fetcher.providers.fmp.analyst_recommendations import FMPAnalystRecommendationsFetcher
+from data_fetcher.providers.fmp.search import FMPSearchFetcher
+from data_fetcher.providers.fmp.gainers import FMPMostActivesFetcher, FMPGainersFetcher, FMPLosersFetcher
+from data_fetcher.providers.bond.bond_prices import FMPBondPricesFetcher
 
-from data_fetcher.fetchers.polygon.news import PolygonNewsFetcher
-from data_fetcher.fetchers.polygon.earnings import PolygonEarningsFetcher
-from data_fetcher.fetchers.polygon.insider_trading import PolygonInsiderTradingFetcher
-from data_fetcher.fetchers.polygon.sentiment import PolygonStockSentimentFetcher
-from data_fetcher.fetchers.polygon.options import PolygonOptionsFetcher
-from data_fetcher.fetchers.polygon.short_interest import PolygonShortInterestFetcher
-from data_fetcher.fetchers.polygon.technical_indicators import PolygonTechnicalIndicatorsFetcher
+from data_fetcher.providers.polygon.news import PolygonNewsFetcher
+from data_fetcher.providers.polygon.earnings import PolygonEarningsFetcher
+from data_fetcher.providers.polygon.insider_trading import PolygonInsiderTradingFetcher
+from data_fetcher.providers.polygon.sentiment import PolygonStockSentimentFetcher
+from data_fetcher.providers.polygon.options import PolygonOptionsFetcher
+from data_fetcher.providers.polygon.short_interest import PolygonShortInterestFetcher
+from data_fetcher.providers.polygon.technical_indicators import PolygonTechnicalIndicatorsFetcher
 
-from data_fetcher.fetchers.sec.insider_trading import SECInsiderTradingFetcher
-from data_fetcher.fetchers.sec.institutional_13f import SEC13FFetcher
-from data_fetcher.fetchers.sec.institutions_list import SECInstitutionsListFetcher
+from data_fetcher.providers.sec.insider_trading import SECInsiderTradingFetcher
+from data_fetcher.providers.sec.institutional_13f import SEC13FFetcher
+from data_fetcher.providers.sec.institutions_list import SECInstitutionsListFetcher
 
-from data_fetcher.fetchers.fmp.analyst_data import FMPAnalystDataFetcher
-from data_fetcher.fetchers.fmp.revenue_segments import FMPRevenueSegmentsFetcher
-from data_fetcher.fetchers.fmp.index_constituents import FMPIndexConstituentsFetcher
+from data_fetcher.providers.fmp.analyst_data import FMPAnalystDataFetcher
+from data_fetcher.providers.fmp.revenue_segments import FMPRevenueSegmentsFetcher
+from data_fetcher.providers.fmp.index_constituents import FMPIndexConstituentsFetcher
 
-from data_fetcher.fetchers.social.sentiment import SocialSentimentFetcher
-from data_fetcher.fetchers.database.index_constituents import DBIndexConstituentsFetcher
-from data_fetcher.fetchers.database.stock_list import DBStockListFetcher
-from data_fetcher.fetchers.whalewisdom.institutional_holdings import WhaleWisdomFetcher
-from data_fetcher.fetchers.whalewisdom.institutions_list import InstitutionsListFetcher
+from data_fetcher.providers.social.sentiment import SocialSentimentFetcher
+from data_fetcher.providers.database.index_constituents import DBIndexConstituentsFetcher
+from data_fetcher.providers.database.stock_list import DBStockListFetcher
+from data_fetcher.providers.whalewisdom.institutional_holdings import WhaleWisdomFetcher
+from data_fetcher.providers.whalewisdom.institutions_list import InstitutionsListFetcher
 
-from data_fetcher.fetchers.quantlib.pricing import QuantLibPricingFetcher
+from data_fetcher.providers.quantlib.pricing import QuantLibPricingFetcher
 
-from data_fetcher.fetchers.quantitative.summary import QuantSummaryFetcher
-from data_fetcher.fetchers.quantitative.normality import QuantNormalityFetcher
-from data_fetcher.fetchers.quantitative.capm import QuantCAPMFetcher
-from data_fetcher.fetchers.quantitative.rolling import QuantRollingFetcher
-from data_fetcher.fetchers.quantitative.unitroot import QuantUnitRootFetcher
+from data_fetcher.providers.quantitative.summary import QuantSummaryFetcher
+from data_fetcher.providers.quantitative.normality import QuantNormalityFetcher
+from data_fetcher.providers.quantitative.capm import QuantCAPMFetcher
+from data_fetcher.providers.quantitative.rolling import QuantRollingFetcher
+from data_fetcher.providers.quantitative.unitroot import QuantUnitRootFetcher
 
 log = logging.getLogger(__name__)
 
@@ -379,102 +375,8 @@ def register_all_providers():
     log.info(f"Registered {len(ProviderRegistry.list())} providers")
 
 
-def register_all_fetchers():
-    """모든 Fetcher를 FetcherRegistry에 등록"""
-
-    # FRED fetchers
-    for category, fetcher in fred_provider.fetcher_dict.items():
-        FetcherRegistry.register(
-            category=category,
-            provider="fred",
-            description=f"FRED {category.upper()} data"
-        )(fetcher)
-
-    # Yahoo fetchers
-    for category, fetcher in yahoo_provider.fetcher_dict.items():
-        FetcherRegistry.register(
-            category=category,
-            provider="yahoo",
-            description=f"Yahoo {category.upper()} data"
-        )(fetcher)
-
-    # AlphaVantage fetchers
-    for category, fetcher in alphavantage_provider.fetcher_dict.items():
-        FetcherRegistry.register(
-            category=category,
-            provider="alphavantage",
-            description=f"AlphaVantage {category.upper()} data"
-        )(fetcher)
-
-    # FMP fetchers
-    for category, fetcher in fmp_provider.fetcher_dict.items():
-        FetcherRegistry.register(
-            category=category,
-            provider="fmp",
-            description=f"FMP {category.upper()} data"
-        )(fetcher)
-
-    # Polygon fetchers
-    for category, fetcher in polygon_provider.fetcher_dict.items():
-        FetcherRegistry.register(
-            category=category,
-            provider="polygon",
-            description=f"Polygon {category.upper()} data"
-        )(fetcher)
-
-    # Social fetchers
-    for category, fetcher in social_provider.fetcher_dict.items():
-        FetcherRegistry.register(
-            category=category,
-            provider="social",
-            description=f"Social {category.upper()} data"
-        )(fetcher)
-
-    # Database fetchers
-    for category, fetcher in db_provider.fetcher_dict.items():
-        FetcherRegistry.register(
-            category=category,
-            provider="db",
-            description=f"DB {category.upper()} data"
-        )(fetcher)
-
-    # WhaleWisdom fetchers
-    for category, fetcher in whalewisdom_provider.fetcher_dict.items():
-        FetcherRegistry.register(
-            category=category,
-            provider="whalewisdom",
-            description=f"WhaleWisdom {category.upper()} data"
-        )(fetcher)
-
-    # SEC fetchers
-    for category, fetcher in sec_provider.fetcher_dict.items():
-        FetcherRegistry.register(
-            category=category,
-            provider="sec",
-            description=f"SEC {category.upper()} data"
-        )(fetcher)
-
-    # QuantLib fetchers
-    for category, fetcher in quantlib_provider.fetcher_dict.items():
-        FetcherRegistry.register(
-            category=category,
-            provider="quantlib",
-            description=f"QuantLib {category.upper()} computation"
-        )(fetcher)
-
-    # Quantitative fetchers
-    for category, fetcher in quantitative_provider.fetcher_dict.items():
-        FetcherRegistry.register(
-            category=category,
-            provider="quantitative",
-            description=f"Quantitative {category.upper()} analysis"
-        )(fetcher)
-
-    log.info(f"Registered {len(FetcherRegistry.list_categories())} fetcher categories")
-
-
 # Auto-register on import
 register_all_providers()
-register_all_fetchers()
+# FetcherRegistry는 ProviderRegistry에 위임하므로 별도 등록 불필요
 
 log.info("Data Fetcher initialization complete")

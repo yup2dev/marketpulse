@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Query as FQuery
 
 from data_fetcher.core.obbject import OBBject
-from data_fetcher.fetchers.base import AnnotatedResult
+from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
 from data_fetcher.query_executor import QueryExecutor
 from app.backend.api.deps import route_handler, wrap_result
 
@@ -246,10 +246,8 @@ async def get_stock_history(
 @router.get("/orderbook/{symbol}")
 @route_handler
 async def get_stock_orderbook(symbol: str, provider: str = "polygon") -> OBBject:
-    import asyncio
-    from data_fetcher.fetchers.polygon.orderbook import fetch_stock_orderbook
-    loop = asyncio.get_event_loop()
-    data = await loop.run_in_executor(None, fetch_stock_orderbook, symbol.upper())
+    from data_fetcher.providers.polygon.orderbook import fetch_stock_orderbook
+    data = await fetch_stock_orderbook(symbol.upper())
     return _wrap_one(data, provider)
 
 

@@ -53,3 +53,4 @@ models/
 bash.exe.stackdump
 /test_*.py
 app/frontend/src/lib/
+NUL

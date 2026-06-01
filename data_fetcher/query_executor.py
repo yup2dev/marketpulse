@@ -33,12 +33,16 @@ from typing import Any, Dict, List, Optional, Protocol, Type, Union, runtime_che
 
 from pydantic import BaseModel
 
-from data_fetcher.fetchers.base import AnnotatedResult, Fetcher
-from data_fetcher.provider import Provider, ProviderRegistry
+from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult, Fetcher
+from data_fetcher.abstract_provider.abstract.provider import Provider, ProviderRegistry
 from data_fetcher.utils.api_keys import (
     API_ENV_MAPPING,
     CredentialsError,
     get_credentials_from_env,
+)
+from data_fetcher.utils.circuit_breaker import (
+    CircuitBreakerOpen,
+    get_circuit_breaker,
 )
 
 log = logging.getLogger(__name__)
@@ -290,17 +294,32 @@ class QueryExecutor:
     공통 실행 파이프라인
 
     단계:
-        [1] 캐시 조회 (hit → 즉시 반환)
-        [2] ProviderRegistry에서 Provider 조회
-        [3] provider.fetcher_dict에서 Fetcher 조회 (PascalCase → snake_case 자동 변환)
-        [4] 자격증명 로드 및 검증
-        [5] fetcher.fetch_data(params, credentials) 호출
-            → transform_query → extract_data → transform_data
-        [6] 결과 캐시 저장
+        [1] 캐시 조회 — Fresh HIT → 즉시 반환
+        [2] Stale HIT → 즉시 반환 + 백그라운드 SWR 갱신 (스탬피드 방지)
+        [3] MISS → single-flight 락으로 업스트림 1회 호출 (동시 요청 중복 방지)
+        [4] ProviderRegistry → Fetcher 조회 → 인증 → fetch_data()
+        [5] 결과 캐시 저장 (value: TTL×2, freshness flag: TTL)
+
+    캐시 키 구조:
+        qe:{provider}:{model}:{params_json}      ← 실제 값 (stale TTL = TTL×2)
+        qe:{provider}:{model}:{params_json}:f    ← 신선도 플래그 (original TTL)
+
+    stale-while-revalidate:
+        freshness 플래그 만료 → 값은 아직 존재 → 즉시 반환 + 백그라운드 갱신
+        → 사용자는 항상 즉각 응답, 대시보드 TTL 경계에서 빈 화면 없음
     """
 
     _cache: Optional[CacheProtocol] = None
     _ttl_map: Dict[str, int] = dict(_DEFAULT_TTL)
+
+    # single-flight: 동일 cache_key에 대한 동시 업스트림 호출을 1개로 제한
+    _inflight: Dict[str, asyncio.Lock] = {}
+
+    # SWR 백그라운드 갱신 중인 cache_key 집합 (중복 갱신 방지)
+    _swr_pending: set = set()
+
+    # stale value 저장 TTL 배수 (value는 원본 TTL의 N배로 보관)
+    _SWR_STALE_FACTOR: int = 2
 
     # ── 캐시 주입 ────────────────────────────────────────────────────────────
 
@@ -310,12 +329,7 @@ class QueryExecutor:
         cache: CacheProtocol,
         ttl_map: Optional[Dict[str, int]] = None,
     ) -> None:
-        """앱 시작 시 캐시 백엔드 주입. data_fetcher는 app.backend를 직접 import하지 않는다.
-
-        Args:
-            cache:   CacheProtocol을 구현한 객체 (CacheManager 등)
-            ttl_map: 모델별 TTL 오버라이드 (기본값 _DEFAULT_TTL 위에 병합)
-        """
+        """앱 시작 시 캐시 백엔드 주입. data_fetcher는 app.backend를 직접 import하지 않는다."""
         cls._cache = cache
         if ttl_map:
             cls._ttl_map.update(ttl_map)
@@ -330,7 +344,94 @@ class QueryExecutor:
     def _ttl(cls, model: str) -> int:
         return cls._ttl_map.get(model, 0)
 
-    # ── 실행 ─────────────────────────────────────────────────────────────────
+    @classmethod
+    def _get_inflight_lock(cls, key: str) -> asyncio.Lock:
+        """key별 asyncio.Lock — 없으면 생성. 이벤트 루프는 단일 스레드이므로 race-free."""
+        if key not in cls._inflight:
+            cls._inflight[key] = asyncio.Lock()
+        return cls._inflight[key]
+
+    # ── 업스트림 패치 (캐시 로직 제외) ──────────────────────────────────────
+
+    @classmethod
+    async def _upstream_fetch(
+        cls,
+        provider: str,
+        model: str,
+        params: Dict[str, Any],
+        credentials: Optional[Dict[str, str]],
+        **kwargs: Any,
+    ) -> Any:
+        """Provider/Fetcher 조회 → fetch_data() 호출 (캐시 없음)."""
+        try:
+            provider_obj: Provider = ProviderRegistry.get(provider)
+        except KeyError as e:
+            raise QueryExecutorError(str(e)) from e
+
+        fetcher_cls = _resolve_fetcher(provider_obj, model)
+        resolved_creds = _load_credentials(provider_obj, credentials)
+        provider_obj.validate_credentials(resolved_creds)
+        filtered_params = _filter_extra_params(fetcher_cls, params, provider, model)
+
+        log.debug("[QE] upstream: provider=%s model=%s fetcher=%s",
+                  provider, model, fetcher_cls.__name__)
+
+        cb = get_circuit_breaker(provider)
+        async with cb:
+            return await fetcher_cls.fetch_data(
+                params=filtered_params,
+                credentials=resolved_creds,
+                **kwargs,
+            )
+
+    # ── 캐시 저장 (value + freshness flag) ───────────────────────────────────
+
+    @classmethod
+    async def _write_cache(cls, cache_key: str, result: Any, ttl: int) -> None:
+        """
+        value를 stale TTL(= ttl × SWR_STALE_FACTOR)로, freshness flag를 원본 TTL로 저장.
+        신선도 플래그가 만료된 후에도 값은 stale TTL 동안 유지되어 SWR에 활용된다.
+        """
+        if not cls._cache or result is None:
+            return
+        stale_ttl = max(ttl * cls._SWR_STALE_FACTOR, ttl + 60)
+        fresh_key = f"{cache_key}:f"
+        await cls._cache.set(cache_key, result, stale_ttl)
+        await cls._cache.set(fresh_key, 1, ttl)
+
+    # ── SWR 백그라운드 갱신 ──────────────────────────────────────────────────
+
+    @classmethod
+    async def _swr_refresh(
+        cls,
+        cache_key: str,
+        provider: str,
+        model: str,
+        params: Dict[str, Any],
+        credentials: Optional[Dict[str, str]],
+        ttl: int,
+        **kwargs: Any,
+    ) -> None:
+        """
+        stale 값을 반환한 뒤 백그라운드에서 새 값을 가져와 캐시를 갱신.
+        single-flight 락을 사용해 동시에 하나의 갱신만 수행.
+        """
+        lock = cls._get_inflight_lock(cache_key)
+        if lock.locked():
+            return  # 이미 다른 코루틴이 갱신 중
+        async with lock:
+            try:
+                result = await cls._upstream_fetch(
+                    provider, model, params, credentials, **kwargs
+                )
+                await cls._write_cache(cache_key, result, ttl)
+                log.debug("[QE] SWR refresh done: %s", cache_key[:80])
+            except Exception as e:
+                log.warning("[QE] SWR refresh failed (%s): %s", cache_key[:60], e)
+            finally:
+                cls._swr_pending.discard(cache_key)
+
+    # ── 메인 실행 ────────────────────────────────────────────────────────────
 
     @classmethod
     async def fetch(
@@ -342,7 +443,7 @@ class QueryExecutor:
         ttl: Optional[int] = None,
         **kwargs: Any,
     ) -> Union[List[Any], AnnotatedResult]:
-        """비동기 실행.
+        """비동기 실행 (single-flight + stale-while-revalidate 내장).
 
         Args:
             provider:    Provider 이름 (예: "fmp", "yahoo", "fred")
@@ -354,45 +455,61 @@ class QueryExecutor:
         """
         effective_ttl = cls._ttl(model) if ttl is None else ttl
 
-        # [1] 캐시 조회
-        cache_key: Optional[str] = None
-        if cls._cache and effective_ttl > 0:
-            cache_key = cls._cache_key(provider, model, params)
-            hit = await cls._cache.get(cache_key)
-            if hit is not None:
-                log.debug(f"[Cache HIT] {cache_key[:80]}")
-                return hit
+        if not (cls._cache and effective_ttl > 0):
+            # 캐시 비활성 → 직접 업스트림 호출 (서킷브레이커는 _upstream_fetch 내부에서 동작)
+            try:
+                return await cls._upstream_fetch(provider, model, params, credentials, **kwargs)
+            except CircuitBreakerOpen as e:
+                raise QueryExecutorError(str(e)) from e
 
-        # [2] Provider 조회
-        try:
-            provider_obj: Provider = ProviderRegistry.get(provider)
-        except KeyError as e:
-            raise QueryExecutorError(str(e)) from e
+        cache_key = cls._cache_key(provider, model, params)
+        fresh_key = f"{cache_key}:f"
 
-        # [3] Fetcher 조회
-        fetcher_cls = _resolve_fetcher(provider_obj, model)
+        # [1] Fresh HIT — 신선도 플래그가 살아있으면 값도 살아있음
+        is_fresh = await cls._cache.get(fresh_key)
+        if is_fresh is not None:
+            val = await cls._cache.get(cache_key)
+            if val is not None:
+                log.debug("[Cache HIT fresh] %s", cache_key[:80])
+                return val
+            # 엣지 케이스: fresh 플래그 있는데 value가 증발 (메모리 압박 등) → fall-through
 
-        # [4] 자격증명 처리 및 검증
-        resolved_creds = _load_credentials(provider_obj, credentials)
-        provider_obj.validate_credentials(resolved_creds)
+        # [2] Stale HIT (SWR) — fresh 플래그 만료, value는 stale TTL 내 존재
+        stale_val = await cls._cache.get(cache_key)
+        if stale_val is not None:
+            if cache_key not in cls._swr_pending:
+                cls._swr_pending.add(cache_key)
+                asyncio.create_task(cls._swr_refresh(
+                    cache_key, provider, model, params, credentials, effective_ttl, **kwargs
+                ))
+            log.debug("[Cache HIT stale+SWR] %s", cache_key[:80])
+            return stale_val
 
-        # [4.5] 미지원 파라미터 필터링 + 경고
-        filtered_params = _filter_extra_params(fetcher_cls, params, provider, model)
+        # [3] MISS — single-flight 락으로 업스트림 1회만 호출
+        lock = cls._get_inflight_lock(cache_key)
+        async with lock:
+            # 락 획득 후 재확인 (대기하는 동안 다른 코루틴이 이미 채웠을 수 있음)
+            is_fresh = await cls._cache.get(fresh_key)
+            if is_fresh is not None:
+                val = await cls._cache.get(cache_key)
+                if val is not None:
+                    log.debug("[Cache HIT post-lock] %s", cache_key[:80])
+                    return val
 
-        log.debug(f"[QueryExecutor] provider={provider} model={model} fetcher={fetcher_cls.__name__}")
+            try:
+                result = await cls._upstream_fetch(
+                    provider, model, params, credentials, **kwargs
+                )
+            except CircuitBreakerOpen as e:
+                # 서킷 OPEN: stale 값이라도 반환, 없으면 에러
+                stale = await cls._cache.get(cache_key)
+                if stale is not None:
+                    log.warning("[QE] Circuit OPEN for %s — serving stale cache", provider)
+                    return stale
+                raise QueryExecutorError(str(e)) from e
 
-        # [5] Fetcher.fetch_data() 호출
-        result = await fetcher_cls.fetch_data(
-            params=filtered_params,
-            credentials=resolved_creds,
-            **kwargs,
-        )
-
-        # [6] 캐시 저장
-        if cls._cache and cache_key and result is not None:
-            await cls._cache.set(cache_key, result, effective_ttl)
-
-        return result
+            await cls._write_cache(cache_key, result, effective_ttl)
+            return result
 
     @classmethod
     def fetch_sync(

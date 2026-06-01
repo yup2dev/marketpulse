@@ -14,7 +14,7 @@ from app.backend.core.auth.dependencies import get_current_active_user
 from app.backend.api.deps import route_handler
 from app.backend.services.user_portfolio_service import UserPortfolioService
 from data_fetcher.query_executor import QueryExecutor
-from data_fetcher.fetchers.base import AnnotatedResult
+from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
 from index_analyzer.models.orm import User
 
 router = APIRouter(prefix="/user-portfolio", tags=["User Portfolio"])
