@@ -66,19 +66,18 @@ class FREDInflationSectorFetcher(Fetcher[InflationSectorQueryParams, InflationSe
             from dateutil.relativedelta import relativedelta
             extended_start = query.start_date - relativedelta(months=13)
 
-        raw: Dict[str, List[Dict]] = {}
-        for key, series_id in _SECTOR_SERIES.items():
-            try:
-                raw[key] = await FredSeriesFetcher.fetch_series(
-                    series_id=series_id,
-                    api_key=api_key,
-                    start_date=extended_start,
-                    end_date=query.end_date,
-                    sort_order="asc",
-                )
-            except Exception as e:
-                log.warning(f"[InflationSector] {series_id} failed: {e}")
-                raw[key] = []
+        series_map = await FredSeriesFetcher.fetch_multiple_series(
+            series_ids=list(_SECTOR_SERIES.values()),
+            api_key=api_key,
+            start_date=extended_start,
+            end_date=query.end_date,
+            sort_order="asc",
+        )
+        # remap from series_id keys back to sector name keys
+        raw: Dict[str, List[Dict]] = {
+            key: series_map.get(series_id, [])
+            for key, series_id in _SECTOR_SERIES.items()
+        }
         return raw
 
     @staticmethod

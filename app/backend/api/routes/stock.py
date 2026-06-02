@@ -287,7 +287,34 @@ async def search_stocks(
     except Exception:
         pass
 
-    # 3. symbol_cache 최종 폴백 (FMP 실패 시)
+    # 3. yfinance Search (FMP 실패 시 무료 fallback)
+    try:
+        import asyncio
+        import yfinance as yf
+
+        def _yf_search():
+            r = yf.Search(query, max_results=limit, enable_fuzzy_query=True)
+            return r.quotes or []
+
+        quotes = await asyncio.to_thread(_yf_search)
+        if quotes:
+            _EXCHDISP_MAP = {"NASDAQ": "NASDAQ", "NYSE": "NYSE", "NMS": "NASDAQ", "NYQ": "NYSE",
+                             "KSC": "KOSPI", "KOE": "KOSDAQ"}
+            results = [
+                {
+                    "symbol":   q.get("symbol", ""),
+                    "name":     q.get("longname") or q.get("shortname", ""),
+                    "exchange": _EXCHDISP_MAP.get(q.get("exchange", ""), q.get("exchDisp", "")),
+                    "currency": q.get("currency", ""),
+                }
+                for q in quotes
+                if q.get("symbol")
+            ]
+            return OBBject(results=results, provider="yahoo")
+    except Exception:
+        pass
+
+    # 4. symbol_cache 최종 폴백
     hits = cache.search(query.upper(), limit=limit)
     return OBBject(results=hits, provider="cache")
 

@@ -35,6 +35,7 @@ import yfinance as yf
 import pandas as pd
 
 from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.providers.yahoo.stock_quote import SYMBOL_ALIASES
 
 log = logging.getLogger(__name__)
 

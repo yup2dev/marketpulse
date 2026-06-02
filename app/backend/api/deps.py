@@ -21,9 +21,11 @@ from functools import wraps
 from typing import Any
 
 from fastapi import HTTPException
+from fastapi.responses import JSONResponse
 
 from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
 from data_fetcher.core.obbject import OBBject
+from data_fetcher.utils.circuit_breaker import CircuitBreakerOpen
 
 
 def wrap_result(raw: Any, provider: str) -> OBBject:
@@ -64,6 +66,16 @@ def route_handler(func):
             except ValueError as e:
                 raise HTTPException(status_code=400, detail=str(e))
             except Exception as e:
+                cb_err = e if isinstance(e, CircuitBreakerOpen) else (
+                    e.__cause__ if isinstance(e.__cause__, CircuitBreakerOpen) else None
+                )
+                if cb_err is not None:
+                    log.warning(f"[{func.__name__}] {e}")
+                    return JSONResponse(
+                        status_code=503,
+                        content={"detail": str(cb_err)},
+                        headers={"Retry-After": str(int(cb_err.retry_after) + 1)},
+                    )
                 log.error(f"[{func.__name__}] {e}", exc_info=True)
                 raise HTTPException(status_code=500, detail=str(e))
         return async_wrapper
@@ -78,6 +90,16 @@ def route_handler(func):
             except ValueError as e:
                 raise HTTPException(status_code=400, detail=str(e))
             except Exception as e:
+                cb_err = e if isinstance(e, CircuitBreakerOpen) else (
+                    e.__cause__ if isinstance(e.__cause__, CircuitBreakerOpen) else None
+                )
+                if cb_err is not None:
+                    log.warning(f"[{func.__name__}] {e}")
+                    return JSONResponse(
+                        status_code=503,
+                        content={"detail": str(cb_err)},
+                        headers={"Retry-After": str(int(cb_err.retry_after) + 1)},
+                    )
                 log.error(f"[{func.__name__}] {e}", exc_info=True)
                 raise HTTPException(status_code=500, detail=str(e))
         return sync_wrapper

@@ -99,9 +99,10 @@ _PUBLIC_PREFIXES = (
 async def auth_gate(request: Request, call_next):
     path = request.url.path
 
-    # WebSocket, 비-API 경로, 공개 Auth 경로는 통과
+    # WebSocket, 비-API 경로, 공개 Auth 경로, CORS preflight는 통과
     if (
-        not path.startswith("/api/")
+        request.method == "OPTIONS"
+        or not path.startswith("/api/")
         or path.startswith("/ws/")
         or any(path.startswith(p) for p in _PUBLIC_PREFIXES)
     ):

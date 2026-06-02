@@ -11,6 +11,9 @@ log = logging.getLogger(__name__)
 FRED_BASE_URL = "https://api.stlouisfed.org/fred"
 FRED_SERIES_OBSERVATIONS_URL = f"{FRED_BASE_URL}/series/observations"
 
+# FRED allows ~120 req/min; cap concurrent requests to avoid bursts
+_FRED_SEMAPHORE = asyncio.Semaphore(3)
+
 
 class FredSeriesHelper:
     """FRED 시계열 데이터 공통 Helper — 캐싱은 QueryExecutor(Redis)에 위임.
@@ -59,7 +62,8 @@ class FredSeriesHelper:
 
         try:
             log.debug("[FRED] fetching series: %s", series_id)
-            data = await amake_request(FRED_SERIES_OBSERVATIONS_URL, params=params, timeout=30)
+            async with _FRED_SEMAPHORE:
+                data = await amake_request(FRED_SERIES_OBSERVATIONS_URL, params=params, timeout=30)
             if 'error_message' in data:
                 raise ValueError(f"FRED API Error: {data['error_message']}")
             observations = data.get('observations', [])
