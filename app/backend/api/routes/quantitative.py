@@ -5,9 +5,9 @@ from typing import Literal, Optional
 
 from fastapi import APIRouter, Query
 
-from data_fetcher.core.obbject import OBBject
 from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
 from data_fetcher.query_executor import QueryExecutor
+from data_fetcher.core.obbject import OBBject
 from app.backend.api.deps import route_handler
 
 log = logging.getLogger(__name__)
@@ -25,10 +25,16 @@ def _common(symbol: str, target: _TARGET, start_date, end_date):
     return p
 
 
-def _first(raw):
+def _first_dict(raw) -> dict:
+    """fetcher 결과(리스트)에서 첫 번째 항목을 dict로 반환 — frontend dataPath: 'result' 에 대응."""
     items = raw.result if isinstance(raw, AnnotatedResult) else (raw or [])
-    result = items[0] if items else None
-    return [result.model_dump(mode="json")] if result else []
+    item = items[0] if items else None
+    return item.model_dump(mode="json") if item else {}
+
+
+def _wrap(data: dict, provider: str = "quantitative") -> dict:
+    """{ result: {...}, provider: '...' } 형태로 래핑."""
+    return {"result": data, "provider": provider}
 
 
 @router.get("/summary")
@@ -39,9 +45,9 @@ async def summary(
     start_date: Optional[date_type] = Query(None),
     end_date: Optional[date_type] = Query(None),
     provider: str = "quantitative",
-) -> OBBject:
+):
     raw = await QueryExecutor.fetch("quantitative", "summary", _common(symbol, target, start_date, end_date))
-    return OBBject(results=_first(raw), provider=provider)
+    return _wrap(_first_dict(raw), provider)
 
 
 @router.get("/normality")
@@ -52,9 +58,9 @@ async def normality(
     start_date: Optional[date_type] = Query(None),
     end_date: Optional[date_type] = Query(None),
     provider: str = "quantitative",
-) -> OBBject:
+):
     raw = await QueryExecutor.fetch("quantitative", "normality", _common(symbol, target, start_date, end_date))
-    return OBBject(results=_first(raw), provider=provider)
+    return _wrap(_first_dict(raw), provider)
 
 
 @router.get("/capm")
@@ -66,11 +72,11 @@ async def capm(
     start_date: Optional[date_type] = Query(None),
     end_date: Optional[date_type] = Query(None),
     provider: str = "quantitative",
-) -> OBBject:
+):
     params = _common(symbol, "close", start_date, end_date)
     params.update({"benchmark": benchmark.upper(), "risk_free_rate": risk_free_rate})
     raw = await QueryExecutor.fetch("quantitative", "capm", params)
-    return OBBject(results=_first(raw), provider=provider)
+    return _wrap(_first_dict(raw), provider)
 
 
 @router.get("/rolling")
@@ -85,7 +91,7 @@ async def rolling(
     start_date: Optional[date_type] = Query(None),
     end_date: Optional[date_type] = Query(None),
     provider: str = "quantitative",
-) -> OBBject:
+):
     params = _common(symbol, target, start_date, end_date)
     params.update({
         "metric": metric,
@@ -94,7 +100,7 @@ async def rolling(
         "quantile_pct": quantile_pct,
     })
     raw = await QueryExecutor.fetch("quantitative", "rolling", params)
-    return OBBject(results=_first(raw), provider=provider)
+    return _wrap(_first_dict(raw), provider)
 
 
 @router.get("/unitroot")
@@ -106,11 +112,11 @@ async def unitroot(
     start_date: Optional[date_type] = Query(None),
     end_date: Optional[date_type] = Query(None),
     provider: str = "quantitative",
-) -> OBBject:
+):
     params = _common(symbol, target, start_date, end_date)
     params["regression"] = regression
     raw = await QueryExecutor.fetch("quantitative", "unitroot", params)
-    return OBBject(results=_first(raw), provider=provider)
+    return _wrap(_first_dict(raw), provider)
 
 
 @router.get("/correlation")

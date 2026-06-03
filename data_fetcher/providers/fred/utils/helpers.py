@@ -11,8 +11,17 @@ log = logging.getLogger(__name__)
 FRED_BASE_URL = "https://api.stlouisfed.org/fred"
 FRED_SERIES_OBSERVATIONS_URL = f"{FRED_BASE_URL}/series/observations"
 
-# FRED allows ~120 req/min; cap concurrent requests to avoid bursts
-_FRED_SEMAPHORE = asyncio.Semaphore(3)
+# FRED 제한: ~120 req/min (= ~2 req/sec)
+# Semaphore(2) + sleep(0.5s) → 슬롯당 최소 0.5s 점유 → 최대 ~2 req/sec
+# 모듈 로드 시점에 생성하면 FastAPI 이벤트 루프와 다를 수 있으므로 lazy init 사용
+_FRED_SEMAPHORE: Optional[asyncio.Semaphore] = None
+
+
+def _get_fred_semaphore() -> asyncio.Semaphore:
+    global _FRED_SEMAPHORE
+    if _FRED_SEMAPHORE is None:
+        _FRED_SEMAPHORE = asyncio.Semaphore(2)
+    return _FRED_SEMAPHORE
 
 
 class FredSeriesHelper:
@@ -62,8 +71,9 @@ class FredSeriesHelper:
 
         try:
             log.debug("[FRED] fetching series: %s", series_id)
-            async with _FRED_SEMAPHORE:
+            async with _get_fred_semaphore():
                 data = await amake_request(FRED_SERIES_OBSERVATIONS_URL, params=params, timeout=30)
+                await asyncio.sleep(0.5)  # 슬롯 점유 중 최소 간격 → ~2 req/sec 상한
             if 'error_message' in data:
                 raise ValueError(f"FRED API Error: {data['error_message']}")
             observations = data.get('observations', [])

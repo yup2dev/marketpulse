@@ -19,7 +19,8 @@
  *
  * Add a new widget: add an entry here, reference id in urlWidgetMap.js.
  */
-import PortfolioStatsWidget    from '../components/widgets/PortfolioStatsWidget';
+import PortfolioStatsWidget          from '../components/widgets/PortfolioStatsWidget';
+import InstitutionalPortfoliosWidget from '../components/widgets/InstitutionalPortfoliosWidget';
 import WatchlistWidget         from '../components/widgets/WatchlistWidget';
 import ScreenerWidget          from '../components/widgets/ScreenerWidget';
 import MarketRankingWidget     from '../components/widgets/MarketRankingWidget';
@@ -45,12 +46,9 @@ export const WIDGET_ENDPOINTS = {
 
   // ── Institutional 13F ─────────────────────────────────────────────────────
   'institutional-portfolios': {
-    title:    'Institutional Portfolios',
-    endpoint: '/portfolio/13f/institutions',
-    expandable: {
-      keyField: 'key',
-      endpoint: '/portfolio/13f/{key}',
-    },
+    title:     'Institutional Portfolios',
+    component: InstitutionalPortfoliosWidget,
+    propsFrom: ['symbol'],
   },
 
   // ── Stock ──────────────────────────────────────────────────────────────────
@@ -120,7 +118,7 @@ export const WIDGET_ENDPOINTS = {
   'quant-summary': {
     title:    'Quant — Summary',
     endpoint: '/quantitative/summary',
-    dataPath: 'result',
+    dataPath: 'results.0',
     display:  'kv',
     params: [
       { name: 'symbol',     label: 'Symbol', kind: 'text',   default: 'AAPL', upper: true },
@@ -132,7 +130,7 @@ export const WIDGET_ENDPOINTS = {
   'quant-normality': {
     title:    'Quant — Normality',
     endpoint: '/quantitative/normality',
-    dataPath: 'result.tests',
+    dataPath: 'results.0.tests',
     params: [
       { name: 'symbol',     label: 'Symbol', kind: 'text',   default: 'AAPL', upper: true },
       { name: 'target',     label: 'Target', kind: 'select', default: 'return', options: TARGET_OPTIONS },

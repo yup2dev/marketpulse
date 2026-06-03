@@ -165,6 +165,18 @@ class MacroService:
         },
     }
 
+    # (key, fetcher_cls, unit, params, use_last)
+    # use_last=True  → data[-1]이 최신  (asc 정렬 fetcher)
+    # use_last=False → data[0]이 최신   (desc 정렬 fetcher)
+    _OVERVIEW_SPECS = [
+        ('gdp',                FREDGDPFetcher,               'Billions of Chained 2012 Dollars', {},                               True),
+        ('unemployment',       FREDUnemploymentFetcher,      'Percent',                          {},                               True),
+        ('cpi',                FREDCPIFetcher,               'Index',                            {},                               True),
+        ('fed_funds_rate',     FREDInterestRateFetcher,      'Percent',                          {'rate_type': 'federal_funds'},   False),
+        ('retail_sales',       FREDRetailSalesFetcher,       'Millions of Dollars',              {},                               True),
+        ('consumer_sentiment', FREDConsumerSentimentFetcher, 'Index',                            {},                               True),
+    ]
+
     # Major forex pairs
     FOREX_PAIRS = [
         {'from': 'EUR', 'to': 'USD', 'name': 'Euro to US Dollar'},

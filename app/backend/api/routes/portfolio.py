@@ -46,11 +46,7 @@ async def get_13f_portfolio(
         data = await portfolio_service.get_institution_portfolio(
             institution_key=institution_key, limit=limit
         )
-        # stocks + sold_positions 를 results에 평탄화, 포트폴리오 헤더는 metadata로
-        stocks      = data.get("stocks", [])
-        sold        = data.get("sold_positions", [])
-        metadata    = {k: v for k, v in data.items() if k not in ("stocks", "sold_positions")}
-        return OBBject(results=stocks + sold, provider=provider, metadata=metadata)
+        return OBBject(results=[data], provider=provider)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:

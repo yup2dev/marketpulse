@@ -2,12 +2,12 @@
  * Auth 상태 관리 (Zustand)
  *
  * 흐름:
- *  1. 앱 시작 → initializeAuth() → localStorage 토큰 확인 → verify-token 호출
+ *  1. 앱 시작 → initializeAuth() → 클라이언트 측 JWT 만료 확인 → verify-token 호출
  *  2. access token 만료(401) → apiClient 인터셉터가 자동으로 /auth/refresh 호출
  *  3. refresh token도 만료 → forceLogout 콜백 → 로그인 페이지로 이동
  */
 import { create } from 'zustand';
-import { authAPI, setForceLogoutCallback } from '../config/api';
+import { authAPI, apiClient, setForceLogoutCallback } from '../config/api';
 
 const _clearStorage = () => {
   localStorage.removeItem('access_token');
@@ -18,6 +18,16 @@ const _clearStorage = () => {
 const _redirectToLogin = () => {
   if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
     window.location.replace('/login');
+  }
+};
+
+// JWT payload를 파싱해 만료 여부를 반환 (서명 검증 없음 — 서버 검증은 별도로 수행)
+const _isJwtExpired = (token) => {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return Date.now() >= payload.exp * 1000;
+  } catch {
+    return true;
   }
 };
 
@@ -43,10 +53,33 @@ const useAuthStore = create((set, get) => {
     initializeAuth: async () => {
       const token = localStorage.getItem('access_token');
 
-      // 토큰 없음 → 즉시 로그인 페이지로
+      // 토큰 없음 → 즉시 미인증 처리 (ProtectedRoute가 /login으로 리다이렉트)
       if (!token) {
         set({ isAuthenticated: false, isInitializing: false, user: null });
         return;
+      }
+
+      // 클라이언트 측 JWT 만료 확인 — 만료됐으면 refresh 먼저 시도
+      if (_isJwtExpired(token)) {
+        const refreshToken = localStorage.getItem('refresh_token');
+        const refreshExpired = !refreshToken || _isJwtExpired(refreshToken);
+
+        if (refreshExpired) {
+          // 양쪽 토큰 모두 만료 → 바로 로그아웃
+          _clearStorage();
+          set({ isAuthenticated: false, isInitializing: false, user: null });
+          _redirectToLogin();
+          return;
+        }
+
+        // refresh token이 살아 있으면 갱신 시도
+        const refreshed = await apiClient._tryRefresh();
+        if (!refreshed) {
+          _clearStorage();
+          set({ isAuthenticated: false, isInitializing: false, user: null });
+          _redirectToLogin();
+          return;
+        }
       }
 
       try {
@@ -62,12 +95,17 @@ const useAuthStore = create((set, get) => {
         }
       } catch {
         // forceLogout이 이미 실행해 리다이렉트 중이거나 네트워크 오류(서버 다운)
-        const stillHasToken = !!localStorage.getItem('access_token');
-        if (!stillHasToken) {
+        const currentToken = localStorage.getItem('access_token');
+        if (!currentToken) {
           // 토큰이 지워진 경우 (forceLogout 실행됨) → 리다이렉트 대기
           set({ isAuthenticated: false, isInitializing: false });
+        } else if (_isJwtExpired(currentToken)) {
+          // 토큰이 남아 있지만 만료됨 → 로그아웃
+          _clearStorage();
+          set({ isAuthenticated: false, isInitializing: false, user: null });
+          _redirectToLogin();
         } else {
-          // 서버 다운 등 네트워크 오류 → 오프라인 허용 (토큰은 유효할 수 있음)
+          // 서버 다운 등 네트워크 오류 + 토큰이 아직 유효 → 오프라인 허용
           set({ isAuthenticated: true, isInitializing: false });
         }
       }

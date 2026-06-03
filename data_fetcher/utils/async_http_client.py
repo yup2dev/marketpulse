@@ -134,7 +134,7 @@ async def amake_request(
                     await asyncio.sleep(delay)
                     continue
                 if resp.status_code == 429:
-                    raise RateLimitError(f"Rate limit exceeded for {url}")
+                    raise RateLimitError(f"Rate limit exceeded for {url}", status_code=429)
 
             resp.raise_for_status()
             return resp.json() if return_json else resp.text
@@ -154,7 +154,8 @@ async def amake_request(
         except httpx.HTTPStatusError as e:
             # 4xx 등 비재시도 상태코드
             raise HTTPClientError(
-                f"HTTP {e.response.status_code} for {url}: {e}"
+                f"HTTP {e.response.status_code} for {url}: {e}",
+                status_code=e.response.status_code,
             ) from e
 
     # 도달 불가하지만 안전망

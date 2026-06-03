@@ -17,7 +17,9 @@ log = logging.getLogger(__name__)
 
 class HTTPClientError(Exception):
     """HTTP 클라이언트 오류"""
-    pass
+    def __init__(self, message: str, status_code: int | None = None):
+        super().__init__(message)
+        self.status_code = status_code
 
 
 class RateLimitError(HTTPClientError):
