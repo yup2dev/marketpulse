@@ -92,21 +92,39 @@ from data_fetcher.providers.fmp.revenue_segments import FMPRevenueSegmentsFetche
 from data_fetcher.providers.fmp.index_constituents import FMPIndexConstituentsFetcher
 
 from data_fetcher.providers.social.sentiment import SocialSentimentFetcher
-from data_fetcher.providers.database.index_constituents import DBIndexConstituentsFetcher
-from data_fetcher.providers.database.stock_list import DBStockListFetcher
+
+# database provider는 sqlalchemy(WebServer/DB 환경)에서만 사용 가능.
+# Fetcher(exe)처럼 sqlalchemy 없는 환경에선 조용히 스킵한다.
+try:
+    from data_fetcher.providers.database.index_constituents import DBIndexConstituentsFetcher
+    from data_fetcher.providers.database.stock_list import DBStockListFetcher
+    _db_available = True
+except ImportError:
+    _db_available = False
+
 from data_fetcher.providers.nasdaqtrader.listing import NasdaqTraderListingFetcher
 from data_fetcher.providers.krx.listing import KRXListingFetcher
 from data_fetcher.providers.krx.bond import KRXBondFetcher
 from data_fetcher.providers.whalewisdom.institutional_holdings import WhaleWisdomFetcher
 from data_fetcher.providers.whalewisdom.institutions_list import InstitutionsListFetcher
 
-from data_fetcher.providers.quantlib.pricing import QuantLibPricingFetcher
+# quantlib / quantitative는 scipy·QuantLib 등 선택적 의존성 필요.
+# 없는 환경(Fetcher exe)에서는 조용히 스킵한다.
+try:
+    from data_fetcher.providers.quantlib.pricing import QuantLibPricingFetcher
+    _quantlib_available = True
+except ImportError:
+    _quantlib_available = False
 
-from data_fetcher.providers.quantitative.summary import QuantSummaryFetcher
-from data_fetcher.providers.quantitative.normality import QuantNormalityFetcher
-from data_fetcher.providers.quantitative.capm import QuantCAPMFetcher
-from data_fetcher.providers.quantitative.rolling import QuantRollingFetcher
-from data_fetcher.providers.quantitative.unitroot import QuantUnitRootFetcher
+try:
+    from data_fetcher.providers.quantitative.summary import QuantSummaryFetcher
+    from data_fetcher.providers.quantitative.normality import QuantNormalityFetcher
+    from data_fetcher.providers.quantitative.capm import QuantCAPMFetcher
+    from data_fetcher.providers.quantitative.rolling import QuantRollingFetcher
+    from data_fetcher.providers.quantitative.unitroot import QuantUnitRootFetcher
+    _quantitative_available = True
+except ImportError:
+    _quantitative_available = False
 
 log = logging.getLogger(__name__)
 
@@ -286,7 +304,7 @@ db_provider = Provider(
         "index_constituents": DBIndexConstituentsFetcher,
         "stock_list": DBStockListFetcher,
     },
-)
+) if _db_available else None
 
 
 # ==================== Universe Providers (무료·공개) ====================
@@ -360,14 +378,12 @@ quantlib_provider = Provider(
     description="QuantLib Suite — local quantitative computation (no external API)",
     website="https://www.quantlib.org",
     credentials=[],
-    fetcher_dict={
-        "pricing": QuantLibPricingFetcher,
-    },
+    fetcher_dict={"pricing": QuantLibPricingFetcher},
     metadata={
         "rate_limit": "none (local computation)",
         "data_coverage": "Option pricing, Greeks, curves, risk, volatility",
     }
-)
+) if _quantlib_available else None
 
 
 # ==================== Quantitative Provider ====================
@@ -375,7 +391,6 @@ quantlib_provider = Provider(
 quantitative_provider = Provider(
     name="quantitative",
     description="Quantitative Analysis Suite — descriptive stats, normality, CAPM, rolling metrics, ADF",
-    website="https://www.openbb.co",
     credentials=[],
     fetcher_dict={
         "summary": QuantSummaryFetcher,
@@ -388,7 +403,7 @@ quantitative_provider = Provider(
         "rate_limit": "yfinance only",
         "data_coverage": "any yfinance-available ticker",
     },
-)
+) if _quantitative_available else None
 
 
 # ==================== Provider Registration ====================
@@ -401,13 +416,16 @@ def register_all_providers():
     ProviderRegistry.register(fmp_provider)
     ProviderRegistry.register(polygon_provider)
     ProviderRegistry.register(social_provider)
-    ProviderRegistry.register(db_provider)
+    if db_provider is not None:
+        ProviderRegistry.register(db_provider)
     ProviderRegistry.register(nasdaqtrader_provider)
     ProviderRegistry.register(krx_provider)
     ProviderRegistry.register(whalewisdom_provider)
     ProviderRegistry.register(sec_provider)
-    ProviderRegistry.register(quantlib_provider)
-    ProviderRegistry.register(quantitative_provider)
+    if quantlib_provider is not None:
+        ProviderRegistry.register(quantlib_provider)
+    if quantitative_provider is not None:
+        ProviderRegistry.register(quantitative_provider)
 
     log.info(f"Registered {len(ProviderRegistry.list())} providers")
 

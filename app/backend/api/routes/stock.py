@@ -66,7 +66,7 @@ async def get_financials(
 @router.get("/earnings/{symbol}")
 @route_handler
 async def get_earnings(symbol: str, provider: str = "polygon", limit: int = 8) -> OBBject:
-    raw = await QueryExecutor.fetch(provider, "earnings", {"ticker": symbol.upper(), "limit": limit})
+    raw = await QueryExecutor.fetch(provider, "earnings", {"symbol": symbol.upper(), "limit": limit})
     return _wrap(raw, provider)
 
 

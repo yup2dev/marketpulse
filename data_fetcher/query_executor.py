@@ -336,6 +336,10 @@ class QueryExecutor:
     # 설정 시 _upstream_fetch가 로컬 provider 대신 Fetcher(exe) REST로 위임한다.
     _remote: Optional[RemoteTransport] = None
 
+    # remote가 설정돼 있어도 항상 로컬에서 직접 실행할 provider.
+    # DB/파일 기반 provider처럼 백엔드 프로세스 내부 자원에 의존하는 것들.
+    _local_providers: frozenset = frozenset({"db"})
+
     # single-flight: 동일 cache_key에 대한 동시 업스트림 호출을 1개로 제한
     _inflight: Dict[str, asyncio.Lock] = {}
 
@@ -405,7 +409,7 @@ class QueryExecutor:
         원격 트랜스포트가 설정된 경우(배포 WebServer) 로컬 provider 대신
         Fetcher(exe) REST로 위임한다. 자격증명은 Fetcher가 보유하므로 전달하지 않는다.
         """
-        if cls._remote is not None:
+        if cls._remote is not None and provider not in cls._local_providers:
             return await cls._remote.fetch(provider, model, params, credentials, **kwargs)
 
         try:

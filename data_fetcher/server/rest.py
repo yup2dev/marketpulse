@@ -14,9 +14,12 @@ CORS:
 from __future__ import annotations
 
 import logging
+import sys
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from data_fetcher.query_executor import QueryExecutor, QueryExecutorError
@@ -61,6 +64,18 @@ def create_app(
     keystore = KeyStore()
     if enable_cache:
         QueryExecutor.configure(cache=MemoryCache())
+
+    # ── 키 관리 UI (tray "API 키 설정" 클릭 시 열리는 페이지) ────────────────
+    def _ui_html() -> str:
+        base = getattr(sys, "_MEIPASS", None) or Path(__file__).parent.parent
+        p = Path(base) / "assets" / "keys_ui.html"
+        if not p.exists():
+            p = Path(__file__).parent.parent / "assets" / "keys_ui.html"
+        return p.read_text(encoding="utf-8") if p.exists() else "<h1>UI 파일 없음</h1>"
+
+    @app.get("/", response_class=HTMLResponse, include_in_schema=False)
+    async def keys_ui() -> HTMLResponse:
+        return HTMLResponse(_ui_html())
 
     # ── 헬스 / 메타 ───────────────────────────────────────────────────────────
     @app.get("/health")

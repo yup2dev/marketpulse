@@ -69,20 +69,20 @@ log = logging.getLogger(__name__)
 
 
 class PolygonNewsFetcher(
-    Fetcher[NewsQueryParams, NewsData]
+    Fetcher[PolygonNewsQueryParams, PolygonNewsData]
 ):
     """Polygon.io 뉴스 데이터 Fetcher"""
 
     BASE_URL = "https://api.polygon.io"
 
     @staticmethod
-    def transform_query(params: Dict[str, Any]) -> NewsQueryParams:
+    def transform_query(params: Dict[str, Any]) -> PolygonNewsQueryParams:
         """쿼리 파라미터 변환"""
-        return NewsQueryParams(**params)
+        return PolygonNewsQueryParams(**params)
 
     @staticmethod
     async def aextract_data(
-        query: NewsQueryParams,
+        query: PolygonNewsQueryParams,
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any
     ) -> Dict[str, Any]:
@@ -139,10 +139,10 @@ class PolygonNewsFetcher(
 
     @staticmethod
     def transform_data(
-        query: NewsQueryParams,
+        query: PolygonNewsQueryParams,
         data: Dict[str, Any],
         **kwargs: Any
-    ) -> List[NewsData]:
+    ) -> List[PolygonNewsData]:
         """
         원시 데이터를 표준 모델로 변환
 
@@ -160,7 +160,7 @@ class PolygonNewsFetcher(
             log.info("No news data found")
             return []
 
-        news_list = []
+        news_list: List[PolygonNewsData] = []
 
         for item in results:
             try:
@@ -202,7 +202,7 @@ class PolygonNewsFetcher(
                     elif isinstance(publisher_data, str):
                         publisher = publisher_data
 
-                news_data = NewsData(
+                news_data = PolygonNewsData(
                     id=item["id"],
                     title=item["title"],
                     description=item.get("description"),

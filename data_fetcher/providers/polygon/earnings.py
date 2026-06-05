@@ -7,23 +7,11 @@ from data_fetcher.abstract_provider.standard_models import EarningsData
 
 
 class EarningsQueryParams(_StdEarningsQueryParams):
-    """실적 발표 조회 파라미터"""
+    """실적 발표 조회 파라미터 — symbol은 부모(_StdEarningsQueryParams)에서 상속"""
 
-    ticker: str = Field(
-        description="종목 티커 (예: AAPL, TSLA)"
-    )
-    fiscal_year: Optional[int] = Field(
-        default=None,
-        description="회계연도"
-    )
-    fiscal_quarter: Optional[int] = Field(
-        default=None,
-        description="회계분기 (1-4)"
-    )
-    limit: Optional[int] = Field(
-        default=100,
-        description="최대 결과 수"
-    )
+    fiscal_year: Optional[int] = Field(default=None, description="회계연도")
+    fiscal_quarter: Optional[int] = Field(default=None, description="회계분기 (1-4)")
+    limit: Optional[int] = Field(default=100, description="최대 결과 수")
 
 
 class PolygonEarningsData(EarningsData):
@@ -87,7 +75,7 @@ class PolygonEarningsFetcher(
             # 파라미터 설정
             params = {
                 "apiKey": api_key,
-                "ticker": query.ticker,
+                "ticker": query.symbol,
                 "limit": query.limit or 100
             }
 
@@ -105,7 +93,7 @@ class PolygonEarningsFetcher(
             return data
 
         except HTTPClientError as e:
-            log.error(f"Error fetching earnings from Polygon for {query.ticker}: {e}")
+            log.error(f"Error fetching earnings from Polygon for {query.symbol}: {e}")
             raise
         except Exception as e:
             log.error(f"Unexpected error: {e}")
@@ -131,7 +119,7 @@ class PolygonEarningsFetcher(
         results = data.get("results", [])
 
         if not results:
-            log.info(f"No earnings data for {query.ticker}")
+            log.info(f"No earnings data for {query.symbol}")
             return []
 
         earnings_list = []
@@ -186,7 +174,7 @@ class PolygonEarningsFetcher(
                         fiscal_year = None
 
                 earnings_data = EarningsData(
-                    ticker=query.ticker,
+                    symbol=query.symbol,
                     fiscal_period=fiscal_period,
                     fiscal_year=fiscal_year,
                     fiscal_quarter=fiscal_quarter,
@@ -217,5 +205,5 @@ class PolygonEarningsFetcher(
                 log.warning(f"Error parsing earnings data: {e}")
                 continue
 
-        log.info(f"Fetched {len(earnings_list)} earnings records for {query.ticker}")
+        log.info(f"Fetched {len(earnings_list)} earnings records for {query.symbol}")
         return earnings_list
