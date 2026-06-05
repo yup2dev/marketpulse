@@ -1,4 +1,5 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// Tauri 앱 내부에서는 127.0.0.1 사용 (localhost는 Tauri 샌드박스에서 제한될 수 있음)
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 export const API_BASE = `${API_BASE_URL}/api`;
 
 // ─── Force-logout callback ────────────────────────────────────────────────────
