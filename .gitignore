@@ -5,15 +5,13 @@
 *.swp
 *.swo
 
-# ── Python (공통) ──────────────────────────────────────────────────────────────
+# ── Python ────────────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 *.egg-info/
 *.egg
-build/
-dist/
 .mypy_cache/
 .pytest_cache/
 .coverage
@@ -27,31 +25,31 @@ htmlcov/
 venv/
 env/
 
-# ── data_fetcher ───────────────────────────────────────────────────────────────
-# (별도 제외 항목 없음 — 공통 Python 룰 적용)
-
-# ── app/backend ────────────────────────────────────────────────────────────────
-# (별도 제외 항목 없음 — 공통 Python 룰 적용)
+# ── Python 빌드 결과물 (PyInstaller) ──────────────────────────────────────────
+dist/
+build/dist/
+build/work/
 
 # ── app/frontend ───────────────────────────────────────────────────────────────
 node_modules/
 app/frontend/dist/
+app/frontend/src/lib/
 
-# ── 프로젝트 데이터 / 생성물 ───────────────────────────────────────────────────
+# ── desktop (Tauri) ────────────────────────────────────────────────────────────
+desktop/node_modules/
+desktop/src-tauri/target/
+# sidecar 바이너리 (빌드 산출물)
+desktop/src-tauri/binaries/
+
+# ── 프로젝트 데이터 / 캐시 ──────────────────────────────────────────────────────
 data/
 cache/
 logs/
-# 루트 ML 모델 캐시(MODEL_CACHE_DIR)만 무시. 소스 패키지(index_analyzer/models 등)는 추적
 /models/
-*.png
 
-# ── Claude / 도구 ─────────────────────────────────────────────────────────────
-.claude/
-
-# ── 기타 제외 ──────────────────────────────────────────────────────────────────
+# ── 기타 ──────────────────────────────────────────────────────────────────────
 *.backup
-*.json
 bash.exe.stackdump
 /test_*.py
-app/frontend/src/lib/
-NUL
+.claude/
+quant_3d_scan.png
