@@ -40,11 +40,12 @@ async def get_13f_institutions(
 async def get_13f_portfolio(
     institution_key: str,
     limit: int = 50,
+    summary_only: bool = False,
     provider: str = "sec",
 ) -> OBBject:
     try:
         data = await portfolio_service.get_institution_portfolio(
-            institution_key=institution_key, limit=limit
+            institution_key=institution_key, limit=limit, summary_only=summary_only
         )
         return OBBject(results=[data], provider=provider)
     except ValueError as e:

@@ -8,32 +8,15 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel
-
 from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.standard_models import (
+    StockListQueryParams,
+    StockListData,
+)
 
 log = logging.getLogger(__name__)
 
 _DB_PATH = Path(__file__).parent.parent.parent.parent / "data" / "marketpulse.db"
-
-
-# ── Query / Data 모델 ─────────────────────────────────────────────────────────
-
-class StockListQueryParams(BaseModel):
-    """Stock list query parameters"""
-    active_only: bool = True
-
-
-class StockListData(BaseModel):
-    """Standard stock list item"""
-    ticker_cd: str
-    ticker_nm: str
-    asset_type: str = "stock"
-    curr: str = "USD"
-    sector: str = ""
-    industry: str = ""
-    exchange: str = ""
-    is_active: bool = True
 
 
 # ── Fetcher ───────────────────────────────────────────────────────────────────

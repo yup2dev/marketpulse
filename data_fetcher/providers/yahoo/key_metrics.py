@@ -1,17 +1,15 @@
 """Yahoo Finance Key Metrics Model"""
 from typing import Optional
 from pydantic import Field
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
+from data_fetcher.abstract_provider.standard_models import KeyMetricsQueryParams, KeyMetricsData
 
 
-class YFinanceKeyMetricsQueryParams(BaseQueryParams):
-    symbol: str = Field(description="종목 코드 (예: AAPL)")
+class YFinanceKeyMetricsQueryParams(KeyMetricsQueryParams):
+    pass
 
 
-class YFinanceKeyMetricsData(BaseData):
-    """핵심 재무 지표 데이터"""
-
-    symbol: str
+class YFinanceKeyMetricsData(KeyMetricsData):
+    pass
 
     # Valuation
     pe_ratio: Optional[float] = None

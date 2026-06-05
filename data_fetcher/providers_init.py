@@ -94,6 +94,9 @@ from data_fetcher.providers.fmp.index_constituents import FMPIndexConstituentsFe
 from data_fetcher.providers.social.sentiment import SocialSentimentFetcher
 from data_fetcher.providers.database.index_constituents import DBIndexConstituentsFetcher
 from data_fetcher.providers.database.stock_list import DBStockListFetcher
+from data_fetcher.providers.nasdaqtrader.listing import NasdaqTraderListingFetcher
+from data_fetcher.providers.krx.listing import KRXListingFetcher
+from data_fetcher.providers.krx.bond import KRXBondFetcher
 from data_fetcher.providers.whalewisdom.institutional_holdings import WhaleWisdomFetcher
 from data_fetcher.providers.whalewisdom.institutions_list import InstitutionsListFetcher
 
@@ -286,6 +289,38 @@ db_provider = Provider(
 )
 
 
+# ==================== Universe Providers (무료·공개) ====================
+
+nasdaqtrader_provider = Provider(
+    name="nasdaqtrader",
+    description="NASDAQ Trader Symbol Directory — NYSE/NASDAQ 전 종목 (무료·공개)",
+    website="https://www.nasdaqtrader.com/Trader.aspx?id=symboldirdefs",
+    credentials=[],
+    fetcher_dict={
+        "listing": NasdaqTraderListingFetcher,
+    },
+    metadata={
+        "rate_limit": "none (정적 공개 파일)",
+        "data_coverage": "US NYSE/NASDAQ 상장 전 종목, 일 갱신",
+    },
+)
+
+krx_provider = Provider(
+    name="krx",
+    description="KRX (pykrx) — KOSPI/KOSDAQ 전 종목 (무료)",
+    website="http://data.krx.co.kr",
+    credentials=[],
+    fetcher_dict={
+        "listing": KRXListingFetcher,
+        "bond": KRXBondFetcher,
+    },
+    metadata={
+        "rate_limit": "none (pykrx)",
+        "data_coverage": "KR KOSPI/KOSDAQ 상장 전 종목·ETF·국고채",
+    },
+)
+
+
 # ==================== WhaleWisdom Provider ====================
 
 whalewisdom_provider = Provider(
@@ -367,6 +402,8 @@ def register_all_providers():
     ProviderRegistry.register(polygon_provider)
     ProviderRegistry.register(social_provider)
     ProviderRegistry.register(db_provider)
+    ProviderRegistry.register(nasdaqtrader_provider)
+    ProviderRegistry.register(krx_provider)
     ProviderRegistry.register(whalewisdom_provider)
     ProviderRegistry.register(sec_provider)
     ProviderRegistry.register(quantlib_provider)

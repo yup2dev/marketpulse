@@ -1,7 +1,7 @@
 """Yahoo Finance Stock Quote Model"""
 from typing import Optional
 from pydantic import Field
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
+from data_fetcher.abstract_provider.standard_models import EquityQuoteQueryParams, EquityQuoteData
 
 # 한국/기타 시장 별칭 → Yahoo Finance 공식 티커
 SYMBOL_ALIASES: dict = {
@@ -18,19 +18,11 @@ SYMBOL_ALIASES: dict = {
 }
 
 
-class StockQuoteQueryParams(BaseQueryParams):
-    symbol: str = Field(description="종목 코드")
+class StockQuoteQueryParams(EquityQuoteQueryParams):
+    pass
 
 
-class StockQuoteData(BaseData):
-    symbol: str = Field(description="종목 코드")
-    price: float = Field(description="현재가")
-    change: Optional[float] = Field(default=None, description="전일 대비 변화")
-    change_percent: Optional[float] = Field(default=None, description="전일 대비 변화율 (%)")
-    volume: Optional[int] = Field(default=None, description="거래량")
-    open: Optional[float] = Field(default=None, description="시가")
-    high: Optional[float] = Field(default=None, description="고가")
-    low: Optional[float] = Field(default=None, description="저가")
+class StockQuoteData(EquityQuoteData):
     timestamp: Optional[str] = Field(default=None, description="타임스탬프")
 
 
@@ -102,7 +94,7 @@ class YFinanceQuoteFetcher(Fetcher[StockQuoteQueryParams, StockQuoteData]):
 
         return [StockQuoteData(
             symbol=query.symbol,
-            price=round(latest["close"], 4),
+            last_price=round(latest["close"], 4),
             change=change,
             change_percent=change_pct,
             volume=latest.get("volume"),

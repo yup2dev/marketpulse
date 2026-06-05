@@ -22,6 +22,7 @@ const FILTER_CATALOG = [
     items: [
       { key: 'market_cap', label: '시가총액', group: '기본 정보', type: 'range', unit: 'B$', scale: 1e9, sliderRange: [0, 3000] },
       { key: 'price',      label: '주가',     group: '기본 정보', type: 'range', unit: '$',  sliderRange: [0, 2000] },
+      { key: 'beta',       label: '베타',     group: '기본 정보', type: 'range', sliderRange: [0, 3] },
       { key: 'sector',     label: '섹터',     group: '기본 정보', type: 'multiselect' },
     ],
   },
@@ -50,11 +51,23 @@ const FILTER_CATALOG = [
         ],
         periods: PERIODS,
       },
+      { key: 'volume', label: '거래량', group: '가격 조건', type: 'range', unit: 'M', scale: 1e6, sliderRange: [0, 50] },
     ],
   },
 ];
 
 const ALL_ITEMS = FILTER_CATALOG.flatMap((c) => c.items);
+
+// 커스텀 모드에서 원클릭으로 조건을 추가/제거할 수 있는 빠른 태그
+const QUICK_TAGS = [
+  { label: '저PER',  filterKey: 'pe_ratio',     filterValue: { max: 15 } },
+  { label: '고ROE',  filterKey: 'roe',           filterValue: { min: 15 } },
+  { label: '저PBR',  filterKey: 'pb_ratio',      filterValue: { max: 2 } },
+  { label: '고ROA',  filterKey: 'roa',           filterValue: { min: 10 } },
+  { label: '고수익', filterKey: 'profit_margin', filterValue: { min: 20 } },
+  { label: '기술주', filterKey: 'sector',         filterValue: { values: ['Technology'] } },
+  { label: '대형주', filterKey: 'market_cap',    filterValue: { min: 100 } },
+];
 
 // ── 헬퍼 ─────────────────────────────────────────────────────────────────────
 
@@ -506,7 +519,7 @@ function FilterPickerModal({ open, sectors, activeFilters, onFilterChange, onClo
 
 function Sidebar({ presets, saved, activeId, onSelectPreset, onSelectSaved, onDeleteSaved, onNewScreen }) {
   return (
-    <div className="flex flex-col w-48 flex-shrink-0 border-r border-gray-800/60 overflow-y-auto">
+    <div className="flex flex-col w-52 flex-shrink-0 border-r border-gray-800/60 overflow-y-auto">
       {/* 내가 만든 */}
       <div className="px-2 pt-3 pb-2">
         <div className="px-1 mb-2 text-[10px] uppercase tracking-widest text-gray-600 font-semibold">내가 만든</div>
@@ -533,8 +546,7 @@ function Sidebar({ presets, saved, activeId, onSelectPreset, onSelectSaved, onDe
         <div className="px-1 mb-2 text-[10px] uppercase tracking-widest text-gray-600 font-semibold">프리셋</div>
         <div className="space-y-0.5">
           {presets.map((p) => (
-            <SidebarItem key={p.preset_id} label={p.name}
-              badge={p.is_hot ? 'HOT' : undefined}
+            <PresetSidebarItem key={p.preset_id} preset={p}
               active={activeId === p.preset_id}
               onClick={() => onSelectPreset(p)} />
           ))}
@@ -564,6 +576,38 @@ function SidebarItem({ label, active, onClick, onDelete, badge }) {
           className="p-0.5 text-gray-700 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0">
           <Trash2 size={10} />
         </button>
+      )}
+    </div>
+  );
+}
+
+// ── PresetSidebarItem (설명 포함 카드형) ──────────────────────────────────────
+
+function PresetSidebarItem({ preset, active, onClick }) {
+  return (
+    <div
+      onClick={onClick}
+      className={`px-2.5 py-2 rounded-lg cursor-pointer transition-colors ${
+        active
+          ? 'bg-cyan-500/10 border border-cyan-500/15'
+          : 'border border-transparent hover:bg-white/5'
+      }`}
+    >
+      <div className="flex items-center gap-1.5 min-w-0">
+        <span className={`text-xs font-medium truncate flex-1 ${active ? 'text-white' : 'text-gray-300'}`}>
+          {preset.name}
+        </span>
+        {preset.is_hot && (
+          <span className="text-[9px] px-1 py-0.5 rounded bg-orange-500/20 text-orange-400 font-semibold flex-shrink-0">
+            HOT
+          </span>
+        )}
+      </div>
+      {preset.description && (
+        <p className="text-[10px] text-gray-600 mt-0.5 leading-snug overflow-hidden"
+           style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+          {preset.description}
+        </p>
       )}
     </div>
   );
@@ -632,14 +676,51 @@ export default function ScreenerWidget({ onRemove }) {
     } finally { setLoading(false); }
   }, [activeFilters, buildParams]);
 
+  // 빠른 태그 클릭: 해당 필터가 이미 있으면 제거, 없으면 태그 기본값으로 추가
+  const handleQuickTag = useCallback((tag) => {
+    const def = ALL_ITEMS.find((i) => i.key === tag.filterKey);
+    if (!def) return;
+    const exists = activeFilters.some((f) => f.key === tag.filterKey);
+    setActiveFilters((prev) =>
+      exists
+        ? prev.filter((f) => f.key !== tag.filterKey)
+        : [...prev, { key: tag.filterKey, def, value: tag.filterValue }]
+    );
+  }, [activeFilters]);
+
   const handleSelectPreset = useCallback(async (preset) => {
     setActiveId(preset.preset_id);
     setScreenTitle(preset.name);
     setScreenDesc(preset.description || '');
     setIsCustomMode(false);
     setCurrentSaved(null);
-    setActiveFilters([]);
     setPickerOpen(false);
+
+    // 프리셋 필터 조건을 UI 칩으로 복원
+    const f = preset.filters || {};
+    const restored = [];
+    for (const def of ALL_ITEMS) {
+      const { key, type, scale } = def;
+      if (type === 'toggle') {
+        if (f[key]) restored.push({ key, def, value: { enabled: true } });
+      } else if (type === 'multiselect') {
+        if (f[key]?.length) restored.push({ key, def, value: { values: f[key] } });
+      } else {
+        const sc = scale || 1;
+        const min = f[`${key}_min`];
+        const max = f[`${key}_max`];
+        const period = f[`${key}_period`];
+        if (min != null || max != null || period) {
+          restored.push({ key, def, value: {
+            min: min != null ? min / sc : undefined,
+            max: max != null ? max / sc : undefined,
+            period,
+          }});
+        }
+      }
+    }
+    setActiveFilters(restored);
+
     setLoading(true);
     try {
       const res = await screenerAPI.runPreset(preset.preset_id);
@@ -948,6 +1029,30 @@ export default function ScreenerWidget({ onRemove }) {
                 {screenDesc && <p className="text-xs text-gray-500 mt-0.5">{screenDesc}</p>}
               </div>
 
+              {/* 빠른 조건 태그 바 (커스텀 모드에서만 표시) */}
+              {isCustomMode && (
+                <div className="flex-shrink-0 px-4 pt-1 pb-1 flex items-center gap-1.5 overflow-x-auto"
+                     style={{ scrollbarWidth: 'none' }}>
+                  <span className="text-[10px] text-gray-600 flex-shrink-0 mr-0.5">빠른조건</span>
+                  {QUICK_TAGS.map((tag) => {
+                    const isOn = activeFilters.some((f) => f.key === tag.filterKey);
+                    return (
+                      <button
+                        key={tag.label}
+                        onClick={() => handleQuickTag(tag)}
+                        className={`flex-shrink-0 px-2.5 py-1 text-[11px] rounded-full border font-medium transition-colors ${
+                          isOn
+                            ? 'bg-cyan-500/15 border-cyan-500/40 text-cyan-400'
+                            : 'border-gray-700/80 text-gray-500 hover:text-gray-300 hover:border-gray-600'
+                        }`}
+                      >
+                        {tag.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
               {/* 필터 바 */}
               <div className="flex-shrink-0 px-4 pb-2 flex items-center gap-2 flex-wrap">
                 {/* 필터 추가 버튼 */}
@@ -998,7 +1103,7 @@ export default function ScreenerWidget({ onRemove }) {
                         검색된 주식 ·{' '}
                         <span className="text-white font-semibold">{resultCount ?? results.length}</span>개
                       </span>
-                      <button className="text-gray-600 hover:text-gray-400 transition-colors">
+                      <button onClick={handleRun} className="text-gray-600 hover:text-gray-400 transition-colors">
                         <RefreshCw size={11} />
                       </button>
                     </div>

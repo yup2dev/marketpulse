@@ -176,6 +176,7 @@ export default function CommonTable({
   data = [],
   columns: colDefs = [],
   title,
+  toolbarLeft,
   pageSize: initialPageSize = 20,
   searchable = true,
   exportable = true,
@@ -271,6 +272,8 @@ export default function CommonTable({
             />
           </div>
         )}
+
+        {toolbarLeft && <div className="flex items-center gap-1">{toolbarLeft}</div>}
 
         <div className="flex items-center gap-1 ml-auto">
           {/* Column picker */}

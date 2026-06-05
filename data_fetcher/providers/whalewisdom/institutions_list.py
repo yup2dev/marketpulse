@@ -2,15 +2,14 @@
 import logging
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel
-
+from data_fetcher.abstract_provider.abstract import BaseQueryParams
 from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
 from data_fetcher.providers.sec.institutional_13f import InstitutionInfo
 
 log = logging.getLogger(__name__)
 
 
-class InstitutionsListQueryParams(BaseModel):
+class InstitutionsListQueryParams(BaseQueryParams):
     use_dynamic: bool = True
     limit: int = 100
 

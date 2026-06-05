@@ -55,6 +55,24 @@ class CacheProtocol(Protocol):
     async def set(self, key: str, value: Any, ttl: int) -> None: ...
 
 
+@runtime_checkable
+class RemoteTransport(Protocol):
+    """업스트림 위임 인터페이스.
+
+    설정되면 QueryExecutor가 로컬 provider를 직접 호출하는 대신 이 객체로 위임한다.
+    배포된 WebServer(app.backend)가 로컬 Fetcher(exe)의 REST API로 조회를 넘길 때 사용.
+    Fetcher(exe) 측에서는 None → 실제 provider를 직접 호출한다.
+    """
+    async def fetch(
+        self,
+        provider: str,
+        model: str,
+        params: Dict[str, Any],
+        credentials: Optional[Dict[str, str]] = None,
+        **kwargs: Any,
+    ) -> Any: ...
+
+
 # 모델별 기본 TTL(초).  0 = 캐시 안 함.
 _DEFAULT_TTL: Dict[str, int] = {
     # ── Real-time (30-60s) ───────────────────────────────────────────────────
@@ -135,6 +153,8 @@ _DEFAULT_TTL: Dict[str, int] = {
     "income_statement":       3600,
     "index_constituents":     7200,
     "stock_list":             7200,
+    "listing":               21600,  # universe (nasdaqtrader/krx) — 일 갱신, 6h 캐시
+    "bond":                  21600,  # KR 국고채 벤치마크 (krx) — 일 갱신
     "institutional_holdings": 3600,
     "institutions_list":      7200,
     "filing_13f":             7200,
@@ -312,6 +332,10 @@ class QueryExecutor:
     _cache: Optional[CacheProtocol] = None
     _ttl_map: Dict[str, int] = dict(_DEFAULT_TTL)
 
+    # 원격 위임 트랜스포트(배포 WebServer에서만 주입).
+    # 설정 시 _upstream_fetch가 로컬 provider 대신 Fetcher(exe) REST로 위임한다.
+    _remote: Optional[RemoteTransport] = None
+
     # single-flight: 동일 cache_key에 대한 동시 업스트림 호출을 1개로 제한
     _inflight: Dict[str, asyncio.Lock] = {}
 
@@ -328,12 +352,26 @@ class QueryExecutor:
         cls,
         cache: CacheProtocol,
         ttl_map: Optional[Dict[str, int]] = None,
+        remote: Optional[RemoteTransport] = None,
     ) -> None:
-        """앱 시작 시 캐시 백엔드 주입. data_fetcher는 app.backend를 직접 import하지 않는다."""
+        """앱 시작 시 캐시 백엔드 주입. data_fetcher는 app.backend를 직접 import하지 않는다.
+
+        Args:
+            cache:  캐시 백엔드(CacheProtocol).
+            ttl_map: 모델별 TTL 오버라이드.
+            remote: 원격 위임 트랜스포트. 지정 시 캐시 MISS의 실제 조회를 로컬 provider가
+                    아닌 Fetcher(exe) REST로 넘긴다. None이면 기존처럼 직접 조회.
+        """
         cls._cache = cache
         if ttl_map:
             cls._ttl_map.update(ttl_map)
-        log.info(f"[QueryExecutor] Cache configured: {type(cache).__name__}")
+        if remote is not None:
+            cls._remote = remote
+        log.info(
+            "[QueryExecutor] configured: cache=%s upstream=%s",
+            type(cache).__name__,
+            type(remote).__name__ if remote is not None else "local-provider",
+        )
 
     @classmethod
     def _cache_key(cls, provider: str, model: str, params: Dict[str, Any]) -> str:
@@ -362,7 +400,14 @@ class QueryExecutor:
         credentials: Optional[Dict[str, str]],
         **kwargs: Any,
     ) -> Any:
-        """Provider/Fetcher 조회 → fetch_data() 호출 (캐시 없음)."""
+        """Provider/Fetcher 조회 → fetch_data() 호출 (캐시 없음).
+
+        원격 트랜스포트가 설정된 경우(배포 WebServer) 로컬 provider 대신
+        Fetcher(exe) REST로 위임한다. 자격증명은 Fetcher가 보유하므로 전달하지 않는다.
+        """
+        if cls._remote is not None:
+            return await cls._remote.fetch(provider, model, params, credentials, **kwargs)
+
         try:
             provider_obj: Provider = ProviderRegistry.get(provider)
         except KeyError as e:

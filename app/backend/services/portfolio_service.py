@@ -37,11 +37,12 @@ class PortfolioService:
         self,
         institution_key: str,
         limit: int = 50,
+        summary_only: bool = False,
     ) -> Dict[str, Any]:
         try:
             results = await QueryExecutor.fetch(
                 'whalewisdom', 'institutional_holdings',
-                {'institution_key': institution_key, 'limit': limit},
+                {'institution_key': institution_key, 'limit': limit, 'summary_only': summary_only},
             )
 
             if not results:

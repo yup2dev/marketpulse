@@ -2,10 +2,11 @@
 from datetime import date as date_type
 from typing import Optional
 from pydantic import Field
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
+from data_fetcher.abstract_provider.standard_models import ShortInterestQueryParams as _StdShortInterestQueryParams
+from data_fetcher.abstract_provider.standard_models import ShortInterestData
 
 
-class ShortInterestQueryParams(BaseQueryParams):
+class ShortInterestQueryParams(_StdShortInterestQueryParams):
     """공매도 데이터 조회 파라미터"""
 
     ticker: str = Field(
@@ -25,45 +26,9 @@ class ShortInterestQueryParams(BaseQueryParams):
     )
 
 
-class ShortInterestData(BaseData):
-    """공매도 데이터 (Polygon.io)"""
-
-    ticker: str = Field(
-        description="종목 티커"
-    )
-    settlement_date: date_type = Field(
-        description="결제일 (공매도 데이터 기준일)"
-    )
-
-    # === 공매도 주식 수 ===
-    short_interest: Optional[int] = Field(
-        default=None,
-        description="공매도 포지션 수량"
-    )
-    short_interest_change: Optional[int] = Field(
-        default=None,
-        description="전기 대비 공매도 변화량"
-    )
-    short_interest_change_percent: Optional[float] = Field(
-        default=None,
-        description="전기 대비 공매도 변화율 (%)"
-    )
-
-    # === 비율 데이터 ===
-    short_percent_of_float: Optional[float] = Field(
-        default=None,
-        description="유통주식 대비 공매도 비율 (%)"
-    )
-    days_to_cover: Optional[float] = Field(
-        default=None,
-        description="공매도 커버 소요 일수"
-    )
-
-    # === 참고 데이터 ===
-    average_daily_volume: Optional[int] = Field(
-        default=None,
-        description="일평균 거래량"
-    )
+class PolygonShortInterestData(ShortInterestData):
+    """Polygon 공매도 — 표준 ShortInterestData 상속"""
+    pass
     shares_outstanding: Optional[int] = Field(
         default=None,
         description="발행주식 수"

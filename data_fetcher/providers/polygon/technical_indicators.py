@@ -2,10 +2,16 @@
 from datetime import date as date_type
 from typing import Optional
 from pydantic import Field
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
+from data_fetcher.abstract_provider.abstract import BaseData
+from data_fetcher.abstract_provider.standard_models import (
+    TechnicalIndicatorQueryParams as _StdTIQueryParams,
+    TechnicalIndicatorData,
+    MACDData as _StdMACDData,
+    BollingerBandsData as _StdBollingerBandsData,
+)
 
 
-class TechnicalIndicatorsQueryParams(BaseQueryParams):
+class TechnicalIndicatorsQueryParams(_StdTIQueryParams):
     """기술적 지표 조회 파라미터"""
 
     ticker: str = Field(
@@ -44,68 +50,20 @@ class TechnicalIndicatorsQueryParams(BaseQueryParams):
     )
 
 
-class SMAData(BaseData):
-    """Simple Moving Average (단순이동평균)"""
+class SMAData(TechnicalIndicatorData):
+    window: Optional[int] = Field(default=None, description="이동평균 기간")
 
-    ticker: str = Field(description="종목 티커")
-    timestamp: date_type = Field(description="날짜")
-    value: float = Field(description="SMA 값")
-    window: int = Field(description="이동평균 기간")
+class EMAData(TechnicalIndicatorData):
+    window: Optional[int] = Field(default=None, description="이동평균 기간")
 
+class RSIData(TechnicalIndicatorData):
+    pass
 
-class EMAData(BaseData):
-    """Exponential Moving Average (지수이동평균)"""
+class MACDData(_StdMACDData):
+    pass
 
-    ticker: str = Field(description="종목 티커")
-    timestamp: date_type = Field(description="날짜")
-    value: float = Field(description="EMA 값")
-    window: int = Field(description="이동평균 기간")
-
-
-class RSIData(BaseData):
-    """Relative Strength Index (상대강도지수)"""
-
-    ticker: str = Field(description="종목 티커")
-    timestamp: date_type = Field(description="날짜")
-    value: float = Field(description="RSI 값 (0-100)")
-
-
-class MACDData(BaseData):
-    """Moving Average Convergence Divergence (MACD)"""
-
-    ticker: str = Field(description="종목 티커")
-    timestamp: date_type = Field(description="날짜")
-    macd: Optional[float] = Field(
-        default=None,
-        description="MACD 값"
-    )
-    signal: Optional[float] = Field(
-        default=None,
-        description="Signal 라인"
-    )
-    histogram: Optional[float] = Field(
-        default=None,
-        description="히스토그램 (MACD - Signal)"
-    )
-
-
-class BollingerBandsData(BaseData):
-    """Bollinger Bands (볼린저 밴드)"""
-
-    ticker: str = Field(description="종목 티커")
-    timestamp: date_type = Field(description="날짜")
-    upper_band: Optional[float] = Field(
-        default=None,
-        description="상단 밴드"
-    )
-    middle_band: Optional[float] = Field(
-        default=None,
-        description="중간 밴드 (SMA)"
-    )
-    lower_band: Optional[float] = Field(
-        default=None,
-        description="하단 밴드"
-    )
+class BollingerBandsData(_StdBollingerBandsData):
+    pass
 
 
 class TechnicalIndicatorsData(BaseData):

@@ -41,7 +41,8 @@ app/frontend/dist/
 data/
 cache/
 logs/
-models/
+# 루트 ML 모델 캐시(MODEL_CACHE_DIR)만 무시. 소스 패키지(index_analyzer/models 등)는 추적
+/models/
 *.png
 
 # ── Claude / 도구 ─────────────────────────────────────────────────────────────

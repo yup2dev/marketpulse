@@ -27,6 +27,7 @@ class InstitutionalHoldingsQueryParams(BaseQueryParams):
     """기관 보유 현황 조회 파라미터"""
     institution_key: str = Field(description="기관 식별자 (예: 'berkshire', 'bridgewater')")
     limit: Optional[int] = Field(default=50, description="최대 보유 종목 수")
+    summary_only: bool = Field(default=False, description="True이면 종목 목록 없이 요약 데이터만 반환")
 
 
 class HoldingData(BaseData):
@@ -219,20 +220,17 @@ class SEC13FFetcher(Fetcher[InstitutionalHoldingsQueryParams, InstitutionalHoldi
         }
 
         try:
-            # Get latest 13F-HR filing
-            filing_url = SEC13FFetcher._get_latest_filing(cik, headers)
-            if not filing_url:
+            result = SEC13FFetcher._get_latest_filing(cik, headers)
+            if not result:
                 log.error(f"No 13F filing found for {inst_info['name']}")
-                return {
-                    'institution': inst_info,
-                    'holdings': [],
-                    'filing_date': None
-                }
+                return {'institution': inst_info, 'holdings': [], 'filing_date': None}
 
+            filing_url, date_from_list = result
             log.info(f"Found filing at {filing_url}")
 
-            # Parse holdings from filing
             holdings, filing_date = SEC13FFetcher._parse_filing(filing_url, headers)
+            if not filing_date:
+                filing_date = date_from_list
 
             return {
                 'institution': inst_info,
@@ -245,22 +243,17 @@ class SEC13FFetcher(Fetcher[InstitutionalHoldingsQueryParams, InstitutionalHoldi
             raise
 
     @staticmethod
-    def _get_latest_filing(cik: str, headers: Dict) -> Optional[str]:
-        """Get URL of latest 13F-HR filing"""
-        urls = SEC13FFetcher._get_filing_urls(cik, headers, count=1)
-        return urls[0] if urls else None
+    def _get_latest_filing(cik: str, headers: Dict) -> Optional[tuple]:
+        """Get (url, filing_date) of latest 13F-HR filing"""
+        results = SEC13FFetcher._get_filing_urls(cik, headers, count=1)
+        return results[0] if results else None
 
     @staticmethod
-    def _get_filing_urls(cik: str, headers: Dict, count: int = 2) -> List[str]:
-        """Get URLs of the most recent 13F-HR filings
-
-        Args:
-            cik: SEC CIK number
-            headers: HTTP headers for SEC requests
-            count: Number of filings to retrieve (default 2 for QoQ comparison)
+    def _get_filing_urls(cik: str, headers: Dict, count: int = 2) -> List[tuple]:
+        """Get URLs and filing dates of the most recent 13F-HR filings.
 
         Returns:
-            List of filing URLs, most recent first
+            List of (filing_url, filing_date) tuples, most recent first
         """
         url = "https://www.sec.gov/cgi-bin/browse-edgar"
         params = {
@@ -272,28 +265,27 @@ class SEC13FFetcher(Fetcher[InstitutionalHoldingsQueryParams, InstitutionalHoldi
             'count': str(count)
         }
 
-        filing_urls = []
+        results = []
         try:
-            time.sleep(0.15)  # Respect SEC's 10 req/s rate limit
+            time.sleep(0.15)
             response = requests.get(url, params=params, headers=headers, timeout=30)
             response.raise_for_status()
 
             soup = BeautifulSoup(response.text, 'html.parser')
-            filing_rows = soup.find_all('tr')
-
-            for row in filing_rows[1:]:
+            for row in soup.find_all('tr')[1:]:
                 cols = row.find_all('td')
                 if len(cols) >= 4 and cols[0].text.strip() == '13F-HR':
                     doc_link = cols[1].find('a')
                     if doc_link:
-                        filing_urls.append("https://www.sec.gov" + doc_link['href'])
-                        if len(filing_urls) >= count:
+                        filing_date = cols[3].text.strip()  # 검색결과 페이지의 날짜 (신뢰도 높음)
+                        results.append(("https://www.sec.gov" + doc_link['href'], filing_date))
+                        if len(results) >= count:
                             break
 
         except Exception as e:
             log.error(f"Error getting filing URLs: {e}")
 
-        return filing_urls
+        return results
 
     @staticmethod
     def _parse_filing(filing_url: str, headers: Dict) -> tuple[List[Dict], Optional[str]]:
@@ -341,6 +333,62 @@ class SEC13FFetcher(Fetcher[InstitutionalHoldingsQueryParams, InstitutionalHoldi
                     log.error(f"Error parsing filing: {e}")
 
         return holdings, filing_date
+
+    @staticmethod
+    def _parse_filing_summary(filing_url: str, headers: Dict) -> tuple:
+        """커버페이지 XML만 파싱해 요약 통계 반환 (infotable 다운로드 없음)."""
+        summary = {'total_value': 0, 'num_holdings': 0}
+        filing_date = None
+
+        for attempt in range(3):
+            try:
+                if attempt > 0:
+                    time.sleep(2 ** attempt)
+                response = requests.get(filing_url, headers=headers, timeout=30)
+                if response.status_code == 503 and attempt < 2:
+                    continue
+                response.raise_for_status()
+
+                soup = BeautifulSoup(response.text, 'html.parser')
+
+                filing_date_elem = soup.find('div', string=lambda t: t and 'Filing Date' in t)
+                if filing_date_elem:
+                    filing_date = filing_date_elem.text.split(':')[-1].strip()
+
+                # 커버페이지 XML (primary-doc.xml) 찾기
+                cover_url = None
+                for row in soup.find_all('tr'):
+                    cols = row.find_all('td')
+                    if len(cols) >= 4:
+                        doc_name = cols[2].text.strip()
+                        doc_type = cols[3].text.strip().lower()
+                        if ('13f-hr' in doc_type or 'primary' in doc_name.lower()) and doc_name.endswith('.xml'):
+                            link = cols[2].find('a')
+                            if link:
+                                cover_url = 'https://www.sec.gov' + link['href']
+                                break
+
+                if cover_url:
+                    try:
+                        cr = requests.get(cover_url, headers=headers, timeout=30)
+                        cr.raise_for_status()
+                        csoup = BeautifulSoup(cr.content, 'xml')
+                        tv = csoup.find('tableValueTotal')
+                        te = csoup.find('tableEntryTotal')
+                        if tv:
+                            summary['total_value'] = int(float(tv.text)) * 1000
+                        if te:
+                            summary['num_holdings'] = int(te.text)
+                    except Exception as e:
+                        log.warning(f"Cover page parse failed: {e}")
+                break
+            except Exception as e:
+                if attempt < 2:
+                    log.warning(f"Summary parse attempt {attempt+1}: {e}")
+                else:
+                    log.error(f"Summary parse failed: {e}")
+
+        return summary, filing_date
 
     @staticmethod
     def _find_info_table_url(soup: BeautifulSoup, base_url: str) -> Optional[str]:
@@ -456,7 +504,7 @@ class SEC13FFetcher(Fetcher[InstitutionalHoldingsQueryParams, InstitutionalHoldi
         """
         inst_info = data['institution']
         holdings = data['holdings']
-        filing_date = data.get('filing_date', '2024-12-31')
+        filing_date = data.get('filing_date', '2025-12-31')
 
         if not holdings:
             log.warning(f"No holdings found for {inst_info['name']}")
@@ -493,8 +541,8 @@ class SEC13FFetcher(Fetcher[InstitutionalHoldingsQueryParams, InstitutionalHoldi
             description=f"13F Holdings - {inst_info['name']}",
             category='13f',
             source='SEC EDGAR',
-            filing_date=filing_date or '2024-12-31',
-            period_end=filing_date or '2024-12-31',
+            filing_date=filing_date or '2025-12-31',
+            period_end=filing_date or '2025-12-31',
             total_value=total_value,
             num_holdings=len([h for h in holdings if h.get('share_type') == 'SH']),
             stocks=stock_holdings

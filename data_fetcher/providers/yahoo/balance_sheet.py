@@ -1,18 +1,16 @@
 """Yahoo Finance Balance Sheet Model"""
 from typing import Optional
 from pydantic import Field
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
+from data_fetcher.abstract_provider.standard_models import BalanceSheetQueryParams, BalanceSheetData
 
 
-class YFinanceBalanceSheetQueryParams(BaseQueryParams):
-    symbol: str = Field(description="종목 코드 (예: AAPL)")
-    period: str = Field(default="annual", description="'annual' 또는 'quarter'")
+class YFinanceBalanceSheetQueryParams(BalanceSheetQueryParams):
     limit: int = Field(default=5, ge=1, le=5, description="반환할 기간 수 (최대 5)")
 
 
-class YFinanceBalanceSheetData(BaseData):
-    """재무상태표 데이터 — extra='allow' 이므로 모든 동적 필드 수용"""
-    date: str = Field(description="기준일 (YYYY-MM-DD)")
+class YFinanceBalanceSheetData(BalanceSheetData):
+    """Yahoo Finance 재무상태표 — extra='allow'로 동적 필드 수용"""
+    pass
 
 
 """Yahoo Finance Balance Sheet Fetcher"""

@@ -6,7 +6,10 @@ from typing import Any, Dict, List, Optional
 from pydantic import Field
 
 from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
+from data_fetcher.abstract_provider.standard_models import (
+    AnalystRecommendationsQueryParams as _StdAnalystRecsQueryParams,
+    AnalystRecommendationsData as _StdAnalystRecsData,
+)
 from data_fetcher.utils.api_keys import get_api_key
 from data_fetcher.utils.async_http_client import amake_request, HTTPClientError
 
@@ -17,20 +20,15 @@ FMP_STABLE_BASE = "https://financialmodelingprep.com/stable"
 
 # ── QueryParams ───────────────────────────────────────────────────────────────
 
-class AnalystRecommendationsQueryParams(BaseQueryParams):
-    """애널리스트 추천 등급 조회 파라미터"""
-    symbol: str = Field(description="종목 심볼 (예: AAPL, TSLA)")
-    limit: Optional[int] = Field(default=100, description="최대 결과 수")
+class AnalystRecommendationsQueryParams(_StdAnalystRecsQueryParams):
+    pass
 
 
 # ── Data ──────────────────────────────────────────────────────────────────────
 
-class AnalystRecommendationsData(BaseData):
-    """애널리스트 추천 등급 데이터"""
-    symbol: str = Field(description="종목 심볼")
-    date: date_type = Field(description="추천 날짜")
-    analyst_name: Optional[str] = Field(default=None, description="애널리스트 이름")
-    analyst_company: Optional[str] = Field(default=None, description="분석기관명")
+class AnalystRecommendationsData(_StdAnalystRecsData):
+    """FMP 애널리스트 추천 — 표준 모델 상속, FMP alias 매핑 유지"""
+    # FMP API 필드명 별칭 (표준 필드명과 다른 경우)
     analyst_rating_strong_buy: Optional[int] = Field(default=None, description="Strong Buy 추천 수")
     analyst_rating_buy: Optional[int] = Field(default=None, description="Buy 추천 수")
     analyst_rating_hold: Optional[int] = Field(default=None, description="Hold 추천 수")
@@ -42,7 +40,6 @@ class AnalystRecommendationsData(BaseData):
     analyst_target_price_max: Optional[float] = Field(default=None, description="최대 목표주가")
     analyst_target_price_avg: Optional[float] = Field(default=None, description="평균 목표주가")
     analyst_target_price_median: Optional[float] = Field(default=None, description="중간 목표주가")
-    number_of_analysts: Optional[int] = Field(default=None, description="분석한 애널리스트 수")
 
     __alias_dict__ = {
         "analyst_rating_consensus": "consensus_grade",

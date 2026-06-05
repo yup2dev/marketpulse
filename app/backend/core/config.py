@@ -41,6 +41,12 @@ class Settings(BaseSettings):
     QUEUE_ENABLED: bool = False
     SCHEDULER_ENABLED: bool = False
 
+    # Fetcher(exe) 위임 — Backend가 provider를 직접 호출하지 않고 로컬 Fetcher REST로 위임
+    FETCHER_REMOTE_ENABLED: bool = False              # True면 모든 조회를 Fetcher로 위임
+    FETCHER_URL: str = "http://127.0.0.1:8765"        # Fetcher REST 주소
+    FETCHER_TOKEN: str = ""                            # (선택) Bearer 인증 토큰
+    FETCHER_TIMEOUT: float = 30.0
+
     # Crawler
     CRAWLER_MAX_WORKERS: int = 5
     CRAWLER_TIMEOUT: int = 30

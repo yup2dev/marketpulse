@@ -1,33 +1,22 @@
 """SEC Form 4 Insider Trading Data Models"""
 from datetime import date
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import Field
+from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
+from data_fetcher.abstract_provider.standard_models import InsiderTradingQueryParams, InsiderTradingData
 
 
-class SECInsiderTradingQueryParams(BaseModel):
+class SECInsiderTradingQueryParams(InsiderTradingQueryParams):
     """SEC Insider Trading 쿼리 파라미터"""
-    ticker: str = Field(description="Ticker symbol")
     cik: Optional[str] = Field(None, description="CIK number (10 digits with leading zeros)")
-    limit: Optional[int] = Field(100, description="Maximum number of records")
-    start_date: Optional[str] = Field(None, description="Start date (YYYY-MM-DD)")
-    end_date: Optional[str] = Field(None, description="End date (YYYY-MM-DD)")
 
 
-class SECInsiderTradingData(BaseModel):
-    """SEC Form 4 Insider Trading 데이터"""
-    ticker: str = Field(description="Ticker symbol")
-    filing_date: date = Field(description="Filing date")
-    transaction_date: Optional[date] = Field(None, description="Transaction date")
-    accession_number: str = Field(description="SEC accession number")
-    form_type: str = Field(description="Form type (usually 4)")
-    insider_name: Optional[str] = Field(None, description="Insider name")
-    insider_title: Optional[str] = Field(None, description="Insider title/relationship")
-    transaction_type: Optional[str] = Field(None, description="Transaction type")
-    shares: Optional[float] = Field(None, description="Number of shares")
-    price_per_share: Optional[float] = Field(None, description="Price per share")
-    transaction_value: Optional[float] = Field(None, description="Total transaction value")
-    shares_owned_after: Optional[float] = Field(None, description="Shares owned after transaction")
-    filing_url: str = Field(description="URL to SEC filing")
+class SECInsiderTradingData(InsiderTradingData):
+    """SEC Form 4 Insider Trading 데이터 — SEC 전용 추가 필드"""
+    accession_number: Optional[str] = Field(default=None, description="SEC accession number")
+    form_type: Optional[str] = Field(default=None, description="Form type (usually 4)")
+    shares_traded: Optional[float] = Field(default=None, description="Number of shares")  # 표준 필드 override
+    filing_url: Optional[str] = Field(default=None, description="URL to SEC filing")
 
     class Config:
         json_schema_extra = {

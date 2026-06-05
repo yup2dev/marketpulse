@@ -92,19 +92,22 @@ async def _load_screener_universe() -> List[Dict]:
         p = profiles.get(stk_cd)
         m = metrics.get(stk_cd)
         result.append({
-            'stk_cd':        stk_cd,
-            'stk_nm':        (p.stk_nm if p else b['stk_nm']) or stk_cd,
-            'curr':          (p.currency if p else b['curr']) or 'USD',
-            'sector':        (p.sector if p else b['sector']) or '',
-            'industry':      (p.industry if p else b['industry']) or '',
-            'exchange':      (p.exchange if p else b['exchange']) or '',
-            'market_cap':    float(p.market_cap)    if p and p.market_cap    else None,
-            'beta':          float(p.beta)          if p and p.beta          else None,
-            'pe_ratio':      float(m.pe_ratio)      if m and m.pe_ratio      else None,
-            'pb_ratio':      float(m.pb_ratio)      if m and m.pb_ratio      else None,
-            'roe':           float(m.roe)            if m and m.roe           else None,
-            'roa':           float(m.roa)            if m and m.roa           else None,
-            'profit_margin': float(m.profit_margin)  if m and m.profit_margin else None,
+            'stk_cd':          stk_cd,
+            'stk_nm':          (p.stk_nm if p else b['stk_nm']) or stk_cd,
+            'curr':            (p.currency if p else b['curr']) or 'USD',
+            'sector':          (p.sector if p else b['sector']) or '',
+            'industry':        (p.industry if p else b['industry']) or '',
+            'exchange':        (p.exchange if p else b['exchange']) or '',
+            'market_cap':      float(p.market_cap)      if p and p.market_cap      else None,
+            'beta':            float(p.beta)            if p and p.beta            else None,
+            'pe_ratio':        float(m.pe_ratio)        if m and m.pe_ratio        else None,
+            'pb_ratio':        float(m.pb_ratio)        if m and m.pb_ratio        else None,
+            'roe':             float(m.roe)              if m and m.roe             else None,
+            'roa':             float(m.roa)              if m and m.roa             else None,
+            'profit_margin':   float(m.profit_margin)   if m and m.profit_margin   else None,
+            'debt_to_equity':  float(m.debt_to_equity)  if m and m.debt_to_equity  else None,
+            'current_ratio':   float(m.current_ratio)   if m and m.current_ratio   else None,
+            'quick_ratio':     float(m.quick_ratio)     if m and m.quick_ratio     else None,
         })
 
     log.info("[Screener] Universe ready: %d symbols", len(result))
@@ -196,13 +199,47 @@ def _apply_filters(rows: List[Dict], filters: Dict[str, Any]) -> List[Dict]:
     if f.get('pe_ratio_max') is not None:
         result = [r for r in result if _n(r, 'pe_ratio') is not None and _n(r, 'pe_ratio') <= f['pe_ratio_max']]
 
+    # PBR
+    if f.get('pb_ratio_min') is not None:
+        result = [r for r in result if _n(r, 'pb_ratio') is not None and _n(r, 'pb_ratio') >= f['pb_ratio_min']]
+    if f.get('pb_ratio_max') is not None:
+        result = [r for r in result if _n(r, 'pb_ratio') is not None and _n(r, 'pb_ratio') <= f['pb_ratio_max']]
+
     # ROE
     if f.get('roe_min') is not None:
         result = [r for r in result if _n(r, 'roe') is not None and _n(r, 'roe') >= f['roe_min']]
+    if f.get('roe_max') is not None:
+        result = [r for r in result if _n(r, 'roe') is not None and _n(r, 'roe') <= f['roe_max']]
 
-    # 수익률
+    # ROA
+    if f.get('roa_min') is not None:
+        result = [r for r in result if _n(r, 'roa') is not None and _n(r, 'roa') >= f['roa_min']]
+    if f.get('roa_max') is not None:
+        result = [r for r in result if _n(r, 'roa') is not None and _n(r, 'roa') <= f['roa_max']]
+
+    # 순이익률
     if f.get('profit_margin_min') is not None:
         result = [r for r in result if _n(r, 'profit_margin') is not None and _n(r, 'profit_margin') >= f['profit_margin_min']]
+    if f.get('profit_margin_max') is not None:
+        result = [r for r in result if _n(r, 'profit_margin') is not None and _n(r, 'profit_margin') <= f['profit_margin_max']]
+
+    # 부채비율 D/E
+    if f.get('debt_to_equity_min') is not None:
+        result = [r for r in result if _n(r, 'debt_to_equity') is not None and _n(r, 'debt_to_equity') >= f['debt_to_equity_min']]
+    if f.get('debt_to_equity_max') is not None:
+        result = [r for r in result if _n(r, 'debt_to_equity') is not None and _n(r, 'debt_to_equity') <= f['debt_to_equity_max']]
+
+    # 유동비율
+    if f.get('current_ratio_min') is not None:
+        result = [r for r in result if _n(r, 'current_ratio') is not None and _n(r, 'current_ratio') >= f['current_ratio_min']]
+    if f.get('current_ratio_max') is not None:
+        result = [r for r in result if _n(r, 'current_ratio') is not None and _n(r, 'current_ratio') <= f['current_ratio_max']]
+
+    # 당좌비율
+    if f.get('quick_ratio_min') is not None:
+        result = [r for r in result if _n(r, 'quick_ratio') is not None and _n(r, 'quick_ratio') >= f['quick_ratio_min']]
+    if f.get('quick_ratio_max') is not None:
+        result = [r for r in result if _n(r, 'quick_ratio') is not None and _n(r, 'quick_ratio') <= f['quick_ratio_max']]
 
     return result
 
@@ -213,29 +250,60 @@ class ScreenerService:
 
     PRESETS = {
         "value_stocks": {
-            "name": "가치주 (Value Stocks)",
+            "name": "가치주",
             "description": "저평가된 우량주 (낮은 P/E, 높은 시총)",
             "filters": {"market_cap_min": 10_000_000_000, "pe_ratio_max": 15},
         },
         "growth_stocks": {
-            "name": "성장주 (Growth Stocks)",
-            "description": "빠르게 성장하는 기업",
+            "name": "성장주",
+            "description": "빠르게 성장하는 Tech/Healthcare 기업",
             "filters": {"market_cap_min": 5_000_000_000, "sector": ["Technology", "Healthcare"]},
         },
         "large_cap": {
-            "name": "대형주 (Large Cap)",
+            "name": "대형주",
             "description": "시총 100B 이상 우량주",
             "filters": {"market_cap_min": 100_000_000_000},
         },
         "small_cap": {
-            "name": "소형주 (Small Cap)",
+            "name": "소형주",
             "description": "시총 300M~2B 성장 소형주",
             "filters": {"market_cap_min": 300_000_000, "market_cap_max": 2_000_000_000},
         },
         "tech_sector": {
-            "name": "기술주 (Technology)",
+            "name": "기술주",
             "description": "기술 섹터 전체",
             "filters": {"sector": ["Technology"]},
+        },
+        "high_roe": {
+            "name": "고ROE 우량주",
+            "description": "자기자본이익률(ROE) 15%+ 우량 기업",
+            "filters": {"roe_min": 15, "market_cap_min": 1_000_000_000, "pe_ratio_max": 30},
+            "is_hot": True,
+        },
+        "value_deep": {
+            "name": "초저평가주",
+            "description": "P/E 12 이하, P/B 2 이하 초저평가 기업",
+            "filters": {"pe_ratio_max": 12, "pb_ratio_max": 2, "market_cap_min": 1_000_000_000},
+        },
+        "profitable": {
+            "name": "고수익 기업",
+            "description": "순이익률 15%+, 시총 5B 이상",
+            "filters": {"profit_margin_min": 15, "market_cap_min": 5_000_000_000},
+        },
+        "momentum_up": {
+            "name": "상승 모멘텀",
+            "description": "당일 1% 이상 상승, 거래량 활발",
+            "filters": {"change_pct_min": 1, "volume_min": 500_000},
+            "is_hot": True,
+        },
+        "quality_large": {
+            "name": "퀄리티 대형주",
+            "description": "Tech/Consumer/Communication 섹터, ROE 10%+, 시총 50B+",
+            "filters": {
+                "sector": ["Technology", "Consumer Cyclical", "Communication Services"],
+                "roe_min": 10,
+                "market_cap_min": 50_000_000_000,
+            },
         },
     }
 
@@ -269,7 +337,7 @@ class ScreenerService:
         rows = _apply_filters(rows, {
             k: v for k, v in filters.items()
             if k in ('price_min', 'price_max', 'change_rate_min', 'change_rate_max',
-                     'change_pct_min', 'change_pct_max', 'volume_min')
+                     'change_pct_min', 'change_pct_max', 'volume_min', 'volume_max')
         })
 
         return rows[:limit]
@@ -360,7 +428,13 @@ class ScreenerService:
     @staticmethod
     def get_presets() -> List[dict]:
         return [
-            {"preset_id": k, "name": v["name"], "description": v["description"], "filters": v["filters"]}
+            {
+                "preset_id":   k,
+                "name":        v["name"],
+                "description": v["description"],
+                "filters":     v["filters"],
+                "is_hot":      v.get("is_hot", False),
+            }
             for k, v in ScreenerService.PRESETS.items()
         ]
 

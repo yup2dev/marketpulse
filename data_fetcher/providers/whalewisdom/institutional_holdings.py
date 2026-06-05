@@ -63,37 +63,65 @@ class WhaleWisdomFetcher(Fetcher[InstitutionalHoldingsQueryParams, Institutional
         }
 
         try:
-            filing_urls = SEC13FFetcher._get_filing_urls(cik, headers, count=2)
+            import time
+            filing_results = SEC13FFetcher._get_filing_urls(cik, headers, count=2)
 
-            if not filing_urls:
+            if not filing_results:
                 log.error(f"No 13F filings found for {inst_info['name']}")
                 return {
                     'institution': inst_info,
+                    'summary_only': query.summary_only,
                     'holdings': [],
                     'filing_date': None,
                     'previous_holdings': [],
-                    'previous_filing_date': None
+                    'previous_filing_date': None,
                 }
 
-            # Parse current quarter
-            current_holdings, current_filing_date = SEC13FFetcher._parse_filing(filing_urls[0], headers)
+            cur_url, cur_date_list = filing_results[0]
+            prev_url, prev_date_list = filing_results[1] if len(filing_results) >= 2 else (None, None)
+
+            if query.summary_only:
+                current_summary, parsed_date = SEC13FFetcher._parse_filing_summary(cur_url, headers)
+                current_filing_date = parsed_date or cur_date_list
+
+                prev_summary = {'total_value': 0, 'num_holdings': 0}
+                previous_filing_date = None
+                if prev_url:
+                    time.sleep(0.2)
+                    prev_summary, prev_parsed = SEC13FFetcher._parse_filing_summary(prev_url, headers)
+                    previous_filing_date = prev_parsed or prev_date_list
+
+                return {
+                    'institution': inst_info,
+                    'summary_only': True,
+                    'filing_date': current_filing_date,
+                    'previous_filing_date': previous_filing_date,
+                    'current_summary': current_summary,
+                    'prev_summary': prev_summary,
+                }
+
+            # 전체 holdings 파싱
+            current_holdings, current_filing_date = SEC13FFetcher._parse_filing(cur_url, headers)
+            if not current_filing_date:
+                current_filing_date = cur_date_list
             log.info(f"Current quarter: {len(current_holdings)} holdings, filed {current_filing_date}")
 
-            # Parse previous quarter if available
             previous_holdings = []
             previous_filing_date = None
-            if len(filing_urls) >= 2:
-                import time
-                time.sleep(0.2)  # SEC rate limiting
-                previous_holdings, previous_filing_date = SEC13FFetcher._parse_filing(filing_urls[1], headers)
+            if prev_url:
+                time.sleep(0.2)
+                previous_holdings, previous_filing_date = SEC13FFetcher._parse_filing(prev_url, headers)
+                if not previous_filing_date:
+                    previous_filing_date = prev_date_list
                 log.info(f"Previous quarter: {len(previous_holdings)} holdings, filed {previous_filing_date}")
 
             return {
                 'institution': inst_info,
+                'summary_only': False,
                 'holdings': current_holdings,
                 'filing_date': current_filing_date,
                 'previous_holdings': previous_holdings,
-                'previous_filing_date': previous_filing_date
+                'previous_filing_date': previous_filing_date,
             }
 
         except Exception as e:
@@ -118,6 +146,42 @@ class WhaleWisdomFetcher(Fetcher[InstitutionalHoldingsQueryParams, Institutional
         """
         try:
             inst_info = data['institution']
+            filing_date = data.get('filing_date', '2024-12-31')
+
+            # ── summary_only 모드: 커버페이지 통계만 반환 ──────────────────────
+            if data.get('summary_only'):
+                cur = data.get('current_summary', {})
+                prev = data.get('prev_summary', {})
+                total_value = cur.get('total_value', 0)
+                prev_total = prev.get('total_value', 0)
+                has_prev = prev_total > 0
+                value_change = (total_value - prev_total) if has_prev else None
+                value_change_pct = round((value_change / prev_total * 100), 2) if has_prev and prev_total > 0 else None
+                return [InstitutionalHoldingsData(
+                    id=f"13f_{query.institution_key}",
+                    institution_key=query.institution_key,
+                    name=inst_info['name'],
+                    manager=inst_info['manager'],
+                    description=f"13F Holdings - {inst_info['name']}",
+                    category='13f',
+                    source='SEC EDGAR',
+                    filing_date=filing_date or '2024-12-31',
+                    period_end=filing_date or '2024-12-31',
+                    total_value=total_value,
+                    num_holdings=cur.get('num_holdings', 0),
+                    stocks=[],
+                    sold_positions=[],
+                    previous_filing_date=data.get('previous_filing_date'),
+                    previous_value=prev_total if has_prev else None,
+                    value_change=value_change,
+                    value_change_pct=value_change_pct,
+                    num_new_positions=0,
+                    num_sold_out=0,
+                    num_increased=0,
+                    num_decreased=0,
+                    turnover=None,
+                )]
+
             current_holdings_raw = data['holdings']
             filing_date = data.get('filing_date', '2024-12-31')
             previous_holdings_raw = data.get('previous_holdings', [])

@@ -3,8 +3,11 @@ MarketPulse Web Application
 FastAPI-based dashboard for financial data visualization
 """
 import sys
+import logging
 from pathlib import Path
 from contextlib import asynccontextmanager
+
+log = logging.getLogger(__name__)
 
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
@@ -40,7 +43,19 @@ async def lifespan(app: FastAPI):
     from app.backend.core.cache import cache
     from data_fetcher.query_executor import QueryExecutor
     await cache.init(redis_url=settings.REDIS_URL if settings.QUEUE_ENABLED else None)
-    QueryExecutor.configure(cache=cache)
+    # FETCHER_REMOTE_ENABLED=True 면 모든 데이터 조회를 로컬 Fetcher(exe) REST로 위임한다.
+    # (배포 WebServer는 provider 키를 갖지 않음 — 키와 외부 호출은 Fetcher에 집중)
+    # False(기본)에서는 기존처럼 백엔드가 provider를 직접 호출한다.
+    fetcher_client = None
+    if settings.FETCHER_REMOTE_ENABLED:
+        from app.backend.core.fetcher_client import FetcherClient
+        fetcher_client = FetcherClient(
+            base_url=settings.FETCHER_URL,
+            timeout=settings.FETCHER_TIMEOUT,
+            token=settings.FETCHER_TOKEN or None,
+        )
+        log.info("[startup] Fetcher 위임 활성화 → %s", settings.FETCHER_URL)
+    QueryExecutor.configure(cache=cache, remote=fetcher_client)
 
     # ── Redis Pub/Sub (멀티워커 WS fan-out) ──────────────────────────────────
     from app.backend.core.pubsub import init_pubsub, close_pubsub
@@ -63,6 +78,8 @@ async def lifespan(app: FastAPI):
     quote_pub_task.cancel()
     warmup_task.cancel()
     stock_list_task.cancel()
+    if fetcher_client is not None:
+        await fetcher_client.aclose()
     await cache.close()
     await close_pubsub()
 

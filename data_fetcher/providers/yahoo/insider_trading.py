@@ -2,27 +2,16 @@
 from datetime import date
 from typing import Optional
 from pydantic import Field
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
+from data_fetcher.abstract_provider.abstract import BaseData
+from data_fetcher.abstract_provider.standard_models import InsiderTradingQueryParams, InsiderTradingData
 
 
-class YFinanceInsiderTradingQueryParams(BaseQueryParams):
-    """Insider Trading 조회 파라미터"""
-    symbol: str = Field(..., description="종목 심볼")
-    limit: int = Field(default=50, description="반환할 최대 거래 수")
+class YFinanceInsiderTradingQueryParams(InsiderTradingQueryParams):
+    pass
 
 
-class YFinanceInsiderTransactionData(BaseData):
-    """내부자 거래 데이터"""
-    symbol: str
-    insider_name: Optional[str] = None
-    insider_title: Optional[str] = None
-    transaction_date: Optional[date] = None
-    transaction_type: Optional[str] = None
-    ownership_type: Optional[str] = None
-    shares_traded: Optional[int] = None
-    price_per_share: Optional[float] = None
-    transaction_value: Optional[float] = None
-    shares_owned_after: Optional[int] = None
+class YFinanceInsiderTransactionData(InsiderTradingData):
+    pass
 
 
 class YFinanceInsiderHolderData(BaseData):
