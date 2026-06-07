@@ -1,0 +1,77 @@
+name: Release Desktop App
+
+# git tag v1.0.0 && git push origin v1.0.0 으로 트리거
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write   # GitHub Release 생성 권한
+
+jobs:
+  release-windows:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── 툴체인 설치 ───────────────────────────────────────────────────────
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Setup Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri -> target
+
+      # ── Python 의존성 + Fetcher 빌드 ──────────────────────────────────────
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Build fetcher exe (PyInstaller)
+        run: |
+          pyinstaller build/MarketPulseFetcher.spec
+          New-Item -ItemType Directory -Force -Path "desktop/src-tauri/binaries"
+          Copy-Item "dist/MarketPulseFetcher.exe" `
+            "desktop/src-tauri/binaries/marketpulse-fetcher-x86_64-pc-windows-msvc.exe"
+
+      # ── 프론트엔드는 Vercel에서 서빙 — Tauri가 번들하지 않으므로 빌드 불필요 ──
+
+      - name: Install desktop dependencies
+        working-directory: desktop
+        run: npm ci
+
+      # ── Tauri 빌드 (Rust + fetcher sidecar) + GitHub Release ────────────
+      - name: Build and release Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Tauri 업데이터 서명 키 (npx tauri signer generate 로 생성)
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'MarketPulse ${{ github.ref_name }}'
+          releaseBody: |
+            ## MarketPulse ${{ github.ref_name }}
+
+            ### 설치
+            - **Windows**: `MarketPulse_x.x.x_x64-setup.exe` 다운로드 후 실행
+
+            ### 업데이트
+            앱 실행 중 자동으로 최신 버전을 감지하고 업데이트합니다.
+          releaseDraft: false
+          prerelease: false
+          projectPath: ./desktop
+          includeUpdaterJson: true

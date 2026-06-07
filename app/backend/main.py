@@ -98,7 +98,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         *settings.CORS_ORIGINS,
-        "tauri://localhost",
+        "tauri://localhost",          # Tauri 데스크탑 앱
+        "https://frontend-yup2devs-projects.vercel.app",  # Vercel 프론트엔드
         "http://localhost",
         "http://127.0.0.1",
         "http://localhost:5173",
@@ -237,4 +238,10 @@ async def circuit_breaker_reset(provider: str):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True,
+        reload_dirs=[str(Path(__file__).parent)],
+    )

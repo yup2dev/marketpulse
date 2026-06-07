@@ -4,10 +4,9 @@
   "version": "0.1.0",
   "identifier": "com.marketpulse.desktop",
   "build": {
-    "frontendDist": "../../app/frontend/dist",
-    "devUrl": "http://localhost:5180",
-    "beforeDevCommand": "cd ../app/frontend && npm run dev -- --port 5180",
-    "beforeBuildCommand": "cd ../app/frontend && npm run build"
+    "frontendDist": "https://frontend-yup2devs-projects.vercel.app",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "cd ../app/frontend && npm run dev"
   },
   "app": {
     "windows": [
@@ -46,10 +45,10 @@
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://github.com/yup2dev/marketpulse/releases/latest/download/latest.json"
+        "https://github.com/sangyeopKim/marketpulse/releases/latest/download/latest.json"
       ],
       "dialog": true,
-      "pubkey": ""
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEU4RkY0QjVCNjk5QUI5RDMKUldUVHVacHBXMHYvNkl2OEZQUHJjTDA3SUxOMmhsYVY3NjBPbmhHcnVsTEpzd1oxMWd4WjlrTTgK"
     },
     "shell": {
       "open": true

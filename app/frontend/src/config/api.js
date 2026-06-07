@@ -1,5 +1,8 @@
-// Tauri 앱 내부에서는 127.0.0.1 사용 (localhost는 Tauri 샌드박스에서 제한될 수 있음)
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+// Tauri v2 WebView 감지 — 데스크탑 앱이면 로컬 백엔드, 웹 브라우저면 서버 URL
+const _isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+const API_BASE_URL = _isTauri
+  ? 'http://127.0.0.1:8000'                                      // 데스크탑: 로컬 백엔드
+  : (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000');  // 웹: 서버 URL
 export const API_BASE = `${API_BASE_URL}/api`;
 
 // ─── Force-logout callback ────────────────────────────────────────────────────
