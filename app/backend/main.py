@@ -66,6 +66,11 @@ async def lifespan(app: FastAPI):
     import asyncio
     quote_pub_task = asyncio.create_task(quote_publisher_loop())
 
+    # KIS(한국투자증권) 실시간 체결 스트림 — KIS_APPKEY/SECRET 없으면 즉시 종료(폴링 백업)
+    import os
+    from app.backend.api.routes.ws import kis_stream_loop
+    kis_task = asyncio.create_task(kis_stream_loop(env=os.getenv("KIS_ENV", "real")))
+
     from app.backend.services.ranking_service import warmup_ranking_loop
     warmup_task = asyncio.create_task(warmup_ranking_loop())
 
@@ -76,6 +81,7 @@ async def lifespan(app: FastAPI):
     yield
 
     quote_pub_task.cancel()
+    kis_task.cancel()
     warmup_task.cancel()
     stock_list_task.cancel()
     if fetcher_client is not None:
@@ -98,7 +104,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         *settings.CORS_ORIGINS,
-        "tauri://localhost",          # Tauri 데스크탑 앱
+        "tauri://localhost",          # Tauri 데스크탑 앱 (macOS/Linux)
+        "http://tauri.localhost",     # Tauri 데스크탑 앱 (Windows WebView2/Edge)
+        "https://tauri.localhost",    # Tauri 데스크탑 앱 (Windows WebView2/Edge, HTTPS)
         "https://frontend-yup2devs-projects.vercel.app",  # Vercel 프론트엔드
         "http://localhost",
         "http://127.0.0.1",

@@ -225,6 +225,106 @@ async def stream_fetcher_loop(symbols: Optional[Set[str]] = None) -> None:
     await fetcher.run(init_symbols, on_message=on_message)
 
 
+# ── KIS(한국투자증권) 실시간 체결 루프 ────────────────────────────────────────
+
+# DB exchange 명 → KIS 해외 거래소 코드
+_KIS_EXCH = {"NASDAQ": "NAS", "NYSE": "NYS", "AMEX": "AMS"}
+
+
+async def _build_kis_exchange_map() -> Dict[str, str]:
+    """DB 유니버스(USD 종목)에서 표준심볼 → KIS 거래소코드 맵 구성.
+    해외 종목 구독 키(DNASAAPL) 생성에 필요. 국내 종목은 불필요."""
+    try:
+        from app.backend.services.stock_list_service import get_stock_list
+        from app.backend.services._base import to_quote_symbol
+        stocks = await get_stock_list()
+    except Exception as e:
+        log.warning("[ws] KIS exchange_map 구성 실패: %s", e)
+        return {}
+
+    out: Dict[str, str] = {}
+    for s in stocks:
+        exch = _KIS_EXCH.get((s.get("exchange") or "").upper())
+        if not exch or (s.get("curr") or "USD") == "KRW":
+            continue
+        sym = to_quote_symbol(s["ticker_cd"], s.get("exchange"), s.get("curr")).upper()
+        out[sym] = exch
+    return out
+
+
+async def _kis_sync_loop(fetcher, interval: float = 5.0) -> None:
+    """화면에 보이는 심볼(최대 41)로 KIS 구독을 주기적으로 reconcile.
+    랭킹 '순서'는 DB 스냅샷이 담당하고, KIS는 보이는 행만 실시간 구독한다."""
+    from data_fetcher.providers.kis.stream import MAX_SUBSCRIPTIONS
+    while True:
+        await asyncio.sleep(interval)
+        if not getattr(fetcher, "is_connected", False):
+            continue
+        # 국내(.KS/.KQ·6자리) 우선 — KIS가 커버하는 대상
+        visible = list(_all_subscribed_symbols())[:MAX_SUBSCRIPTIONS]
+        want = set(visible)
+        have = fetcher.subscribed_symbols
+        add = list(want - have)
+        remove = list(have - want)
+        if add or remove:
+            try:
+                await fetcher.update_symbols(add=add, remove=remove)
+            except Exception as e:
+                log.warning("[ws] KIS sync error: %s", e)
+
+
+async def kis_stream_loop(env: str = "real") -> None:
+    """KIS WebSocket 실시간 체결 → Redis CH_QUOTES publish.
+
+    KIS_APPKEY/KIS_APPSECRET 미설정 시 조용히 종료(yfinance 폴링이 백업).
+    동시 구독 한도(41)로 화면 보이는 행만 _kis_sync_loop가 동기화한다.
+    """
+    import os
+    appkey = os.getenv("KIS_APPKEY", "")
+    appsecret = os.getenv("KIS_APPSECRET", "")
+    if not (appkey and appsecret):
+        log.info("[ws] KIS_APPKEY/SECRET not set — KIS stream disabled")
+        return
+
+    try:
+        from data_fetcher.providers.kis.stream import KISStreamFetcher
+    except ImportError as e:
+        log.warning("[ws] KIS stream import failed: %s", e)
+        return
+
+    exchange_map = await _build_kis_exchange_map()
+    log.info("[ws] KIS exchange_map: %d overseas symbols", len(exchange_map))
+
+    async def on_message(msg: dict) -> None:
+        sym = msg.get("symbol")
+        if not sym:
+            return
+        payload = {"type": "quote", "data": {sym: {
+            "price":          msg.get("price"),
+            "change":         msg.get("change"),
+            "change_percent": msg.get("change_percent"),
+            "volume":         msg.get("volume"),
+        }}}
+        if is_redis_available():
+            await get_broker().publish(CH_QUOTES, payload)
+        else:
+            await manager.broadcast(CH_QUOTES, payload)
+
+    fetcher = KISStreamFetcher(
+        credentials={"appkey": appkey, "appsecret": appsecret},
+        env=env,
+        exchange_map=exchange_map,
+    )
+
+    init_symbols = list(_all_subscribed_symbols())[:41]
+    sync_task = asyncio.create_task(_kis_sync_loop(fetcher))
+    try:
+        log.info("[ws] KIS stream starting (env=%s, %d init symbols)", env, len(init_symbols))
+        await fetcher.run(init_symbols, on_message=on_message)
+    finally:
+        sync_task.cancel()
+
+
 # ── 단일 워커 폴백 루프 (Redis 없을 때) ──────────────────────────────────────
 
 async def _stream_quotes_fallback(conn: _Connection) -> None:

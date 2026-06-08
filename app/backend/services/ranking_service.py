@@ -8,14 +8,15 @@ import logging
 from typing import List, Dict, Any
 
 from app.backend.core.cache import cached
-from app.backend.services._base import cached_quotes, to_quote_symbol
+from app.backend.services._base import cached_quotes, to_quote_symbol, unwrap
 from data_fetcher.query_executor import QueryExecutor
 
 log = logging.getLogger(__name__)
 
 CANDIDATE_LIMIT = 500
-LIVE_TTL        = 180   # 단일 소스 시세 캐시 (초)
-WARMUP_INTERVAL = 60    # 프리워밍 갱신 주기 (초)
+LIVE_TTL        = 180    # 핫 시세 캐시 (초) — 이 안엔 다운로드 없이 즉시
+SNAPSHOT_TTL    = 3600   # 장기 스냅샷 (초) — 핫 캐시가 식어도 즉시 응답하는 폴백
+WARMUP_INTERVAL = 60     # 프리워밍 갱신 주기 (초)
 
 
 # ── fallback 유니버스 ──────────────────────────────────────────────────────────
@@ -85,12 +86,51 @@ async def _live_universe_keys(market: str = 'all'):
     return meta, symbols, ','.join(sorted(symbols))
 
 
+def _hot_key(symbols_key: str) -> str:
+    return f"rank_live:{symbols_key}"
+
+
+def _snap_key(symbols_key: str) -> str:
+    return f"rank_snap:{symbols_key}"
+
+
 async def _batch_quotes(symbols_key: str, period: str = '5d', mode: str = 'live') -> Dict[str, Dict]:
-    """단일-flight 캐시 + YFinanceBatchQuotesFetcher 경유."""
+    """실제 다운로드 경로 — single-flight 캐시 + YFinanceBatchQuotesFetcher 경유.
+    성공 시 핫 캐시(LIVE_TTL)와 장기 스냅샷(SNAPSHOT_TTL)을 함께 갱신한다."""
     symbols = [s for s in symbols_key.split(',') if s]
     return await cached_quotes(
-        f"rank_live:{symbols_key}", symbols, ttl=LIVE_TTL, period=period, mode=mode,
+        _hot_key(symbols_key), symbols, ttl=LIVE_TTL, period=period, mode=mode,
+        snapshot_key=_snap_key(symbols_key), snapshot_ttl=SNAPSHOT_TTL,
     )
+
+
+async def _refresh_quotes_bg(symbols_key: str) -> None:
+    """백그라운드 시세 갱신 (fire-and-forget). 실패는 조용히 무시."""
+    try:
+        await _batch_quotes(symbols_key)
+    except Exception as e:
+        log.debug("[Ranking] background refresh failed: %s", e)
+
+
+async def _live_quotes_swr(symbols_key: str) -> Dict[str, Dict]:
+    """요청 경로용 — stale-while-revalidate.
+
+    1) 핫 캐시 HIT → 즉시 반환.
+    2) 핫 MISS·스냅샷 HIT → 스냅샷 즉시 반환 + 백그라운드 갱신(다운로드 안 기다림).
+    3) 둘 다 MISS(최초 1회) → 동기 다운로드 폴백.
+    """
+    from app.backend.core.cache import cache
+
+    hot = await cache.get(_hot_key(symbols_key))
+    if hot is not None:
+        return hot
+
+    snap = await cache.get(_snap_key(symbols_key))
+    if snap is not None:
+        asyncio.create_task(_refresh_quotes_bg(symbols_key))
+        return snap
+
+    return await _batch_quotes(symbols_key)
 
 
 async def get_live_quotes_subset(symbols: List[str]) -> Dict[str, Dict]:
@@ -129,7 +169,7 @@ class RankingService:
         if not meta:
             return []
 
-        live = await _batch_quotes(full_key)
+        live = await _live_quotes_swr(full_key)
 
         rows: List[Dict[str, Any]] = []
         for sym, q in live.items():
@@ -154,32 +194,16 @@ class RankingService:
         period:  str = '1d',
         limit:   int = 50,
     ) -> List[Dict[str, Any]]:
-        """기간별 랭킹 — 단기는 live와 동일, 장기는 period 모드 활용."""
-        period_map = {
-            'realtime': '5d', '1d': '5d',
-            '1w': '1mo', '1mo': '3mo',
-            '3mo': '6mo', '6mo': '1y', '1y': '2y',
-        }
-        yf_period = period_map.get(period, '5d')
+        """기간별 랭킹.
 
-        if yf_period == '5d':
+        realtime → 라이브(Redis SWR + WebSocket) 경로.
+        1d~1y    → DB(mbs_in_stk_stbd 일별 시계열)에서 계산. 외부 API 호출 없음.
+        """
+        if period == 'realtime':
             return await RankingService.get_live_ranking(market, sort_by, limit)
 
-        universe = _filter_by_market(await _load_universe(), market)
-        if not universe:
-            return []
-
-        meta    = {u['stk_cd']: u for u in universe}
-        symbols = list(meta.keys())[:CANDIDATE_LIMIT]
-        cache_key = ','.join(sorted(symbols)) + f'|{yf_period}'
-        rows = await _fetch_period_ranking(cache_key)
-
-        for r in rows:
-            m = meta.get(r['stk_cd'])
-            if m:
-                r['stk_nm'] = m['stk_nm']
-                r['sector'] = m['sector']
-
+        rows = await _fetch_db_ranking(period)
+        rows = _filter_rows_by_market(rows, market)
         return RankingService._sort_rows(rows, sort_by)[:limit]
 
     @staticmethod
@@ -201,41 +225,39 @@ class RankingService:
         return rows
 
 
-@cached(ttl=3600)
-async def _fetch_period_ranking(cache_key: str) -> List[Dict]:
-    """장기 기간 변동률 계산 (1h 캐시). cache_key: 'SYM1,SYM2,...|1y'"""
-    parts     = cache_key.rsplit('|', 1)
-    symbols   = [s for s in parts[0].split(',') if s]
-    yf_period = parts[1] if len(parts) > 1 else '6mo'
+def _filter_rows_by_market(rows: List[Dict], market: str) -> List[Dict]:
+    if market == 'domestic':
+        return [r for r in rows if r.get('curr') == 'KRW']
+    if market == 'overseas':
+        return [r for r in rows if r.get('curr') != 'KRW']
+    return rows
 
+
+@cached(ttl=300)
+async def _fetch_db_ranking(period: str) -> List[Dict]:
+    """기간별 랭킹을 DB(mbs_in_stk_stbd 일별 시계열)에서 계산 (5m 캐시).
+
+    외부 API 호출 없이 DB만으로 응답한다. 적재 배치가 base_ymd별 종가를
+    누적해주면 1d~1y 모든 기간이 즉시 계산된다.
+    """
     try:
         raw = await QueryExecutor.fetch(
-            provider='yahoo',
-            model='batch_quotes',
-            params={'symbols': symbols, 'period': yf_period, 'mode': 'period'},
+            provider='db',
+            model='stock_ranking',
+            params={'period': period},
         )
     except asyncio.CancelledError:
         return []
     except Exception as e:
-        log.warning(f"[Ranking] period download failed: {e}")
+        log.warning(f"[Ranking] DB ranking failed: {e}")
         return []
 
     rows: List[Dict] = []
-    for item in (raw or []):
-        sym   = item.symbol if hasattr(item, 'symbol') else item['symbol']
-        price = item.price  if hasattr(item, 'price')  else item['price']
-        chg   = item.change_percent if hasattr(item, 'change_percent') else item['change_percent']
-        vol   = item.volume if hasattr(item, 'volume') else item['volume']
-        rows.append({
-            'stk_cd':      sym,
-            'stk_nm':      sym,
-            'curr':        'USD',
-            'sector':      '',
-            'close_price': price,
-            'change_rate': chg,
-            'volume':      vol,
-            'trade_value': vol * price,
-        })
+    for item in unwrap(raw) or []:
+        d = item.model_dump() if hasattr(item, 'model_dump') else dict(item)
+        d.setdefault('volume', 0)
+        d.setdefault('trade_value', 0.0)
+        rows.append(d)
     return rows
 
 
@@ -248,7 +270,9 @@ async def warmup_ranking_loop(interval: int = WARMUP_INTERVAL):
     """
     while True:
         try:
-            await RankingService.get_live_ranking(market='all', sort_by='gainers', limit=50)
+            # 요청 경로(SWR)와 달리, warmup은 실제 다운로드로 핫·스냅샷을 직접 갱신한다.
+            _, _, full_key = await _live_universe_keys('all')
+            await _batch_quotes(full_key)
             log.info("[Ranking] warmup refresh complete")
         except Exception as e:
             log.warning(f"[Ranking] warmup failed: {e}")

@@ -40,10 +40,15 @@ async def cached_quotes(
     ttl: int,
     period: str = '5d',
     mode: str = 'live',
+    snapshot_key: Optional[str] = None,
+    snapshot_ttl: int = 0,
 ) -> Dict[str, Dict]:
     """
     캐시 + single-flight + YFinanceBatchQuotesFetcher.
     동일 cache_key에 대한 동시 요청은 한 번의 다운로드만 수행하고 결과를 공유한다.
+
+    snapshot_key/snapshot_ttl을 주면, 다운로드 성공 시 핫 캐시(ttl)와 별도로
+    장기 스냅샷 키에도 같은 결과를 저장한다(stale-while-revalidate 폴백용).
     """
     from app.backend.core.cache import cache
 
@@ -82,6 +87,8 @@ async def cached_quotes(
 
         if result:
             await cache.set(cache_key, result, ttl)
+            if snapshot_key and snapshot_ttl > 0:
+                await cache.set(snapshot_key, result, snapshot_ttl)
         return result
 
 

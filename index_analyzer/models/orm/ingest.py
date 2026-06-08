@@ -19,7 +19,7 @@ IN Layer: 입수 (크롤러/수집기가 넣는 원본 데이터)
 """
 from datetime import datetime, date
 from sqlalchemy import (
-    Column, String, Text, Integer, DateTime, Date, Boolean,
+    Column, String, Text, Integer, BigInteger, DateTime, Date, Boolean,
     Index, UniqueConstraint, DECIMAL
 )
 from sqlalchemy.orm import relationship
@@ -171,6 +171,7 @@ class MBS_IN_STK_STBD(Base):
     curr = Column(String(10), default='USD')
     close_price = Column(DECIMAL(20, 4))
     change_rate = Column(DECIMAL(10, 4))
+    volume = Column(BigInteger)
     base_ymd = Column(Date, nullable=False, index=True)
     ingest_batch_id = Column(String(50), index=True)
 
@@ -191,6 +192,7 @@ class MBS_IN_STK_STBD(Base):
             'curr': self.curr,
             'close_price': float(self.close_price) if self.close_price else None,
             'change_rate': float(self.change_rate) if self.change_rate else None,
+            'volume': int(self.volume) if self.volume else None,
             'base_ymd': self.base_ymd.isoformat() if self.base_ymd else None
         }
 

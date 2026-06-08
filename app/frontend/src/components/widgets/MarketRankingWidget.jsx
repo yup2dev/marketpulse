@@ -10,7 +10,8 @@ import toast from 'react-hot-toast';
 const MARKET_OPTS  = [{ id:'all',label:'전체' },{ id:'domestic',label:'국내' },{ id:'overseas',label:'해외' }];
 const SORT_OPTS    = [{ id:'gainers',label:'급상승' },{ id:'losers',label:'급하락' },{ id:'trade_value',label:'거래대금' },{ id:'volume',label:'거래량' }];
 const PERIOD_OPTS  = [{ id:'realtime',label:'실시간' },{ id:'1d',label:'1일' },{ id:'1w',label:'1주일' },{ id:'1mo',label:'1개월' },{ id:'3mo',label:'3개월' },{ id:'6mo',label:'6개월' },{ id:'1y',label:'1년' }];
-const LIVE_PERIODS = new Set(['realtime','1d']);
+// realtime만 WebSocket 실시간. 1일~1년은 DB 정적 데이터(기간 등락률).
+const LIVE_PERIODS = new Set(['realtime']);
 
 // ── 포맷 헬퍼 ─────────────────────────────────────────────────────────────────
 
@@ -133,6 +134,7 @@ export default function MarketRankingWidget({ onRemove }) {
 
   const { quotes, subscribe, unsubscribe } = useQuoteSocket();
   const prevSymsRef = useRef([]);
+  const isLive = LIVE_PERIODS.has(period);   // realtime만 WebSocket
 
   useEffect(() => {
     watchlistAPI.getMyTickers().then(r => setFavorites(r.tickers||[])).catch(()=>{});
@@ -156,6 +158,14 @@ export default function MarketRankingWidget({ onRemove }) {
   useEffect(() => { fetchRanking(); }, [fetchRanking]);
 
   useEffect(() => {
+    // 기간 탭(DB 정적): 실시간 구독 전부 해제하고 종료.
+    if (!isLive) {
+      if (prevSymsRef.current.length) {
+        unsubscribe(prevSymsRef.current);
+        prevSymsRef.current = [];
+      }
+      return;
+    }
     const syms = baseRows.map(r=>(r.stk_cd||'').toUpperCase()).filter(Boolean);
     const prev = prevSymsRef.current;
     const toUnsub = prev.filter(s=>!syms.includes(s));
@@ -163,7 +173,7 @@ export default function MarketRankingWidget({ onRemove }) {
     if (toUnsub.length) unsubscribe(toUnsub);
     if (toSub.length)   subscribe(toSub);
     prevSymsRef.current = syms;
-  }, [baseRows, subscribe, unsubscribe]);
+  }, [baseRows, isLive, subscribe, unsubscribe]);
 
   const toggleFav = useCallback(async (sym) => {
     const isAdding = !favorites.includes(sym);
@@ -178,6 +188,8 @@ export default function MarketRankingWidget({ onRemove }) {
   }, [favorites]);
 
   const liveRows = useMemo(() => {
+    // 기간 탭: DB가 이미 정렬·계산한 정적 데이터를 그대로 사용 (WS 병합 없음).
+    if (!isLive) return baseRows;
     const merged = baseRows.map(r => {
       const sym = (r.stk_cd||'').toUpperCase();
       const q   = quotes[sym];
@@ -188,8 +200,8 @@ export default function MarketRankingWidget({ onRemove }) {
       return { ...r, close_price: price, change_rate: chg, volume: vol,
                trade_value: (vol!=null&&price!=null) ? vol*price : r.trade_value };
     });
-    return LIVE_PERIODS.has(period) ? sortRows(merged, sortBy) : merged;
-  }, [baseRows, quotes, sortBy, period]);
+    return sortRows(merged, sortBy);
+  }, [baseRows, quotes, sortBy, isLive]);
 
   // 현재 sort 기준에 맞는 우측 숫자 컬럼
   const metricLabel = sortBy === 'volume' ? '거래량' : '거래대금';

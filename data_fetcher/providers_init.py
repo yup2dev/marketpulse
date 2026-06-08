@@ -98,6 +98,7 @@ from data_fetcher.providers.social.sentiment import SocialSentimentFetcher
 try:
     from data_fetcher.providers.database.index_constituents import DBIndexConstituentsFetcher
     from data_fetcher.providers.database.stock_list import DBStockListFetcher
+    from data_fetcher.providers.database.stock_ranking import DBStockRankingFetcher
     _db_available = True
 except ImportError:
     _db_available = False
@@ -303,6 +304,7 @@ db_provider = Provider(
     fetcher_dict={
         "index_constituents": DBIndexConstituentsFetcher,
         "stock_list": DBStockListFetcher,
+        "stock_ranking": DBStockRankingFetcher,
     },
 ) if _db_available else None
 
