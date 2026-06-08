@@ -7,9 +7,10 @@
     "frontendDist": "../../app/frontend/dist",
     "devUrl": "http://localhost:5173",
     "beforeDevCommand": "cd ../app/frontend && npm run dev",
-    "beforeBuildCommand": "cd ../app/frontend && npm run build"
+    "beforeBuildCommand": "bash ../build/build_sidecar.sh && cd ../app/frontend && npm run build"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "title": "MarketPulse",
@@ -47,7 +48,7 @@
     "updater": {
       "active": true,
       "endpoints": [
-        "https://github.com/sangyeopKim/marketpulse/releases/latest/download/latest.json"
+        "https://github.com/yup2dev/marketpulse/releases/latest/download/latest.json"
       ],
       "dialog": false,
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEU4RkY0QjVCNjk5QUI5RDMKUldUVHVacHBXMHYvNkl2OEZQUHJjTDA3SUxOMmhsYVY3NjBPbmhHcnVsTEpzd1oxMWd4WjlrTTgK"

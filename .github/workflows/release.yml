@@ -10,8 +10,19 @@ permissions:
   contents: write   # GitHub Release 생성 권한
 
 jobs:
-  release-windows:
-    runs-on: windows-latest
+  release:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+            target_triple: x86_64-pc-windows-msvc
+            ext: .exe
+          - platform: macos-latest
+            target_triple: aarch64-apple-darwin
+            ext: ""
+
+    runs-on: ${{ matrix.platform }}
 
     steps:
       - uses: actions/checkout@v4
@@ -35,16 +46,23 @@ jobs:
         with:
           workspaces: desktop/src-tauri -> target
 
-      # ── Python 의존성 + Fetcher 빌드 ──────────────────────────────────────
+      # ── Python 의존성 + Fetcher sidecar 빌드 ──────────────────────────────
+      # MarketPulseFetcherSidecar.spec(onefile)을 사용해야 한다 — onedir 빌드의
+      # 실행파일만 추출하면 Frameworks/_internal 의존성이 빠져 구동되지 않는다
+      # ("Failed to load Python shared library"). build/build_sidecar.sh와 동일한
+      # 산출물 명명 규칙(<name>-<target-triple>[.exe])을 따른다.
       - name: Install Python dependencies
-        run: pip install -r requirements.txt pyinstaller
+        run: pip install -r requirements.txt pyinstaller pystray pillow
 
-      - name: Build fetcher exe (PyInstaller)
+      - name: Build fetcher sidecar (PyInstaller)
+        shell: bash
         run: |
-          pyinstaller build/MarketPulseFetcher.spec
-          New-Item -ItemType Directory -Force -Path "desktop/src-tauri/binaries"
-          Copy-Item "dist/MarketPulseFetcher.exe" `
-            "desktop/src-tauri/binaries/marketpulse-fetcher-x86_64-pc-windows-msvc.exe"
+          pyinstaller build/MarketPulseFetcherSidecar.spec --noconfirm
+          mkdir -p desktop/src-tauri/binaries
+          SRC="dist/marketpulse-fetcher-sidecar${{ matrix.ext }}"
+          DST="desktop/src-tauri/binaries/marketpulse-fetcher-${{ matrix.target_triple }}${{ matrix.ext }}"
+          cp "$SRC" "$DST"
+          chmod +x "$DST"
 
       # ── 프론트엔드는 Vercel에서 서빙 — Tauri가 번들하지 않으므로 빌드 불필요 ──
 
@@ -68,6 +86,7 @@ jobs:
 
             ### 설치
             - **Windows**: `MarketPulse_x.x.x_x64-setup.exe` 다운로드 후 실행
+            - **macOS (Apple Silicon)**: `MarketPulse_x.x.x_aarch64.dmg` 다운로드 후 실행
 
             ### 업데이트
             앱 실행 중 자동으로 최신 버전을 감지하고 업데이트합니다.

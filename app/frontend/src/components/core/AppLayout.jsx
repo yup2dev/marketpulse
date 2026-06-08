@@ -15,6 +15,7 @@ import ThemeToggle from '../common/ThemeToggle';
 import { GlobalWidgetContext } from '../../contexts/GlobalWidgetContext';
 import { WidgetSyncProvider } from '../../contexts/WidgetSyncContext';
 import CommandPalette from '../common/CommandPalette';
+import FetcherStatus from './FetcherStatus';
 
 // Menu path to URL route mapping
 const ROUTE_MAP = {
@@ -152,6 +153,7 @@ const AppLayout = () => {
                 <span className="text-xs hidden md:inline">Search…</span>
                 <kbd className="text-[10px] text-gray-600 border border-gray-700 rounded px-1 hidden md:inline">⌃K</kbd>
               </button>
+              <FetcherStatus />
               <ThemeToggle />
               <button className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors" style={{ color: 'var(--color-text-secondary)' }}>
                 <Settings size={16} />

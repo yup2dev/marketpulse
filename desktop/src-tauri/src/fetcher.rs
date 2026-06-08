@@ -14,8 +14,9 @@ pub fn start(app: AppHandle) {
         match app.shell().sidecar("marketpulse-fetcher") {
             Err(e) => log::error!("[fetcher] sidecar 실행 실패: {e}"),
             Ok(cmd) => {
+                // 트레이 모드(HEADLESS=0)로 기동 → 맥 상단 메뉴바에 Fetcher 아이콘 표시
                 match cmd
-                    .env("FETCHER_HEADLESS", "1")
+                    .env("FETCHER_HEADLESS", "0")
                     .spawn()
                 {
                     Err(e) => log::error!("[fetcher] spawn 실패: {e}"),
