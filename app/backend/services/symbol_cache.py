@@ -1,24 +1,19 @@
 """
 In-memory symbol cache for fast autocomplete.
 
-Loads the full stock list from FMP once at startup, refreshes daily.
-Search is pure in-memory prefix + substring matching — no API calls.
+DB 유니버스(stock_list_service.get_stock_list → MBS_IN_STBD_MST, KR+US 전체)에서
+종목 목록을 읽어 인메모리 인덱스를 구성한다. 검색은 순수 prefix/substring
+매칭 — 외부 API 호출 없음.
 """
-import asyncio
 import logging
-import os
-import json
 import time
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Dict, List
 
-import requests
+from app.backend.services._base import to_quote_symbol
 
 logger = logging.getLogger(__name__)
 
-_CACHE_FILE = Path(__file__).parent.parent.parent.parent / "data" / "symbol_cache.json"
-_FMP_BASE = "https://financialmodelingprep.com/stable"
-_REFRESH_INTERVAL = 86400  # 24h
+_REFRESH_INTERVAL = 3600  # stocks:all 캐시(1h TTL)와 동일 주기로 재로딩
 
 
 class SymbolCache:
@@ -46,156 +41,31 @@ class SymbolCache:
     async def load(self):
         self._loading = True
         try:
-            if self._load_from_file():
-                if not self.is_stale:
-                    logger.info(f"Symbol cache loaded from file: {len(self._symbols)} symbols")
-                    return
+            from app.backend.services.stock_list_service import get_stock_list
 
-            await self._fetch_from_api()
+            stocks = await get_stock_list()
+            symbols = [
+                {
+                    "symbol":   to_quote_symbol(s["ticker_cd"], s.get("exchange"), s.get("curr")),
+                    "name":     s.get("ticker_nm") or s["ticker_cd"],
+                    "exchange": s.get("exchange") or "",
+                    "currency": s.get("curr") or "USD",
+                    "type":     s.get("asset_type") or "stock",
+                }
+                for s in stocks
+                if s.get("ticker_cd")
+            ]
+            if symbols:
+                self._symbols = symbols
+                self._loaded_at = time.time()
+                self._build_index()
+                logger.info(f"Symbol cache loaded from DB universe: {len(symbols)} symbols")
+            else:
+                logger.warning("Symbol cache: DB universe returned no symbols")
         except Exception as e:
-            logger.error(f"Failed to load symbol cache: {e}")
-            if not self.is_loaded:
-                self._load_from_file()
+            logger.error(f"Failed to load symbol cache from DB universe: {e}")
         finally:
             self._loading = False
-
-    def _load_from_file(self) -> bool:
-        try:
-            if _CACHE_FILE.exists():
-                data = json.loads(_CACHE_FILE.read_text(encoding="utf-8"))
-                self._symbols = data.get("symbols", [])
-                self._loaded_at = data.get("loaded_at", 0)
-                self._build_index()
-                return len(self._symbols) > 0
-        except Exception as e:
-            logger.warning(f"Failed to read cache file: {e}")
-        return False
-
-    def _save_to_file(self):
-        try:
-            _CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
-            payload = {
-                "loaded_at": self._loaded_at,
-                "count": len(self._symbols),
-                "symbols": self._symbols,
-            }
-            _CACHE_FILE.write_text(
-                json.dumps(payload, ensure_ascii=False),
-                encoding="utf-8",
-            )
-            logger.info(f"Symbol cache saved: {len(self._symbols)} symbols")
-        except Exception as e:
-            logger.warning(f"Failed to save cache file: {e}")
-
-    # 무료 플랜에서 stock-list 대신 사용할 기본 심볼 시드 (fallback)
-    _SEED_SYMBOLS = [
-        {"symbol": "AAPL",  "name": "Apple Inc.",               "exchange": "NASDAQ", "type": "stock"},
-        {"symbol": "MSFT",  "name": "Microsoft Corporation",    "exchange": "NASDAQ", "type": "stock"},
-        {"symbol": "NVDA",  "name": "NVIDIA Corporation",       "exchange": "NASDAQ", "type": "stock"},
-        {"symbol": "GOOGL", "name": "Alphabet Inc.",            "exchange": "NASDAQ", "type": "stock"},
-        {"symbol": "GOOG",  "name": "Alphabet Inc. Class C",    "exchange": "NASDAQ", "type": "stock"},
-        {"symbol": "AMZN",  "name": "Amazon.com Inc.",          "exchange": "NASDAQ", "type": "stock"},
-        {"symbol": "META",  "name": "Meta Platforms Inc.",      "exchange": "NASDAQ", "type": "stock"},
-        {"symbol": "TSLA",  "name": "Tesla Inc.",               "exchange": "NASDAQ", "type": "stock"},
-        {"symbol": "BRK.B", "name": "Berkshire Hathaway Inc.",  "exchange": "NYSE",   "type": "stock"},
-        {"symbol": "JPM",   "name": "JPMorgan Chase & Co.",     "exchange": "NYSE",   "type": "stock"},
-        {"symbol": "V",     "name": "Visa Inc.",                "exchange": "NYSE",   "type": "stock"},
-        {"symbol": "MA",    "name": "Mastercard Inc.",          "exchange": "NYSE",   "type": "stock"},
-        {"symbol": "JNJ",   "name": "Johnson & Johnson",        "exchange": "NYSE",   "type": "stock"},
-        {"symbol": "XOM",   "name": "Exxon Mobil Corporation",  "exchange": "NYSE",   "type": "stock"},
-        {"symbol": "UNH",   "name": "UnitedHealth Group Inc.",  "exchange": "NYSE",   "type": "stock"},
-        {"symbol": "WMT",   "name": "Walmart Inc.",             "exchange": "NYSE",   "type": "stock"},
-        {"symbol": "LLY",   "name": "Eli Lilly and Company",    "exchange": "NYSE",   "type": "stock"},
-        {"symbol": "AVGO",  "name": "Broadcom Inc.",            "exchange": "NASDAQ", "type": "stock"},
-        {"symbol": "AMD",   "name": "Advanced Micro Devices",   "exchange": "NASDAQ", "type": "stock"},
-        {"symbol": "ORCL",  "name": "Oracle Corporation",       "exchange": "NYSE",   "type": "stock"},
-        {"symbol": "INTC",  "name": "Intel Corporation",        "exchange": "NASDAQ", "type": "stock"},
-        {"symbol": "CRM",   "name": "Salesforce Inc.",          "exchange": "NYSE",   "type": "stock"},
-        {"symbol": "NFLX",  "name": "Netflix Inc.",             "exchange": "NASDAQ", "type": "stock"},
-        {"symbol": "ADBE",  "name": "Adobe Inc.",               "exchange": "NASDAQ", "type": "stock"},
-        {"symbol": "QCOM",  "name": "QUALCOMM Inc.",            "exchange": "NASDAQ", "type": "stock"},
-        {"symbol": "TXN",   "name": "Texas Instruments Inc.",   "exchange": "NASDAQ", "type": "stock"},
-        {"symbol": "PYPL",  "name": "PayPal Holdings Inc.",     "exchange": "NASDAQ", "type": "stock"},
-        {"symbol": "COST",  "name": "Costco Wholesale Corp.",   "exchange": "NASDAQ", "type": "stock"},
-        {"symbol": "PEP",   "name": "PepsiCo Inc.",             "exchange": "NASDAQ", "type": "stock"},
-        {"symbol": "KO",    "name": "The Coca-Cola Company",    "exchange": "NYSE",   "type": "stock"},
-        {"symbol": "PG",    "name": "Procter & Gamble Co.",     "exchange": "NYSE",   "type": "stock"},
-        {"symbol": "BAC",   "name": "Bank of America Corp.",    "exchange": "NYSE",   "type": "stock"},
-        {"symbol": "GS",    "name": "Goldman Sachs Group Inc.", "exchange": "NYSE",   "type": "stock"},
-        {"symbol": "MS",    "name": "Morgan Stanley",           "exchange": "NYSE",   "type": "stock"},
-        {"symbol": "CVX",   "name": "Chevron Corporation",      "exchange": "NYSE",   "type": "stock"},
-        {"symbol": "HD",    "name": "The Home Depot Inc.",      "exchange": "NYSE",   "type": "stock"},
-        {"symbol": "DIS",   "name": "The Walt Disney Company",  "exchange": "NYSE",   "type": "stock"},
-        {"symbol": "UBER",  "name": "Uber Technologies Inc.",   "exchange": "NYSE",   "type": "stock"},
-        {"symbol": "SPOT",  "name": "Spotify Technology S.A.", "exchange": "NYSE",   "type": "stock"},
-        {"symbol": "SHOP",  "name": "Shopify Inc.",             "exchange": "NYSE",   "type": "stock"},
-        {"symbol": "SQ",    "name": "Block Inc.",               "exchange": "NYSE",   "type": "stock"},
-        {"symbol": "PLTR",  "name": "Palantir Technologies",    "exchange": "NYSE",   "type": "stock"},
-        {"symbol": "ARM",   "name": "Arm Holdings plc",         "exchange": "NASDAQ", "type": "stock"},
-        {"symbol": "SMCI",  "name": "Super Micro Computer",     "exchange": "NASDAQ", "type": "stock"},
-        {"symbol": "SPY",   "name": "SPDR S&P 500 ETF Trust",  "exchange": "NYSE",   "type": "etf"},
-        {"symbol": "QQQ",   "name": "Invesco QQQ Trust",        "exchange": "NASDAQ", "type": "etf"},
-        {"symbol": "IWM",   "name": "iShares Russell 2000 ETF", "exchange": "NYSE",   "type": "etf"},
-        {"symbol": "GLD",   "name": "SPDR Gold Shares",         "exchange": "NYSE",   "type": "etf"},
-        {"symbol": "TLT",   "name": "iShares 20+ Year Treasury","exchange": "NASDAQ", "type": "etf"},
-        {"symbol": "VIX",   "name": "CBOE Volatility Index",    "exchange": "INDEX",  "type": "index"},
-    ]
-
-    async def _fetch_from_api(self):
-        api_key = os.environ.get("FMP_API_KEY", "")
-        if not api_key:
-            logger.warning("FMP_API_KEY not set — using seed symbol list for autocomplete")
-            self._use_seed_fallback()
-            return
-
-        def _do_fetch():
-            url = f"{_FMP_BASE}/stock-list"
-            resp = requests.get(url, params={"apikey": api_key}, timeout=60)
-            resp.raise_for_status()
-            return resp.json()
-
-        try:
-            raw = await asyncio.get_event_loop().run_in_executor(None, _do_fetch)
-        except Exception as e:
-            logger.warning(
-                f"FMP stock-list unavailable ({e}) — "
-                "free tier may not include this endpoint; using seed symbol list"
-            )
-            self._use_seed_fallback()
-            return
-
-        if not isinstance(raw, list):
-            logger.warning(f"Unexpected FMP stock-list response: {type(raw)} — using seed fallback")
-            self._use_seed_fallback()
-            return
-
-        symbols = []
-        for item in raw:
-            symbol = item.get("symbol", "")
-            name = item.get("name", "")
-            if not symbol:
-                continue
-            symbols.append({
-                "symbol": symbol,
-                "name": name,
-                "exchange": item.get("exchangeShortName", "") or item.get("exchange", ""),
-                "type": item.get("type", ""),
-            })
-
-        if symbols:
-            self._symbols = symbols
-            self._loaded_at = time.time()
-            self._build_index()
-            self._save_to_file()
-            logger.info(f"Symbol cache refreshed from API: {len(symbols)} symbols")
-
-    def _use_seed_fallback(self):
-        """API를 사용할 수 없을 때 정적 시드 리스트로 캐시를 채웁니다."""
-        if not self.is_loaded:
-            self._symbols = list(self._SEED_SYMBOLS)
-            self._loaded_at = time.time()
-            self._build_index()
-            logger.info(f"Symbol cache seeded with {len(self._symbols)} fallback symbols")
 
     def _build_index(self):
         self._by_symbol = {s["symbol"].upper(): s for s in self._symbols}

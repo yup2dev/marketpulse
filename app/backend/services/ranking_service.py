@@ -8,7 +8,7 @@ import logging
 from typing import List, Dict, Any
 
 from app.backend.core.cache import cached
-from app.backend.services._base import cached_quotes
+from app.backend.services._base import cached_quotes, to_quote_symbol
 from data_fetcher.query_executor import QueryExecutor
 
 log = logging.getLogger(__name__)
@@ -46,7 +46,7 @@ async def _load_universe() -> List[Dict[str, str]]:
         stocks = await get_stock_list()
         result = [
             {
-                'stk_cd': s['ticker_cd'],
+                'stk_cd': to_quote_symbol(s['ticker_cd'], s.get('exchange'), s.get('curr')),
                 'stk_nm': s.get('ticker_nm') or s['ticker_cd'],
                 'curr':   s.get('curr') or 'USD',
                 'sector': s.get('sector') or '',

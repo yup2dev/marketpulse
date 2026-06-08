@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy.orm import Session
 
 from app.backend.core.cache import cached
-from app.backend.services._base import cached_quotes
+from app.backend.services._base import cached_quotes, to_quote_symbol
 
 log = logging.getLogger(__name__)
 
@@ -87,10 +87,12 @@ async def _load_screener_universe() -> List[Dict]:
         profiles, metrics = {}, {}
 
     # 3. 조인 — 캐시 base에 profile/metrics 병합
+    # (DB 조인은 원시 코드 기준, 출력 stk_cd만 시세 조회용으로 정규화 — KR: 005930 → 005930.KS)
     result = []
-    for stk_cd, b in base.items():
-        p = profiles.get(stk_cd)
-        m = metrics.get(stk_cd)
+    for raw_cd, b in base.items():
+        p = profiles.get(raw_cd)
+        m = metrics.get(raw_cd)
+        stk_cd = to_quote_symbol(raw_cd, b['exchange'], b['curr'])
         result.append({
             'stk_cd':          stk_cd,
             'stk_nm':          (p.stk_nm if p else b['stk_nm']) or stk_cd,

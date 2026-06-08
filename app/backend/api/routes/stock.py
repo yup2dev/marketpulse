@@ -255,68 +255,15 @@ async def get_stock_orderbook(symbol: str, provider: str = "polygon") -> OBBject
 @route_handler
 async def search_stocks(
     query: str = "",
-    provider: str = "fmp",
     limit: int = 12,
 ) -> OBBject:
+    """종목 자동완성 — DB 유니버스(KR+US 전체) 기반 인메모리 검색. 외부 API 호출 없음."""
     from app.backend.services.symbol_cache import get_symbol_cache
 
-    # 1. 인메모리 심볼 캐시 (빠름)
     cache = get_symbol_cache()
     await cache.ensure_loaded()
-    if cache.is_loaded:
-        hits = cache.search(query.upper(), limit=limit)
-        if hits:
-            return OBBject(results=hits, provider="cache")
-
-    # 2. FMP search API
-    try:
-        raw = await QueryExecutor.fetch("fmp", "search", {"query": query.upper(), "limit": limit})
-        items = _unwrap(raw)
-        if items:
-            results = [
-                {
-                    "symbol":   r.symbol,
-                    "name":     r.name,
-                    "exchange": r.exchange_short_name or r.stock_exchange,
-                    "currency": r.currency,
-                }
-                if hasattr(r, "symbol") else r
-                for r in items
-            ]
-            return OBBject(results=results, provider=provider)
-    except Exception:
-        pass
-
-    # 3. yfinance Search (FMP 실패 시 무료 fallback)
-    try:
-        import asyncio
-        import yfinance as yf
-
-        def _yf_search():
-            r = yf.Search(query, max_results=limit, enable_fuzzy_query=True)
-            return r.quotes or []
-
-        quotes = await asyncio.to_thread(_yf_search)
-        if quotes:
-            _EXCHDISP_MAP = {"NASDAQ": "NASDAQ", "NYSE": "NYSE", "NMS": "NASDAQ", "NYQ": "NYSE",
-                             "KSC": "KOSPI", "KOE": "KOSDAQ"}
-            results = [
-                {
-                    "symbol":   q.get("symbol", ""),
-                    "name":     q.get("longname") or q.get("shortname", ""),
-                    "exchange": _EXCHDISP_MAP.get(q.get("exchange", ""), q.get("exchDisp", "")),
-                    "currency": q.get("currency", ""),
-                }
-                for q in quotes
-                if q.get("symbol")
-            ]
-            return OBBject(results=results, provider="yahoo")
-    except Exception:
-        pass
-
-    # 4. symbol_cache 최종 폴백
     hits = cache.search(query.upper(), limit=limit)
-    return OBBject(results=hits, provider="cache")
+    return OBBject(results=hits, provider="db")
 
 
 @router.get("/relations/{symbol}")

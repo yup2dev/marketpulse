@@ -17,6 +17,23 @@ log = logging.getLogger(__name__)
 _quote_locks: Dict[str, asyncio.Lock] = {}
 
 
+_KR_SUFFIX = {'KOSPI': '.KS', 'KOSDAQ': '.KQ'}
+
+
+def to_quote_symbol(ticker_cd: str, exchange: str = '', curr: str = '') -> str:
+    """DB의 원시 종목코드를 시세 조회(yfinance) 표준 심볼로 정규화.
+
+    KR 종목은 DB에 접미사 없는 숫자 코드(예: '279570')로 저장되지만, yfinance는
+    거래소별 접미사(.KS=KOSPI, .KQ=KOSDAQ)가 있어야 시세를 반환한다.
+    """
+    code = (ticker_cd or '').strip()
+    if not code or '.' in code:
+        return code
+    if curr == 'KRW' or (exchange or '').upper() in _KR_SUFFIX:
+        return code + _KR_SUFFIX.get((exchange or '').upper(), '.KS')
+    return code
+
+
 async def cached_quotes(
     cache_key: str,
     symbols: List[str],

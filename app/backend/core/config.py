@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     FETCHER_REMOTE_ENABLED: bool = True              # True면 모든 조회를 Fetcher로 위임
     FETCHER_URL: str = "http://127.0.0.1:8765"        # Fetcher REST 주소
     FETCHER_TOKEN: str = ""                            # (선택) Bearer 인증 토큰
-    FETCHER_TIMEOUT: float = 30.0
+    FETCHER_TIMEOUT: float = 90.0   # batch_quotes 등 수백 종목 일괄 조회는 30s를 초과할 수 있음
 
     # Crawler
     CRAWLER_MAX_WORKERS: int = 5
