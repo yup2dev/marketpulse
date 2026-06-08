@@ -28,7 +28,9 @@ fn main() {
             // 3️⃣ 트레이 메뉴 설정
             let open_item = MenuItemBuilder::with_id("open", "Open MarketPulse").build(app)
                 .expect("failed to build open menu item");
-            let fetcher_status = MenuItemBuilder::with_id("fetcher_status", "🟢 Fetcher Running").build(app)
+            let fetcher_status = MenuItemBuilder::with_id("fetcher_status", "🟢 Fetcher Running")
+                .enabled(false)  // 읽기 전용 (클릭 불가)
+                .build(app)
                 .expect("failed to build fetcher status menu item");
             let check_update_item = MenuItemBuilder::with_id("check_update", "Check for Updates").build(app)
                 .expect("failed to build check update menu item");
@@ -55,18 +57,6 @@ fn main() {
                                 let _ = win.set_focus();
                             }
                         }
-                        "fetcher_status" => {
-                            tauri::async_runtime::spawn(async move {
-                                if check_fetcher_health().await.is_ok() {
-                                    log::info!("✅ Fetcher 정상 작동 중 (http://127.0.0.1:8765)");
-                                } else {
-                                    log::warn!("⚠️ Fetcher 연결 실패, 재시작 시도...");
-                                    if let Err(e) = start_fetcher_via_api().await {
-                                        log::error!("Fetcher 재시작 실패: {e}");
-                                    }
-                                }
-                            });
-                        }
                         "check_update" => {
                             let app_handle = app.clone();
                             tauri::async_runtime::spawn(async move {
@@ -85,20 +75,6 @@ fn main() {
                 .build(app)
                 .expect("failed to create tray icon");
 
-            // Fetcher 자동 모니터링 (5분마다 확인)
-            let monitor_handle = handle.clone();
-            tauri::async_runtime::spawn(async move {
-                loop {
-                    tokio::time::sleep(Duration::from_secs(300)).await;
-
-                    if check_fetcher_health().await.is_err() {
-                        log::warn!("🔴 Fetcher 오프라인, 자동 재시작 시도");
-                        if let Err(e) = start_fetcher_via_api().await {
-                            log::error!("자동 재시작 실패: {e}");
-                        }
-                    }
-                }
-            });
 
             // 4️⃣ 자동 업데이트 체크 (앱 시작 후 5초, 그 다음 매 1시간)
             let updater_handle = handle.clone();
