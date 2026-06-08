@@ -15,12 +15,6 @@ const _clearStorage = () => {
   localStorage.removeItem('user');
 };
 
-const _redirectToLogin = () => {
-  if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
-    window.location.replace('/login');
-  }
-};
-
 // JWT payload를 파싱해 만료 여부를 반환 (서명 검증 없음 — 서버 검증은 별도로 수행)
 const _isJwtExpired = (token) => {
   try {
@@ -36,7 +30,6 @@ const useAuthStore = create((set, get) => {
   setForceLogoutCallback(() => {
     _clearStorage();
     set({ user: null, accessToken: null, refreshToken: null, isAuthenticated: false, isInitializing: false });
-    _redirectToLogin();
   });
 
   return {
@@ -68,7 +61,6 @@ const useAuthStore = create((set, get) => {
           // 양쪽 토큰 모두 만료 → 바로 로그아웃
           _clearStorage();
           set({ isAuthenticated: false, isInitializing: false, user: null });
-          _redirectToLogin();
           return;
         }
 
@@ -77,7 +69,6 @@ const useAuthStore = create((set, get) => {
         if (!refreshed) {
           _clearStorage();
           set({ isAuthenticated: false, isInitializing: false, user: null });
-          _redirectToLogin();
           return;
         }
       }
@@ -103,7 +94,6 @@ const useAuthStore = create((set, get) => {
           // 토큰이 남아 있지만 만료됨 → 로그아웃
           _clearStorage();
           set({ isAuthenticated: false, isInitializing: false, user: null });
-          _redirectToLogin();
         } else {
           // 서버 다운 등 네트워크 오류 + 토큰이 아직 유효 → 오프라인 허용
           set({ isAuthenticated: true, isInitializing: false });

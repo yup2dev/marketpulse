@@ -11,6 +11,9 @@ let _forceLogout = null;
 export function setForceLogoutCallback(fn) {
   _forceLogout = fn;
 }
+export function getForceLogout() {
+  return _forceLogout;
+}
 
 // ─── API Client ───────────────────────────────────────────────────────────────
 class ApiClient {

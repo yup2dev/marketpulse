@@ -2,7 +2,7 @@
 /// - 앱 시작 시 sidecar 바이너리(marketpulse-fetcher) 실행
 /// - 앱 종료 시 자동 kill
 
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 use tauri::AppHandle;
 use tauri_plugin_shell::ShellExt;
 use tauri_plugin_shell::process::CommandEvent;

@@ -4,9 +4,10 @@
   "version": "0.1.0",
   "identifier": "com.marketpulse.desktop",
   "build": {
-    "frontendDist": "https://frontend-yup2devs-projects.vercel.app",
+    "frontendDist": "../../app/frontend/dist",
     "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "cd ../app/frontend && npm run dev"
+    "beforeDevCommand": "cd ../app/frontend && npm run dev",
+    "beforeBuildCommand": "cd ../app/frontend && npm run build"
   },
   "app": {
     "windows": [
@@ -44,10 +45,11 @@
   },
   "plugins": {
     "updater": {
+      "active": true,
       "endpoints": [
         "https://github.com/sangyeopKim/marketpulse/releases/latest/download/latest.json"
       ],
-      "dialog": true,
+      "dialog": false,
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEU4RkY0QjVCNjk5QUI5RDMKUldUVHVacHBXMHYvNkl2OEZQUHJjTDA3SUxOMmhsYVY3NjBPbmhHcnVsTEpzd1oxMWd4WjlrTTgK"
     },
     "shell": {
