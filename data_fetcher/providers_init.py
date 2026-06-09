@@ -106,6 +106,13 @@ except ImportError:
 from data_fetcher.providers.nasdaqtrader.listing import NasdaqTraderListingFetcher
 from data_fetcher.providers.krx.listing import KRXListingFetcher
 from data_fetcher.providers.krx.bond import KRXBondFetcher
+
+# KIS(한국투자증권) — httpx만 있으면 동작. import 실패 시 조용히 스킵.
+try:
+    from data_fetcher.providers.kis.ranking import KISRankingFetcher
+    _kis_available = True
+except ImportError:
+    _kis_available = False
 from data_fetcher.providers.whalewisdom.institutional_holdings import WhaleWisdomFetcher
 from data_fetcher.providers.whalewisdom.institutions_list import InstitutionsListFetcher
 
@@ -408,6 +415,23 @@ quantitative_provider = Provider(
 ) if _quantitative_available else None
 
 
+# ==================== KIS Provider ====================
+
+kis_provider = Provider(
+    name="kis",
+    description="한국투자증권(KIS) Open API — 국내주식 실시간 순위",
+    website="https://apiportal.koreainvestment.com",
+    credentials=["appkey", "appsecret"],
+    fetcher_dict={
+        "ranking": KISRankingFetcher,
+    },
+    metadata={
+        "rate_limit": "초당 약 20건 (실전)",
+        "data_coverage": "KR KOSPI/KOSDAQ 등락률·거래량·거래대금 순위",
+    },
+) if _kis_available else None
+
+
 # ==================== Provider Registration ====================
 
 def register_all_providers():
@@ -422,6 +446,8 @@ def register_all_providers():
         ProviderRegistry.register(db_provider)
     ProviderRegistry.register(nasdaqtrader_provider)
     ProviderRegistry.register(krx_provider)
+    if kis_provider is not None:
+        ProviderRegistry.register(kis_provider)
     ProviderRegistry.register(whalewisdom_provider)
     ProviderRegistry.register(sec_provider)
     if quantlib_provider is not None:

@@ -14,6 +14,7 @@ _PROVIDER_META: Dict[str, Dict[str, Any]] = {
     "polygon":      {"name": "Polygon",         "requires_key": True,  "env_vars": ["POLYGON_API_KEY"]},
     "alphavantage": {"name": "Alpha Vantage",   "requires_key": True,  "env_vars": ["ALPHA_VANTAGE_API_KEY"]},
     "whalewisdom":  {"name": "WhaleWisdom",     "requires_key": True,  "env_vars": ["WHALEWISDOM_API_KEY"]},
+    "kis":          {"name": "한국투자증권(KIS)", "requires_key": True,  "env_vars": ["KIS_APPKEY", "KIS_APPSECRET"]},
     "sec":          {"name": "SEC EDGAR",       "requires_key": False, "env_vars": []},
     "database":     {"name": "Local Database",  "requires_key": False, "env_vars": []},
     "social":       {"name": "Social Sentiment","requires_key": False, "env_vars": []},

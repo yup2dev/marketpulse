@@ -155,7 +155,14 @@ const AppLayout = () => {
               </button>
               <FetcherStatus />
               <ThemeToggle />
-              <button className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors" style={{ color: 'var(--color-text-secondary)' }}>
+              <button
+                onClick={() => navigate('/settings')}
+                title="API 키 설정"
+                className={`p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors ${
+                  location.pathname === '/settings' ? 'text-cyan-400' : ''
+                }`}
+                style={location.pathname === '/settings' ? {} : { color: 'var(--color-text-secondary)' }}
+              >
                 <Settings size={16} />
               </button>
               <div className="flex items-center gap-1.5 ml-2 pl-3 border-l dark:border-gray-800 border-gray-200">

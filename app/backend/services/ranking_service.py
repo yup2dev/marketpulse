@@ -5,7 +5,7 @@ YFinanceBatchQuotesFetcher → QueryExecutor 기반 실시간 랭킹.
 """
 import asyncio
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from app.backend.core.cache import cached
 from app.backend.services._base import cached_quotes, to_quote_symbol, unwrap
@@ -155,6 +155,34 @@ async def get_live_quotes_subset(symbols: List[str]) -> Dict[str, Dict]:
     return subset
 
 
+# ── 국내(KRW) 순위 — 한국투자증권(KIS) ──────────────────────────────────────────
+
+@cached(ttl=10)
+async def _kis_domestic_ranking(sort_by: str, limit: int) -> Optional[List[Dict[str, Any]]]:
+    """국내(KRW) 실시간/1일 순위를 KIS 서버 정렬로 조회 (10s 캐시).
+
+    QueryExecutor 'kis' provider 경유 → 배포 환경에선 RemoteTransport가 Fetcher(exe)로
+    위임하고, Fetcher가 보유한 KIS 자격증명(appkey/appsecret)으로 실제 호출한다.
+    자격증명 미등록·호출 실패 시 None을 반환해 호출부가 기존 경로(yfinance/DB)로 폴백한다.
+    """
+    try:
+        raw = await QueryExecutor.fetch(
+            provider='kis',
+            model='ranking',
+            params={'sort_by': sort_by, 'market': 'domestic', 'limit': limit},
+        )
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:
+        log.warning("[Ranking] KIS domestic ranking failed: %s — fallback", e)
+        return None
+
+    rows: List[Dict[str, Any]] = []
+    for item in unwrap(raw) or []:
+        rows.append(item.model_dump() if hasattr(item, 'model_dump') else dict(item))
+    return rows or None
+
+
 # ── RankingService ─────────────────────────────────────────────────────────────
 
 class RankingService:
@@ -165,6 +193,12 @@ class RankingService:
         sort_by: str = 'gainers',
         limit:   int = 50,
     ) -> List[Dict[str, Any]]:
+        # 국내(KRW) 실시간 순위는 KIS 서버 정렬을 사용 (실패 시 아래 yfinance로 폴백).
+        if market == 'domestic':
+            kis = await _kis_domestic_ranking(sort_by, limit)
+            if kis is not None:
+                return RankingService._sort_rows(kis, sort_by)[:limit]
+
         meta, _, full_key = await _live_universe_keys(market)
         if not meta:
             return []
@@ -197,8 +231,15 @@ class RankingService:
         """기간별 랭킹.
 
         realtime → 라이브(Redis SWR + WebSocket) 경로.
+        국내(domestic) realtime·1d → KIS 서버 정렬(실패 시 아래 경로로 폴백).
         1d~1y    → DB(mbs_in_stk_stbd 일별 시계열)에서 계산. 외부 API 호출 없음.
         """
+        # 국내 실시간/1일은 한국투자증권(KIS)으로 조회.
+        if market == 'domestic' and period in ('realtime', '1d'):
+            kis = await _kis_domestic_ranking(sort_by, limit)
+            if kis is not None:
+                return RankingService._sort_rows(kis, sort_by)[:limit]
+
         if period == 'realtime':
             return await RankingService.get_live_ranking(market, sort_by, limit)
 

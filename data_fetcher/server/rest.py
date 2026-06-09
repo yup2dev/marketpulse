@@ -39,7 +39,8 @@ class FetchRequest(BaseModel):
 
 class KeyRequest(BaseModel):
     provider: str
-    api_key: str
+    api_key: Optional[str] = None              # 단일 키 provider (fmp/polygon/…)
+    fields: Optional[Dict[str, str]] = None    # 다중 필드 provider (kis: appkey/appsecret)
 
 
 def create_app(
@@ -117,9 +118,15 @@ def create_app(
 
     @app.post("/keys")
     async def set_key(req: KeyRequest) -> Dict[str, str]:
-        if not req.api_key.strip():
-            raise HTTPException(status_code=400, detail="api_key is empty")
-        keystore.set(req.provider, req.api_key.strip())
+        if req.fields:
+            cleaned = {k: v.strip() for k, v in req.fields.items() if v and v.strip()}
+            if not cleaned:
+                raise HTTPException(status_code=400, detail="fields are empty")
+            keystore.set_fields(req.provider, cleaned)
+        else:
+            if not (req.api_key and req.api_key.strip()):
+                raise HTTPException(status_code=400, detail="api_key is empty")
+            keystore.set(req.provider, req.api_key.strip())
         return {"status": "ok", "provider": req.provider.lower()}
 
     @app.delete("/keys/{provider}")

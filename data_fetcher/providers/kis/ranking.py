@@ -19,6 +19,9 @@ import logging
 import os
 from typing import Any, Dict, List, Optional
 
+from pydantic import BaseModel
+
+from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
 from data_fetcher.providers.kis.rest import kis_get
 
 log = logging.getLogger(__name__)
@@ -137,3 +140,55 @@ def _normalize(o: Dict[str, Any]) -> Dict[str, Any]:
         "volume": vol,
         "trade_value": tval,
     }
+
+
+# ── QueryExecutor provider 진입점 ───────────────────────────────────────────────
+# 백엔드(WebServer)는 RemoteTransport로 'kis' 조회를 Fetcher(exe)에 위임하고,
+# Fetcher가 보유한 자격증명(appkey/appsecret)으로 실제 KIS REST를 호출한다.
+
+class KISRankingQueryParams(BaseModel):
+    sort_by: str = "gainers"   # gainers | losers | volume | trade_value
+    market: str = "domestic"   # all | domestic | kospi | kosdaq
+    limit: int = 50
+
+
+class KISRankingData(BaseModel):
+    stk_cd: str
+    stk_nm: str
+    curr: str = "KRW"
+    sector: str = ""
+    close_price: float = 0.0
+    change_rate: float = 0.0
+    volume: int = 0
+    trade_value: float = 0.0
+
+
+class KISRankingFetcher(Fetcher[KISRankingQueryParams, KISRankingData]):
+    """fetch_kis_ranking 래핑. 자격증명은 QueryExecutor가 env(API_ENV_MAPPING['KIS'])
+    에서 {appkey, appsecret}로 로드해 전달한다."""
+
+    @staticmethod
+    def transform_query(params: Dict[str, Any]) -> KISRankingQueryParams:
+        return KISRankingQueryParams(**params)
+
+    @staticmethod
+    async def aextract_data(
+        query: KISRankingQueryParams,
+        credentials: Optional[Dict[str, str]] = None,
+        **kwargs: Any,
+    ) -> List[Dict[str, Any]]:
+        return await fetch_kis_ranking(
+            sort_by=query.sort_by,
+            market=query.market,
+            limit=query.limit,
+            env=os.getenv("KIS_ENV", "real"),
+            credentials=credentials,
+        )
+
+    @staticmethod
+    def transform_data(
+        query: KISRankingQueryParams,
+        data: List[Dict[str, Any]],
+        **kwargs: Any,
+    ) -> List[KISRankingData]:
+        return [KISRankingData(**row) for row in (data or [])]
