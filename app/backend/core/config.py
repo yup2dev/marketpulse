@@ -1,8 +1,9 @@
 """
 Application settings via pydantic-settings
 """
-from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import List, Optional
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+from typing import Annotated, List, Optional
 
 
 class Settings(BaseSettings):
@@ -26,12 +27,19 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     # CORS — comma-separated in env: CORS_ORIGINS=https://example.com,http://localhost:5173
-    CORS_ORIGINS: List[str] = [
+    CORS_ORIGINS: Annotated[List[str], NoDecode] = [
         "http://localhost:5173",
         "http://localhost:5174",
         "http://localhost:5175",
         "http://localhost:3000",
     ]
+
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
+    def _split_cors_origins(cls, v):
+        if isinstance(v, str):
+            return [origin.strip() for origin in v.split(",") if origin.strip()]
+        return v
 
     # Database
     SQLITE_PATH: str = "data/marketpulse.db"
