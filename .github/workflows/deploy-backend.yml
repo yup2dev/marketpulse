@@ -14,6 +14,8 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      SERVER_HOST: ${{ secrets.SERVER_HOST }}
 
     steps:
       - uses: actions/checkout@v4
@@ -37,7 +39,7 @@ jobs:
       # ── 서버에 SSH 접속해서 docker pull + restart ─────────────────────────
       # Railway 사용 시: 이 step 삭제하고 Railway의 자동 배포 사용
       - name: Deploy to server via SSH
-        if: ${{ secrets.SERVER_HOST != '' }}
+        if: ${{ env.SERVER_HOST != '' }}
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SERVER_HOST }}
