@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
+        env_ignore_empty=True,
         extra="ignore",
         case_sensitive=False,
     )
@@ -19,13 +20,18 @@ class Settings(BaseSettings):
     DEBUG: bool = False
 
     # Security
-    SECRET_KEY: str = "change-me-in-production"
+    SECRET_KEY: str = "dev-only-key-override-in-env"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
-    # CORS
-    CORS_ORIGINS: List[str] = ["http://localhost:5173"]
+    # CORS — comma-separated in env: CORS_ORIGINS=https://example.com,http://localhost:5173
+    CORS_ORIGINS: List[str] = [
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:5175",
+        "http://localhost:3000",
+    ]
 
     # Database
     SQLITE_PATH: str = "data/marketpulse.db"
@@ -34,6 +40,12 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
     QUEUE_ENABLED: bool = False
     SCHEDULER_ENABLED: bool = False
+
+    # Fetcher(exe) 위임 — Backend가 provider를 직접 호출하지 않고 로컬 Fetcher REST로 위임
+    FETCHER_REMOTE_ENABLED: bool = True              # True면 모든 조회를 Fetcher로 위임
+    FETCHER_URL: str = "http://127.0.0.1:8765"        # Fetcher REST 주소
+    FETCHER_TOKEN: str = ""                            # (선택) Bearer 인증 토큰
+    FETCHER_TIMEOUT: float = 90.0   # batch_quotes 등 수백 종목 일괄 조회는 30s를 초과할 수 있음
 
     # Crawler
     CRAWLER_MAX_WORKERS: int = 5

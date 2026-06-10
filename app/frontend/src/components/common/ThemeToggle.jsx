@@ -11,24 +11,14 @@ const ThemeToggle = ({ className = '' }) => {
   return (
     <button
       onClick={toggleTheme}
-      className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${
-        theme === 'dark'
-          ? 'text-gray-300 hover:text-white hover:bg-gray-800'
-          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-      } ${className}`}
+      className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-all hover:bg-gray-100 dark:hover:bg-gray-800 ${className}`}
+      style={{ color: 'var(--color-text-secondary)' }}
       title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
     >
-      {theme === 'dark' ? (
-        <>
-          <Sun size={18} />
-          <span className="text-sm font-medium">Light</span>
-        </>
-      ) : (
-        <>
-          <Moon size={18} />
-          <span className="text-sm font-medium">Dark</span>
-        </>
-      )}
+      {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+      <span className="text-xs font-medium hidden md:inline">
+        {theme === 'dark' ? 'Light' : 'Dark'}
+      </span>
     </button>
   );
 };

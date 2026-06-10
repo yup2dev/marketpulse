@@ -629,6 +629,8 @@ const ChartWidget = ({
   const [showTargets, setShowTargets] = useState(savedState?.showTargets || false);
   const [priceTargets, setPriceTargets] = useState(null);
   const [selectedDot, setSelectedDot] = useState(null); // { x, y, ...analyst info }
+  const [chartHeight, setChartHeight] = useState(420);
+  const widgetOuterRef = useRef(null);
 
   // Zoom/Pan functionality via custom hook
   const {
@@ -639,6 +641,18 @@ const ChartWidget = ({
     handleMouseDown,
     resetZoom,
   } = useChartZoom();
+
+  // Responsive chart height — fills widget minus header + controls
+  useEffect(() => {
+    const el = widgetOuterRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      const h = entry.contentRect.height;
+      setChartHeight(Math.max(200, h - 200));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // Technical Indicators via custom hook
   const {
@@ -1264,7 +1278,7 @@ const ChartWidget = ({
     : `${tickers.filter(t => t.visible).length} item${tickers.filter(t => t.visible).length !== 1 ? 's' : ''}`;
 
   return (
-    <div className={WIDGET_STYLES.container}>
+    <div ref={widgetOuterRef} className={WIDGET_STYLES.container}>
       <WidgetHeader
         icon={TrendingUp}
         iconColor={WIDGET_ICON_COLORS.chart}
@@ -1856,7 +1870,8 @@ const ChartWidget = ({
             <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: chartTheme.background }}>
               <div
                 ref={chartContainerRef}
-                className="h-[420px] cursor-grab active:cursor-grabbing select-none"
+                className="cursor-grab active:cursor-grabbing select-none"
+                style={{ height: chartHeight }}
                 onMouseDown={handleMouseDown}
               >
                 <PlotlyStockChart

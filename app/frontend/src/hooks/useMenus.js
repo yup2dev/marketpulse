@@ -27,7 +27,7 @@ export const useMenus = () => {
       }
 
       const data = await response.json();
-      setMenus(data);
+      setMenus(data.filter(m => m.menu_path !== 'alerts' && m.menu_path !== 'screener'));
     } catch (err) {
       console.error('Error fetching menus:', err);
       setError(err.message);
@@ -174,14 +174,6 @@ const getFallbackMenus = () => [
     ]
   },
   {
-    menu_id: 'backtest',
-    menu_name: 'Backtest',
-    menu_icon: 'BarChart3',
-    menu_path: 'unified-backtest',
-    display_seq: 4,
-    children: []
-  },
-  {
     menu_id: 'portfolio',
     menu_name: 'Portfolio',
     menu_icon: 'Briefcase',
@@ -233,13 +225,21 @@ const getFallbackMenus = () => [
     ]
   },
   {
-    menu_id: 'alerts',
-    menu_name: 'Alerts',
-    menu_icon: 'Bell',
-    menu_path: 'alerts',
+    menu_id: 'screener',
+    menu_name: 'Screener',
+    menu_icon: 'SlidersHorizontal',
+    menu_path: 'screener',
     display_seq: 6,
     children: []
-  }
+  },
+  {
+    menu_id: 'backtest',
+    menu_name: 'Backtest',
+    menu_icon: 'LineChart',
+    menu_path: 'backtest',
+    display_seq: 7,
+    children: []
+  },
 ];
 
 export default useMenus;

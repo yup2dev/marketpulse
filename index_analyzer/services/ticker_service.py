@@ -144,13 +144,13 @@ class TickerExtractor:
         try:
             import sys
             sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-            from data_fetcher.fetchers.fmp.active_stocks import FMPActiveStocksFetcher
+            from data_fetcher.fetchers.fmp.most_actives import FMPMostActivesFetcher
 
             import asyncio
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             active_stocks = loop.run_until_complete(
-                FMPActiveStocksFetcher.fetch_data({'type': 'actives'})
+                FMPMostActivesFetcher.fetch_data({})
             )
             loop.close()
 

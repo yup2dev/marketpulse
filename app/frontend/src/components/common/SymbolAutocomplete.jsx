@@ -4,7 +4,7 @@
  */
 import { useState, useEffect, useRef } from 'react';
 import { Search, X } from 'lucide-react';
-import { API_BASE } from '../../config/api';
+import { apiClient, API_BASE } from '../../config/api';
 
 const EXCHANGE_STYLES = {
   NASDAQ:  'bg-purple-900/40 text-purple-300 border-purple-700',
@@ -19,7 +19,7 @@ function exchangeLabel(symbol, exchange) {
   return exchange;
 }
 
-export default function SymbolAutocomplete({ value, onChange, placeholder = 'AAPL', required }) {
+export default function SymbolAutocomplete({ value, onChange, onSelect, placeholder = 'AAPL', required, compact = false }) {
   const [query, setQuery]       = useState(value || '');
   const [results, setResults]   = useState([]);
   const [open, setOpen]         = useState(false);
@@ -46,19 +46,16 @@ export default function SymbolAutocomplete({ value, onChange, placeholder = 'AAP
   // Debounced search
   useEffect(() => {
     clearTimeout(pendingRef.current);
-    if (query.length < 1) { setResults([]); setOpen(false); return; }
+    if (query.length < 2) { setResults([]); setOpen(false); return; }
     pendingRef.current = setTimeout(async () => {
       setLoading(true);
       try {
-        const res = await fetch(`${API_BASE}/stock/search?query=${encodeURIComponent(query)}`);
-        if (res.ok) {
-          const data = await res.json();
-          setResults(data.results || []);
-          setOpen(true);
-        }
+        const data = await apiClient.get(`${API_BASE}/stock/search?query=${encodeURIComponent(query)}&limit=12`);
+        setResults(data.results || []);
+        setOpen(true);
       } catch { /* silent */ }
       finally { setLoading(false); }
-    }, 280);
+    }, 150);
   }, [query]);
 
   const handleInput = (e) => {
@@ -75,6 +72,7 @@ export default function SymbolAutocomplete({ value, onChange, placeholder = 'AAP
     setResults([]);
     setOpen(false);
     onChange(sym);
+    onSelect?.(stock);
   };
 
   const handleClear = () => {
@@ -89,7 +87,7 @@ export default function SymbolAutocomplete({ value, onChange, placeholder = 'AAP
   return (
     <div ref={containerRef} className="relative">
       <div className="relative">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={13} />
+        <Search className={`absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none`} size={compact ? 11 : 13} />
         <input
           ref={inputRef}
           type="text"
@@ -98,7 +96,9 @@ export default function SymbolAutocomplete({ value, onChange, placeholder = 'AAP
           onFocus={() => results.length > 0 && setOpen(true)}
           placeholder={placeholder}
           required={required}
-          className="w-full pl-7 pr-7 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500 transition-colors font-mono uppercase"
+          className={`w-full pl-7 pr-7 bg-gray-800 border border-gray-700 rounded placeholder-gray-500 focus:outline-none focus:border-cyan-500 transition-colors font-mono uppercase ${
+            compact ? 'px-2 py-1.5 text-xs' : 'px-3 py-2 text-sm'
+          }`}
         />
         {query && (
           <button

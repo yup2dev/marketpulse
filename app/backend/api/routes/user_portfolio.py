@@ -9,10 +9,12 @@ from datetime import datetime
 from decimal import Decimal
 import asyncio
 
-from app.backend.database.db_dependency import get_db
-from app.backend.auth.dependencies import get_current_active_user
+from app.backend.core.db import get_db
+from app.backend.core.auth.dependencies import get_current_active_user
+from app.backend.api.deps import route_handler
 from app.backend.services.user_portfolio_service import UserPortfolioService
-from app.backend.services.data_service import data_service
+from data_fetcher.query_executor import QueryExecutor
+from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
 from index_analyzer.models.orm import User
 
 router = APIRouter(prefix="/user-portfolio", tags=["User Portfolio"])
@@ -348,6 +350,22 @@ def get_portfolio_performance(
     return performance
 
 
+@router.get("/portfolios/{portfolio_id}/chart")
+def get_portfolio_chart(
+    portfolio_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    포트폴리오 차트 데이터 (Plotly JSON)
+    거래일 기준 비용·평가금액 시계열
+    """
+    result = UserPortfolioService.get_portfolio_chart_data(db, portfolio_id, current_user.user_id)
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Portfolio not found")
+    return result
+
+
 @router.get("/portfolios/{portfolio_id}/allocation")
 def get_portfolio_allocation(
     portfolio_id: str,
@@ -371,6 +389,7 @@ def get_portfolio_allocation(
 
 
 @router.get("/price-at-date")
+@route_handler
 async def get_price_at_date(
     ticker: str,
     date: str,
@@ -382,52 +401,47 @@ async def get_price_at_date(
     주말·공휴일이면 직전 거래일 기준으로 반환
     """
     from datetime import datetime as dt, timedelta
-    try:
-        target_date = dt.strptime(date[:10], '%Y-%m-%d')
-        # ±5일 윈도우로 주말·공휴일 처리
-        start = (target_date - timedelta(days=7)).strftime('%Y-%m-%d')
-        end   = (target_date + timedelta(days=2)).strftime('%Y-%m-%d')
 
-        history = await data_service.get_stock_history(
-            symbol=ticker,
-            start_date=start,
-            end_date=end,
-            interval='1d',
-        )
+    target_date = dt.strptime(date[:10], '%Y-%m-%d')
+    start = (target_date - timedelta(days=7)).strftime('%Y-%m-%d')
+    end   = (target_date + timedelta(days=2)).strftime('%Y-%m-%d')
 
-        if not history:
-            raise HTTPException(status_code=404, detail=f"{ticker} 가격 데이터 없음")
+    raw = await QueryExecutor.fetch("yahoo", "stock_price", {
+        "symbol": ticker, "start_date": start, "end_date": end, "interval": "1d",
+    })
+    history = raw.result if isinstance(raw, AnnotatedResult) else (raw or [])
 
-        # target_date 이하인 가장 최근 거래일 선택
-        target_d = target_date.date()
-        best = None
-        for bar in sorted(history, key=lambda b: b['date']):
-            bar_d = dt.fromisoformat(str(bar['date']).split('T')[0]).date()
-            if bar_d <= target_d:
-                best = bar
+    if not history:
+        raise HTTPException(status_code=404, detail=f"{ticker} 가격 데이터 없음")
 
-        if not best:
-            best = history[0]
+    target_d = target_date.date()
+    def _get(bar, key):
+        return getattr(bar, key, None) if hasattr(bar, key) else (bar.get(key) if isinstance(bar, dict) else None)
 
-        def safe_float(v):
-            try:
-                return round(float(v), 4) if v is not None else None
-            except Exception:
-                return None
+    best = None
+    for bar in sorted(history, key=lambda b: str(_get(b, 'date') or '')):
+        bar_d = dt.fromisoformat(str(_get(bar, 'date'))[:10]).date()
+        if bar_d <= target_d:
+            best = bar
 
-        return {
-            'ticker':  ticker.upper(),
-            'date':    str(best['date'])[:10],
-            'open':    safe_float(best.get('open')),
-            'high':    safe_float(best.get('high')),
-            'low':     safe_float(best.get('low')),
-            'close':   safe_float(best.get('close')),
-            'volume':  int(best['volume']) if best.get('volume') else None,
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    if not best:
+        best = history[0]
+
+    def safe_float(v):
+        try:
+            return round(float(v), 4) if v is not None else None
+        except Exception:
+            return None
+
+    return {
+        'ticker':  ticker.upper(),
+        'date':    str(_get(best, 'date'))[:10],
+        'open':    safe_float(_get(best, 'open')),
+        'high':    safe_float(_get(best, 'high')),
+        'low':     safe_float(_get(best, 'low')),
+        'close':   safe_float(_get(best, 'close')),
+        'volume':  int(_get(best, 'volume')) if _get(best, 'volume') else None,
+    }
 
 
 @router.post("/portfolios/{portfolio_id}/refresh-prices")
@@ -452,16 +466,23 @@ async def refresh_holding_prices(
 
     async def fetch_price(ticker):
         try:
-            quote = await data_service.get_stock_quote(ticker)
-            price = quote.get('price')
+            raw = await QueryExecutor.fetch("yahoo", "quote", {"symbol": ticker})
+            items = raw.result if isinstance(raw, AnnotatedResult) else (raw or [])
+            if not items:
+                return (ticker, None, None)
+            q = items[0]
+            price = getattr(q, 'price', None) or (q.get('price') if isinstance(q, dict) else None)
+            def _f(key):
+                v = getattr(q, key, None) or (q.get(key) if isinstance(q, dict) else None)
+                return float(v) if v is not None else None
             if price:
                 full_quote = {
                     'price': float(price),
-                    'open': float(quote['open']) if quote.get('open') else float(price),
-                    'change': float(quote.get('change', 0)),
-                    'change_percent': float(quote.get('change_percent', 0)),
-                    'high': float(quote['high']) if quote.get('high') else float(price),
-                    'low': float(quote['low']) if quote.get('low') else float(price),
+                    'open':  _f('open')  or float(price),
+                    'change': _f('change') or 0,
+                    'change_percent': _f('change_percent') or 0,
+                    'high': _f('high')   or float(price),
+                    'low':  _f('low')    or float(price),
                 }
                 return (ticker, float(price), full_quote)
             return (ticker, None, None)

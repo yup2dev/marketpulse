@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MarketPulse Fetcher — API 키 관리</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #0a0a0f; color: #e0e0e0;
+    min-height: 100vh; padding: 32px 16px;
+  }
+  .wrap { max-width: 520px; margin: 0 auto; }
+
+  /* header */
+  header { display: flex; align-items: center; gap: 12px; margin-bottom: 32px; }
+  .logo {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: #1a2e1a; border: 2px solid #00ff88;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; color: #00ff88; font-size: 18px;
+  }
+  h1 { font-size: 18px; color: #fff; }
+  .subtitle { font-size: 12px; color: #666; margin-top: 2px; }
+
+  /* status badge */
+  #status-badge {
+    margin-bottom: 24px; padding: 8px 14px; border-radius: 6px;
+    font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;
+  }
+  .badge-ok   { background: #0d2e1a; border: 1px solid #00ff88; color: #00ff88; }
+  .badge-err  { background: #2e0d0d; border: 1px solid #ff4444; color: #ff4444; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+
+  /* provider grid */
+  .providers { display: flex; flex-direction: column; gap: 12px; margin-bottom: 28px; }
+  .provider-card {
+    background: #0d0d12; border: 1px solid #1e1e2e; border-radius: 10px; padding: 16px;
+    transition: border-color .15s;
+  }
+  .provider-card:focus-within { border-color: #00ff88; }
+  .provider-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .provider-name { font-size: 13px; font-weight: 600; color: #ccc; text-transform: uppercase; letter-spacing: .05em; }
+  .badge-set   { font-size: 11px; color: #00ff88; background: #0d2e1a; border: 1px solid #00ff88; border-radius: 4px; padding: 2px 7px; }
+  .badge-unset { font-size: 11px; color: #888; background: #1a1a2e; border: 1px solid #333; border-radius: 4px; padding: 2px 7px; }
+
+  .key-row { display: flex; gap: 8px; }
+  input[type=text] {
+    flex: 1; background: #0a0a0f; border: 1px solid #2a2a3a;
+    border-radius: 6px; padding: 8px 12px; color: #e0e0e0; font-size: 13px;
+    outline: none; font-family: monospace;
+  }
+  input[type=text]:focus { border-color: #00ff88; }
+  input[type=text]::placeholder { color: #444; }
+
+  .btn-save {
+    background: #00ff88; color: #000; border: none; border-radius: 6px;
+    padding: 8px 16px; font-size: 13px; font-weight: 700; cursor: pointer;
+    transition: opacity .15s;
+  }
+  .btn-save:hover { opacity: .85; }
+  .btn-save:disabled { opacity: .4; cursor: default; }
+  .btn-del {
+    background: transparent; border: 1px solid #333; color: #888;
+    border-radius: 6px; padding: 8px 10px; cursor: pointer; font-size: 13px;
+    transition: border-color .15s, color .15s;
+  }
+  .btn-del:hover { border-color: #ff4444; color: #ff4444; }
+
+  /* toast */
+  #toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: #1a2e1a; border: 1px solid #00ff88; color: #00ff88;
+    padding: 10px 20px; border-radius: 8px; font-size: 13px;
+    opacity: 0; transition: opacity .25s; pointer-events: none;
+  }
+  #toast.show { opacity: 1; }
+  #toast.err  { background: #2e0d0d; border-color: #ff4444; color: #ff4444; }
+
+  footer { text-align: center; font-size: 11px; color: #444; margin-top: 24px; }
+  a { color: #00ff88; text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">F</div>
+    <div>
+      <h1>MarketPulse Fetcher</h1>
+      <div class="subtitle">API 키 관리</div>
+    </div>
+  </header>
+
+  <div id="status-badge" class="badge-ok"><span class="dot"></span> 서버 실행 중 — port 8765</div>
+
+  <div class="provider-card" style="margin-bottom: 20px;">
+    <div class="provider-header">
+      <span class="provider-name">백엔드 연동 토큰</span>
+    </div>
+    <div class="key-row">
+      <input type="text" id="fetcher-token" readonly>
+      <button class="btn-save" onclick="copyToken()">복사</button>
+    </div>
+    <div class="subtitle" style="margin-top: 8px;">백엔드 서버 .env의 FETCHER_TOKEN 값으로 설정하세요</div>
+  </div>
+
+  <div id="providers" class="providers"><!-- JS가 채움 --></div>
+
+  <footer>키는 <code>~/.marketpulse_fetcher/keys.json</code>에 저장됩니다 (소유자 전용 600)<br>
+  <a href="/docs" target="_blank">API 문서 (Swagger)</a></footer>
+</div>
+<div id="toast"></div>
+
+<script>
+const BASE = '';
+const FETCHER_TOKEN = '__FETCHER_TOKEN__';
+const AUTH_HEADERS = { Authorization: `Bearer ${FETCHER_TOKEN}` };
+
+document.getElementById('fetcher-token').value = FETCHER_TOKEN;
+
+function copyToken() {
+  navigator.clipboard.writeText(FETCHER_TOKEN).then(
+    () => toast('토큰이 복사되었습니다'),
+    () => toast('복사 실패', true)
+  );
+}
+const PROVIDERS = [
+  { id: 'fmp',           label: 'FMP',           placeholder: 'Financial Modeling Prep API Key' },
+  { id: 'polygon',       label: 'Polygon',        placeholder: 'Polygon.io API Key' },
+  { id: 'fred',          label: 'FRED',           placeholder: 'Federal Reserve (FRED) API Key' },
+  { id: 'alphavantage',  label: 'Alpha Vantage',  placeholder: 'Alpha Vantage API Key' },
+];
+
+async function loadKeys() {
+  try {
+    const res = await fetch(`${BASE}/keys`, { headers: AUTH_HEADERS });
+    return res.ok ? await res.json() : [];
+  } catch { return []; }
+}
+
+function toast(msg, isErr = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show' + (isErr ? ' err' : '');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.className = '', 2200);
+}
+
+async function renderProviders() {
+  const keys = await loadKeys();
+  const configuredSet = new Set(keys.filter(k => k.configured).map(k => k.provider));
+  const maskedMap = Object.fromEntries(keys.map(k => [k.provider, k.masked]));
+
+  const container = document.getElementById('providers');
+  container.innerHTML = '';
+
+  for (const p of PROVIDERS) {
+    const isSet = configuredSet.has(p.id);
+    const card = document.createElement('div');
+    card.className = 'provider-card';
+    card.innerHTML = `
+      <div class="provider-header">
+        <span class="provider-name">${p.label}</span>
+        <span id="badge-${p.id}" class="${isSet ? 'badge-set' : 'badge-unset'}">${isSet ? '등록됨 ' + maskedMap[p.id] : '미등록'}</span>
+      </div>
+      <div class="key-row">
+        <input type="text" id="key-${p.id}" placeholder="${isSet ? '새 키 입력 (변경 시)' : p.placeholder}" autocomplete="off" spellcheck="false">
+        <button class="btn-save" onclick="saveKey('${p.id}')">저장</button>
+        ${isSet ? `<button class="btn-del" onclick="deleteKey('${p.id}')" title="삭제">✕</button>` : ''}
+      </div>`;
+    container.appendChild(card);
+  }
+}
+
+async function saveKey(provider) {
+  const input = document.getElementById(`key-${provider}`);
+  const key = input.value.trim();
+  if (!key) { toast('키를 입력하세요', true); return; }
+
+  const btn = input.parentElement.querySelector('.btn-save');
+  btn.disabled = true; btn.textContent = '저장 중…';
+
+  try {
+    const res = await fetch(`${BASE}/keys`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...AUTH_HEADERS },
+      body: JSON.stringify({ provider, api_key: key }),
+    });
+    if (res.ok) {
+      input.value = '';
+      toast(`${provider} 키 저장 완료`);
+      await renderProviders();
+    } else {
+      const err = await res.json();
+      toast(err.detail || '저장 실패', true);
+    }
+  } catch (e) {
+    toast('서버 연결 실패', true);
+  } finally {
+    btn.disabled = false; btn.textContent = '저장';
+  }
+}
+
+async function deleteKey(provider) {
+  if (!confirm(`${provider} 키를 삭제하시겠습니까?`)) return;
+  try {
+    const res = await fetch(`${BASE}/keys/${provider}`, { method: 'DELETE', headers: AUTH_HEADERS });
+    if (res.ok) { toast(`${provider} 키 삭제됨`); await renderProviders(); }
+    else toast('삭제 실패', true);
+  } catch { toast('서버 연결 실패', true); }
+}
+
+renderProviders();
+</script>
+</body>
+</html>

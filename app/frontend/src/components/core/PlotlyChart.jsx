@@ -246,7 +246,7 @@ export default function PlotlyChart({
   type = 'line',
   onTypeChange,
   height = 280,
-  fillContainer = false,
+  fillContainer = true,
   showTypeSelector = true,
   allowedTypes,
   compact = false,

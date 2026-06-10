@@ -160,6 +160,10 @@ API_ENV_MAPPING = {
     'FMP': {
         'api_key': 'FMP_API_KEY'
     },
+    'KIS': {
+        'appkey': 'KIS_APPKEY',
+        'appsecret': 'KIS_APPSECRET',
+    },
 }
 
 

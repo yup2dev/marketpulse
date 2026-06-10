@@ -10,8 +10,9 @@ from datetime import datetime
 project_root = str(Path(__file__).parent.parent)
 sys.path.insert(0, project_root)
 
-from index_analyzer.models.database import get_sqlite_db
+from index_analyzer.utils.db import get_sqlite_db
 from index_analyzer.models.menu import MenuManagement
+from index_analyzer.models.orm import Base
 
 
 def init_menu_data():
@@ -20,6 +21,7 @@ def init_menu_data():
     # Get database session
     db_path = Path(__file__).parent.parent / "data" / "marketpulse.db"
     db_instance = get_sqlite_db(str(db_path))
+    Base.metadata.create_all(bind=db_instance.engine)
     session = db_instance.get_session()
 
     try:
@@ -86,23 +88,6 @@ def init_menu_data():
                 'upd_date': datetime.utcnow()
             },
             {
-                'menu_id': 'backtest',
-                'pkg_type': 'MARKETPULSE',
-                'menu_name': 'Backtest',
-                'menu_level': 1,
-                'menu_icon': 'BarChart3',
-                'menu_parent_id': None,
-                'menu_path': 'unified-backtest',
-                'menu_script': 'UnifiedBacktest',
-                'user_type_cd': None,
-                'menu_desc': 'Backtesting strategies',
-                'display_seq': 4,
-                'use_yn': 'Y',
-                'first_page_yn': 'N',
-                'reg_date': datetime.utcnow(),
-                'upd_date': datetime.utcnow()
-            },
-            {
                 'menu_id': 'portfolio',
                 'pkg_type': 'MARKETPULSE',
                 'menu_name': 'Portfolio',
@@ -131,23 +116,6 @@ def init_menu_data():
                 'user_type_cd': None,
                 'menu_desc': 'Price alerts and notifications',
                 'display_seq': 6,
-                'use_yn': 'Y',
-                'first_page_yn': 'N',
-                'reg_date': datetime.utcnow(),
-                'upd_date': datetime.utcnow()
-            },
-            {
-                'menu_id': 'quant',
-                'pkg_type': 'MARKETPULSE',
-                'menu_name': 'Quant',
-                'menu_level': 1,
-                'menu_icon': 'BarChart3',
-                'menu_parent_id': None,
-                'menu_path': 'quant',
-                'menu_script': 'QuantStrategyPage',
-                'user_type_cd': None,
-                'menu_desc': 'Quant Strategy Builder — single-ticker backtesting',
-                'display_seq': 7,
                 'use_yn': 'Y',
                 'first_page_yn': 'N',
                 'reg_date': datetime.utcnow(),

@@ -1,31 +1,42 @@
 import { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import ProtectedRoute from './components/common/ProtectedRoute';
-import AppLayout from './components/layout/AppLayout';
-import Login from './components/auth/Login';
-import Register from './components/auth/Register';
+import AppLayout from './components/core/AppLayout';
 import DashboardPage from './components/core/DashboardPage';
-import UnifiedBacktest from './components/backtest/UnifiedBacktest';
-import PortfolioDetail from './components/portfolio/PortfolioDetail';
-import AlertsDashboard from './components/alerts/AlertsDashboard';
-import ScreenerDashboard from './components/screener/ScreenerDashboard';
-import WatchlistDashboard from './components/watchlist/WatchlistDashboard';
-import QuantResearchDashboard from './components/quant/QuantResearchDashboard';
-import StrategyBuilderDashboard from './components/strategy/StrategyBuilderDashboard';
-import TradingTerminal from './components/trading/TradingTerminal';
+import BacktestPage from './components/core/BacktestPage';
+import SettingsPage from './components/core/SettingsPage';
+import Login from './components/core/Login';
+import Register from './components/core/Register';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import useAuthStore from './store/authStore';
+
+// 토큰 만료 시 로그인 페이지로 강제 이동하는 가드
+function AuthGuard({ children }) {
+  const { isAuthenticated, isInitializing } = useAuthStore();
+  const location = useLocation();
+
+  useEffect(() => {
+    // 로그인 중이거나 로그인/회원가입 페이지면 스킵
+    if (isInitializing || location.pathname === '/login' || location.pathname === '/register' || location.pathname.startsWith('/signin')) {
+      return;
+    }
+
+    // 보호된 페이지인데 로그아웃된 경우 → 명시적으로 로그인 페이지로 이동
+    if (!isAuthenticated && !location.pathname.startsWith('/login')) {
+      window.location.replace('/login');
+    }
+  }, [isAuthenticated, isInitializing, location.pathname]);
+
+  return children;
+}
 
 function App() {
   const initializeAuth = useAuthStore((s) => s.initializeAuth);
 
-  // 앱 최초 마운트 시 저장된 토큰 유효성 확인
-  // access token 만료 → apiClient가 자동으로 refresh → 문제 없음
-  // refresh token도 만료 → forceLogout 콜백 → /login 리다이렉트
   useEffect(() => {
     initializeAuth();
-  }, []);
+  }, [initializeAuth]);
 
   return (
     <ErrorBoundary>
@@ -34,33 +45,14 @@ function App() {
         position="top-right"
         toastOptions={{
           duration: 3000,
-          style: {
-            background: '#1a1a1a',
-            color: '#fff',
-            border: '1px solid #333',
-          },
-          success: {
-            duration: 3000,
-            iconTheme: {
-              primary: '#22c55e',
-              secondary: '#fff',
-            },
-          },
-          error: {
-            duration: 4000,
-            iconTheme: {
-              primary: '#ef4444',
-              secondary: '#fff',
-            },
-          },
+          style: { background: '#1a1a1a', color: '#fff', border: '1px solid #333' },
+          success: { duration: 3000, iconTheme: { primary: '#22c55e', secondary: '#fff' } },
+          error:   { duration: 4000, iconTheme: { primary: '#ef4444', secondary: '#fff' } },
         }}
       />
 
+      <AuthGuard>
       <Routes>
-        {/* Public Routes */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-
         {/* Protected Routes with AppLayout */}
         <Route
           element={
@@ -72,20 +64,22 @@ function App() {
           <Route index element={<DashboardPage />} />
           <Route path="stock" element={<DashboardPage />} />
           <Route path="macro" element={<DashboardPage />} />
-          <Route path="backtest" element={<UnifiedBacktest />} />
           <Route path="portfolios" element={<DashboardPage />} />
-          <Route path="portfolio/:portfolioId" element={<PortfolioDetail />} />
-          <Route path="alerts" element={<AlertsDashboard />} />
-          <Route path="screener" element={<ScreenerDashboard />} />
-          <Route path="watchlist" element={<WatchlistDashboard />} />
-          <Route path="quant" element={<QuantResearchDashboard />} />
-          <Route path="strategy" element={<StrategyBuilderDashboard />} />
-          <Route path="trading" element={<TradingTerminal />} />
+          <Route path="quantlib" element={<DashboardPage />} />
+          <Route path="screener" element={<DashboardPage />} />
+          <Route path="backtest" element={<BacktestPage />} />
+          <Route path="settings" element={<SettingsPage />} />
         </Route>
+
+        {/* Auth */}
+        <Route path="login" element={<Login />} />
+        <Route path="signin" element={<Register />} />
+        <Route path="register" element={<Register />} />
 
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </AuthGuard>
     </Router>
     </ErrorBoundary>
   );

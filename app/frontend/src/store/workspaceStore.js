@@ -151,6 +151,20 @@ const useWorkspaceStore = create(
         }
       },
 
+      // ── Rename a workspace ────────────────────────────────────────────────
+      renameWorkspace: async (screen, id, name) => {
+        try {
+          const updated = await workspaceAPI.update(id, { name });
+          set(s => {
+            const list = (s.workspaces[screen] || []).map(w => w.id === id ? updated : w);
+            return { workspaces: { ...s.workspaces, [screen]: list } };
+          });
+          return updated;
+        } catch (err) {
+          console.error('Failed to rename workspace:', err);
+        }
+      },
+
       // ── Set a workspace as default ────────────────────────────────────────
       setDefault: async (screen, id) => {
         try {

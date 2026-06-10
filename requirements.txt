@@ -1,7 +1,6 @@
-passlib~=1.7.4
-bcrypt==4.0.1
-python-jose~=3.5.0
-transformers
+passlib[bcrypt]>=1.7.4
+bcrypt==3.2.2
+python-jose[cryptography]>=3.3.0
 # MarketPulse - Financial News Crawler & Analyzer
 
 # ==============================================================================
@@ -24,9 +23,12 @@ psycopg2-binary>=2.9.9
 # API Framework
 # ==============================================================================
 fastapi>=0.104.0
-uvicorn>=0.24.0
+uvicorn[standard]>=0.24.0
 pydantic>=2.0.0
+pydantic-settings>=2.0.0
 python-multipart>=0.0.6
+websockets>=12.0
+fastapi-mail>=1.4.1
 
 # ==============================================================================
 # Data Processing
@@ -38,13 +40,15 @@ numpy>=1.26.0
 # Market Data APIs
 # ==============================================================================
 yfinance>=0.2.0
+QuantLib>=1.42
+statsmodels>=0.14
+pykrx>=1.2.8           # KR 국고채 수집(선택) — KRX_ID/KRX_PW 로그인 필요. 주식·ETF는 KIND/Naver(무로그인) 사용
 
 # ==============================================================================
 # Configuration & Environment
 # ==============================================================================
 python-dotenv>=1.0.0
 pyyaml>=6.0.0
-pydantic-settings>=2.0.0
 
 # ==============================================================================
 # Daemon & Scheduling
@@ -98,7 +102,6 @@ black>=23.10.0
 flake8>=6.1.0
 mypy>=1.7.0
 
-pathlib~=1.0.1
-openpyxl~=3.1.5
-dotenv~=0.9.9
-urllib3~=2.5.0
+openpyxl>=3.1.0
+reportlab>=4.0.0
+urllib3>=2.0.0

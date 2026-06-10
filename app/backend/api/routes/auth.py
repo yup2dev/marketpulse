@@ -7,9 +7,9 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 
-from app.backend.database.db_dependency import get_db
+from app.backend.core.db import get_db
 from app.backend.services.auth_service import AuthService
-from app.backend.auth.dependencies import get_current_user, get_current_active_user
+from app.backend.core.auth.dependencies import get_current_user, get_current_active_user
 from index_analyzer.models.orm import User
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -158,7 +158,7 @@ def refresh_access_token(
     Refresh token으로 새 Access token 발급.
     프론트엔드 401 인터셉터에서 자동으로 호출됨.
     """
-    from app.backend.auth.security import decode_token
+    from app.backend.core.auth.security import decode_token
 
     payload = decode_token(data.refresh_token)
     if payload is None:

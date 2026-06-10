@@ -20,6 +20,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { RefreshCw, X, ChevronDown, Download, FileDown, FileSpreadsheet, Image } from 'lucide-react';
 import { downloadCSV, downloadExcel, downloadChartPNG, makeFilename } from '../../../utils/exportUtils';
+import useClickOutside from '../../../hooks/useClickOutside';
 
 export const WidgetHeader = ({
   icon: Icon,
@@ -53,12 +54,7 @@ export const WidgetHeader = ({
   // ── Export dropdown ─────────────────────────────────────────────────────────
   const [showExport, setShowExport] = useState(false);
   const exportRef = useRef(null);
-  useEffect(() => {
-    if (!showExport) return;
-    const handler = (e) => { if (exportRef.current && !exportRef.current.contains(e.target)) setShowExport(false); };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [showExport]);
+  useClickOutside(exportRef, showExport ? () => setShowExport(false) : null);
 
   const handleExport = (fmt) => {
     setShowExport(false);

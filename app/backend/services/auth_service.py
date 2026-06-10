@@ -7,7 +7,7 @@ from typing import Optional
 import uuid
 
 from index_analyzer.models.orm import User
-from app.backend.auth.security import verify_password, get_password_hash, create_access_token, create_refresh_token
+from app.backend.core.auth.security import verify_password, get_password_hash, create_access_token, create_refresh_token
 
 
 class AuthService:

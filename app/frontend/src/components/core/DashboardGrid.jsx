@@ -3,8 +3,9 @@ import GridLayout from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 
-const COLS  = 12;
-const ROW_H = 60;
+const COLS   = 12;
+const ROW_H  = 60;
+const MARGIN = 8;
 
 function storageKey(screen) {
   return `grid-layout:${screen}`;
@@ -34,9 +35,8 @@ export default function DashboardGrid({
   children,
 }) {
   const [widgets, setWidgets] = useState(() => load(screen) ?? defaultWidgets);
-  const [containerWidth, setContainerWidth] = useState(
-    typeof window !== 'undefined' ? window.innerWidth : 1440,
-  );
+  const containerRef = useRef(null);
+  const [containerWidth, setContainerWidth] = useState(0);
 
   // If screen changes (tab switch), reload from storage
   useEffect(() => {
@@ -44,9 +44,14 @@ export default function DashboardGrid({
   }, [screen]);
 
   useEffect(() => {
-    const update = () => setContainerWidth(window.innerWidth);
-    window.addEventListener('resize', update);
-    return () => window.removeEventListener('resize', update);
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect?.width;
+      if (w > 0) setContainerWidth(w);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
   }, []);
 
   const layout = useMemo(() =>
@@ -56,8 +61,8 @@ export default function DashboardGrid({
       y: w.y ?? 0,
       w: w.w ?? 4,
       h: w.h ?? 4,
-      minW: 2,
-      minH: 2,
+      minW: 1,
+      minH: 1,
     })),
   [widgets]);
 
@@ -85,7 +90,7 @@ export default function DashboardGrid({
 
   const addWidget = useCallback((widgetDef) => {
     const newWidget = {
-      id:     `w_${Date.now()}`,
+      id:     `w_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       type:   widgetDef.id,
       x:      0,
       y:      Infinity,
@@ -107,31 +112,33 @@ export default function DashboardGrid({
   useEffect(() => () => clearTimeout(saveTimerRef.current), []);
 
   return (
-    <div className={`w-full ${className}`}>
-      <GridLayout
-        className="layout"
-        layout={layout}
-        cols={COLS}
-        rowHeight={ROW_H}
-        width={containerWidth - 32}
-        margin={[8, 8]}
-        containerPadding={[16, 16]}
-        onLayoutChange={onLayoutChange}
-        draggableHandle=".drag-handle-area, .drag-handle"
-        resizeHandles={['se']}
-        isDraggable
-        isResizable
-        compactType="vertical"
-        useCSSTransforms
-      >
-        {widgets.map(w => (
-          <div key={w.id}>
-            {renderWidget
-              ? renderWidget(w, () => removeWidget(w.id), addWidget)
-              : children}
-          </div>
-        ))}
-      </GridLayout>
+    <div ref={containerRef} className={`w-full ${className}`}>
+      {containerWidth > 0 && (
+        <GridLayout
+          className="layout"
+          layout={layout}
+          cols={COLS}
+          rowHeight={ROW_H}
+          width={containerWidth}
+          margin={[MARGIN, MARGIN]}
+          containerPadding={[8, 8]}
+          onLayoutChange={onLayoutChange}
+          draggableHandle=".drag-handle-area, .drag-handle"
+          resizeHandles={['se']}
+          isDraggable
+          isResizable
+          compactType="vertical"
+          useCSSTransforms
+        >
+          {widgets.map(w => (
+            <div key={w.id} className="h-full">
+              {renderWidget
+                ? renderWidget(w, () => removeWidget(w.id), addWidget)
+                : children}
+            </div>
+          ))}
+        </GridLayout>
+      )}
     </div>
   );
 }

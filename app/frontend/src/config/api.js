@@ -1,32 +1,18 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// Tauri v2 WebView 감지 — 데스크탑 앱이면 로컬 백엔드, 웹 브라우저면 서버 URL
+const _isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+const API_BASE_URL = _isTauri
+  ? 'http://127.0.0.1:8000'                                      // 데스크탑: 로컬 백엔드
+  : (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000');  // 웹: 서버 URL
 export const API_BASE = `${API_BASE_URL}/api`;
-
-export const API_ENDPOINTS = {
-  health: `${API_BASE_URL}/health`,
-  stock: {
-    overview: `${API_BASE_URL}/api/stock/overview`,
-    price:   (symbol) => `${API_BASE_URL}/api/stock/${symbol}/price`,
-    history: (symbol) => `${API_BASE_URL}/api/stock/${symbol}/history`,
-  },
-  economic: {
-    indicators: `${API_BASE_URL}/api/economic/indicators`,
-    overview:   `${API_BASE_URL}/api/economic/overview`,
-  },
-  news: {
-    latest:   `${API_BASE_URL}/api/news/latest`,
-    bySymbol: (symbol) => `${API_BASE_URL}/api/news/${symbol}`,
-  },
-  dashboard: {
-    overview: `${API_BASE_URL}/api/dashboard/overview`,
-    summary:  `${API_BASE_URL}/api/dashboard/summary`,
-  },
-};
 
 // ─── Force-logout callback ────────────────────────────────────────────────────
 // Set by authStore so apiClient can trigger logout when tokens fully expire
 let _forceLogout = null;
 export function setForceLogoutCallback(fn) {
   _forceLogout = fn;
+}
+export function getForceLogout() {
+  return _forceLogout;
 }
 
 // ─── API Client ───────────────────────────────────────────────────────────────
@@ -111,20 +97,6 @@ class ApiClient {
 export const apiClient = new ApiClient();
 export default API_BASE_URL;
 
-// ─── Quant API ────────────────────────────────────────────────────────────────
-export const quantAPI = {
-  analyze:         (payload)       => apiClient.post(`${API_BASE}/quant/analyze`, payload),
-  scan:            (payload)       => apiClient.post(`${API_BASE}/quant/scan`, payload),
-  listStrategies:  ()              => apiClient.get(`${API_BASE}/quant/strategies`),
-  createStrategy:  (data)          => apiClient.post(`${API_BASE}/quant/strategies`, data),
-  updateStrategy:  (id, data)      => apiClient.request(`${API_BASE}/quant/strategies/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  deleteStrategy:  (id)            => apiClient.request(`${API_BASE}/quant/strategies/${id}`, { method: 'DELETE' }),
-  // Factor CRUD
-  listFactors:     ()              => apiClient.get(`${API_BASE}/quant/factors`),
-  createFactor:    (data)          => apiClient.post(`${API_BASE}/quant/factors`, data),
-  deleteFactor:    (id)            => apiClient.request(`${API_BASE}/quant/factors/${id}`, { method: 'DELETE' }),
-};
-
 // ─── Auth API ─────────────────────────────────────────────────────────────────
 export const authAPI = {
   login:       (data)  => apiClient.post(`${API_BASE}/auth/login`, data),
@@ -165,13 +137,6 @@ export const exportAPI = {
   portfolioPDF:   (id) => apiClient.get(`${API_BASE}/export/portfolio/${id}/pdf`),
 };
 
-// ─── Dashboard API ────────────────────────────────────────────────────────────
-export const dashboardAPI = {
-  getWatchlist:        ()       => apiClient.get(`${API_BASE}/dashboard/watchlist`),
-  addToWatchlist:      (symbol) => apiClient.post(`${API_BASE}/dashboard/watchlist`, { symbol }),
-  removeFromWatchlist: (symbol) => apiClient.request(`${API_BASE}/dashboard/watchlist/${symbol}`, { method: 'DELETE' }),
-};
-
 // ─── Workspace API ────────────────────────────────────────────────────────────
 export const workspaceAPI = {
   list:       (screen)       => apiClient.get(`${API_BASE}/workspace?screen=${encodeURIComponent(screen)}`),
@@ -179,4 +144,117 @@ export const workspaceAPI = {
   update:     (id, data)     => apiClient.request(`${API_BASE}/workspace/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete:     (id)           => apiClient.request(`${API_BASE}/workspace/${id}`, { method: 'DELETE' }),
   setDefault: (id)           => apiClient.post(`${API_BASE}/workspace/${id}/default`),
+};
+
+// ─── Watchlist API ───────────────────────────────────────────────────────────
+const WL = `${API_BASE}/watchlist`;
+export const watchlistAPI = {
+  // 그룹 관리
+  getAll:       ()              => apiClient.get(WL),
+  create:       (data)          => apiClient.post(WL, data),
+  getById:      (id)            => apiClient.get(`${WL}/${id}`),
+  update:       (id, data)      => apiClient.request(`${WL}/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete:       (id)            => apiClient.request(`${WL}/${id}`, { method: 'DELETE' }),
+  getItems:     (id)            => apiClient.get(`${WL}/${id}/items`),
+  addTicker:    (id, data)      => apiClient.post(`${WL}/${id}/items`, data),
+  removeTicker: (id, ticker)    => apiClient.request(`${WL}/${id}/items/${encodeURIComponent(ticker)}`, { method: 'DELETE' }),
+  reorder:      (id, orders)    => apiClient.request(`${WL}/${id}/items/reorder`, { method: 'PUT', body: JSON.stringify({ ticker_orders: orders }) }),
+  // 빠른 추가/제거 (그룹 선택 없이)
+  getMyTickers: ()              => apiClient.get(`${WL}/my-tickers`),
+  quickAdd:     (ticker_cd)     => apiClient.post(`${WL}/quick-add`, { ticker_cd }),
+  quickRemove:  (ticker_cd)     => apiClient.request(`${WL}/quick-remove/${encodeURIComponent(ticker_cd)}`, { method: 'DELETE' }),
+};
+
+// ─── Screener API ────────────────────────────────────────────────────────────
+// ─── Ranking API ─────────────────────────────────────────────────────────────
+export const rankingAPI = {
+  get: ({ market = 'all', sortBy = 'gainers', period = '1d', limit = 50 } = {}) =>
+    apiClient.get(`${API_BASE}/stock/ranking?market=${market}&sort_by=${sortBy}&period=${period}&limit=${limit}`),
+  getLive: ({ market = 'all', sortBy = 'gainers', limit = 50 } = {}) =>
+    apiClient.get(`${API_BASE}/stock/ranking/live?market=${market}&sort_by=${sortBy}&limit=${limit}`),
+};
+
+const SC = `${API_BASE}/screener`;
+export const screenerAPI = {
+  screen:       (filters, limit = 100) => apiClient.post(`${SC}/screen`, { filters, limit }),
+  getPresets:   ()                     => apiClient.get(`${SC}/presets`),
+  runPreset:    (id, limit = 100)      => apiClient.post(`${SC}/presets/${id}/run?limit=${limit}`),
+  getSectors:   ()                     => apiClient.get(`${SC}/sectors`),
+  save:         (data)                 => apiClient.post(`${SC}/save`, data),
+  update:       (id, data)             => apiClient.request(`${SC}/saved/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  getSaved:     ()                     => apiClient.get(`${SC}/saved`),
+  runSaved:     (id, limit = 100)      => apiClient.post(`${SC}/saved/${id}/run?limit=${limit}`),
+  deleteSaved:  (id)                   => apiClient.request(`${SC}/saved/${id}`, { method: 'DELETE' }),
+};
+
+// ─── Alert API ───────────────────────────────────────────────────────────────
+const AL = `${API_BASE}/alerts`;
+export const alertAPI = {
+  getAll:       (isActive)     => apiClient.get(`${AL}${isActive != null ? `?is_active=${isActive}` : ''}`),
+  create:       (data)         => apiClient.post(`${AL}/`, data),
+  update:       (id, data)     => apiClient.request(`${AL}/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  toggle:       (id)           => apiClient.post(`${AL}/${id}/toggle`),
+  delete:       (id)           => apiClient.request(`${AL}/${id}`, { method: 'DELETE' }),
+  getHistory:   (alertId, limit = 50) => apiClient.get(`${AL}/history${alertId ? `?alert_id=${alertId}&` : '?'}limit=${limit}`),
+  test:         (id)           => apiClient.post(`${AL}/${id}/test`),
+};
+
+// ─── Notes API ──────────────────────────────────────────────────────────────
+const NT = `${API_BASE}/notes`;
+export const notesAPI = {
+  getAll:   (ticker)       => apiClient.get(`${NT}${ticker ? `?ticker_cd=${encodeURIComponent(ticker)}` : ''}`),
+  create:   (data)         => apiClient.post(NT, data),
+  update:   (id, data)     => apiClient.request(`${NT}/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete:   (id)           => apiClient.request(`${NT}/${id}`, { method: 'DELETE' }),
+};
+
+// ─── News API ────────────────────────────────────────────────────────────────
+export const newsAPI = {
+  get: (symbol, limit = 20) => apiClient.get(`${API_BASE}/news${symbol ? `?symbol=${encodeURIComponent(symbol)}&` : '?'}limit=${limit}`),
+};
+
+// ─── Universal Data Gateway ──────────────────────────────────────────────────
+// 새 Fetcher 추가 시 이 파일 수정 불필요.
+// 사용: dataAPI.fetch('fred', 'yield_curve')
+//       dataAPI.fetch('yahoo', 'quote', { symbol: 'AAPL' })
+//       dataAPI.fetch('fmp', 'income_statement', { symbol: 'AAPL' })
+export const dataAPI = {
+  fetch: (provider, model, params = {}) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== null)
+    ).toString();
+    const url = `${API_BASE}/data/${provider}/${model}${qs ? `?${qs}` : ''}`;
+    return apiClient.get(url);
+  },
+
+  // 자주 쓰는 단축키 — provider:model 쌍을 기억하지 않아도 됨
+  stock: {
+    quote:        (symbol, provider = 'yahoo')         => dataAPI.fetch(provider, 'quote', { symbol }),
+    history:      (symbol, params = {}, prov = 'yahoo')=> dataAPI.fetch(prov, 'stock_price', { symbol, ...params }),
+    profile:      (symbol)                             => dataAPI.fetch('fmp', 'company_profile', { symbol }),
+    income:       (symbol)                             => dataAPI.fetch('fmp', 'income_statement', { symbol }),
+    estimates:    (symbol)                             => dataAPI.fetch('fmp', 'analyst_estimates', { symbol }),
+    gainers:      ()                                   => dataAPI.fetch('fmp', 'gainers', {}),
+    losers:       ()                                   => dataAPI.fetch('fmp', 'losers', {}),
+    mostActives:  ()                                   => dataAPI.fetch('fmp', 'most_actives', {}),
+  },
+
+  macro: {
+    yieldCurve:          ()                  => dataAPI.fetch('fred', 'yield_curve', {}),
+    yieldHistory:        (period = '5y')     => dataAPI.fetch('fred', 'yield_curve_history', { period }),
+    gdp:                 (period = '5y')     => dataAPI.fetch('fred', 'gdp', { period }),
+    cpi:                 (period = '5y')     => dataAPI.fetch('fred', 'cpi', { period }),
+    unemployment:        (period = '5y')     => dataAPI.fetch('fred', 'unemployment', { period }),
+    interestRate:        (period = '5y')     => dataAPI.fetch('fred', 'interest_rate', { period }),
+    laborDashboard:      ()                  => dataAPI.fetch('fred', 'labor_dashboard', {}),
+    financialConditions: ()                  => dataAPI.fetch('fred', 'financial_conditions', {}),
+    sentimentComposite:  ()                  => dataAPI.fetch('fred', 'sentiment_composite', {}),
+    inflationMomentum:   (period = '3y')     => dataAPI.fetch('fred', 'inflation_momentum', { period }),
+    pmi:                 (period = '5y')     => dataAPI.fetch('fred', 'pmi', { period }),
+    fedBalanceSheet:     (period = '10y')    => dataAPI.fetch('fred', 'fed_balance_sheet', { period }),
+    realRates:           (period = '5y')     => dataAPI.fetch('fred', 'real_rates', { period }),
+    jobsBreakdown:       (period = '5y')     => dataAPI.fetch('fred', 'jobs_breakdown', { period }),
+    initialClaims:       (period = '2y')     => dataAPI.fetch('fred', 'initial_claims', { period }),
+    inflationSector:     (period = '5y')     => dataAPI.fetch('fred', 'inflation_sector', { period }),
+  },
 };

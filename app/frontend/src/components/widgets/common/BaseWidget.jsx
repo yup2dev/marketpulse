@@ -11,10 +11,12 @@
  * - Source footer
  */
 import { useState, useRef, useEffect } from 'react';
-import { GripVertical, X, RefreshCw, BarChart2, Table, Calendar, ChevronDown, Search, Download, FileDown, FileSpreadsheet, Image, Link2, Link2Off } from 'lucide-react';
+import { GripVertical, X, RefreshCw, BarChart2, Table, Calendar, ChevronDown, Search, Download, FileDown, FileSpreadsheet, Image, Link2, Link2Off, Play } from 'lucide-react';
 import { API_BASE } from '../../../config/api';
 import { downloadCSV, downloadExcel, downloadChartPNG, makeFilename } from '../../../utils/exportUtils';
 import { useWidgetSync } from '../../../contexts/WidgetSyncContext';
+import useClickOutside from '../../../hooks/useClickOutside';
+// import { PERIOD_OPTIONS } from '../constants';
 
 // Symbol Selector Component
 function SymbolSelector({ symbol, onSymbolChange }) {
@@ -156,6 +158,8 @@ export default function BaseWidget({
   children,
   loading = false,
   onRefresh,
+  onRun,
+  runLabel = 'Run',
   onRemove,
   // Symbol selector
   symbol,
@@ -239,16 +243,7 @@ export default function BaseWidget({
   };
 
   // Close export menu on outside click
-  useEffect(() => {
-    if (!showExportMenu) return;
-    const handler = (e) => {
-      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target)) {
-        setShowExportMenu(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [showExportMenu]);
+  useClickOutside(exportMenuRef, showExportMenu ? () => setShowExportMenu(false) : null);
 
   const handleExport = (format) => {
     setShowExportMenu(false);
@@ -266,9 +261,9 @@ export default function BaseWidget({
   };
 
   return (
-    <div className="bg-[#0d0d12] rounded-lg border border-gray-800 h-full flex flex-col overflow-hidden">
+    <div className="widget-surface rounded-lg border widget-border h-full flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-gray-800 bg-[#0d0d12] gap-2">
+      <div className="flex items-center justify-between px-3 py-2 border-b widget-border widget-surface gap-2">
         {/* Left: Drag handle + Title + Symbol */}
         <div className="flex items-center gap-2 cursor-move drag-handle-area flex-1 min-w-0">
           <GripVertical size={14} className="text-gray-600 flex-shrink-0" />
@@ -409,6 +404,20 @@ export default function BaseWidget({
             </div>
           )}
 
+          {/* Run (param-driven widgets) */}
+          {onRun && (
+            <button
+              onMouseDown={e => e.stopPropagation()}
+              onClick={onRun}
+              disabled={loading}
+              className="flex items-center gap-1 px-2 py-1 bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-700 disabled:text-gray-500 text-white text-[11px] font-semibold rounded transition-colors"
+              title={runLabel}
+            >
+              <Play size={11} />
+              <span>{loading ? 'Running…' : runLabel}</span>
+            </button>
+          )}
+
           {/* Refresh */}
           {onRefresh && (
             <button
@@ -436,7 +445,7 @@ export default function BaseWidget({
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto min-h-0">
+      <div className="flex-1 overflow-hidden min-h-0 relative widget-content">
         {loading ? (
           <div className="w-full h-full flex items-center justify-center">
             <div className="w-6 h-6 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />

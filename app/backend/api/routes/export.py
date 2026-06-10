@@ -7,8 +7,8 @@ from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 from io import BytesIO
 
-from app.backend.database.db_dependency import get_db
-from app.backend.auth.dependencies import get_current_active_user
+from app.backend.core.db import get_db
+from app.backend.core.auth.dependencies import get_current_active_user
 from app.backend.services.export_service import ExportService
 from app.backend.services.user_portfolio_service import UserPortfolioService
 from index_analyzer.models.orm import User
