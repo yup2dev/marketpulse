@@ -8,7 +8,9 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from app.backend.core.db import get_db
+from app.backend.core.auth.dependencies import require_admin
 from app.backend.services.menu_service import MenuService
+from index_analyzer.models.orm import User
 
 router = APIRouter(prefix="/menu", tags=["menu"])
 
@@ -162,7 +164,8 @@ async def get_menu_by_id(
 @router.post("/create")
 async def create_menu(
     menu_data: MenuCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_admin)
 ):
     """
     Create new menu (admin only)
@@ -192,7 +195,8 @@ async def create_menu(
 async def update_menu(
     menu_id: str,
     menu_data: MenuUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_admin)
 ):
     """
     Update existing menu (admin only)
@@ -223,7 +227,8 @@ async def update_menu(
 @router.delete("/delete/{menu_id}")
 async def delete_menu(
     menu_id: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_admin)
 ):
     """
     Delete menu (soft delete - sets use_yn='N')

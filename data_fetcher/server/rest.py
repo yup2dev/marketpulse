@@ -5,24 +5,33 @@ Fetcher 로컬 REST 서버 — FastAPI 앱 팩토리.
 provider를 조회해 raw 데이터를 반환한다. 브라우저는 그 raw를 외부 WebServer
 /api/calc 로 전달해 계산/가공을 맡긴다.
 
+인증:
+    /fetch, /keys* 는 외부 provider API 키를 다루는 민감한 엔드포인트이므로
+    Authorization: Bearer <token> 을 요구한다. 토큰은 FETCHER_TOKEN
+    환경변수로 지정하거나, 없으면 최초 실행 시 자동 생성되어 로컬에
+    저장된다 (data_fetcher.server.auth 참고). 백엔드는 같은 값을
+    FETCHER_TOKEN에 설정해 호출한다.
+
 CORS:
-    브라우저 페이지는 배포된 WebServer origin(예: https://app.example.com)에서
-    로드되므로, fetch 대상인 이 로컬 서버가 해당 origin을 허용해야 한다.
-    FETCHER_ALLOWED_ORIGINS(쉼표구분)로 지정. localhost는 신뢰 컨텍스트라
-    mixed-content 차단은 없지만 CORS 헤더는 반드시 필요하다.
+    /health 는 배포된 WebServer(브라우저)가 loopback으로 직접 헬스체크하므로
+    Access-Control-Allow-Origin: * 를 별도로 내려준다 (민감 정보 없음).
+    그 외 엔드포인트는 토큰 인증으로 보호되므로, 추가로 cross-origin 호출을
+    허용해야 하는 경우에만 FETCHER_ALLOWED_ORIGINS(쉼표구분)로 지정한다.
 """
 from __future__ import annotations
 
 import logging
+import secrets
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Response
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from data_fetcher.query_executor import QueryExecutor, QueryExecutorError
+from data_fetcher.server.auth import get_or_create_token
 from data_fetcher.server.cache import MemoryCache
 from data_fetcher.server.keystore import KeyStore
 from data_fetcher.server.serialize import serialize_result
@@ -50,16 +59,31 @@ def create_app(
     app = FastAPI(title="MarketPulse Fetcher", version="0.1.0")
 
     # ── CORS ──────────────────────────────────────────────────────────────────
-    from fastapi.middleware.cors import CORSMiddleware
-    origins = allowed_origins or ["*"]
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=origins,
-        allow_credentials=False,  # 키 보호: 쿠키/자격증명 동반 요청 비허용
-        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
-        allow_headers=["*"],
+    # 민감 엔드포인트는 토큰 인증으로 보호되므로, CORS는 명시적으로 추가
+    # origin이 설정된 경우에만 적용한다 (기본은 cross-origin 비허용).
+    # /health 만 별도로 "*"를 내려준다 (민감 정보 없음, 브라우저 헬스체크용).
+    origins = allowed_origins or []
+    if origins:
+        from fastapi.middleware.cors import CORSMiddleware
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=origins,
+            allow_credentials=False,  # 키 보호: 쿠키/자격증명 동반 요청 비허용
+            allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+            allow_headers=["*"],
+        )
+    log.info("[fetcher] CORS allowed origins: %s", origins or "(none — /health is open separately)")
+
+    # ── 인증 토큰 ─────────────────────────────────────────────────────────────
+    fetch_token = get_or_create_token()
+    log.info(
+        "[fetcher] auth token (백엔드 .env의 FETCHER_TOKEN에 동일하게 설정하세요): %s",
+        fetch_token,
     )
-    log.info("[fetcher] CORS allowed origins: %s", origins)
+
+    async def verify_token(authorization: str = Header(default="")) -> None:
+        if not authorization or not secrets.compare_digest(authorization, f"Bearer {fetch_token}"):
+            raise HTTPException(status_code=401, detail="missing or invalid Fetcher token")
 
     # ── 상태 객체 ─────────────────────────────────────────────────────────────
     keystore = KeyStore()
@@ -72,7 +96,8 @@ def create_app(
         p = Path(base) / "assets" / "keys_ui.html"
         if not p.exists():
             p = Path(__file__).parent.parent / "assets" / "keys_ui.html"
-        return p.read_text(encoding="utf-8") if p.exists() else "<h1>UI 파일 없음</h1>"
+        html = p.read_text(encoding="utf-8") if p.exists() else "<h1>UI 파일 없음</h1>"
+        return html.replace("__FETCHER_TOKEN__", fetch_token)
 
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
     async def keys_ui() -> HTMLResponse:
@@ -80,7 +105,8 @@ def create_app(
 
     # ── 헬스 / 메타 ───────────────────────────────────────────────────────────
     @app.get("/health")
-    async def health() -> Dict[str, Any]:
+    async def health(response: Response) -> Dict[str, Any]:
+        response.headers["Access-Control-Allow-Origin"] = "*"
         return {"status": "ok", "version": app.version}
 
     @app.get("/providers")
@@ -93,7 +119,7 @@ def create_app(
         }
 
     # ── 데이터 조회 ───────────────────────────────────────────────────────────
-    @app.post("/fetch")
+    @app.post("/fetch", dependencies=[Depends(verify_token)])
     async def fetch(req: FetchRequest) -> Dict[str, Any]:
         """provider/model/params로 raw 데이터를 조회해 반환."""
         try:
@@ -112,11 +138,11 @@ def create_app(
         return serialize_result(raw)
 
     # ── API 키 관리 ───────────────────────────────────────────────────────────
-    @app.get("/keys")
+    @app.get("/keys", dependencies=[Depends(verify_token)])
     async def list_keys() -> List[Dict[str, object]]:
         return keystore.status()
 
-    @app.post("/keys")
+    @app.post("/keys", dependencies=[Depends(verify_token)])
     async def set_key(req: KeyRequest) -> Dict[str, str]:
         if req.fields:
             cleaned = {k: v.strip() for k, v in req.fields.items() if v and v.strip()}
@@ -129,7 +155,7 @@ def create_app(
             keystore.set(req.provider, req.api_key.strip())
         return {"status": "ok", "provider": req.provider.lower()}
 
-    @app.delete("/keys/{provider}")
+    @app.delete("/keys/{provider}", dependencies=[Depends(verify_token)])
     async def delete_key(provider: str) -> Dict[str, str]:
         if not keystore.delete(provider):
             raise HTTPException(status_code=404, detail=f"no key for '{provider}'")

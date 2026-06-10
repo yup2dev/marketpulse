@@ -94,6 +94,17 @@
 
   <div id="status-badge" class="badge-ok"><span class="dot"></span> 서버 실행 중 — port 8765</div>
 
+  <div class="provider-card" style="margin-bottom: 20px;">
+    <div class="provider-header">
+      <span class="provider-name">백엔드 연동 토큰</span>
+    </div>
+    <div class="key-row">
+      <input type="text" id="fetcher-token" readonly>
+      <button class="btn-save" onclick="copyToken()">복사</button>
+    </div>
+    <div class="subtitle" style="margin-top: 8px;">백엔드 서버 .env의 FETCHER_TOKEN 값으로 설정하세요</div>
+  </div>
+
   <div id="providers" class="providers"><!-- JS가 채움 --></div>
 
   <footer>키는 <code>~/.marketpulse_fetcher/keys.json</code>에 저장됩니다 (소유자 전용 600)<br>
@@ -103,6 +114,17 @@
 
 <script>
 const BASE = '';
+const FETCHER_TOKEN = '__FETCHER_TOKEN__';
+const AUTH_HEADERS = { Authorization: `Bearer ${FETCHER_TOKEN}` };
+
+document.getElementById('fetcher-token').value = FETCHER_TOKEN;
+
+function copyToken() {
+  navigator.clipboard.writeText(FETCHER_TOKEN).then(
+    () => toast('토큰이 복사되었습니다'),
+    () => toast('복사 실패', true)
+  );
+}
 const PROVIDERS = [
   { id: 'fmp',           label: 'FMP',           placeholder: 'Financial Modeling Prep API Key' },
   { id: 'polygon',       label: 'Polygon',        placeholder: 'Polygon.io API Key' },
@@ -112,7 +134,7 @@ const PROVIDERS = [
 
 async function loadKeys() {
   try {
-    const res = await fetch(`${BASE}/keys`);
+    const res = await fetch(`${BASE}/keys`, { headers: AUTH_HEADERS });
     return res.ok ? await res.json() : [];
   } catch { return []; }
 }
@@ -162,7 +184,7 @@ async function saveKey(provider) {
   try {
     const res = await fetch(`${BASE}/keys`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...AUTH_HEADERS },
       body: JSON.stringify({ provider, api_key: key }),
     });
     if (res.ok) {
@@ -183,7 +205,7 @@ async function saveKey(provider) {
 async function deleteKey(provider) {
   if (!confirm(`${provider} 키를 삭제하시겠습니까?`)) return;
   try {
-    const res = await fetch(`${BASE}/keys/${provider}`, { method: 'DELETE' });
+    const res = await fetch(`${BASE}/keys/${provider}`, { method: 'DELETE', headers: AUTH_HEADERS });
     if (res.ok) { toast(`${provider} 키 삭제됨`); await renderProviders(); }
     else toast('삭제 실패', true);
   } catch { toast('서버 연결 실패', true); }
