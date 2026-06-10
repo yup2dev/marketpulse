@@ -24,11 +24,12 @@ services:
   redis:
     image: redis:7-alpine
     container_name: marketpulse-redis
+    mem_limit: 64m
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes
+    command: redis-server --maxmemory 32mb --maxmemory-policy allkeys-lru --appendonly yes
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -41,7 +42,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: yup2dev/marketpulse-backend:latest
     container_name: marketpulse-app
+    mem_limit: 300m
     environment:
       # Application Settings
       APP_NAME: ${APP_NAME:-MarketPulse}
@@ -63,6 +66,9 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_DB: ${REDIS_DB:-0}
+
+      # Fetcher (로컬 데스크톱 전용 - 서버에는 없음)
+      FETCHER_REMOTE_ENABLED: ${FETCHER_REMOTE_ENABLED:-false}
 
       # Scheduler
       SCHEDULER_ENABLED: ${SCHEDULER_ENABLED:-true}
