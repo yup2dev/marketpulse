@@ -10,6 +10,7 @@ on:
       - 'requirements.txt'
       - 'Dockerfile'
       - 'docker-compose.yml'
+  workflow_dispatch:
 
 jobs:
   deploy:
