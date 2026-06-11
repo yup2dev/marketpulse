@@ -20,9 +20,12 @@ CORS:
 """
 from __future__ import annotations
 
+import asyncio
 import logging
+import os
 import secrets
 import sys
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -38,6 +41,22 @@ from data_fetcher.server.serialize import serialize_result
 
 log = logging.getLogger(__name__)
 
+# 독립 실행 Fetcher가 Tauri 주입 없이도 합류할 클라우드 백엔드 기본 WS 주소.
+# 환경변수 FETCHER_BACKEND_WS_URL로 덮어쓸 수 있다(빈 문자열로 설정하면 합류 비활성).
+_DEFAULT_BACKEND_WS_URL = "wss://api.finance.dns-co.kr/ws/fetcher"
+
+# 웹앱이 loopback으로 /health·/user-token을 호출할 수 있도록 기본 허용하는 origin.
+# (민감 엔드포인트는 별도 Fetcher 토큰으로 보호되므로 origin 허용만으로 노출되지 않는다.)
+_DEFAULT_WEB_ORIGINS = [
+    "https://finance.dns-co.kr",
+    "tauri://localhost",
+    "http://tauri.localhost",
+    "https://tauri.localhost",
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:5175",
+]
+
 
 class FetchRequest(BaseModel):
     provider: str
@@ -52,27 +71,60 @@ class KeyRequest(BaseModel):
     fields: Optional[Dict[str, str]] = None    # 다중 필드 provider (kis: appkey/appsecret)
 
 
+class UserTokenRequest(BaseModel):
+    token: str
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    """백엔드 /ws/fetcher 워커 풀에 합류한다(클라우드 기본값 내장).
+
+    WS 주소: FETCHER_BACKEND_WS_URL 환경변수가 있으면 그 값, 미설정이면 클라우드 기본값
+    (_DEFAULT_BACKEND_WS_URL). 빈 문자열로 명시 설정하면 합류를 비활성화한다(로컬 전용).
+    → 독립 실행 Fetcher도 Tauri 주입 없이 클라우드 풀에 합류한다.
+
+    인증은 '사용자 로그인 JWT'. 데스크톱 앱이 로그인/갱신 시 토큰 파일
+    (~/.marketpulse_fetcher/user_token)을 기록하면, 워커가 매 접속 시 이를 읽어 접속한다.
+    토큰이 아직 없으면(로그인 전) 보류하고 주기적으로 재확인한다(재시작 불필요).
+    """
+    raw = os.getenv("FETCHER_BACKEND_WS_URL")
+    ws_url = _DEFAULT_BACKEND_WS_URL if raw is None else raw.strip()
+    task: Optional[asyncio.Task] = None
+    if ws_url:
+        from data_fetcher.server.auth import get_user_token
+        from data_fetcher.server.ws_worker import run_ws_worker
+
+        task = asyncio.create_task(run_ws_worker(ws_url, get_user_token))
+        log.info("[fetcher] WS 워커 풀 합류 대기 → %s (로그인 토큰 감지 시 접속)", ws_url)
+    else:
+        log.info("[fetcher] FETCHER_BACKEND_WS_URL='' → 워커 풀 합류 비활성(로컬 전용)")
+
+    yield
+
+    if task:
+        task.cancel()
+
+
 def create_app(
     allowed_origins: Optional[List[str]] = None,
     enable_cache: bool = True,
 ) -> FastAPI:
-    app = FastAPI(title="MarketPulse Fetcher", version="0.1.0")
+    app = FastAPI(title="MarketPulse Fetcher", version="0.1.0", lifespan=_lifespan)
 
     # ── CORS ──────────────────────────────────────────────────────────────────
-    # 민감 엔드포인트는 토큰 인증으로 보호되므로, CORS는 명시적으로 추가
-    # origin이 설정된 경우에만 적용한다 (기본은 cross-origin 비허용).
-    # /health 만 별도로 "*"를 내려준다 (민감 정보 없음, 브라우저 헬스체크용).
-    origins = allowed_origins or []
-    if origins:
-        from fastapi.middleware.cors import CORSMiddleware
-        app.add_middleware(
-            CORSMiddleware,
-            allow_origins=origins,
-            allow_credentials=False,  # 키 보호: 쿠키/자격증명 동반 요청 비허용
-            allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
-            allow_headers=["*"],
-        )
-    log.info("[fetcher] CORS allowed origins: %s", origins or "(none — /health is open separately)")
+    # 민감 엔드포인트(/fetch, /keys)는 Fetcher 토큰으로 보호된다. 웹앱이 /health 와
+    # /user-token(로그인 토큰 전달)을 loopback으로 호출할 수 있도록, 웹 origin을 기본
+    # 허용한다. FETCHER_ALLOWED_ORIGINS로 추가 가능.
+    origins = list(_DEFAULT_WEB_ORIGINS) + (allowed_origins or [])
+    from fastapi.middleware.cors import CORSMiddleware
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=False,  # 키 보호: 쿠키/자격증명 동반 요청 비허용
+        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+        allow_headers=["*"],
+    )
+    log.info("[fetcher] CORS allowed origins: %s", origins)
 
     # ── 인증 토큰 ─────────────────────────────────────────────────────────────
     fetch_token = get_or_create_token()
@@ -87,6 +139,7 @@ def create_app(
 
     # ── 상태 객체 ─────────────────────────────────────────────────────────────
     keystore = KeyStore()
+    app.state.keystore = keystore  # WS 워커(keys_* 위임 처리)가 같은 인스턴스를 공유
     if enable_cache:
         QueryExecutor.configure(cache=MemoryCache())
 
@@ -108,6 +161,24 @@ def create_app(
     async def health(response: Response) -> Dict[str, Any]:
         response.headers["Access-Control-Allow-Origin"] = "*"
         return {"status": "ok", "version": app.version}
+
+    # ── 로그인 토큰 수신 (웹앱이 loopback으로 전달) ─────────────────────────────
+    # 웹 로그인 후 브라우저가 이 PC의 Fetcher에 JWT를 전달 → 워커가 클라우드 풀에 합류.
+    # Fetcher 토큰 인증은 없다(웹은 그 값을 모름). CORS origin 허용으로 보호한다.
+    # 토큰의 유효성은 클라우드 백엔드가 /ws/fetcher 접속 시 검증한다(여기선 저장만).
+    @app.post("/user-token")
+    async def set_user_token(req: UserTokenRequest) -> Dict[str, str]:
+        from data_fetcher.server.auth import write_user_token
+        if not (req.token and req.token.strip()):
+            raise HTTPException(status_code=400, detail="token is empty")
+        write_user_token(req.token)
+        return {"status": "ok"}
+
+    @app.delete("/user-token")
+    async def delete_user_token() -> Dict[str, str]:
+        from data_fetcher.server.auth import clear_user_token
+        clear_user_token()
+        return {"status": "cleared"}
 
     @app.get("/providers")
     async def providers() -> Dict[str, List[str]]:

@@ -30,6 +30,7 @@ from app.backend.api.routes.fundamental import router as fundamental_router
 from app.backend.api.routes.providers import router as providers_router
 from app.backend.api.routes.ws import router as ws_router
 from app.backend.api.routes.data import router as data_router
+from app.backend.api.routes.keys import router as keys_router
 
 
 @asynccontextmanager
@@ -48,14 +49,29 @@ async def lifespan(app: FastAPI):
     # False(기본)에서는 기존처럼 백엔드가 provider를 직접 호출한다.
     fetcher_client = None
     if settings.FETCHER_REMOTE_ENABLED:
-        from app.backend.core.fetcher_client import FetcherClient
-        fetcher_client = FetcherClient(
-            base_url=settings.FETCHER_URL,
-            timeout=settings.FETCHER_TIMEOUT,
-            token=settings.FETCHER_TOKEN or None,
-        )
-        log.info("[startup] Fetcher 위임 활성화 → %s", settings.FETCHER_URL)
-    QueryExecutor.configure(cache=cache, remote=fetcher_client)
+        if settings.FETCHER_WORKER_MODE:
+            # 사용자 PC의 Fetcher가 /ws/fetcher 로 outbound 접속(push) → 워커 풀에 위임
+            from app.backend.core.fetcher_ws_transport import WSFetcherTransport
+            fetcher_client = WSFetcherTransport(timeout=settings.FETCHER_TIMEOUT)
+            log.info("[startup] Fetcher 위임 활성화 (WS 워커 풀, /ws/fetcher)")
+        else:
+            from app.backend.core.fetcher_client import FetcherClient
+            fetcher_client = FetcherClient(
+                base_url=settings.FETCHER_URL,
+                timeout=settings.FETCHER_TIMEOUT,
+                token=settings.FETCHER_TOKEN or None,
+            )
+            log.info("[startup] Fetcher 위임 활성화 → %s", settings.FETCHER_URL)
+
+    # key-only provider(Class B)를 서버에서 '요청 사용자의 키'로 호출하기 위한 해석기.
+    # current_user_id별로 DB에 저장된 사용자 키를 복호화해 반환한다.
+    def _credential_resolver(provider: str, user_id: str):
+        from app.backend.services.user_key_service import get_credentials
+        return get_credentials(user_id, provider)
+
+    QueryExecutor.configure(
+        cache=cache, remote=fetcher_client, credential_resolver=_credential_resolver,
+    )
 
     # ── Redis Pub/Sub (멀티워커 WS fan-out) ──────────────────────────────────
     from app.backend.core.pubsub import init_pubsub, close_pubsub
@@ -160,7 +176,15 @@ async def auth_gate(request: Request, call_next):
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    return await call_next(request)
+    # 요청 범위 사용자 컨텍스트 설정 — 데이터 조회가 '이 사용자의 Fetcher 워커'로
+    # 위임되도록 한다(사용자별 키 사용). contextvar는 요청 task에 격리된다.
+    from data_fetcher.query_executor import current_user_id
+    sub = payload.get("sub")
+    ctx_token = current_user_id.set(str(sub) if sub is not None else None)
+    try:
+        return await call_next(request)
+    finally:
+        current_user_id.reset(ctx_token)
 
 # ── Stock / Market ────────────────────────────────────────────────────────────
 app.include_router(stock.router,     prefix="/api/stock",    tags=["stock"])
@@ -193,6 +217,7 @@ app.include_router(data_router,       prefix="/api/data", tags=["data"])
 app.include_router(export.router,     prefix="/api", tags=["export"])
 app.include_router(menu.router,       prefix="/api", tags=["menu"])
 app.include_router(providers_router,  prefix="/api", tags=["providers"])
+app.include_router(keys_router,       prefix="/api", tags=["keys"])
 app.include_router(ws_router,                        tags=["websocket"])
 
 
@@ -242,6 +267,13 @@ async def circuit_breaker_reset(provider: str):
     from data_fetcher.utils.circuit_breaker import reset
     reset(provider)
     return {"status": "reset", "provider": provider}
+
+
+@app.get("/fetcher-workers")
+async def fetcher_workers():
+    """/ws/fetcher 로 접속 중인 사용자 PC Fetcher 워커 풀 상태."""
+    from app.backend.core.fetcher_pool import fetcher_pool
+    return {"connected": fetcher_pool.count(), "workers": fetcher_pool.status()}
 
 
 if __name__ == "__main__":

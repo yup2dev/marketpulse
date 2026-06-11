@@ -10,9 +10,9 @@ import { useEffect, useRef, useState } from 'react';
 import { Activity, Download, Play, RefreshCw, X } from 'lucide-react';
 import useFetcherHealth from '../../hooks/useFetcherHealth';
 
-// 스탠드얼론 Fetcher 다운로드 위치 (웹 사용자용)
+// Fetcher(데스크톱 앱) 다운로드 위치 (웹 사용자용)
 const FETCHER_DOWNLOAD_URL =
-  'https://github.com/sangyeopKim/marketpulse/releases/latest';
+  'https://github.com/yup2dev/marketpulse/releases/latest';
 
 const DOT = {
   checking: 'bg-yellow-500 animate-pulse',

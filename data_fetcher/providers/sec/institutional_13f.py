@@ -9,10 +9,6 @@ import requests
 from bs4 import BeautifulSoup
 import xml.etree.ElementTree as ET
 
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
 from pydantic import Field
 
 from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData

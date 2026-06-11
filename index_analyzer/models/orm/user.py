@@ -61,6 +61,26 @@ class User(Base):
         }
 
 
+class UserApiKey(Base):
+    """사용자별 provider API 키 (암호화 저장).
+
+    key-only provider(FRED/FMP/Polygon/AlphaVantage/KIS)는 서버에서 이 키로 호출한다.
+    enc_value는 Fertnet 대칭암호화된 JSON 문자열(단일 키 또는 {field: value} 다중 필드)이다.
+    원문 키는 절대 평문으로 저장/응답하지 않는다(조회 시 마스킹).
+    """
+    __tablename__ = 'user_api_keys'
+
+    user_id = Column(String(50), ForeignKey('users.user_id', ondelete='CASCADE'),
+                     primary_key=True)
+    provider = Column(String(50), primary_key=True)
+    enc_value = Column(Text, nullable=False)   # Fernet 암호문 (JSON 평문을 암호화)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        Index('idx_user_api_keys_user', 'user_id'),
+    )
+
+
 class Portfolio(Base):
     """사용자 포트폴리오"""
     __tablename__ = 'portfolios'

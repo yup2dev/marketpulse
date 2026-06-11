@@ -8,11 +8,7 @@ from datetime import datetime, timedelta
 import re
 import xml.etree.ElementTree as ET
 from bs4 import BeautifulSoup
-import sys
-from pathlib import Path
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from data_fetcher.utils.cusip_mapper import cusip_to_ticker
 
 

@@ -1,11 +1,8 @@
 """Database Index Constituents Fetcher"""
 import logging
-import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from pydantic import Field
-
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
 from data_fetcher.abstract_provider.abstract.fetcher import Fetcher

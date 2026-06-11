@@ -14,6 +14,12 @@ GUI 환경이면 시스템 트레이 아이콘으로, 없으면 헤드리스 RES
     FETCHER_ALLOWED_ORIGINS  CORS 허용 origin(쉼표구분).  예) https://app.example.com
     FETCHER_LOG_LEVEL        기본 info
     FETCHER_HEADLESS         1이면 트레이 없이 REST만 기동 (서버·CI 환경용)
+    FETCHER_BACKEND_WS_URL   백엔드 /ws/fetcher 워커 풀 주소. 미설정이면 클라우드 기본값
+                             (wss://api.finance.dns-co.kr/ws/fetcher)으로 합류한다.
+                             빈 문자열("")로 설정하면 합류 비활성(로컬 전용).
+    FETCHER_USER_TOKEN       워커 풀 합류 시 사용할 사용자 로그인 JWT(access token).
+                             데스크톱 앱이 로그인 후 토큰 파일로 주입한다(env로도 가능).
+                             백엔드가 이 토큰의 user_id로 워커를 등록 → 그 사용자 요청만 위임.
     FMP_API_KEY 등            provider 키 (REST /keys 로도 등록 가능)
 """
 from __future__ import annotations

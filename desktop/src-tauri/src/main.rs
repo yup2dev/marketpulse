@@ -103,7 +103,12 @@ fn main() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![get_fetcher_status, start_fetcher])
+        .invoke_handler(tauri::generate_handler![
+            get_fetcher_status,
+            start_fetcher,
+            fetcher::set_fetcher_token,
+            fetcher::clear_fetcher_token,
+        ])
         // 상단 애플리케이션 메뉴 (macOS 메뉴바) — Spotify처럼 커스텀 메뉴를 노출
         .menu(build_app_menu)
         .on_menu_event(|app, event| {
@@ -205,17 +210,15 @@ fn main() {
         .expect("error while running MarketPulse");
 }
 
-/// Fetcher 백그라운드 모니터링
-async fn monitor_fetcher(_handle: &tauri::AppHandle) {
+/// Fetcher 백그라운드 모니터링 — 죽어 있으면 번들 sidecar를 직접 재기동
+async fn monitor_fetcher(handle: &tauri::AppHandle) {
     loop {
         // 5분마다 Fetcher 상태 확인
         tokio::time::sleep(Duration::from_secs(300)).await;
 
         if check_fetcher_health().await.is_err() {
-            log::warn!("🔄 Fetcher 연결 실패, Backend API를 통해 재시작 시도");
-            if let Err(e) = start_fetcher_via_api().await {
-                log::error!("❌ Fetcher 재시작 실패: {e}");
-            }
+            log::warn!("🔄 Fetcher 응답 없음 — sidecar 재시작");
+            fetcher::start(handle.clone());
         }
     }
 }
@@ -232,21 +235,6 @@ async fn check_fetcher_health() -> Result<(), String> {
             Ok(())
         }
         _ => Err("Fetcher not responding".to_string()),
-    }
-}
-
-/// Backend API를 통해 Fetcher 시작
-async fn start_fetcher_via_api() -> Result<(), String> {
-    let client = reqwest::Client::new();
-    match tokio::time::timeout(
-        Duration::from_secs(5),
-        client.post("http://127.0.0.1:8000/api/fetcher/start").send()
-    ).await {
-        Ok(Ok(resp)) if resp.status().is_success() => {
-            log::info!("✅ Fetcher 재시작 완료");
-            Ok(())
-        }
-        e => Err(format!("Failed to start fetcher: {:?}", e)),
     }
 }
 

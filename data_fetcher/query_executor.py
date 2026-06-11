@@ -29,6 +29,7 @@ import asyncio
 import json
 import logging
 import re
+from contextvars import ContextVar
 from typing import Any, Dict, List, Optional, Protocol, Type, Union, runtime_checkable
 
 from pydantic import BaseModel
@@ -184,6 +185,22 @@ class QueryExecutorError(Exception):
     pass
 
 
+class RemoteUnavailableError(QueryExecutorError):
+    """원격 위임 인프라에 도달할 수 없음(워커 미접속·타임아웃·연결 끊김).
+
+    이 오류일 때만 백엔드 직접 호출로 폴백한다. 워커가 실제로 실행했으나
+    실패한 경우(예: 사용자 키 미설정 → CredentialsError)는 이 오류가 아니라
+    QueryExecutorError로 그대로 전파되어 '기존과 동일한 오류'를 사용자에게 보인다.
+    """
+    pass
+
+
+# 요청 범위 사용자 컨텍스트 — 백엔드 auth 미들웨어가 현재 요청의 user_id를 set한다.
+# WSFetcherTransport가 이 값을 읽어 '그 사용자의 워커'로 위임한다. 서버 백그라운드
+# 작업처럼 요청 컨텍스트가 없으면 None → 워커 없음 → 백엔드 직접(운영자 키) 폴백.
+current_user_id: "ContextVar[Optional[str]]" = ContextVar("current_user_id", default=None)
+
+
 def _to_snake_case(name: str) -> str:
     """
     PascalCase / camelCase → snake_case 변환
@@ -333,12 +350,18 @@ class QueryExecutor:
     _ttl_map: Dict[str, int] = dict(_DEFAULT_TTL)
 
     # 원격 위임 트랜스포트(배포 WebServer에서만 주입).
-    # 설정 시 _upstream_fetch가 로컬 provider 대신 Fetcher(exe) REST로 위임한다.
+    # 설정 시 _upstream_fetch가 해당 provider를 사용자 Fetcher 워커로 위임한다.
     _remote: Optional[RemoteTransport] = None
 
-    # remote가 설정돼 있어도 항상 로컬에서 직접 실행할 provider.
-    # DB/파일 기반 provider처럼 백엔드 프로세스 내부 자원에 의존하는 것들.
-    _local_providers: frozenset = frozenset({"db"})
+    # Class A — '로컬 실행 필수' provider. 비공식 스크래핑이라 서버 고정 IP에서 호출하면
+    # 차단되므로 반드시 사용자 PC Fetcher에서 실행한다(키 불필요). 로그인 사용자 요청이면
+    # 폴백 없이 그 사용자 워커로만 위임한다. (서버 배치작업은 워커가 없으므로 백엔드 직접)
+    _remote_only_providers: frozenset = frozenset({"yahoo", "whalewisdom"})
+
+    # Class B — key-only provider는 서버에서 호출하되, 요청 사용자의 키(DB)로 호출한다.
+    # _credential_resolver(provider, user_id) → {필드: 값} | None 을 백엔드가 주입한다.
+    # 사용자 키가 없으면 운영자 키로 폴백하지 않고 명확한 오류를 낸다(서버 배치작업 제외).
+    _credential_resolver = None  # Optional[Callable[[str, str], Optional[Dict[str, str]]]]
 
     # single-flight: 동일 cache_key에 대한 동시 업스트림 호출을 1개로 제한
     _inflight: Dict[str, asyncio.Lock] = {}
@@ -357,24 +380,30 @@ class QueryExecutor:
         cache: CacheProtocol,
         ttl_map: Optional[Dict[str, int]] = None,
         remote: Optional[RemoteTransport] = None,
+        credential_resolver=None,
     ) -> None:
-        """앱 시작 시 캐시 백엔드 주입. data_fetcher는 app.backend를 직접 import하지 않는다.
+        """앱 시작 시 캐시/원격/자격증명 해석기 주입. data_fetcher는 app.backend를 import하지 않는다.
 
         Args:
             cache:  캐시 백엔드(CacheProtocol).
             ttl_map: 모델별 TTL 오버라이드.
-            remote: 원격 위임 트랜스포트. 지정 시 캐시 MISS의 실제 조회를 로컬 provider가
-                    아닌 Fetcher(exe) REST로 넘긴다. None이면 기존처럼 직접 조회.
+            remote: 원격 위임 트랜스포트(Class A provider를 사용자 워커로 위임). None이면 직접 조회.
+            credential_resolver: (provider, user_id) → 자격증명 dict | None.
+                key-only provider(Class B)를 서버에서 요청 사용자의 키로 호출하기 위해 백엔드가 주입.
         """
         cls._cache = cache
         if ttl_map:
             cls._ttl_map.update(ttl_map)
         if remote is not None:
             cls._remote = remote
+        if credential_resolver is not None:
+            # staticmethod로 감싸 클래스 속성 접근 시 self가 바인딩되지 않게 한다
+            cls._credential_resolver = staticmethod(credential_resolver)
         log.info(
-            "[QueryExecutor] configured: cache=%s upstream=%s",
+            "[QueryExecutor] configured: cache=%s upstream=%s resolver=%s",
             type(cache).__name__,
             type(remote).__name__ if remote is not None else "local-provider",
+            "yes" if credential_resolver is not None else "no",
         )
 
     @classmethod
@@ -406,10 +435,19 @@ class QueryExecutor:
     ) -> Any:
         """Provider/Fetcher 조회 → fetch_data() 호출 (캐시 없음).
 
-        원격 트랜스포트가 설정된 경우(배포 WebServer) 로컬 provider 대신
-        Fetcher(exe) REST로 위임한다. 자격증명은 Fetcher가 보유하므로 전달하지 않는다.
+        라우팅 정책:
+          - Class A (_remote_only_providers: 로컬 실행 필수, 예 yahoo/whalewisdom)
+            + 로그인 사용자 요청 → '그 사용자의 Fetcher 워커'로만 위임(폴백 없음).
+              워커 미접속/끊김 → RemoteUnavailableError 전파(앱 실행 안내).
+          - 그 외(Class B key-only / 로컬계산 / 또는 서버 배치작업) → 백엔드가 직접 호출.
+            · key-only + 로그인 사용자 → 요청 사용자의 키(DB, _credential_resolver)로 호출.
+              사용자 키 없으면 운영자 키로 폴백하지 않고 명확한 오류.
+            · 서버 배치작업(user 컨텍스트 없음) → 운영자 키(env).
         """
-        if cls._remote is not None and provider not in cls._local_providers:
+        user_id = current_user_id.get()
+
+        # Class A: 로컬 실행 필수 → 로그인 사용자면 그 워커로만 위임(폴백 없음)
+        if cls._remote is not None and provider in cls._remote_only_providers and user_id:
             return await cls._remote.fetch(provider, model, params, credentials, **kwargs)
 
         try:
@@ -418,7 +456,23 @@ class QueryExecutor:
             raise QueryExecutorError(str(e)) from e
 
         fetcher_cls = _resolve_fetcher(provider_obj, model)
-        resolved_creds = _load_credentials(provider_obj, credentials)
+
+        # Class B 자격증명 해석: 로그인 사용자의 키(DB)를 우선 사용
+        creds_in = credentials
+        if (
+            creds_in is None
+            and provider_obj.credentials          # 키가 필요한 provider만
+            and user_id
+            and cls._credential_resolver is not None
+        ):
+            creds_in = cls._credential_resolver(provider, user_id)
+            if not creds_in:
+                # 사용자 키 미설정 → 운영자 키 폴백 금지, 명확한 오류
+                raise QueryExecutorError(
+                    f"'{provider}' API 키가 설정되지 않았습니다. 설정에서 키를 등록하세요."
+                )
+
+        resolved_creds = _load_credentials(provider_obj, creds_in)
         provider_obj.validate_credentials(resolved_creds)
         filtered_params = _filter_extra_params(fetcher_cls, params, provider, model)
 

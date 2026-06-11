@@ -64,6 +64,20 @@ jobs:
           cp "$SRC" "$DST"
           chmod +x "$DST"
 
+      # ── 독립 실행 Fetcher 빌드 (웹 사용자용 단독 다운로드 에셋) ─────────────
+      # 데스크톱 앱과 별개로, 웹 사용자가 자기 PC에서 직접 실행할 수 있는 Fetcher.
+      - name: Build standalone Fetcher (PyInstaller)
+        shell: bash
+        run: |
+          pyinstaller build/MarketPulseFetcher.spec --noconfirm
+          mkdir -p release-assets
+          if [ "${{ matrix.platform }}" = "windows-latest" ]; then
+            cp "dist/MarketPulseFetcher.exe" "release-assets/MarketPulseFetcher-${{ matrix.target_triple }}.exe"
+          else
+            # .app 번들 → zip (ditto가 번들 메타데이터를 보존)
+            ditto -c -k --keepParent "dist/MarketPulseFetcher.app" "release-assets/MarketPulseFetcher-${{ matrix.target_triple }}.zip"
+          fi
+
       # ── 프론트엔드는 Vercel에서 서빙 — Tauri가 번들하지 않으므로 빌드 불필요 ──
 
       - name: Install desktop dependencies
@@ -94,3 +108,13 @@ jobs:
           prerelease: false
           projectPath: ./desktop
           includeUpdaterJson: true
+
+      # ── 독립 Fetcher 바이너리를 같은 릴리스에 첨부 ────────────────────────
+      # tauri-action이 태그 릴리스를 먼저 생성한 뒤 실행되어야 한다.
+      - name: Attach standalone Fetcher to release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ github.ref_name }}" release-assets/* \
+            --clobber --repo "${{ github.repository }}"

@@ -22,6 +22,9 @@ class Settings(BaseSettings):
 
     # Security
     SECRET_KEY: str = "dev-only-key-override-in-env"
+    # 사용자 API 키 암호화 전용 시크릿(미지정 시 SECRET_KEY에서 파생).
+    # 운영에서는 고정값으로 지정해야 SECRET_KEY 교체 시에도 기존 키 복호화가 유지된다.
+    API_KEY_ENC_SECRET: str = ""
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
@@ -49,11 +52,14 @@ class Settings(BaseSettings):
     QUEUE_ENABLED: bool = False
     SCHEDULER_ENABLED: bool = False
 
-    # Fetcher(exe) 위임 — Backend가 provider를 직접 호출하지 않고 로컬 Fetcher REST로 위임
+    # Fetcher(exe) 위임 — Backend가 provider를 직접 호출하지 않고 Fetcher로 위임
     FETCHER_REMOTE_ENABLED: bool = True              # True면 모든 조회를 Fetcher로 위임
-    FETCHER_URL: str = "http://127.0.0.1:8765"        # Fetcher REST 주소
-    FETCHER_TOKEN: str = ""                            # (선택) Bearer 인증 토큰
+    FETCHER_URL: str = "http://127.0.0.1:8765"        # Fetcher REST 주소 (HTTP/pull 모드)
+    FETCHER_TOKEN: str = ""                            # Fetcher와 공유하는 인증 토큰
     FETCHER_TIMEOUT: float = 90.0   # batch_quotes 등 수백 종목 일괄 조회는 30s를 초과할 수 있음
+    # True: 사용자 PC의 Fetcher가 /ws/fetcher 로 outbound 접속해 위임받는 워커 풀 모드(push).
+    # NAT/방화벽 뒤의 PC도 동작 가능. False(기본): 위 FETCHER_URL로 직접 호출(pull, HTTP).
+    FETCHER_WORKER_MODE: bool = False
 
     # Crawler
     CRAWLER_MAX_WORKERS: int = 5

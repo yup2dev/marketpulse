@@ -30,6 +30,7 @@ from .calc import MBS_CALC_METRIC
 from .recommend import MBS_RCMD_RESULT
 from .user import (
     User,
+    UserApiKey,
     Portfolio,
     Transaction,
     Holding,
@@ -76,6 +77,7 @@ __all__ = [
     "MBS_RCMD_RESULT",
     # User & Portfolio domain
     "User",
+    "UserApiKey",
     "Portfolio",
     "Transaction",
     "Holding",

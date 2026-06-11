@@ -1,8 +1,7 @@
-// Tauri v2 WebView 감지 — 데스크탑 앱이면 로컬 백엔드, 웹 브라우저면 서버 URL
-const _isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
-const API_BASE_URL = _isTauri
-  ? 'http://127.0.0.1:8000'                                      // 데스크탑: 로컬 백엔드
-  : (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000');  // 웹: 서버 URL
+// 데스크탑·웹 모두 클라우드 백엔드를 사용한다.
+// (데스크탑의 번들 Fetcher는 로컬에서 돌지만, 백엔드는 클라우드 → /ws/fetcher 워커풀에 합류)
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL || 'https://api.finance.dns-co.kr';
 export const API_BASE = `${API_BASE_URL}/api`;
 
 // ─── Force-logout callback ────────────────────────────────────────────────────
@@ -46,6 +45,8 @@ class ApiClient {
         localStorage.setItem('access_token',  data.access_token);
         localStorage.setItem('refresh_token', data.refresh_token);
         if (data.user) localStorage.setItem('user', JSON.stringify(data.user));
+        // 데스크톱: 갱신된 토큰을 Fetcher에 반영 (다음 워커 재접속에 사용)
+        import('./../utils/fetcherToken').then((m) => m.syncFetcherToken(data.access_token));
         return true;
       })
       .catch(() => false)
@@ -128,6 +129,14 @@ export const portfolioAPI = {
   refreshPrices:   (id)          => apiClient.post(`${UP}/portfolios/${id}/refresh-prices`),
   getPriceAtDate:  (ticker, date)=>
     apiClient.get(`${UP}/price-at-date?ticker=${encodeURIComponent(ticker)}&date=${date}`),
+};
+
+// ─── API Keys API ─────────────────────────────────────────────────────────────
+// 키는 백엔드에 저장되지 않고 '내 Fetcher 워커(WS)'로 위임되어 내 PC keystore에 적용된다.
+export const keysAPI = {
+  list:   ()              => apiClient.get(`${API_BASE}/keys`),
+  set:    (data)          => apiClient.post(`${API_BASE}/keys`, data),
+  delete: (provider)      => apiClient.request(`${API_BASE}/keys/${provider}`, { method: 'DELETE' }),
 };
 
 // ─── Export API ───────────────────────────────────────────────────────────────

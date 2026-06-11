@@ -25,6 +25,7 @@ from fastapi.responses import JSONResponse
 
 from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
 from data_fetcher.core.obbject import OBBject
+from data_fetcher.query_executor import QueryExecutorError, RemoteUnavailableError
 from data_fetcher.utils.circuit_breaker import CircuitBreakerOpen
 from data_fetcher.utils.http_client import HTTPClientError
 
@@ -48,6 +49,33 @@ def wrap_result(raw: Any, provider: str) -> OBBject:
         for item in items
     ]
     return OBBject(results=results, provider=provider, metadata=metadata)
+
+
+def _find_cause(e: Exception, types: tuple) -> Exception | None:
+    """예외 자신 또는 __cause__ 체인에서 주어진 타입을 찾는다."""
+    cur = e
+    for _ in range(5):
+        if isinstance(cur, types):
+            return cur
+        cur = getattr(cur, "__cause__", None)
+        if cur is None:
+            break
+    return None
+
+
+def _query_executor_response(e: Exception, log, name: str):
+    """QueryExecutorError 계열 → 간결한 로그(트레이스백 X) + 적절한 상태코드. 해당 없으면 None."""
+    # 원격(Fetcher/워커) 미가용 → 503
+    unavailable = _find_cause(e, (RemoteUnavailableError,))
+    if unavailable is not None:
+        log.warning(f"[{name}] {unavailable}")
+        return JSONResponse(status_code=503, content={"detail": str(unavailable)})
+    # 그 외 조회 오류(자격증명 누락·provider/model 오류 등) → 간결 로그 + 502
+    qe = _find_cause(e, (QueryExecutorError,))
+    if qe is not None:
+        log.warning(f"[{name}] {qe}")
+        return JSONResponse(status_code=502, content={"detail": str(qe)})
+    return None
 
 
 def _http_client_response(e: Exception):
@@ -98,6 +126,9 @@ def route_handler(func):
                 if http_resp is not None:
                     log.warning(f"[{func.__name__}] external API error: {e}")
                     return http_resp
+                qe_resp = _query_executor_response(e, log, func.__name__)
+                if qe_resp is not None:
+                    return qe_resp
                 log.error(f"[{func.__name__}] {e}", exc_info=True)
                 raise HTTPException(status_code=500, detail=str(e))
         return async_wrapper
@@ -126,6 +157,9 @@ def route_handler(func):
                 if http_resp is not None:
                     log.warning(f"[{func.__name__}] external API error: {e}")
                     return http_resp
+                qe_resp = _query_executor_response(e, log, func.__name__)
+                if qe_resp is not None:
+                    return qe_resp
                 log.error(f"[{func.__name__}] {e}", exc_info=True)
                 raise HTTPException(status_code=500, detail=str(e))
         return sync_wrapper

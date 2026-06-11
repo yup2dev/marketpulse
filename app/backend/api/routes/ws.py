@@ -33,6 +33,7 @@ from typing import Dict, Optional, Set
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 
 from app.backend.core.auth.security import decode_token
+from app.backend.core.fetcher_pool import fetcher_pool
 from app.backend.core.pubsub import (
     CH_QUOTES, CH_STOCK_LIST,
     get_broker, is_redis_available,
@@ -434,3 +435,47 @@ async def ws_quotes(
             fallback_task.cancel()
         manager.remove(websocket)
         log.info("[ws] disconnected user=%s total=%d", user_id, manager.count())
+
+
+# ── 사용자 PC Fetcher 워커 (push 위임) ─────────────────────────────────────────
+
+@router.websocket("/ws/fetcher")
+async def ws_fetcher(
+    websocket: WebSocket,
+    token: str = Query(default=""),
+):
+    """사용자 PC의 Fetcher가 outbound로 접속해 '그 사용자의 워커'로 등록되는 엔드포인트.
+
+    인증: 사용자 로그인 JWT(access token)를 쿼리 파라미터 token=으로 전달한다.
+    데스크톱 앱이 로그인 후 발급받은 access token을 Fetcher에 주입한다.
+    토큰의 sub(user_id)로 워커를 등록해, 그 사용자의 요청만 이 워커로 위임된다.
+    유효하지 않으면 연결을 거부한다.
+    """
+    payload = decode_token(token) if token else None
+    if payload is None or payload.get("type") == "refresh":
+        await websocket.close(code=4001, reason="Invalid or missing token")
+        return
+    user_id = str(payload.get("sub") or "")
+    if not user_id:
+        await websocket.close(code=4001, reason="Token missing subject")
+        return
+
+    await websocket.accept()
+    worker_id = fetcher_pool.register(websocket, user_id)
+    log.info("[fetcher-ws] worker connected user=%s total=%d", user_id, fetcher_pool.count())
+
+    try:
+        while True:
+            raw = await websocket.receive_text()
+            try:
+                msg = json.loads(raw)
+            except json.JSONDecodeError:
+                continue
+            await fetcher_pool.handle_message(worker_id, msg)
+    except WebSocketDisconnect:
+        pass
+    except Exception as exc:
+        log.warning("[fetcher-ws] connection error: %s", exc)
+    finally:
+        fetcher_pool.unregister(worker_id)
+        log.info("[fetcher-ws] worker disconnected user=%s total=%d", user_id, fetcher_pool.count())

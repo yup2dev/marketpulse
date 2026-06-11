@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional
 import httpx
 
 from data_fetcher.abstract_provider.abstract.annotated_result import AnnotatedResult
-from data_fetcher.query_executor import QueryExecutorError
+from data_fetcher.query_executor import QueryExecutorError, RemoteUnavailableError
 
 log = logging.getLogger(__name__)
 
@@ -84,9 +84,9 @@ class FetcherClient:
         try:
             resp = await self._client.post("/fetch", json=payload)
         except httpx.RequestError as exc:
-            raise QueryExecutorError(
-                f"Fetcher(exe) 연결 실패 ({self.base_url}): {exc}. "
-                f"로컬 Fetcher가 실행 중이고 백엔드에서 접근 가능한지 확인하세요."
+            # 연결 실패는 '원격 미가용' — route_handler가 503으로 간결히 처리(트레이스백 X)
+            raise RemoteUnavailableError(
+                f"Fetcher 연결 실패 ({self.base_url}). 로컬 Fetcher 실행 여부를 확인하세요."
             ) from exc
 
         if resp.status_code >= 400:

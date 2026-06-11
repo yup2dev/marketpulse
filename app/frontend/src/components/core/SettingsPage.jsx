@@ -1,9 +1,10 @@
 /**
  * SettingsPage — API 키 관리 (/settings)
  *
- * 키는 로컬 Fetcher(127.0.0.1:8765)의 keystore에 저장된다. 브라우저(웹/데스크탑)가
- * loopback으로 직접 호출하며(useFetcherHealth와 동일 패턴), Fetcher가 키를 보유한 채
- * 외부 provider를 조회한다. 따라서 키는 이 PC를 벗어나지 않는다.
+ * 키는 백엔드 DB에 암호화 저장되며 내 계정에서만 사용된다(웹에서 관리). FRED·FMP·Polygon
+ * 등 key-only 데이터는 서버에서 내 키로 조회한다 → Fetcher 없이도 키 관리/조회 가능.
+ * 단, Yahoo 등 일부 소스는 사용자 PC의 Fetcher에서 실행돼야 한다(IP 차단 회피).
+ * 그래서 Fetcher 실행 여부를 안내하는 배너를 별도로 표시한다.
  *
  * - 단일 키 provider(fmp/polygon/fred/alphavantage) → { provider, api_key }
  * - 다중 필드 provider(kis: appkey+appsecret)        → { provider, fields }
@@ -13,10 +14,10 @@ import {
   KeyRound, Trash2, Save, ExternalLink, RefreshCw, ShieldCheck, Download, Play,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { keysAPI } from '../../config/api';
 import useFetcherHealth from '../../hooks/useFetcherHealth';
 
-const FETCHER_BASE = 'http://127.0.0.1:8765';
-const FETCHER_DOWNLOAD_URL = 'https://github.com/sangyeopKim/marketpulse/releases/latest';
+const FETCHER_DOWNLOAD_URL = 'https://github.com/yup2dev/marketpulse/releases/latest';
 
 const PROVIDERS = [
   {
@@ -51,13 +52,12 @@ const PROVIDERS = [
   },
 ];
 
-const isTauri = () =>
-  typeof window !== 'undefined' && (!!window.__TAURI__ || !!window.__TAURI_INTERNALS__);
-
 export default function SettingsPage() {
-  const { status, recheck } = useFetcherHealth();
-  const online = status === 'online';
+  // 키 관리는 백엔드 DB 기반(online=백엔드 도달). Fetcher 상태는 별개(일부 데이터용).
+  const { status: fetcherStatus, isTauri, recheck } = useFetcherHealth();
+  const fetcherOnline = fetcherStatus === 'online';
 
+  const [online, setOnline]       = useState(true);   // 백엔드 도달 가능 여부
   const [statusMap, setStatusMap] = useState({});   // provider → { configured, masked, fields }
   const [inputs, setInputs]       = useState({});    // provider → { fieldKey: value }
   const [saving, setSaving]       = useState({});    // provider → bool
@@ -65,20 +65,19 @@ export default function SettingsPage() {
 
   const loadKeys = useCallback(async () => {
     try {
-      const res = await fetch(`${FETCHER_BASE}/keys`, { cache: 'no-store' });
-      if (!res.ok) return;
-      const list = await res.json();
+      const res = await keysAPI.list();          // { keys: [...] } — DB 기반, 항상 관리 가능
+      setOnline(true);
       const map = {};
-      for (const k of list) map[k.provider] = k;
+      for (const k of (res?.keys || [])) map[k.provider] = k;
       setStatusMap(map);
+      return true;
     } catch {
-      /* fetcher offline — health 배너가 안내 */
+      setOnline(false);   // 백엔드 미도달
+      return false;
     }
   }, []);
 
-  useEffect(() => {
-    if (online) loadKeys();
-  }, [online, loadKeys]);
+  useEffect(() => { loadKeys(); }, [loadKeys]);
 
   const setField = (provider, key, value) =>
     setInputs((prev) => ({ ...prev, [provider]: { ...prev[provider], [key]: value } }));
@@ -103,20 +102,12 @@ export default function SettingsPage() {
 
     setSaving((s) => ({ ...s, [p.id]: true }));
     try {
-      const res = await fetch(`${FETCHER_BASE}/keys`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || '저장 실패');
-      }
+      await keysAPI.set(body);
       toast.success(`${p.label} 키 저장 완료`);
       setInputs((prev) => ({ ...prev, [p.id]: {} }));
       await loadKeys();
     } catch (e) {
-      toast.error(e.message || '서버 연결 실패');
+      toast.error(e?.message || '저장 실패 — Fetcher 연결을 확인하세요');
     } finally {
       setSaving((s) => ({ ...s, [p.id]: false }));
     }
@@ -125,12 +116,11 @@ export default function SettingsPage() {
   const deleteProvider = async (p) => {
     if (!window.confirm(`${p.label} 키를 삭제하시겠습니까?`)) return;
     try {
-      const res = await fetch(`${FETCHER_BASE}/keys/${p.id}`, { method: 'DELETE' });
-      if (!res.ok && res.status !== 404) throw new Error('삭제 실패');
+      await keysAPI.delete(p.id);
       toast.success(`${p.label} 키 삭제됨`);
       await loadKeys();
     } catch (e) {
-      toast.error(e.message || '서버 연결 실패');
+      toast.error(e?.message || '삭제 실패 — 서버 연결을 확인하세요');
     }
   };
 
@@ -144,7 +134,6 @@ export default function SettingsPage() {
         if (await recheck()) break;
         await new Promise((r) => setTimeout(r, 1000));
       }
-      await loadKeys();
     } catch (e) {
       console.error('[settings] fetcher start failed', e);
     } finally {
@@ -159,24 +148,24 @@ export default function SettingsPage() {
         <h1 className="text-xl font-semibold text-white">API 키 관리</h1>
       </div>
       <p className="text-sm mb-6" style={{ color: 'var(--color-text-muted)' }}>
-        키는 이 PC의 로컬 Fetcher에만 저장되며 서버로 전송되지 않습니다.
-        Fetcher가 키를 사용해 외부 데이터를 조회합니다.
+        키는 서버에 암호화되어 저장되며 내 계정에서만 사용됩니다. 등록한 키로 FRED·FMP·Polygon
+        등 데이터를 서버에서 조회합니다. (Yahoo 등 일부 소스는 데스크톱 Fetcher 실행이 필요합니다)
       </p>
 
-      {/* Fetcher 상태 배너 */}
-      {!online && (
-        <div className="mb-6 rounded-lg border border-red-500/40 bg-red-500/10 p-4">
+      {/* Fetcher 상태 배너 — 키 관리는 Fetcher 없이도 되지만, Yahoo 등 일부 데이터는 필요 */}
+      {!fetcherOnline && (
+        <div className="mb-6 rounded-lg border border-yellow-500/40 bg-yellow-500/10 p-4">
           <div className="flex items-center gap-2 mb-2">
-            <span className="w-2 h-2 rounded-full bg-red-500" />
-            <span className="text-sm font-medium text-red-300">
+            <span className="w-2 h-2 rounded-full bg-yellow-500" />
+            <span className="text-sm font-medium text-yellow-300">
               로컬 Fetcher가 실행되고 있지 않습니다
             </span>
           </div>
           <p className="text-xs mb-3" style={{ color: 'var(--color-text-muted)' }}>
-            API 키를 등록하려면 먼저 Fetcher가 실행되어 있어야 합니다.
+            키 등록·관리는 Fetcher 없이도 가능하지만, Yahoo 등 일부 데이터는 Fetcher 실행이 필요합니다.
           </p>
           <div className="flex items-center gap-2">
-            {isTauri() ? (
+            {isTauri ? (
               <button
                 onClick={handleStart}
                 disabled={starting}
