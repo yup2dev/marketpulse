@@ -116,25 +116,6 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        *settings.CORS_ORIGINS,
-        "tauri://localhost",          # Tauri 데스크탑 앱 (macOS/Linux)
-        "http://tauri.localhost",     # Tauri 데스크탑 앱 (Windows WebView2/Edge)
-        "https://tauri.localhost",    # Tauri 데스크탑 앱 (Windows WebView2/Edge, HTTPS)
-        "https://frontend-yup2devs-projects.vercel.app",  # Vercel 프론트엔드
-        "http://localhost",
-        "http://127.0.0.1",
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://localhost:5175",
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 # ── Auth Gate Middleware ───────────────────────────────────────────────────────
 # /api/* 요청 중 공개 경로 이외에는 유효한 Bearer 토큰을 요구합니다.
 # 401 응답 → 프론트엔드 apiClient가 refresh 시도 → 실패 시 forceLogout() → /login 이동
@@ -185,6 +166,31 @@ async def auth_gate(request: Request, call_next):
         return await call_next(request)
     finally:
         current_user_id.reset(ctx_token)
+
+
+# ── CORS ───────────────────────────────────────────────────────────────────────
+# 반드시 auth_gate 뒤에 등록한다. Starlette은 나중에 add한 미들웨어가 더 바깥(outermost)
+# 이므로, CORS가 최외곽이 되어 auth_gate가 단락(401)으로 반환하는 응답에도 CORS 헤더가
+# 붙는다. 그렇지 않으면 브라우저가 401 응답을 막아 프론트가 status를 못 보고(네트워크 오류로
+# 처리) refresh/forceLogout/로그인 리다이렉트가 동작하지 않는다.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        *settings.CORS_ORIGINS,
+        "tauri://localhost",          # Tauri 데스크탑 앱 (macOS/Linux)
+        "http://tauri.localhost",     # Tauri 데스크탑 앱 (Windows WebView2/Edge)
+        "https://tauri.localhost",    # Tauri 데스크탑 앱 (Windows WebView2/Edge, HTTPS)
+        "https://frontend-yup2devs-projects.vercel.app",  # Vercel 프론트엔드
+        "http://localhost",
+        "http://127.0.0.1",
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:5175",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # ── Stock / Market ────────────────────────────────────────────────────────────
 app.include_router(stock.router,     prefix="/api/stock",    tags=["stock"])
