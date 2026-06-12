@@ -69,16 +69,19 @@ class ApiClient {
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      // ── 401: try to refresh once, then retry ──────────────────────────────
-      if (response.status === 401 && !_isRetry) {
+      // ── 401/403: try to refresh once, then retry ──────────────────────────
+      // 백엔드는 만료·자격증명 누락을 401로 통일했지만, 권한 부족(admin 등)은 403.
+      // 403도 refresh를 한 번 시도해 보고, 세션이 살아 있으면(refresh 성공) retry에서
+      // 다시 403이 나도 _isRetry 가드로 로그아웃 없이 throw → admin 케이스를 보호한다.
+      if ((response.status === 401 || response.status === 403) && !_isRetry) {
         const refreshed = await this._tryRefresh();
         if (refreshed) {
           return this.request(url, options, true); // retry with new token
         }
-        // Both tokens exhausted → force logout
+        // 세션을 살릴 수 없음(refresh 실패/없음) → 강제 로그아웃 → 로그인 리다이렉트
         _forceLogout?.();
         const err = new Error(data.detail || 'Session expired');
-        err.status = 401;
+        err.status = response.status;
         throw err;
       }
 
