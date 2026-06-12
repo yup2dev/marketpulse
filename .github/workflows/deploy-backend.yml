@@ -47,7 +47,12 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
+            set -euo pipefail
             cd /opt/marketpulse
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/marketpulse-backend:latest
-            docker compose up -d --no-deps app
+            # compose가 실행하는 바로 그 이미지(yup2dev/...:latest)를 pull → pull과 run 대상이
+            # 항상 일치한다. set -e로 pull 실패가 묻히지 않고, --force-recreate로 새 이미지로
+            # 컨테이너를 확실히 교체한다(없으면 구버전 컨테이너가 그대로 남을 수 있다).
+            docker compose pull app
+            docker compose up -d --no-deps --force-recreate app
             docker image prune -f
+            echo "=== deployed image ===" && docker inspect --format '{{.Image}} {{.Config.Image}}' marketpulse-app
