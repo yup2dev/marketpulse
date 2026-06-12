@@ -245,7 +245,7 @@ export default function SettingsPage() {
                       type="text"
                       value={(inputs[p.id]?.[f.key]) || ''}
                       onChange={(e) => setField(p.id, f.key, e.target.value)}
-                      disabled={!online || busy}
+                      disabled={busy}
                       placeholder={configured ? '새 값 입력 (변경 시)' : f.placeholder}
                       autoComplete="off"
                       spellCheck={false}
@@ -258,7 +258,7 @@ export default function SettingsPage() {
               <div className="flex items-center gap-2 mt-3">
                 <button
                   onClick={() => saveProvider(p)}
-                  disabled={!online || busy}
+                  disabled={busy}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-cyan-600 hover:bg-cyan-500 text-white disabled:opacity-40 transition-colors"
                 >
                   {busy ? <RefreshCw size={13} className="animate-spin" /> : <Save size={13} />}
@@ -267,7 +267,7 @@ export default function SettingsPage() {
                 {configured && (
                   <button
                     onClick={() => deleteProvider(p)}
-                    disabled={!online}
+                    disabled={!online || busy}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border border-gray-700 text-gray-400 hover:border-red-500 hover:text-red-400 disabled:opacity-40 transition-colors"
                   >
                     <Trash2 size={13} /> 삭제

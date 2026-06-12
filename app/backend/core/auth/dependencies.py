@@ -1,7 +1,7 @@
 """FastAPI auth dependencies."""
 from typing import Optional
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
@@ -9,7 +9,28 @@ from app.backend.core.db import get_db
 from app.backend.core.auth.security import decode_token
 from index_analyzer.models.orm import User
 
-security          = HTTPBearer()
+
+class HTTPBearer401(HTTPBearer):
+    """기본 HTTPBearer는 Authorization 헤더가 없으면 403을 던진다.
+
+    프론트 apiClient는 401에서만 refresh/forceLogout를 수행하므로, 자격증명
+    누락도 401로 통일해 만료·미인증이 항상 로그인 리다이렉트로 이어지게 한다.
+    """
+
+    async def __call__(self, request: Request) -> Optional[HTTPAuthorizationCredentials]:
+        try:
+            return await super().__call__(request)
+        except HTTPException as exc:
+            if exc.status_code == status.HTTP_403_FORBIDDEN:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Not authenticated",
+                    headers={"WWW-Authenticate": "Bearer"},
+                ) from exc
+            raise
+
+
+security          = HTTPBearer401()
 security_optional = HTTPBearer(auto_error=False)
 
 
