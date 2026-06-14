@@ -67,8 +67,10 @@ services:
       REDIS_PORT: 6379
       REDIS_DB: ${REDIS_DB:-0}
 
-      # Fetcher (로컬 데스크톱 전용 - 서버에는 없음)
+      # Fetcher 위임 — True면 yahoo/whalewisdom 등 Class A 조회를 사용자 PC Fetcher로 위임.
+      # WORKER_MODE=True면 사용자 PC가 /ws/fetcher 워커풀에 접속(push)하는 방식.
       FETCHER_REMOTE_ENABLED: ${FETCHER_REMOTE_ENABLED:-false}
+      FETCHER_WORKER_MODE: ${FETCHER_WORKER_MODE:-false}
 
       # Scheduler
       SCHEDULER_ENABLED: ${SCHEDULER_ENABLED:-true}
