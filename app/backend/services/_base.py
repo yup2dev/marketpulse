@@ -9,7 +9,7 @@ import logging
 from typing import Any, Dict, List, Optional, TypeVar
 
 from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
-from data_fetcher.query_executor import QueryExecutor
+from data_fetcher.query_executor import QueryExecutor, RemoteUnavailableError
 
 log = logging.getLogger(__name__)
 
@@ -68,6 +68,10 @@ async def cached_quotes(
                 params={'symbols': symbols, 'period': period, 'mode': mode},
             )
         except asyncio.CancelledError:
+            return {}
+        except RemoteUnavailableError:
+            # yahoo는 fetcher 필수(서버 차단) — 워커 없으면 시세 없음(예상된 상황). 스팸 방지로 debug.
+            log.debug("[quotes] yahoo unavailable — Fetcher 미실행")
             return {}
         except Exception as e:
             log.warning(f"[quotes] download failed: {e}")
