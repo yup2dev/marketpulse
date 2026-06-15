@@ -7,12 +7,17 @@
  *           - 웹: 다운로드/설치 안내 링크
  */
 import { useEffect, useRef, useState } from 'react';
-import { Activity, Download, Play, RefreshCw, X } from 'lucide-react';
+import { Activity, Download, Play, Power, RefreshCw, X } from 'lucide-react';
 import useFetcherHealth from '../../hooks/useFetcherHealth';
 
 // Fetcher(데스크톱 앱) 다운로드 위치 (웹 사용자용)
 const FETCHER_DOWNLOAD_URL =
   'https://github.com/yup2dev/marketpulse/releases/latest';
+
+// 로컬 Fetcher REST (loopback) — 종료 호출용
+const FETCHER_BASE = 'http://127.0.0.1:8765';
+// 설치돼 있으면 OS가 이 스킴으로 Fetcher를 기동한다(Fetcher가 첫 실행 시 자가등록).
+const FETCHER_LAUNCH_URL = 'marketpulse://start';
 
 const DOT = {
   checking: 'bg-yellow-500 animate-pulse',
@@ -30,6 +35,9 @@ export default function FetcherStatus() {
   const { status, isTauri, recheck } = useFetcherHealth();
   const [open, setOpen] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [launching, setLaunching] = useState(false);
+  const [launchTried, setLaunchTried] = useState(false);
+  const [stopping, setStopping] = useState(false);
   const panelRef = useRef(null);
 
   useEffect(() => {
@@ -56,6 +64,42 @@ export default function FetcherStatus() {
       console.error('[fetcher] start failed', e);
     } finally {
       setStarting(false);
+    }
+  };
+
+  // 웹: 커스텀 스킴 딥링크로 OS가 Fetcher를 기동 (설치+자가등록돼 있어야 동작).
+  // 스킴이 없으면 아무 일도 안 일어나므로, 폴링 후에도 offline이면 다운로드 안내를 노출한다.
+  const handleWebStart = async () => {
+    setLaunching(true);
+    setLaunchTried(true);
+    try {
+      window.location.href = FETCHER_LAUNCH_URL;
+      for (let i = 0; i < 10; i += 1) {
+        await new Promise((r) => setTimeout(r, 1000));
+        if (await recheck()) break;
+      }
+    } catch (e) {
+      console.error('[fetcher] web launch failed', e);
+    } finally {
+      setLaunching(false);
+    }
+  };
+
+  // 종료: 브라우저는 로컬 프로세스를 못 죽이므로 Fetcher의 loopback /shutdown을 호출한다.
+  const handleStop = async () => {
+    setStopping(true);
+    try {
+      // 커스텀 헤더로 CORS preflight를 강제 → 허용 origin만 종료 가능(타 사이트의 임의 종료 차단)
+      await fetch(`${FETCHER_BASE}/shutdown`, {
+        method: 'POST',
+        headers: { 'X-MarketPulse-Control': '1' },
+      }).catch(() => {});
+      for (let i = 0; i < 8; i += 1) {
+        await new Promise((r) => setTimeout(r, 800));
+        if (!(await recheck())) break;
+      }
+    } finally {
+      setStopping(false);
     }
   };
 
@@ -102,11 +146,31 @@ export default function FetcherStatus() {
                 시세·재무 등 외부 데이터를 가져오려면 로컬 Fetcher가 실행되어 있어야 합니다.
                 {isTauri
                   ? ' 아래 버튼으로 바로 실행하세요.'
-                  : ' MarketPulse Fetcher를 설치·실행한 뒤 다시 확인하세요.'}
+                  : ' 설치돼 있으면 실행을 누르세요. 처음이면 먼저 다운로드·설치하세요.'}
               </p>
             )}
 
-            <div className="flex items-center gap-2">
+            {status === 'offline' && !isTauri && launchTried && !launching && (
+              <p className="text-[11px] leading-relaxed text-amber-400/80">
+                실행되지 않았나요? 아직 설치 전이거나 브라우저가 앱 열기를 차단했을 수 있습니다.
+                다운로드·설치 후 다시 시도하세요.
+              </p>
+            )}
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* 종료 — 실행 중일 때 (loopback /shutdown) */}
+              {status === 'online' && (
+                <button
+                  onClick={handleStop}
+                  disabled={stopping}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-red-600/90 hover:bg-red-500 text-white disabled:opacity-50 transition-colors"
+                >
+                  {stopping ? <RefreshCw size={13} className="animate-spin" /> : <Power size={13} />}
+                  {stopping ? '종료 중…' : 'Fetcher 종료'}
+                </button>
+              )}
+
+              {/* 실행 — 데스크톱(Tauri) */}
               {status === 'offline' && isTauri && (
                 <button
                   onClick={handleStart}
@@ -118,15 +182,29 @@ export default function FetcherStatus() {
                 </button>
               )}
 
+              {/* 실행 — 웹(marketpulse:// 딥링크) */}
+              {status === 'offline' && !isTauri && (
+                <button
+                  onClick={handleWebStart}
+                  disabled={launching}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-cyan-600 hover:bg-cyan-500 text-white disabled:opacity-50 transition-colors"
+                >
+                  {launching ? <RefreshCw size={13} className="animate-spin" /> : <Play size={13} />}
+                  {launching ? '실행 중…' : 'Fetcher 실행'}
+                </button>
+              )}
+
+              {/* 다운로드 — 웹 보조(미설치/실행 실패 대비) */}
               {status === 'offline' && !isTauri && (
                 <a
                   href={FETCHER_DOWNLOAD_URL}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-cyan-600 hover:bg-cyan-500 text-white transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border dark:border-gray-700 border-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors"
+                  style={{ color: 'var(--color-text-secondary)' }}
                 >
                   <Download size={13} />
-                  Fetcher 다운로드
+                  다운로드
                 </a>
               )}
 

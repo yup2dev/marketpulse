@@ -127,6 +127,17 @@ def create_app(
     )
     log.info("[fetcher] CORS allowed origins: %s", origins)
 
+    # Private Network Access(PNA): HTTPS 공개 페이지(finance.dns-co.kr 등)가 loopback
+    # (127.0.0.1)으로 보내는 preflight를 크롬이 차단한다 — 응답에
+    # Access-Control-Allow-Private-Network: true 가 있어야 통과한다. CORSMiddleware는
+    # 이 헤더를 넣지 않으므로 여기서 보강한다(웹 로그인 시 /user-token 전달이 막히던 원인).
+    @app.middleware("http")
+    async def _allow_private_network(request, call_next):
+        response = await call_next(request)
+        if request.headers.get("access-control-request-private-network") == "true":
+            response.headers["Access-Control-Allow-Private-Network"] = "true"
+        return response
+
     # ── 인증 토큰 ─────────────────────────────────────────────────────────────
     fetch_token = get_or_create_token()
     log.info(
@@ -180,6 +191,22 @@ def create_app(
         from data_fetcher.server.auth import clear_user_token
         clear_user_token()
         return {"status": "cleared"}
+
+    # ── 종료 (웹 '종료' 버튼이 loopback으로 호출) ──────────────────────────────
+    # 브라우저는 로컬 프로세스를 직접 못 죽이므로, Fetcher가 자기 자신을 종료한다.
+    # /user-token과 동일하게 origin 허용으로 보호(민감 데이터 없음).
+    @app.post("/shutdown")
+    async def shutdown() -> Dict[str, str]:
+        import threading
+        import time as _time
+
+        def _stop() -> None:
+            _time.sleep(0.25)  # HTTP 응답이 나갈 여유를 준 뒤 종료
+            os._exit(0)        # 트레이/서버 스레드 포함 프로세스 전체를 확실히 종료
+
+        threading.Thread(target=_stop, daemon=True).start()
+        log.info("[fetcher] /shutdown 요청 — 프로세스 종료")
+        return {"status": "stopping"}
 
     @app.get("/providers")
     async def providers() -> Dict[str, List[str]]:

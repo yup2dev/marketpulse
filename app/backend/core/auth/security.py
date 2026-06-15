@@ -39,6 +39,18 @@ def create_refresh_token(data: dict) -> str:
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
+def create_fetcher_token(data: dict) -> str:
+    """사용자 PC Fetcher 워커(/ws/fetcher) 전용 장수명 토큰.
+
+    type="fetcher"로 발급되어 워커 등록에만 쓰인다. API 인증(get_current_user)이나
+    /auth/refresh는 type을 검사해 이 토큰을 거부하므로, 유출돼도 권한이 워커 한정이다.
+    """
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(days=settings.FETCHER_TOKEN_EXPIRE_DAYS)
+    to_encode.update({"exp": expire, "type": "fetcher"})
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
 def decode_token(token: str) -> Optional[dict]:
     try:
         return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])

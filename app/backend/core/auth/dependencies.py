@@ -46,6 +46,9 @@ def get_current_user(
     payload = decode_token(credentials.credentials)
     if payload is None:
         raise exc
+    # API 인증은 access 토큰만 허용 — refresh/fetcher 토큰으로는 API를 호출할 수 없다.
+    if payload.get("type") != "access":
+        raise exc
     user_id: str = payload.get("sub")
     if user_id is None:
         raise exc

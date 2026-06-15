@@ -44,9 +44,12 @@ class ApiClient {
         if (!data?.access_token) return false;
         localStorage.setItem('access_token',  data.access_token);
         localStorage.setItem('refresh_token', data.refresh_token);
+        if (data.fetcher_token) localStorage.setItem('fetcher_token', data.fetcher_token);
         if (data.user) localStorage.setItem('user', JSON.stringify(data.user));
-        // 데스크톱: 갱신된 토큰을 Fetcher에 반영 (다음 워커 재접속에 사용)
-        import('./../utils/fetcherToken').then((m) => m.syncFetcherToken(data.access_token));
+        // 갱신 시 fetcher 토큰도 새로 받아 Fetcher에 반영 (장수명 토큰 시계 리셋)
+        if (data.fetcher_token) {
+          import('./../utils/fetcherToken').then((m) => m.syncFetcherToken(data.fetcher_token));
+        }
         return true;
       })
       .catch(() => false)

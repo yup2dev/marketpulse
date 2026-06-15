@@ -452,7 +452,9 @@ async def ws_fetcher(
     유효하지 않으면 연결을 거부한다.
     """
     payload = decode_token(token) if token else None
-    if payload is None or payload.get("type") == "refresh":
+    # 워커 전용 'fetcher' 토큰(장수명)을 우선 허용. 'access'는 구버전 Fetcher 호환용.
+    # refresh 토큰은 거부한다.
+    if payload is None or payload.get("type") not in ("fetcher", "access"):
         await websocket.close(code=4001, reason="Invalid or missing token")
         return
     user_id = str(payload.get("sub") or "")

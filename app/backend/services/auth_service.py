@@ -7,7 +7,7 @@ from typing import Optional
 import uuid
 
 from index_analyzer.models.orm import User
-from app.backend.core.auth.security import verify_password, get_password_hash, create_access_token, create_refresh_token
+from app.backend.core.auth.security import verify_password, get_password_hash, create_access_token, create_refresh_token, create_fetcher_token
 
 
 class AuthService:
@@ -77,9 +77,12 @@ class AuthService:
         """
         access_token = create_access_token(data={"sub": user.user_id})
         refresh_token = create_refresh_token(data={"sub": user.user_id})
+        # 사용자 PC Fetcher 워커 전용 장수명 토큰 (브라우저→루프백으로 Fetcher에 전달).
+        fetcher_token = create_fetcher_token(data={"sub": user.user_id})
 
         return {
             "access_token": access_token,
             "refresh_token": refresh_token,
+            "fetcher_token": fetcher_token,
             "token_type": "bearer"
         }
