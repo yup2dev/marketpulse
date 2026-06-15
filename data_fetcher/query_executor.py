@@ -446,14 +446,17 @@ class QueryExecutor:
         """
         user_id = current_user_id.get()
 
-        # Class A(yahoo/whalewisdom): 로컬 실행 필수 — 서버에서 절대 실행하지 않는다.
-        # 위임이 불가능한 경우(원격 미설정 / 요청 사용자 컨텍스트 없음 / 워커 미접속)에도
-        # 서버 직접 조회로 폴백하지 않고 명확히 실패한다. → 작은 서버에 무거운 스크래핑 부하 차단.
-        if provider in cls._remote_only_providers:
-            if cls._remote is None or not user_id:
+        # Class A(yahoo/whalewisdom): 위임 transport(_remote)가 설정된 백엔드에서는
+        # 서버에서 직접 실행하지 않고 '그 사용자의 Fetcher 워커'로 위임한다.
+        # _remote가 None이면 여기가 leaf(=Fetcher 자체/standalone)이므로 아래에서 직접 실행한다.
+        # (이 분기를 _remote 유무와 무관하게 적용하면 Fetcher가 자기 자신을 막아버린다.)
+        if provider in cls._remote_only_providers and cls._remote is not None:
+            if not user_id:
+                # 위임 가능한 백엔드인데 사용자 컨텍스트가 없음(배경작업 등) → 서버 직접
+                # 스크래핑하지 않고 명확히 실패(작은 서버 부하 차단).
                 raise RemoteUnavailableError(
-                    f"'{provider}'는 로컬 Fetcher 실행이 필요합니다(서버 직접 조회 비활성). "
-                    f"데스크톱 앱의 Fetcher를 실행하세요."
+                    f"'{provider}' 데이터는 로그인 후 데스크톱 Fetcher로 조회됩니다. "
+                    f"로그인하고 Fetcher를 실행하세요."
                 )
             return await cls._remote.fetch(provider, model, params, credentials, **kwargs)
 
