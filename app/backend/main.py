@@ -3,6 +3,7 @@ MarketPulse Web Application
 FastAPI-based dashboard for financial data visualization
 """
 import sys
+import json
 import logging
 from pathlib import Path
 from contextlib import asynccontextmanager
@@ -126,46 +127,71 @@ _PUBLIC_PREFIXES = (
 )
 
 
-@app.middleware("http")
-async def auth_gate(request: Request, call_next):
-    path = request.url.path
+async def _send_json(send, status: int, detail: str, extra_headers=None) -> None:
+    body = json.dumps({"detail": detail}).encode()
+    headers = [(b"content-type", b"application/json"),
+               (b"content-length", str(len(body)).encode())]
+    headers += (extra_headers or [])
+    await send({"type": "http.response.start", "status": status, "headers": headers})
+    await send({"type": "http.response.body", "body": body})
 
-    # WebSocket, 비-API 경로, 공개 Auth 경로, CORS preflight는 통과
-    if (
-        request.method == "OPTIONS"
-        or not path.startswith("/api/")
-        or path.startswith("/ws/")
-        or any(path.startswith(p) for p in _PUBLIC_PREFIXES)
-    ):
-        return await call_next(request)
 
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
-        return JSONResponse(
-            status_code=401,
-            content={"detail": "Not authenticated"},
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+class AuthGateMiddleware:
+    """순수 ASGI 인증 게이트.
 
-    from app.backend.core.auth.security import decode_token
-    token = auth_header.split(" ", 1)[1]
-    payload = decode_token(token)
-    if payload is None or payload.get("type") == "refresh":
-        return JSONResponse(
-            status_code=401,
-            content={"detail": "Invalid or expired token"},
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    @app.middleware("http")(=BaseHTTPMiddleware)는 downstream을 별도 task로 실행해
+    여기서 set한 current_user_id contextvar가 실 uvicorn 런타임에서 엔드포인트까지
+    전파되지 않는다(요청이 user_id=None으로 보여 Fetcher 위임 실패). 순수 ASGI
+    미들웨어는 같은 컨텍스트에서 downstream을 호출하므로 contextvar가 정상 전파된다.
 
-    # 요청 범위 사용자 컨텍스트 설정 — 데이터 조회가 '이 사용자의 Fetcher 워커'로
-    # 위임되도록 한다(사용자별 키 사용). contextvar는 요청 task에 격리된다.
-    from data_fetcher.query_executor import current_user_id
-    sub = payload.get("sub")
-    ctx_token = current_user_id.set(str(sub) if sub is not None else None)
-    try:
-        return await call_next(request)
-    finally:
-        current_user_id.reset(ctx_token)
+    CORS가 최외곽이 되도록 이 미들웨어를 CORSMiddleware보다 먼저 add 한다.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        path = scope.get("path", "")
+        method = scope.get("method", "")
+        # WebSocket, 비-API 경로, 공개 Auth 경로, CORS preflight는 통과
+        if (
+            method == "OPTIONS"
+            or not path.startswith("/api/")
+            or path.startswith("/ws/")
+            or any(path.startswith(p) for p in _PUBLIC_PREFIXES)
+        ):
+            await self.app(scope, receive, send)
+            return
+
+        headers = dict(scope.get("headers") or [])
+        auth_header = headers.get(b"authorization", b"").decode("latin-1")
+        bearer = (b"www-authenticate", b"Bearer")
+        if not auth_header.startswith("Bearer "):
+            await _send_json(send, 401, "Not authenticated", [bearer])
+            return
+
+        from app.backend.core.auth.security import decode_token
+        token = auth_header.split(" ", 1)[1]
+        payload = decode_token(token)
+        if payload is None or payload.get("type") == "refresh":
+            await _send_json(send, 401, "Invalid or expired token", [bearer])
+            return
+
+        # 요청 범위 사용자 컨텍스트 — 데이터 조회가 '이 사용자의 Fetcher 워커'로 위임되도록.
+        from data_fetcher.query_executor import current_user_id
+        sub = payload.get("sub")
+        ctx_token = current_user_id.set(str(sub) if sub is not None else None)
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            current_user_id.reset(ctx_token)
+
+
+app.add_middleware(AuthGateMiddleware)
 
 
 # ── CORS ───────────────────────────────────────────────────────────────────────

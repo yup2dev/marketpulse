@@ -49,6 +49,7 @@ _DEFAULT_BACKEND_WS_URL = "wss://api.finance.dns-co.kr/ws/fetcher"
 # (민감 엔드포인트는 별도 Fetcher 토큰으로 보호되므로 origin 허용만으로 노출되지 않는다.)
 _DEFAULT_WEB_ORIGINS = [
     "https://finance.dns-co.kr",
+    "https://frontend-yup2devs-projects.vercel.app",  # Vercel 운영 프론트 — /user-token(토큰 전달)이 CORS로 막히지 않게
     "tauri://localhost",
     "http://tauri.localhost",
     "https://tauri.localhost",

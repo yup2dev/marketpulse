@@ -24,11 +24,11 @@ export const URL_WIDGET_MAP = {
         id: 'overview',
         label: 'Overview',
         defaultWidgets: [
-          { id: 'w0', type: 'sparkline',          x: 0, y: 0,  w: 12, h: 3 },
-          { id: 'w1', type: 'gdp-forecast',       x: 0, y: 3,  w: 6,  h: 6 },
-          { id: 'w2', type: 'inflation-momentum', x: 6, y: 3,  w: 6,  h: 6 },
-          { id: 'w3', type: 'earnings',           x: 0, y: 9,  w: 6,  h: 6 },
-          { id: 'w4', type: 'insider',            x: 6, y: 9,  w: 6,  h: 6 },
+          { id: 'w0', type: 'tv-index-charts',    x: 0, y: 0,  w: 12, h: 4 },
+          { id: 'w1', type: 'gdp-forecast',       x: 0, y: 4,  w: 6,  h: 6 },
+          { id: 'w2', type: 'inflation-momentum', x: 6, y: 4,  w: 6,  h: 6 },
+          { id: 'w3', type: 'tv-market-ranking',  x: 0, y: 10, w: 6,  h: 8 },
+          { id: 'w4', type: 'earnings',           x: 6, y: 10, w: 6,  h: 8 },
         ],
         widgets: [
           { id: 'gdp-forecast',       name: 'GDP Forecast',       description: 'Evolution of GDP forecast',  defaultSize: { w: 6, h: 6 } },

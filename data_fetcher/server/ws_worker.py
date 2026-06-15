@@ -21,6 +21,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import ssl
 from typing import Callable, Optional
 
 import websockets
@@ -32,6 +33,16 @@ log = logging.getLogger(__name__)
 
 _RECONNECT_DELAY = 5.0
 _WAIT_TOKEN_DELAY = 10.0  # 로그인 전(토큰 없음) 재확인 간격
+
+
+def _ssl_context() -> Optional[ssl.SSLContext]:
+    """wss 검증용 SSL 컨텍스트. 소스 실행(.venv) 시 시스템 CA를 못 찾아
+    CERTIFICATE_VERIFY_FAILED가 나므로 certifi 번들을 명시적으로 사용한다."""
+    try:
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except Exception:  # certifi 없으면 기본 컨텍스트
+        return ssl.create_default_context()
 
 
 async def _handle_fetch(ws, msg: dict) -> None:
@@ -74,8 +85,9 @@ async def run_ws_worker(
 
         sep = "&" if "?" in base_url else "?"
         url = f"{base_url}{sep}token={token}"
+        ssl_ctx = _ssl_context() if url.startswith("wss://") else None
         try:
-            async with websockets.connect(url, ping_interval=20, ping_timeout=20) as ws:
+            async with websockets.connect(url, ssl=ssl_ctx, ping_interval=20, ping_timeout=20) as ws:
                 log.info("[fetcher-ws] connected to backend")
                 async for raw in ws:
                     try:

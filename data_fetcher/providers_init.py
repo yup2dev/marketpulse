@@ -83,6 +83,9 @@ from data_fetcher.providers.polygon.options import PolygonOptionsFetcher
 from data_fetcher.providers.polygon.short_interest import PolygonShortInterestFetcher
 from data_fetcher.providers.polygon.technical_indicators import PolygonTechnicalIndicatorsFetcher
 
+# Tiingo (OpenBB openbb_tiingo 이식)
+from data_fetcher.providers.tiingo.equity_historical import TiingoEquityHistoricalFetcher
+
 from data_fetcher.providers.sec.insider_trading import SECInsiderTradingFetcher
 from data_fetcher.providers.sec.institutional_13f import SEC13FFetcher
 from data_fetcher.providers.sec.institutions_list import SECInstitutionsListFetcher
@@ -290,6 +293,23 @@ polygon_provider = Provider(
 )
 
 
+# ==================== Tiingo Provider (OpenBB 이식) ====================
+
+tiingo_provider = Provider(
+    name="tiingo",
+    description="Tiingo Market Data API (EOD/intraday OHLCV)",
+    website="https://www.tiingo.com",
+    credentials=["api_key"],
+    fetcher_dict={
+        "equity_historical": TiingoEquityHistoricalFetcher,
+        "stock_price": TiingoEquityHistoricalFetcher,  # 별칭 — yahoo stock_price 대체용
+    },
+    metadata={
+        "data_coverage": "US/global equity OHLCV (EOD + IEX intraday)",
+    },
+)
+
+
 # ==================== Social Provider ====================
 
 social_provider = Provider(
@@ -441,6 +461,7 @@ def register_all_providers():
     ProviderRegistry.register(alphavantage_provider)
     ProviderRegistry.register(fmp_provider)
     ProviderRegistry.register(polygon_provider)
+    ProviderRegistry.register(tiingo_provider)
     ProviderRegistry.register(social_provider)
     if db_provider is not None:
         ProviderRegistry.register(db_provider)
