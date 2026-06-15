@@ -27,6 +27,8 @@ import MarketRankingWidget     from '../components/widgets/MarketRankingWidget';
 import AlertsWidget            from '../components/widgets/AlertsWidget';
 import NewsFeedWidget          from '../components/widgets/NewsFeedWidget';
 import SparklineWidget         from '../components/widgets/SparklineWidget';
+import TradingViewIndexChartsWidget from '../components/widgets/TradingViewIndexChartsWidget';
+import TradingViewRankingWidget     from '../components/widgets/TradingViewRankingWidget';
 import ComparisonWidget        from '../components/widgets/ComparisonWidget';
 import HeatmapWidget           from '../components/widgets/HeatmapWidget';
 import CorrelationWidget       from '../components/widgets/CorrelationWidget';
@@ -197,6 +199,16 @@ export const WIDGET_ENDPOINTS = {
   'market-ranking': {
     title:     'Market Ranking',
     component: MarketRankingWidget,
+  },
+
+  // ── TradingView 임베드 (서버/Yahoo/Fetcher 불필요) ───────────────────────────
+  'tv-index-charts': {
+    title:     'Index Charts (TV)',
+    component: TradingViewIndexChartsWidget,
+  },
+  'tv-market-ranking': {
+    title:     'Market Ranking (TV)',
+    component: TradingViewRankingWidget,
   },
 
   // ── Watchlist / Screener / Alerts / News (custom CRUD widgets) ─────────────
