@@ -42,6 +42,7 @@ numpy>=1.26.0
 yfinance>=0.2.0
 QuantLib>=1.42
 statsmodels>=0.14
+async_lru>=2.0.0       # OpenBB 이식 fetcher(IMF port_volume, EIA helpers)의 alru_cache 의존성
 pykrx>=1.2.8           # KR 국고채 수집(선택) — KRX_ID/KRX_PW 로그인 필요. 주식·ETF는 KIND/Naver(무로그인) 사용
 
 # ==============================================================================
