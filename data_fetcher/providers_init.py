@@ -86,9 +86,65 @@ from data_fetcher.providers.polygon.technical_indicators import PolygonTechnical
 # Tiingo (OpenBB openbb_tiingo 이식)
 from data_fetcher.providers.tiingo.equity_historical import TiingoEquityHistoricalFetcher
 
+# ── OpenBB 이식 provider (MACRO/STOCK) — 프로젝트 네이티브 베이스 사용 ──────────
+# WSJ (STOCK — ETF movers)
+from data_fetcher.providers.wsj.models.active import WSJActiveFetcher
+from data_fetcher.providers.wsj.models.gainers import WSJGainersFetcher
+from data_fetcher.providers.wsj.models.losers import WSJLosersFetcher
+# BLS (MACRO — 노동/물가 통계)
+from data_fetcher.providers.bls.models.series import BlsSeriesFetcher
+from data_fetcher.providers.bls.models.search import BlsSearchFetcher
+# EIA (MACRO — 에너지)
+from data_fetcher.providers.eia.models.petroleum_status_report import EiaPetroleumStatusReportFetcher
+from data_fetcher.providers.eia.models.short_term_energy_outlook import EiaShortTermEnergyOutlookFetcher
+# OECD (MACRO)
+from data_fetcher.providers.oecd.models.composite_leading_indicator import OECDCompositeLeadingIndicatorFetcher
+from data_fetcher.providers.oecd.models.consumer_price_index import OECDCPIFetcher
+from data_fetcher.providers.oecd.models.country_interest_rates import OecdCountryInterestRatesFetcher
+from data_fetcher.providers.oecd.models.gdp_forecast import OECDGdpForecastFetcher
+from data_fetcher.providers.oecd.models.gdp_nominal import OECDGdpNominalFetcher
+from data_fetcher.providers.oecd.models.gdp_real import OECDGdpRealFetcher
+from data_fetcher.providers.oecd.models.house_price_index import OECDHousePriceIndexFetcher
+from data_fetcher.providers.oecd.models.share_price_index import OECDSharePriceIndexFetcher
+from data_fetcher.providers.oecd.models.unemployment import OECDUnemploymentFetcher
+# IMF (MACRO)
+from data_fetcher.providers.imf.models.available_indicators import ImfAvailableIndicatorsFetcher
+from data_fetcher.providers.imf.models.consumer_price_index import ImfConsumerPriceIndexFetcher
+from data_fetcher.providers.imf.models.direction_of_trade import ImfDirectionOfTradeFetcher
+from data_fetcher.providers.imf.models.economic_indicators import ImfEconomicIndicatorsFetcher
+from data_fetcher.providers.imf.models.maritime_chokepoint_info import ImfMaritimeChokePointInfoFetcher
+from data_fetcher.providers.imf.models.maritime_chokepoint_volume import ImfMaritimeChokePointVolumeFetcher
+from data_fetcher.providers.imf.models.port_info import ImfPortInfoFetcher
+from data_fetcher.providers.imf.models.port_volume import ImfPortVolumeFetcher
+
 from data_fetcher.providers.sec.insider_trading import SECInsiderTradingFetcher
 from data_fetcher.providers.sec.institutional_13f import SEC13FFetcher
 from data_fetcher.providers.sec.institutions_list import SECInstitutionsListFetcher
+
+# SEC — OpenBB openbb_sec 이식본 (sec/models/ 하위, 기존 3개와 별도 카테고리)
+from data_fetcher.providers.sec.models.balance_sheet import SecBalanceSheetFetcher
+from data_fetcher.providers.sec.models.balance_sheet_growth import SecBalanceSheetGrowthFetcher
+from data_fetcher.providers.sec.models.cash_flow import SecCashFlowStatementFetcher
+from data_fetcher.providers.sec.models.cash_flow_growth import SecCashFlowStatementGrowthFetcher
+from data_fetcher.providers.sec.models.cik_map import SecCikMapFetcher
+from data_fetcher.providers.sec.models.company_filings import SecCompanyFilingsFetcher
+from data_fetcher.providers.sec.models.compare_company_facts import SecCompareCompanyFactsFetcher
+from data_fetcher.providers.sec.models.equity_ftd import SecEquityFtdFetcher
+from data_fetcher.providers.sec.models.equity_search import SecEquitySearchFetcher
+from data_fetcher.providers.sec.models.form_13FHR import SecForm13FHRFetcher
+from data_fetcher.providers.sec.models.htm_file import SecHtmFileFetcher
+from data_fetcher.providers.sec.models.income_statement import SecIncomeStatementFetcher
+from data_fetcher.providers.sec.models.income_statement_growth import SecIncomeStatementGrowthFetcher
+from data_fetcher.providers.sec.models.insider_trading import SecInsiderTradingFetcher
+from data_fetcher.providers.sec.models.institutions_search import SecInstitutionsSearchFetcher
+from data_fetcher.providers.sec.models.latest_financial_reports import SecLatestFinancialReportsFetcher
+from data_fetcher.providers.sec.models.management_discussion_analysis import SecManagementDiscussionAnalysisFetcher
+from data_fetcher.providers.sec.models.nport_disclosure import SecNportDisclosureFetcher
+from data_fetcher.providers.sec.models.rss_litigation import SecRssLitigationFetcher
+from data_fetcher.providers.sec.models.schema_files import SecSchemaFilesFetcher
+from data_fetcher.providers.sec.models.sec_filing import SecFilingFetcher
+from data_fetcher.providers.sec.models.sic_search import SecSicSearchFetcher
+from data_fetcher.providers.sec.models.symbol_map import SecSymbolMapFetcher
 
 from data_fetcher.providers.fmp.analyst_data import FMPAnalystDataFetcher
 from data_fetcher.providers.fmp.revenue_segments import FMPRevenueSegmentsFetcher
@@ -310,6 +366,84 @@ tiingo_provider = Provider(
 )
 
 
+# ==================== OpenBB 이식 provider (MACRO/STOCK) ====================
+# Provider.metadata["group"] 로 MACRO/STOCK 분류를 표기한다 (providers API가 노출).
+
+wsj_provider = Provider(
+    name="wsj",
+    description="Wall Street Journal — ETF movers (most active / gainers / losers)",
+    website="https://www.wsj.com/market-data",
+    credentials=[],
+    fetcher_dict={
+        "etf_active": WSJActiveFetcher,
+        "etf_gainers": WSJGainersFetcher,
+        "etf_losers": WSJLosersFetcher,
+    },
+    metadata={"group": "stock", "data_coverage": "US ETF performance movers"},
+)
+
+bls_provider = Provider(
+    name="bls",
+    description="U.S. Bureau of Labor Statistics — 시계열(고용·물가·임금 등)",
+    website="https://www.bls.gov",
+    credentials=[],  # 키 없이도 공개 API 동작(키 등록 시 일일 한도 상향)
+    fetcher_dict={
+        "series": BlsSeriesFetcher,
+        "search": BlsSearchFetcher,
+    },
+    metadata={"group": "macro", "data_coverage": "US labor/price statistics"},
+)
+
+eia_provider = Provider(
+    name="eia",
+    description="U.S. Energy Information Administration — 에너지 통계",
+    website="https://www.eia.gov",
+    credentials=["api_key"],
+    fetcher_dict={
+        "petroleum_status_report": EiaPetroleumStatusReportFetcher,
+        "short_term_energy_outlook": EiaShortTermEnergyOutlookFetcher,
+    },
+    metadata={"group": "macro", "data_coverage": "US energy data (petroleum, STEO)"},
+)
+
+oecd_provider = Provider(
+    name="oecd",
+    description="OECD — 거시 경제 지표 (GDP/CPI/실업률/금리 등)",
+    website="https://data-explorer.oecd.org",
+    credentials=[],
+    fetcher_dict={
+        "composite_leading_indicator": OECDCompositeLeadingIndicatorFetcher,
+        "consumer_price_index": OECDCPIFetcher,
+        "country_interest_rates": OecdCountryInterestRatesFetcher,
+        "gdp_forecast": OECDGdpForecastFetcher,
+        "gdp_nominal": OECDGdpNominalFetcher,
+        "gdp_real": OECDGdpRealFetcher,
+        "house_price_index": OECDHousePriceIndexFetcher,
+        "share_price_index": OECDSharePriceIndexFetcher,
+        "unemployment": OECDUnemploymentFetcher,
+    },
+    metadata={"group": "macro", "data_coverage": "OECD member economies"},
+)
+
+imf_provider = Provider(
+    name="imf",
+    description="International Monetary Fund — 경제 지표/무역/항만(SDMX)",
+    website="https://data.imf.org",
+    credentials=[],
+    fetcher_dict={
+        "available_indicators": ImfAvailableIndicatorsFetcher,
+        "consumer_price_index": ImfConsumerPriceIndexFetcher,
+        "direction_of_trade": ImfDirectionOfTradeFetcher,
+        "economic_indicators": ImfEconomicIndicatorsFetcher,
+        "maritime_chokepoint_info": ImfMaritimeChokePointInfoFetcher,
+        "maritime_chokepoint_volume": ImfMaritimeChokePointVolumeFetcher,
+        "port_info": ImfPortInfoFetcher,
+        "port_volume": ImfPortVolumeFetcher,
+    },
+    metadata={"group": "macro", "data_coverage": "IMF global economic data"},
+)
+
+
 # ==================== Social Provider ====================
 
 social_provider = Provider(
@@ -389,11 +523,37 @@ sec_provider = Provider(
     website="https://www.sec.gov/edgar",
     credentials=[],  # EDGAR is keyless (requires only a User-Agent header)
     fetcher_dict={
+        # 기존(프로젝트 자체 구현)
         "insider_trading": SECInsiderTradingFetcher,
         "institutional_13f": SEC13FFetcher,
         "institutions_list": SECInstitutionsListFetcher,
+        # OpenBB 이식본 (XBRL 재무제표/공시/검색 등)
+        "balance_sheet": SecBalanceSheetFetcher,
+        "balance_sheet_growth": SecBalanceSheetGrowthFetcher,
+        "cash_flow": SecCashFlowStatementFetcher,
+        "cash_flow_growth": SecCashFlowStatementGrowthFetcher,
+        "income_statement": SecIncomeStatementFetcher,
+        "income_statement_growth": SecIncomeStatementGrowthFetcher,
+        "cik_map": SecCikMapFetcher,
+        "company_filings": SecCompanyFilingsFetcher,
+        "compare_company_facts": SecCompareCompanyFactsFetcher,
+        "equity_ftd": SecEquityFtdFetcher,
+        "equity_search": SecEquitySearchFetcher,
+        "sec_filing": SecFilingFetcher,
+        "htm_file": SecHtmFileFetcher,
+        "form_13FHR": SecForm13FHRFetcher,
+        "insider_trading_xbrl": SecInsiderTradingFetcher,
+        "institutions_search": SecInstitutionsSearchFetcher,
+        "latest_financial_reports": SecLatestFinancialReportsFetcher,
+        "management_discussion_analysis": SecManagementDiscussionAnalysisFetcher,
+        "nport_disclosure": SecNportDisclosureFetcher,
+        "rss_litigation": SecRssLitigationFetcher,
+        "schema_files": SecSchemaFilesFetcher,
+        "sic_search": SecSicSearchFetcher,
+        "symbol_map": SecSymbolMapFetcher,
     },
     metadata={
+        "group": "stock",
         "rate_limit": "10 requests/second (fair-access policy)",
         "data_coverage": "US public company filings",
     },
@@ -462,6 +622,12 @@ def register_all_providers():
     ProviderRegistry.register(fmp_provider)
     ProviderRegistry.register(polygon_provider)
     ProviderRegistry.register(tiingo_provider)
+    # OpenBB 이식 provider (MACRO/STOCK)
+    ProviderRegistry.register(wsj_provider)
+    ProviderRegistry.register(bls_provider)
+    ProviderRegistry.register(eia_provider)
+    ProviderRegistry.register(oecd_provider)
+    ProviderRegistry.register(imf_provider)
     ProviderRegistry.register(social_provider)
     if db_provider is not None:
         ProviderRegistry.register(db_provider)
