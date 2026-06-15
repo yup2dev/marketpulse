@@ -33,7 +33,7 @@ export default function TradingViewRankingWidget({ onRemove }) {
       showViewToggle={false}
       showPeriodSelector={false}
     >
-      <div style={{ height: '100%', minHeight: 300 }}>
+      <div style={{ height: '100%', width: '100%' }}>
         <TradingViewEmbed scriptSrc={SCRIPT_SRC} config={CONFIG} />
       </div>
     </BaseWidget>
