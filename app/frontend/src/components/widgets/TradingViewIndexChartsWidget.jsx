@@ -1,9 +1,13 @@
 /**
- * TradingViewIndexChartsWidget — 주요 지수 가로 티커 바 (TradingView Tickers 임베드).
+ * TradingViewIndexChartsWidget — 주요 지수 시세 타일 (TradingView Tickers 임베드).
  *
  * 기존 SparklineWidget('Index Charts', Yahoo 기반)의 TradingView 대체본.
- * 지수/환율/금리를 미니차트와 함께 한 줄로 가로 배치(기존 ticker bar UI와 동일한 형태).
- * 데이터/네트워크는 TradingView가 직접 제공 → 서버·Yahoo·Fetcher 불필요.
+ * Tickers 위젯은 심볼+가격+변동%를 정적 타일로(자동 스크롤 없음) 가로 배치하고 폭에 맞춰
+ * 줄바꿈한다. single-ticker는 동적 주입 시 document.currentScript 의존으로 렌더 실패 →
+ * 랭킹과 동일하게 정상 작동하는 단일 임베드(Tickers)를 사용한다.
+ *
+ * ⚠️ TradingView 무료 임베드는 거래소 지수(KRX:KOSPI, SP:SPX 등) 데이터를 막아둔다
+ *    (로그인 필요) → 빈 타일. 무료로 렌더되는 심볼만 사용하고, 한국은 ETF EWY로 대체.
  */
 import { LineChart } from 'lucide-react';
 import BaseWidget from './common/BaseWidget';
@@ -17,15 +21,17 @@ const CONFIG = {
   locale: 'kr',
   isTransparent: true,
   showSymbolLogo: true,
+  width: '100%',
+  height: '100%', // iframe이 위젯 셀 높이를 채우도록
   symbols: [
-    { proName: 'KRX:KOSPI',     title: 'KOSPI' },
-    { proName: 'KRX:KOSDAQ',    title: 'KOSDAQ' },
-    { proName: 'NASDAQ:NDX',    title: 'Nasdaq 100' },
-    { proName: 'SP:SPX',        title: 'S&P 500' },
-    { proName: 'DJ:DJI',        title: 'Dow 30' },
-    { proName: 'TVC:VIX',       title: 'VIX' },
-    { proName: 'FX_IDC:USDKRW', title: 'USD/KRW' },
-    { proName: 'TVC:US10Y',     title: 'US 10Y' },
+    { proName: 'AMEX:EWY',        title: 'Korea (EWY)' },
+    { proName: 'FOREXCOM:SPXUSD', title: 'S&P 500' },
+    { proName: 'FOREXCOM:NSXUSD', title: 'Nasdaq 100' },
+    { proName: 'FOREXCOM:DJI',    title: 'Dow 30' },
+    { proName: 'FX_IDC:USDKRW',   title: 'USD/KRW' },
+    { proName: 'TVC:DXY',         title: 'Dollar Index' },
+    { proName: 'TVC:GOLD',        title: 'Gold' },
+    { proName: 'BITSTAMP:BTCUSD', title: 'Bitcoin' },
   ],
 };
 
@@ -38,7 +44,7 @@ export default function TradingViewIndexChartsWidget({ onRemove }) {
       showViewToggle={false}
       showPeriodSelector={false}
     >
-      <div style={{ width: '100%' }}>
+      <div style={{ height: '100%', width: '100%' }}>
         <TradingViewEmbed scriptSrc={SCRIPT_SRC} config={CONFIG} />
       </div>
     </BaseWidget>
