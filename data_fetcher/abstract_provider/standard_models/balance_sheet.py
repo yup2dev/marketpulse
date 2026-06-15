@@ -15,8 +15,9 @@ class BalanceSheetQueryParams(BaseQueryParams):
 
 
 class BalanceSheetData(BaseData):
-    symbol: str = Field(description="종목 코드")
-    date: date_type = Field(description="기준일")
+    # symbol/date 는 일부 provider(SEC XBRL 등)가 period_ending 기반이라 Optional.
+    symbol: Optional[str] = Field(default=None, description="종목 코드")
+    date: Optional[date_type] = Field(default=None, description="기준일")
     period: Optional[str] = Field(default=None, description="보고 기간")
 
     # 자산

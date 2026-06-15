@@ -19,9 +19,10 @@ class IncomeStatementQueryParams(BaseQueryParams):
 class IncomeStatementData(BaseData):
     """손익계산서 표준 데이터"""
 
-    symbol: str = Field(description="종목 코드")
-    date: date_type = Field(description="보고 날짜")
-    period: str = Field(description="보고 기간 (FY / Q1-Q4)")
+    # symbol/date/period 는 일부 provider(SEC XBRL 등)가 period_ending 기반이라 Optional.
+    symbol: Optional[str] = Field(default=None, description="종목 코드")
+    date: Optional[date_type] = Field(default=None, description="보고 날짜")
+    period: Optional[str] = Field(default=None, description="보고 기간 (FY / Q1-Q4)")
 
     # 매출
     revenue: Optional[float] = Field(default=None, description="매출액")

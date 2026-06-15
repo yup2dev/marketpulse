@@ -16,7 +16,7 @@ class InsiderTradingQueryParams(BaseQueryParams):
 
 
 class InsiderTradingData(BaseData):
-    symbol: str = Field(description="종목 코드")
+    symbol: Optional[str] = Field(default=None, description="종목 코드")
     filing_date: Optional[date_type] = Field(default=None, description="공시일")
     transaction_date: Optional[date_type] = Field(default=None, description="거래일")
     insider_name: Optional[str] = Field(default=None, description="내부자 이름")

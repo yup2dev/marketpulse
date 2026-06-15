@@ -238,6 +238,36 @@ def _resolve_fetcher(provider_obj: Provider, model: str) -> Type[Fetcher]:
     )
 
 
+try:
+    from data_fetcher.abstract_provider.standard_models._base import QueryParams as _ObbQueryParams
+except Exception:  # noqa: BLE001
+    _ObbQueryParams = None  # type: ignore[assignment]
+
+
+def _fill_obb_query_defaults(
+    qp_type: Type[BaseModel],
+    params: Dict[str, Any],
+) -> Dict[str, Any]:
+    """OpenBB 이식 QueryParams 의 누락 필드를 모델 기본값으로 채운다.
+
+    OpenBB fetcher 의 transform_query 는 표준 필드가 항상 존재한다고 가정하고
+    직접 인덱싱하는 경우가 있어, 기본값(주로 None)을 미리 채워준다.
+    필수 필드(기본값 없음)는 채우지 않아 모델 검증이 정상 동작하게 둔다.
+    """
+    if _ObbQueryParams is None or not issubclass(qp_type, _ObbQueryParams):
+        return params
+    from pydantic_core import PydanticUndefined
+
+    out = dict(params)
+    for name, field in qp_type.model_fields.items():
+        if name in out or (field.alias and field.alias in out):
+            continue
+        default = field.get_default(call_default_factory=True)
+        if default is not PydanticUndefined:
+            out[name] = default
+    return out
+
+
 def _filter_extra_params(
     fetcher_cls: Type[Fetcher],
     params: Dict[str, Any],
@@ -259,6 +289,12 @@ def _filter_extra_params(
 
     if not (isinstance(qp_type, type) and issubclass(qp_type, BaseModel)):
         return params
+
+    # OpenBB 이식 fetcher 보정: OpenBB는 command 계층에서 표준 필드(start_date 등)를
+    # 기본값과 함께 모두 채워 transform_query 에 넘긴다. 이 프로젝트 executor 는
+    # 사용자 제공 param 만 넘기므로, transform_query 가 `params["start_date"]` 처럼
+    # 직접 인덱싱하면 KeyError 가 난다. 누락 필드를 모델 기본값으로 채워 호환시킨다.
+    params = _fill_obb_query_defaults(qp_type, params)
 
     # extra="allow" 설정 Fetcher 는 자유 필드 허용 → 필터링 안 함
     if getattr(qp_type, "model_config", {}).get("extra") == "allow":
@@ -290,6 +326,27 @@ def _filter_extra_params(
     return filtered
 
 
+def _normalize_credentials(
+    provider_name: str,
+    credentials: Optional[Dict[str, str]],
+) -> Optional[Dict[str, str]]:
+    """credential 키 별칭 보정.
+
+    프로젝트 키스토어/ENV는 'api_key'로 저장하지만 OpenBB 이식 fetcher는
+    '<provider>_api_key'(예: eia_api_key, bls_api_key) 규약을 쓴다. 둘 다 채워
+    어느 쪽 규약의 fetcher든 키를 찾을 수 있게 한다.
+    """
+    if not credentials:
+        return credentials
+    creds = dict(credentials)
+    prefixed = f"{provider_name.lower()}_api_key"
+    single = creds.get("api_key") or creds.get("key") or creds.get(prefixed)
+    if single:
+        creds.setdefault("api_key", single)
+        creds.setdefault(prefixed, single)
+    return creds
+
+
 def _load_credentials(
     provider_obj: Provider,
     credentials: Optional[Dict[str, str]],
@@ -301,10 +358,10 @@ def _load_credentials(
         3. 자격증명 불필요 provider → 빈 dict 반환
     """
     if not provider_obj.credentials:
-        return credentials or {}
+        return _normalize_credentials(provider_obj.name, credentials) or {}
 
     if credentials:
-        return credentials
+        return _normalize_credentials(provider_obj.name, credentials)
 
     env_key = _PROVIDER_TO_ENV_KEY.get(provider_obj.name, provider_obj.name.upper())
     env_map = API_ENV_MAPPING.get(env_key)
@@ -317,7 +374,9 @@ def _load_credentials(
         )
 
     try:
-        return get_credentials_from_env(env_key, env_map)
+        return _normalize_credentials(
+            provider_obj.name, get_credentials_from_env(env_key, env_map)
+        )
     except CredentialsError as e:
         raise CredentialsError(
             f"Provider '{provider_obj.name}' credentials not found. "
