@@ -32,6 +32,7 @@ class UserLogin(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
+    fetcher_token: str
     token_type: str
     user: dict
 

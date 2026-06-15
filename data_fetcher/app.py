@@ -89,6 +89,13 @@ def main() -> None:
     port = int(os.getenv("FETCHER_PORT", "8765"))
     _setup_logging(port)
 
+    # marketpulse:// 스킴 자가등록 — 웹의 'Fetcher 실행' 딥링크가 동작하도록(best-effort).
+    try:
+        from data_fetcher.server.protocol import register_url_scheme
+        register_url_scheme()
+    except Exception as exc:  # 등록 실패는 무시 (웹 실행 버튼만 비활성)
+        logging.getLogger(__name__).debug("[fetcher] URL 스킴 등록 건너뜀: %s", exc)
+
     headless = os.getenv("FETCHER_HEADLESS", "0") == "1"
 
     if headless:

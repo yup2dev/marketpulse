@@ -13,6 +13,7 @@ import { syncFetcherToken } from '../utils/fetcherToken';
 const _clearStorage = () => {
   localStorage.removeItem('access_token');
   localStorage.removeItem('refresh_token');
+  localStorage.removeItem('fetcher_token');
   localStorage.removeItem('user');
 };
 
@@ -80,8 +81,8 @@ const useAuthStore = create((set, get) => {
         // refresh도 실패하면 forceLogout 콜백 → _redirectToLogin()
         const response = await authAPI.verifyToken();
         const user = response?.user;
-        // 데스크톱: 앱 시작 시 현재 토큰을 Fetcher에 동기화 (재로그인 없이 워커 합류)
-        syncFetcherToken(localStorage.getItem('access_token'));
+        // 앱 시작 시 저장된 fetcher 토큰(장수명)을 Fetcher에 동기화 (재로그인 없이 워커 합류)
+        syncFetcherToken(localStorage.getItem('fetcher_token'));
         if (user) {
           localStorage.setItem('user', JSON.stringify(user));
           set({ user, isAuthenticated: true, isInitializing: false, accessToken: localStorage.getItem('access_token') });
@@ -110,12 +111,13 @@ const useAuthStore = create((set, get) => {
       set({ isLoading: true, error: null });
       try {
         const response = await authAPI.login({ email, password });
-        const { access_token, refresh_token, user } = response;
+        const { access_token, refresh_token, fetcher_token, user } = response;
 
         localStorage.setItem('access_token',  access_token);
         localStorage.setItem('refresh_token', refresh_token);
+        if (fetcher_token) localStorage.setItem('fetcher_token', fetcher_token);
         localStorage.setItem('user', JSON.stringify(user));
-        syncFetcherToken(access_token);   // 데스크톱: Fetcher에 로그인 토큰 주입
+        syncFetcherToken(fetcher_token);   // Fetcher 워커 전용 장수명 토큰 주입
 
         set({ user, accessToken: access_token, refreshToken: refresh_token, isAuthenticated: true, isLoading: false, error: null });
         return { success: true };
@@ -131,12 +133,13 @@ const useAuthStore = create((set, get) => {
       set({ isLoading: true, error: null });
       try {
         const response = await authAPI.register({ email, username, password, full_name });
-        const { access_token, refresh_token, user } = response;
+        const { access_token, refresh_token, fetcher_token, user } = response;
 
         localStorage.setItem('access_token',  access_token);
         localStorage.setItem('refresh_token', refresh_token);
+        if (fetcher_token) localStorage.setItem('fetcher_token', fetcher_token);
         localStorage.setItem('user', JSON.stringify(user));
-        syncFetcherToken(access_token);   // 데스크톱: Fetcher에 로그인 토큰 주입
+        syncFetcherToken(fetcher_token);   // Fetcher 워커 전용 장수명 토큰 주입
 
         set({ user, accessToken: access_token, refreshToken: refresh_token, isAuthenticated: true, isLoading: false, error: null });
         return { success: true };

@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    # 사용자 PC Fetcher 워커(/ws/fetcher) 전용 장수명 토큰. 브라우저가 닫혀 있어도
+    # 워커가 유지되도록 access(30분)보다 길게 둔다. API/refresh로는 쓸 수 없다(type=fetcher).
+    FETCHER_TOKEN_EXPIRE_DAYS: int = 30
 
     # CORS — comma-separated in env: CORS_ORIGINS=https://example.com,http://localhost:5173
     CORS_ORIGINS: Annotated[List[str], NoDecode] = [

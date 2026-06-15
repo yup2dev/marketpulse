@@ -33,6 +33,16 @@ log = logging.getLogger(__name__)
 
 _RECONNECT_DELAY = 5.0
 _WAIT_TOKEN_DELAY = 10.0  # 로그인 전(토큰 없음) 재확인 간격
+_AUTH_FAIL_DELAY = 60.0  # 토큰 거부(401/403) 시 — 갱신 전엔 재시도해도 무의미하므로 길게 대기
+
+
+def _ws_reject_status(exc) -> Optional[int]:
+    """websockets 접속 거부 예외에서 HTTP 상태코드를 추출한다.
+    websockets>=12: InvalidStatus(.response.status_code) / 이전: InvalidStatusCode(.status_code)."""
+    resp = getattr(exc, "response", None)
+    if resp is not None and getattr(resp, "status_code", None) is not None:
+        return resp.status_code
+    return getattr(exc, "status_code", None)
 
 
 def _ssl_context() -> Optional[ssl.SSLContext]:
@@ -99,5 +109,15 @@ async def run_ws_worker(
         except asyncio.CancelledError:
             raise
         except Exception as exc:
+            status = _ws_reject_status(exc)
+            if status in (401, 403):
+                # 토큰 만료/무효 — 같은 토큰으로 재시도해봐야 계속 거부된다. 웹 재로그인으로
+                # 토큰 파일이 갱신되면 다음 시도에서 자동 복구되므로, 길게 쉬며 대기한다.
+                log.warning(
+                    "[fetcher-ws] 인증 거부(HTTP %s) — 토큰 만료/무효. 웹에서 다시 로그인해 "
+                    "Fetcher 토큰을 갱신하세요. %ds 후 재시도", status, _AUTH_FAIL_DELAY,
+                )
+                await asyncio.sleep(_AUTH_FAIL_DELAY)
+                continue
             log.warning("[fetcher-ws] connection error: %s — %ds 후 재시도", exc, _RECONNECT_DELAY)
         await asyncio.sleep(_RECONNECT_DELAY)
