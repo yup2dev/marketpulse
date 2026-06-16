@@ -53,10 +53,10 @@ class CommandRouter:
     """
 
     def __init__(
-        self,
-        prefix: str = "",
-        tags: Optional[List[str]] = None,
-        **router_kwargs: Any,
+            self,
+            prefix: str = "",
+            tags: Optional[List[str]] = None,
+            **router_kwargs: Any,
     ) -> None:
         self._router = APIRouter(prefix=prefix, tags=tags or [], **router_kwargs)
 
@@ -66,10 +66,10 @@ class CommandRouter:
         return self._router
 
     def command(
-        self,
-        model: str,
-        path: Optional[str] = None,
-        **endpoint_kwargs: Any,
+            self,
+            model: str,
+            path: Optional[str] = None,
+            **endpoint_kwargs: Any,
     ) -> Callable:
         """
         엔드포인트 등록 데코레이터
