@@ -2,8 +2,8 @@
 
 from datetime import date as dateType
 
-from data_fetcher.abstract_provider.standard_models._base import Data
-from data_fetcher.abstract_provider.standard_models._base import QueryParams
+from data_fetcher.abstract_provider.abstract.data import BaseData
+from data_fetcher.abstract_provider.abstract.query_params import BaseQueryParams
 from data_fetcher.abstract_provider.field_descriptions import (
     DATA_DESCRIPTIONS,
     QUERY_DESCRIPTIONS,
@@ -11,7 +11,7 @@ from data_fetcher.abstract_provider.field_descriptions import (
 from pydantic import Field
 
 
-class EconomicIndicatorsQueryParams(QueryParams):
+class EconomicIndicatorsQueryParams(BaseQueryParams):
     """Economic Indicators Query."""
 
     symbol: str = Field(description=QUERY_DESCRIPTIONS.get("symbol", ""))
@@ -29,7 +29,7 @@ class EconomicIndicatorsQueryParams(QueryParams):
     )
 
 
-class EconomicIndicatorsData(Data):
+class EconomicIndicatorsData(BaseData):
     """Economic Indicators Data."""
 
     date: dateType | None = Field(

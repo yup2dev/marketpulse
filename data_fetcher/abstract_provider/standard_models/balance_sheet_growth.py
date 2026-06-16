@@ -2,13 +2,13 @@
 
 from datetime import date as dateType
 
-from data_fetcher.abstract_provider.standard_models._base import Data
-from data_fetcher.abstract_provider.standard_models._base import QueryParams
+from data_fetcher.abstract_provider.abstract.data import BaseData
+from data_fetcher.abstract_provider.abstract.query_params import BaseQueryParams
 from data_fetcher.abstract_provider.field_descriptions import QUERY_DESCRIPTIONS
 from pydantic import Field, field_validator
 
 
-class BalanceSheetGrowthQueryParams(QueryParams):
+class BalanceSheetGrowthQueryParams(BaseQueryParams):
     """Balance Sheet Statement Growth Query."""
 
     symbol: str = Field(description=QUERY_DESCRIPTIONS.get("symbol", ""))
@@ -23,7 +23,7 @@ class BalanceSheetGrowthQueryParams(QueryParams):
         return v.upper()
 
 
-class BalanceSheetGrowthData(Data):
+class BalanceSheetGrowthData(BaseData):
     """Balance Sheet Statement Growth Data."""
 
     period_ending: dateType = Field(description="The end date of the reporting period.")

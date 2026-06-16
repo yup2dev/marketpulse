@@ -1,7 +1,13 @@
 """BaseData — 모든 데이터 응답의 기본 클래스"""
 from typing import Any, ClassVar, Dict
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import (
+    AliasGenerator,
+    BaseModel,
+    ConfigDict,
+    alias_generators,
+    model_validator,
+)
 
 
 _EMPTY_STRINGS = {"", "None", "none", "NaN", "nan", "null", "NULL", "-"}
@@ -12,6 +18,8 @@ class BaseData(BaseModel):
 
     서브클래스에서 `__alias_dict__ = {"python_field": "ProviderRawField"}` 형태로
     매핑을 선언하면, raw dict가 들어왔을 때 자동으로 필드명이 치환된다.
+    또한 camelCase 검증 alias 를 기본 제공해 provider raw 키(예: formattedPrice)를
+    snake_case 필드(formatted_price)로 자동 매핑한다(populate_by_name 으로 snake 입력도 유지).
     'None' / '' / '-' 등 빈 문자열은 전부 None으로 정리한 뒤 Pydantic이
     타입 강제 변환(str→int/float 등)을 처리한다.
     """
@@ -22,6 +30,11 @@ class BaseData(BaseModel):
         extra='allow',
         validate_assignment=True,
         populate_by_name=True,
+        strict=False,
+        alias_generator=AliasGenerator(
+            validation_alias=alias_generators.to_camel,
+            serialization_alias=alias_generators.to_snake,
+        ),
     )
 
     @model_validator(mode='before')

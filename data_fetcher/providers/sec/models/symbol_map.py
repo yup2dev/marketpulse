@@ -5,7 +5,7 @@
 from typing import Any
 
 from data_fetcher.utils.provider_errors import OpenBBError
-from data_fetcher.abstract_provider.standard_models._base import Data
+from data_fetcher.abstract_provider.abstract.data import BaseData
 from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
 from data_fetcher.abstract_provider.standard_models.symbol_map import SymbolMapQueryParams
 from data_fetcher.abstract_provider.field_descriptions import DATA_DESCRIPTIONS
@@ -19,7 +19,7 @@ class SecSymbolMapQueryParams(SymbolMapQueryParams):
     """
 
 
-class SecSymbolMapData(Data):
+class SecSymbolMapData(BaseData):
     """SEC symbol map Data."""
 
     symbol: str = Field(description=DATA_DESCRIPTIONS.get("symbol", ""))

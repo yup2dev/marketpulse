@@ -4,13 +4,13 @@
 
 from typing import Any
 
-from data_fetcher.abstract_provider.standard_models._base import Data
+from data_fetcher.abstract_provider.abstract.data import BaseData
 from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
-from data_fetcher.abstract_provider.standard_models._base import QueryParams
+from data_fetcher.abstract_provider.abstract.query_params import BaseQueryParams
 from pydantic import Field
 
 
-class SecSicSearchQueryParams(QueryParams):
+class SecSicSearchQueryParams(BaseQueryParams):
     """SEC Standard Industrial Classification Code (SIC) Query.
 
     Source: https://sec.gov/
@@ -25,7 +25,7 @@ class SecSicSearchQueryParams(QueryParams):
     )
 
 
-class SecSicSearchData(Data):
+class SecSicSearchData(BaseData):
     """SEC Standard Industrial Classification Code (SIC) Data."""
 
     __alias_dict__ = {

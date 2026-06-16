@@ -3,8 +3,8 @@
 from datetime import date as dateType
 from typing import Literal
 
-from data_fetcher.abstract_provider.standard_models._base import Data
-from data_fetcher.abstract_provider.standard_models._base import QueryParams
+from data_fetcher.abstract_provider.abstract.data import BaseData
+from data_fetcher.abstract_provider.abstract.query_params import BaseQueryParams
 from data_fetcher.abstract_provider.field_descriptions import (
     DATA_DESCRIPTIONS,
     QUERY_DESCRIPTIONS,
@@ -12,7 +12,7 @@ from data_fetcher.abstract_provider.field_descriptions import (
 from pydantic import Field
 
 
-class ConsumerPriceIndexQueryParams(QueryParams):
+class ConsumerPriceIndexQueryParams(BaseQueryParams):
     """CPI Query."""
 
     country: str = Field(
@@ -38,7 +38,7 @@ class ConsumerPriceIndexQueryParams(QueryParams):
     )
 
 
-class ConsumerPriceIndexData(Data):
+class ConsumerPriceIndexData(BaseData):
     """CPI data."""
 
     date: dateType = Field(description=DATA_DESCRIPTIONS.get("date"))

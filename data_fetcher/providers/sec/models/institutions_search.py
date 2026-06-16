@@ -4,13 +4,13 @@
 
 from typing import Any
 
-from data_fetcher.abstract_provider.standard_models._base import Data
+from data_fetcher.abstract_provider.abstract.data import BaseData
 from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
-from data_fetcher.abstract_provider.standard_models._base import QueryParams
+from data_fetcher.abstract_provider.abstract.query_params import BaseQueryParams
 from pydantic import Field
 
 
-class SecInstitutionsSearchQueryParams(QueryParams):
+class SecInstitutionsSearchQueryParams(BaseQueryParams):
     """SEC Institutions Search Query.
 
     Source: https://sec.gov/
@@ -24,7 +24,7 @@ class SecInstitutionsSearchQueryParams(QueryParams):
     )
 
 
-class SecInstitutionsSearchData(Data):
+class SecInstitutionsSearchData(BaseData):
     """SEC Institutions Search Data."""
 
     __alias_dict__ = {

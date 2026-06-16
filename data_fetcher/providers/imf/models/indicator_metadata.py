@@ -1,11 +1,11 @@
 """Miscellaneous metadata models for IMF provider."""
 
-from data_fetcher.abstract_provider.standard_models._base import Data
-from data_fetcher.abstract_provider.standard_models._base import QueryParams
+from data_fetcher.abstract_provider.abstract.data import BaseData
+from data_fetcher.abstract_provider.abstract.query_params import BaseQueryParams
 from pydantic import Field
 
 
-class ImfIndicatorMetadata(Data):
+class ImfIndicatorMetadata(BaseData):
     """Model representing an IMF Indicator."""
 
     symbol: str = Field(
@@ -43,7 +43,7 @@ class ImfIndicatorMetadata(Data):
     dataflow_name: str = Field(description="The name of the IMF dataflow.")
 
 
-class ImfTableMetadata(Data):
+class ImfTableMetadata(BaseData):
     """Model representing an IMF Table."""
 
     name: str = Field(description="The name of the IMF table.")
@@ -54,7 +54,7 @@ class ImfTableMetadata(Data):
     codelist_id: str = Field(description="The codelist ID associated with the table.")
 
 
-class ImfPresentationTableQuery(QueryParams):
+class ImfPresentationTableQuery(BaseQueryParams):
     """Query parameters for IMF presentation table metadata."""
 
     dataflow: str | None = Field(

@@ -2,8 +2,8 @@
 
 from datetime import date as dateType
 
-from data_fetcher.abstract_provider.standard_models._base import Data
-from data_fetcher.abstract_provider.standard_models._base import QueryParams
+from data_fetcher.abstract_provider.abstract.data import BaseData
+from data_fetcher.abstract_provider.abstract.query_params import BaseQueryParams
 from data_fetcher.abstract_provider.field_descriptions import (
     DATA_DESCRIPTIONS,
     QUERY_DESCRIPTIONS,
@@ -11,7 +11,7 @@ from data_fetcher.abstract_provider.field_descriptions import (
 from pydantic import Field, field_validator
 
 
-class SeriesQueryParams(QueryParams):
+class SeriesQueryParams(BaseQueryParams):
     """BLS Series Query."""
 
     symbol: str = Field(
@@ -31,7 +31,7 @@ class SeriesQueryParams(QueryParams):
         return v.upper()
 
 
-class SeriesData(Data):
+class SeriesData(BaseData):
     """BLS Series Data."""
 
     date: dateType = Field(description=DATA_DESCRIPTIONS.get("date", ""))

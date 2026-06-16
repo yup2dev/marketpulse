@@ -5,9 +5,9 @@
 from typing import Any, Literal
 
 from data_fetcher.utils.provider_errors import OpenBBError
-from data_fetcher.abstract_provider.standard_models._base import Data
+from data_fetcher.abstract_provider.abstract.data import BaseData
 from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
-from data_fetcher.abstract_provider.standard_models._base import QueryParams
+from data_fetcher.abstract_provider.abstract.query_params import BaseQueryParams
 from pydantic import Field, model_validator
 
 TAXONOMY_CHOICES = Literal[
@@ -47,7 +47,7 @@ CATEGORY_CHOICES = Literal[
 ]
 
 
-class SecSchemaFilesQueryParams(QueryParams):
+class SecSchemaFilesQueryParams(BaseQueryParams):
     """SEC XBRL Taxonomy Explorer Query.
 
     Source: https://sec.gov/
@@ -105,7 +105,7 @@ class SecSchemaFilesQueryParams(QueryParams):
         return self
 
 
-class SecSchemaFilesData(Data):
+class SecSchemaFilesData(BaseData):
     """SEC XBRL Taxonomy Explorer Data."""
 
     name: str = Field(

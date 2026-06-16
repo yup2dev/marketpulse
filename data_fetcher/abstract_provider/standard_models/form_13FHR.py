@@ -3,15 +3,15 @@
 from datetime import date as dateType
 from typing import Literal
 
-from data_fetcher.abstract_provider.standard_models._base import Data
-from data_fetcher.abstract_provider.standard_models._base import QueryParams
+from data_fetcher.abstract_provider.abstract.data import BaseData
+from data_fetcher.abstract_provider.abstract.query_params import BaseQueryParams
 from data_fetcher.abstract_provider.field_descriptions import (
     QUERY_DESCRIPTIONS,
 )
 from pydantic import Field, field_validator
 
 
-class Form13FHRQueryParams(QueryParams):
+class Form13FHRQueryParams(BaseQueryParams):
     """Form 13F-HR Query."""
 
     symbol: str = Field(
@@ -41,7 +41,7 @@ class Form13FHRQueryParams(QueryParams):
         return str(v).upper()
 
 
-class Form13FHRData(Data):
+class Form13FHRData(BaseData):
     """
     Form 13F-HR Data.
 

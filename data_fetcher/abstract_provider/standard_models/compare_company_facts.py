@@ -2,8 +2,8 @@
 
 from datetime import date as dateType
 
-from data_fetcher.abstract_provider.standard_models._base import Data
-from data_fetcher.abstract_provider.standard_models._base import QueryParams
+from data_fetcher.abstract_provider.abstract.data import BaseData
+from data_fetcher.abstract_provider.abstract.query_params import BaseQueryParams
 from data_fetcher.abstract_provider.field_descriptions import (
     DATA_DESCRIPTIONS,
     QUERY_DESCRIPTIONS,
@@ -11,7 +11,7 @@ from data_fetcher.abstract_provider.field_descriptions import (
 from pydantic import Field
 
 
-class CompareCompanyFactsQueryParams(QueryParams):
+class CompareCompanyFactsQueryParams(BaseQueryParams):
     """Compare Company Facts Query."""
 
     symbol: str | None = Field(
@@ -23,7 +23,7 @@ class CompareCompanyFactsQueryParams(QueryParams):
     )
 
 
-class CompareCompanyFactsData(Data):
+class CompareCompanyFactsData(BaseData):
     """Compare Company Facts Data."""
 
     symbol: str | None = Field(

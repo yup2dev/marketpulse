@@ -2,8 +2,8 @@
 
 from datetime import date as dateType
 
-from data_fetcher.abstract_provider.standard_models._base import Data
-from data_fetcher.abstract_provider.standard_models._base import QueryParams
+from data_fetcher.abstract_provider.abstract.data import BaseData
+from data_fetcher.abstract_provider.abstract.query_params import BaseQueryParams
 from data_fetcher.abstract_provider.field_descriptions import (
     DATA_DESCRIPTIONS,
     QUERY_DESCRIPTIONS,
@@ -11,7 +11,7 @@ from data_fetcher.abstract_provider.field_descriptions import (
 from pydantic import Field
 
 
-class ShortTermEnergyOutlookQueryParams(QueryParams):
+class ShortTermEnergyOutlookQueryParams(BaseQueryParams):
     """Short Term Energy Outlook Query."""
 
     start_date: dateType | None = Field(
@@ -24,7 +24,7 @@ class ShortTermEnergyOutlookQueryParams(QueryParams):
     )
 
 
-class ShortTermEnergyOutlookData(Data):
+class ShortTermEnergyOutlookData(BaseData):
     """Short Term Energy Outlook Data."""
 
     date: dateType = Field(description=DATA_DESCRIPTIONS.get("date", ""))

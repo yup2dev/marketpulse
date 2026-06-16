@@ -6,21 +6,21 @@ from datetime import datetime
 from typing import Any
 
 from data_fetcher.utils.provider_errors import OpenBBError
-from data_fetcher.abstract_provider.standard_models._base import Data
+from data_fetcher.abstract_provider.abstract.data import BaseData
 from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
-from data_fetcher.abstract_provider.standard_models._base import QueryParams
+from data_fetcher.abstract_provider.abstract.query_params import BaseQueryParams
 from data_fetcher.providers.sec.utils.definitions import HEADERS
 from pydantic import Field
 
 
-class SecRssLitigationQueryParams(QueryParams):
+class SecRssLitigationQueryParams(BaseQueryParams):
     """SEC Litigation RSS Feed Query.
 
     Source: https://sec.gov/
     """
 
 
-class SecRssLitigationData(Data):
+class SecRssLitigationData(BaseData):
     """SEC Litigation RSS Feed Data."""
 
     __alias_dict__ = {

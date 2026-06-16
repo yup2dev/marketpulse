@@ -5,15 +5,15 @@ from datetime import (
 )
 
 from dateutil import parser
-from data_fetcher.abstract_provider.standard_models._base import Data
-from data_fetcher.abstract_provider.standard_models._base import QueryParams
+from data_fetcher.abstract_provider.abstract.data import BaseData
+from data_fetcher.abstract_provider.abstract.query_params import BaseQueryParams
 from data_fetcher.abstract_provider.field_descriptions import (
     QUERY_DESCRIPTIONS,
 )
 from pydantic import Field, field_validator
 
 
-class CompanyFilingsQueryParams(QueryParams):
+class CompanyFilingsQueryParams(BaseQueryParams):
     """Company Filings Query."""
 
     symbol: str | None = Field(
@@ -29,7 +29,7 @@ class CompanyFilingsQueryParams(QueryParams):
         return ",".join([symbol.upper() for symbol in list(v)]) if v else None
 
 
-class CompanyFilingsData(Data):
+class CompanyFilingsData(BaseData):
     """Company Filings Data."""
 
     filing_date: dateType = Field(description="The date of the filing.")

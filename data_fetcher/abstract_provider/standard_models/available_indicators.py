@@ -1,16 +1,16 @@
 """Available Indicators Standard Model."""
 
-from data_fetcher.abstract_provider.standard_models._base import Data
-from data_fetcher.abstract_provider.standard_models._base import QueryParams
+from data_fetcher.abstract_provider.abstract.data import BaseData
+from data_fetcher.abstract_provider.abstract.query_params import BaseQueryParams
 from data_fetcher.abstract_provider.field_descriptions import DATA_DESCRIPTIONS
 from pydantic import Field
 
 
-class AvailableIndicesQueryParams(QueryParams):
+class AvailableIndicesQueryParams(BaseQueryParams):
     """Available Indicators Query."""
 
 
-class AvailableIndicatorsData(Data):
+class AvailableIndicatorsData(BaseData):
     """Available Indicators Data.
 
     Returns the list of available economic indicators from a provider.

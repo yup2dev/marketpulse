@@ -1,12 +1,12 @@
 """Equity Search Standard Model."""
 
-from data_fetcher.abstract_provider.standard_models._base import Data
-from data_fetcher.abstract_provider.standard_models._base import QueryParams
+from data_fetcher.abstract_provider.abstract.data import BaseData
+from data_fetcher.abstract_provider.abstract.query_params import BaseQueryParams
 from data_fetcher.abstract_provider.field_descriptions import DATA_DESCRIPTIONS
 from pydantic import Field
 
 
-class EquitySearchQueryParams(QueryParams):
+class EquitySearchQueryParams(BaseQueryParams):
     """Equity Search Query."""
 
     query: str = Field(description="Search query.", default="")
@@ -15,7 +15,7 @@ class EquitySearchQueryParams(QueryParams):
     )
 
 
-class EquitySearchData(Data):
+class EquitySearchData(BaseData):
     """Equity Search Data."""
 
     symbol: str | None = Field(

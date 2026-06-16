@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 
 from data_fetcher.abstract_provider.abstract import BaseData
+from data_fetcher.abstract_provider.abstract.query_params import BaseQueryParams
 from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
 from pydantic import Field
 from typing import Optional as _Optional
@@ -24,11 +25,12 @@ class InstitutionInfo(BaseData):
 log = logging.getLogger(__name__)
 
 
-class SECInstitutionsListQueryParams:
+class SECInstitutionsListQueryParams(BaseQueryParams):
     """Query parameters for institutions list"""
-    def __init__(self, min_aum: Optional[float] = None, limit: int = 100):
-        self.min_aum = min_aum  # Minimum AUM in billions (optional filter)
-        self.limit = limit
+    min_aum: _Optional[float] = Field(
+        default=None, description="Minimum AUM in billions (optional filter)"
+    )
+    limit: int = Field(default=100, description="Max number of institutions to return")
 
 
 class SECInstitutionsListFetcher(Fetcher[SECInstitutionsListQueryParams, InstitutionInfo]):

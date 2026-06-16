@@ -3,8 +3,8 @@
 from datetime import date as dateType
 from typing import Literal
 
-from data_fetcher.abstract_provider.standard_models._base import Data
-from data_fetcher.abstract_provider.standard_models._base import QueryParams
+from data_fetcher.abstract_provider.abstract.data import BaseData
+from data_fetcher.abstract_provider.abstract.query_params import BaseQueryParams
 from data_fetcher.abstract_provider.field_descriptions import (
     DATA_DESCRIPTIONS,
     QUERY_DESCRIPTIONS,
@@ -12,7 +12,7 @@ from data_fetcher.abstract_provider.field_descriptions import (
 from pydantic import Field, field_validator
 
 
-class ETFPerformanceQueryParams(QueryParams):
+class ETFPerformanceQueryParams(BaseQueryParams):
     """ETF Performance Query."""
 
     sort: Literal["asc", "desc"] = Field(
@@ -31,7 +31,7 @@ class ETFPerformanceQueryParams(QueryParams):
         return v.lower() if v else v
 
 
-class ETFPerformanceData(Data):
+class ETFPerformanceData(BaseData):
     """ETF Performance Data."""
 
     symbol: str = Field(

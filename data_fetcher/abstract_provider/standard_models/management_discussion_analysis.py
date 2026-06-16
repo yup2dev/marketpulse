@@ -3,8 +3,8 @@
 from datetime import date as dateType
 from typing import Literal
 
-from data_fetcher.abstract_provider.standard_models._base import Data
-from data_fetcher.abstract_provider.standard_models._base import QueryParams
+from data_fetcher.abstract_provider.abstract.data import BaseData
+from data_fetcher.abstract_provider.abstract.query_params import BaseQueryParams
 from data_fetcher.abstract_provider.field_descriptions import (
     DATA_DESCRIPTIONS,
     QUERY_DESCRIPTIONS,
@@ -12,7 +12,7 @@ from data_fetcher.abstract_provider.field_descriptions import (
 from pydantic import Field, field_validator
 
 
-class ManagementDiscussionAnalysisQueryParams(QueryParams):
+class ManagementDiscussionAnalysisQueryParams(BaseQueryParams):
     """Management Discussion & Analysis Query Parameters."""
 
     symbol: str = Field(description=QUERY_DESCRIPTIONS.get("symbol", ""))
@@ -34,7 +34,7 @@ class ManagementDiscussionAnalysisQueryParams(QueryParams):
         return v.upper()
 
 
-class ManagementDiscussionAnalysisData(Data):
+class ManagementDiscussionAnalysisData(BaseData):
     """Management Discussion & Analysis Data."""
 
     symbol: str = Field(description=DATA_DESCRIPTIONS.get("symbol", ""))

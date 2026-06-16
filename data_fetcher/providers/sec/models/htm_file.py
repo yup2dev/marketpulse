@@ -5,13 +5,13 @@
 from typing import Any
 
 from data_fetcher.utils.provider_errors import OpenBBError
-from data_fetcher.abstract_provider.standard_models._base import Data
+from data_fetcher.abstract_provider.abstract.data import BaseData
 from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
-from data_fetcher.abstract_provider.standard_models._base import QueryParams
+from data_fetcher.abstract_provider.abstract.query_params import BaseQueryParams
 from pydantic import Field
 
 
-class SecHtmFileQueryParams(QueryParams):
+class SecHtmFileQueryParams(BaseQueryParams):
     """SEC HTM File Query Parameters."""
 
     url: str = Field(
@@ -24,7 +24,7 @@ class SecHtmFileQueryParams(QueryParams):
     )
 
 
-class SecHtmFileData(Data):
+class SecHtmFileData(BaseData):
     """SEC HTM File Data."""
 
     url: str = Field(

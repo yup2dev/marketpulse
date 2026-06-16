@@ -1,7 +1,7 @@
 """N-PORT Discolsure Standard Model."""
 
-from data_fetcher.abstract_provider.standard_models._base import Data
-from data_fetcher.abstract_provider.standard_models._base import QueryParams
+from data_fetcher.abstract_provider.abstract.data import BaseData
+from data_fetcher.abstract_provider.abstract.query_params import BaseQueryParams
 from data_fetcher.abstract_provider.field_descriptions import (
     DATA_DESCRIPTIONS,
     QUERY_DESCRIPTIONS,
@@ -9,7 +9,7 @@ from data_fetcher.abstract_provider.field_descriptions import (
 from pydantic import Field, field_validator
 
 
-class NportDisclosureQueryParams(QueryParams):
+class NportDisclosureQueryParams(BaseQueryParams):
     """N-PORT Disclosure Query."""
 
     symbol: str = Field(
@@ -31,7 +31,7 @@ class NportDisclosureQueryParams(QueryParams):
         return v.upper()
 
 
-class NportDisclosureData(Data):
+class NportDisclosureData(BaseData):
     """N-PORT Disclosure Data."""
 
     symbol: str | None = Field(

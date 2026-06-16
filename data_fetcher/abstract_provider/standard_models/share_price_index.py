@@ -3,8 +3,8 @@
 from datetime import date as dateType
 from typing import Literal
 
-from data_fetcher.abstract_provider.standard_models._base import Data
-from data_fetcher.abstract_provider.standard_models._base import QueryParams
+from data_fetcher.abstract_provider.abstract.data import BaseData
+from data_fetcher.abstract_provider.abstract.query_params import BaseQueryParams
 from data_fetcher.abstract_provider.field_descriptions import (
     DATA_DESCRIPTIONS,
     QUERY_DESCRIPTIONS,
@@ -12,7 +12,7 @@ from data_fetcher.abstract_provider.field_descriptions import (
 from pydantic import Field
 
 
-class SharePriceIndexQueryParams(QueryParams):
+class SharePriceIndexQueryParams(BaseQueryParams):
     """Share Price Index Query."""
 
     country: str = Field(
@@ -32,7 +32,7 @@ class SharePriceIndexQueryParams(QueryParams):
     )
 
 
-class SharePriceIndexData(Data):
+class SharePriceIndexData(BaseData):
     """Share Price Index Data."""
 
     date: dateType | None = Field(

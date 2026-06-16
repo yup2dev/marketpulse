@@ -2,17 +2,17 @@
 
 from datetime import date as dateType
 
-from data_fetcher.abstract_provider.standard_models._base import Data
-from data_fetcher.abstract_provider.standard_models._base import QueryParams
+from data_fetcher.abstract_provider.abstract.data import BaseData
+from data_fetcher.abstract_provider.abstract.query_params import BaseQueryParams
 from data_fetcher.abstract_provider.field_descriptions import DATA_DESCRIPTIONS
 from pydantic import Field
 
 
-class LatestFinancialReportsQueryParams(QueryParams):
+class LatestFinancialReportsQueryParams(BaseQueryParams):
     """Latest Financial Reports Query."""
 
 
-class LatestFinancialReportsData(Data):
+class LatestFinancialReportsData(BaseData):
     """Latest Financial Reports Data."""
 
     filing_date: dateType = Field(description="The date of the filing.")

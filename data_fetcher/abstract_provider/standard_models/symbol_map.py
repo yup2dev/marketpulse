@@ -1,10 +1,10 @@
 """Commitment of Traders Reports Search Standard Model."""
 
-from data_fetcher.abstract_provider.standard_models._base import QueryParams
+from data_fetcher.abstract_provider.abstract.query_params import BaseQueryParams
 from pydantic import Field
 
 
-class SymbolMapQueryParams(QueryParams):
+class SymbolMapQueryParams(BaseQueryParams):
     """Commitment of Traders Reports Search Query."""
 
     query: str = Field(description="Search query.")

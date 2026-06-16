@@ -2,8 +2,8 @@
 
 from datetime import date as dateType
 
-from data_fetcher.abstract_provider.standard_models._base import Data
-from data_fetcher.abstract_provider.standard_models._base import QueryParams
+from data_fetcher.abstract_provider.abstract.data import BaseData
+from data_fetcher.abstract_provider.abstract.query_params import BaseQueryParams
 from data_fetcher.abstract_provider.field_descriptions import (
     DATA_DESCRIPTIONS,
     QUERY_DESCRIPTIONS,
@@ -11,7 +11,7 @@ from data_fetcher.abstract_provider.field_descriptions import (
 from pydantic import Field
 
 
-class CountryInterestRatesQueryParams(QueryParams):
+class CountryInterestRatesQueryParams(BaseQueryParams):
     """Country Interest Rates Query."""
 
     country: str = Field(
@@ -26,7 +26,7 @@ class CountryInterestRatesQueryParams(QueryParams):
     )
 
 
-class CountryInterestRatesData(Data):
+class CountryInterestRatesData(BaseData):
     """Country Interest Rates Data."""
 
     date: dateType = Field(default=None, description=DATA_DESCRIPTIONS.get("date"))

@@ -5,8 +5,8 @@ from datetime import (
     datetime,
 )
 
-from data_fetcher.abstract_provider.standard_models._base import Data
-from data_fetcher.abstract_provider.standard_models._base import QueryParams
+from data_fetcher.abstract_provider.abstract.data import BaseData
+from data_fetcher.abstract_provider.abstract.query_params import BaseQueryParams
 from data_fetcher.abstract_provider.field_descriptions import (
     DATA_DESCRIPTIONS,
     QUERY_DESCRIPTIONS,
@@ -14,7 +14,7 @@ from data_fetcher.abstract_provider.field_descriptions import (
 from pydantic import Field, field_validator
 
 
-class EquityFtdQueryParams(QueryParams):
+class EquityFtdQueryParams(BaseQueryParams):
     """Equity FTD Query."""
 
     symbol: str = Field(description=QUERY_DESCRIPTIONS.get("symbol", ""))
@@ -26,7 +26,7 @@ class EquityFtdQueryParams(QueryParams):
         return v.upper()
 
 
-class EquityFtdData(Data):
+class EquityFtdData(BaseData):
     """Equity FTD Data."""
 
     settlement_date: dateType | None = Field(

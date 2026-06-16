@@ -6,13 +6,13 @@ from datetime import date as dateType
 from typing import Any
 
 from data_fetcher.utils.provider_errors import OpenBBError
-from data_fetcher.abstract_provider.standard_models._base import Data
+from data_fetcher.abstract_provider.abstract.data import BaseData
 from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
-from data_fetcher.abstract_provider.standard_models._base import QueryParams
+from data_fetcher.abstract_provider.abstract.query_params import BaseQueryParams
 from pydantic import ConfigDict, Field, PrivateAttr, computed_field
 
 
-class SecFilingQueryParams(QueryParams):
+class SecFilingQueryParams(BaseQueryParams):
     """SEC Filing Query Parameters."""
 
     __json_schema_extra__ = {
@@ -38,7 +38,7 @@ class SecFilingQueryParams(QueryParams):
     )
 
 
-class SecFilingData(Data):
+class SecFilingData(BaseData):
     """SEC Filing Data."""
 
     # For Workspace, ConfigDict is used to enter the widget configuration at the "$.data" level.
@@ -173,7 +173,7 @@ class SecFilingData(Data):
     )
 
 
-class SecBaseFiling(Data):  # pylint: disable=too-many-instance-attributes
+class SecBaseFiling(BaseData):  # pylint: disable=too-many-instance-attributes
     """Base SEC Filing model."""
 
     _url: str = PrivateAttr(default="")
