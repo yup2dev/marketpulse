@@ -574,12 +574,16 @@ class SEC13FFetcher(Fetcher[InstitutionalHoldingsQueryParams, InstitutionalHoldi
             ]
 
         try:
-            # Fetch dynamically from SEC
+            # Fetch dynamically from SEC.
+            # NOTE: SECInstitutionsListFetcher의 transform_query/extract_data/
+            # transform_data는 전부 동기(requests)다. fetch_data_sync는 이를
+            # asyncio.run으로 감싸므로, 비동기 요청 핸들러(uvicorn, 실행 중인
+            # 이벤트 루프) 안에서 호출되면 "asyncio.run() cannot be called from a
+            # running event loop"로 항상 실패한다. 동기 파이프라인을 직접 호출한다.
             log.info(f"Fetching institutions list dynamically (limit={limit})")
-            institutions_list = SECInstitutionsListFetcher.fetch_data_sync(
-                params={'limit': limit},
-                credentials=None
-            )
+            _q = SECInstitutionsListFetcher.transform_query({'limit': limit})
+            _raw = SECInstitutionsListFetcher.extract_data(_q, credentials=None)
+            institutions_list = SECInstitutionsListFetcher.transform_data(_q, _raw)
 
             # Create a mapping of CIK to hardcoded key for known institutions
             cik_to_key = {data['cik']: key for key, data in INSTITUTIONS.items()}
@@ -589,20 +593,27 @@ class SEC13FFetcher(Fetcher[InstitutionalHoldingsQueryParams, InstitutionalHoldi
                 if inst.cik in cik_to_key:
                     inst.key = cik_to_key[inst.cik]
 
-            log.info(f"Fetched {len(institutions_list)} institutions dynamically")
-            return institutions_list
+            if institutions_list:
+                log.info(f"Fetched {len(institutions_list)} institutions dynamically")
+                return institutions_list
+
+            # SEC 스크레이프가 비어 있으면(EDGAR HTML 구조 변경 등) featured로 폴백 —
+            # 빈 결과를 그대로 반환하면 프론트엔드 기관 목록이 비어 holdings 조회가
+            # 불가능해진다.
+            log.warning("Dynamic institutions scrape returned empty; falling back to featured list")
 
         except Exception as e:
             log.error(f"Error fetching dynamic institutions list: {e}")
-            # Fallback to hardcoded list
             log.info("Falling back to hardcoded institutions list")
-            return [
-                InstitutionInfo(
-                    key=key,
-                    name=data['name'],
-                    cik=data['cik'],
-                    manager=data['manager'],
-                    description=f"{data['manager']}'s investment firm"
-                )
-                for key, data in INSTITUTIONS.items()
-            ]
+
+        # Featured fallback — dynamic 결과가 비었거나 예외가 발생한 경우 모두 사용
+        return [
+            InstitutionInfo(
+                key=key,
+                name=data['name'],
+                cik=data['cik'],
+                manager=data['manager'],
+                description=f"{data['manager']}'s investment firm"
+            )
+            for key, data in INSTITUTIONS.items()
+        ]
