@@ -103,13 +103,13 @@ class OECDUnemploymentFetcher(
     def transform_query(params: dict[str, Any]) -> OECDUnemploymentQueryParams:
         """Transform the query."""
         transformed_params = params.copy()
-        if transformed_params["start_date"] is None:
+        if transformed_params.get("start_date") is None:
             transformed_params["start_date"] = (
                 date(2010, 1, 1)
                 if transformed_params.get("country") == "all"
                 else date(1950, 1, 1)
             )
-        if transformed_params["end_date"] is None:
+        if transformed_params.get("end_date") is None:
             transformed_params["end_date"] = date(date.today().year, 12, 31)
 
         return OECDUnemploymentQueryParams(**transformed_params)
