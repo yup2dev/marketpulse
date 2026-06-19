@@ -7,6 +7,7 @@ on:
       - main
     paths:
       - 'app/backend/**'
+      - 'data_fetcher/**'
       - 'requirements.txt'
       - 'Dockerfile'
       - 'docker-compose.yml'
