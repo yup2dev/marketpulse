@@ -124,6 +124,10 @@ class ImfEconomicIndicatorsQueryParams(EconomicIndicatorsQueryParams):
     }
 
     symbol: str | None = Field(
+        # Default to a canonical indicator (US real GDP growth) so the widget
+        # loads with example data instead of erroring on auto-load; users can
+        # then pick another symbol via available_indicators.
+        default="WEO::NGDP_RPCH",
         description=QUERY_DESCRIPTIONS.get("symbol", "")
         + " Symbol format: 'dataflow::identifier' where identifier is either:"
         + "\n- A table ID (starts with 'H_') for hierarchical table data"
@@ -142,7 +146,9 @@ class ImfEconomicIndicatorsQueryParams(EconomicIndicatorsQueryParams):
     )
 
     country: str | None = Field(
-        default=None,
+        # Paired default with `symbol` — the model requires a country, so default
+        # to the US to keep the widget's no-arg load working.
+        default="united_states",
         description="ISO3 country code(s). Use comma-separated values for multiple countries. "
         + "Validated against the dataflow's available countries via constraint API.",
     )
