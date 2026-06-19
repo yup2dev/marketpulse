@@ -19,6 +19,10 @@ class BaseQueryParams(BaseModel):
         extra='allow',
         validate_assignment=True,
         populate_by_name=True,
+        # 기본값에도 field_validator/타입 검증을 적용한다. Pydantic v2는 기본값
+        # 검증을 생략하므로, 미적용 시 'country' 등 정규화가 필요한 필드의 기본값이
+        # validator를 우회해 downstream에서 깨질 수 있다(예: IMF 차원 제약 위반).
+        validate_default=True,
     )
 
     def model_dump(self, *args, **kwargs):
