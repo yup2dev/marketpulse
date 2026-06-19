@@ -43,6 +43,18 @@ class ImfDirectionOfTradeQueryParams(DirectionOfTradeQueryParams):
         },
     }
 
+    # The IMF dataset rejects an empty country/counterpart (unlike the standard
+    # model whose default is None), so default to the widget's intended values.
+    # Validation of these defaults is handled by BaseQueryParams' validate_default.
+    country: str | None = Field(
+        default="united_states",
+        description="Reporting country. ISO3 code or snake_case name.",
+    )
+    counterpart: str | None = Field(
+        default="world",
+        description="Counterpart country to the trade. ISO3 code, snake_case name, or 'world'.",
+    )
+
     limit: int | None = Field(
         default=None,
         description="Limit the number of results returned, the most recent data points first.",

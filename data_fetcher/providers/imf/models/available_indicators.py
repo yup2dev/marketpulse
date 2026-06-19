@@ -148,6 +148,13 @@ class ImfAvailableIndicatorsFetcher(
         else:
             keywords = None
 
+        # Searching every dataflow with no filter is prohibitively slow, so it is
+        # rejected downstream. When the endpoint is invoked with no filter at all
+        # (e.g. the generic Data gateway auto-loading the model), return an empty
+        # result instead of surfacing a 500 — the caller can then supply a query.
+        if not query.query and not dataflows and not keywords:
+            return []
+
         try:
             results = metadata.search_indicators(
                 query=query.query.replace(",", ", ") if query.query else "",
