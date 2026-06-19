@@ -95,12 +95,21 @@ def _coerce_request_kwargs(kwargs: dict) -> dict:
 
 
 async def get_async_requests_session(**kwargs: Any):
-    """aiohttp ClientSession 생성 (User-Agent 기본 포함)."""
+    """aiohttp ClientSession 생성 (User-Agent 기본 포함).
+
+    시스템 CA 번들이 없는 환경(패키징된 .exe, 일부 macOS/슬림 컨테이너)에서도
+    HTTPS 인증서 검증이 실패하지 않도록 certifi CA 번들 기반 SSL 컨텍스트를 사용한다.
+    """
+    import ssl
+
     import aiohttp
+    import certifi
 
     headers = kwargs.pop("headers", None) or {}
     headers.setdefault("User-Agent", _DEFAULT_UA)
-    return aiohttp.ClientSession(headers=headers)
+    ssl_context = ssl.create_default_context(cafile=certifi.where())
+    connector = aiohttp.TCPConnector(ssl=ssl_context)
+    return aiohttp.ClientSession(headers=headers, connector=connector)
 
 
 async def _default_callback(response, _):

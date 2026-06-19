@@ -25,7 +25,7 @@ class DashboardRowData(BaseData):
     section: str = Field(description="대시보드 섹션")
     metric: str = Field(description="지표명")
     value: Optional[float] = Field(default=None, description="현재값")
-    unit: str = Field(default="", description="단위")
+    unit: Optional[str] = Field(default="", description="단위")
     status: Optional[str] = Field(default=None, description="상태 레이블")
     percentile: Optional[float] = Field(default=None, description="백분위")
 
