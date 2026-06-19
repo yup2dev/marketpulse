@@ -12,7 +12,7 @@
  */
 import { useState, useRef, useEffect } from 'react';
 import { GripVertical, X, RefreshCw, BarChart2, Table, Calendar, ChevronDown, Search, Download, FileDown, FileSpreadsheet, Image, Link2, Link2Off, Play } from 'lucide-react';
-import { API_BASE } from '../../../config/api';
+import { apiClient, API_BASE } from '../../../config/api';
 import { downloadCSV, downloadExcel, downloadChartPNG, makeFilename } from '../../../utils/exportUtils';
 import { useWidgetSync } from '../../../contexts/WidgetSyncContext';
 import useClickOutside from '../../../hooks/useClickOutside';
@@ -52,11 +52,10 @@ function SymbolSelector({ symbol, onSymbolChange }) {
     }
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/stock/search?query=${encodeURIComponent(query)}&limit=8`);
-      if (res.ok) {
-        const data = await res.json();
-        setResults(data.results || data || []);
-      }
+      // apiClient는 Bearer 토큰을 붙이고 401 시 refresh를 처리한다. raw fetch를 쓰면
+      // 인증 게이트(AuthGateMiddleware)에서 401이 나 결과가 조용히 비어버린다.
+      const data = await apiClient.get(`${API_BASE}/stock/search?query=${encodeURIComponent(query)}&limit=8`);
+      setResults(data.results || data || []);
     } catch (e) {
       const common = ['AAPL', 'MSFT', 'NVDA', 'GOOGL', 'META', 'TSLA', 'AMZN', 'AMD'];
       setResults(common.filter(s => s.toLowerCase().includes(query.toLowerCase())).map(s => ({ symbol: s })));
