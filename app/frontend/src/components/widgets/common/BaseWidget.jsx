@@ -11,7 +11,7 @@
  * - Source footer
  */
 import { useState, useRef, useEffect } from 'react';
-import { GripVertical, X, RefreshCw, BarChart2, Table, Calendar, ChevronDown, Search, Download, FileDown, FileSpreadsheet, Image, Link2, Link2Off, Play } from 'lucide-react';
+import { GripVertical, X, RefreshCw, BarChart2, Table, Calendar, ChevronDown, Search, Download, FileDown, FileSpreadsheet, Image, Link2, Link2Off, Play, Database } from 'lucide-react';
 import { apiClient, API_BASE } from '../../../config/api';
 import { downloadCSV, downloadExcel, downloadChartPNG, makeFilename } from '../../../utils/exportUtils';
 import { useWidgetSync } from '../../../contexts/WidgetSyncContext';
@@ -121,6 +121,56 @@ function SymbolSelector({ symbol, onSymbolChange }) {
   );
 }
 
+// Provider Selector — data-source(provider) 전환 드롭다운.
+// options: [{ id, name, configured }]. 키 미설정(provider requires_key && !configured)이면
+// 항목에 점 표시로 안내하되 선택은 허용한다(요청 시 백엔드가 에러를 반환).
+function ProviderSelector({ provider, options, onProviderChange }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const current = options.find((o) => o.id === provider);
+  const label = current?.name || provider;
+
+  return (
+    <div className="relative" onMouseDown={(e) => e.stopPropagation()}>
+      <button
+        onClick={() => setIsOpen((v) => !v)}
+        className="flex items-center gap-1 px-2 py-1 bg-gray-800 hover:bg-gray-700 rounded text-xs text-gray-300 transition-colors"
+        title="Data provider"
+      >
+        <Database size={10} className="text-gray-500" />
+        <span className="max-w-[90px] truncate">{label}</span>
+        <ChevronDown size={10} />
+      </button>
+      {isOpen && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
+          <div className="absolute right-0 top-full mt-1 bg-[#1a1a1f] border border-gray-700 rounded shadow-lg z-50 py-1 min-w-[140px]">
+            {options.map((opt) => (
+              <button
+                key={opt.id}
+                onClick={() => {
+                  onProviderChange?.(opt.id);
+                  setIsOpen(false);
+                }}
+                className={`w-full px-3 py-1.5 text-xs text-left hover:bg-gray-800 transition-colors flex items-center justify-between gap-2 ${
+                  provider === opt.id ? 'text-cyan-400' : 'text-gray-300'
+                }`}
+              >
+                <span className="truncate">{opt.name}</span>
+                {opt.configured === false && (
+                  <span
+                    className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0"
+                    title="API key not configured"
+                  />
+                )}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // Period options for different data types
 export const PERIOD_OPTIONS = {
   short: [
@@ -172,6 +222,10 @@ export default function BaseWidget({
   onPeriodChange,
   periodType = 'macro',
   showPeriodSelector = true,
+  // Provider selector (data source)
+  provider,
+  onProviderChange,
+  providerOptions,            // [{ id, name, configured }]
   // Source
   source,
   // Custom header content
@@ -339,6 +393,15 @@ export default function BaseWidget({
                 </>
               )}
             </div>
+          )}
+
+          {/* Provider selector (only when 2+ providers support this widget's model) */}
+          {onProviderChange && providerOptions?.length > 1 && (
+            <ProviderSelector
+              provider={provider}
+              options={providerOptions}
+              onProviderChange={onProviderChange}
+            />
           )}
 
           {/* Custom header content */}

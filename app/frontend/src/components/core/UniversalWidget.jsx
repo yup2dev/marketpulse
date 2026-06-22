@@ -23,7 +23,7 @@ import CommonTable        from '../common/CommonTable';
 import CommonChart        from '../common/CommonChart';
 import ChartTypeSelector  from '../common/ChartTypeSelector';
 import PlotlyRawChart     from './PlotlyRawChart';
-import { apiClient, API_BASE } from '../../config/api';
+import { apiClient, API_BASE, providersAPI } from '../../config/api';
 import { WIDGET_ENDPOINTS } from '../../registry/widgetEndpoints';
 import {
   detectRenderType,
@@ -114,6 +114,7 @@ export default function UniversalWidget({
   const display    = reg.display;
   const paramsSpec = reg.params;
   const chartCfg   = reg.chart || {};
+  const category   = reg.category;          // 전용 라우트 model 키 (provider 셀렉터 활성화 조건)
 
   const initParams = useMemo(() => {
     const obj = {};
@@ -126,6 +127,8 @@ export default function UniversalWidget({
 
   const [symbol,    setSymbol]    = useState(symbolProp || initParams.symbol || 'AAPL');
   const [period,    setPeriod]    = useState('1y');
+  const [provider,  setProvider]  = useState(reg.provider || null);
+  const [providerOptions, setProviderOptions] = useState([]);
   const [params,    setParams]    = useState(initParams);
   const paramsRef = useRef(initParams);
   useEffect(() => { paramsRef.current = params; }, [params]);
@@ -137,6 +140,26 @@ export default function UniversalWidget({
   const [chartType, setChartType] = useState(chartCfg.defaultType || 'line');
 
   useEffect(() => { if (symbolProp) setSymbol(symbolProp); }, [symbolProp]);
+
+  // category가 있으면 해당 model을 지원하는 provider만 추려 셀렉터 옵션 구성.
+  useEffect(() => {
+    if (!category) { setProviderOptions([]); return; }
+    let alive = true;
+    providersAPI.list()
+      .then((res) => {
+        if (!alive) return;
+        const opts = (res?.providers || [])
+          .filter((p) => (p.categories || []).includes(category))
+          .map((p) => ({ id: p.id, name: p.name, configured: p.configured }));
+        setProviderOptions(opts);
+        // 등록된 기본 provider가 지원 목록에 없으면 첫 지원 provider로 보정
+        if (opts.length && !opts.some((o) => o.id === reg.provider)) {
+          setProvider(opts[0].id);
+        }
+      })
+      .catch(() => { if (alive) setProviderOptions([]); });
+    return () => { alive = false; };
+  }, [category, reg.provider]);
 
   const buildUrl = useCallback((current) => {
     if (!endpoint) return null;
@@ -153,9 +176,11 @@ export default function UniversalWidget({
       if (placeholders.has(k)) continue;
       qs.push(`${encodeURIComponent(k)}=${encodeURIComponent(v)}`);
     }
+    // provider 셀렉터 위젯 → 선택된 data source를 ?provider= 로 주입
+    if (category && provider) qs.push(`provider=${encodeURIComponent(provider)}`);
     if (qs.length) url += (url.includes('?') ? '&' : '?') + qs.join('&');
     return url;
-  }, [endpoint, symbol, period, portfolioId]);
+  }, [endpoint, symbol, period, portfolioId, category, provider]);
 
   const fetchData = useCallback(async () => {
     if (!endpoint) return;
@@ -290,6 +315,9 @@ export default function UniversalWidget({
       period={requiresPeriod ? period : undefined}
       onPeriodChange={requiresPeriod ? setPeriod : undefined}
       showPeriodSelector={requiresPeriod}
+      provider={category ? provider : undefined}
+      onProviderChange={category ? setProvider : undefined}
+      providerOptions={category ? providerOptions : undefined}
       viewMode={activeView}
       onViewModeChange={setViewMode}
       showViewToggle={showViewToggle}

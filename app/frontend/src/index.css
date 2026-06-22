@@ -150,6 +150,79 @@ html.light ::placeholder { color: var(--color-text-muted) !important; }
 /* 그리드 */
 html.light .react-grid-layout { background-color: var(--color-bg-primary); }
 
+/* ── 라이트 오버라이드 보강 (컴포넌트 색 클래스 audit 기반 — 전환 누락분) ──────── */
+
+/* 누락 하드코딩 hex 배경 */
+html.light .bg-\[\#08080d\], html.light .bg-\[#08080d\] {
+  background-color: var(--color-bg-widget) !important;
+}
+
+/* 어두운 그레이 텍스트(라이트 디자인 잔재) → 테마 텍스트로 전환 */
+html.light .text-gray-700 { color: var(--color-text-secondary) !important; }
+html.light .text-gray-800,
+html.light .text-gray-900 { color: var(--color-text-primary)   !important; }
+
+/* 라이트 톤 보더(다크 잔재) → 테마 보더로 통일 */
+html.light .border-gray-200,
+html.light .border-gray-300 { border-color: var(--color-border) !important; }
+html.light .border-gray-700\/80 { border-color: var(--color-border) !important; }
+
+/* 불투명/짙은 색조 패널 (-900 계열) → 라이트에선 같은 색의 옅은 틴트로 전환.
+   반투명이라 부모색이 비쳐 탁해 보이던 패널을 깔끔한 틴트로 정리한다. */
+html.light .bg-cyan-900\/30,  html.light .bg-cyan-900\/40,
+html.light .bg-cyan-900\/50,  html.light .bg-cyan-900\/60,
+html.light .bg-cyan-900\/20,  html.light .bg-cyan-900,
+html.light .bg-cyan-600\/20 { background-color: rgba(6,182,212,0.12)  !important; }
+
+html.light .bg-blue-900\/40,  html.light .bg-blue-900\/30,
+html.light .bg-blue-900\/50,  html.light .bg-blue-900 { background-color: rgba(59,130,246,0.12) !important; }
+
+html.light .bg-purple-900\/40, html.light .bg-purple-900\/30,
+html.light .bg-purple-900\/50, html.light .bg-purple-900,
+html.light .bg-indigo-900\/40, html.light .bg-violet-900\/40 { background-color: rgba(139,92,246,0.12) !important; }
+
+html.light .bg-orange-900\/40, html.light .bg-orange-900\/30,
+html.light .bg-orange-900\/50, html.light .bg-orange-900 { background-color: rgba(249,115,22,0.12) !important; }
+
+html.light .bg-yellow-900\/40, html.light .bg-yellow-900\/50,
+html.light .bg-yellow-900\/30, html.light .bg-yellow-900,
+html.light .bg-amber-900\/40,  html.light .bg-amber-900\/50 { background-color: rgba(245,158,11,0.14) !important; }
+
+html.light .bg-red-900\/40,    html.light .bg-red-900\/50,
+html.light .bg-red-900\/30,    html.light .bg-red-900,
+html.light .bg-rose-900\/40 { background-color: rgba(239,68,68,0.10) !important; }
+
+html.light .bg-green-900\/40,  html.light .bg-green-900\/50,
+html.light .bg-green-900\/30,  html.light .bg-green-900,
+html.light .bg-emerald-900\/40, html.light .bg-teal-900\/40 { background-color: rgba(34,197,94,0.14) !important; }
+
+/* 색조 accent 텍스트(밝은 300/400) → 라이트에선 진한 동색.
+   흰 배경 대비 확보 + 위 색조 배지(bg 옅은 틴트)에서 텍스트 가독성 유지. */
+html.light .text-cyan-400,    html.light .text-cyan-300    { color: #0891b2 !important; }
+html.light .text-blue-400,    html.light .text-blue-300    { color: #2563eb !important; }
+html.light .text-purple-400,  html.light .text-purple-300  { color: #9333ea !important; }
+html.light .text-green-400,   html.light .text-green-300   { color: #16a34a !important; }
+html.light .text-red-400,     html.light .text-red-300     { color: #dc2626 !important; }
+html.light .text-yellow-400,  html.light .text-yellow-300  { color: #ca8a04 !important; }
+html.light .text-amber-400,   html.light .text-amber-300   { color: #d97706 !important; }
+html.light .text-orange-400,  html.light .text-orange-300  { color: #ea580c !important; }
+html.light .text-pink-400,    html.light .text-pink-300    { color: #db2777 !important; }
+html.light .text-emerald-400, html.light .text-emerald-300 { color: #059669 !important; }
+html.light .text-teal-400,    html.light .text-teal-300    { color: #0d9488 !important; }
+html.light .text-indigo-400,  html.light .text-indigo-300  { color: #4f46e5 !important; }
+html.light .text-violet-400,  html.light .text-violet-300  { color: #7c3aed !important; }
+html.light .text-lime-400 { color: #65a30d !important; }
+
+/* 색조 배지 보더(짙은 700/800) → 라이트에선 옅은 동색 보더 */
+html.light .border-cyan-700,   html.light .border-cyan-800\/50,
+html.light .border-cyan-800\/40, html.light .border-cyan-700\/50 { border-color: rgba(8,145,178,0.35)  !important; }
+html.light .border-blue-700,   html.light .border-blue-800    { border-color: rgba(37,99,235,0.35)  !important; }
+html.light .border-purple-700, html.light .border-purple-800  { border-color: rgba(147,51,234,0.35) !important; }
+html.light .border-orange-700  { border-color: rgba(234,88,12,0.35)  !important; }
+html.light .border-green-800   { border-color: rgba(22,163,74,0.35)  !important; }
+html.light .border-red-800,    html.light .border-red-700     { border-color: rgba(220,38,38,0.35)  !important; }
+html.light .border-yellow-800, html.light .border-yellow-700  { border-color: rgba(202,138,4,0.35)  !important; }
+
 /* ── Split pane 구분선 (양쪽 테마에서 뚜렷하게 보이도록) ─────────────────────── */
 .split-resize-handle {
   background-color: #4b5563;            /* dark: gray-600 */
