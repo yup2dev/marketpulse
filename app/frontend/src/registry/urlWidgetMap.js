@@ -69,12 +69,13 @@ export const URL_WIDGET_MAP = {
         label: 'Overview',
         defaultWidgets: [
           { id: 'earnings-history-1',   type: 'earnings-history',   x: 0, y: 0,  w: 8,  h: 5 },
-          { id: 'insider-1',            type: 'insider',            x: 8, y: 0,  w: 4,  h: 5 },
+          { id: 'insider-1',            type: 'insider-sec',        x: 8, y: 0,  w: 4,  h: 5 },
           { id: 'ownership-overview-1', type: 'ownership-overview', x: 0, y: 5,  w: 12, h: 6 },
         ],
         widgets: [
           { id: 'earnings-history',   name: 'Earnings History',  description: 'EPS history & surprises',   defaultSize: { w: 8, h: 5 } },
           { id: 'earnings',           name: 'Earnings',          description: 'Upcoming earnings',          defaultSize: { w: 6, h: 5 } },
+          { id: 'insider-sec',        name: 'Insider Trading (SEC)', description: 'SEC Form 4 — 로컬 Fetcher 불필요', defaultSize: { w: 4, h: 5 } },
           { id: 'insider',            name: 'Insider',           description: 'Insider trading activity',   defaultSize: { w: 4, h: 5 } },
           { id: 'ownership-overview', name: 'Ownership Overview', description: 'Ownership breakdown',      defaultSize: { w: 12, h: 6 } },
           { id: 'stock-sentiment',    name: 'News Sentiment',    description: 'News sentiment & trend',     defaultSize: { w: 6,  h: 8 } },
@@ -93,10 +94,11 @@ export const URL_WIDGET_MAP = {
         id: 'financials',
         label: 'Financials',
         defaultWidgets: [
-          { id: 'financials-1', type: 'financials', x: 0, y: 0, w: 12, h: 10 },
+          { id: 'financials-1', type: 'financials-sec', x: 0, y: 0, w: 12, h: 10 },
         ],
         widgets: [
-          { id: 'financials', name: 'Financial Statements', description: 'Income, Balance, Cash Flow', defaultSize: { w: 12, h: 10 } },
+          { id: 'financials-sec', name: 'Financials (SEC)',       description: 'SEC EDGAR income statement — 로컬 Fetcher 불필요', defaultSize: { w: 12, h: 10 } },
+          { id: 'financials',     name: 'Financial Statements',   description: 'Income, Balance, Cash Flow (Yahoo)',             defaultSize: { w: 12, h: 10 } },
         ],
       },
       {
@@ -117,12 +119,13 @@ export const URL_WIDGET_MAP = {
         defaultWidgets: [
           { id: 'ownership-overview-1',      type: 'ownership-overview',      x: 0, y: 0, w: 12, h: 6 },
           { id: 'ownership-institutional-1', type: 'ownership-institutional', x: 0, y: 6, w: 6,  h: 6 },
-          { id: 'ownership-insider-1',       type: 'ownership-insider',       x: 6, y: 6, w: 6,  h: 6 },
+          { id: 'ownership-insider-1',       type: 'insider-sec',             x: 6, y: 6, w: 6,  h: 6 },
         ],
         widgets: [
           { id: 'ownership-overview',      name: 'Ownership Overview',    description: 'Ownership breakdown',            defaultSize: { w: 12, h: 6 } },
           { id: 'ownership-institutional', name: 'Institutional Holders', description: 'Top institutional holders',      defaultSize: { w: 6,  h: 6 } },
-          { id: 'ownership-insider',       name: 'Insider Activity',      description: 'Insider trading',                defaultSize: { w: 6,  h: 6 } },
+          { id: 'insider-sec',             name: 'Insider Trading (SEC)', description: 'SEC Form 4 — 로컬 Fetcher 불필요', defaultSize: { w: 6,  h: 6 } },
+          { id: 'ownership-insider',       name: 'Insider Activity',      description: 'Insider trading (Yahoo)',        defaultSize: { w: 6,  h: 6 } },
         ],
       },
       {
@@ -132,13 +135,14 @@ export const URL_WIDGET_MAP = {
           { id: 'earnings-history-cal-1', type: 'earnings-history', x: 0, y: 0, w: 7, h: 5 },
           { id: 'stock-splits-1',         type: 'stock-splits',     x: 7, y: 0, w: 5, h: 5 },
           { id: 'dividends-1',            type: 'dividend',         x: 0, y: 5, w: 7, h: 5 },
-          { id: 'company-filings-1',      type: 'company-filings',  x: 7, y: 5, w: 5, h: 5 },
+          { id: 'company-filings-1',      type: 'filings-sec',      x: 7, y: 5, w: 5, h: 5 },
         ],
         widgets: [
           { id: 'earnings-history', name: 'Earnings History', description: 'EPS history & surprises', defaultSize: { w: 6, h: 6 } },
           { id: 'stock-splits',     name: 'Stock Splits',     description: 'Split history',            defaultSize: { w: 6, h: 6 } },
           { id: 'dividend',         name: 'Dividends',        description: 'Dividend payments',        defaultSize: { w: 6, h: 6 } },
-          { id: 'company-filings',  name: 'SEC Filings',      description: 'SEC filings & reports',    defaultSize: { w: 6, h: 6 } },
+          { id: 'filings-sec',      name: 'SEC Filings (EDGAR)', description: 'SEC EDGAR — 로컬 Fetcher 불필요', defaultSize: { w: 6, h: 6 } },
+          { id: 'company-filings',  name: 'SEC Filings (Yahoo)', description: 'SEC filings & reports',    defaultSize: { w: 6, h: 6 } },
         ],
       },
       {

@@ -145,6 +145,23 @@ export const keysAPI = {
   delete: (provider)      => apiClient.request(`${API_BASE}/keys/${provider}`, { method: 'DELETE' }),
 };
 
+// ─── Providers API ────────────────────────────────────────────────────────────
+// 등록된 fetcher provider 목록 + 카테고리(=model) 지원 현황 + 키 설정 상태.
+// UniversalWidget의 provider 셀렉터가 "이 위젯의 model을 지원하는 provider"만
+// 추리는 데 사용한다. 응답은 세션 동안 한 번만 받아 캐시한다.
+let _providersPromise = null;
+export const providersAPI = {
+  list: () => {
+    if (!_providersPromise) {
+      _providersPromise = apiClient.get(`${API_BASE}/providers`).catch((e) => {
+        _providersPromise = null;  // 실패 시 다음 호출에서 재시도 허용
+        throw e;
+      });
+    }
+    return _providersPromise;
+  },
+};
+
 // ─── Export API ───────────────────────────────────────────────────────────────
 export const exportAPI = {
   portfolioCSV:   (id) => apiClient.get(`${API_BASE}/export/portfolio/${id}/csv`),

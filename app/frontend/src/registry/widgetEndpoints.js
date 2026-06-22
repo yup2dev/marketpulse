@@ -7,6 +7,11 @@
  *     endpoint:    '/path/{symbol}'        // {placeholder} → from params or outer state
  *     dataPath?:   'result' | 'a.b.c'       // dotted path to unwrap response → rows / object
  *     display?:    'kv'                     // flat object → metric/value 2-col table
+ *     category?:   'dividends'              // 전용 라우트의 QueryExecutor model 키.
+ *                                           //   이 값이 있으면 UniversalWidget이 헤더에
+ *                                           //   provider 셀렉터를 띄우고 ?provider= 를 주입한다.
+ *                                           //   (해당 category 지원 provider가 2개 이상일 때만 노출)
+ *     provider?:   'yahoo'                  // 초기 provider(전용 라우트 기본값과 동일하게 유지)
  *     params?:     [{                       // inline form; values feed {placeholder} + querystring
  *       name, label?, kind: 'text'|'number'|'date'|'select',
  *       default, options?, step?, hint?, upper?
@@ -54,23 +59,30 @@ export const WIDGET_ENDPOINTS = {
   },
 
   // ── Stock ──────────────────────────────────────────────────────────────────
-  'dividend':              { title: 'Dividends',              endpoint: '/stock/dividends/{symbol}' },
-  'stock-splits':          { title: 'Stock Splits',           endpoint: '/stock/splits/{symbol}' },
-  'company-filings':       { title: 'SEC Filings',            endpoint: '/stock/filings/{symbol}' },
-  'earnings':              { title: 'Earnings',               endpoint: '/stock/earnings/{symbol}' },
-  'earnings-history':      { title: 'Earnings History',       endpoint: '/stock/earnings/{symbol}' },
-  'insider':               { title: 'Insider Trading',        endpoint: '/stock/insider-trading/{symbol}' },
-  'ownership-overview':    { title: 'Ownership Overview',     endpoint: '/stock/holders/{symbol}' },
-  'ownership-institutional': { title: 'Institutional Holders', endpoint: '/stock/holders/{symbol}' },
-  'holder-breakdown':      { title: 'Holder Breakdown',        endpoint: '/stock/holders/{symbol}' },
-  'ownership-insider':     { title: 'Insider Activity',       endpoint: '/stock/insider-trading/{symbol}' },
-  'management':            { title: 'Management',             endpoint: '/stock/management/{symbol}' },
-  'swot':                  { title: 'SWOT Analysis',          endpoint: '/stock/swot/{symbol}' },
-  'economic-moat':         { title: 'Economic Moat',          endpoint: '/stock/moat/{symbol}' },
-  'investment-scorecard':  { title: 'Investment Scorecard',   endpoint: '/stock/scorecard/{symbol}' },
+  // category/provider: 헤더 provider 셀렉터 노출 + ?provider= 주입 (전용 라우트 기본값 유지).
+  'dividend':              { title: 'Dividends',              endpoint: '/stock/dividends/{symbol}', category: 'dividends', provider: 'yahoo' },
+  'stock-splits':          { title: 'Stock Splits',           endpoint: '/stock/splits/{symbol}',    category: 'splits',    provider: 'yahoo' },
+  'company-filings':       { title: 'SEC Filings',            endpoint: '/stock/filings/{symbol}',   category: 'filings',   provider: 'yahoo' },
+  'earnings':              { title: 'Earnings',               endpoint: '/stock/earnings/{symbol}',  category: 'earnings',  provider: 'polygon' },
+  'earnings-history':      { title: 'Earnings History',       endpoint: '/stock/earnings/{symbol}',  category: 'earnings',  provider: 'polygon' },
+  'insider':               { title: 'Insider Trading',        endpoint: '/stock/insider-trading/{symbol}', category: 'insider_trading_summary', provider: 'yahoo' },
+  'ownership-overview':    { title: 'Ownership Overview',     endpoint: '/stock/holders/{symbol}',   category: 'holders',   provider: 'yahoo' },
+  'ownership-institutional': { title: 'Institutional Holders', endpoint: '/stock/holders/{symbol}',  category: 'holders',   provider: 'yahoo' },
+  'holder-breakdown':      { title: 'Holder Breakdown',        endpoint: '/stock/holders/{symbol}',  category: 'holders',   provider: 'yahoo' },
+  'ownership-insider':     { title: 'Insider Activity',       endpoint: '/stock/insider-trading/{symbol}', category: 'insider_trading_summary', provider: 'yahoo' },
+  'management':            { title: 'Management',             endpoint: '/stock/management/{symbol}', category: 'management', provider: 'yahoo' },
+  'swot':                  { title: 'SWOT Analysis',          endpoint: '/stock/swot/{symbol}',      category: 'swot',      provider: 'yahoo' },
+  'economic-moat':         { title: 'Economic Moat',          endpoint: '/stock/moat/{symbol}',      category: 'moat',      provider: 'yahoo' },
+  'investment-scorecard':  { title: 'Investment Scorecard',   endpoint: '/stock/scorecard/{symbol}', category: 'scorecard', provider: 'yahoo' },
   'stock-sentiment':       { title: 'News Sentiment',         endpoint: '/stock/sentiment/{symbol}' },
   'social-sentiment':      { title: 'Social Sentiment',       endpoint: '/stock/reddit/{symbol}' },
-  'financials':            { title: 'Financial Statements',   endpoint: '/stock/financials/{symbol}' },
+  'financials':            { title: 'Financial Statements',   endpoint: '/stock/financials/{symbol}', category: 'financials', provider: 'yahoo' },
+
+  // ── 서버측(무키·SEC EDGAR) 대안 — 로컬 Fetcher 불필요. default 그리드에서 yahoo 대체용.
+  //    범용 게이트웨이(/data/{provider}/{model}) 경유 → 백엔드 코드 불필요.
+  'financials-sec':        { title: 'Financials (SEC)',       endpoint: '/data/sec/income_statement?symbol={symbol}' },
+  'filings-sec':           { title: 'SEC Filings (EDGAR)',    endpoint: '/data/sec/company_filings?symbol={symbol}' },
+  'insider-sec':           { title: 'Insider Trading (SEC)',  endpoint: '/data/sec/insider_trading?symbol={symbol}' },
 
   // ── Macro (Universal Data Gateway 경유) ───────────────────────────────────
   'gdp-forecast':           { title: 'GDP Forecast',           endpoint: '/data/fred/gdp?period={period}' },
