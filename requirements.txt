@@ -11,6 +11,8 @@ lxml>=5.0.0
 requests>=2.31.0
 feedparser>=6.0.10
 aiohttp>=3.9.0
+aiohttp-client-cache>=0.14.0   # OpenBB 이식 SEC fetcher의 HTTP 응답 캐시(CachedSession)
+aiosqlite>=0.22.0              # aiohttp-client-cache 의 SQLite 백엔드 의존성
 
 # ==============================================================================
 # Database & ORM

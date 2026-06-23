@@ -378,8 +378,11 @@ SEC_BASE_URL = "https://www.sec.gov/cgi-bin/browse-edgar"
 EDGAR_SUBMISSIONS_URL = "https://data.sec.gov/submissions"
 EDGAR_COMPANY_FACTS_URL = "https://data.sec.gov/api/xbrl/companyfacts"
 
+# NOTE: Host 를 하드코딩하지 않는다. SEC_HEADERS 는 data.sec.gov(api/xbrl)와
+# www.sec.gov(files/company_tickers.json) 양쪽에 모두 쓰이므로, Host 를 고정하면
+# www.sec.gov 요청이 잘못된 Host 로 나가 404(application/xml) 가 된다.
+# HTTP 클라이언트가 URL 에 맞는 Host 를 자동 설정하도록 둔다.
 SEC_HEADERS = {
     "User-Agent": "MarketPulse research@example.com",
     "Accept-Encoding": "gzip, deflate",
-    "Host": "data.sec.gov",
 }
