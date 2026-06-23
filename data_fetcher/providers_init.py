@@ -69,6 +69,7 @@ from data_fetcher.providers.alphavantage.crypto import AlphaVantageCryptoFetcher
 from data_fetcher.providers.fmp.equity_quote import FMPQuoteFetcher
 from data_fetcher.providers.fmp.company_profile import FMPCompanyProfileFetcher
 from data_fetcher.providers.fmp.income_statement import FMPIncomeStatementFetcher
+from data_fetcher.providers.fmp.financials import FMPFinancialsFetcher
 from data_fetcher.providers.fmp.analyst_estimates import FMPAnalystEstimatesFetcher
 from data_fetcher.providers.fmp.analyst_recommendations import FMPAnalystRecommendationsFetcher
 from data_fetcher.providers.fmp.search import FMPSearchFetcher
@@ -123,6 +124,7 @@ from data_fetcher.providers.sec.institutions_list import SECInstitutionsListFetc
 
 # SEC — OpenBB openbb_sec 이식본 (sec/models/ 하위, 기존 3개와 별도 카테고리)
 from data_fetcher.providers.sec.models.balance_sheet import SecBalanceSheetFetcher
+from data_fetcher.providers.sec.models.financials import SecFinancialsFetcher
 from data_fetcher.providers.sec.models.balance_sheet_growth import SecBalanceSheetGrowthFetcher
 from data_fetcher.providers.sec.models.cash_flow import SecCashFlowStatementFetcher
 from data_fetcher.providers.sec.models.cash_flow_growth import SecCashFlowStatementGrowthFetcher
@@ -308,6 +310,7 @@ fmp_provider = Provider(
         "quote": FMPQuoteFetcher,
         "company_profile": FMPCompanyProfileFetcher,
         "income_statement": FMPIncomeStatementFetcher,
+        "financials": FMPFinancialsFetcher,
         "analyst_estimates": FMPAnalystEstimatesFetcher,
         "analyst_recommendations": FMPAnalystRecommendationsFetcher,
         "analyst_data": FMPAnalystDataFetcher,
@@ -528,6 +531,7 @@ sec_provider = Provider(
         "institutional_13f": SEC13FFetcher,
         "institutions_list": SECInstitutionsListFetcher,
         # OpenBB 이식본 (XBRL 재무제표/공시/검색 등)
+        "financials": SecFinancialsFetcher,
         "balance_sheet": SecBalanceSheetFetcher,
         "balance_sheet_growth": SecBalanceSheetGrowthFetcher,
         "cash_flow": SecCashFlowStatementFetcher,
