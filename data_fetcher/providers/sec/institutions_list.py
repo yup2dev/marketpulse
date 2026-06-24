@@ -8,29 +8,22 @@ from typing import Any, Dict, List, Optional
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 
-from data_fetcher.abstract_provider.abstract import BaseData
-from data_fetcher.abstract_provider.abstract.query_params import BaseQueryParams
 from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.standard_models.institutions_list import (
+    InstitutionsListQueryParams,
+    InstitutionInfo,
+)
 from pydantic import Field
 from typing import Optional as _Optional
-
-
-class InstitutionInfo(BaseData):
-    """기관 기본 정보"""
-    key: _Optional[str] = Field(default=None, description="기관 식별자")
-    name: _Optional[str] = Field(default=None, description="기관명")
-    manager: _Optional[str] = Field(default=None, description="운용 책임자")
-    cik: _Optional[str] = Field(default=None, description="SEC CIK")
 
 log = logging.getLogger(__name__)
 
 
-class SECInstitutionsListQueryParams(BaseQueryParams):
-    """Query parameters for institutions list"""
+class SECInstitutionsListQueryParams(InstitutionsListQueryParams):
+    """Query parameters for institutions list (standard 경유)"""
     min_aum: _Optional[float] = Field(
         default=None, description="Minimum AUM in billions (optional filter)"
     )
-    limit: int = Field(default=100, description="Max number of institutions to return")
 
 
 class SECInstitutionsListFetcher(Fetcher[SECInstitutionsListQueryParams, InstitutionInfo]):

@@ -190,7 +190,7 @@ async def get_swot(symbol: str, provider: str = "yahoo") -> OBBject:
 @router.get("/sentiment/{symbol}")
 @route_handler
 async def get_stock_sentiment(symbol: str, provider: str = "polygon") -> OBBject:
-    raw = await QueryExecutor.fetch(provider, "sentiment", {"ticker": symbol.upper()})
+    raw = await QueryExecutor.fetch(provider, "sentiment", {"symbol": symbol.upper()})
     return _wrap(raw, provider)
 
 

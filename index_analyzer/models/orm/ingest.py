@@ -19,7 +19,7 @@ IN Layer: 입수 (크롤러/수집기가 넣는 원본 데이터)
 """
 from datetime import datetime, date
 from sqlalchemy import (
-    Column, String, Text, Integer, BigInteger, DateTime, Date, Boolean,
+    Column, String, Text, Integer, BigInteger, DateTime, Date, Boolean, Float, JSON,
     Index, UniqueConstraint, DECIMAL
 )
 from sqlalchemy.orm import relationship
@@ -539,6 +539,79 @@ class MBS_IN_BOND_ISSUANCE(Base):
         }
 
 
+class MBS_IN_INSTI_MST(Base):
+    """13F 기관 마스터 — 제출 기관 목록(전체 적재). holdings는 PORT/HOLD 참조."""
+
+    __tablename__ = 'mbs_in_insti_mst'
+
+    institution_key = Column(String(100), primary_key=True)  # whalewisdom key(slug) | cik
+    name = Column(String(300), nullable=False)
+    manager = Column(String(300))
+    cik = Column(String(20), index=True)
+    description = Column(Text)
+    category = Column(String(50))
+    is_active = Column(Boolean, default=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class MBS_IN_INSTI_PORT(Base):
+    """기관 13F 포트폴리오 요약 — 최신 1건/기관(배치가 교체). 분기 공시 스냅샷."""
+
+    __tablename__ = 'mbs_in_insti_port'
+
+    institution_key = Column(String(100), primary_key=True)
+    id = Column(String(120))                       # 서비스가 노출하는 식별자(예: 13f_berkshire)
+    manager = Column(String(300))
+    name = Column(String(300))
+    description = Column(Text)
+    total_value = Column(Float)
+    num_holdings = Column(Integer)
+    filing_date = Column(String(20))
+    period_end = Column(String(20), index=True)
+    category = Column(String(50))
+    previous_filing_date = Column(String(20))
+    previous_value = Column(Float)
+    value_change = Column(Float)
+    value_change_pct = Column(Float)
+    num_new_positions = Column(Integer)
+    num_sold_out = Column(Integer)
+    num_increased = Column(Integer)
+    num_decreased = Column(Integer)
+    turnover = Column(Float)
+    performance = Column(JSON)
+    top_sectors = Column(JSON)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class MBS_IN_INSTI_HOLD(Base):
+    """기관 13F 보유 종목 — stocks + sold_positions(is_sold). 배치가 기관별 교체."""
+
+    __tablename__ = 'mbs_in_insti_hold'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    institution_key = Column(String(100), index=True, nullable=False)
+    is_sold = Column(Boolean, default=False, index=True)  # False=보유 stocks, True=매도 sold_positions
+    seq = Column(Integer)                                  # 정렬 순서(비중 내림차순)
+    symbol = Column(String(20), index=True)
+    name = Column(String(300))
+    cusip = Column(String(20))
+    value = Column(Float)
+    shares = Column(BigInteger)
+    weight = Column(Float)
+    prev_shares = Column(BigInteger)
+    prev_value = Column(Float)
+    share_change = Column(BigInteger)
+    share_change_pct = Column(Float)
+    value_change = Column(Float)
+    value_change_pct = Column(Float)
+    status = Column(String(20))
+
+    __table_args__ = (
+        Index('ix_insti_hold_key_sold', 'institution_key', 'is_sold'),
+    )
+
+
 __all__ = [
     "MBS_IN_STBD_MST",
     "MBS_IN_INDX_STBD",
@@ -552,4 +625,7 @@ __all__ = [
     "MBS_IN_STK_RELATIONS",
     "MBS_IN_INDX_MEMBER",
     "MBS_IN_BOND_ISSUANCE",
+    "MBS_IN_INSTI_MST",
+    "MBS_IN_INSTI_PORT",
+    "MBS_IN_INSTI_HOLD",
 ]

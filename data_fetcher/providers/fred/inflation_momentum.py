@@ -2,15 +2,18 @@
 from datetime import date as date_type
 from typing import Optional
 from pydantic import Field
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
+from data_fetcher.abstract_provider.standard_models.fred_series import (
+    FredSeriesQueryParams,
+    FredSeriesData,
+)
 
 
-class InflationMomentumQueryParams(BaseQueryParams):
+class InflationMomentumQueryParams(FredSeriesQueryParams):
     start_date: Optional[date_type] = None
     end_date: Optional[date_type] = None
 
 
-class InflationMomentumData(BaseData):
+class InflationMomentumData(FredSeriesData):
     date: str = Field(description="날짜 (YYYY-MM-DD)")
     yoy_12m: Optional[float] = Field(default=None, description="12개월 YoY (%)")
     yoy_6m: Optional[float] = Field(default=None, description="6개월 연율화 (%)")

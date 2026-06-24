@@ -2,15 +2,18 @@
 from datetime import date as date_type
 from typing import Optional
 from pydantic import Field
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
+from data_fetcher.abstract_provider.standard_models.fred_series import (
+    FredSeriesQueryParams,
+    FredSeriesData,
+)
 
 
-class InitialClaimsQueryParams(BaseQueryParams):
+class InitialClaimsQueryParams(FredSeriesQueryParams):
     start_date: Optional[date_type] = None
     end_date: Optional[date_type] = None
 
 
-class InitialClaimsData(BaseData):
+class InitialClaimsData(FredSeriesData):
     date: str = Field(description="날짜 (YYYY-MM-DD)")
     claims: float = Field(description="신규 실업급여 청구 (천 건)")
     ma_4w: Optional[float] = Field(default=None, description="4주 이동평균 (천 건)")

@@ -3,43 +3,16 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.standard_models.index_constituents import (
+    IndexConstituentsQueryParams as IndexQueryParams,
+    IndexConstituentData as ConstituentResult,
+)
 from data_fetcher.utils.api_keys import get_api_key
 from data_fetcher.utils.async_http_client import amake_request, HTTPClientError
 
 log = logging.getLogger(__name__)
 
 FMP_V3_BASE = "https://financialmodelingprep.com/api/v3"
-
-
-# ── QueryParams / Data ────────────────────────────────────────────────────────
-
-class IndexQueryParams:
-    """Index query parameters"""
-    def __init__(self, index: str = "sp500"):
-        self.index = index
-
-
-class ConstituentResult:
-    """Index constituent data"""
-    def __init__(
-        self,
-        symbol: str,
-        name: str,
-        sector: Optional[str] = None,
-        sub_sector: Optional[str] = None,
-        headquarters: Optional[str] = None,
-        date_first_added: Optional[str] = None,
-        cik: Optional[str] = None,
-        founded: Optional[str] = None,
-    ):
-        self.symbol = symbol
-        self.name = name
-        self.sector = sector
-        self.sub_sector = sub_sector
-        self.headquarters = headquarters
-        self.date_first_added = date_first_added
-        self.cik = cik
-        self.founded = founded
 
 
 # ── Fetcher ───────────────────────────────────────────────────────────────────

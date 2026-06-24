@@ -9,28 +9,21 @@ import logging
 import re
 from typing import Any, Dict, List, Optional
 
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
+from data_fetcher.abstract_provider.standard_models.bond_yield_benchmark import (
+    BondYieldBenchmarkQueryParams,
+    BondYieldBenchmarkData,
+)
 from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
 
 log = logging.getLogger(__name__)
 
 
-class KRXBondQueryParams(BaseQueryParams):
-    """KR 채권 벤치마크 조회 파라미터"""
-    pass
+class KRXBondQueryParams(BondYieldBenchmarkQueryParams):
+    """KR 채권 벤치마크 조회 파라미터 (standard BondYieldBenchmark 경유)"""
 
 
-class KRXBondData(BaseData):
-    """KR 채권 벤치마크 표준 데이터"""
-    ticker_cd: str
-    ticker_nm: str
-    asset_type: str = "bond"
-    bond_type: Optional[str] = None
-    maturity: Optional[str] = None
-    yield_rate: Optional[float] = None
-    country: str = "KR"
-    curr: str = "KRW"
-    is_active: bool = True
+class KRXBondData(BondYieldBenchmarkData):
+    """KR 채권 벤치마크 데이터 (standard BondYieldBenchmark 경유)"""
 
 
 def _classify(name: str) -> str:

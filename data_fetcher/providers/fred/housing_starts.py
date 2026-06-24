@@ -2,10 +2,13 @@
 from datetime import date as date_type, datetime, timedelta
 from typing import Optional
 from pydantic import Field
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
+from data_fetcher.abstract_provider.standard_models.fred_series import (
+    FredSeriesQueryParams,
+    FredSeriesData,
+)
 
 
-class HousingStartsQueryParams(BaseQueryParams):
+class HousingStartsQueryParams(FredSeriesQueryParams):
     """주택 건설 착공 조회 파라미터"""
 
     country: str = Field(
@@ -30,7 +33,7 @@ class HousingStartsQueryParams(BaseQueryParams):
     )
 
 
-class HousingStartsData(BaseData):
+class HousingStartsData(FredSeriesData):
     """주택 건설 착공 데이터 모델"""
 
     date: date_type = Field(

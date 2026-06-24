@@ -2,23 +2,14 @@
 from datetime import date as date_type
 from typing import Optional
 from pydantic import Field
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
+from data_fetcher.abstract_provider.standard_models.yield_curve import (
+    YieldCurveQueryParams,
+    YieldCurveHistoryData,
+)
 
 
-class YieldCurveHistoryQueryParams(BaseQueryParams):
-    start_date: Optional[date_type] = None
-    end_date: Optional[date_type] = None
-
-
-class YieldCurveHistoryData(BaseData):
-    date: str = Field(description="날짜 (YYYY-MM-DD)")
-    m3: Optional[float] = Field(default=None, description="3개월 수익률 (%)")
-    m6: Optional[float] = Field(default=None, description="6개월 수익률 (%)")
-    y1: Optional[float] = Field(default=None, description="1년 수익률 (%)")
-    y2: Optional[float] = Field(default=None, description="2년 수익률 (%)")
-    y5: Optional[float] = Field(default=None, description="5년 수익률 (%)")
-    y10: Optional[float] = Field(default=None, description="10년 수익률 (%)")
-    y30: Optional[float] = Field(default=None, description="30년 수익률 (%)")
+class YieldCurveHistoryQueryParams(YieldCurveQueryParams):
+    """standard YieldCurve 파라미터 경유 (start_date/end_date)."""
 
 
 """Yield Curve History Fetcher — 7개 만기 수익률 시계열 병합."""

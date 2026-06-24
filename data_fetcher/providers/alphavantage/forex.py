@@ -6,7 +6,10 @@ from typing import Any, Dict, List, Optional
 from pydantic import Field
 
 from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
+from data_fetcher.abstract_provider.standard_models.forex_historical import (
+    ForexHistoricalQueryParams,
+    ForexHistoricalData,
+)
 from data_fetcher.utils.api_keys import get_api_key
 from data_fetcher.utils.async_http_client import amake_request
 from data_fetcher.providers.alphavantage.utils.helpers import (
@@ -18,29 +21,14 @@ log = logging.getLogger(__name__)
 
 # ── QueryParams ───────────────────────────────────────────────────────────────
 
-class ForexQueryParams(BaseQueryParams):
-    """외환 데이터 조회 파라미터"""
-    from_currency: str = Field(description="기준 통화 (예: USD, EUR, KRW)")
-    to_currency: str = Field(description="대상 통화 (예: USD, EUR, KRW)")
-    start_date: Optional[str] = Field(default=None, description="조회 시작일 (YYYY-MM-DD)")
-    end_date: Optional[str] = Field(default=None, description="조회 종료일 (YYYY-MM-DD)")
-    interval: str = Field(default="daily", description="데이터 간격 (daily, weekly, monthly)")
+class ForexQueryParams(ForexHistoricalQueryParams):
+    """외환 데이터 조회 파라미터 (standard ForexHistorical 경유)"""
 
 
 # ── Data ──────────────────────────────────────────────────────────────────────
 
-class ForexData(BaseData):
-    """외환 데이터"""
-    from_currency: str = Field(description="기준 통화")
-    to_currency: str = Field(description="대상 통화")
-    date: date_type = Field(description="날짜")
-    open: float = Field(description="시가")
-    high: float = Field(description="고가")
-    low: float = Field(description="저가")
-    close: float = Field(description="종가")
-    daily_change: Optional[float] = Field(default=None, description="일일 변동 (종가 - 시가)")
-    daily_change_pct: Optional[float] = Field(default=None, description="일일 변동률 (%)")
-    volatility: Optional[float] = Field(default=None, description="변동성 (고가 - 저가)")
+class ForexData(ForexHistoricalData):
+    """외환 데이터 (standard ForexHistorical 경유)"""
 
 
 # ── Fetcher ───────────────────────────────────────────────────────────────────

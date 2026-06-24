@@ -1,20 +1,32 @@
-"""Yahoo Finance SEC Filings Model"""
+"""Yahoo Finance SEC Filings Model (standard CompanyFilings 경유)"""
+from datetime import date as date_type
 from typing import Optional, Dict, Any
 from pydantic import Field
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
+from data_fetcher.abstract_provider.standard_models.company_filings import (
+    CompanyFilingsQueryParams,
+    CompanyFilingsData,
+)
 
 
-class YFinanceFilingsQueryParams(BaseQueryParams):
+class YFinanceFilingsQueryParams(CompanyFilingsQueryParams):
+    """SEC 공시 조회 파라미터 (standard CompanyFilings 경유)"""
     symbol: str = Field(description="종목 코드")
     limit: int = Field(default=20, description="반환할 최대 레코드 수")
 
 
-class YFinanceFilingData(BaseData):
-    """SEC 공시 데이터"""
-    type: str = Field(default="", description="공시 유형 (10-K, 10-Q, 8-K, ...)")
-    title: str = Field(default="", description="공시 제목")
-    date: str = Field(default="", description="공시일")
-    url: str = Field(default="", description="EDGAR 링크")
+class YFinanceFilingData(CompanyFilingsData):
+    """SEC 공시 데이터 (standard CompanyFilings 경유, yfinance 원본키 alias)"""
+
+    __alias_dict__ = {
+        "report_type": "type",
+        "filing_date": "date",
+        "report_url": "url",
+    }
+
+    # yahoo는 공시일/URL이 비어있을 수 있어 required→optional override
+    filing_date: Optional[date_type] = Field(default=None, description="공시일")
+    report_url: Optional[str] = Field(default=None, description="EDGAR 링크")
+    title: Optional[str] = Field(default=None, description="공시 제목")
     exhibits: Optional[Dict[str, Any]] = Field(default=None, description="첨부 파일 목록")
 
 

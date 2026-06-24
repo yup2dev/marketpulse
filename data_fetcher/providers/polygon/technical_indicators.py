@@ -2,12 +2,14 @@
 from datetime import date as date_type
 from typing import Optional
 from pydantic import Field
-from data_fetcher.abstract_provider.abstract import BaseData
 from data_fetcher.abstract_provider.standard_models import (
     TechnicalIndicatorQueryParams as _StdTIQueryParams,
     TechnicalIndicatorData,
     MACDData as _StdMACDData,
     BollingerBandsData as _StdBollingerBandsData,
+)
+from data_fetcher.abstract_provider.standard_models.technical_indicators import (
+    TechnicalIndicatorsWideData,
 )
 
 
@@ -66,32 +68,8 @@ class BollingerBandsData(_StdBollingerBandsData):
     pass
 
 
-class TechnicalIndicatorsData(BaseData):
-    """통합 기술적 지표 데이터"""
-
-    ticker: str = Field(description="종목 티커")
-    timestamp: date_type = Field(description="날짜")
-
-    # === 이동평균 ===
-    sma_20: Optional[float] = Field(default=None, description="20일 단순이동평균")
-    sma_50: Optional[float] = Field(default=None, description="50일 단순이동평균")
-    sma_200: Optional[float] = Field(default=None, description="200일 단순이동평균")
-    ema_12: Optional[float] = Field(default=None, description="12일 지수이동평균")
-    ema_26: Optional[float] = Field(default=None, description="26일 지수이동평균")
-
-    # === 모멘텀 지표 ===
-    rsi_14: Optional[float] = Field(default=None, description="14일 RSI")
-    macd: Optional[float] = Field(default=None, description="MACD 값")
-    macd_signal: Optional[float] = Field(default=None, description="MACD Signal")
-    macd_histogram: Optional[float] = Field(default=None, description="MACD 히스토그램")
-
-    # === 변동성 지표 ===
-    bollinger_upper: Optional[float] = Field(default=None, description="볼린저 밴드 상단")
-    bollinger_middle: Optional[float] = Field(default=None, description="볼린저 밴드 중간")
-    bollinger_lower: Optional[float] = Field(default=None, description="볼린저 밴드 하단")
-
-    # === 거래량 지표 ===
-    volume_sma_20: Optional[float] = Field(default=None, description="20일 거래량 이동평균")
+class TechnicalIndicatorsData(TechnicalIndicatorsWideData):
+    """통합 기술적 지표 데이터 (standard TechnicalIndicatorsWide 경유)"""
 
 
 """Polygon.io Technical Indicators Fetcher"""

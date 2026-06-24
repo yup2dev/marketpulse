@@ -2,16 +2,18 @@
 import logging
 from typing import Any, Dict, List, Optional
 
-from data_fetcher.abstract_provider.abstract import BaseQueryParams
 from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
-from data_fetcher.providers.sec.institutional_13f import InstitutionInfo
+from data_fetcher.abstract_provider.standard_models.institutions_list import (
+    InstitutionsListQueryParams as _StdInstitutionsListQueryParams,
+    InstitutionInfo,
+)
 
 log = logging.getLogger(__name__)
 
 
-class InstitutionsListQueryParams(BaseQueryParams):
+class InstitutionsListQueryParams(_StdInstitutionsListQueryParams):
+    """기관 목록 조회 파라미터 (standard 경유)"""
     use_dynamic: bool = True
-    limit: int = 100
 
 
 class InstitutionsListFetcher(Fetcher[InstitutionsListQueryParams, InstitutionInfo]):

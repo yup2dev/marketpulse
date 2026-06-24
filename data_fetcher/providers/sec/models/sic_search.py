@@ -4,41 +4,29 @@
 
 from typing import Any
 
-from data_fetcher.abstract_provider.abstract.data import BaseData
 from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
-from data_fetcher.abstract_provider.abstract.query_params import BaseQueryParams
+from data_fetcher.abstract_provider.standard_models.sic_search import (
+    SicSearchQueryParams,
+    SicSearchData,
+)
 from pydantic import Field
 
 
-class SecSicSearchQueryParams(BaseQueryParams):
-    """SEC Standard Industrial Classification Code (SIC) Query.
+class SecSicSearchQueryParams(SicSearchQueryParams):
+    """SEC Standard Industrial Classification Code (SIC) Query (standard 경유).
 
     Source: https://sec.gov/
     """
 
-    query: str = Field(
-        description="Search query to match against SIC code, industry title, or office."
-    )
-    use_cache: bool | None = Field(
-        default=True,
-        description="Whether or not to use cache.",
-    )
 
-
-class SecSicSearchData(BaseData):
-    """SEC Standard Industrial Classification Code (SIC) Data."""
+class SecSicSearchData(SicSearchData):
+    """SEC SIC Data (standard SicSearch 경유, SEC 원본키 alias)."""
 
     __alias_dict__ = {
         "sic": "SIC Code",
         "industry": "Industry Title",
         "office": "Office",
     }
-
-    sic: int = Field(description="Sector Industrial Code (SIC)")
-    industry: str = Field(description="Industry title.")
-    office: str = Field(
-        description="Reporting office within the Corporate Finance Office"
-    )
 
 
 class SecSicSearchFetcher(

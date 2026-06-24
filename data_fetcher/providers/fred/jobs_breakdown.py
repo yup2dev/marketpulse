@@ -2,15 +2,18 @@
 from datetime import date as date_type
 from typing import Optional
 from pydantic import Field
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
+from data_fetcher.abstract_provider.standard_models.fred_series import (
+    FredSeriesQueryParams,
+    FredSeriesData,
+)
 
 
-class JobsBreakdownQueryParams(BaseQueryParams):
+class JobsBreakdownQueryParams(FredSeriesQueryParams):
     start_date: Optional[date_type] = None
     end_date: Optional[date_type] = None
 
 
-class JobsBreakdownData(BaseData):
+class JobsBreakdownData(FredSeriesData):
     date: str = Field(description="날짜 (YYYY-MM-DD)")
     private: Optional[float] = Field(default=None, description="민간 고용 변화 (천 건)")
     government: Optional[float] = Field(default=None, description="정부 고용 변화 (천 건)")

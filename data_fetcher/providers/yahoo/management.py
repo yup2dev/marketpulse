@@ -1,20 +1,17 @@
 """Yahoo Finance Management Model"""
-from typing import Optional, List, Dict, Any
-from pydantic import Field
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
+from data_fetcher.abstract_provider.standard_models.company_management import (
+    CompanyOfficerData,
+    CompanyManagementQueryParams,
+    CompanyManagementData,
+)
 
 
-class YFinanceManagementQueryParams(BaseQueryParams):
-    symbol: str = Field(description="종목 코드")
+class YFinanceManagementQueryParams(CompanyManagementQueryParams):
+    """경영진 조회 파라미터 (standard CompanyManagement 경유)"""
 
 
-class YFinanceOfficerData(BaseData):
-    """임원 정보"""
-    name: str = Field(default="")
-    title: str = Field(default="")
-    age: Optional[int] = None
-    total_pay: Optional[int] = None
-    year_born: Optional[int] = None
+class YFinanceOfficerData(CompanyOfficerData):
+    """임원 정보 (standard 경유, yfinance 원본키 alias 추가)"""
 
     __alias_dict__ = {
         "total_pay": "totalPay",
@@ -22,11 +19,8 @@ class YFinanceOfficerData(BaseData):
     }
 
 
-class YFinanceManagementData(BaseData):
-    """경영진 및 거버넌스 데이터"""
-    symbol: str
-    officers: List[YFinanceOfficerData] = Field(default_factory=list)
-    governance: Dict[str, Any] = Field(default_factory=dict)
+class YFinanceManagementData(CompanyManagementData):
+    """경영진 및 거버넌스 데이터 (standard CompanyManagement 경유)"""
 
 
 """Yahoo Finance Management Fetcher"""
