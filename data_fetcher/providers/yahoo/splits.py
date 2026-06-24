@@ -1,18 +1,16 @@
 """Yahoo Finance Stock Splits Model"""
-from pydantic import Field
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
+from data_fetcher.abstract_provider.standard_models.equity_splits import (
+    EquitySplitsQueryParams,
+    EquitySplitsData,
+)
 
 
-class YFinanceSplitsQueryParams(BaseQueryParams):
-    symbol: str = Field(description="종목 코드")
-    limit: int = Field(default=20, description="반환할 최대 레코드 수")
+class YFinanceSplitsQueryParams(EquitySplitsQueryParams):
+    """주식 분할 조회 파라미터 (standard EquitySplits 경유)"""
 
 
-class YFinanceSplitData(BaseData):
-    """주식 분할 데이터"""
-    date: str = Field(description="분할일 (YYYY-MM-DD)")
-    ratio: float = Field(description="분할 비율")
-    description: str = Field(description="분할 설명 (예: 4:1 split)")
+class YFinanceSplitData(EquitySplitsData):
+    """주식 분할 데이터 (standard EquitySplits 경유)"""
 
 
 """Yahoo Finance Stock Splits Fetcher"""

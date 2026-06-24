@@ -5,11 +5,11 @@
 from typing import Any
 
 from data_fetcher.utils.provider_errors import OpenBBError
-from data_fetcher.abstract_provider.abstract.data import BaseData
 from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
-from data_fetcher.abstract_provider.standard_models.symbol_map import SymbolMapQueryParams
-from data_fetcher.abstract_provider.field_descriptions import DATA_DESCRIPTIONS
-from pydantic import Field
+from data_fetcher.abstract_provider.standard_models.symbol_map import (
+    SymbolMapQueryParams,
+    SymbolMapData,
+)
 
 
 class SecSymbolMapQueryParams(SymbolMapQueryParams):
@@ -19,10 +19,8 @@ class SecSymbolMapQueryParams(SymbolMapQueryParams):
     """
 
 
-class SecSymbolMapData(BaseData):
-    """SEC symbol map Data."""
-
-    symbol: str = Field(description=DATA_DESCRIPTIONS.get("symbol", ""))
+class SecSymbolMapData(SymbolMapData):
+    """SEC symbol map Data (standard SymbolMap 경유)."""
 
 
 class SecSymbolMapFetcher(

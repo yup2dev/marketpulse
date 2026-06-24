@@ -2,9 +2,10 @@
 import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from pydantic import Field
-
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
+from data_fetcher.abstract_provider.standard_models.index_constituents import (
+    IndexConstituentsQueryParams,
+    IndexConstituentData,
+)
 from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
 from index_analyzer.models.orm import (
     MBS_IN_STBD_MST, MBS_IN_INDX_STBD, get_sqlite_db
@@ -13,21 +14,12 @@ from index_analyzer.models.orm import (
 log = logging.getLogger(__name__)
 
 
-class IndexQueryParams(BaseQueryParams):
-    """Index query parameters"""
-    index: str = Field(description="Index name - 'sp500', 'nasdaq100', 'dow30'")
+class IndexQueryParams(IndexConstituentsQueryParams):
+    """Index query parameters (standard IndexConstituents 경유)"""
 
 
-class ConstituentResult(BaseData):
-    """Index constituent data"""
-    symbol: str
-    name: str
-    sector: Optional[str] = None
-    sub_sector: Optional[str] = None
-    headquarters: Optional[str] = None
-    date_first_added: Optional[str] = None
-    cik: Optional[str] = None
-    founded: Optional[str] = None
+class ConstituentResult(IndexConstituentData):
+    """Index constituent data (standard IndexConstituents 경유)"""
 
 
 class DBIndexConstituentsFetcher(Fetcher[IndexQueryParams, ConstituentResult]):

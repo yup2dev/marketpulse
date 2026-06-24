@@ -20,6 +20,9 @@ from ..models.orm import (
     MBS_IN_INDX_MEMBER,
     MBS_IN_ETF_STBD,
     MBS_IN_BOND_STBD,
+    MBS_IN_INSTI_MST,
+    MBS_IN_INSTI_PORT,
+    MBS_IN_INSTI_HOLD,
 )
 
 log = get_logger(__name__)
@@ -293,3 +296,101 @@ def store_universe(
         session.close()
 
     return result
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 13F 기관 보유 (institutional holdings) 적재
+# ─────────────────────────────────────────────────────────────────────────────
+
+def store_institutions_list(rows: List[Dict[str, Any]]) -> int:
+    """13F 제출 기관 목록(전체)을 MBS_IN_INSTI_MST 에 upsert. 반환: 처리 건수."""
+    if not rows:
+        return 0
+    session = default_db.get_session()
+    n = 0
+    try:
+        for r in rows:
+            key = r.get("key") or r.get("institution_key") or r.get("cik")
+            if not key:
+                continue
+            obj = session.get(MBS_IN_INSTI_MST, str(key))
+            if obj is None:
+                obj = MBS_IN_INSTI_MST(institution_key=str(key))
+                session.add(obj)
+            obj.name = r.get("name") or obj.name or str(key)
+            obj.manager = r.get("manager")
+            obj.cik = str(r["cik"]) if r.get("cik") is not None else obj.cik
+            obj.description = r.get("description")
+            obj.category = r.get("category")
+            obj.is_active = True
+            n += 1
+        session.commit()
+        log.info("[ingest] institutions_list upsert: %d", n)
+    except Exception as exc:
+        session.rollback()
+        log.error("[ingest] institutions_list 저장 실패: %s", exc, exc_info=True)
+        raise
+    finally:
+        session.close()
+    return n
+
+
+_PORT_FIELDS = (
+    "id", "manager", "name", "description", "total_value", "num_holdings",
+    "filing_date", "period_end", "category", "previous_filing_date", "previous_value",
+    "value_change", "value_change_pct", "num_new_positions", "num_sold_out",
+    "num_increased", "num_decreased", "turnover", "performance", "top_sectors",
+)
+
+_HOLD_FIELDS = (
+    "symbol", "name", "cusip", "value", "shares", "weight",
+    "prev_shares", "prev_value", "share_change", "share_change_pct",
+    "value_change", "value_change_pct", "status",
+)
+
+
+def store_institution_portfolio(institution_key: str, port: Dict[str, Any]) -> None:
+    """한 기관의 최신 13F 포트폴리오(요약+보유종목)를 교체 적재.
+
+    port: portfolio_service 가 노출하는 dict 형태
+          (요약 필드 + 'stocks'/'sold_positions' 리스트).
+    PORT 는 기관당 1행(최신)으로 덮어쓰고, HOLD 는 해당 기관 행을 전부 삭제 후 재삽입.
+    """
+    if not institution_key:
+        return
+    institution_key = str(institution_key)
+    session = default_db.get_session()
+    try:
+        # 1) 요약 upsert (기관당 1행)
+        obj = session.get(MBS_IN_INSTI_PORT, institution_key)
+        if obj is None:
+            obj = MBS_IN_INSTI_PORT(institution_key=institution_key)
+            session.add(obj)
+        for f in _PORT_FIELDS:
+            setattr(obj, f, port.get(f))
+
+        # 2) 보유종목 교체 (stocks=is_sold False, sold_positions=True)
+        session.query(MBS_IN_INSTI_HOLD).filter(
+            MBS_IN_INSTI_HOLD.institution_key == institution_key
+        ).delete(synchronize_session=False)
+
+        for is_sold, listkey in ((False, "stocks"), (True, "sold_positions")):
+            for seq, h in enumerate(port.get(listkey) or []):
+                row = MBS_IN_INSTI_HOLD(
+                    institution_key=institution_key, is_sold=is_sold, seq=seq,
+                )
+                for f in _HOLD_FIELDS:
+                    setattr(row, f, h.get(f))
+                session.add(row)
+
+        session.commit()
+        log.info(
+            "[ingest] 13F %s 적재: stocks=%d sold=%d",
+            institution_key, len(port.get("stocks") or []), len(port.get("sold_positions") or []),
+        )
+    except Exception as exc:
+        session.rollback()
+        log.error("[ingest] 13F %s 저장 실패: %s", institution_key, exc, exc_info=True)
+        raise
+    finally:
+        session.close()

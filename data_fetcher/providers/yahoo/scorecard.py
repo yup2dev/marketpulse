@@ -1,21 +1,16 @@
 """Yahoo Finance Investment Scorecard Model"""
-from typing import Optional, Dict, Any
-from pydantic import Field
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
+from data_fetcher.abstract_provider.standard_models.investment_scorecard import (
+    InvestmentScorecardQueryParams,
+    InvestmentScorecardData,
+)
 
 
-class YFinanceScorecardQueryParams(BaseQueryParams):
-    symbol: str = Field(description="종목 코드")
+class YFinanceScorecardQueryParams(InvestmentScorecardQueryParams):
+    """투자 스코어카드 조회 파라미터 (standard InvestmentScorecard 경유)"""
 
 
-class YFinanceScorecardData(BaseData):
-    """투자 스코어카드 데이터"""
-    symbol: str
-    overall_score: int = 0
-    investment_grade: str = "N/A"
-    categories: Dict[str, Any] = Field(default_factory=dict)
-    outlook: Dict[str, Any] = Field(default_factory=dict)
-    ai_report: Optional[str] = None
+class YFinanceScorecardData(InvestmentScorecardData):
+    """투자 스코어카드 데이터 (standard InvestmentScorecard 경유)"""
 
 
 """Yahoo Finance Investment Scorecard Fetcher"""

@@ -17,44 +17,14 @@ from data_fetcher.utils.cusip_mapper import cusip_to_ticker
 from data_fetcher.providers.sec.institutions_list import SECInstitutionsListFetcher
 
 
-# ── QueryParams / Data ────────────────────────────────────────────────────────
-
-class InstitutionalHoldingsQueryParams(BaseQueryParams):
-    """기관 보유 현황 조회 파라미터"""
-    institution_key: str = Field(description="기관 식별자 (예: 'berkshire', 'bridgewater')")
-    limit: Optional[int] = Field(default=50, description="최대 보유 종목 수")
-    summary_only: bool = Field(default=False, description="True이면 종목 목록 없이 요약 데이터만 반환")
-
-
-class HoldingData(BaseData):
-    """개별 보유 종목 데이터"""
-    ticker: Optional[str] = Field(default=None, description="종목 심볼")
-    cusip: Optional[str] = Field(default=None, description="CUSIP")
-    name: Optional[str] = Field(default=None, description="종목명")
-    shares: Optional[int] = Field(default=None, description="보유 주식 수")
-    value: Optional[float] = Field(default=None, description="보유 가치 ($천)")
-    percentage: Optional[float] = Field(default=None, description="포트폴리오 비중 (%)")
-    change_shares: Optional[int] = Field(default=None, description="전분기 대비 주식 수 변화")
-    change_pct: Optional[float] = Field(default=None, description="전분기 대비 변화율 (%)")
-    action: Optional[str] = Field(default=None, description="변화 유형 (New, Add, Reduce, Sell)")
-
-
-class InstitutionInfo(BaseData):
-    """기관 기본 정보"""
-    key: Optional[str] = Field(default=None, description="기관 식별자")
-    name: Optional[str] = Field(default=None, description="기관명")
-    manager: Optional[str] = Field(default=None, description="운용 책임자")
-    cik: Optional[str] = Field(default=None, description="SEC CIK")
-
-
-class InstitutionalHoldingsData(BaseData):
-    """기관 보유 현황 데이터"""
-    institution: Optional[InstitutionInfo] = Field(default=None, description="기관 정보")
-    period: Optional[str] = Field(default=None, description="보고 분기 (YYYY-MM-DD)")
-    total_value: Optional[float] = Field(default=None, description="총 보유 가치 ($천)")
-    total_holdings: Optional[int] = Field(default=None, description="총 보유 종목 수")
-    holdings: List[HoldingData] = Field(default_factory=list, description="보유 종목 목록")
-    prev_holdings: List[HoldingData] = Field(default_factory=list, description="전분기 보유 목록")
+# ── QueryParams / Data (standard InstitutionalHoldings 경유; sec/whalewisdom 공유) ──
+# 아래 클래스들은 standard 모델을 그대로 재사용한다(이름 유지로 whalewisdom import 호환).
+from data_fetcher.abstract_provider.standard_models.institutions_list import InstitutionInfo
+from data_fetcher.abstract_provider.standard_models.institutional_holdings import (
+    InstitutionalHoldingsQueryParams,
+    HoldingData,
+    InstitutionalHoldingsData,
+)
 
 log = logging.getLogger(__name__)
 

@@ -5,7 +5,11 @@ from typing import Any, Dict, List, Optional
 from pydantic import Field
 
 from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
+from data_fetcher.abstract_provider.standard_models.revenue_segments import (
+    RevenueSegmentDetailData as FMPSegmentData,
+    RevenueSegmentsQueryParams,
+    RevenueSegmentsData,
+)
 from data_fetcher.utils.api_keys import get_api_key
 from data_fetcher.utils.async_http_client import amake_request
 
@@ -15,30 +19,14 @@ FMP_STABLE_BASE = "https://financialmodelingprep.com/stable"
 _HEADERS = {'User-Agent': 'MarketPulse/1.0'}
 
 
-# ── QueryParams ───────────────────────────────────────────────────────────────
+# ── QueryParams / Data (standard RevenueSegments 경유) ─────────────────────────
 
-class FMPRevenueSegmentsQueryParams(BaseQueryParams):
-    symbol: str = Field(description="종목 코드")
-    limit: int = Field(default=8, description="반환할 연도 수")
-
-
-# ── Data ──────────────────────────────────────────────────────────────────────
-
-class FMPSegmentData(BaseData):
-    """세그먼트 분류별 매출 데이터"""
-    segments: List[str] = Field(default_factory=list)
-    history: List[Dict[str, Any]] = Field(default_factory=list)
-    latest: Dict[str, Any] = Field(default_factory=dict)
-    yoy: Dict[str, Optional[float]] = Field(default_factory=dict)
+class FMPRevenueSegmentsQueryParams(RevenueSegmentsQueryParams):
+    """매출 세그먼트 조회 파라미터 (standard RevenueSegments 경유)"""
 
 
-class FMPRevenueSegmentsData(BaseData):
-    """제품/지역별 매출 분류 통합 데이터"""
-    symbol: str
-    product: Optional[FMPSegmentData] = None
-    geo: Optional[FMPSegmentData] = None
-    has_product: bool = False
-    has_geo: bool = False
+class FMPRevenueSegmentsData(RevenueSegmentsData):
+    """제품/지역별 매출 분류 통합 데이터 (standard RevenueSegments 경유)"""
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────

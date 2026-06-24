@@ -5,33 +5,19 @@
 from typing import Any
 
 from data_fetcher.utils.provider_errors import OpenBBError
-from data_fetcher.abstract_provider.abstract.data import BaseData
 from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
-from data_fetcher.abstract_provider.abstract.query_params import BaseQueryParams
-from pydantic import Field
+from data_fetcher.abstract_provider.standard_models.htm_file import (
+    HtmFileQueryParams,
+    HtmFileData,
+)
 
 
-class SecHtmFileQueryParams(BaseQueryParams):
-    """SEC HTM File Query Parameters."""
-
-    url: str = Field(
-        default="",
-        description="URL for the SEC filing.",
-    )
-    use_cache: bool = Field(
-        default=True,
-        description="Cache the file for use later. Default is True.",
-    )
+class SecHtmFileQueryParams(HtmFileQueryParams):
+    """SEC HTM File Query Parameters (standard 경유)."""
 
 
-class SecHtmFileData(BaseData):
-    """SEC HTM File Data."""
-
-    url: str = Field(
-        description="URL of the downloaded file.",
-        json_schema_extra={"x-widget_config": {"exclude": True}},
-    )
-    content: str = Field(description="Raw content of the HTM/HTML file.")
+class SecHtmFileData(HtmFileData):
+    """SEC HTM File Data (standard HtmFile 경유)."""
 
 
 class SecHtmFileFetcher(Fetcher[SecHtmFileQueryParams, SecHtmFileData]):

@@ -6,7 +6,10 @@ from typing import Any, Dict, List, Optional
 from pydantic import Field
 
 from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
+from data_fetcher.abstract_provider.standard_models.equity_historical import (
+    EquityHistoricalQueryParams,
+    EquityHistoricalData,
+)
 from data_fetcher.utils.api_keys import get_api_key
 from data_fetcher.utils.async_http_client import amake_request
 from data_fetcher.providers.alphavantage.utils.helpers import (
@@ -18,31 +21,19 @@ log = logging.getLogger(__name__)
 
 # ── QueryParams ───────────────────────────────────────────────────────────────
 
-class CryptoQueryParams(BaseQueryParams):
-    """암호화폐 데이터 조회 파라미터"""
-    symbol: str = Field(description="암호화폐 심볼 (예: BTC, ETH, DOGE)")
+class CryptoQueryParams(EquityHistoricalQueryParams):
+    """암호화폐 데이터 조회 파라미터 (standard EquityHistorical 경유)"""
     market: str = Field(default="USD", description="거래 시장 (예: USD, EUR, KRW)")
-    start_date: Optional[str] = Field(default=None, description="조회 시작일 (YYYY-MM-DD)")
-    end_date: Optional[str] = Field(default=None, description="조회 종료일 (YYYY-MM-DD)")
     interval: str = Field(default="daily", description="데이터 간격 (daily, weekly, monthly)")
 
 
 # ── Data ──────────────────────────────────────────────────────────────────────
 
-class CryptoData(BaseData):
-    """암호화폐 데이터"""
-    symbol: str = Field(description="암호화폐 심볼")
+class CryptoData(EquityHistoricalData):
+    """암호화폐 데이터 (standard EquityHistorical 경유, 코인 전용 필드 추가)"""
     market: str = Field(description="거래 시장")
-    date: date_type = Field(description="날짜")
-    open: float = Field(description="시가 (USD)")
-    high: float = Field(description="고가 (USD)")
-    low: float = Field(description="저가 (USD)")
-    close: float = Field(description="종가 (USD)")
-    volume: float = Field(description="거래량")
+    volume: Optional[float] = Field(default=None, description="거래량")  # 코인은 소수 거래량 → float override
     market_cap: Optional[float] = Field(default=None, description="시가총액 (USD)")
-    daily_return: Optional[float] = Field(default=None, description="일일 수익률 (%)")
-    price_change: Optional[float] = Field(default=None, description="가격 변동 (종가 - 시가)")
-    price_change_pct: Optional[float] = Field(default=None, description="가격 변동률 (%)")
     volatility: Optional[float] = Field(default=None, description="변동성 (고가 - 저가)")
 
 

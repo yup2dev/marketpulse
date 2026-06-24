@@ -1,23 +1,8 @@
 """Yahoo Finance Batch Quotes Models"""
-from typing import List, Optional
-from pydantic import Field
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
-
-
-class YFinanceBatchQuotesQueryParams(BaseQueryParams):
-    symbols: List[str] = Field(description="종목 코드 리스트")
-    period: str = Field(default="5d", description="조회 기간")
-    chunk_size: int = Field(default=50, description="배치 청크 크기")
-    max_workers: int = Field(default=4, description="병렬 워커 수")
-    mode: str = Field(default="live", description="live|period")
-
-
-class YFinanceBatchQuoteData(BaseData):
-    symbol: str = Field(description="종목 코드")
-    price: float = Field(description="현재가")
-    change: float = Field(description="전일 대비 변화")
-    change_percent: float = Field(description="전일 대비 변화율 (%)")
-    volume: int = Field(default=0, description="거래량")
+from data_fetcher.abstract_provider.standard_models.batch_quotes import (
+    BatchQuotesQueryParams as YFinanceBatchQuotesQueryParams,
+    BatchQuoteData as YFinanceBatchQuoteData,
+)
 
 
 """

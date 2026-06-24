@@ -4,24 +4,23 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import Field
 
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
+from data_fetcher.abstract_provider.standard_models.indicator_dashboard import (
+    IndicatorDashboardQueryParams,
+    IndicatorDashboardData,
+)
 from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
 from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
 from data_fetcher.utils.api_keys import get_api_key
 
 
-# ── QueryParams / Data (shared Dashboard pattern) ─────────────────────────────
+# ── QueryParams / Data (standard IndicatorDashboard 경유) ──────────────────────
 
-class DashboardQueryParams(BaseQueryParams):
+class DashboardQueryParams(IndicatorDashboardQueryParams):
     pass
 
 
-class DashboardRowData(BaseData):
-    section: str = Field(description="대시보드 섹션")
-    metric: str = Field(description="지표명")
-    value: Optional[float] = Field(default=None, description="현재값")
-    unit: Optional[str] = Field(default="", description="단위")
-    status: Optional[str] = Field(default=None, description="상태 레이블")
+class DashboardRowData(IndicatorDashboardData):
+    pass
 
 log = logging.getLogger(__name__)
 

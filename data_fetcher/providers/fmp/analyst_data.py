@@ -5,7 +5,11 @@ from typing import Any, Dict, List, Optional
 from pydantic import Field
 
 from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
+from data_fetcher.abstract_provider.standard_models.analyst_ratings import (
+    AnalystRatingsQueryParams,
+    AnalystRatingItem as FMPAnalystItem,
+    AnalystRatingsData,
+)
 from data_fetcher.utils.api_keys import get_api_key
 from data_fetcher.utils.async_http_client import amake_request
 
@@ -14,32 +18,14 @@ log = logging.getLogger(__name__)
 FMP_STABLE_BASE = "https://financialmodelingprep.com/stable"
 
 
-# ── QueryParams ───────────────────────────────────────────────────────────────
+# ── QueryParams / Data (standard AnalystRatings 경유) ──────────────────────────
 
-class FMPAnalystDataQueryParams(BaseQueryParams):
-    symbol: str = Field(description="종목 코드")
-
-
-# ── Data ──────────────────────────────────────────────────────────────────────
-
-class FMPAnalystItem(BaseData):
-    """개별 애널리스트 레이팅"""
-    name: str = ""
-    rating: Optional[str] = None
-    prev_rating: Optional[str] = None
-    action: Optional[str] = None
-    date: Optional[str] = None
-    target_price: Optional[float] = None
+class FMPAnalystDataQueryParams(AnalystRatingsQueryParams):
+    """애널리스트 레이팅 조회 파라미터 (standard AnalystRatings 경유)"""
 
 
-class FMPAnalystDataData(BaseData):
-    """애널리스트 종합 데이터"""
-    symbol: str
-    consensus_rating: str = "N/A"
-    ratings: Dict[str, Any] = Field(default_factory=dict)
-    price_target: Dict[str, Any] = Field(default_factory=dict)
-    number_of_analysts: Optional[int] = None
-    analysts: List[FMPAnalystItem] = Field(default_factory=list)
+class FMPAnalystDataData(AnalystRatingsData):
+    """애널리스트 종합 데이터 (standard AnalystRatings 경유)"""
 
 
 # ── Fetcher ───────────────────────────────────────────────────────────────────

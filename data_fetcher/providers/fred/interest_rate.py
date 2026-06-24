@@ -2,10 +2,13 @@
 from datetime import date as date_type, datetime, timedelta
 from typing import Optional
 from pydantic import Field
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
+from data_fetcher.abstract_provider.standard_models.fred_series import (
+    FredSeriesQueryParams,
+    FredSeriesData,
+)
 
 
-class InterestRateQueryParams(BaseQueryParams):
+class InterestRateQueryParams(FredSeriesQueryParams):
     """금리 조회 파라미터"""
 
     rate_type: str = Field(
@@ -21,7 +24,7 @@ class InterestRateQueryParams(BaseQueryParams):
     )
 
 
-class InterestRateData(BaseData):
+class InterestRateData(FredSeriesData):
     """금리 데이터"""
 
     date: date_type = Field(

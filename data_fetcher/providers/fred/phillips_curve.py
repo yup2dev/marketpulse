@@ -2,15 +2,18 @@
 from datetime import date as date_type
 from typing import Optional
 from pydantic import Field
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
+from data_fetcher.abstract_provider.standard_models.fred_series import (
+    FredSeriesQueryParams,
+    FredSeriesData,
+)
 
 
-class PhillipsCurveQueryParams(BaseQueryParams):
+class PhillipsCurveQueryParams(FredSeriesQueryParams):
     start_date: Optional[date_type] = None
     end_date: Optional[date_type] = None
 
 
-class PhillipsCurveData(BaseData):
+class PhillipsCurveData(FredSeriesData):
     date: str = Field(description="날짜 (YYYY-MM-DD)")
     unemployment: float = Field(description="실업률 (%)")
     inflation: float = Field(description="CPI YoY (%)")

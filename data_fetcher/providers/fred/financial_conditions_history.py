@@ -5,7 +5,10 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import Field
 
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
+from data_fetcher.abstract_provider.standard_models.fred_series import (
+    FredSeriesQueryParams,
+    FredSeriesData,
+)
 from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
 from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
 from data_fetcher.utils.api_keys import get_api_key
@@ -15,14 +18,14 @@ log = logging.getLogger(__name__)
 
 # ── QueryParams ───────────────────────────────────────────────────────────────
 
-class FinancialConditionsHistoryQueryParams(BaseQueryParams):
+class FinancialConditionsHistoryQueryParams(FredSeriesQueryParams):
     start_date: Optional[date_type] = None
     end_date: Optional[date_type] = None
 
 
 # ── Data ──────────────────────────────────────────────────────────────────────
 
-class FinancialConditionsHistoryData(BaseData):
+class FinancialConditionsHistoryData(FredSeriesData):
     date: str = Field(description="날짜 (YYYY-MM-DD)")
     value: float = Field(description="NFCI 지수값")
 

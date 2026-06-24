@@ -1,17 +1,10 @@
 """Yield Curve Models"""
 from typing import Optional
 from pydantic import Field
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
-
-
-class YieldCurveQueryParams(BaseQueryParams):
-    pass
-
-
-class YieldCurveData(BaseData):
-    maturity: str = Field(description="만기 라벨 (예: '10-Year')")
-    years: float = Field(description="만기 연수")
-    value: float = Field(description="수익률 (%)")
+from data_fetcher.abstract_provider.standard_models.yield_curve import (
+    YieldCurveQueryParams,
+    YieldCurveData,
+)
 
 
 """Yield Curve Snapshot Fetcher — 7개 만기별 최신 수익률."""

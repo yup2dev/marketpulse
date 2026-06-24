@@ -1,30 +1,17 @@
 """Yahoo Finance Moat Analysis Model"""
-from typing import Optional, List
-from pydantic import Field
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
+from data_fetcher.abstract_provider.standard_models.economic_moat import (
+    EconomicMoatYearData as YFinanceMoatYearData,
+    EconomicMoatQueryParams,
+    EconomicMoatData,
+)
 
 
-class YFinanceMoatQueryParams(BaseQueryParams):
-    symbol: str = Field(description="종목 코드")
+class YFinanceMoatQueryParams(EconomicMoatQueryParams):
+    """Moat 조회 파라미터 (standard EconomicMoat 경유)"""
 
 
-class YFinanceMoatYearData(BaseData):
-    """연도별 Moat 지표"""
-    year: str
-    roe: Optional[float] = None
-    roic: Optional[float] = None
-    gross_margin: Optional[float] = None
-    op_margin: Optional[float] = None
-    net_margin: Optional[float] = None
-    fcf_margin: Optional[float] = None
-
-
-class YFinanceMoatData(BaseData):
-    """Moat 분석 데이터"""
-    symbol: str
-    history: List[YFinanceMoatYearData] = Field(default_factory=list)
-    moat_score: int = 0
-    moat_type: str = "None"
+class YFinanceMoatData(EconomicMoatData):
+    """Moat 분석 데이터 (standard EconomicMoat 경유)"""
 
 
 """Yahoo Finance Moat Analysis Fetcher"""

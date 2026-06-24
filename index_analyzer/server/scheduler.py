@@ -47,6 +47,19 @@ def _universe_us_job():
         log.error(f"[Scheduler] universe_us_job 실패: {e}", exc_info=True)
 
 
+def _institutional_13f_job():
+    """13F 기관 보유 수집 Job — 기관목록(전체) + featured 20 holdings → DB 캐싱.
+
+    13F는 분기 공시라 주 1회로 충분. whalewisdom(=SEC EDGAR)을 데몬에서 직접 호출.
+    """
+    try:
+        from ..collectors import Institutional13FCollector
+        summary = Institutional13FCollector().run()
+        log.info(f"[Scheduler] institutional_13f_job 완료: {summary}")
+    except Exception as e:
+        log.error(f"[Scheduler] institutional_13f_job 실패: {e}", exc_info=True)
+
+
 # ── 스케줄러 시작/종료 ────────────────────────────────────────────────────────
 
 def start_scheduler(event_bus=None):
@@ -84,12 +97,21 @@ def start_scheduler(event_bus=None):
             replace_existing=True,
         )
 
+        scheduler.add_job(
+            func=_institutional_13f_job,
+            trigger=CronTrigger(day_of_week='sun', hour=6, minute=0),
+            id='institutional_13f_job',
+            name='13F Institutional Holdings',
+            replace_existing=True,
+        )
+
         scheduler.start()
         log.info(
             f"APScheduler 시작 ("
             f"뉴스크롤: {settings.CRAWL_INTERVAL_HOURS}h, "
             f"KR유니버스: daily@05:00, "
-            f"US유니버스: weekly@Sun 04:00)"
+            f"US유니버스: weekly@Sun 04:00, "
+            f"13F: weekly@Sun 06:00)"
         )
 
     except Exception as e:

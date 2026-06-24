@@ -2,10 +2,13 @@
 from datetime import date as date_type, datetime, timedelta
 from typing import Optional
 from pydantic import Field
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
+from data_fetcher.abstract_provider.standard_models.fred_series import (
+    FredSeriesQueryParams,
+    FredSeriesData,
+)
 
 
-class NonfarmPayrollQueryParams(BaseQueryParams):
+class NonfarmPayrollQueryParams(FredSeriesQueryParams):
     """비농업 취업자 조회 파라미터"""
 
     country: str = Field(
@@ -30,7 +33,7 @@ class NonfarmPayrollQueryParams(BaseQueryParams):
     )
 
 
-class NonfarmPayrollData(BaseData):
+class NonfarmPayrollData(FredSeriesData):
     """비농업 취업자 데이터 모델"""
 
     date: date_type = Field(

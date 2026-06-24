@@ -16,9 +16,10 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from pydantic import Field
-
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
+from data_fetcher.abstract_provider.standard_models.stock_ranking import (
+    StockRankingQueryParams,
+    StockRankingData,
+)
 from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
 
 log = logging.getLogger(__name__)
@@ -31,19 +32,12 @@ _PERIOD_DAYS = {
 }
 
 
-class DBStockRankingQueryParams(BaseQueryParams):
-    period: str = Field(default='1d', description="1d | 1w | 1mo | 3mo | 6mo | 1y")
+class DBStockRankingQueryParams(StockRankingQueryParams):
+    """DB 종목 랭킹 조회 파라미터 (standard StockRanking 경유)"""
 
 
-class DBStockRankingData(BaseData):
-    stk_cd: str
-    stk_nm: Optional[str] = ''
-    curr: Optional[str] = 'USD'
-    sector: Optional[str] = ''
-    close_price: Optional[float] = None
-    change_rate: Optional[float] = None
-    volume: int = 0
-    trade_value: float = 0.0
+class DBStockRankingData(StockRankingData):
+    """DB 종목 랭킹 데이터 (standard StockRanking 경유)"""
 
 
 class DBStockRankingFetcher(Fetcher[DBStockRankingQueryParams, DBStockRankingData]):

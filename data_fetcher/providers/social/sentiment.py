@@ -1,18 +1,20 @@
 """Social Sentiment Model (StockTwits + Reddit)"""
 from typing import Any, Dict, List
 from pydantic import Field
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
+from data_fetcher.abstract_provider.standard_models.stock_sentiment import (
+    StockSentimentQueryParams,
+    StockSentimentData,
+)
 
 
-class SocialSentimentQueryParams(BaseQueryParams):
-    symbol: str
+class SocialSentimentQueryParams(StockSentimentQueryParams):
+    """소셜 감성 조회 파라미터 (standard StockSentiment 경유)"""
 
 
-class SocialSentimentData(BaseData):
-    symbol: str
+class SocialSentimentData(StockSentimentData):
+    """소셜 감성 데이터 (standard 경유, StockTwits/Reddit 전용 필드 추가)"""
     stocktwits_messages: List[Dict[str, Any]] = Field(default_factory=list)
     reddit_posts: List[Dict[str, Any]] = Field(default_factory=list)
-    aggregate: Dict[str, Any] = Field(default_factory=dict)
     has_reddit: bool = False
 
 

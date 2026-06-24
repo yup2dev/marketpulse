@@ -412,10 +412,12 @@ class QueryExecutor:
     # 설정 시 _upstream_fetch가 해당 provider를 사용자 Fetcher 워커로 위임한다.
     _remote: Optional[RemoteTransport] = None
 
-    # Class A — '로컬 실행 필수' provider. 비공식 스크래핑이라 서버 고정 IP에서 호출하면
-    # 차단되므로 반드시 사용자 PC Fetcher에서 실행한다(키 불필요). 로그인 사용자 요청이면
-    # 폴백 없이 그 사용자 워커로만 위임한다. (서버 배치작업은 워커가 없으므로 백엔드 직접)
-    _remote_only_providers: frozenset = frozenset({"yahoo", "whalewisdom"})
+    # Class A — '로컬 실행 필수' provider. 비공식 스크래핑/라이브러리(yfinance 등)라 서버
+    # 고정 IP에서 호출하면 차단되므로 반드시 사용자 PC Fetcher에서 실행한다(키 불필요).
+    # 로그인 사용자 요청이면 폴백 없이 그 사용자 워커로만 위임한다.
+    # 참고: whalewisdom(13F)은 SEC EDGAR만 호출(yfinance 미사용)하므로 서버에서 직접
+    #       실행 가능 → Class A에서 제외(로컬 Fetcher 불필요). yahoo만 로컬 필수.
+    _remote_only_providers: frozenset = frozenset({"yahoo"})
 
     # Class B — key-only provider는 서버에서 호출하되, 요청 사용자의 키(DB)로 호출한다.
     # _credential_resolver(provider, user_id) → {필드: 값} | None 을 백엔드가 주입한다.

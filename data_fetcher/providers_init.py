@@ -160,6 +160,8 @@ try:
     from data_fetcher.providers.database.index_constituents import DBIndexConstituentsFetcher
     from data_fetcher.providers.database.stock_list import DBStockListFetcher
     from data_fetcher.providers.database.stock_ranking import DBStockRankingFetcher
+    from data_fetcher.providers.database.institutions_list import DBInstitutionsListFetcher
+    from data_fetcher.providers.database.institutional_holdings import DBInstitutionalHoldingsFetcher
     _db_available = True
 except ImportError:
     _db_available = False
@@ -290,6 +292,8 @@ alphavantage_provider = Provider(
         "timeseries": AlphaVantageTimeseriesFetcher,
         "forex": AlphaVantageForexFetcher,
         "company_overview": AlphaVantageCompanyOverviewFetcher,
+        # company_info: yahoo와 동일 model 키로 멀티프로바이더 제공 (standard CompanyProfile 공유)
+        "company_info": AlphaVantageCompanyOverviewFetcher,
         "crypto": AlphaVantageCryptoFetcher,
     },
     metadata={
@@ -469,6 +473,8 @@ db_provider = Provider(
         "index_constituents": DBIndexConstituentsFetcher,
         "stock_list": DBStockListFetcher,
         "stock_ranking": DBStockRankingFetcher,
+        "institutions_list": DBInstitutionsListFetcher,
+        "institutional_holdings": DBInstitutionalHoldingsFetcher,
     },
 ) if _db_available else None
 
@@ -540,6 +546,8 @@ sec_provider = Provider(
         "income_statement_growth": SecIncomeStatementGrowthFetcher,
         "cik_map": SecCikMapFetcher,
         "company_filings": SecCompanyFilingsFetcher,
+        # filings: yahoo와 동일 model 키로 멀티프로바이더 제공 (standard CompanyFilings 공유)
+        "filings": SecCompanyFilingsFetcher,
         "compare_company_facts": SecCompareCompanyFactsFetcher,
         "equity_ftd": SecEquityFtdFetcher,
         "equity_search": SecEquitySearchFetcher,

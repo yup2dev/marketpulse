@@ -2,15 +2,18 @@
 from datetime import date as date_type
 from typing import Optional
 from pydantic import Field
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
+from data_fetcher.abstract_provider.standard_models.fred_series import (
+    FredSeriesQueryParams,
+    FredSeriesData,
+)
 
 
-class RealRatesQueryParams(BaseQueryParams):
+class RealRatesQueryParams(FredSeriesQueryParams):
     start_date: Optional[date_type] = None
     end_date: Optional[date_type] = None
 
 
-class RealRatesData(BaseData):
+class RealRatesData(FredSeriesData):
     date: str = Field(description="날짜 (YYYY-MM-DD)")
     nominal_10y: Optional[float] = Field(default=None, description="명목 10년 수익률 (%)")
     nominal_5y: Optional[float] = Field(default=None, description="명목 5년 수익률 (%)")

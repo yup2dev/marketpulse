@@ -6,7 +6,10 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import Field
 
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
+from data_fetcher.abstract_provider.standard_models.fred_series import (
+    FredSeriesQueryParams,
+    FredSeriesData,
+)
 from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
 from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
 from data_fetcher.utils.api_keys import get_api_key
@@ -14,8 +17,8 @@ from data_fetcher.utils.api_keys import get_api_key
 
 # ── QueryParams ───────────────────────────────────────────────────────────────
 
-class FREDGenericSeriesQueryParams(BaseQueryParams):
-    """임의의 FRED series_id 조회 파라미터."""
+class FREDGenericSeriesQueryParams(FredSeriesQueryParams):
+    """임의의 FRED series_id 조회 파라미터 (standard FredSeries 경유)."""
     series_id: str = Field(description="FRED 시리즈 ID (예: 'GDP', 'CPIAUCSL')")
     start_date: Optional[date_type] = Field(default=None, description="시작일")
     end_date: Optional[date_type] = Field(default=None, description="종료일")
@@ -26,8 +29,8 @@ class FREDGenericSeriesQueryParams(BaseQueryParams):
     sort_order: str = Field(default="asc", description="정렬 순서 (asc/desc)")
 
 
-class FREDGenericSeriesData(BaseData):
-    """FRED 시계열 단일 관찰값."""
+class FREDGenericSeriesData(FredSeriesData):
+    """FRED 시계열 단일 관찰값 (standard FredSeries 경유)."""
     date: str = Field(description="날짜 (YYYY-MM-DD)")
     value: float = Field(description="관찰값")
 

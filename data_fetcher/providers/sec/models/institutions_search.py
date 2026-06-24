@@ -4,42 +4,28 @@
 
 from typing import Any
 
-from data_fetcher.abstract_provider.abstract.data import BaseData
 from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
-from data_fetcher.abstract_provider.abstract.query_params import BaseQueryParams
+from data_fetcher.abstract_provider.standard_models.institutions_search import (
+    InstitutionsSearchQueryParams,
+    InstitutionsSearchData,
+)
 from pydantic import Field
 
 
-class SecInstitutionsSearchQueryParams(BaseQueryParams):
-    """SEC Institutions Search Query.
+class SecInstitutionsSearchQueryParams(InstitutionsSearchQueryParams):
+    """SEC Institutions Search Query (standard 경유).
 
     Source: https://sec.gov/
     """
 
-    query: str = Field(description="Search query.", default="")
 
-    use_cache: bool | None = Field(
-        default=True,
-        description="Whether or not to use cache.",
-    )
-
-
-class SecInstitutionsSearchData(BaseData):
-    """SEC Institutions Search Data."""
+class SecInstitutionsSearchData(InstitutionsSearchData):
+    """SEC Institutions Search Data (standard 경유, SEC 원본키 alias)."""
 
     __alias_dict__ = {
         "name": "Institution",
         "cik": "CIK Number",
     }
-
-    name: str | None = Field(
-        default=None,
-        description="The name of the institution.",
-    )
-    cik: str | int | None = Field(
-        default=None,
-        description="Central Index Key (CIK)",
-    )
 
 
 class SecInstitutionsSearchFetcher(

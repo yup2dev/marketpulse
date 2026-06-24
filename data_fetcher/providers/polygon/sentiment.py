@@ -1,17 +1,19 @@
 """Polygon Stock Sentiment Model"""
 from typing import Any, Dict, List
 from pydantic import Field
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
+from data_fetcher.abstract_provider.standard_models.stock_sentiment import (
+    StockSentimentQueryParams,
+    StockSentimentData,
+)
 
 
-class PolygonStockSentimentQueryParams(BaseQueryParams):
-    ticker: str
+class PolygonStockSentimentQueryParams(StockSentimentQueryParams):
+    """뉴스 감성 조회 파라미터 (standard StockSentiment 경유)"""
 
 
-class PolygonStockSentimentData(BaseData):
-    symbol: str
+class PolygonStockSentimentData(StockSentimentData):
+    """뉴스 감성 데이터 (standard 경유, polygon 전용 news/trend 추가)"""
     news: List[Dict[str, Any]] = Field(default_factory=list)
-    aggregate: Dict[str, Any] = Field(default_factory=dict)
     trend: List[Dict[str, Any]] = Field(default_factory=list)
 
 
@@ -41,7 +43,7 @@ class PolygonStockSentimentFetcher(Fetcher[PolygonStockSentimentQueryParams, Pol
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any,
     ) -> List[Dict[str, Any]]:
-        result = await PolygonNewsFetcher.fetch_data({'ticker': query.ticker})
+        result = await PolygonNewsFetcher.fetch_data({'ticker': query.symbol})
         if hasattr(result, 'result'):
             result = result.result
         return [item.model_dump(mode='json') for item in (result or [])[:50]]
@@ -93,7 +95,7 @@ class PolygonStockSentimentFetcher(Fetcher[PolygonStockSentimentQueryParams, Pol
         )
 
         return [PolygonStockSentimentData(
-            symbol=query.ticker,
+            symbol=query.symbol,
             news=news_items,
             aggregate={'positive': positive, 'negative': negative, 'neutral': neutral, 'overall_score': overall_score},
             trend=trend,

@@ -5,7 +5,10 @@ from typing import Any, Dict, List, Optional
 from pydantic import Field
 
 from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
+from data_fetcher.abstract_provider.standard_models.company_profile import (
+    CompanyProfileQueryParams,
+    CompanyProfileData,
+)
 from data_fetcher.utils.api_keys import get_api_key
 from data_fetcher.utils.async_http_client import amake_request
 from data_fetcher.providers.alphavantage.utils.helpers import (
@@ -17,25 +20,20 @@ log = logging.getLogger(__name__)
 
 # ── QueryParams ───────────────────────────────────────────────────────────────
 
-class CompanyOverviewQueryParams(BaseQueryParams):
-    """기업 개요 조회 파라미터"""
+class CompanyOverviewQueryParams(CompanyProfileQueryParams):
+    """기업 개요 조회 파라미터 (standard CompanyProfile 경유)"""
     symbol: str = Field(description="종목 코드 (예: AAPL, MSFT)")
 
 
 # ── Data ──────────────────────────────────────────────────────────────────────
 
-class CompanyOverviewData(BaseData):
-    """기업 개요 데이터 (AlphaVantage)"""
+class CompanyOverviewData(CompanyProfileData):
+    """기업 개요 데이터 (standard CompanyProfile 경유, AlphaVantage 전용 지표 추가)
 
-    symbol: str = Field(description="종목 코드")
-    name: Optional[str] = Field(default=None, description="회사명")
-    description: Optional[str] = Field(default=None, description="회사 설명")
-    exchange: Optional[str] = Field(default=None, description="거래소")
-    currency: Optional[str] = Field(default=None, description="통화")
-    country: Optional[str] = Field(default=None, description="국가")
-    sector: Optional[str] = Field(default=None, description="섹터")
-    industry: Optional[str] = Field(default=None, description="산업")
-    market_cap: Optional[int] = Field(default=None, description="시가총액")
+    symbol/company_name/description/exchange/currency/country/sector/industry/market_cap
+    는 standard CompanyProfile 에서 상속한다.
+    """
+
     ebitda: Optional[int] = Field(default=None, description="EBITDA")
     pe_ratio: Optional[float] = Field(default=None, description="PER")
     peg_ratio: Optional[float] = Field(default=None, description="PEG")
@@ -63,7 +61,7 @@ class CompanyOverviewData(BaseData):
 
     __alias_dict__ = {
         "symbol": "Symbol",
-        "name": "Name",
+        "company_name": "Name",
         "description": "Description",
         "exchange": "Exchange",
         "currency": "Currency",

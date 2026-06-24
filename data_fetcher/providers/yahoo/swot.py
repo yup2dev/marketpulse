@@ -1,28 +1,17 @@
 """Yahoo Finance SWOT Analysis Model"""
-from typing import Optional, List
-from pydantic import Field
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
+from data_fetcher.abstract_provider.standard_models.swot_analysis import (
+    SwotItem as YFinanceSWOTItem,
+    SwotAnalysisQueryParams,
+    SwotAnalysisData,
+)
 
 
-class YFinanceSWOTQueryParams(BaseQueryParams):
-    symbol: str = Field(description="종목 코드")
+class YFinanceSWOTQueryParams(SwotAnalysisQueryParams):
+    """SWOT 조회 파라미터 (standard SwotAnalysis 경유)"""
 
 
-class YFinanceSWOTItem(BaseData):
-    """SWOT 항목"""
-    label: str
-    value: str
-    type: str  # 'positive' | 'negative'
-
-
-class YFinanceSWOTData(BaseData):
-    """SWOT 분석 데이터"""
-    symbol: str
-    strengths: List[YFinanceSWOTItem] = Field(default_factory=list)
-    weaknesses: List[YFinanceSWOTItem] = Field(default_factory=list)
-    opportunities: List[YFinanceSWOTItem] = Field(default_factory=list)
-    threats: List[YFinanceSWOTItem] = Field(default_factory=list)
-    ai_analysis: Optional[str] = None
+class YFinanceSWOTData(SwotAnalysisData):
+    """SWOT 분석 데이터 (standard SwotAnalysis 경유)"""
 
 
 """Yahoo Finance SWOT Analysis Fetcher"""

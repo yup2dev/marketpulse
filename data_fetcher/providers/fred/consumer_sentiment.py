@@ -2,10 +2,13 @@
 from datetime import date as date_type, datetime, timedelta
 from typing import Optional
 from pydantic import Field
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
+from data_fetcher.abstract_provider.standard_models.fred_series import (
+    FredSeriesQueryParams,
+    FredSeriesData,
+)
 
 
-class ConsumerSentimentQueryParams(BaseQueryParams):
+class ConsumerSentimentQueryParams(FredSeriesQueryParams):
     """소비자 심리 지수 조회 파라미터"""
 
     country: str = Field(
@@ -26,7 +29,7 @@ class ConsumerSentimentQueryParams(BaseQueryParams):
     )
 
 
-class ConsumerSentimentData(BaseData):
+class ConsumerSentimentData(FredSeriesData):
     """소비자 심리 지수 데이터 모델"""
 
     date: date_type = Field(

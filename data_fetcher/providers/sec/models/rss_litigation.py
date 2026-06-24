@@ -2,36 +2,30 @@
 
 # pylint: disable=unused-argument
 
-from datetime import datetime
 from typing import Any
 
 from data_fetcher.utils.provider_errors import OpenBBError
-from data_fetcher.abstract_provider.abstract.data import BaseData
 from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
-from data_fetcher.abstract_provider.abstract.query_params import BaseQueryParams
+from data_fetcher.abstract_provider.standard_models.rss_litigation import (
+    RssLitigationQueryParams,
+    RssLitigationData,
+)
 from data_fetcher.providers.sec.utils.definitions import HEADERS
-from pydantic import Field
 
 
-class SecRssLitigationQueryParams(BaseQueryParams):
-    """SEC Litigation RSS Feed Query.
+class SecRssLitigationQueryParams(RssLitigationQueryParams):
+    """SEC Litigation RSS Feed Query (standard 경유).
 
     Source: https://sec.gov/
     """
 
 
-class SecRssLitigationData(BaseData):
-    """SEC Litigation RSS Feed Data."""
+class SecRssLitigationData(RssLitigationData):
+    """SEC Litigation RSS Feed Data (standard 경유, SEC 원본키 alias)."""
 
     __alias_dict__ = {
         "published": "date",
     }
-
-    published: datetime = Field(description="The date of publication.")
-    title: str = Field(description="The title of the release.")
-    summary: str = Field(description="Short summary of the release.")
-    id: str = Field(description="The identifier associated with the release.")
-    link: str = Field(description="URL to the release.")
 
 
 class SecRssLitigationFetcher(

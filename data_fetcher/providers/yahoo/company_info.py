@@ -1,19 +1,22 @@
 """Yahoo Finance Company Info Model (회사 정보)"""
 from typing import Optional
 from pydantic import Field
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
+from data_fetcher.abstract_provider.standard_models.company_profile import (
+    CompanyProfileQueryParams,
+    CompanyProfileData,
+)
 
 
-class YFinanceCompanyInfoQueryParams(BaseQueryParams):
-    """회사 정보 조회 파라미터"""
+class YFinanceCompanyInfoQueryParams(CompanyProfileQueryParams):
+    """회사 정보 조회 파라미터 (standard CompanyProfile 경유)"""
 
     symbol: str = Field(
         description="종목 코드 (예: AAPL, MSFT)"
     )
 
 
-class YFinanceCompanyInfoData(BaseData):
-    """회사 정보 데이터"""
+class YFinanceCompanyInfoData(CompanyProfileData):
+    """회사 정보 데이터 (standard CompanyProfile 경유, provider 고유 지표 추가)"""
 
     # 기본 정보
     symbol: str = Field(description="종목 코드")

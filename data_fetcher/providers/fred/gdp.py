@@ -2,10 +2,13 @@
 from datetime import date as date_type, datetime, timedelta
 from typing import Optional
 from pydantic import Field
-from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
+from data_fetcher.abstract_provider.standard_models.fred_series import (
+    FredSeriesQueryParams,
+    FredSeriesData,
+)
 
 
-class GDPQueryParams(BaseQueryParams):
+class GDPQueryParams(FredSeriesQueryParams):
     """GDP 조회 파라미터"""
 
     country: str = Field(
@@ -26,7 +29,7 @@ class GDPQueryParams(BaseQueryParams):
     )
 
 
-class GDPData(BaseData):
+class GDPData(FredSeriesData):
     """GDP 데이터 모델"""
 
     date: date_type = Field(
@@ -71,7 +74,7 @@ class GDPNominalData(GDPData):
     )
 
 
-class GDPPerCapitaData(BaseData):
+class GDPPerCapitaData(FredSeriesData):
     """1인당 GDP 데이터"""
 
     date: date_type = Field(

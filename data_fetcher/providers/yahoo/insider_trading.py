@@ -1,9 +1,13 @@
 """Yahoo Finance Insider Trading Models"""
-from datetime import date
-from typing import Optional
-from pydantic import Field
-from data_fetcher.abstract_provider.abstract import BaseData
 from data_fetcher.abstract_provider.standard_models import InsiderTradingQueryParams, InsiderTradingData
+from data_fetcher.abstract_provider.standard_models.insider_holders import (
+    InsiderHoldersQueryParams,
+    InsiderHolderData,
+)
+from data_fetcher.abstract_provider.standard_models.insider_trading_summary import (
+    InsiderTradingSummaryQueryParams,
+    InsiderTradingSummaryData,
+)
 
 
 class YFinanceInsiderTradingQueryParams(InsiderTradingQueryParams):
@@ -14,24 +18,13 @@ class YFinanceInsiderTransactionData(InsiderTradingData):
     pass
 
 
-class YFinanceInsiderHolderData(BaseData):
-    """내부자 보유 정보"""
-    symbol: str
-    name: Optional[str] = None
-    position: Optional[str] = None
-    shares: Optional[int] = None
-    value: Optional[float] = None
-    latest_transaction_date: Optional[date] = None
-    position_direct: Optional[int] = None
-    position_indirect: Optional[int] = None
+class YFinanceInsiderHolderData(InsiderHolderData):
+    """내부자 보유 정보 (standard InsiderHolder 경유)"""
 
 
-class YFinanceInsiderTradingSummaryData(BaseData):
-    """내부자 거래 집계 데이터 (transactions + summary)"""
-    symbol: str
+class YFinanceInsiderTradingSummaryData(InsiderTradingSummaryData):
+    """내부자 거래 집계 데이터 (standard InsiderTradingSummary 경유)"""
     source: str = 'yahoo'
-    summary: dict = Field(default_factory=dict)
-    transactions: list = Field(default_factory=list)
 
 
 """Yahoo Finance Insider Trading Fetcher"""
