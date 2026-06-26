@@ -36,7 +36,10 @@ const OVERVIEW_COLUMNS = [
         </div>
         <div className="min-w-0">
           <div className={`font-semibold truncate ${row._isSelected ? 'text-white' : 'text-gray-300'}`}>{row.manager}</div>
-          <div className="text-xs text-gray-500 truncate max-w-[160px]">{row.name}</div>
+          <div className={`text-xs truncate max-w-[160px] ${row._error ? 'text-red-400' : 'text-gray-500'}`}
+               title={row._error || row.name}>
+            {row._error ? `⚠ ${row._error}` : row.name}
+          </div>
         </div>
         {row._isLoading && <RefreshCw size={11} className="animate-spin text-cyan-400 flex-shrink-0" />}
       </div>
@@ -284,6 +287,12 @@ const OverviewExpandedPanel = ({ portfolio, formatNumber, formatShares, onFetch 
 
   // 훅 선언 완료 후 early return
   if (!portfolio._hasFull) {
+    // 폴백 제거로 미적재 기관은 에러로 떨어진다 — 무한 스피너 대신 에러 로그 표시.
+    if (portfolio._error && !portfolio._isLoading) {
+      return (
+        <div className="px-6 py-4 text-xs text-red-400">{portfolio._error}</div>
+      );
+    }
     return (
       <div className="px-6 py-4 text-xs text-gray-500 flex items-center gap-2">
         <RefreshCw size={12} className="animate-spin text-cyan-400" />
@@ -387,6 +396,8 @@ const InstitutionalPortfolios = ({ onRemove }) => {
   const [selectedInstitutions, setSelectedInstitutions] = useState([]);
   const [portfolios, setPortfolios] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);                    // 기관 목록 fetch 실패 메시지
+  const [errorKeys, setErrorKeys] = useState({});              // instKey → 포트폴리오 fetch 실패 메시지
   const [loadingKeys, setLoadingKeys] = useState(new Set());   // summary fetch (행 스피너용)
   const [expandLoadingKeys, setExpandLoadingKeys] = useState(new Set()); // expand full fetch
   const [activeCategory, setActiveCategory] = useState('overview');
@@ -413,14 +424,17 @@ const InstitutionalPortfolios = ({ onRemove }) => {
 
   const fetchInstitutions = async () => {
     setLoading(true);
+    setError(null);
+    setErrorKeys({});
     try {
       const data = await apiClient.get(`${API_BASE}/portfolio/13f/institutions?use_dynamic=true`);
       const list = data.results || [];
       setInstitutions(list);
       // 목록 로드 후 전체 기관 summary 병렬 조회
       list.forEach(inst => fetchPortfolioSummary(inst.key));
-    } catch (error) {
-      console.error('Error fetching institutions:', error);
+    } catch (err) {
+      console.error('Error fetching institutions:', err);
+      setError(err.detail || err.message || 'Failed to load institutions');
     } finally {
       setLoading(false);
     }
@@ -433,6 +447,7 @@ const InstitutionalPortfolios = ({ onRemove }) => {
       const data = await apiClient.get(`${API_BASE}/portfolio/13f/${instKey}?summary_only=true`);
       const portfolio = data.results?.[0];
       if (portfolio) {
+        setErrorKeys(prev => { if (!(instKey in prev)) return prev; const n = { ...prev }; delete n[instKey]; return n; });
         setPortfolios(prev => {
           const existing = prev.find(p => p.institution_key === portfolio.institution_key);
           if (existing?._full) return prev;
@@ -441,8 +456,9 @@ const InstitutionalPortfolios = ({ onRemove }) => {
           return [...filtered, { ...portfolio, _full: false, _summarySnapshot: portfolio }];
         });
       }
-    } catch (error) {
-      console.error('Error fetching portfolio summary:', error);
+    } catch (err) {
+      console.error('Error fetching portfolio summary:', err);
+      setErrorKeys(prev => ({ ...prev, [instKey]: err.detail || err.message || 'Failed to load' }));
     } finally {
       setLoadingKeys(prev => { const n = new Set(prev); n.delete(instKey); return n; });
     }
@@ -455,6 +471,7 @@ const InstitutionalPortfolios = ({ onRemove }) => {
       const data = await apiClient.get(`${API_BASE}/portfolio/13f/${instKey}`);
       const portfolio = data.results?.[0];
       if (portfolio) {
+        setErrorKeys(prev => { if (!(instKey in prev)) return prev; const n = { ...prev }; delete n[instKey]; return n; });
         setPortfolios(prev => {
           const existing = prev.find(p => p.institution_key === portfolio.institution_key);
           const filtered = prev.filter(p => p.institution_key !== portfolio.institution_key);
@@ -462,8 +479,9 @@ const InstitutionalPortfolios = ({ onRemove }) => {
           return [...filtered, { ...portfolio, _full: true, _summarySnapshot: existing?._summarySnapshot ?? portfolio }];
         });
       }
-    } catch (error) {
-      console.error('Error fetching portfolio:', error);
+    } catch (err) {
+      console.error('Error fetching portfolio:', err);
+      setErrorKeys(prev => ({ ...prev, [instKey]: err.detail || err.message || 'Failed to load holdings' }));
     } finally {
       setExpandLoadingKeys(prev => { const n = new Set(prev); n.delete(instKey); return n; });
     }
@@ -525,6 +543,7 @@ const InstitutionalPortfolios = ({ onRemove }) => {
         _isLoading: loadingKeys.has(inst.key) || expandLoadingKeys.has(inst.key),
         _hasData: !!portfolio,
         _hasFull: !!portfolio?._full,
+        _error: errorKeys[inst.key] || null,
       };
     }).sort((a, b) => {
       if (a._isSelected !== b._isSelected) return a._isSelected ? -1 : 1;
@@ -533,7 +552,7 @@ const InstitutionalPortfolios = ({ onRemove }) => {
       const bSnap = b._summarySnapshot || b;
       return (bSnap[sortBy] || 0) - (aSnap[sortBy] || 0);
     }),
-  [institutions, portfolios, selectedInstitutions, loadingKeys, expandLoadingKeys, sortBy]);
+  [institutions, portfolios, selectedInstitutions, loadingKeys, expandLoadingKeys, errorKeys, sortBy]);
 
   // Holdings / Activity: 선택된 기관의 portfolio만
   const selectedPortfolios = useMemo(() => {
@@ -673,7 +692,11 @@ const InstitutionalPortfolios = ({ onRemove }) => {
 
       {/* Content */}
       <div className="flex-1 overflow-auto">
-        {activeCategory !== 'overview' && selectedPortfolios.length === 0 ? (
+        {error ? (
+          <div className="flex items-center justify-center h-full text-red-400 text-xs p-4 text-center">
+            {error}
+          </div>
+        ) : activeCategory !== 'overview' && selectedPortfolios.length === 0 ? (
           <>
             <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-800">
               <CategoryTabs active={activeCategory} onChange={setActiveCategory} loading={isTabLoading} />

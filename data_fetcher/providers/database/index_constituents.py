@@ -27,6 +27,15 @@ class DBIndexConstituentsFetcher(Fetcher[IndexQueryParams, ConstituentResult]):
 
     require_credentials = False
 
+    # index 이름 → 저장 시 data_source. DB에 적재 가능한 인덱스 목록의 원천.
+    INDEX_SOURCE_MAP = {
+        "sp500": "github_sp500",
+        "nasdaq100": "github_nasdaq100",
+        "dow30": "github_dow30",
+    }
+    # 프론트 셀렉터 옵션(param_choices) — /api/data/ 메타로 노출되어 index 드롭다운이 된다.
+    param_choices = {"index": list(INDEX_SOURCE_MAP.keys())}
+
     @staticmethod
     def transform_query(params: Dict[str, Any]) -> IndexQueryParams:
         """Transform query parameters"""
@@ -57,15 +66,8 @@ class DBIndexConstituentsFetcher(Fetcher[IndexQueryParams, ConstituentResult]):
             db = get_sqlite_db(str(db_path))
             session = db.get_session()
 
-            # Map index names to data sources
-            # DB에 저장할 때 data_source를 'github_{index_id}' 형식으로 저장했음
-            index_source_map = {
-                "sp500": "github_sp500",
-                "nasdaq100": "github_nasdaq100",
-                "dow30": "github_dow30",
-            }
-
-            data_source = index_source_map.get(query.index.lower())
+            # Map index names to data sources (클래스 상수 사용 — param_choices와 단일 출처)
+            data_source = DBIndexConstituentsFetcher.INDEX_SOURCE_MAP.get(query.index.lower())
             if not data_source:
                 log.error(f"Unknown index: {query.index}")
                 session.close()

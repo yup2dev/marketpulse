@@ -34,21 +34,48 @@ export default function WidgetMenu({ open, onClose, categories = [], activeWidge
   const [search,   setSearch]   = useState('');
   const [selected, setSelected] = useState({});  // { widgetId: widgetDef }
 
-  // Fetch provider list when "Data" tab first activates
+  // Fetch provider list on open — used by both the Data tab and the
+  // Library "All Models" category(standard_model 단위 위젯).
   useEffect(() => {
-    if (activeTab !== 'data' || providers.length > 0) return;
+    if (!open || providers.length > 0) return;
     setProvLoading(true);
     apiClient.get(`${API_BASE}/data/`)
       .then(r => setProviders(r.results || []))
       .catch(() => {})
       .finally(() => setProvLoading(false));
-  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Library tab: "All Models" 카테고리 (standard_model 단위) ─────────────────
+  // Data 탭의 provider×model 목록을 model 키로 dedup → 모델당 1개 위젯.
+  // 위젯 type은 `model/{model}` → WidgetRenderer가 provider 셀렉터 달린 UniversalWidget으로 렌더.
+  const allModelsCategory = useMemo(() => {
+    const map = {};   // model -> Set(provider)
+    providers.forEach(p => (p.models || []).forEach(m => {
+      const key = m.model ?? m;
+      (map[key] ||= new Set()).add(p.provider);
+    }));
+    const widgets = Object.keys(map).sort().map(model => {
+      const provs = [...map[model]].sort();
+      return {
+        id:          `model/${model}`,
+        name:        _titleCase(model),
+        description: `${provs.length} provider${provs.length > 1 ? 's' : ''}: ${provs.join(', ')}`,
+        defaultSize: { w: 6, h: 6 },
+      };
+    });
+    return widgets.length ? { id: '__all_models', label: 'All Models', widgets } : null;
+  }, [providers]);
+
+  const libraryCategories = useMemo(
+    () => (allModelsCategory ? [...categories, allModelsCategory] : categories),
+    [categories, allModelsCategory],
+  );
 
   // ── Library tab: filtered categories ────────────────────────────────────────
-  const allWidgets = categories.flatMap(c => c.widgets);
+  const allWidgets = libraryCategories.flatMap(c => c.widgets);
   const visibleCategories = useMemo(() => {
     const q = search.toLowerCase();
-    return categories
+    return libraryCategories
       .filter(c => activeCat === 'all' || c.id === activeCat)
       .map(c => ({
         ...c,
@@ -57,7 +84,7 @@ export default function WidgetMenu({ open, onClose, categories = [], activeWidge
         ),
       }))
       .filter(c => c.widgets.length > 0);
-  }, [categories, activeCat, search]);
+  }, [libraryCategories, activeCat, search]);
 
   // ── Data tab: flat list of {provider}/{model} pairs ─────────────────────────
   // providers[].models は [{ model, required_params }] の配列
@@ -217,7 +244,7 @@ export default function WidgetMenu({ open, onClose, categories = [], activeWidge
                 >
                   All
                 </button>
-                {categories.map(cat => (
+                {libraryCategories.map(cat => (
                   <button
                     key={cat.id}
                     onClick={() => setActiveCat(cat.id)}

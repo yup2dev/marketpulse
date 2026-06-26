@@ -108,6 +108,28 @@ async def list_providers() -> OBBject:
         except Exception:
             return []
 
+    def _accepts_symbol(fetcher_cls) -> bool:
+        """모델 QueryParams가 symbol 필드를 갖는지 → 심볼 셀렉터 노출 여부."""
+        try:
+            qp = fetcher_cls.query_params_type
+            return bool(isinstance(qp, type) and issubclass(qp, BaseModel)
+                        and "symbol" in qp.model_fields)
+        except Exception:
+            return False
+
+    def _param_choices(fetcher_cls) -> dict:
+        """파라미터 선택지. fetcher가 resolve_param_choices()(동적, 예: db의 기관 목록)나
+        param_choices(정적, 예: index→[sp500,…])를 선언하면 노출. 없으면 빈 dict."""
+        try:
+            fn = getattr(fetcher_cls, "resolve_param_choices", None)
+            if callable(fn):
+                pc = fn()
+                return dict(pc) if isinstance(pc, dict) else {}
+            pc = getattr(fetcher_cls, "param_choices", None)
+            return dict(pc) if isinstance(pc, dict) else {}
+        except Exception:
+            return {}
+
     results = []
     for name, p in sorted(ProviderRegistry.get_all().items()):
         if name in _EXCLUDE:
@@ -118,6 +140,8 @@ async def list_providers() -> OBBject:
             models.append({
                 "model": model_key,
                 "required_params": _required_params(fetcher_cls),
+                "accepts_symbol": _accepts_symbol(fetcher_cls),
+                "param_choices": _param_choices(fetcher_cls),
             })
         results.append({
             "provider":             name,
