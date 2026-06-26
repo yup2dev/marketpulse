@@ -10,18 +10,14 @@ log = logging.getLogger(__name__)
 class PortfolioService:
 
     async def _fetch_cached(self, model: str, params: Dict[str, Any]):
-        """db(배치 캐싱) 우선 조회, 비어있으면 whalewisdom 온디맨드 폴백.
+        """db(배치 캐싱) 전용 조회. whalewisdom 서버 온디맨드 폴백은 제거한다.
 
-        Returns: (results, source) — source 는 'db' | 'whalewisdom'.
+        과거엔 캐시 미스 시 whalewisdom으로 온디맨드 스크래핑했으나, 동기 blocking
+        fetch가 (a)백엔드 이벤트루프를 막고 (b)작은 운영 인스턴스에서 메모리 폭증→OOM으로
+        앱을 죽였다. 이제 미적재 기관은 폴백 없이 빈 결과를 반환하고, 호출부가 에러로
+        승격해 프론트가 표시한다(배치 캐시 워밍이 사실상 필수 보호장치).
         """
-        try:
-            results = await QueryExecutor.fetch('db', model, params)
-            if results:
-                return results, 'db'
-        except Exception as e:  # db provider 미가용/오류 → 폴백
-            log.warning(f"db {model} 조회 실패, whalewisdom 폴백: {e}")
-        results = await QueryExecutor.fetch('whalewisdom', model, params)
-        return results, 'whalewisdom'
+        return await QueryExecutor.fetch('db', model, params)
 
     async def get_institutions_list(
         self,
@@ -29,7 +25,7 @@ class PortfolioService:
         limit: int = 100,
     ) -> List[Dict[str, Any]]:
         try:
-            results, _src = await self._fetch_cached(
+            results = await self._fetch_cached(
                 'institutions_list', {'use_dynamic': use_dynamic, 'limit': limit},
             )
             return [
@@ -46,15 +42,6 @@ class PortfolioService:
             log.error(f"Error fetching institutions list: {e}")
             raise
 
-    @staticmethod
-    def _cache_portfolio(institution_key: str, holding: Dict[str, Any]) -> None:
-        """온디맨드로 받은 포트폴리오를 DB에 적재(best-effort). holding 은 이미 저장 shape."""
-        try:
-            from index_analyzer.ingest.repository import store_institution_portfolio
-            store_institution_portfolio(institution_key, holding)
-        except Exception as e:  # 적재 실패는 응답에 영향 주지 않음
-            log.warning(f"13F {institution_key} 캐시 적재 실패: {e}")
-
     async def get_institution_portfolio(
         self,
         institution_key: str,
@@ -62,13 +49,16 @@ class PortfolioService:
         summary_only: bool = False,
     ) -> Dict[str, Any]:
         try:
-            results, source = await self._fetch_cached(
+            results = await self._fetch_cached(
                 'institutional_holdings',
                 {'institution_key': institution_key, 'limit': limit, 'summary_only': summary_only},
             )
 
             if not results:
-                raise ValueError(f"Holdings not found for institution: {institution_key}")
+                raise ValueError(
+                    f"'{institution_key}' 13F 데이터가 캐시에 없습니다(배치 미적재). "
+                    f"서버 온디맨드 폴백은 비활성화돼 있습니다."
+                )
 
             portfolio = results[0]
 
@@ -116,11 +106,6 @@ class PortfolioService:
                 holding['performance'] = portfolio.performance
             if getattr(portfolio, 'top_sectors', None):
                 holding['top_sectors'] = portfolio.top_sectors
-
-            # 캐시 미스(whalewisdom 온디맨드)였다면 DB에 적재해 다음 요청부터 캐시 제공.
-            # summary_only면 종목 목록이 없으므로 적재하지 않는다.
-            if source == 'whalewisdom' and not summary_only:
-                self._cache_portfolio(institution_key, holding)
 
             return holding
 

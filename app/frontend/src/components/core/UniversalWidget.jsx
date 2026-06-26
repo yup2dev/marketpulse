@@ -39,6 +39,32 @@ function getByPath(obj, path) {
   return path.split('.').reduce((acc, k) => (acc != null ? acc[k] : undefined), obj);
 }
 
+// 서버 부하 가중치(낮을수록 우선). db=로컬 0, 공개/키 API=낮음,
+// sec·whalewisdom=서버 인프로세스 스크래핑/XBRL 파싱(무겁고 OOM 유발) → 높음.
+const PROVIDER_LOAD = {
+  db: 0, database: 0,
+  fred: 20, bls: 20, eia: 20, oecd: 20, imf: 20, nasdaqtrader: 20, krx: 20,
+  fmp: 25, polygon: 25, alphavantage: 25, tiingo: 25,
+  yahoo: 30, social: 35, kis: 35, wsj: 35,
+  sec: 70, whalewisdom: 75,
+};
+
+// 기본 provider 선택: ① db 우선 ② 설정키(usable=configured) 우선 ③ 서버 부하 적은 것 우선.
+function pickDefaultProvider(opts) {
+  if (!opts?.length) return null;
+  const score = (o) => [
+    (o.id === 'db' || o.id === 'database') ? 0 : 1,   // ① db
+    o.configured ? 0 : 1,                              // ② 키 설정(또는 무키)
+    PROVIDER_LOAD[o.id] ?? 50,                         // ③ 서버 부하
+    o.id,                                              // 안정적 tie-break
+  ];
+  return [...opts].sort((a, b) => {
+    const sa = score(a), sb = score(b);
+    for (let i = 0; i < sa.length; i++) { if (sa[i] < sb[i]) return -1; if (sa[i] > sb[i]) return 1; }
+    return 0;
+  })[0].id;
+}
+
 function fmtKv(v) {
   if (v == null) return '—';
   if (typeof v === 'boolean') return v ? 'true' : 'false';
@@ -103,6 +129,7 @@ export default function UniversalWidget({
   endpoint: endpointProp,
   title:    titleProp,
   symbol:   symbolProp,
+  category: categoryProp,
   portfolioId,
   onRemove,
 }) {
@@ -112,9 +139,16 @@ export default function UniversalWidget({
   const expandable = reg.expandable;
   const dataPath   = reg.dataPath;
   const display    = reg.display;
-  const paramsSpec = reg.params;
   const chartCfg   = reg.chart || {};
-  const category   = reg.category;          // 전용 라우트 model 키 (provider 셀렉터 활성화 조건)
+  // category = model 키 (provider 셀렉터 활성화 조건). 모델 단위 동적 위젯은 prop으로 주입.
+  const category   = categoryProp ?? reg.category;
+
+  // 모델 단위 게이트웨이 위젯: 모델의 필수 파라미터(symbol 외)를 동적 폼으로 노출.
+  // reg.params(정적 폼)가 있으면 그걸 쓰고, 없으면 /api/data/ 메타에서 받아온 동적 스펙 사용.
+  const [dynamicParams, setDynamicParams] = useState(null);
+  // 모델이 symbol을 받는지(null=미상/정적 위젯 → 기존대로 표시). false면 심볼 셀렉터 숨김.
+  const [modelAcceptsSymbol, setModelAcceptsSymbol] = useState(null);
+  const paramsSpec = reg.params ?? dynamicParams ?? undefined;
 
   const initParams = useMemo(() => {
     const obj = {};
@@ -152,18 +186,73 @@ export default function UniversalWidget({
           .filter((p) => (p.categories || []).includes(category))
           .map((p) => ({ id: p.id, name: p.name, configured: p.configured }));
         setProviderOptions(opts);
-        // 등록된 기본 provider가 지원 목록에 없으면 첫 지원 provider로 보정
-        if (opts.length && !opts.some((o) => o.id === reg.provider)) {
-          setProvider(opts[0].id);
-        }
+        // 현재 provider가 지원 목록에 있으면 유지(전용 위젯의 명시 provider 존중),
+        // 없으면 우선순위 규칙(db>설정키>저부하)으로 기본값 선택.
+        setProvider((prev) =>
+          (prev && opts.some((o) => o.id === prev)) ? prev : pickDefaultProvider(opts)
+        );
       })
       .catch(() => { if (alive) setProviderOptions([]); });
     return () => { alive = false; };
   }, [category, reg.provider]);
 
+  // 모델 게이트웨이 위젯: /api/data/ 메타에서 모델의 필수 파라미터를 읽어 동적 폼 스펙 구성.
+  // (symbol/ticker 는 심볼 셀렉터로 자동 주입되므로 폼에서 제외)
+  useEffect(() => {
+    if (reg.params || !category || !endpoint?.includes('{provider}')) return;
+    let alive = true;
+    apiClient.get(`${API_BASE}/data/`)
+      .then((r) => {
+        if (!alive) return;
+        const req = new Set();
+        const choices = {};
+        let acceptsSym = false;
+        (r.results || []).forEach((p) => (p.models || []).forEach((m) => {
+          if ((m.model ?? m) !== category) return;
+          (m.required_params || []).forEach((x) => req.add(x));
+          if (m.accepts_symbol) acceptsSym = true;
+          Object.entries(m.param_choices || {}).forEach(([k, v]) => {
+            if (Array.isArray(v) && v.length) {
+              choices[k] = [...new Set([...(choices[k] || []), ...v])];
+            }
+          });
+        }));
+        setModelAcceptsSymbol(acceptsSym);
+        // symbol/ticker는 심볼 셀렉터로 주입 → 폼에서 제외. 선택지(param_choices) 있으면 드롭다운.
+        const specs = [...req]
+          .filter((n) => n !== 'symbol' && n !== 'ticker')
+          .map((n) => {
+            const opts = choices[n];
+            if (opts && opts.length) {
+              const first = opts[0];
+              const def = (first && typeof first === 'object') ? first.value : first;
+              return { name: n, label: n, kind: 'select', options: opts, default: def };
+            }
+            return { name: n, label: n, kind: 'text', default: '' };
+          });
+        setDynamicParams(specs);
+      })
+      .catch(() => { if (alive) { setDynamicParams([]); setModelAcceptsSymbol(true); } });
+    return () => { alive = false; };
+  }, [category, endpoint, reg.params]);
+
+  // 동적 파라미터가 로드되면 기본값을 params 상태에 병합.
+  useEffect(() => {
+    if (!dynamicParams?.length) return;
+    setParams((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const p of dynamicParams) {
+        if (!(p.name in next)) { next[p.name] = p.default ?? ''; changed = true; }
+      }
+      return changed ? next : prev;
+    });
+  }, [dynamicParams]);
+
   const buildUrl = useCallback((current) => {
     if (!endpoint) return null;
-    const fallback = { symbol, period, portfolioId: portfolioId || '' };
+    // {provider} 경로 플레이스홀더는 선택된 provider로 채운다(모델 단위 게이트웨이 위젯).
+    const fallback = { symbol, period, portfolioId: portfolioId || '', provider: provider || '' };
     let url = endpoint.replace(/\{([\w_]+)\}/g, (_, k) => {
       const v = current[k] ?? fallback[k] ?? '';
       return encodeURIComponent(v);
@@ -176,14 +265,29 @@ export default function UniversalWidget({
       if (placeholders.has(k)) continue;
       qs.push(`${encodeURIComponent(k)}=${encodeURIComponent(v)}`);
     }
-    // provider 셀렉터 위젯 → 선택된 data source를 ?provider= 로 주입
-    if (category && provider) qs.push(`provider=${encodeURIComponent(provider)}`);
+    // 전용 라우트(경로에 {provider} 없음) → 선택된 provider를 ?provider= 로 주입.
+    // 게이트웨이(/data/{provider}/{model})는 이미 경로에 provider가 들어가므로 생략.
+    if (category && provider && !endpoint.includes('{provider}')) {
+      qs.push(`provider=${encodeURIComponent(provider)}`);
+    }
     if (qs.length) url += (url.includes('?') ? '&' : '?') + qs.join('&');
     return url;
   }, [endpoint, symbol, period, portfolioId, category, provider]);
 
   const fetchData = useCallback(async () => {
     if (!endpoint) return;
+    // 게이트웨이 위젯은 provider 셀렉터가 확정되기 전 fetch하지 않는다(빈 provider 경로 방지).
+    if (endpoint.includes('{provider}') && !provider) return;
+    // 모델 위젯의 필수 파라미터(예: index_constituents 의 index)가 비어 있으면
+    // 폼만 노출하고 fetch 보류 → 422(필수 누락) 방지.
+    if (!reg.params && dynamicParams && dynamicParams.length &&
+        dynamicParams.some((p) => {
+          const v = paramsRef.current[p.name];
+          return v == null || v === '';
+        })) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -196,7 +300,7 @@ export default function UniversalWidget({
     } finally {
       setLoading(false);
     }
-  }, [endpoint, buildUrl]);
+  }, [endpoint, buildUrl, provider, dynamicParams]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -241,7 +345,9 @@ export default function UniversalWidget({
 
   // Has param? Hide BaseWidget header symbol/period selectors for those params
   const paramNames     = useMemo(() => new Set((paramsSpec || []).map(p => p.name)), [paramsSpec]);
-  const requiresSymbol = endpoint.includes('{symbol}') && !paramNames.has('symbol');
+  // 모델이 symbol을 받지 않으면(modelAcceptsSymbol===false) 심볼 셀렉터 숨김.
+  const requiresSymbol = endpoint.includes('{symbol}') && !paramNames.has('symbol')
+    && modelAcceptsSymbol !== false;
   const requiresPeriod = endpoint.includes('{period}') && !paramNames.has('period');
 
   const showChartTypeSelector = activeView === 'chart' && renderType !== 'plotly' && display !== 'kv';

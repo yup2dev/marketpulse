@@ -14,7 +14,9 @@ from data_fetcher.abstract_provider.standard_models.institutional_holdings impor
     HoldingData,
     InstitutionalHoldingsData,
 )
-from index_analyzer.models.orm import MBS_IN_INSTI_PORT, MBS_IN_INSTI_HOLD, get_sqlite_db
+from index_analyzer.models.orm import (
+    MBS_IN_INSTI_MST, MBS_IN_INSTI_PORT, MBS_IN_INSTI_HOLD, get_sqlite_db
+)
 
 log = logging.getLogger(__name__)
 
@@ -41,6 +43,30 @@ class DBInstitutionalHoldingsFetcher(
     """DB(PORT+HOLD)에서 기관 13F 포트폴리오 조회."""
 
     require_credentials = False
+
+    @classmethod
+    def resolve_param_choices(cls) -> Dict[str, Any]:
+        """institution_key 선택지를 MBS_IN_INSTI_MST(13F 기관 마스터)에서 동적 조회.
+        /api/data/ 메타로 노출되어 프론트에서 기관 이름 드롭다운이 된다."""
+        try:
+            session = get_sqlite_db(str(_DB_PATH)).get_session()
+            try:
+                rows = (
+                    session.query(MBS_IN_INSTI_MST)
+                    .filter(MBS_IN_INSTI_MST.is_active.is_(True))
+                    .order_by(MBS_IN_INSTI_MST.name)
+                    .all()
+                )
+                opts = [
+                    {"value": r.institution_key, "label": r.name or r.manager or r.institution_key}
+                    for r in rows
+                ]
+            finally:
+                session.close()
+            return {"institution_key": opts} if opts else {}
+        except Exception as e:  # 메타 조회 실패는 무시(폼은 자유입력으로 폴백)
+            log.warning(f"institution_key 선택지 조회 실패: {e}")
+            return {}
 
     @staticmethod
     def transform_query(params: Dict[str, Any]) -> InstitutionalHoldingsQueryParams:

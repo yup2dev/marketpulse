@@ -73,8 +73,11 @@ async def get_earnings(symbol: str, provider: str = "polygon", limit: int = 8) -
 @router.get("/insider-trading/{symbol}")
 @route_handler
 async def get_insider_trading(symbol: str, provider: str = "yahoo", limit: int = 50) -> OBBject:
+    # insider_trading: yahoo·polygon·sec 멀티프로바이더(표준 InsiderTradingData 공유).
+    # 과거 yahoo 전용 insider_trading_summary 대신 공용 키로 디스패치해 provider 셀렉터를 지원.
+    # 프론트는 셀렉터로 ?provider= 를 주입(기본값은 db>설정키>저부하 규칙). 라우트 기본값은 형제 라우트와 동일하게 yahoo.
     raw = await QueryExecutor.fetch(
-        provider, "insider_trading_summary", {"symbol": symbol.upper(), "limit": limit}
+        provider, "insider_trading", {"symbol": symbol.upper(), "limit": limit}
     )
     return _wrap(raw, provider)
 

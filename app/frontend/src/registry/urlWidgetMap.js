@@ -23,12 +23,12 @@ export const URL_WIDGET_MAP = {
       {
         id: 'overview',
         label: 'Overview',
+        // 무키 기본 그리드(랜딩이 키 없이도 채워지도록). 키 필요 위젯(fred/polygon)은 메뉴에서 추가.
         defaultWidgets: [
-          { id: 'w0', type: 'tv-index-charts',    x: 0, y: 0,  w: 12, h: 4 },
-          { id: 'w1', type: 'gdp-forecast',       x: 0, y: 4,  w: 6,  h: 6 },
-          { id: 'w2', type: 'inflation-momentum', x: 6, y: 4,  w: 6,  h: 6 },
-          { id: 'w3', type: 'tv-market-ranking',  x: 0, y: 10, w: 6,  h: 8 },
-          { id: 'w4', type: 'earnings',           x: 6, y: 10, w: 6,  h: 8 },
+          { id: 'w0', type: 'tv-index-charts',   x: 0, y: 0,  w: 12, h: 4 },
+          { id: 'w1', type: 'heatmap',           x: 0, y: 4,  w: 6,  h: 8 },
+          { id: 'w2', type: 'tv-market-ranking', x: 6, y: 4,  w: 6,  h: 8 },
+          { id: 'w3', type: 'sparkline',         x: 0, y: 12, w: 12, h: 3 },
         ],
         widgets: [
           { id: 'gdp-forecast',       name: 'GDP Forecast',       description: 'Evolution of GDP forecast',  defaultSize: { w: 6, h: 6 } },
@@ -68,14 +68,13 @@ export const URL_WIDGET_MAP = {
         id: 'overview',
         label: 'Overview',
         defaultWidgets: [
-          { id: 'earnings-history-1',   type: 'earnings-history',   x: 0, y: 0,  w: 8,  h: 5 },
-          { id: 'insider-1',            type: 'insider-sec',        x: 8, y: 0,  w: 4,  h: 5 },
+          { id: 'financials-ov-1',      type: 'financials',         x: 0, y: 0,  w: 8,  h: 5 },
+          { id: 'insider-1',            type: 'insider',            x: 8, y: 0,  w: 4,  h: 5 },
           { id: 'ownership-overview-1', type: 'ownership-overview', x: 0, y: 5,  w: 12, h: 6 },
         ],
         widgets: [
           { id: 'earnings-history',   name: 'Earnings History',  description: 'EPS history & surprises',   defaultSize: { w: 8, h: 5 } },
           { id: 'earnings',           name: 'Earnings',          description: 'Upcoming earnings',          defaultSize: { w: 6, h: 5 } },
-          { id: 'insider-sec',        name: 'Insider Trading (SEC)', description: 'SEC Form 4 — 로컬 Fetcher 불필요', defaultSize: { w: 4, h: 5 } },
           { id: 'insider',            name: 'Insider',           description: 'Insider trading activity',   defaultSize: { w: 4, h: 5 } },
           { id: 'ownership-overview', name: 'Ownership Overview', description: 'Ownership breakdown',      defaultSize: { w: 12, h: 6 } },
           { id: 'stock-sentiment',    name: 'News Sentiment',    description: 'News sentiment & trend',     defaultSize: { w: 6,  h: 8 } },
@@ -94,11 +93,10 @@ export const URL_WIDGET_MAP = {
         id: 'financials',
         label: 'Financials',
         defaultWidgets: [
-          { id: 'financials-1', type: 'financials-sec', x: 0, y: 0, w: 12, h: 10 },
+          { id: 'financials-1', type: 'financials', x: 0, y: 0, w: 12, h: 10 },
         ],
         widgets: [
-          { id: 'financials-sec', name: 'Financials (SEC)',       description: 'SEC EDGAR income statement — 로컬 Fetcher 불필요', defaultSize: { w: 12, h: 10 } },
-          { id: 'financials',     name: 'Financial Statements',   description: 'Income, Balance, Cash Flow (Yahoo)',             defaultSize: { w: 12, h: 10 } },
+          { id: 'financials',     name: 'Financial Statements',   description: 'Income, Balance, Cash Flow (provider 선택)',     defaultSize: { w: 12, h: 10 } },
         ],
       },
       {
@@ -119,30 +117,28 @@ export const URL_WIDGET_MAP = {
         defaultWidgets: [
           { id: 'ownership-overview-1',      type: 'ownership-overview',      x: 0, y: 0, w: 12, h: 6 },
           { id: 'ownership-institutional-1', type: 'ownership-institutional', x: 0, y: 6, w: 6,  h: 6 },
-          { id: 'ownership-insider-1',       type: 'insider-sec',             x: 6, y: 6, w: 6,  h: 6 },
+          { id: 'ownership-insider-1',       type: 'ownership-insider',       x: 6, y: 6, w: 6,  h: 6 },
         ],
         widgets: [
           { id: 'ownership-overview',      name: 'Ownership Overview',    description: 'Ownership breakdown',            defaultSize: { w: 12, h: 6 } },
           { id: 'ownership-institutional', name: 'Institutional Holders', description: 'Top institutional holders',      defaultSize: { w: 6,  h: 6 } },
-          { id: 'insider-sec',             name: 'Insider Trading (SEC)', description: 'SEC Form 4 — 로컬 Fetcher 불필요', defaultSize: { w: 6,  h: 6 } },
           { id: 'ownership-insider',       name: 'Insider Activity',      description: 'Insider trading (Yahoo)',        defaultSize: { w: 6,  h: 6 } },
         ],
       },
       {
         id: 'calendar',
         label: 'Calendar',
+        // 무키 이벤트만(splits/dividend/filings). earnings-history(polygon)는 메뉴에서 추가.
         defaultWidgets: [
-          { id: 'earnings-history-cal-1', type: 'earnings-history', x: 0, y: 0, w: 7, h: 5 },
-          { id: 'stock-splits-1',         type: 'stock-splits',     x: 7, y: 0, w: 5, h: 5 },
-          { id: 'dividends-1',            type: 'dividend',         x: 0, y: 5, w: 7, h: 5 },
-          { id: 'company-filings-1',      type: 'filings-sec',      x: 7, y: 5, w: 5, h: 5 },
+          { id: 'stock-splits-1',    type: 'stock-splits',    x: 0, y: 0, w: 6,  h: 5 },
+          { id: 'dividends-1',       type: 'dividend',        x: 6, y: 0, w: 6,  h: 5 },
+          { id: 'company-filings-1', type: 'company-filings', x: 0, y: 5, w: 12, h: 5 },
         ],
         widgets: [
           { id: 'earnings-history', name: 'Earnings History', description: 'EPS history & surprises', defaultSize: { w: 6, h: 6 } },
           { id: 'stock-splits',     name: 'Stock Splits',     description: 'Split history',            defaultSize: { w: 6, h: 6 } },
           { id: 'dividend',         name: 'Dividends',        description: 'Dividend payments',        defaultSize: { w: 6, h: 6 } },
-          { id: 'filings-sec',      name: 'SEC Filings (EDGAR)', description: 'SEC EDGAR — 로컬 Fetcher 불필요', defaultSize: { w: 6, h: 6 } },
-          { id: 'company-filings',  name: 'SEC Filings (Yahoo)', description: 'SEC filings & reports',    defaultSize: { w: 6, h: 6 } },
+          { id: 'company-filings',  name: 'SEC Filings',      description: 'SEC filings & reports (provider 선택)', defaultSize: { w: 6, h: 6 } },
         ],
       },
       {
@@ -163,9 +159,9 @@ export const URL_WIDGET_MAP = {
       {
         id: 'sentiment',
         label: 'Sentiment',
+        // social-sentiment(무키)만 기본. stock-sentiment(News, polygon)은 메뉴에서 추가.
         defaultWidgets: [
-          { id: 'stock-sentiment-1',  type: 'stock-sentiment',  x: 0, y: 0, w: 6, h: 8 },
-          { id: 'social-sentiment-1', type: 'social-sentiment', x: 6, y: 0, w: 6, h: 8 },
+          { id: 'social-sentiment-1', type: 'social-sentiment', x: 0, y: 0, w: 12, h: 8 },
         ],
         widgets: [
           { id: 'stock-sentiment',  name: 'News Sentiment',   description: 'News sentiment & trend', defaultSize: { w: 6, h: 8 } },

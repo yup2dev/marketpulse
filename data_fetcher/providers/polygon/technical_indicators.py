@@ -1,7 +1,7 @@
 """Polygon.io Technical Indicators Model"""
 from datetime import date as date_type
 from typing import Optional
-from pydantic import Field
+from pydantic import Field, model_validator
 from data_fetcher.abstract_provider.standard_models import (
     TechnicalIndicatorQueryParams as _StdTIQueryParams,
     TechnicalIndicatorData,
@@ -16,9 +16,16 @@ from data_fetcher.abstract_provider.standard_models.technical_indicators import 
 class TechnicalIndicatorsQueryParams(_StdTIQueryParams):
     """기술적 지표 조회 파라미터"""
 
-    ticker: str = Field(
-        description="종목 티커 (예: AAPL, TSLA)"
+    ticker: Optional[str] = Field(
+        default=None,
+        description="종목 티커 (예: AAPL, TSLA). 미지정 시 표준 symbol에서 채운다."
     )
+
+    @model_validator(mode="after")
+    def _ticker_from_symbol(self):
+        if not self.ticker:
+            self.ticker = self.symbol
+        return self
     indicator: str = Field(
         description="지표 유형 (sma, ema, rsi, macd)"
     )

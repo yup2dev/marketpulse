@@ -118,7 +118,6 @@ from data_fetcher.providers.imf.models.maritime_chokepoint_volume import ImfMari
 from data_fetcher.providers.imf.models.port_info import ImfPortInfoFetcher
 from data_fetcher.providers.imf.models.port_volume import ImfPortVolumeFetcher
 
-from data_fetcher.providers.sec.insider_trading import SECInsiderTradingFetcher
 from data_fetcher.providers.sec.institutional_13f import SEC13FFetcher
 from data_fetcher.providers.sec.institutions_list import SECInstitutionsListFetcher
 
@@ -533,7 +532,10 @@ sec_provider = Provider(
     credentials=[],  # EDGAR is keyless (requires only a User-Agent header)
     fetcher_dict={
         # 기존(프로젝트 자체 구현)
-        "insider_trading": SECInsiderTradingFetcher,
+        # insider_trading: OpenBB 이식본(SecInsiderTradingFetcher)으로 통일.
+        # 과거 자체 스텁(SECInsiderTradingFetcher)은 query.ticker 버그 + CIK 하드코딩으로
+        # 깨져 있어 제거하고, Form 4 XML을 실제 파싱하는 이식본으로 대체했다.
+        "insider_trading": SecInsiderTradingFetcher,
         "institutional_13f": SEC13FFetcher,
         "institutions_list": SECInstitutionsListFetcher,
         # OpenBB 이식본 (XBRL 재무제표/공시/검색 등)
@@ -554,7 +556,6 @@ sec_provider = Provider(
         "sec_filing": SecFilingFetcher,
         "htm_file": SecHtmFileFetcher,
         "form_13FHR": SecForm13FHRFetcher,
-        "insider_trading_xbrl": SecInsiderTradingFetcher,
         "institutions_search": SecInstitutionsSearchFetcher,
         "latest_financial_reports": SecLatestFinancialReportsFetcher,
         "management_discussion_analysis": SecManagementDiscussionAnalysisFetcher,
