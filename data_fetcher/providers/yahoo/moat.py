@@ -117,7 +117,9 @@ class YFinanceMoatFetcher(Fetcher[YFinanceMoatQueryParams, YFinanceMoatData]):
             moat_type = 'Narrow'
             moat_score = 30 + roe_above_15 * 5
         else:
-            moat_type = 'None'
+            # 'None' 문자열은 BaseData sanitizer(_EMPTY_STRINGS)가 실제 None 으로
+            # 치환해 non-optional str 검증을 깨뜨린다 → 라벨을 'No Moat' 로 사용.
+            moat_type = 'No Moat'
             moat_score = max(0, roe_above_15 * 5)
 
         return [YFinanceMoatData(

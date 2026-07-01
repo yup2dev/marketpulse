@@ -31,4 +31,6 @@ class EconomicMoatData(BaseData):
     symbol: str = Field(description="종목 코드")
     history: List[EconomicMoatYearData] = Field(default_factory=list, description="연도별 지표")
     moat_score: int = Field(default=0, description="해자 점수")
-    moat_type: str = Field(default="None", description="해자 유형")
+    # 기본/약한 해자 라벨은 'No Moat'. 'None' 문자열은 BaseData sanitizer가
+    # None 으로 치환해 검증을 깨므로 사용하지 않는다.
+    moat_type: str = Field(default="No Moat", description="해자 유형")
