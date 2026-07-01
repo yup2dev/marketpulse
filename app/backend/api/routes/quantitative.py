@@ -7,7 +7,6 @@ from fastapi import APIRouter, Query
 
 from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
 from data_fetcher.query_executor import QueryExecutor
-from data_fetcher.core.obbject import OBBject
 from app.backend.api.deps import route_handler
 
 log = logging.getLogger(__name__)
@@ -127,41 +126,66 @@ async def correlation(
     end_date: Optional[date_type] = Query(None),
     period: str = Query("1y"),
     provider: str = "yahoo",
-) -> OBBject:
+) -> dict:
+    """종목 간 일간수익률 상관행렬.
+
+    가격 시계열은 yahoo provider를 QueryExecutor로 조회한다 → 배포 환경에선
+    RemoteTransport가 사용자 Fetcher(exe)로 위임한다. Fetcher 미실행 시
+    RemoteUnavailableError가 전파되어 route_handler가 503 "Fetcher 연결 실패"로
+    처리한다(서버에서 yfinance 직접 호출 금지: 고정 IP 차단/OOM).
+
+    응답은 프론트 CorrelationWidget이 읽는 최상위 {labels, matrix, rows} 형태.
+    """
+    import asyncio
     import numpy as np
-    import yfinance as yf
-    from datetime import datetime, timedelta
+    import pandas as pd
 
     tickers = [s.strip().upper() for s in symbols.split(",") if s.strip()]
+    # 중복 제거(순서 보존)
+    tickers = list(dict.fromkeys(tickers))
     if len(tickers) < 2:
         raise ValueError("At least 2 symbols required")
     if len(tickers) > 10:
         raise ValueError("Maximum 10 symbols allowed")
 
-    period_map = {"1mo": 30, "3mo": 90, "6mo": 180, "1y": 365, "2y": 730, "5y": 1825}
-    if not start_date:
-        days = period_map.get(period, 365)
-        start_date = (datetime.now() - timedelta(days=days)).date()
-    if not end_date:
-        end_date = datetime.now().date()
+    def _params(sym: str) -> dict:
+        p = {"symbol": sym, "period": period}
+        if start_date:
+            p["start_date"] = str(start_date)
+        if end_date:
+            p["end_date"] = str(end_date)
+        return p
 
-    data = yf.download(tickers, start=str(start_date), end=str(end_date), auto_adjust=True, progress=False)
-    if data.empty:
-        raise ValueError("No price data found for given symbols")
+    # 종목별 가격 시계열을 yahoo provider 경유로 병렬 조회.
+    # RemoteUnavailableError(Fetcher 미가용)는 잡지 않고 전파 → 503으로 통일 처리.
+    raws = await asyncio.gather(
+        *[QueryExecutor.fetch("yahoo", "stock_price", _params(t)) for t in tickers]
+    )
 
-    closes = data["Close"] if len(tickers) > 1 else data[["Close"]].rename(columns={"Close": tickers[0]})
-    returns = closes.pct_change().dropna()
-    if returns.empty:
+    series: dict[str, pd.Series] = {}
+    for ticker, raw in zip(tickers, raws):
+        items = raw.result if isinstance(raw, AnnotatedResult) else (raw or [])
+        closes = {}
+        for it in items:
+            d = getattr(it, "date", None)
+            c = getattr(it, "close", None)
+            if d is not None and c is not None:
+                closes[str(d)] = float(c)
+        if closes:
+            series[ticker] = pd.Series(closes)
+
+    if len(series) < 2:
+        raise ValueError("Insufficient price data for correlation")
+
+    closes_df = pd.DataFrame(series).sort_index()
+    returns = closes_df.pct_change().dropna()
+    if returns.empty or returns.shape[0] < 2:
         raise ValueError("Insufficient data for correlation")
 
     corr = returns.corr()
     labels = list(corr.columns)
     matrix = [
-        [round(float(corr.loc[s, s2]), 4) if np.isfinite(corr.loc[s, s2]) else 0 for s2 in labels]
-        for s in labels
+        [round(float(corr.loc[a, b]), 4) if np.isfinite(corr.loc[a, b]) else 0 for b in labels]
+        for a in labels
     ]
-    return OBBject(
-        results=[{"labels": labels, "matrix": matrix, "rows": len(returns)}],
-        provider=provider,
-        metadata={"period": period},
-    )
+    return {"labels": labels, "matrix": matrix, "rows": int(returns.shape[0]), "provider": provider}

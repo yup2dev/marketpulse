@@ -12,6 +12,7 @@ export default function CorrelationWidget({ onRemove }) {
   const [matrix, setMatrix] = useState(null);
   const [labels, setLabels] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [addInput, setAddInput] = useState('');
   const [hovered, setHovered] = useState(null);
   const [dims, setDims] = useState({ w: 0, h: 0 });
@@ -30,15 +31,17 @@ export default function CorrelationWidget({ onRemove }) {
   const fetchCorrelation = useCallback(async () => {
     if (symbols.length < 2) return;
     setLoading(true);
+    setError(null);
     try {
       const res = await apiClient.get(
         `${API_BASE}/quantitative/correlation?symbols=${symbols.join(',')}&period=${period}`
       );
-      setMatrix(res.matrix);
-      setLabels(res.labels);
-    } catch {
+      setMatrix(res?.matrix ?? null);
+      setLabels(Array.isArray(res?.labels) ? res.labels : []);
+    } catch (e) {
       setMatrix(null);
       setLabels([]);
+      setError(e?.detail || e?.message || '상관행렬을 불러오지 못했습니다');
     }
     setLoading(false);
   }, [symbols, period]);
@@ -209,8 +212,14 @@ export default function CorrelationWidget({ onRemove }) {
               )}
             </div>
           ) : (
-            <div className="absolute inset-0 flex items-center justify-center text-gray-500 text-[11px]">
-              Add at least 2 symbols
+            <div className="absolute inset-0 flex items-center justify-center px-4 text-center text-[11px]">
+              {error ? (
+                <span className="text-red-400">{error}</span>
+              ) : symbols.length < 2 ? (
+                <span className="text-gray-500">Add at least 2 symbols</span>
+              ) : (
+                <span className="text-gray-500">{loading ? 'Loading…' : 'No correlation data'}</span>
+              )}
             </div>
           )}
         </div>

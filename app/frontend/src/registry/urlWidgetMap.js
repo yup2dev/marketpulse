@@ -45,7 +45,7 @@ export const URL_WIDGET_MAP = {
           { id: 'news-feed',          name: 'News Feed',           description: 'Latest market news',         defaultSize: { w: 6, h: 8 } },
           { id: 'alerts',             name: 'Alerts',              description: 'Price & event alerts',       defaultSize: { w: 6, h: 8 } },
           { id: 'sparkline',          name: 'Index Charts',        description: 'Index ticker bar',           defaultSize: { w: 12, h: 3 } },
-          { id: 'tv-index-charts',    name: 'Index Charts (TV)',   description: 'TradingView 지수 시세 타일',   defaultSize: { w: 12, h: 4 } },
+          { id: 'tv-index-charts',    name: 'Index Charts (TV)',   description: 'TradingView 지수 시세 타일',   defaultSize: { w: 12, h: 2 } },
           { id: 'tv-market-ranking',  name: 'Market Ranking (TV)', description: 'TradingView 급등/급락/거래량', defaultSize: { w: 5, h: 10 } },
           { id: 'comparison',         name: 'Stock Comparison',    description: 'Compare 2-4 stocks',         defaultSize: { w: 8, h: 10 } },
           { id: 'heatmap',            name: 'Sector Heatmap',      description: 'S&P 500 sector treemap',     defaultSize: { w: 8, h: 8 } },

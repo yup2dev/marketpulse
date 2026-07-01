@@ -25,6 +25,7 @@ import ChartTypeSelector  from '../common/ChartTypeSelector';
 import PlotlyRawChart     from './PlotlyRawChart';
 import { apiClient, API_BASE, providersAPI } from '../../config/api';
 import { WIDGET_ENDPOINTS } from '../../registry/widgetEndpoints';
+import { resolveProviderView } from '../../registry/providerViews';
 import {
   detectRenderType,
   normalizePlotlyJson,
@@ -325,6 +326,9 @@ export default function UniversalWidget({
   const defaultView = renderType === 'plotly' ? 'chart' : 'table';
   const activeView  = viewMode ?? defaultView;
 
+  // (model, provider) 쌍에 등록된 provider 전용 body override. 없으면 null → 기본 렌더.
+  const OverrideView = resolveProviderView(category, provider);
+
   const rows = useMemo(() => {
     if (!response) return [];
     const target = dataPath ? getByPath(response, dataPath) : null;
@@ -350,7 +354,7 @@ export default function UniversalWidget({
     && modelAcceptsSymbol !== false;
   const requiresPeriod = endpoint.includes('{period}') && !paramNames.has('period');
 
-  const showChartTypeSelector = activeView === 'chart' && renderType !== 'plotly' && display !== 'kv';
+  const showChartTypeSelector = !OverrideView && activeView === 'chart' && renderType !== 'plotly' && display !== 'kv';
   const chartTypeSelector = showChartTypeSelector ? (
     <div onMouseDown={e => e.stopPropagation()}>
       <ChartTypeSelector
@@ -370,6 +374,19 @@ export default function UniversalWidget({
       <div className="flex items-center justify-center h-full text-red-400 text-xs p-4">
         {error}
       </div>
+    );
+  } else if (OverrideView) {
+    // provider 전용 뷰: 기본 table/chart 대신 등록된 컴포넌트로 body 교체.
+    body = (
+      <OverrideView
+        response={response}
+        rows={rows}
+        provider={provider}
+        symbol={symbol}
+        period={period}
+        loading={loading}
+        error={error}
+      />
     );
   } else if (display === 'kv' || activeView === 'table') {
     body = (
@@ -407,7 +424,7 @@ export default function UniversalWidget({
     body = <CommonTable columns={columns} data={rows} emptyMessage="No data available" />;
   }
 
-  const showViewToggle = !!renderType && !expandable && display !== 'kv';
+  const showViewToggle = !OverrideView && !!renderType && !expandable && display !== 'kv';
 
   return (
     <BaseWidget
