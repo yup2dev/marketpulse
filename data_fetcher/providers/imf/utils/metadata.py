@@ -55,6 +55,15 @@ class ImfMetadata:
             self.hierarchies = {}
             self._hierarchy_to_codelist_map = {}
             self._codelist_to_hierarchies_map = {}
+            # 캐시 로드 실패(파일 누락 등) 시에도 속성이 항상 존재하도록 기본값 선세팅.
+            # 없으면 get_dataflow_parameters 등이 AttributeError 를 던져
+            # providers_init import 전체가 죽는다(트레이 REST 서버 스레드 실패).
+            self.dataflows = {}
+            self.datastructures = {}
+            self.conceptschemes = {}
+            self.dataflow_groups = {}
+            self._dataflow_parameters_cache = {}
+            self._dataflow_indicators_cache = {}
             _ = self._load_from_cache()
             self._initialized = True
 
