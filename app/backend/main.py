@@ -57,10 +57,21 @@ async def lifespan(app: FastAPI):
             log.info("[startup] Fetcher 위임 활성화 (WS 워커 풀, /ws/fetcher)")
         else:
             from app.backend.core.fetcher_client import FetcherClient
+            # 풀 모드는 백엔드와 Fetcher가 같은 PC에서 돌며 data_fetcher 패키지의
+            # 공유 토큰 파일(%APPDATA%\MarketPulseFetcher\token)을 함께 쓴다.
+            # FETCHER_TOKEN 을 .env 로 수동 지정하지 않아도, Fetcher 가 생성한
+            # 그 토큰을 여기서 그대로 읽어 401 을 방지한다(명시 설정이 있으면 우선).
+            fetcher_token = settings.FETCHER_TOKEN
+            if not fetcher_token:
+                try:
+                    from data_fetcher.server.auth import get_or_create_token
+                    fetcher_token = get_or_create_token()
+                except Exception as exc:  # 파일 접근 실패 등은 무시(토큰 없이 진행)
+                    log.warning("[startup] 로컬 Fetcher 토큰 자동 로드 실패: %s", exc)
             fetcher_client = FetcherClient(
                 base_url=settings.FETCHER_URL,
                 timeout=settings.FETCHER_TIMEOUT,
-                token=settings.FETCHER_TOKEN or None,
+                token=fetcher_token or None,
             )
             log.info("[startup] Fetcher 위임 활성화 → %s", settings.FETCHER_URL)
 
