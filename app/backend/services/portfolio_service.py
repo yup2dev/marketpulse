@@ -22,11 +22,13 @@ class PortfolioService:
     async def get_institutions_list(
         self,
         use_dynamic: bool = True,
-        limit: int = 100,
+        limit: int = 1000,
+        loaded_only: bool = True,
     ) -> List[Dict[str, Any]]:
         try:
             results = await self._fetch_cached(
-                'institutions_list', {'use_dynamic': use_dynamic, 'limit': limit},
+                'institutions_list',
+                {'use_dynamic': use_dynamic, 'limit': limit, 'loaded_only': loaded_only},
             )
             return [
                 {

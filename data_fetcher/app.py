@@ -81,7 +81,10 @@ def _run_headless(port: int) -> None:
         "[fetcher] headless mode — http://%s:%d", host, port
     )
     uvicorn.run(app, host=host, port=port,
-                log_level=os.getenv("FETCHER_LOG_LEVEL", "info"))
+                log_level=os.getenv("FETCHER_LOG_LEVEL", "info"),
+                # console=False exe 는 sys.stdout=None → uvicorn 컬러 포매터가
+                # isatty 접근에서 죽는다. 자체 로깅을 쓰므로 uvicorn 로그설정 비활성.
+                log_config=None)
 
 
 def main() -> None:

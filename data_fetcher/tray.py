@@ -73,6 +73,10 @@ class TrayApp:
                 app, host=host, port=self.port,
                 log_level=os.getenv("FETCHER_LOG_LEVEL", "info"),
                 loop="asyncio",
+                # console=False 로 패키징된 exe 는 sys.stdout 이 None 이라
+                # uvicorn 기본 컬러 포매터(isatty 접근)가 죽는다. 자체 로깅을
+                # app.py._setup_logging 에서 구성하므로 uvicorn 로그설정은 끈다.
+                log_config=None,
             )
             server = uvicorn.Server(config)
             # asyncio.run()으로 스레드 전용 이벤트 루프 생성 (macOS 호환)

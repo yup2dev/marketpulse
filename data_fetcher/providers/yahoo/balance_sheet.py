@@ -27,7 +27,9 @@ log = logging.getLogger(__name__)
 class YFinanceBalanceSheetFetcher(Fetcher[YFinanceBalanceSheetQueryParams, YFinanceBalanceSheetData]):
 
     @staticmethod
-    def transform_query(params: Dict[str, Any]) -> YFinanceBalanceSheetQueryParams:
+    def transform_query(
+        params: Dict[str, Any]
+    ) -> YFinanceBalanceSheetQueryParams:
         return YFinanceBalanceSheetQueryParams(**params)
 
     @staticmethod

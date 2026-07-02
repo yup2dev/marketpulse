@@ -12,7 +12,7 @@ from data_fetcher.abstract_provider.standard_models.institutions_list import (
     InstitutionsListQueryParams,
     InstitutionInfo,
 )
-from index_analyzer.models.orm import MBS_IN_INSTI_MST, get_sqlite_db
+from index_analyzer.models.orm import MBS_IN_INSTI_MST, MBS_IN_INSTI_PORT, get_sqlite_db
 
 log = logging.getLogger(__name__)
 
@@ -22,6 +22,9 @@ _DB_PATH = Path(__file__).parent.parent.parent.parent / "data" / "marketpulse.db
 class DBInstitutionsListQueryParams(InstitutionsListQueryParams):
     """기관 목록 조회 파라미터 (standard 경유). use_dynamic은 DB에선 무시."""
     use_dynamic: bool = True
+    # True면 포트폴리오(INSTI_PORT)가 실제 적재된 기관만 반환 — 13F 위젯이 조회
+    # 가능한(선택하면 반드시 DB에 데이터가 있는) 기관만 목록에 노출하도록.
+    loaded_only: bool = False
 
 
 class DBInstitutionsListFetcher(Fetcher[DBInstitutionsListQueryParams, InstitutionInfo]):
@@ -46,8 +49,15 @@ class DBInstitutionsListFetcher(Fetcher[DBInstitutionsListQueryParams, Instituti
             q = (
                 session.query(MBS_IN_INSTI_MST)
                 .filter(MBS_IN_INSTI_MST.is_active.is_(True))
-                .order_by(MBS_IN_INSTI_MST.name)
             )
+            if query.loaded_only:
+                # 포트폴리오가 적재된 기관만 (INSTI_PORT 에 행이 있는 institution_key)
+                q = q.filter(
+                    MBS_IN_INSTI_MST.institution_key.in_(
+                        session.query(MBS_IN_INSTI_PORT.institution_key)
+                    )
+                )
+            q = q.order_by(MBS_IN_INSTI_MST.name)
             if query.limit:
                 q = q.limit(query.limit)
             return [

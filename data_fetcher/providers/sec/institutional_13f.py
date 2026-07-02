@@ -3,7 +3,9 @@ SEC 13F Institutional Holdings — QueryParams + Data + Fetcher
 Clean implementation using Base Fetcher pattern and SEC official data
 """
 import logging
+import re
 import time
+from datetime import date, datetime
 from typing import Any, Dict, List, Optional
 import requests
 from bs4 import BeautifulSoup
@@ -27,6 +29,29 @@ from data_fetcher.abstract_provider.standard_models.institutional_holdings impor
 )
 
 log = logging.getLogger(__name__)
+
+# SEC Form 13F 개정: 2023-01-03 이후 제출분부터 info table <value> 가 '천 달러'가 아닌
+# '실제 달러' 단위로 보고된다. 그 이전 제출분만 ×1000 해서 달러로 환산한다.
+_WHOLE_DOLLAR_CUTOFF = date(2023, 1, 3)
+
+
+def _parse_filing_date(filing_date: Optional[str]) -> Optional[date]:
+    """'YYYY-MM-DD' 형태 제출일 문자열 → date. 실패 시 None."""
+    if not filing_date:
+        return None
+    try:
+        return datetime.strptime(str(filing_date).strip()[:10], "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        return None
+
+
+def _value_scale(filing_date: Optional[str]) -> int:
+    """13F <value> 단위 배수. 2023-01-03 이전 제출분=천 달러(×1000), 이후=실제 달러(×1).
+
+    제출일을 못 구하면 최신 규정(실제 달러)으로 간주(×1) — 우리는 최근 분기만 수집.
+    """
+    d = _parse_filing_date(filing_date)
+    return 1000 if (d is not None and d < _WHOLE_DOLLAR_CUTOFF) else 1
 
 
 # Major institutions tracked
@@ -104,7 +129,7 @@ INSTITUTIONS = {
         "manager": "Israel Englander"
     },
     "twosigma": {
-        "cik": "0001413581",
+        "cik": "0001179392",
         "name": "Two Sigma Investments",
         "manager": "Two Sigma"
     },
@@ -152,6 +177,39 @@ class SEC13FFetcher(Fetcher[InstitutionalHoldingsQueryParams, InstitutionalHoldi
         return InstitutionalHoldingsQueryParams(**params)
 
     @staticmethod
+    def _resolve_institution(institution_key: str) -> Dict[str, str]:
+        """institution_key → {cik, name, manager}.
+
+        featured(하드코딩)면 그 항목을, 아니면 institution_key 를 CIK 로 간주해
+        SEC submissions API 에서 기관명을 조회한다. 이로써 동적 목록(form.idx)의
+        임의 기관도 CIK 로 on-demand 조회할 수 있다(openbb 방식 — curated dict 불필요).
+        """
+        if institution_key in INSTITUTIONS:
+            return INSTITUTIONS[institution_key]
+
+        if not str(institution_key).isdigit():
+            raise ValueError(
+                f"Unknown institution: {institution_key} (featured 키가 아니며 CIK도 아님)"
+            )
+
+        cik10 = str(institution_key).zfill(10)
+        name = f"CIK {cik10}"
+        try:
+            resp = requests.get(
+                f"https://data.sec.gov/submissions/CIK{cik10}.json",
+                headers={
+                    'User-Agent': 'MarketPulse research@marketpulse.com',
+                    'Accept-Encoding': 'gzip, deflate',
+                },
+                timeout=30,
+            )
+            if resp.status_code == 200:
+                name = resp.json().get('name') or name
+        except Exception as e:  # noqa: BLE001 — 이름 조회 실패는 치명적 아님
+            log.warning(f"기관명 조회 실패 (CIK {cik10}): {e}")
+        return {'cik': cik10, 'name': name, 'manager': name}
+
+    @staticmethod
     def extract_data(
         query: InstitutionalHoldingsQueryParams,
         credentials: Optional[Dict[str, str]] = None,
@@ -170,10 +228,7 @@ class SEC13FFetcher(Fetcher[InstitutionalHoldingsQueryParams, InstitutionalHoldi
         """
         institution_key = query.institution_key
 
-        if institution_key not in INSTITUTIONS:
-            raise ValueError(f"Unknown institution: {institution_key}")
-
-        inst_info = INSTITUTIONS[institution_key]
+        inst_info = SEC13FFetcher._resolve_institution(institution_key)
         cik = inst_info['cik']
 
         log.info(f"Fetching 13F for {inst_info['name']} (CIK: {cik})")
@@ -254,10 +309,33 @@ class SEC13FFetcher(Fetcher[InstitutionalHoldingsQueryParams, InstitutionalHoldi
         return results
 
     @staticmethod
-    def _parse_filing(filing_url: str, headers: Dict) -> tuple[List[Dict], Optional[str]]:
-        """Parse holdings from 13F filing, with retry on 503"""
+    def _extract_filing_date(soup: BeautifulSoup) -> Optional[str]:
+        """필링 인덱스 페이지에서 제출일(YYYY-MM-DD)을 추출. 실패 시 None.
+
+        'Filing Date' 라벨 div 옆(형제/다음) 값 div 에서 날짜를 읽고, 못 찾으면
+        페이지 텍스트에서 'Filing Date … YYYY-MM-DD' 패턴으로 폴백한다.
+        (기존 코드는 라벨 div 자체 텍스트를 읽어 항상 'Filing Date' 를 반환했다.)
+        """
+        label = soup.find('div', string=lambda t: t and 'Filing Date' in t)
+        if label:
+            val = label.find_next_sibling('div') or label.find_next('div')
+            if val:
+                m = re.search(r'\d{4}-\d{2}-\d{2}', val.get_text())
+                if m:
+                    return m.group(0)
+        m = re.search(r'Filing Date[^0-9]{0,40}(\d{4}-\d{2}-\d{2})', soup.get_text())
+        return m.group(1) if m else None
+
+    @staticmethod
+    def _parse_filing(
+        filing_url: str, headers: Dict, filing_date: Optional[str] = None
+    ) -> tuple[List[Dict], Optional[str]]:
+        """Parse holdings from 13F filing, with retry on 503.
+
+        filing_date: 목록 페이지에서 얻은 신뢰도 높은 제출일(있으면 우선). 스케일
+        판정(_value_scale)과 반환값에 쓰인다. 없으면 인덱스 페이지에서 추출 시도.
+        """
         holdings = []
-        filing_date = None
 
         max_retries = 3
         for attempt in range(max_retries):
@@ -276,11 +354,9 @@ class SEC13FFetcher(Fetcher[InstitutionalHoldingsQueryParams, InstitutionalHoldi
 
                 soup = BeautifulSoup(response.text, 'html.parser')
 
-                # Extract filing date
-                filing_date_elem = soup.find('div', string=lambda t: t and 'Filing Date' in t)
-                if filing_date_elem:
-                    date_text = filing_date_elem.text.split(':')[-1].strip()
-                    filing_date = date_text
+                # 신뢰 날짜가 없을 때만 인덱스 페이지에서 추출
+                if not filing_date:
+                    filing_date = SEC13FFetcher._extract_filing_date(soup)
 
                 # Find information table XML
                 xml_url = SEC13FFetcher._find_info_table_url(soup, filing_url)
@@ -288,8 +364,10 @@ class SEC13FFetcher(Fetcher[InstitutionalHoldingsQueryParams, InstitutionalHoldi
                     log.warning("Could not find information table XML")
                     return holdings, filing_date
 
-                # Parse XML holdings
-                holdings = SEC13FFetcher._parse_xml_holdings(xml_url, headers)
+                # Parse XML holdings (제출일 기준 천 달러/실제 달러 단위 보정)
+                holdings = SEC13FFetcher._parse_xml_holdings(
+                    xml_url, headers, _value_scale(filing_date)
+                )
                 break
 
             except Exception as e:
@@ -301,10 +379,14 @@ class SEC13FFetcher(Fetcher[InstitutionalHoldingsQueryParams, InstitutionalHoldi
         return holdings, filing_date
 
     @staticmethod
-    def _parse_filing_summary(filing_url: str, headers: Dict) -> tuple:
-        """커버페이지 XML만 파싱해 요약 통계 반환 (infotable 다운로드 없음)."""
+    def _parse_filing_summary(
+        filing_url: str, headers: Dict, filing_date: Optional[str] = None
+    ) -> tuple:
+        """커버페이지 XML만 파싱해 요약 통계 반환 (infotable 다운로드 없음).
+
+        filing_date: 목록 페이지의 신뢰도 높은 제출일(있으면 우선). 스케일 판정에 쓰인다.
+        """
         summary = {'total_value': 0, 'num_holdings': 0}
-        filing_date = None
 
         for attempt in range(3):
             try:
@@ -317,9 +399,8 @@ class SEC13FFetcher(Fetcher[InstitutionalHoldingsQueryParams, InstitutionalHoldi
 
                 soup = BeautifulSoup(response.text, 'html.parser')
 
-                filing_date_elem = soup.find('div', string=lambda t: t and 'Filing Date' in t)
-                if filing_date_elem:
-                    filing_date = filing_date_elem.text.split(':')[-1].strip()
+                if not filing_date:
+                    filing_date = SEC13FFetcher._extract_filing_date(soup)
 
                 # 커버페이지 XML (primary-doc.xml) 찾기
                 cover_url = None
@@ -342,7 +423,7 @@ class SEC13FFetcher(Fetcher[InstitutionalHoldingsQueryParams, InstitutionalHoldi
                         tv = csoup.find('tableValueTotal')
                         te = csoup.find('tableEntryTotal')
                         if tv:
-                            summary['total_value'] = int(float(tv.text)) * 1000
+                            summary['total_value'] = int(float(tv.text)) * _value_scale(filing_date)
                         if te:
                             summary['num_holdings'] = int(te.text)
                     except Exception as e:
@@ -368,8 +449,9 @@ class SEC13FFetcher(Fetcher[InstitutionalHoldingsQueryParams, InstitutionalHoldi
                 doc_name = cols[2].text.strip()
                 doc_type = cols[3].text.strip().lower()
 
-                # Must be "information table" and actual .xml file
-                if 'information table' in doc_type and doc_name.endswith('.xml'):
+                # Must be "information table" and actual .xml file.
+                # 확장자는 대소문자 무시 — 일부 파일러(예: Viking)는 .XML(대문자) 사용.
+                if 'information table' in doc_type and doc_name.lower().endswith('.xml'):
                     doc_link = cols[2].find('a')
                     if doc_link:
                         url = "https://www.sec.gov" + doc_link['href']
@@ -383,7 +465,7 @@ class SEC13FFetcher(Fetcher[InstitutionalHoldingsQueryParams, InstitutionalHoldi
                 doc_link = cols[2].find('a')
                 if doc_link:
                     href = doc_link['href']
-                    if href.endswith('.xml') and ('info' in href.lower() or 'table' in href.lower()):
+                    if href.lower().endswith('.xml') and ('info' in href.lower() or 'table' in href.lower()):
                         url = "https://www.sec.gov" + href
                         log.info(f"Found XML file (fallback): {url}")
                         return url
@@ -391,8 +473,11 @@ class SEC13FFetcher(Fetcher[InstitutionalHoldingsQueryParams, InstitutionalHoldi
         return None
 
     @staticmethod
-    def _parse_xml_holdings(xml_url: str, headers: Dict) -> List[Dict]:
-        """Parse XML to extract holdings using BeautifulSoup for robust parsing"""
+    def _parse_xml_holdings(xml_url: str, headers: Dict, value_scale: int = 1) -> List[Dict]:
+        """Parse XML to extract holdings using BeautifulSoup for robust parsing.
+
+        value_scale: <value> 단위 배수(1=실제 달러, 1000=천 달러 제출분). _value_scale() 참고.
+        """
         holdings = []
 
         try:
@@ -418,7 +503,7 @@ class SEC13FFetcher(Fetcher[InstitutionalHoldingsQueryParams, InstitutionalHoldi
                         ticker = cusip_to_ticker(cusip) if cusip else ''
 
                         try:
-                            value = int(float(value_elem.text)) * 1000  # Convert from thousands
+                            value = int(float(value_elem.text)) * value_scale
                         except (ValueError, TypeError):
                             continue
 

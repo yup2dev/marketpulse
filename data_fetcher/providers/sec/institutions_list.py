@@ -3,10 +3,10 @@ SEC Institutions List Fetcher
 Dynamically fetches list of institutions that file 13F reports
 """
 import logging
+import re
 import requests
 from typing import Any, Dict, List, Optional
-from bs4 import BeautifulSoup
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
 from data_fetcher.abstract_provider.standard_models.institutions_list import (
@@ -17,6 +17,10 @@ from pydantic import Field
 from typing import Optional as _Optional
 
 log = logging.getLogger(__name__)
+
+# form.idx 한 줄: "<FormType> <CompanyName> <CIK> <YYYY-MM-DD> <path>" (고정폭이지만
+# 회사명에 숫자가 들어갈 수 있어, 날짜를 앵커로 CIK를 비탐욕 매칭한다).
+_FORM_IDX_RE = re.compile(r"^(13F-HR(?:/A)?)\s+(.+?)\s+(\d+)\s+(\d{4}-\d{2}-\d{2})\s+")
 
 
 class SECInstitutionsListQueryParams(InstitutionsListQueryParams):
@@ -73,76 +77,50 @@ class SECInstitutionsListFetcher(Fetcher[SECInstitutionsListQueryParams, Institu
             'Host': 'www.sec.gov'
         }
 
-        institutions = []
+        # SEC 분기별 form 인덱스(full-index/{year}/QTR{q}/form.idx)에서 13F-HR
+        # 파일러를 열거한다. 한 요청으로 해당 분기 전체 기관을 얻어(수천 건) CIK로
+        # dedupe → 실제 13F 유니버스. (기존 browse-edgar getcompany 스크랩은 CIK
+        # 없이는 목록을 못 줘서 항상 빈 결과였다.)
+        institutions: Dict[str, Dict[str, Any]] = {}  # cik10 -> row (최근 분기 우선)
 
         try:
-            # Search for recent 13F-HR filings to find active institutions
-            url = "https://www.sec.gov/cgi-bin/browse-edgar"
-            params = {
-                'action': 'getcompany',
-                'type': '13F-HR',
-                'dateb': '',
-                'owner': 'exclude',
-                'count': query.limit,
-                'search_text': ''
-            }
+            for year, qtr in SECInstitutionsListFetcher._recent_quarters(2):
+                url = (
+                    f"https://www.sec.gov/Archives/edgar/full-index/"
+                    f"{year}/QTR{qtr}/form.idx"
+                )
+                resp = requests.get(url, headers=headers, timeout=60)
+                if resp.status_code != 200:
+                    log.warning("form.idx 조회 실패 %sQTR%s: HTTP %s", year, qtr, resp.status_code)
+                    continue
 
-            response = requests.get(url, params=params, headers=headers, timeout=30)
-            response.raise_for_status()
+                for line in resp.text.splitlines():
+                    if not line.startswith("13F-HR"):
+                        continue
+                    m = _FORM_IDX_RE.match(line)
+                    if not m:
+                        continue
+                    _form_type, name, cik, filed = m.group(1), m.group(2).strip(), m.group(3), m.group(4)
+                    cik10 = cik.zfill(10)
+                    if cik10 in institutions:  # 최근 분기를 먼저 순회 → 최초 등장 유지
+                        continue
+                    institutions[cik10] = {
+                        'cik': cik10,
+                        'name': name,
+                        'manager': name,
+                        'filing_date': filed,
+                    }
 
-            soup = BeautifulSoup(response.text, 'html.parser')
+            rows = list(institutions.values())
+            if query.limit and len(rows) > query.limit:
+                rows = rows[: query.limit]
 
-            # Find the table with filings
-            filing_table = soup.find('table', {'class': 'tableFile2'})
+            log.info(f"Found {len(rows)} institutions (form.idx, 13F-HR)")
 
-            if not filing_table:
-                log.warning("Could not find filings table")
-                return {'institutions': []}
-
-            seen_ciks = set()
-            rows = filing_table.find_all('tr')
-
-            for row in rows[1:]:  # Skip header row
-                cols = row.find_all('td')
-                if len(cols) >= 4:
-                    # Extract CIK and company name
-                    company_cell = cols[1]
-                    company_link = company_cell.find('a')
-
-                    if company_link:
-                        # Extract CIK from href
-                        href = company_link.get('href', '')
-                        if 'CIK=' in href:
-                            cik = href.split('CIK=')[1].split('&')[0]
-                            # Pad CIK to 10 digits
-                            cik = cik.zfill(10)
-
-                            if cik not in seen_ciks:
-                                seen_ciks.add(cik)
-
-                                company_name = company_link.text.strip()
-
-                                # Extract manager name (usually the company name)
-                                # Try to clean up common suffixes
-                                manager = company_name
-                                for suffix in [' INC', ' LLC', ' LP', ' LTD', ' CORP', ' CO']:
-                                    if manager.upper().endswith(suffix):
-                                        manager = manager[:-len(suffix)].strip()
-                                        break
-
-                                institutions.append({
-                                    'cik': cik,
-                                    'name': company_name,
-                                    'manager': manager,
-                                    'filing_date': cols[3].text.strip() if len(cols) > 3 else None
-                                })
-
-            log.info(f"Found {len(institutions)} institutions")
-
-            # Cache the results
-            cache_data = {'institutions': institutions}
-            SECInstitutionsListFetcher._cache = cache_data
-            SECInstitutionsListFetcher._cache_time = datetime.now()
+            cache_data = {'institutions': rows}
+            if rows:  # 빈 결과는 캐시하지 않음(다음 호출에서 재시도)
+                SECInstitutionsListFetcher._cache = cache_data
+                SECInstitutionsListFetcher._cache_time = datetime.now()
 
             return cache_data
 
@@ -150,6 +128,20 @@ class SECInstitutionsListFetcher(Fetcher[SECInstitutionsListQueryParams, Institu
             log.error(f"Error fetching institutions list: {e}")
             # Return empty list on error
             return {'institutions': []}
+
+    @staticmethod
+    def _recent_quarters(n: int = 2) -> List[tuple]:
+        """오늘 기준 최근 n개 분기를 (year, quarter) 최신순으로 반환."""
+        today = date.today()
+        q = (today.month - 1) // 3 + 1
+        y = today.year
+        out: List[tuple] = []
+        for _ in range(n):
+            out.append((y, q))
+            q -= 1
+            if q == 0:
+                q, y = 4, y - 1
+        return out
 
     @staticmethod
     def transform_data(
@@ -171,12 +163,11 @@ class SECInstitutionsListFetcher(Fetcher[SECInstitutionsListQueryParams, Institu
         institutions_data = data.get('institutions', [])
 
         institutions = []
-        for idx, inst in enumerate(institutions_data):
-            # Generate a key from the name
-            key = SECInstitutionsListFetcher._generate_key(inst['name'])
-
+        for inst in institutions_data:
+            # 동적 기관의 식별자는 CIK(안정적·충돌 없음). 알려진 featured 기관은
+            # get_institutions_list 가 CIK→slug(berkshire 등)로 후처리해 덮어쓴다.
             institutions.append(InstitutionInfo(
-                key=key,
+                key=inst['cik'],
                 name=inst['name'],
                 cik=inst['cik'],
                 manager=inst['manager'],

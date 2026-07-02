@@ -20,17 +20,21 @@ def _wrap(data: Any, provider: str = "sec") -> OBBject:
 @router.get("/13f/institutions")
 async def get_13f_institutions(
     use_dynamic: bool = True,
-    limit: int = 100,
+    limit: int = 1000,
+    loaded_only: bool = True,
     provider: str = "sec",
 ) -> OBBject:
     try:
         institutions = await portfolio_service.get_institutions_list(
-            use_dynamic=use_dynamic, limit=limit
+            use_dynamic=use_dynamic, limit=limit, loaded_only=loaded_only
         )
         return OBBject(
             results=institutions,
             provider=provider,
-            metadata={"source": "dynamic" if use_dynamic else "featured"},
+            metadata={
+                "source": "dynamic" if use_dynamic else "featured",
+                "loaded_only": loaded_only,
+            },
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -16,6 +16,11 @@ data_fetcher = project_root / "data_fetcher"
 datas = [
     # 트레이 아이콘
     (str(data_fetcher / "assets"), "data_fetcher/assets"),
+    # IMF 메타데이터 캐시 (providers_init 이 import 시점에 로드 — 없으면 서버 스레드 실패)
+    (
+        str(data_fetcher / "providers" / "imf" / "assets" / "imf_cache.pkl.gz"),
+        "data_fetcher/providers/imf/assets",
+    ),
 ]
 
 # ── 숨겨진 import (런타임에 동적으로 로드되는 모듈) ───────────────────────────
@@ -48,6 +53,9 @@ hiddenimports = [
     "data_fetcher.providers.nasdaqtrader",
     "data_fetcher.server",
     "data_fetcher.tray",
+    # SEC provider 가 함수 내부에서 지연 import 하므로 PyInstaller 정적분석이 못 잡음.
+    # 명시하지 않으면 exe 에서 13F/form4/nport 파싱 시 ModuleNotFoundError 발생.
+    "xmltodict",
     # dotenv (선택)
     "dotenv",
 ]

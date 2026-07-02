@@ -417,7 +417,8 @@ const InstitutionalPortfolios = ({ onRemove }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Load featured institutions list on mount (use_dynamic=false for the 20 supported institutions)
+  // Load institutions list on mount. 백엔드가 loaded_only=true 기본이라
+  // 포트폴리오가 DB에 적재된 기관만 반환된다(선택 시 반드시 DB 조회 성공).
   useEffect(() => {
     fetchInstitutions();
   }, []);
