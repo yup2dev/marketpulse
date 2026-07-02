@@ -45,13 +45,8 @@ class WhaleWisdomFetcher(Fetcher[InstitutionalHoldingsQueryParams, Institutional
         """
         institution_key = query.institution_key
 
-        if institution_key not in INSTITUTIONS:
-            raise ValueError(
-                f"Unknown institution: {institution_key}. "
-                f"Available: {list(INSTITUTIONS.keys())}"
-            )
-
-        inst_info = INSTITUTIONS[institution_key]
+        # featured(하드코딩) 키가 아니면 CIK 로 간주해 on-demand 조회(openbb 방식).
+        inst_info = SEC13FFetcher._resolve_institution(institution_key)
         cik = inst_info['cik']
 
         log.info(f"Fetching 2-quarter 13F holdings for {institution_key}")
@@ -81,14 +76,18 @@ class WhaleWisdomFetcher(Fetcher[InstitutionalHoldingsQueryParams, Institutional
             prev_url, prev_date_list = filing_results[1] if len(filing_results) >= 2 else (None, None)
 
             if query.summary_only:
-                current_summary, parsed_date = SEC13FFetcher._parse_filing_summary(cur_url, headers)
+                current_summary, parsed_date = SEC13FFetcher._parse_filing_summary(
+                    cur_url, headers, cur_date_list
+                )
                 current_filing_date = parsed_date or cur_date_list
 
                 prev_summary = {'total_value': 0, 'num_holdings': 0}
                 previous_filing_date = None
                 if prev_url:
                     time.sleep(0.2)
-                    prev_summary, prev_parsed = SEC13FFetcher._parse_filing_summary(prev_url, headers)
+                    prev_summary, prev_parsed = SEC13FFetcher._parse_filing_summary(
+                        prev_url, headers, prev_date_list
+                    )
                     previous_filing_date = prev_parsed or prev_date_list
 
                 return {
@@ -101,7 +100,9 @@ class WhaleWisdomFetcher(Fetcher[InstitutionalHoldingsQueryParams, Institutional
                 }
 
             # 전체 holdings 파싱
-            current_holdings, current_filing_date = SEC13FFetcher._parse_filing(cur_url, headers)
+            current_holdings, current_filing_date = SEC13FFetcher._parse_filing(
+                cur_url, headers, cur_date_list
+            )
             if not current_filing_date:
                 current_filing_date = cur_date_list
             log.info(f"Current quarter: {len(current_holdings)} holdings, filed {current_filing_date}")
@@ -110,7 +111,9 @@ class WhaleWisdomFetcher(Fetcher[InstitutionalHoldingsQueryParams, Institutional
             previous_filing_date = None
             if prev_url:
                 time.sleep(0.2)
-                previous_holdings, previous_filing_date = SEC13FFetcher._parse_filing(prev_url, headers)
+                previous_holdings, previous_filing_date = SEC13FFetcher._parse_filing(
+                    prev_url, headers, prev_date_list
+                )
                 if not previous_filing_date:
                     previous_filing_date = prev_date_list
                 log.info(f"Previous quarter: {len(previous_holdings)} holdings, filed {previous_filing_date}")
