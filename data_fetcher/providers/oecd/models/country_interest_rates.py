@@ -7,7 +7,7 @@ from typing import Any, Literal
 from warnings import warn
 
 from data_fetcher.utils.provider_errors import OpenBBError
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.country_interest_rates import (
     CountryInterestRatesData,
     CountryInterestRatesQueryParams,
@@ -83,9 +83,11 @@ class OecdCountryInterestRatesData(CountryInterestRatesData):
 
 
 class OecdCountryInterestRatesFetcher(
-    Fetcher[OecdCountryInterestRatesQueryParams, list[OecdCountryInterestRatesData]]
+    ApiFetcher[OecdCountryInterestRatesQueryParams, list[OecdCountryInterestRatesData]]
 ):
     """OECD Country Interest Rates Fetcher."""
+
+    require_credentials = False  # OECD SDMX is keyless
 
     @staticmethod
     def transform_query(params: dict[str, Any]) -> OecdCountryInterestRatesQueryParams:

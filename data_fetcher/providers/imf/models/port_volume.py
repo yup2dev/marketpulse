@@ -7,7 +7,7 @@ from typing import Any
 
 from data_fetcher.utils.provider_errors import OpenBBError
 from data_fetcher.utils.provider_settings import SystemService
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.port_volume import (
     PortVolumeData,
     PortVolumeQueryParams,
@@ -374,8 +374,10 @@ class ImfPortVolumeData(PortVolumeData):
     )
 
 
-class ImfPortVolumeFetcher(Fetcher[ImfPortVolumeQueryParams, list[ImfPortVolumeData]]):
+class ImfPortVolumeFetcher(ApiFetcher[ImfPortVolumeQueryParams, list[ImfPortVolumeData]]):
     """IMF Port Volume Fetcher."""
+
+    require_credentials = False  # IMF API is keyless
 
     @staticmethod
     def transform_query(params: dict[str, Any]) -> ImfPortVolumeQueryParams:
