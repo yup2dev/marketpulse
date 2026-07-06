@@ -13,10 +13,6 @@ class APIError(ProviderError):
         super().__init__(f"{provider} API Error ({status_code}): {message}")
 
 
-class RateLimitError(APIError):
-    pass
-
-
 class AuthenticationError(APIError):
     pass
 
