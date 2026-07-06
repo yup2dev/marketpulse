@@ -144,7 +144,7 @@ class TickerExtractor:
         try:
             import sys
             sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-            from data_fetcher.fetchers.fmp.most_actives import FMPMostActivesFetcher
+            from data_fetcher.providers.fmp.gainers import FMPMostActivesFetcher
 
             import asyncio
             loop = asyncio.new_event_loop()

@@ -34,13 +34,13 @@ from typing import Any, Dict, List, Optional
 import yfinance as yf
 import pandas as pd
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 from data_fetcher.providers.yahoo.stock_quote import SYMBOL_ALIASES
 
 log = logging.getLogger(__name__)
 
 
-class YFinanceStockPriceFetcher(Fetcher[YFinanceStockPriceQueryParams, YFinanceStockPriceData]):
+class YFinanceStockPriceFetcher(YFinanceFetcher[YFinanceStockPriceQueryParams, YFinanceStockPriceData]):
     """Yahoo Finance 주가 데이터 Fetcher"""
 
     @staticmethod

@@ -115,12 +115,12 @@ import logging
 from typing import Any, Dict, List, Optional
 import yfinance as yf
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 
 log = logging.getLogger(__name__)
 
 
-class YFinanceCompanyInfoFetcher(Fetcher[YFinanceCompanyInfoQueryParams, YFinanceCompanyInfoData]):
+class YFinanceCompanyInfoFetcher(YFinanceFetcher[YFinanceCompanyInfoQueryParams, YFinanceCompanyInfoData]):
     """Yahoo Finance 회사 정보 Fetcher"""
 
     @staticmethod

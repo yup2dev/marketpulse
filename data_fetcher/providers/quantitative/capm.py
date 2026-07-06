@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ComputeFetcher
 from data_fetcher.providers.quantitative._data import (
     annualise_return,
     annualise_vol,
@@ -17,7 +17,7 @@ from data_fetcher.providers.quantitative.analysis import CAPMData, CAPMQueryPara
 log = logging.getLogger(__name__)
 
 
-class QuantCAPMFetcher(Fetcher[CAPMQueryParams, CAPMData]):
+class QuantCAPMFetcher(ComputeFetcher[CAPMQueryParams, CAPMData]):
     """Regress asset excess returns on market excess returns."""
 
     require_credentials = False

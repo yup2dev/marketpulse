@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 from scipy import stats
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ComputeFetcher
 from data_fetcher.providers.quantitative._data import load_series
 from data_fetcher.providers.quantitative.analysis import (
     NormalityData,
@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 _ALPHA = 0.05
 
 
-class QuantNormalityFetcher(Fetcher[NormalityQueryParams, NormalityData]):
+class QuantNormalityFetcher(ComputeFetcher[NormalityQueryParams, NormalityData]):
     """5 normality tests on a price (or returns) series."""
 
     require_credentials = False

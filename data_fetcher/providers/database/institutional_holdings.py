@@ -5,22 +5,19 @@ MBS_IN_INSTI_PORT(요약) + MBS_IN_INSTI_HOLD(보유종목)에서 읽어 whalewi
 백엔드가 whalewisdom 온디맨드로 폴백.
 """
 import logging
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import DbFetcher
 from data_fetcher.abstract_provider.standard_models.institutional_holdings import (
     InstitutionalHoldingsQueryParams,
     HoldingData,
     InstitutionalHoldingsData,
 )
 from index_analyzer.models.orm import (
-    MBS_IN_INSTI_MST, MBS_IN_INSTI_PORT, MBS_IN_INSTI_HOLD, get_sqlite_db
+    MBS_IN_INSTI_MST, MBS_IN_INSTI_PORT, MBS_IN_INSTI_HOLD
 )
 
 log = logging.getLogger(__name__)
-
-_DB_PATH = Path(__file__).parent.parent.parent.parent / "data" / "marketpulse.db"
 
 _PORT_FIELDS = (
     "id", "institution_key", "manager", "name", "description",
@@ -38,19 +35,16 @@ _HOLD_FIELDS = (
 
 
 class DBInstitutionalHoldingsFetcher(
-    Fetcher[InstitutionalHoldingsQueryParams, InstitutionalHoldingsData]
+    DbFetcher[InstitutionalHoldingsQueryParams, InstitutionalHoldingsData]
 ):
     """DB(PORT+HOLD)에서 기관 13F 포트폴리오 조회."""
-
-    require_credentials = False
 
     @classmethod
     def resolve_param_choices(cls) -> Dict[str, Any]:
         """institution_key 선택지를 MBS_IN_INSTI_MST(13F 기관 마스터)에서 동적 조회.
         /api/data/ 메타로 노출되어 프론트에서 기관 이름 드롭다운이 된다."""
         try:
-            session = get_sqlite_db(str(_DB_PATH)).get_session()
-            try:
+            with cls.db_session() as session:
                 rows = (
                     session.query(MBS_IN_INSTI_MST)
                     .filter(MBS_IN_INSTI_MST.is_active.is_(True))
@@ -61,8 +55,6 @@ class DBInstitutionalHoldingsFetcher(
                     {"value": r.institution_key, "label": r.name or r.manager or r.institution_key}
                     for r in rows
                 ]
-            finally:
-                session.close()
             return {"institution_key": opts} if opts else {}
         except Exception as e:  # 메타 조회 실패는 무시(폼은 자유입력으로 폴백)
             log.warning(f"institution_key 선택지 조회 실패: {e}")
@@ -72,16 +64,14 @@ class DBInstitutionalHoldingsFetcher(
     def transform_query(params: Dict[str, Any]) -> InstitutionalHoldingsQueryParams:
         return InstitutionalHoldingsQueryParams(**params)
 
-    @staticmethod
+    @classmethod
     def extract_data(
+        cls,
         query: InstitutionalHoldingsQueryParams,
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any,
     ) -> Dict[str, Any]:
-        db_path = kwargs.get("db_path", _DB_PATH)
-        db = get_sqlite_db(str(db_path))
-        session = db.get_session()
-        try:
+        with cls.db_session(**kwargs) as session:
             port = session.get(MBS_IN_INSTI_PORT, query.institution_key)
             if port is None:
                 return {}  # 미적재 → 폴백
@@ -102,8 +92,6 @@ class DBInstitutionalHoldingsFetcher(
             summary["stocks"] = stocks
             summary["sold_positions"] = sold
             return summary
-        finally:
-            session.close()
 
     @staticmethod
     def transform_data(

@@ -1,14 +1,13 @@
 """Database Index Constituents Fetcher"""
 import logging
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 from data_fetcher.abstract_provider.standard_models.index_constituents import (
     IndexConstituentsQueryParams,
     IndexConstituentData,
 )
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import DbFetcher
 from index_analyzer.models.orm import (
-    MBS_IN_STBD_MST, MBS_IN_INDX_STBD, get_sqlite_db
+    MBS_IN_STBD_MST, MBS_IN_INDX_STBD
 )
 
 log = logging.getLogger(__name__)
@@ -22,10 +21,8 @@ class ConstituentResult(IndexConstituentData):
     """Index constituent data (standard IndexConstituents 경유)"""
 
 
-class DBIndexConstituentsFetcher(Fetcher[IndexQueryParams, ConstituentResult]):
+class DBIndexConstituentsFetcher(DbFetcher[IndexQueryParams, ConstituentResult]):
     """Database Index Constituents Fetcher - S&P 500, NASDAQ 100, Dow 30"""
-
-    require_credentials = False
 
     # index 이름 → 저장 시 data_source. DB에 적재 가능한 인덱스 목록의 원천.
     INDEX_SOURCE_MAP = {
@@ -41,8 +38,9 @@ class DBIndexConstituentsFetcher(Fetcher[IndexQueryParams, ConstituentResult]):
         """Transform query parameters"""
         return IndexQueryParams(**params)
 
-    @staticmethod
+    @classmethod
     def extract_data(
+        cls,
         query: IndexQueryParams,
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any
@@ -59,28 +57,19 @@ class DBIndexConstituentsFetcher(Fetcher[IndexQueryParams, ConstituentResult]):
             Raw data list
         """
         try:
-            # Get DB path from kwargs or use default
-            db_path = kwargs.get('db_path', Path(__file__).parent.parent.parent.parent / "data" / "marketpulse.db")
-
-            # Connect to database
-            db = get_sqlite_db(str(db_path))
-            session = db.get_session()
-
             # Map index names to data sources (클래스 상수 사용 — param_choices와 단일 출처)
-            data_source = DBIndexConstituentsFetcher.INDEX_SOURCE_MAP.get(query.index.lower())
+            data_source = cls.INDEX_SOURCE_MAP.get(query.index.lower())
             if not data_source:
                 log.error(f"Unknown index: {query.index}")
-                session.close()
                 return []
 
             # Query active tickers for this index
-            tickers = session.query(MBS_IN_STBD_MST).filter(
-                MBS_IN_STBD_MST.data_source == data_source,
-                MBS_IN_STBD_MST.is_active == True,
-                MBS_IN_STBD_MST.asset_type == 'stock'
-            ).all()
-
-            session.close()
+            with cls.db_session(**kwargs) as session:
+                tickers = session.query(MBS_IN_STBD_MST).filter(
+                    MBS_IN_STBD_MST.data_source == data_source,
+                    MBS_IN_STBD_MST.is_active == True,
+                    MBS_IN_STBD_MST.asset_type == 'stock'
+                ).all()
 
             # Convert to dict
             data = []

@@ -13,18 +13,15 @@ period:
 """
 import logging
 from datetime import timedelta
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from data_fetcher.abstract_provider.standard_models.stock_ranking import (
     StockRankingQueryParams,
     StockRankingData,
 )
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import DbFetcher
 
 log = logging.getLogger(__name__)
-
-_DB_PATH = Path(__file__).parent.parent.parent.parent / "data" / "marketpulse.db"
 
 # 기간 → 일수 (달력 기준 근사; 가장 가까운 과거 거래일을 찾는다)
 _PERIOD_DAYS = {
@@ -40,36 +37,33 @@ class DBStockRankingData(StockRankingData):
     """DB 종목 랭킹 데이터 (standard StockRanking 경유)"""
 
 
-class DBStockRankingFetcher(Fetcher[DBStockRankingQueryParams, DBStockRankingData]):
+class DBStockRankingFetcher(DbFetcher[DBStockRankingQueryParams, DBStockRankingData]):
     """mbs_in_stk_stbd 일별 시계열 기반 기간 랭킹."""
-
-    require_credentials = False
 
     @staticmethod
     def transform_query(params: Dict[str, Any]) -> DBStockRankingQueryParams:
         return DBStockRankingQueryParams(**params)
 
-    @staticmethod
+    @classmethod
     def extract_data(
+        cls,
         query: DBStockRankingQueryParams,
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any,
     ) -> List[Dict[str, Any]]:
         from datetime import date
         from itertools import groupby
-        from index_analyzer.models.orm import get_sqlite_db
         from sqlalchemy import text
 
-        db_path = kwargs.get('db_path', _DB_PATH)
-        db = get_sqlite_db(str(db_path))
-        session = db.get_session()
-        try:
+        with cls.db_session(**kwargs) as session:
             # 종목별 전 일별 시계열을 (stk_cd, base_ymd) 순으로 한 번에 로드.
             # 전역 MAX(base_ymd)를 쓰면 거래일이 다른 시장(US 06-05 vs KR 06-08)이
             # 통째로 누락되므로, 종목별 '자기 최신일' 기준으로 계산한다.
+            # NOTE: mbs_in_stk_stbd에는 volume 컬럼이 없다(도큐스트링 참조) —
+            # 기존 SQL이 volume을 SELECT해 OperationalError로 깨져 있던 것을 0 상수로 정정.
             rows = session.execute(text(
                 "SELECT stk_cd, stk_nm, sector, curr, close_price, change_rate, "
-                "volume, base_ymd FROM mbs_in_stk_stbd ORDER BY stk_cd, base_ymd"
+                "0 AS volume, base_ymd FROM mbs_in_stk_stbd ORDER BY stk_cd, base_ymd"
             )).fetchall()
             if not rows:
                 return []
@@ -111,8 +105,6 @@ class DBStockRankingFetcher(Fetcher[DBStockRankingQueryParams, DBStockRankingDat
                     'trade_value': vol * close,
                 })
             return out
-        finally:
-            session.close()
 
     @staticmethod
     def transform_data(

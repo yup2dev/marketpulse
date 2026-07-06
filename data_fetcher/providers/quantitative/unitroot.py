@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 
 from statsmodels.tsa.stattools import adfuller
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ComputeFetcher
 from data_fetcher.providers.quantitative._data import load_series
 from data_fetcher.providers.quantitative.analysis import (
     UnitRootData,
@@ -14,7 +14,7 @@ from data_fetcher.providers.quantitative.analysis import (
 log = logging.getLogger(__name__)
 
 
-class QuantUnitRootFetcher(Fetcher[UnitRootQueryParams, UnitRootData]):
+class QuantUnitRootFetcher(ComputeFetcher[UnitRootQueryParams, UnitRootData]):
     """Run an ADF test on the chosen series."""
 
     require_credentials = False

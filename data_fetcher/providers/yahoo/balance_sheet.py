@@ -19,12 +19,12 @@ import numpy as np
 import yfinance as yf
 from typing import Any, Dict, List, Optional
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 
 log = logging.getLogger(__name__)
 
 
-class YFinanceBalanceSheetFetcher(Fetcher[YFinanceBalanceSheetQueryParams, YFinanceBalanceSheetData]):
+class YFinanceBalanceSheetFetcher(YFinanceFetcher[YFinanceBalanceSheetQueryParams, YFinanceBalanceSheetData]):
 
     @staticmethod
     def transform_query(

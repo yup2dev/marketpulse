@@ -22,7 +22,7 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 import yfinance as yf
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 
 log = logging.getLogger(__name__)
 
@@ -88,7 +88,7 @@ def _download_chunks(
 
 
 class YFinanceBatchQuotesFetcher(
-    Fetcher[YFinanceBatchQuotesQueryParams, YFinanceBatchQuoteData]
+    YFinanceFetcher[YFinanceBatchQuotesQueryParams, YFinanceBatchQuoteData]
 ):
     """다수 심볼 배치 시세 조회 (yf.download 기반)."""
 
