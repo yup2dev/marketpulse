@@ -6,7 +6,7 @@ from typing import Any, Literal
 from warnings import warn
 
 from data_fetcher.utils.provider_errors import OpenBBError
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.short_term_energy_outlook import (
     ShortTermEnergyOutlookData,
     ShortTermEnergyOutlookQueryParams,
@@ -95,9 +95,13 @@ class EiaShortTermEnergyOutlookData(ShortTermEnergyOutlookData):
 
 
 class EiaShortTermEnergyOutlookFetcher(
-    Fetcher[EiaShortTermEnergyOutlookQueryParams, list[EiaShortTermEnergyOutlookData]]
+    ApiFetcher[EiaShortTermEnergyOutlookQueryParams, list[EiaShortTermEnergyOutlookData]]
 ):
     """EIA Short Term Energy Outlook Fetcher."""
+
+    api_name = "EIA"
+    credential_key = "eia_api_key"
+    api_key_env = "EIA_API_KEY"
 
     @staticmethod
     def transform_query(params: dict[str, Any]) -> EiaShortTermEnergyOutlookQueryParams:

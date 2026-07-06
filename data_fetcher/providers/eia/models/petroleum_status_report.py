@@ -5,7 +5,7 @@
 from typing import Any
 
 from data_fetcher.utils.provider_errors import OpenBBError
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.petroleum_status_report import (
     PetroleumStatusReportData,
     PetroleumStatusReportQueryParams,
@@ -66,9 +66,13 @@ class EiaPetroleumStatusReportData(PetroleumStatusReportData):
 
 
 class EiaPetroleumStatusReportFetcher(
-    Fetcher[EiaPetroleumStatusReportQueryParams, list[EiaPetroleumStatusReportData]]
+    ApiFetcher[EiaPetroleumStatusReportQueryParams, list[EiaPetroleumStatusReportData]]
 ):
     """EIA Petroleum Status Report Fetcher."""
+
+    api_name = "EIA"
+    credential_key = "eia_api_key"
+    api_key_env = "EIA_API_KEY"
 
     require_credentials = False
 
