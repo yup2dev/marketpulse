@@ -6,7 +6,7 @@
 from typing import Any
 
 from data_fetcher.utils.provider_errors import OpenBBError
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.management_discussion_analysis import (
     ManagementDiscussionAnalysisData,
     ManagementDiscussionAnalysisQueryParams,
@@ -44,11 +44,13 @@ class SecManagementDiscussionAnalysisData(ManagementDiscussionAnalysisData):
 
 
 class SecManagementDiscussionAnalysisFetcher(
-    Fetcher[
+    ApiFetcher[
         SecManagementDiscussionAnalysisQueryParams, SecManagementDiscussionAnalysisData
     ]
 ):
     """SEC Management & Discussion Fetcher."""
+
+    require_credentials = False  # SEC EDGAR is keyless
 
     @staticmethod
     def transform_query(

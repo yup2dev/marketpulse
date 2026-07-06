@@ -9,7 +9,7 @@ import logging
 from datetime import date as date_type
 from typing import Any, Dict, List, Optional
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models import FinancialsQueryParams, FinancialsData
 
 log = logging.getLogger(__name__)
@@ -85,8 +85,10 @@ def _num(d: Dict[str, Any], key: str) -> Optional[float]:
         return None
 
 
-class SecFinancialsFetcher(Fetcher[SecFinancialsQueryParams, SecFinancialsData]):
+class SecFinancialsFetcher(ApiFetcher[SecFinancialsQueryParams, SecFinancialsData]):
     """SEC XBRL 3개 제표를 `financials` 표준 모델로 어댑팅하는 Fetcher"""
+
+    require_credentials = False  # SEC EDGAR is keyless
 
     @staticmethod
     def transform_query(params: Dict[str, Any]) -> SecFinancialsQueryParams:

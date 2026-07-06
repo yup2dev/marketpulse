@@ -6,7 +6,7 @@ from typing import Any
 from warnings import warn
 
 from data_fetcher.abstract_provider.abstract.annotated_result import AnnotatedResult
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.compare_company_facts import (
     CompareCompanyFactsData,
     CompareCompanyFactsQueryParams,
@@ -125,9 +125,11 @@ class SecCompareCompanyFactsData(CompareCompanyFactsData):
 
 
 class SecCompareCompanyFactsFetcher(
-    Fetcher[SecCompareCompanyFactsQueryParams, list[SecCompareCompanyFactsData]]
+    ApiFetcher[SecCompareCompanyFactsQueryParams, list[SecCompareCompanyFactsData]]
 ):
     """SEC Compare Company Facts Fetcher."""
+
+    require_credentials = False  # SEC EDGAR is keyless
 
     @staticmethod
     def transform_query(params: dict[str, Any]) -> SecCompareCompanyFactsQueryParams:

@@ -4,7 +4,7 @@
 
 from typing import Any
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.utils.provider_errors import OpenBBError
 from data_fetcher.abstract_provider.standard_models.cik_map import CikMapData, CikMapQueryParams
 from pydantic import Field
@@ -27,12 +27,14 @@ class SecCikMapData(CikMapData):
 
 
 class SecCikMapFetcher(
-    Fetcher[
+    ApiFetcher[
         SecCikMapQueryParams,
         SecCikMapData,
     ]
 ):
     """SEC CIK Map Fetcher."""
+
+    require_credentials = False  # SEC EDGAR is keyless
 
     @staticmethod
     def transform_query(params: dict[str, Any]) -> SecCikMapQueryParams:

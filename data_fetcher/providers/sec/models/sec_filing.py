@@ -7,7 +7,7 @@ from typing import Any
 
 from data_fetcher.utils.provider_errors import OpenBBError
 from data_fetcher.abstract_provider.abstract.data import BaseData
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.abstract.query_params import BaseQueryParams
 from pydantic import ConfigDict, Field, PrivateAttr, computed_field
 
@@ -19,8 +19,10 @@ from data_fetcher.abstract_provider.standard_models.sec_filing import (
 )
 
 
-class SecFilingFetcher(Fetcher[SecFilingQueryParams, SecFilingData]):
+class SecFilingFetcher(ApiFetcher[SecFilingQueryParams, SecFilingData]):
     """SEC Filing Fetcher."""
+
+    require_credentials = False  # SEC EDGAR is keyless
 
     @staticmethod
     def transform_query(params: dict[str, Any]) -> SecFilingQueryParams:
