@@ -7,7 +7,7 @@ from warnings import warn
 
 from data_fetcher.utils.provider_errors import OpenBBError
 from data_fetcher.abstract_provider.abstract.annotated_result import AnnotatedResult
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.bls_series import (
     SeriesData,
     SeriesQueryParams,
@@ -87,8 +87,12 @@ class BlsSeriesData(SeriesData):
     )
 
 
-class BlsSeriesFetcher(Fetcher[BlsSeriesQueryParams, list[BlsSeriesData]]):
+class BlsSeriesFetcher(ApiFetcher[BlsSeriesQueryParams, list[BlsSeriesData]]):
     """BLS Series Fetcher."""
+
+    api_name = "BLS"
+    credential_key = "bls_api_key"
+    api_key_env = "BLS_API_KEY"
 
     @staticmethod
     def transform_query(params: dict[str, Any]) -> BlsSeriesQueryParams:
