@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models import (
     StockListQueryParams,
     StockListData,
@@ -85,7 +85,7 @@ def _fetch_naver_etfs() -> List[Dict[str, Any]]:
     return out
 
 
-class KRXListingFetcher(Fetcher[KRXListingQueryParams, KRXListingData]):
+class KRXListingFetcher(ApiFetcher[KRXListingQueryParams, KRXListingData]):
     """KOSPI/KOSDAQ 종목·ETF 리스트 Fetcher (무료, 로그인 불필요)"""
 
     require_credentials = False

@@ -2,7 +2,7 @@
 import logging
 from typing import Any, Dict, List, Optional
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.institutions_list import (
     InstitutionsListQueryParams as _StdInstitutionsListQueryParams,
     InstitutionInfo,
@@ -16,7 +16,7 @@ class InstitutionsListQueryParams(_StdInstitutionsListQueryParams):
     use_dynamic: bool = True
 
 
-class InstitutionsListFetcher(Fetcher[InstitutionsListQueryParams, InstitutionInfo]):
+class InstitutionsListFetcher(ApiFetcher[InstitutionsListQueryParams, InstitutionInfo]):
     """SEC EDGAR 13F 제출 기관 목록 조회."""
 
     require_credentials = False

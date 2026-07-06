@@ -5,7 +5,7 @@ Uses SEC EDGAR 13F filings for real institutional data
 import logging
 from typing import Any, Dict, List, Optional
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.providers.sec.institutional_13f import (
     SEC13FFetcher, INSTITUTIONS,
     InstitutionalHoldingsQueryParams,
@@ -17,7 +17,7 @@ from data_fetcher.providers.sec.institutional_13f import (
 log = logging.getLogger(__name__)
 
 
-class WhaleWisdomFetcher(Fetcher[InstitutionalHoldingsQueryParams, InstitutionalHoldingsData]):
+class WhaleWisdomFetcher(ApiFetcher[InstitutionalHoldingsQueryParams, InstitutionalHoldingsData]):
     """WhaleWisdom-style institutional holdings fetcher using SEC EDGAR 13F filings"""
 
     require_credentials = False

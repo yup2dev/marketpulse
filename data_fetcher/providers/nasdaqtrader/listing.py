@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models import (
     StockListQueryParams,
     StockListData,
@@ -60,7 +60,7 @@ class NasdaqTraderListingData(StockListData):
 # ── Fetcher ───────────────────────────────────────────────────────────────────
 
 class NasdaqTraderListingFetcher(
-    Fetcher[NasdaqTraderListingQueryParams, NasdaqTraderListingData]
+    ApiFetcher[NasdaqTraderListingQueryParams, NasdaqTraderListingData]
 ):
     """NYSE/NASDAQ 전 종목 리스트 Fetcher (무료)"""
 

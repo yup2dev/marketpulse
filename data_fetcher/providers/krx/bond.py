@@ -13,7 +13,7 @@ from data_fetcher.abstract_provider.standard_models.bond_yield_benchmark import 
     BondYieldBenchmarkQueryParams,
     BondYieldBenchmarkData,
 )
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import LibraryFetcher
 
 log = logging.getLogger(__name__)
 
@@ -58,8 +58,10 @@ def _slug(name: str) -> str:
     return "KR_" + re.sub(r"[^0-9A-Za-z가-힣_]", "", s)
 
 
-class KRXBondFetcher(Fetcher[KRXBondQueryParams, KRXBondData]):
+class KRXBondFetcher(LibraryFetcher[KRXBondQueryParams, KRXBondData]):
     """KR 국고채/시장금리 벤치마크 Fetcher (pykrx, 무료)"""
+
+    library_name = "pykrx"
 
     require_credentials = False
 
