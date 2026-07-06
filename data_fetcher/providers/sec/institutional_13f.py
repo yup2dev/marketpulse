@@ -14,7 +14,7 @@ import xml.etree.ElementTree as ET
 from pydantic import Field
 
 from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.utils.cusip_mapper import cusip_to_ticker
 from data_fetcher.providers.sec.institutions_list import SECInstitutionsListFetcher
 
@@ -166,7 +166,7 @@ INSTITUTIONS = {
 }
 
 
-class SEC13FFetcher(Fetcher[InstitutionalHoldingsQueryParams, InstitutionalHoldingsData]):
+class SEC13FFetcher(ApiFetcher[InstitutionalHoldingsQueryParams, InstitutionalHoldingsData]):
     """SEC 13F Holdings Fetcher using official SEC EDGAR data"""
 
     require_credentials = False  # SEC data is free

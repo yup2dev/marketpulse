@@ -7,7 +7,7 @@ from typing import Any
 from warnings import warn
 
 from data_fetcher.utils.provider_errors import OpenBBError
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.share_price_index import (
     SharePriceIndexData,
     SharePriceIndexQueryParams,
@@ -76,9 +76,11 @@ class OECDSharePriceIndexData(SharePriceIndexData):
 
 
 class OECDSharePriceIndexFetcher(
-    Fetcher[OECDSharePriceIndexQueryParams, list[OECDSharePriceIndexData]]
+    ApiFetcher[OECDSharePriceIndexQueryParams, list[OECDSharePriceIndexData]]
 ):
     """OECD Share Price Index Fetcher."""
+
+    require_credentials = False  # OECD SDMX is keyless
 
     @staticmethod
     def transform_query(params: dict[str, Any]) -> OECDSharePriceIndexQueryParams:

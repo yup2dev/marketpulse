@@ -16,7 +16,7 @@ class YieldCurveHistoryQueryParams(YieldCurveQueryParams):
 import logging
 from typing import Any, Dict, List, Optional
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
 from data_fetcher.utils.api_keys import get_api_key
 
@@ -34,8 +34,11 @@ _SERIES_MAP = {
 _FIELD_MAP = {"3m": "m3", "6m": "m6", "1y": "y1", "2y": "y2", "5y": "y5", "10y": "y10", "30y": "y30"}
 
 
-class FREDYieldCurveHistoryFetcher(Fetcher[YieldCurveHistoryQueryParams, YieldCurveHistoryData]):
+class FREDYieldCurveHistoryFetcher(ApiFetcher[YieldCurveHistoryQueryParams, YieldCurveHistoryData]):
     """미국채 수익률 곡선 시계열 — 7개 만기 병합."""
+
+    api_name = "FRED"
+    api_key_env = "FRED_API_KEY"
 
     @staticmethod
     def transform_query(params: Dict[str, Any]) -> YieldCurveHistoryQueryParams:

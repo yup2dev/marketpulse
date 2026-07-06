@@ -5,7 +5,7 @@
 from typing import Any
 
 from data_fetcher.utils.provider_errors import OpenBBError
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.rss_litigation import (
     RssLitigationQueryParams,
     RssLitigationData,
@@ -29,9 +29,11 @@ class SecRssLitigationData(RssLitigationData):
 
 
 class SecRssLitigationFetcher(
-    Fetcher[SecRssLitigationQueryParams, list[SecRssLitigationData]]
+    ApiFetcher[SecRssLitigationQueryParams, list[SecRssLitigationData]]
 ):
     """SEC RSS Litigration Fetcher."""
+
+    require_credentials = False  # SEC EDGAR is keyless
 
     @staticmethod
     def transform_query(params: dict[str, Any]) -> SecRssLitigationQueryParams:

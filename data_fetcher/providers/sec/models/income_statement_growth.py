@@ -7,7 +7,7 @@ from typing import Any, Literal
 from warnings import warn
 
 from data_fetcher.abstract_provider.abstract.annotated_result import AnnotatedResult
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.income_statement_growth import (
     IncomeStatementGrowthData,
     IncomeStatementGrowthQueryParams,
@@ -511,9 +511,11 @@ class SecIncomeStatementGrowthData(IncomeStatementGrowthData):
 
 
 class SecIncomeStatementGrowthFetcher(
-    Fetcher[SecIncomeStatementGrowthQueryParams, list[SecIncomeStatementGrowthData]]
+    ApiFetcher[SecIncomeStatementGrowthQueryParams, list[SecIncomeStatementGrowthData]]
 ):
     """SEC Income Statement Growth Fetcher."""
+
+    require_credentials = False  # SEC EDGAR is keyless
 
     @staticmethod
     def transform_query(

@@ -22,7 +22,7 @@ import logging
 from collections import defaultdict
 from typing import Any, Dict, List, Optional
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.providers.polygon.news import PolygonNewsFetcher
 
 log = logging.getLogger(__name__)
@@ -31,7 +31,10 @@ _POS_WORDS = ['beat', 'surge', 'rally', 'gain', 'rise', 'up', 'growth', 'profit'
 _NEG_WORDS = ['miss', 'fall', 'drop', 'decline', 'loss', 'down', 'weak', 'bearish', 'downgrade', 'sell', 'concern', 'risk', 'cut']
 
 
-class PolygonStockSentimentFetcher(Fetcher[PolygonStockSentimentQueryParams, PolygonStockSentimentData]):
+class PolygonStockSentimentFetcher(ApiFetcher[PolygonStockSentimentQueryParams, PolygonStockSentimentData]):
+
+    api_name = "Polygon"
+    api_key_env = "POLYGON_API_KEY"
 
     @staticmethod
     def transform_query(params: Dict[str, Any]) -> PolygonStockSentimentQueryParams:

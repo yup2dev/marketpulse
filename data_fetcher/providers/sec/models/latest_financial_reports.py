@@ -6,7 +6,7 @@ from datetime import date as dateType
 from typing import Any
 
 from data_fetcher.utils.provider_errors import OpenBBError
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.latest_financial_reports import (
     LatestFinancialReportsData,
     LatestFinancialReportsQueryParams,
@@ -85,9 +85,11 @@ class SecLatestFinancialReportsData(LatestFinancialReportsData):
 
 
 class SecLatestFinancialReportsFetcher(
-    Fetcher[SecLatestFinancialReportsQueryParams, list[SecLatestFinancialReportsData]]
+    ApiFetcher[SecLatestFinancialReportsQueryParams, list[SecLatestFinancialReportsData]]
 ):
     """SEC Latest Financial Reports Fetcher."""
+
+    require_credentials = False  # SEC EDGAR is keyless
 
     @staticmethod
     def transform_query(params: dict[str, Any]) -> SecLatestFinancialReportsQueryParams:

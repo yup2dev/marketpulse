@@ -4,7 +4,7 @@
 
 from typing import Any
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.equity_search import (
     EquitySearchData,
     EquitySearchQueryParams,
@@ -35,12 +35,14 @@ class SecEquitySearchData(EquitySearchData):
 
 
 class SecEquitySearchFetcher(
-    Fetcher[
+    ApiFetcher[
         SecEquitySearchQueryParams,
         list[SecEquitySearchData],
     ]
 ):
     """SEC Equity Search Fetcher."""
+
+    require_credentials = False  # SEC EDGAR is keyless
 
     @staticmethod
     def transform_query(params: dict[str, Any]) -> SecEquitySearchQueryParams:

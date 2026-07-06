@@ -4,7 +4,7 @@
 
 from typing import Any
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.sic_search import (
     SicSearchQueryParams,
     SicSearchData,
@@ -30,12 +30,14 @@ class SecSicSearchData(SicSearchData):
 
 
 class SecSicSearchFetcher(
-    Fetcher[
+    ApiFetcher[
         SecSicSearchQueryParams,
         list[SecSicSearchData],
     ]
 ):
     """SEC SIC Search Fetcher."""
+
+    require_credentials = False  # SEC EDGAR is keyless
 
     @staticmethod
     def transform_query(

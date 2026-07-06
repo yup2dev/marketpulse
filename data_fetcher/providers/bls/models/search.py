@@ -7,7 +7,7 @@ from typing import Any
 from data_fetcher.providers.bls.utils.constants import SURVEY_CATEGORIES, SURVEY_CATEGORY_NAMES
 from data_fetcher.utils.provider_errors import OpenBBError
 from data_fetcher.abstract_provider.abstract.annotated_result import AnnotatedResult
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ComputeFetcher
 from data_fetcher.abstract_provider.standard_models.bls_search import (
     SearchData,
     SearchQueryParams,
@@ -68,7 +68,7 @@ class BlsSearchData(SearchData):
     }
 
 
-class BlsSearchFetcher(Fetcher[BlsSearchQueryParams, list[BlsSearchData]]):
+class BlsSearchFetcher(ComputeFetcher[BlsSearchQueryParams, list[BlsSearchData]]):
     """BLS Search Fetcher."""
 
     require_credentials = False

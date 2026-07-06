@@ -5,13 +5,13 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import Field
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.equity_historical import (
     EquityHistoricalQueryParams,
     EquityHistoricalData,
 )
 from data_fetcher.utils.api_keys import get_api_key
-from data_fetcher.utils.async_http_client import amake_request
+from data_fetcher.utils.provider_helpers import amake_json_request as amake_request
 from data_fetcher.providers.alphavantage.utils.helpers import (
     ALPHA_VANTAGE_BASE_URL, CRYPTO_FUNCTION_MAP, check_av_errors,
 )
@@ -39,8 +39,11 @@ class CryptoData(EquityHistoricalData):
 
 # ── Fetcher ───────────────────────────────────────────────────────────────────
 
-class AlphaVantageCryptoFetcher(Fetcher[CryptoQueryParams, CryptoData]):
+class AlphaVantageCryptoFetcher(ApiFetcher[CryptoQueryParams, CryptoData]):
     """AlphaVantage 암호화폐 데이터 Fetcher"""
+
+    api_name = "AlphaVantage"
+    api_key_env = "ALPHAVANTAGE_API_KEY"
 
     @staticmethod
     def transform_query(params: Dict[str, Any]) -> CryptoQueryParams:

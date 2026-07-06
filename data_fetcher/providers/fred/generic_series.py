@@ -10,7 +10,7 @@ from data_fetcher.abstract_provider.standard_models.fred_series import (
     FredSeriesQueryParams,
     FredSeriesData,
 )
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
 from data_fetcher.utils.api_keys import get_api_key
 
@@ -37,8 +37,11 @@ class FREDGenericSeriesData(FredSeriesData):
 log = logging.getLogger(__name__)
 
 
-class FREDGenericSeriesFetcher(Fetcher[FREDGenericSeriesQueryParams, FREDGenericSeriesData]):
+class FREDGenericSeriesFetcher(ApiFetcher[FREDGenericSeriesQueryParams, FREDGenericSeriesData]):
     """임의의 FRED series_id를 QueryExecutor 파이프라인으로 조회."""
+
+    api_name = "FRED"
+    api_key_env = "FRED_API_KEY"
 
     require_credentials = True
 

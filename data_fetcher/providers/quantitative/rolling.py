@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ComputeFetcher
 from data_fetcher.providers.quantitative._data import load_series, to_returns
 from data_fetcher.providers.quantitative.analysis import (
     RollingData,
@@ -32,7 +32,7 @@ def _rolling_sortino(returns: pd.Series, window: int, rf_annual: float) -> pd.Se
     return (excess.rolling(window).mean() / down_std) * np.sqrt(252)
 
 
-class QuantRollingFetcher(Fetcher[RollingQueryParams, RollingData]):
+class QuantRollingFetcher(ComputeFetcher[RollingQueryParams, RollingData]):
     """Single-line rolling metrics suitable for a chart widget."""
 
     require_credentials = False

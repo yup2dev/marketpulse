@@ -5,10 +5,9 @@ MBS_IN_STBD_MST(is_active=True) 우선, 실패 시 MBS_IN_STK_STBD distinct fall
 architecture.md의 DB Provider 패턴(DBIndexConstituentsFetcher)을 따른다.
 """
 import logging
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import DbFetcher
 from data_fetcher.abstract_provider.standard_models import (
     StockListQueryParams,
     StockListData,
@@ -16,22 +15,19 @@ from data_fetcher.abstract_provider.standard_models import (
 
 log = logging.getLogger(__name__)
 
-_DB_PATH = Path(__file__).parent.parent.parent.parent / "data" / "marketpulse.db"
-
 
 # ── Fetcher ───────────────────────────────────────────────────────────────────
 
-class DBStockListFetcher(Fetcher[StockListQueryParams, StockListData]):
+class DBStockListFetcher(DbFetcher[StockListQueryParams, StockListData]):
     """DB 종목 리스트 Fetcher — MBS_IN_STBD_MST 우선, MBS_IN_STK_STBD fallback"""
-
-    require_credentials = False
 
     @staticmethod
     def transform_query(params: Dict[str, Any]) -> StockListQueryParams:
         return StockListQueryParams(**params)
 
-    @staticmethod
+    @classmethod
     def extract_data(
+        cls,
         query: StockListQueryParams,
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any,
@@ -41,16 +37,11 @@ class DBStockListFetcher(Fetcher[StockListQueryParams, StockListData]):
         1차: MBS_IN_STBD_MST (is_active 컬럼 보유)
         2차: MBS_IN_STK_STBD distinct stk_cd (time-series)
         """
-        from index_analyzer.utils.db import get_sqlite_db
         from index_analyzer.models.orm import MBS_IN_STBD_MST, MBS_IN_STK_STBD
-
-        db_path = kwargs.get("db_path", _DB_PATH)
-        db = get_sqlite_db(str(db_path))
 
         # 1차: 마스터 테이블
         try:
-            session = db.get_session()
-            try:
+            with cls.db_session(**kwargs) as session:
                 q = session.query(MBS_IN_STBD_MST)
                 if query.active_only:
                     q = q.filter(MBS_IN_STBD_MST.is_active == True)  # noqa: E712
@@ -60,15 +51,12 @@ class DBStockListFetcher(Fetcher[StockListQueryParams, StockListData]):
                         "[DBStockListFetcher] mbs_in_stbd_mst: %d rows", len(rows)
                     )
                     return [r.to_dict() for r in rows]
-            finally:
-                session.close()
         except Exception as exc:
             log.warning("[DBStockListFetcher] mbs_in_stbd_mst failed: %s", exc)
 
         # 2차: 시세 테이블 distinct
         try:
-            session = db.get_session()
-            try:
+            with cls.db_session(**kwargs) as session:
                 rows = (
                     session.query(
                         MBS_IN_STK_STBD.stk_cd,
@@ -98,8 +86,6 @@ class DBStockListFetcher(Fetcher[StockListQueryParams, StockListData]):
                         "[DBStockListFetcher] mbs_in_stk_stbd fallback: %d rows", len(data)
                     )
                 return data
-            finally:
-                session.close()
         except Exception as exc:
             log.warning("[DBStockListFetcher] mbs_in_stk_stbd failed: %s", exc)
 

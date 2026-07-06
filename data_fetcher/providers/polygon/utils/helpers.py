@@ -7,6 +7,6 @@ def polygon_url(path: str) -> str:
 
 
 async def get_polygon_data(url: str, api_key: str, **params) -> dict | list:
-    from data_fetcher.utils.async_http_client import amake_request
+    from data_fetcher.utils.provider_helpers import amake_json_request as amake_request
     params["apiKey"] = api_key
     return await amake_request(url, params=params)

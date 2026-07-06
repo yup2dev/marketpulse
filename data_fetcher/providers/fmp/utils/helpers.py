@@ -38,7 +38,7 @@ async def response_callback(response, _):
 
 async def get_data(url: str, **kwargs: Any) -> list | dict:
     """Get data from FMP endpoint."""
-    from data_fetcher.utils.async_http_client import amake_request
+    from data_fetcher.utils.provider_helpers import amake_request
     return await amake_request(url, response_callback=response_callback, **kwargs)
 
 

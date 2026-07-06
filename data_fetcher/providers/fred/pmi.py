@@ -25,7 +25,7 @@ class PMIData(FredSeriesData):
 import logging
 from typing import Any, Dict, List, Optional
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
 from data_fetcher.utils.api_keys import get_api_key
 
@@ -38,8 +38,11 @@ _SERIES_MAP = {
 }
 
 
-class FREDPMIFetcher(Fetcher[PMIQueryParams, PMIData]):
+class FREDPMIFetcher(ApiFetcher[PMIQueryParams, PMIData]):
     """경기순환 지표 — CFNAI / 확산지수 / Sahm Rule 통합 시계열."""
+
+    api_name = "FRED"
+    api_key_env = "FRED_API_KEY"
 
     @staticmethod
     def transform_query(params: Dict[str, Any]) -> PMIQueryParams:

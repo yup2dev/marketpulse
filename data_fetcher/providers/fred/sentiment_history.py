@@ -24,7 +24,7 @@ class SentimentHistoryData(FredSeriesData):
 import logging
 from typing import Any, Dict, List, Optional
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
 from data_fetcher.utils.api_keys import get_api_key
 
@@ -44,8 +44,11 @@ def _hy_to_score(hy: float) -> float:
     return max(0, 30 - ((hy - 500) / 500) * 30)
 
 
-class FREDSentimentHistoryFetcher(Fetcher[SentimentHistoryQueryParams, SentimentHistoryData]):
+class FREDSentimentHistoryFetcher(ApiFetcher[SentimentHistoryQueryParams, SentimentHistoryData]):
     """시장 심리 시계열 — VIX + HY 스프레드 기반 공포-탐욕 지수."""
+
+    api_name = "FRED"
+    api_key_env = "FRED_API_KEY"
 
     @staticmethod
     def transform_query(params: Dict[str, Any]) -> SentimentHistoryQueryParams:

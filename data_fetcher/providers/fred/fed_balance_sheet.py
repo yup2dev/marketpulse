@@ -22,7 +22,7 @@ class FedBalanceSheetData(FredSeriesData):
 import logging
 from typing import Any, Dict, List, Optional
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
 from data_fetcher.utils.api_keys import get_api_key
 
@@ -33,8 +33,11 @@ _SERIES_ID = "WALCL"
 _MILLIONS_TO_TRILLIONS = 1_000_000
 
 
-class FREDFedBalanceSheetFetcher(Fetcher[FedBalanceSheetQueryParams, FedBalanceSheetData]):
+class FREDFedBalanceSheetFetcher(ApiFetcher[FedBalanceSheetQueryParams, FedBalanceSheetData]):
     """연준 총자산(대차대조표) 시계열 — WALCL."""
+
+    api_name = "FRED"
+    api_key_env = "FRED_API_KEY"
 
     require_credentials = True
 

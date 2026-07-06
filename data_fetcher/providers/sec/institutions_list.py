@@ -8,7 +8,7 @@ import requests
 from typing import Any, Dict, List, Optional
 from datetime import date, datetime, timedelta
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.institutions_list import (
     InstitutionsListQueryParams,
     InstitutionInfo,
@@ -30,7 +30,7 @@ class SECInstitutionsListQueryParams(InstitutionsListQueryParams):
     )
 
 
-class SECInstitutionsListFetcher(Fetcher[SECInstitutionsListQueryParams, InstitutionInfo]):
+class SECInstitutionsListFetcher(ApiFetcher[SECInstitutionsListQueryParams, InstitutionInfo]):
     """Fetcher for getting list of institutions that file 13F reports"""
 
     require_credentials = False

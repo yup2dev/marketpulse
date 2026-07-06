@@ -6,7 +6,7 @@ from typing import Any
 
 from data_fetcher.utils.provider_errors import OpenBBError
 from data_fetcher.abstract_provider.abstract.annotated_result import AnnotatedResult
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.consumer_price_index import (
     ConsumerPriceIndexData,
     ConsumerPriceIndexQueryParams,
@@ -402,9 +402,11 @@ class ImfConsumerPriceIndexData(ConsumerPriceIndexData):
 
 
 class ImfConsumerPriceIndexFetcher(
-    Fetcher[ImfConsumerPriceIndexQueryParams, list[ImfConsumerPriceIndexData]]
+    ApiFetcher[ImfConsumerPriceIndexQueryParams, list[ImfConsumerPriceIndexData]]
 ):
     """IMF CPI Fetcher."""
+
+    require_credentials = False  # IMF API is keyless
 
     @staticmethod
     def transform_query(

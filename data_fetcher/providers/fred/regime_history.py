@@ -27,7 +27,8 @@ import logging
 from datetime import date as date_type
 from typing import Any, Dict, List, Optional
 
-from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult, Fetcher
+from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
 from data_fetcher.utils.api_keys import get_api_key
 
@@ -46,8 +47,11 @@ def _classify(growth_score: float, inflation_score: float, cpi_yoy: float) -> st
     return "deflation"
 
 
-class FREDRegimeHistoryFetcher(Fetcher[RegimeHistoryQueryParams, RegimeHistoryData]):
+class FREDRegimeHistoryFetcher(ApiFetcher[RegimeHistoryQueryParams, RegimeHistoryData]):
     """경제 레짐 시계열 — 실질GDP 성장 + CPI 기반 4분면 분류."""
+
+    api_name = "FRED"
+    api_key_env = "FRED_API_KEY"
 
     @staticmethod
     def transform_query(params: Dict[str, Any]) -> RegimeHistoryQueryParams:

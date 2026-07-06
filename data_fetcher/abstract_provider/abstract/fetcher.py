@@ -1,7 +1,7 @@
 """Fetcher — 추상 기본 클래스 (TET 파이프라인)"""
 import asyncio
 import inspect
-from typing import Any, Dict, List, Optional, TypeVar, Generic, Union, get_args, get_origin
+from typing import Any, Dict, List, Optional, Tuple, TypeVar, Generic, Union, get_args, get_origin
 
 from pydantic import BaseModel
 
@@ -86,9 +86,18 @@ class Fetcher(Generic[Q, R]):
 
     def __init_subclass__(cls, *args, **kwargs):
         super().__init_subclass__(*args, **kwargs)
-        if cls.aextract_data != Fetcher.aextract_data:
-            cls.extract_data = cls.aextract_data  # type: ignore[method-assign]
-        elif cls.extract_data == Fetcher.extract_data:
+        # 자기 자신이 aextract_data를 정의한 경우에만 extract_data로 연결.
+        # (__dict__ 디스크립터 복사 — 중간 베이스에서 상속된 async 기본구현이
+        #  서브클래스의 sync extract_data 오버라이드를 덮어쓰지 않도록)
+        if "aextract_data" in cls.__dict__:
+            setattr(cls, "extract_data", cls.__dict__["aextract_data"])
+        # 추상 중간 베이스(ApiFetcher 등)는 구현 검사 면제
+        if cls.__dict__.get("_intermediate_base", False):
+            return
+        if (
+            cls.extract_data is Fetcher.extract_data
+            and cls.aextract_data is Fetcher.aextract_data
+        ):
             raise NotImplementedError(
                 "Fetcher subclass must implement either extract_data or aextract_data"
                 " method. If both are implemented, aextract_data will be used as the"
@@ -122,30 +131,44 @@ class Fetcher(Generic[Q, R]):
         """동기 편의 메서드"""
         return asyncio.run(cls.fetch_data(params, credentials, **kwargs))
 
+    @classmethod
+    def _generic_args(cls) -> "Optional[Tuple[Any, ...]]":
+        """MRO를 걸어 구체 타입 인자를 가진 첫 Fetcher 계열 subscript의 args 반환.
+
+        중간 베이스(ApiFetcher(Fetcher[Q, R]) 등)의 TypeVar subscript는 건너뛰고,
+        구체 클래스의 X[MyQuery, MyData]를 찾는다. 없으면 None.
+        """
+        for klass in cls.__mro__:
+            for base in getattr(klass, "__orig_bases__", ()):
+                origin = get_origin(base)
+                if not (isinstance(origin, type) and issubclass(origin, Fetcher)):
+                    continue
+                args = get_args(base)
+                if args and not any(isinstance(a, TypeVar) for a in args):
+                    return args
+        return None
+
     @classproperty
     def query_params_type(cls) -> type:
-        try:
-            return cls.__orig_bases__[0].__args__[0]  # type: ignore
-        except (AttributeError, IndexError):
-            return BaseModel
+        args = cls._generic_args()
+        return args[0] if args else BaseModel
 
     @classproperty
     def return_type(cls) -> type:
-        try:
-            return_type = cls.__orig_bases__[0].__args__[1]  # type: ignore
-            if get_origin(return_type) is AnnotatedResult:
-                return_type = get_args(return_type)[0]
-            return return_type
-        except (AttributeError, IndexError):
+        args = cls._generic_args()
+        if not args or len(args) < 2:
             return BaseModel
+        return_type = args[1]
+        if get_origin(return_type) is AnnotatedResult:
+            return_type = get_args(return_type)[0]
+        return return_type
 
     @classproperty
     def data_type(cls) -> type:
-        try:
-            raw = cls.__orig_bases__[0].__args__[1]  # type: ignore
-            return cls._get_data_type(raw)
-        except (AttributeError, IndexError):
+        args = cls._generic_args()
+        if not args or len(args) < 2:
             return BaseModel
+        return cls._get_data_type(args[1])
 
     @classmethod
     def _get_data_type(cls, t: Any) -> type:

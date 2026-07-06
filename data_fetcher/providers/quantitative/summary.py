@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 
 from scipy import stats
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ComputeFetcher
 from data_fetcher.providers.quantitative._data import load_series
 from data_fetcher.providers.quantitative.analysis import (
     SummaryData,
@@ -14,7 +14,7 @@ from data_fetcher.providers.quantitative.analysis import (
 log = logging.getLogger(__name__)
 
 
-class QuantSummaryFetcher(Fetcher[SummaryQueryParams, SummaryData]):
+class QuantSummaryFetcher(ComputeFetcher[SummaryQueryParams, SummaryData]):
     """Mean/std/min/max/quantiles/skew/kurtosis on a price (or returns) series."""
 
     require_credentials = False

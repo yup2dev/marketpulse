@@ -8,7 +8,7 @@ from typing import Any
 from data_fetcher.utils.provider_errors import OpenBBError
 from data_fetcher.utils.provider_settings import SystemService
 from data_fetcher.abstract_provider.abstract.annotated_result import AnnotatedResult
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.economic_indicators import (
     EconomicIndicatorsData,
     EconomicIndicatorsQueryParams,
@@ -651,9 +651,11 @@ class ImfEconomicIndicatorsData(EconomicIndicatorsData):
 
 
 class ImfEconomicIndicatorsFetcher(
-    Fetcher[ImfEconomicIndicatorsQueryParams, list[ImfEconomicIndicatorsData]]
+    ApiFetcher[ImfEconomicIndicatorsQueryParams, list[ImfEconomicIndicatorsData]]
 ):
     """IMF Economic Indicators Fetcher."""
+
+    require_credentials = False  # IMF API is keyless
 
     @staticmethod
     def transform_query(params: dict[str, Any]) -> ImfEconomicIndicatorsQueryParams:

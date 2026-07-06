@@ -4,7 +4,7 @@
 
 from typing import Any
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.form_13FHR import (
     Form13FHRData,
     Form13FHRQueryParams,
@@ -35,8 +35,10 @@ class SecForm13FHRData(Form13FHRData):
     )
 
 
-class SecForm13FHRFetcher(Fetcher[SecForm13FHRQueryParams, list[SecForm13FHRData]]):
+class SecForm13FHRFetcher(ApiFetcher[SecForm13FHRQueryParams, list[SecForm13FHRData]]):
     """SEC Form 13F-HR Fetcher."""
+
+    require_credentials = False  # SEC EDGAR is keyless
 
     @staticmethod
     def transform_query(params: dict[str, Any]) -> SecForm13FHRQueryParams:

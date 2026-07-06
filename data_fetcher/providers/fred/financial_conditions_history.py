@@ -9,7 +9,7 @@ from data_fetcher.abstract_provider.standard_models.fred_series import (
     FredSeriesQueryParams,
     FredSeriesData,
 )
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
 from data_fetcher.utils.api_keys import get_api_key
 
@@ -33,9 +33,12 @@ class FinancialConditionsHistoryData(FredSeriesData):
 # ── Fetcher ───────────────────────────────────────────────────────────────────
 
 class FREDFinancialConditionsHistoryFetcher(
-    Fetcher[FinancialConditionsHistoryQueryParams, FinancialConditionsHistoryData]
+    ApiFetcher[FinancialConditionsHistoryQueryParams, FinancialConditionsHistoryData]
 ):
     """금융 여건 지수 시계열 — Chicago Fed NFCI."""
+
+    api_name = "FRED"
+    api_key_env = "FRED_API_KEY"
 
     @staticmethod
     def transform_query(params: Dict[str, Any]) -> FinancialConditionsHistoryQueryParams:

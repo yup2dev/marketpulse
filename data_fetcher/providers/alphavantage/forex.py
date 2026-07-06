@@ -5,13 +5,13 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import Field
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.forex_historical import (
     ForexHistoricalQueryParams,
     ForexHistoricalData,
 )
 from data_fetcher.utils.api_keys import get_api_key
-from data_fetcher.utils.async_http_client import amake_request
+from data_fetcher.utils.provider_helpers import amake_json_request as amake_request
 from data_fetcher.providers.alphavantage.utils.helpers import (
     ALPHA_VANTAGE_BASE_URL, FOREX_FUNCTION_MAP, check_av_errors,
 )
@@ -33,8 +33,11 @@ class ForexData(ForexHistoricalData):
 
 # ── Fetcher ───────────────────────────────────────────────────────────────────
 
-class AlphaVantageForexFetcher(Fetcher[ForexQueryParams, ForexData]):
+class AlphaVantageForexFetcher(ApiFetcher[ForexQueryParams, ForexData]):
     """AlphaVantage 외환 데이터 Fetcher"""
+
+    api_name = "AlphaVantage"
+    api_key_env = "ALPHAVANTAGE_API_KEY"
 
     @staticmethod
     def transform_query(params: Dict[str, Any]) -> ForexQueryParams:

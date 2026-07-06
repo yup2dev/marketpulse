@@ -6,7 +6,7 @@ from datetime import date
 from typing import Any
 
 from data_fetcher.utils.provider_errors import OpenBBError
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.consumer_price_index import (
     ConsumerPriceIndexData,
     ConsumerPriceIndexQueryParams,
@@ -142,8 +142,10 @@ class OECDCPIData(ConsumerPriceIndexData):
     expenditure: str = Field(description="Expenditure component of CPI.")
 
 
-class OECDCPIFetcher(Fetcher[OECDCPIQueryParams, list[OECDCPIData]]):
+class OECDCPIFetcher(ApiFetcher[OECDCPIQueryParams, list[OECDCPIData]]):
     """OECD CPI Fetcher."""
+
+    require_credentials = False  # OECD SDMX is keyless
 
     @staticmethod
     def transform_query(params: dict[str, Any]) -> OECDCPIQueryParams:

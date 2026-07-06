@@ -7,7 +7,7 @@ from typing import Any, Literal
 from warnings import warn
 
 from data_fetcher.utils.provider_errors import OpenBBError
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.unemployment import (
     UnemploymentData,
     UnemploymentQueryParams,
@@ -95,9 +95,11 @@ class OECDUnemploymentData(UnemploymentData):
 
 
 class OECDUnemploymentFetcher(
-    Fetcher[OECDUnemploymentQueryParams, list[OECDUnemploymentData]]
+    ApiFetcher[OECDUnemploymentQueryParams, list[OECDUnemploymentData]]
 ):
     """Transform the query, extract and transform the data from the OECD endpoints."""
+
+    require_credentials = False  # OECD SDMX is keyless
 
     @staticmethod
     def transform_query(params: dict[str, Any]) -> OECDUnemploymentQueryParams:

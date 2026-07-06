@@ -14,9 +14,9 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.utils.api_keys import get_api_key
-from data_fetcher.utils.async_http_client import amake_request, HTTPClientError
+from data_fetcher.utils.provider_helpers import amake_json_request as amake_request, HTTPClientError
 
 log = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ log = logging.getLogger(__name__)
 BASE_URL = "https://financialmodelingprep.com/stable"
 
 
-class FMPBondPricesFetcher(Fetcher[BondPricesQueryParams, BondPricesData]):
+class FMPBondPricesFetcher(ApiFetcher[BondPricesQueryParams, BondPricesData]):
     """
     FMP Bond Prices Fetcher
 
@@ -33,6 +33,9 @@ class FMPBondPricesFetcher(Fetcher[BondPricesQueryParams, BondPricesData]):
     - ISIN / CUSIP 단일 조회: /stable/bond-prices?isin=...
     - 전체 목록 조회:          /stable/bonds-list
     """
+
+    api_name = "FMP"
+    api_key_env = "FMP_API_KEY"
 
     @staticmethod
     def transform_query(params: Dict[str, Any]) -> BondPricesQueryParams:

@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.providers.kis.rest import kis_get
 
 log = logging.getLogger(__name__)
@@ -163,9 +163,11 @@ class KISRankingData(BaseModel):
     trade_value: float = 0.0
 
 
-class KISRankingFetcher(Fetcher[KISRankingQueryParams, KISRankingData]):
+class KISRankingFetcher(ApiFetcher[KISRankingQueryParams, KISRankingData]):
     """fetch_kis_ranking 래핑. 자격증명은 QueryExecutor가 env(API_ENV_MAPPING['KIS'])
     에서 {appkey, appsecret}로 로드해 전달한다."""
+
+    api_name = "KIS"
 
     @staticmethod
     def transform_query(params: Dict[str, Any]) -> KISRankingQueryParams:

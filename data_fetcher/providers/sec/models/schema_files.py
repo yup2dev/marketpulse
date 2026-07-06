@@ -6,7 +6,7 @@ from typing import Any, Literal
 
 from data_fetcher.utils.provider_errors import OpenBBError
 from data_fetcher.abstract_provider.abstract.data import BaseData
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.abstract.query_params import BaseQueryParams
 from pydantic import Field, model_validator
 
@@ -45,9 +45,11 @@ def _flatten_nodes(nodes) -> list[dict[str, Any]]:
 
 
 class SecSchemaFilesFetcher(
-    Fetcher[SecSchemaFilesQueryParams, list[SecSchemaFilesData]]
+    ApiFetcher[SecSchemaFilesQueryParams, list[SecSchemaFilesData]]
 ):
     """SEC XBRL Taxonomy Explorer Fetcher."""
+
+    require_credentials = False  # SEC EDGAR is keyless
 
     @staticmethod
     def transform_query(params: dict[str, Any]) -> SecSchemaFilesQueryParams:

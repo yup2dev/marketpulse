@@ -4,14 +4,14 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import Field
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.analyst_ratings import (
     AnalystRatingsQueryParams,
     AnalystRatingItem as FMPAnalystItem,
     AnalystRatingsData,
 )
 from data_fetcher.utils.api_keys import get_api_key
-from data_fetcher.utils.async_http_client import amake_request
+from data_fetcher.utils.provider_helpers import amake_json_request as amake_request
 
 log = logging.getLogger(__name__)
 
@@ -30,7 +30,10 @@ class FMPAnalystDataData(AnalystRatingsData):
 
 # ── Fetcher ───────────────────────────────────────────────────────────────────
 
-class FMPAnalystDataFetcher(Fetcher[FMPAnalystDataQueryParams, FMPAnalystDataData]):
+class FMPAnalystDataFetcher(ApiFetcher[FMPAnalystDataQueryParams, FMPAnalystDataData]):
+
+    api_name = "FMP"
+    api_key_env = "FMP_API_KEY"
 
     @staticmethod
     def transform_query(params: Dict[str, Any]) -> FMPAnalystDataQueryParams:

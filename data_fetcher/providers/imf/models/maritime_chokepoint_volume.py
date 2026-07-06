@@ -5,7 +5,7 @@
 from typing import Any
 
 from data_fetcher.utils.provider_errors import OpenBBError
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.maritime_chokepoint_volume import (
     MaritimeChokePointVolumeData,
     MaritimeChokePointVolumeQueryParams,
@@ -260,11 +260,13 @@ class ImfMaritimeChokePointVolumeData(MaritimeChokePointVolumeData):
 
 
 class ImfMaritimeChokePointVolumeFetcher(
-    Fetcher[
+    ApiFetcher[
         ImfMaritimeChokePointVolumeQueryParams, list[ImfMaritimeChokePointVolumeData]
     ]
 ):
     """IMF Maritime Chokepoint Info Fetcher."""
+
+    require_credentials = False  # IMF API is keyless
 
     @staticmethod
     def transform_query(

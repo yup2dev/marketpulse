@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Optional
 import yfinance as yf
 import pandas as pd
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 
 log = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ def _safe_int(df, row, col) -> Optional[int]:
         return None
 
 
-class YFinanceEstimatesFetcher(Fetcher[YFinanceEstimatesQueryParams, YFinanceEstimatesData]):
+class YFinanceEstimatesFetcher(YFinanceFetcher[YFinanceEstimatesQueryParams, YFinanceEstimatesData]):
 
     @staticmethod
     def transform_query(params: Dict[str, Any]) -> YFinanceEstimatesQueryParams:

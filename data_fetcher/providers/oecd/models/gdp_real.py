@@ -7,7 +7,7 @@ from typing import Any, Literal
 from warnings import warn
 
 from data_fetcher.utils.provider_errors import OpenBBError
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.gdp_real import (
     GdpRealData,
     GdpRealQueryParams,
@@ -80,8 +80,10 @@ class OECDGdpRealData(GdpRealData):
     """OECD Real GDP Data."""
 
 
-class OECDGdpRealFetcher(Fetcher[OECDGdpRealQueryParams, list[OECDGdpRealData]]):
+class OECDGdpRealFetcher(ApiFetcher[OECDGdpRealQueryParams, list[OECDGdpRealData]]):
     """OECD GDP Real Fetcher."""
+
+    require_credentials = False  # OECD SDMX is keyless
 
     @staticmethod
     def transform_query(params: dict[str, Any]) -> OECDGdpRealQueryParams:

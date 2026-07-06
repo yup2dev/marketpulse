@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 import yfinance as yf
 from pydantic import Field
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 from data_fetcher.abstract_provider.standard_models import FinancialsQueryParams, FinancialsData
 
 log = logging.getLogger(__name__)
@@ -24,7 +24,7 @@ class YFinanceFinancialsData(FinancialsData):
     )
 
 
-class YFinanceFinancialsFetcher(Fetcher[YFinanceFinancialsQueryParams, YFinanceFinancialsData]):
+class YFinanceFinancialsFetcher(YFinanceFetcher[YFinanceFinancialsQueryParams, YFinanceFinancialsData]):
 
     @staticmethod
     def transform_query(params: Dict[str, Any]) -> YFinanceFinancialsQueryParams:

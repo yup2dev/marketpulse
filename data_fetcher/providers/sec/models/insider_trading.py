@@ -5,7 +5,7 @@
 from datetime import date as dateType
 from typing import Any
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.insider_trading import (
     InsiderTradingData,
     InsiderTradingQueryParams,
@@ -172,9 +172,11 @@ class SecInsiderTradingData(InsiderTradingData):
 
 
 class SecInsiderTradingFetcher(
-    Fetcher[SecInsiderTradingQueryParams, list[SecInsiderTradingData]]
+    ApiFetcher[SecInsiderTradingQueryParams, list[SecInsiderTradingData]]
 ):
     """SEC Insider Trading Fetcher."""
+
+    require_credentials = False  # SEC EDGAR is keyless
 
     @staticmethod
     def transform_query(params: dict[str, Any]) -> SecInsiderTradingQueryParams:

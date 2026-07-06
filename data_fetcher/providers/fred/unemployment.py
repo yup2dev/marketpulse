@@ -35,7 +35,7 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
 from data_fetcher.utils.api_keys import get_api_key
 
@@ -61,12 +61,15 @@ AGE_GROUP_MAP = {
 }
 
 
-class FREDUnemploymentFetcher(Fetcher[FredUnemploymentQueryParams, FredUnemploymentData]):
+class FREDUnemploymentFetcher(ApiFetcher[FredUnemploymentQueryParams, FredUnemploymentData]):
     """
     FRED (Federal Reserve Economic Data) Unemployment Rate Fetcher
 
     Uses FredSeriesFetcher for common API logic.
     """
+
+    api_name = "FRED"
+    api_key_env = "FRED_API_KEY"
 
     @staticmethod
     def transform_query(params: Dict[str, Any]) -> FredUnemploymentQueryParams:

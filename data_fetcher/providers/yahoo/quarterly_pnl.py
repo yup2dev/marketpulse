@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import yfinance as yf
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 
 log = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ _ROW_MAP = {
 }
 
 
-class YFinanceQuarterlyPnLFetcher(Fetcher[YFinanceQuarterlyPnLQueryParams, YFinanceQuarterlyPnLData]):
+class YFinanceQuarterlyPnLFetcher(YFinanceFetcher[YFinanceQuarterlyPnLQueryParams, YFinanceQuarterlyPnLData]):
 
     @staticmethod
     def transform_query(params: Dict[str, Any]) -> YFinanceQuarterlyPnLQueryParams:

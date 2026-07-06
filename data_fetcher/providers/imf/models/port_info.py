@@ -5,7 +5,7 @@
 from typing import Any
 
 from data_fetcher.utils.provider_errors import OpenBBError
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.port_info import (
     PortInfoData,
     PortInfoQueryParams,
@@ -212,8 +212,10 @@ class ImfPortInfoData(PortInfoData):
         return v / 100 if v else None
 
 
-class ImfPortInfoFetcher(Fetcher[ImfPortInfoQueryParams, list[ImfPortInfoData]]):
+class ImfPortInfoFetcher(ApiFetcher[ImfPortInfoQueryParams, list[ImfPortInfoData]]):
     """IMF Port Info Fetcher."""
+
+    require_credentials = False  # IMF API is keyless
 
     @staticmethod
     def transform_query(params: dict[str, Any]) -> ImfPortInfoQueryParams:

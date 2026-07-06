@@ -8,7 +8,7 @@ from typing import Any, Literal
 from warnings import warn
 
 from data_fetcher.abstract_provider.abstract.annotated_result import AnnotatedResult
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.balance_sheet import (
     BalanceSheetData,
     BalanceSheetQueryParams,
@@ -649,9 +649,11 @@ class SecBalanceSheetData(BalanceSheetData):
 
 
 class SecBalanceSheetFetcher(
-    Fetcher[SecBalanceSheetQueryParams, list[SecBalanceSheetData]]
+    ApiFetcher[SecBalanceSheetQueryParams, list[SecBalanceSheetData]]
 ):
     """SEC BalanceSheet Fetcher."""
+
+    require_credentials = False  # SEC EDGAR is keyless
 
     @staticmethod
     def transform_query(

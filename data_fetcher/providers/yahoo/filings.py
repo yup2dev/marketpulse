@@ -35,12 +35,12 @@ import logging
 from typing import Any, Dict, List, Optional
 import yfinance as yf
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 
 log = logging.getLogger(__name__)
 
 
-class YFinanceFilingsFetcher(Fetcher[YFinanceFilingsQueryParams, YFinanceFilingData]):
+class YFinanceFilingsFetcher(YFinanceFetcher[YFinanceFilingsQueryParams, YFinanceFilingData]):
 
     @staticmethod
     def transform_query(params: Dict[str, Any]) -> YFinanceFilingsQueryParams:

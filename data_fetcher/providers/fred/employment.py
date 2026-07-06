@@ -64,7 +64,7 @@ import logging
 from datetime import datetime, date as date_type
 from typing import Any, Dict, List, Optional
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
 from data_fetcher.utils.api_keys import get_api_key
 
@@ -79,12 +79,15 @@ FRED_SERIES_MAP = {
 }
 
 
-class FREDEmploymentFetcher(Fetcher[EmploymentQueryParams, EmploymentData]):
+class FREDEmploymentFetcher(ApiFetcher[EmploymentQueryParams, EmploymentData]):
     """
     FRED (Federal Reserve Economic Data) Employment Fetcher
 
     Uses FredSeriesFetcher for common API logic.
     """
+
+    api_name = "FRED"
+    api_key_env = "FRED_API_KEY"
 
     @staticmethod
     def transform_query(params: Dict[str, Any]) -> EmploymentQueryParams:

@@ -5,7 +5,7 @@
 from typing import Any
 
 from data_fetcher.utils.provider_errors import OpenBBError
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.available_indicators import (
     AvailableIndicatorsData,
     AvailableIndicesQueryParams,
@@ -112,9 +112,11 @@ class ImfAvailableIndicatorsData(AvailableIndicatorsData):
 
 
 class ImfAvailableIndicatorsFetcher(
-    Fetcher[ImfAvailableIndicatorsQueryParams, list[ImfAvailableIndicatorsData]]
+    ApiFetcher[ImfAvailableIndicatorsQueryParams, list[ImfAvailableIndicatorsData]]
 ):
     """IMF Available Indicators Fetcher."""
+
+    require_credentials = False  # IMF API is keyless
 
     @staticmethod
     def transform_query(params: dict[str, Any]) -> ImfAvailableIndicatorsQueryParams:

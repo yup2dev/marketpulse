@@ -84,17 +84,20 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.utils.api_keys import get_api_key
-from data_fetcher.utils.async_http_client import amake_request, HTTPClientError
+from data_fetcher.utils.provider_helpers import amake_json_request as amake_request, HTTPClientError
 
 log = logging.getLogger(__name__)
 
 
 class PolygonTechnicalIndicatorsFetcher(
-    Fetcher[TechnicalIndicatorsQueryParams, Union[SMAData, EMAData, RSIData, MACDData]]
+    ApiFetcher[TechnicalIndicatorsQueryParams, Union[SMAData, EMAData, RSIData, MACDData]]
 ):
     """Polygon.io 기술적 지표 Fetcher"""
+
+    api_name = "Polygon"
+    api_key_env = "POLYGON_API_KEY"
 
     BASE_URL = "https://api.polygon.io"
 
