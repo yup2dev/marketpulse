@@ -5,7 +5,7 @@
 from datetime import datetime
 from typing import Any
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.etf_performance import (
     ETFPerformanceData,
     ETFPerformanceQueryParams,
@@ -65,8 +65,10 @@ class WSJGainersData(ETFPerformanceData):
         return datetime.strptime(v[:10], "%Y-%m-%d").date()
 
 
-class WSJGainersFetcher(Fetcher[WSJGainersQueryParams, list[WSJGainersData]]):
+class WSJGainersFetcher(ApiFetcher[WSJGainersQueryParams, list[WSJGainersData]]):
     """Transform the query, extract and transform the data from the WSJ endpoints."""
+
+    require_credentials = False
 
     # pylint: disable=unused-argument
     @staticmethod

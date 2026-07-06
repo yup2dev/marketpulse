@@ -37,8 +37,11 @@ def collect_snapshot() -> dict:
                 "query_fields": sorted(getattr(qp, "model_fields", {}).keys()),
                 "data_type": getattr(dt, "__name__", str(dt)),
                 "require_credentials": bool(fetcher_cls.require_credentials),
-                "has_sync_extract": fetcher_cls.extract_data is not Fetcher.extract_data,
-                "has_async_extract": fetcher_cls.aextract_data is not Fetcher.aextract_data,
+                # fetch_data가 실제 호출하는 구현의 qualname — 베이스 스왑에 불변,
+                # 구현이 다른 함수로 바뀌면(덮어쓰기 사고) diff에 잡힌다
+                "extract_impl": getattr(
+                    fetcher_cls.extract_data, "__qualname__", str(fetcher_cls.extract_data)
+                ),
             }
         snapshot[pname] = entry
     return snapshot
@@ -53,8 +56,8 @@ def validate(snapshot: dict) -> list[str]:
             if meta["query_params"] == "BaseModel":
                 errors.append(f"{label}: query_params_type이 BaseModel로 폴백 — 파라미터 전멸 위험")
             # 빈 model_fields는 파라미터가 필요 없는 fetcher에서 정상 (예: rss_litigation)
-            if not (meta["has_sync_extract"] or meta["has_async_extract"]):
-                errors.append(f"{label}: extract_data/aextract_data 미구현")
+            if meta["extract_impl"].startswith("Fetcher."):
+                errors.append(f"{label}: extract_data가 Fetcher 기본(no-op)으로 남음")
     return errors
 
 
