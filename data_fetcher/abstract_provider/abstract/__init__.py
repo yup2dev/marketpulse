@@ -3,6 +3,13 @@ from data_fetcher.abstract_provider.abstract.annotated_result import AnnotatedRe
 from data_fetcher.abstract_provider.abstract.data import BaseData
 from data_fetcher.abstract_provider.abstract.query_params import BaseQueryParams
 from data_fetcher.abstract_provider.abstract.fetcher import Fetcher, classproperty, maybe_coroutine
+from data_fetcher.abstract_provider.abstract.base_fetchers import (
+    ApiFetcher,
+    ComputeFetcher,
+    DbFetcher,
+    LibraryFetcher,
+    YFinanceFetcher,
+)
 from data_fetcher.abstract_provider.abstract.provider import Provider, ProviderRegistry
 from data_fetcher.abstract_provider.abstract.stream import StreamFetcher, StreamFetcherError
 
@@ -11,6 +18,11 @@ __all__ = [
     "BaseData",
     "BaseQueryParams",
     "Fetcher",
+    "ApiFetcher",
+    "ComputeFetcher",
+    "DbFetcher",
+    "LibraryFetcher",
+    "YFinanceFetcher",
     "classproperty",
     "maybe_coroutine",
     "Provider",
