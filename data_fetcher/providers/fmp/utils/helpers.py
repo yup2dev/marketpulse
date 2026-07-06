@@ -38,8 +38,6 @@ async def response_callback(response, _):
 
 async def get_data(url: str, **kwargs: Any) -> list | dict:
     """Get data from FMP endpoint."""
-    # NOTE: aiohttp 기반 amake_request 사용 — httpx 버전(async_http_client)은
-    # response_callback 파라미터를 받지 않는다.
     from data_fetcher.utils.provider_helpers import amake_request
     return await amake_request(url, response_callback=response_callback, **kwargs)
 

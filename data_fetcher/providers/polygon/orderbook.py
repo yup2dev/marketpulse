@@ -7,7 +7,7 @@ import os
 import logging
 from collections import defaultdict
 
-from data_fetcher.utils.async_http_client import amake_request
+from data_fetcher.utils.provider_helpers import amake_json_request as amake_request
 
 log = logging.getLogger(__name__)
 

@@ -11,7 +11,7 @@ from data_fetcher.abstract_provider.standard_models.equity_historical import (
     EquityHistoricalData,
 )
 from data_fetcher.utils.api_keys import get_api_key
-from data_fetcher.utils.async_http_client import amake_request
+from data_fetcher.utils.provider_helpers import amake_json_request as amake_request
 from data_fetcher.providers.alphavantage.utils.helpers import (
     ALPHA_VANTAGE_BASE_URL, CRYPTO_FUNCTION_MAP, check_av_errors,
 )

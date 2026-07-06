@@ -13,7 +13,7 @@ from data_fetcher.abstract_provider.standard_models.equity_historical import (
     EquityHistoricalQueryParams,
 )
 from data_fetcher.utils.api_keys import get_api_key
-from data_fetcher.utils.async_http_client import amake_request
+from data_fetcher.utils.provider_helpers import amake_json_request as amake_request
 
 log = logging.getLogger(__name__)
 

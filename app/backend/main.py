@@ -117,8 +117,8 @@ async def lifespan(app: FastAPI):
     await cache.close()
     await close_pubsub()
 
-    from data_fetcher.utils.async_http_client import aclose_client
-    await aclose_client()
+    from data_fetcher.utils.provider_helpers import aclose_shared_session
+    await aclose_shared_session()
 
 
 app = FastAPI(

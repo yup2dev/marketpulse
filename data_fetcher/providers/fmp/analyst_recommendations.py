@@ -11,7 +11,7 @@ from data_fetcher.abstract_provider.standard_models import (
     AnalystRecommendationsData as _StdAnalystRecsData,
 )
 from data_fetcher.utils.api_keys import get_api_key
-from data_fetcher.utils.async_http_client import amake_request, HTTPClientError
+from data_fetcher.utils.provider_helpers import amake_json_request as amake_request, HTTPClientError
 
 log = logging.getLogger(__name__)
 
