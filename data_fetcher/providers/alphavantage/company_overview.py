@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import Field
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.company_profile import (
     CompanyProfileQueryParams,
     CompanyProfileData,
@@ -99,9 +99,12 @@ class CompanyOverviewData(CompanyProfileData):
 # ── Fetcher ───────────────────────────────────────────────────────────────────
 
 class AlphaVantageCompanyOverviewFetcher(
-    Fetcher[CompanyOverviewQueryParams, CompanyOverviewData]
+    ApiFetcher[CompanyOverviewQueryParams, CompanyOverviewData]
 ):
     """AlphaVantage 기업 개요 Fetcher"""
+
+    api_name = "AlphaVantage"
+    api_key_env = "ALPHAVANTAGE_API_KEY"
 
     @staticmethod
     def transform_query(params: Dict[str, Any]) -> CompanyOverviewQueryParams:
