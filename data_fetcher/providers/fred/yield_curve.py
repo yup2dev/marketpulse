@@ -11,7 +11,7 @@ from data_fetcher.abstract_provider.standard_models.yield_curve import (
 import logging
 from typing import Any, Dict, List, Optional
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
 from data_fetcher.utils.api_keys import get_api_key
 
@@ -28,8 +28,11 @@ _MATURITIES = [
 ]
 
 
-class FREDYieldCurveFetcher(Fetcher[YieldCurveQueryParams, YieldCurveData]):
+class FREDYieldCurveFetcher(ApiFetcher[YieldCurveQueryParams, YieldCurveData]):
     """미국채 수익률 곡선 현재 스냅샷 — 7개 만기별 최신 수익률."""
+
+    api_name = "FRED"
+    api_key_env = "FRED_API_KEY"
 
     @staticmethod
     def transform_query(params: Dict[str, Any]) -> YieldCurveQueryParams:

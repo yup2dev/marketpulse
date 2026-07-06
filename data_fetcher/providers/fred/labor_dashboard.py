@@ -8,7 +8,7 @@ from data_fetcher.abstract_provider.standard_models.indicator_dashboard import (
     IndicatorDashboardQueryParams,
     IndicatorDashboardData,
 )
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
 from data_fetcher.utils.api_keys import get_api_key
 
@@ -48,8 +48,11 @@ def _latest_float(obs: List[Dict]) -> Optional[float]:
     return None
 
 
-class FREDLaborDashboardFetcher(Fetcher[DashboardQueryParams, DashboardRowData]):
+class FREDLaborDashboardFetcher(ApiFetcher[DashboardQueryParams, DashboardRowData]):
     """노동시장 스냅샷 — 실업률, 고용, 임금 현재값."""
+
+    api_name = "FRED"
+    api_key_env = "FRED_API_KEY"
 
     @staticmethod
     def transform_query(params: Dict[str, Any]) -> DashboardQueryParams:

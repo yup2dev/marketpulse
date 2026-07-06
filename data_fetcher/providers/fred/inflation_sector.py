@@ -30,7 +30,7 @@ import logging
 from datetime import date as date_type
 from typing import Any, Dict, List, Optional
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
 from data_fetcher.utils.api_keys import get_api_key
 
@@ -49,8 +49,11 @@ _SECTOR_SERIES: Dict[str, str] = {
 }
 
 
-class FREDInflationSectorFetcher(Fetcher[InflationSectorQueryParams, InflationSectorData]):
+class FREDInflationSectorFetcher(ApiFetcher[InflationSectorQueryParams, InflationSectorData]):
     """섹터별 CPI YoY 변화율 시계열."""
+
+    api_name = "FRED"
+    api_key_env = "FRED_API_KEY"
 
     @staticmethod
     def transform_query(params: Dict[str, Any]) -> InflationSectorQueryParams:

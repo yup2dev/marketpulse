@@ -8,7 +8,7 @@ from data_fetcher.abstract_provider.standard_models.indicator_dashboard import (
     IndicatorDashboardQueryParams,
     IndicatorDashboardData,
 )
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
 from data_fetcher.utils.api_keys import get_api_key
 
@@ -39,8 +39,11 @@ def _hy_score(v: float) -> float:
     return max(0.0, 30 - ((v - 500) / 500) * 30)
 
 
-class FREDSentimentCompositeFetcher(Fetcher[DashboardQueryParams, DashboardRowData]):
+class FREDSentimentCompositeFetcher(ApiFetcher[DashboardQueryParams, DashboardRowData]):
     """시장 심리 스냅샷 — VIX, HY스프레드, 안전자산 수요 기반 공포-탐욕 지수."""
+
+    api_name = "FRED"
+    api_key_env = "FRED_API_KEY"
 
     @staticmethod
     def transform_query(params: Dict[str, Any]) -> DashboardQueryParams:
