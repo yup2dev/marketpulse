@@ -1,6 +1,6 @@
 """Standard Model: Cash Flow Statement (현금흐름표)"""
 from datetime import date as date_type
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import Field
 
@@ -10,7 +10,9 @@ from data_fetcher.abstract_provider.abstract.query_params import BaseQueryParams
 
 class CashFlowQueryParams(BaseQueryParams):
     symbol: str = Field(description="종목 코드")
-    period: Optional[str] = Field(default="annual", description="기간 (annual / quarter)")
+    period: Optional[Literal["annual", "quarterly"]] = Field(
+        default="annual", description="보고 주기"
+    )
     limit: Optional[int] = Field(default=5, description="최대 결과 수")
 
 

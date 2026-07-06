@@ -88,6 +88,10 @@ async def _load_screener_universe() -> List[Dict]:
 
     # 3. 조인 — 캐시 base에 profile/metrics 병합
     # (DB 조인은 원시 코드 기준, 출력 stk_cd만 시세 조회용으로 정규화 — KR: 005930 → 005930.KS)
+    # roe/roa/profit_margin은 DB에 소수(0.32=32%)로 저장 — 필터/표시가 %값을 쓰므로 ×100 변환.
+    def _pct(v):
+        return float(v) * 100 if v is not None else None
+
     result = []
     for raw_cd, b in base.items():
         p = profiles.get(raw_cd)
@@ -104,9 +108,9 @@ async def _load_screener_universe() -> List[Dict]:
             'beta':            float(p.beta)            if p and p.beta            else None,
             'pe_ratio':        float(m.pe_ratio)        if m and m.pe_ratio        else None,
             'pb_ratio':        float(m.pb_ratio)        if m and m.pb_ratio        else None,
-            'roe':             float(m.roe)              if m and m.roe             else None,
-            'roa':             float(m.roa)              if m and m.roa             else None,
-            'profit_margin':   float(m.profit_margin)   if m and m.profit_margin   else None,
+            'roe':             _pct(m.roe)              if m else None,
+            'roa':             _pct(m.roa)              if m else None,
+            'profit_margin':   _pct(m.profit_margin)    if m else None,
             'debt_to_equity':  float(m.debt_to_equity)  if m and m.debt_to_equity  else None,
             'current_ratio':   float(m.current_ratio)   if m and m.current_ratio   else None,
             'quick_ratio':     float(m.quick_ratio)     if m and m.quick_ratio     else None,
@@ -327,13 +331,11 @@ class ScreenerService:
         syms_key = ','.join(sorted(c['stk_cd'] for c in candidates))
         prices   = await _yf_screener_quotes(syms_key)
 
-        # 가격 데이터 병합
-        rows = []
-        for c in candidates:
-            q = prices.get(c['stk_cd'])
-            if not q:
-                continue
-            rows.append({**c, **q})
+        # 가격 데이터 병합 — 시세 미확보 종목도 유지(가격 필드 None).
+        # 로컬 Fetcher 미실행으로 yahoo 시세가 전부 비어도 DB 조건 결과는 반환한다.
+        # (가격 기반 필터를 걸면 _apply_filters가 None 행을 자연히 걸러낸다)
+        rows = [{'close_price': None, 'change_rate': None, 'volume': None,
+                 **c, **(prices.get(c['stk_cd']) or {})} for c in candidates]
 
         # 가격 기반 필터 재적용 (price_min/max, change_rate, volume)
         rows = _apply_filters(rows, {

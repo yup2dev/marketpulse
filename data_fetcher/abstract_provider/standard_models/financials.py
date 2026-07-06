@@ -4,7 +4,7 @@ Yahoo Finance처럼 세 재무제표를 단일 응답으로 반환하는 provide
 개별 제표가 필요하면 income_statement / balance_sheet / cash_flow 표준 모델을 사용한다.
 """
 from datetime import date as date_type
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import Field
 
@@ -14,7 +14,9 @@ from data_fetcher.abstract_provider.abstract.query_params import BaseQueryParams
 
 class FinancialsQueryParams(BaseQueryParams):
     symbol: str = Field(description="종목 코드")
-    period: Optional[str] = Field(default="annual", description="기간 (annual / quarterly)")
+    period: Optional[Literal["annual", "quarterly"]] = Field(
+        default="annual", description="보고 주기"
+    )
 
 
 class FinancialsData(BaseData):

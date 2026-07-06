@@ -1,6 +1,6 @@
 """Standard Model: Income Statement (손익계산서)"""
 from datetime import date as date_type
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import Field
 
@@ -12,7 +12,9 @@ class IncomeStatementQueryParams(BaseQueryParams):
     """손익계산서 조회 표준 파라미터"""
 
     symbol: str = Field(description="종목 코드")
-    period: Optional[str] = Field(default="annual", description="기간 (annual / quarter)")
+    period: Optional[Literal["annual", "quarterly"]] = Field(
+        default="annual", description="보고 주기"
+    )
     limit: Optional[int] = Field(default=10, description="최대 결과 수")
 
 

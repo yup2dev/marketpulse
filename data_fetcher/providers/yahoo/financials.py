@@ -1,7 +1,7 @@
 """Yahoo Finance Financials (재무제표 통합 — 손익+재무상태+현금흐름)"""
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 import yfinance as yf
 from pydantic import Field
@@ -14,7 +14,9 @@ log = logging.getLogger(__name__)
 
 class YFinanceFinancialsQueryParams(FinancialsQueryParams):
     """Yahoo Finance 재무제표 파라미터 — period 대신 freq 별칭 지원"""
-    freq: Optional[str] = Field(default=None, description="보고 주기 (quarterly/annual) — period 별칭")
+    freq: Optional[Literal["annual", "quarterly"]] = Field(
+        default=None, description="보고 주기 — period 별칭"
+    )
 
 
 class YFinanceFinancialsData(FinancialsData):

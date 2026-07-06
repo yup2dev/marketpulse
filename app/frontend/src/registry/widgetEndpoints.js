@@ -35,6 +35,7 @@ import SparklineWidget         from '../components/widgets/SparklineWidget';
 import TradingViewIndexChartsWidget from '../components/widgets/TradingViewIndexChartsWidget';
 import TradingViewRankingWidget     from '../components/widgets/TradingViewRankingWidget';
 import ComparisonWidget        from '../components/widgets/ComparisonWidget';
+import ChartWidget             from '../components/widgets/ChartWidget';
 import HeatmapWidget           from '../components/widgets/HeatmapWidget';
 import CorrelationWidget       from '../components/widgets/CorrelationWidget';
 import NoteWidget              from '../components/widgets/NoteWidget';
@@ -237,6 +238,11 @@ export const WIDGET_ENDPOINTS = {
   },
 
   // ── Visualization widgets ──────────────────────────────────────────────────
+  'advanced-chart': {
+    title:     'Advanced Chart',
+    component: ChartWidget,        // 멀티심볼·캔들·보조지표·페어분석 (symbol prop으로 시드)
+    propsFrom: ['symbol'],
+  },
   'sparkline': {
     title:     'Mini Charts',
     component: SparklineWidget,

@@ -4,7 +4,7 @@
 기준/대상 통화로 식별한다. 특정 provider는 이 클래스를 상속해 전용 필드를 추가한다.
 """
 from datetime import date as date_type
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import Field
 
@@ -19,7 +19,7 @@ class ForexHistoricalQueryParams(BaseQueryParams):
     to_currency: str = Field(description="대상 통화 (예: USD, EUR, KRW)")
     start_date: Optional[str] = Field(default=None, description="조회 시작일 (YYYY-MM-DD)")
     end_date: Optional[str] = Field(default=None, description="조회 종료일 (YYYY-MM-DD)")
-    interval: str = Field(default="daily", description="데이터 간격 (daily, weekly, monthly)")
+    interval: Literal["daily", "weekly", "monthly"] = Field(default="daily", description="데이터 간격")
 
 
 class ForexHistoricalData(BaseData):

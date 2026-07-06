@@ -1,6 +1,6 @@
 """Standard Model: Equity Historical (OHLCV 시계열 데이터)"""
 from datetime import date as date_type, datetime
-from typing import Optional, Union
+from typing import Literal, Optional, Union
 
 from pydantic import Field, field_validator
 
@@ -14,9 +14,9 @@ class EquityHistoricalQueryParams(BaseQueryParams):
     symbol: str = Field(description="종목 코드 (예: AAPL, MSFT)")
     start_date: Optional[str] = Field(default=None, description="시작일 (YYYY-MM-DD)")
     end_date: Optional[str] = Field(default=None, description="종료일 (YYYY-MM-DD)")
-    interval: str = Field(
+    interval: Literal["1m", "2m", "5m", "15m", "30m", "1h", "1d", "1wk", "1mo"] = Field(
         default="1d",
-        description="데이터 간격 (1m, 5m, 15m, 1h, 1d, 1wk, 1mo)",
+        description="데이터 간격",
     )
 
     @field_validator("symbol", mode="before")

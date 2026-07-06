@@ -90,13 +90,17 @@ export const TIME_RANGES = [
   { id: 'max', label: 'MAX', value: 'max', interval: '1mo' }, // variable
 ];
 
+// id는 백엔드 /stock/indicator/{id} 의 _INDICATOR_MAP 키(대소문자 무관)와 일치해야 한다.
 export const MACRO_INDICATORS = [
-  { id: 'gdp', label: 'GDP', description: 'Gross Domestic Product' },
-  { id: 'unemployment', label: 'Unemployment', description: 'Unemployment Rate' },
-  { id: 'cpi', label: 'CPI', description: 'Consumer Price Index' },
-  { id: 'ppi', label: 'PPI', description: 'Producer Price Index' },
-  { id: 'fed_funds', label: 'Fed Funds', description: 'Federal Funds Rate' },
-  { id: 'treasury_10y', label: '10Y Treasury', description: '10-Year Treasury Yield' },
+  { id: 'gdp',                   name: 'GDP',                   description: 'Gross Domestic Product' },
+  { id: 'unemployment',          name: 'Unemployment',          description: 'Unemployment Rate' },
+  { id: 'cpi',                   name: 'CPI',                   description: 'Consumer Price Index' },
+  { id: 'fed_funds_rate',        name: 'Fed Funds',             description: 'Federal Funds Rate' },
+  { id: 'retail_sales',          name: 'Retail Sales',          description: 'Advance Retail Sales' },
+  { id: 'consumer_sentiment',    name: 'Consumer Sentiment',    description: 'UMich Consumer Sentiment' },
+  { id: 'nonfarm_payroll',       name: 'Nonfarm Payroll',       description: 'Total Nonfarm Payrolls' },
+  { id: 'housing_starts',        name: 'Housing Starts',        description: 'New Housing Starts' },
+  { id: 'industrial_production', name: 'Industrial Production', description: 'Industrial Production Index' },
 ];
 
 export const TECHNICAL_INDICATORS = [

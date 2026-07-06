@@ -7,7 +7,7 @@ FMP는 이 코드베이스에서 손익계산서(income-statement)만 연동돼 
 """
 import logging
 from datetime import date as date_type
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import Field
 
@@ -23,7 +23,9 @@ FMP_STABLE_BASE = "https://financialmodelingprep.com/stable"
 
 class FMPFinancialsQueryParams(FinancialsQueryParams):
     """FMP 재무제표 파라미터 — period 대신 freq 별칭 지원 (yahoo와 동일 UX)"""
-    freq: Optional[str] = Field(default=None, description="보고 주기 (quarterly/annual) — period 별칭")
+    freq: Optional[Literal["annual", "quarterly"]] = Field(
+        default=None, description="보고 주기 — period 별칭"
+    )
 
 
 class FMPFinancialsData(FinancialsData):

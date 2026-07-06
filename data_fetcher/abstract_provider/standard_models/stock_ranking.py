@@ -2,7 +2,7 @@
 
 DB 시계열 기반 기간 랭킹(1d/1w/1mo/3mo/6mo/1y)의 공통 인터페이스.
 """
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import Field
 
@@ -13,7 +13,9 @@ from data_fetcher.abstract_provider.abstract.query_params import BaseQueryParams
 class StockRankingQueryParams(BaseQueryParams):
     """종목 랭킹 조회 표준 파라미터"""
 
-    period: str = Field(default="1d", description="1d | 1w | 1mo | 3mo | 6mo | 1y")
+    period: Literal["1d", "1w", "1mo", "3mo", "6mo", "1y"] = Field(
+        default="1d", description="랭킹 산정 기간"
+    )
 
 
 class StockRankingData(BaseData):

@@ -197,69 +197,59 @@ export default function UniversalWidget({
     return () => { alive = false; };
   }, [category, reg.provider]);
 
-  // 모델 게이트웨이 위젯: /api/data/ 메타에서 모델의 필수 파라미터를 읽어 동적 폼 스펙 구성.
+  // 모델 게이트웨이 위젯: 선택된 provider의 QueryParams 스키마로 파라미터 폼 자동 생성.
+  // provider가 바뀌면 그 provider의 옵션(표준모델 + provider 전용 필드)으로 폼을 재구성한다.
   // (symbol/ticker 는 심볼 셀렉터로 자동 주입되므로 폼에서 제외)
   useEffect(() => {
-    if (reg.params || !category || !endpoint?.includes('{provider}')) return;
+    if (reg.params || !category || !endpoint?.includes('{provider}') || !provider) return;
     let alive = true;
-    apiClient.get(`${API_BASE}/data/`)
+    setDynamicParams(null);   // 스키마 로딩 동안 fetch 보류 (아래 fetchData 게이트)
+    apiClient.get(`${API_BASE}/data/${provider}/${category}/schema`)
       .then((r) => {
         if (!alive) return;
-        const req = new Set();
-        const choices = {};
-        let acceptsSym = false;
-        (r.results || []).forEach((p) => (p.models || []).forEach((m) => {
-          if ((m.model ?? m) !== category) return;
-          (m.required_params || []).forEach((x) => req.add(x));
-          if (m.accepts_symbol) acceptsSym = true;
-          Object.entries(m.param_choices || {}).forEach(([k, v]) => {
-            if (Array.isArray(v) && v.length) {
-              choices[k] = [...new Set([...(choices[k] || []), ...v])];
+        setModelAcceptsSymbol(!!r.accepts_symbol);
+        const specs = (r.params || []).filter((p) => p.name !== 'symbol' && p.name !== 'ticker');
+        // params 동기화: 같은 이름은 사용자가 고른 값 유지, 새 파라미터는 기본값
+        // (필수 select는 첫 옵션), 이전 provider에만 있던 키는 제거
+        // (extra='allow' 모델은 서버가 안 걸러줌). setDynamicParams와 같은 배치로
+        // 커밋되어 fetchData 이펙트가 항상 동기화된 params로 실행된다.
+        setParams((prev) => {
+          const next = {};
+          for (const p of specs) {
+            if (p.name in prev && prev[p.name] !== '') { next[p.name] = prev[p.name]; continue; }
+            let def = p.default;
+            if ((def == null || def === '') && p.required && p.options?.length) {
+              const first = p.options[0];
+              def = (first && typeof first === 'object') ? first.value : first;
             }
-          });
-        }));
-        setModelAcceptsSymbol(acceptsSym);
-        // symbol/ticker는 심볼 셀렉터로 주입 → 폼에서 제외. 선택지(param_choices) 있으면 드롭다운.
-        const specs = [...req]
-          .filter((n) => n !== 'symbol' && n !== 'ticker')
-          .map((n) => {
-            const opts = choices[n];
-            if (opts && opts.length) {
-              const first = opts[0];
-              const def = (first && typeof first === 'object') ? first.value : first;
-              return { name: n, label: n, kind: 'select', options: opts, default: def };
-            }
-            return { name: n, label: n, kind: 'text', default: '' };
-          });
+            next[p.name] = def ?? '';
+          }
+          return next;
+        });
         setDynamicParams(specs);
       })
       .catch(() => { if (alive) { setDynamicParams([]); setModelAcceptsSymbol(true); } });
     return () => { alive = false; };
-  }, [category, endpoint, reg.params]);
-
-  // 동적 파라미터가 로드되면 기본값을 params 상태에 병합.
-  useEffect(() => {
-    if (!dynamicParams?.length) return;
-    setParams((prev) => {
-      let changed = false;
-      const next = { ...prev };
-      for (const p of dynamicParams) {
-        if (!(p.name in next)) { next[p.name] = p.default ?? ''; changed = true; }
-      }
-      return changed ? next : prev;
-    });
-  }, [dynamicParams]);
+  }, [category, endpoint, reg.params, provider]);
 
   const buildUrl = useCallback((current) => {
     if (!endpoint) return null;
+    // 모델이 symbol을 받지 않으면(스키마 accepts_symbol=false — institution 계열 등)
+    // 템플릿에 자동 주입된 symbol/ticker 쿼리를 제거해 fetcher에 흘러가지 않게 한다.
+    let ep = endpoint;
+    if (modelAcceptsSymbol === false && ep.includes('?')) {
+      const [path, rawQs] = ep.split('?');
+      const kept = rawQs.split('&').filter((kv) => !/^(symbol|ticker)=/.test(kv));
+      ep = kept.length ? `${path}?${kept.join('&')}` : path;
+    }
     // {provider} 경로 플레이스홀더는 선택된 provider로 채운다(모델 단위 게이트웨이 위젯).
     const fallback = { symbol, period, portfolioId: portfolioId || '', provider: provider || '' };
-    let url = endpoint.replace(/\{([\w_]+)\}/g, (_, k) => {
+    let url = ep.replace(/\{([\w_]+)\}/g, (_, k) => {
       const v = current[k] ?? fallback[k] ?? '';
       return encodeURIComponent(v);
     });
     const placeholders = new Set();
-    endpoint.replace(/\{([\w_]+)\}/g, (_, k) => { placeholders.add(k); return ''; });
+    ep.replace(/\{([\w_]+)\}/g, (_, k) => { placeholders.add(k); return ''; });
     const qs = [];
     for (const [k, v] of Object.entries(current)) {
       if (v == null || v === '') continue;
@@ -273,21 +263,25 @@ export default function UniversalWidget({
     }
     if (qs.length) url += (url.includes('?') ? '&' : '?') + qs.join('&');
     return url;
-  }, [endpoint, symbol, period, portfolioId, category, provider]);
+  }, [endpoint, symbol, period, portfolioId, category, provider, modelAcceptsSymbol]);
 
   const fetchData = useCallback(async () => {
     if (!endpoint) return;
     // 게이트웨이 위젯은 provider 셀렉터가 확정되기 전 fetch하지 않는다(빈 provider 경로 방지).
     if (endpoint.includes('{provider}') && !provider) return;
-    // 모델 위젯의 필수 파라미터(예: index_constituents 의 index)가 비어 있으면
-    // 폼만 노출하고 fetch 보류 → 422(필수 누락) 방지.
-    if (!reg.params && dynamicParams && dynamicParams.length &&
-        dynamicParams.some((p) => {
-          const v = paramsRef.current[p.name];
-          return v == null || v === '';
-        })) {
-      setLoading(false);
-      return;
+    if (!reg.params && category && endpoint.includes('{provider}')) {
+      // 스키마 로딩 중이면 보류 — 이전 provider의 폼으로 fetch하는 것 방지.
+      if (dynamicParams == null) return;
+      // 필수 파라미터(예: index_constituents 의 index)가 비어 있으면
+      // 폼만 노출하고 fetch 보류 → 422(필수 누락) 방지.
+      if (dynamicParams.some((p) => {
+        if (!p.required) return false;
+        const v = paramsRef.current[p.name];
+        return v == null || v === '';
+      })) {
+        setLoading(false);
+        return;
+      }
     }
     setLoading(true);
     setError(null);
@@ -301,7 +295,7 @@ export default function UniversalWidget({
     } finally {
       setLoading(false);
     }
-  }, [endpoint, buildUrl, provider, dynamicParams]);
+  }, [endpoint, buildUrl, provider, category, dynamicParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { fetchData(); }, [fetchData]);
 

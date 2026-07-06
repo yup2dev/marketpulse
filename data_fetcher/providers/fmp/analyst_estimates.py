@@ -92,9 +92,11 @@ class FMPAnalystEstimatesFetcher(ApiFetcher[FMPAnalystEstimatesQueryParams, FMPA
     ) -> List[Dict[str, Any]]:
         try:
             api_key = get_api_key(credentials=credentials, api_name="FMP", env_var="FMP_API_KEY")
+            # 표준 토큰 quarterly → FMP API 토큰 quarter
+            period = query.period or "annual"
             params = {
                 "symbol": query.symbol,
-                "period": query.period or "annual",
+                "period": "quarter" if period == "quarterly" else period,
                 "page": query.page or 0,
                 "limit": query.limit or 10,
                 "apikey": api_key,
