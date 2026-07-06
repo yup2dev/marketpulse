@@ -30,15 +30,14 @@ class StockQuoteData(EquityQuoteData):
 import logging
 from typing import Any, Dict, List, Optional
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 
 log = logging.getLogger(__name__)
 
 
-class YFinanceQuoteFetcher(Fetcher[StockQuoteQueryParams, StockQuoteData]):
+class YFinanceQuoteFetcher(YFinanceFetcher[StockQuoteQueryParams, StockQuoteData]):
     """Yahoo Finance 현재가 스냅샷 — 직전 5일 OHLCV에서 현재가·등락 계산."""
 
-    require_credentials = False
 
     @staticmethod
     def transform_query(params: Dict[str, Any]) -> StockQuoteQueryParams:

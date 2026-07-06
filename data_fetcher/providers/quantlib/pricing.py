@@ -19,7 +19,7 @@ from typing import Any, Dict, List, Optional
 
 import QuantLib as ql
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ComputeFetcher
 
 log = logging.getLogger(__name__)
 
@@ -35,10 +35,9 @@ def _to_ql_date(d: date_type) -> ql.Date:
     return ql.Date(d.day, d.month, d.year)
 
 
-class QuantLibPricingFetcher(Fetcher[OptionPricingQueryParams, OptionPricingData]):
+class QuantLibPricingFetcher(ComputeFetcher[OptionPricingQueryParams, OptionPricingData]):
     """Black-Scholes / Binomial / Monte Carlo 기반 옵션 가격 계산"""
 
-    require_credentials = False
 
     @staticmethod
     def transform_query(params: Dict[str, Any]) -> OptionPricingQueryParams:

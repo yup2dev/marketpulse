@@ -34,12 +34,13 @@ from typing import Any, Dict, List, Optional
 import yfinance as yf
 import pandas as pd
 
-from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult, Fetcher
+from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
+from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 
 log = logging.getLogger(__name__)
 
 
-class YFinanceInsiderTradingFetcher(Fetcher[YFinanceInsiderTradingQueryParams, YFinanceInsiderTransactionData]):
+class YFinanceInsiderTradingFetcher(YFinanceFetcher[YFinanceInsiderTradingQueryParams, YFinanceInsiderTransactionData]):
     """Yahoo Finance 내부자 거래 Fetcher"""
 
     @staticmethod
@@ -182,7 +183,7 @@ class YFinanceInsiderTradingFetcher(Fetcher[YFinanceInsiderTradingQueryParams, Y
         return result
 
 
-class YFinanceInsiderHoldersFetcher(Fetcher[YFinanceInsiderTradingQueryParams, YFinanceInsiderHolderData]):
+class YFinanceInsiderHoldersFetcher(YFinanceFetcher[YFinanceInsiderTradingQueryParams, YFinanceInsiderHolderData]):
     """Yahoo Finance 내부자 보유 현황 Fetcher"""
 
     @staticmethod
@@ -268,7 +269,7 @@ class YFinanceInsiderHoldersFetcher(Fetcher[YFinanceInsiderTradingQueryParams, Y
         return result
 
 
-class YFinanceInsiderTradingSummaryFetcher(Fetcher[YFinanceInsiderTradingQueryParams, YFinanceInsiderTransactionData]):
+class YFinanceInsiderTradingSummaryFetcher(YFinanceFetcher[YFinanceInsiderTradingQueryParams, YFinanceInsiderTransactionData]):
     """내부자 거래 집계 Fetcher (transactions + buy/sell summary)"""
 
     @staticmethod
