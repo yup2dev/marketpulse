@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import Field
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.revenue_segments import (
     RevenueSegmentDetailData as FMPSegmentData,
     RevenueSegmentsQueryParams,
@@ -78,7 +78,10 @@ def _normalize(raw: List[Dict], limit: int) -> Optional[FMPSegmentData]:
 
 # ── Fetcher ───────────────────────────────────────────────────────────────────
 
-class FMPRevenueSegmentsFetcher(Fetcher[FMPRevenueSegmentsQueryParams, FMPRevenueSegmentsData]):
+class FMPRevenueSegmentsFetcher(ApiFetcher[FMPRevenueSegmentsQueryParams, FMPRevenueSegmentsData]):
+
+    api_name = "FMP"
+    api_key_env = "FMP_API_KEY"
 
     @staticmethod
     def transform_query(params: Dict[str, Any]) -> FMPRevenueSegmentsQueryParams:

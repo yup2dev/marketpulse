@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import Field
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models import (
     AnalystRecommendationsQueryParams as _StdAnalystRecsQueryParams,
     AnalystRecommendationsData as _StdAnalystRecsData,
@@ -51,9 +51,12 @@ class AnalystRecommendationsData(_StdAnalystRecsData):
 # ── Fetcher ───────────────────────────────────────────────────────────────────
 
 class FMPAnalystRecommendationsFetcher(
-    Fetcher[AnalystRecommendationsQueryParams, AnalystRecommendationsData]
+    ApiFetcher[AnalystRecommendationsQueryParams, AnalystRecommendationsData]
 ):
     """FMP 애널리스트 추천 등급 Fetcher"""
+
+    api_name = "FMP"
+    api_key_env = "FMP_API_KEY"
 
     @staticmethod
     def transform_query(params: Dict[str, Any]) -> AnalystRecommendationsQueryParams:
