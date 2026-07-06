@@ -25,7 +25,7 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.utils.api_keys import get_api_key
 from data_fetcher.utils.async_http_client import amake_request, HTTPClientError
 
@@ -33,9 +33,12 @@ log = logging.getLogger(__name__)
 
 
 class PolygonEarningsFetcher(
-    Fetcher[EarningsQueryParams, EarningsData]
+    ApiFetcher[EarningsQueryParams, EarningsData]
 ):
     """Polygon.io 실적 발표 데이터 Fetcher"""
+
+    api_name = "Polygon"
+    api_key_env = "POLYGON_API_KEY"
 
     BASE_URL = "https://api.polygon.io"
 
