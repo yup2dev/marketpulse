@@ -254,6 +254,20 @@ export default function DashboardPage() {
   const firstPaneId =
     splitTree.type === 'pane' ? splitTree.id : findFirstPaneId(splitTree);
 
+  // ── Copilot 위젯 추가 — CopilotPanel이 dispatch하는 CustomEvent 수신 ─────
+  useEffect(() => {
+    const handler = (e) => {
+      const { widget_type: widgetType, w, h } = e.detail || {};
+      if (!widgetType) return;
+      const addFn =
+        addWidgetRefs.current[firstPaneId] ||
+        Object.values(addWidgetRefs.current)[0];
+      addFn?.({ id: widgetType, defaultSize: { w: w || 6, h: h || 5 } });
+    };
+    window.addEventListener('copilot:add-widget', handler);
+    return () => window.removeEventListener('copilot:add-widget', handler);
+  }, [firstPaneId]);
+
 
   // ── Auth guard ──────────────────────────────────────────────────────────
   if (config?.needsPortfolio && !isAuthenticated) {

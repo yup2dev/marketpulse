@@ -11,7 +11,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import {
-  KeyRound, Trash2, Save, ExternalLink, RefreshCw, ShieldCheck, Download, Play,
+  KeyRound, Trash2, Save, ExternalLink, RefreshCw, ShieldCheck, Download, Play, Sparkles,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { keysAPI } from '../../config/api';
@@ -49,6 +49,20 @@ const PROVIDERS = [
     id: 'alphavantage', label: 'Alpha Vantage', desc: '시세 · 환율 · 암호화폐',
     docs: 'https://www.alphavantage.co/support/#api-key',
     fields: [{ key: 'api_key', label: 'API Key', placeholder: 'Alpha Vantage API Key' }],
+  },
+];
+
+// AI Copilot 채팅용 LLM 키 — 데이터 provider와 동일한 /api/keys 저장소 사용
+const AI_PROVIDERS = [
+  {
+    id: 'gemini', label: 'Google Gemini', desc: 'AI Copilot — 무료 티어 사용 가능 (권장)',
+    docs: 'https://aistudio.google.com/apikey',
+    fields: [{ key: 'api_key', label: 'API Key', placeholder: 'Gemini API Key (AIza…)' }],
+  },
+  {
+    id: 'anthropic', label: 'Anthropic Claude', desc: 'AI Copilot — 유료, 응답 품질 최상',
+    docs: 'https://platform.claude.com/settings/keys',
+    fields: [{ key: 'api_key', label: 'API Key', placeholder: 'sk-ant-…' }],
   },
 ];
 
@@ -196,7 +210,26 @@ export default function SettingsPage() {
       )}
 
       <div className="space-y-3">
-        {PROVIDERS.map((p) => {
+        {PROVIDERS.map(renderCard)}
+      </div>
+
+      {/* ── AI Copilot 키 ──────────────────────────────────────────────── */}
+      <div className="flex items-center gap-2 mt-10 mb-1">
+        <Sparkles className="text-cyan-400" size={18} />
+        <h2 className="text-lg font-semibold text-white">AI Copilot</h2>
+      </div>
+      <p className="text-sm mb-4" style={{ color: 'var(--color-text-muted)' }}>
+        Copilot 채팅 패널에 사용할 LLM 키입니다. Gemini는 무료 티어로 사용할 수 있습니다.
+        둘 다 등록하면 Claude가 우선 사용됩니다.
+      </p>
+      <div className="space-y-3">
+        {AI_PROVIDERS.map(renderCard)}
+      </div>
+    </div>
+  );
+
+  // 데이터 provider와 AI provider 카드 공용 렌더러 (컴포넌트 스코프 state 사용)
+  function renderCard(p) {
           const st = statusMap[p.id];
           const configured = !!st?.configured;
           const busy = !!saving[p.id];
@@ -276,8 +309,5 @@ export default function SettingsPage() {
               </div>
             </div>
           );
-        })}
-      </div>
-    </div>
-  );
+  }
 }

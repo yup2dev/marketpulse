@@ -75,6 +75,12 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     LOG_FILE: str = "logs/app.log"
 
+    # Copilot (AI 어시스턴트) — 키는 'API 키 관리'(사용자별 DB)가 우선, 아래는 서버 폴백.
+    ANTHROPIC_API_KEY: Optional[str] = None
+    COPILOT_MODEL: str = "claude-opus-4-8"
+    GEMINI_API_KEY: Optional[str] = None            # 무료 티어: aistudio.google.com
+    COPILOT_GEMINI_MODEL: str = "gemini-2.5-flash"
+
     # API Keys
     FRED_API_KEY: Optional[str] = None
     ALPHA_VANTAGE_API_KEY: Optional[str] = None
