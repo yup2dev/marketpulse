@@ -40,6 +40,7 @@ import CorrelationWidget       from '../components/widgets/CorrelationWidget';
 import NoteWidget              from '../components/widgets/NoteWidget';
 import EconomicCalendarWidget  from '../components/widgets/EconomicCalendarWidget';
 import TerminalWidget          from '../components/widgets/TerminalWidget';
+import ResearchReportsWidget   from '../components/widgets/ResearchReportsWidget';
 
 // ── date helpers (used by quant param defaults) ─────────────────────────────
 const isoDate = (d) => d.toISOString().slice(0, 10);
@@ -55,6 +56,13 @@ export const WIDGET_ENDPOINTS = {
   'institutional-portfolios': {
     title:     'Institutional Portfolios',
     component: InstitutionalPortfoliosWidget,
+    propsFrom: ['symbol'],
+  },
+
+  // ── Research Reports (PDF 임포트: analyst/estimates/annual) ───────────────
+  'research-reports': {
+    title:     'Research Reports',
+    component: ResearchReportsWidget,
     propsFrom: ['symbol'],
   },
 

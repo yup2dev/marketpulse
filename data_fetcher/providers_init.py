@@ -161,6 +161,7 @@ try:
     from data_fetcher.providers.database.stock_ranking import DBStockRankingFetcher
     from data_fetcher.providers.database.institutions_list import DBInstitutionsListFetcher
     from data_fetcher.providers.database.institutional_holdings import DBInstitutionalHoldingsFetcher
+    from data_fetcher.providers.database.research_reports import DBResearchReportsFetcher
     _db_available = True
 except ImportError:
     _db_available = False
@@ -474,6 +475,7 @@ db_provider = Provider(
         "stock_ranking": DBStockRankingFetcher,
         "institutions_list": DBInstitutionsListFetcher,
         "institutional_holdings": DBInstitutionalHoldingsFetcher,
+        "research_reports": DBResearchReportsFetcher,
     },
 ) if _db_available else None
 

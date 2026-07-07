@@ -14,7 +14,7 @@ import useAuthStore from '../../store/authStore';
 import usePortfolioState from '../../hooks/usePortfolioState';
 import useNavigationStore from '../../store/navigationStore';
 
-import { URL_WIDGET_MAP } from '../../registry/urlWidgetMap';
+import { URL_WIDGET_MAP, getGlobalWidgetCategories } from '../../registry/urlWidgetMap';
 import SplitPaneLayout, {
   splitPaneNode,
   removePaneNode,
@@ -236,9 +236,24 @@ export default function DashboardPage() {
       : categories[0];
   })();
 
+  // 메뉴 카탈로그 = 현재 pane 카테고리 + 전 페이지의 완성 위젯(중복 제외).
+  // WidgetMenu가 여기에 "All Models"(standard_model 단위)를 덧붙인다.
+  const menuCategories = (() => {
+    const base = menuPaneCategory ? [menuPaneCategory] : categories;
+    const baseIds = base.flatMap((c) => c.widgets.map((w) => w.id));
+    return [
+      ...base,
+      ...getGlobalWidgetCategories({
+        excludeIds: baseIds,
+        includePortfolio: !!config?.needsPortfolio,
+      }),
+    ];
+  })();
+
   const totalPanes = countPanes(splitTree);
   const firstPaneId =
     splitTree.type === 'pane' ? splitTree.id : findFirstPaneId(splitTree);
+
 
   // ── Auth guard ──────────────────────────────────────────────────────────
   if (config?.needsPortfolio && !isAuthenticated) {
@@ -418,7 +433,7 @@ export default function DashboardPage() {
         <WidgetMenu
           open={menuState.open}
           onClose={() => setMenuState({ open: false, paneId: null })}
-          categories={menuPaneCategory ? [menuPaneCategory] : categories}
+          categories={menuCategories}
           activeWidgetIds={[]}
           onAdd={handleAddWidget}
         />

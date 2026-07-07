@@ -24,7 +24,7 @@ from app.backend.core.db import init_db
 from app.backend.api.routes import (
     stock, news, portfolio, macro,
     auth, user_portfolio, screener, alerts, export, watchlist, menu,
-    quantlib, quantitative, notes,
+    quantlib, quantitative, notes, reports,
 )
 from app.backend.api.routes.workspace import router as workspace_router
 from app.backend.api.routes.fundamental import router as fundamental_router
@@ -232,6 +232,7 @@ app.add_middleware(
 # ── Stock / Market ────────────────────────────────────────────────────────────
 app.include_router(stock.router,     prefix="/api/stock",    tags=["stock"])
 app.include_router(news.router,      prefix="/api/news",     tags=["news"])
+app.include_router(reports.router,   prefix="/api",          tags=["reports"])
 app.include_router(screener.router,  prefix="/api",          tags=["screener"])
 
 # ── Macro / Economic ─────────────────────────────────────────────────────────
