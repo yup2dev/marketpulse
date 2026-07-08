@@ -5,27 +5,15 @@
  * ({ data, layout, frames }) and this component passes it through
  * to Plotly.react() without any transformation.
  *
- * Dark theme overrides are merged onto top of whatever layout the
- * backend sends, so charts always match the app's dark UI.
+ * Theme overrides (dark/light) are merged on top of whatever layout the
+ * backend sends, so charts always match the app's current theme.
  *
  * Props:
  *   plotlyJson  { data, layout, frames }  — raw Plotly figure
  */
 import { useEffect, useRef, useCallback } from 'react';
-
-const DARK_OVERRIDES = {
-  paper_bgcolor: 'rgba(0,0,0,0)',
-  plot_bgcolor:  'rgba(0,0,0,0)',
-  font:    { family: 'Inter, system-ui, sans-serif', color: '#9ca3af', size: 11 },
-  xaxis:   { gridcolor: '#1f2937', zerolinecolor: '#374151', linecolor: '#374151',
-             tickfont: { color: '#6b7280', size: 10 }, automargin: true },
-  yaxis:   { gridcolor: '#1f2937', zerolinecolor: '#374151', linecolor: '#374151',
-             tickfont: { color: '#6b7280', size: 10 }, automargin: true },
-  legend:  { font: { color: '#9ca3af', size: 10 }, bgcolor: 'rgba(0,0,0,0)', borderwidth: 0 },
-  margin:  { t: 8, r: 8, b: 32, l: 48 },
-  hoverlabel: { bgcolor: '#1a1f2e', bordercolor: '#374151', font: { color: '#f9fafb', size: 11 } },
-  hovermode: 'x unified',
-};
+import useThemeStore from '../../store/themeStore';
+import { getPlotlyLayoutDefaults } from '../../utils/plotlyTheme';
 
 const PLOTLY_CONFIG = {
   displayModeBar: false,
@@ -44,6 +32,7 @@ function loadPlotly() {
 
 export default function PlotlyRawChart({ plotlyJson }) {
   const containerRef = useRef(null);
+  const theme = useThemeStore(state => state.theme);
 
   const draw = useCallback(async () => {
     const el = containerRef.current;
@@ -55,14 +44,15 @@ export default function PlotlyRawChart({ plotlyJson }) {
       return;
     }
 
-    // Merge dark overrides — backend layout takes precedence for data props,
-    // but visual theme props are always forced to dark.
+    // Merge theme overrides — backend layout takes precedence for data props,
+    // but visual theme props always follow the app theme.
+    const themeOverrides = getPlotlyLayoutDefaults(theme);
     const layout = {
       ...plotlyJson.layout,
-      ...DARK_OVERRIDES,
+      ...themeOverrides,
       // Restore any axis titles from the original layout
-      xaxis: { ...DARK_OVERRIDES.xaxis, ...plotlyJson.layout?.xaxis },
-      yaxis: { ...DARK_OVERRIDES.yaxis, ...plotlyJson.layout?.yaxis },
+      xaxis: { ...themeOverrides.xaxis, ...plotlyJson.layout?.xaxis },
+      yaxis: { ...themeOverrides.yaxis, ...plotlyJson.layout?.yaxis },
       width:  undefined,
       height: undefined,
     };
@@ -80,7 +70,7 @@ export default function PlotlyRawChart({ plotlyJson }) {
     } catch (err) {
       console.warn('PlotlyRawChart render error:', err);
     }
-  }, [plotlyJson]);
+  }, [plotlyJson, theme]);
 
   useEffect(() => {
     draw();

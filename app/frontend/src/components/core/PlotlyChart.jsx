@@ -15,39 +15,8 @@
 import { useEffect, useRef, useMemo, useCallback } from 'react';
 import { CHART_COLORS } from '../widgets/constants';
 import ChartTypeSelector from '../common/ChartTypeSelector';
-
-// ── Plotly dark theme layout defaults ─────────────────────────────────────────
-const DARK_LAYOUT = {
-  paper_bgcolor: 'rgba(0,0,0,0)',
-  plot_bgcolor:  'rgba(0,0,0,0)',
-  font: { family: 'Inter, system-ui, sans-serif', color: '#9ca3af', size: 11 },
-  xaxis: {
-    gridcolor:    '#1f2937',
-    zerolinecolor:'#374151',
-    linecolor:    '#374151',
-    tickfont:     { color: '#6b7280', size: 10 },
-    automargin:   true,
-  },
-  yaxis: {
-    gridcolor:    '#1f2937',
-    zerolinecolor:'#374151',
-    linecolor:    '#374151',
-    tickfont:     { color: '#6b7280', size: 10 },
-    automargin:   true,
-  },
-  legend: {
-    font:        { color: '#9ca3af', size: 10 },
-    bgcolor:     'rgba(0,0,0,0)',
-    borderwidth: 0,
-  },
-  margin:  { t: 8, r: 8, b: 32, l: 48 },
-  hoverlabel: {
-    bgcolor:     '#1a1f2e',
-    bordercolor: '#374151',
-    font:        { color: '#f9fafb', size: 11 },
-  },
-  hovermode: 'x unified',
-};
+import useThemeStore from '../../store/themeStore';
+import { getPlotlyLayoutDefaults, getPlotlyPalette } from '../../utils/plotlyTheme';
 
 const PLOTLY_CONFIG = {
   displayModeBar:   false,
@@ -70,8 +39,9 @@ function resolveColor(series, index) {
 }
 
 // ── Build Plotly traces ────────────────────────────────────────────────────────
-function buildTraces(type, data, series, xKey, xFormatter, yFormatter) {
+function buildTraces(type, data, series, xKey, xFormatter, yFormatter, theme) {
   if (!data?.length || !series?.length) return [];
+  const palette = getPlotlyPalette(theme);
 
   const xs = data.map(row => xFormatter ? xFormatter(row[xKey]) : row[xKey]);
 
@@ -86,7 +56,7 @@ function buildTraces(type, data, series, xKey, xFormatter, yFormatter) {
       marker: { colors },
       hole:   type === 'donut' ? 0.52 : 0,
       textinfo:      'label+percent',
-      textfont:      { color: '#9ca3af', size: 10 },
+      textfont:      { color: palette.font, size: 10 },
       insidetextorientation: 'auto',
       hovertemplate: '<b>%{label}</b><br>%{value}<br>%{percent}<extra></extra>',
     }];
@@ -183,9 +153,9 @@ function buildTraces(type, data, series, xKey, xFormatter, yFormatter) {
 }
 
 // ── Build layout overrides ─────────────────────────────────────────────────────
-function buildLayout(type, compact, yFormatter, referenceLines = [], height) {
+function buildLayout(type, compact, yFormatter, referenceLines = [], height, theme, annotations = []) {
   const layout = {
-    ...DARK_LAYOUT,
+    ...getPlotlyLayoutDefaults(theme),
     showlegend: !compact,
     height:     height || undefined,
   };
@@ -210,30 +180,68 @@ function buildLayout(type, compact, yFormatter, referenceLines = [], height) {
   }
 
   // Reference lines as shapes
+  const shapes = [];
+  const layoutAnnotations = [];
   if (referenceLines?.length) {
-    layout.shapes = referenceLines.map(rl => ({
-      type:      'line',
-      xref:      'paper',
-      yref:      'y',
-      x0:        0,
-      x1:        1,
-      y0:        rl.y,
-      y1:        rl.y,
-      line:      { color: rl.color || '#6b7280', dash: 'dot', width: 1 },
-    }));
-    layout.annotations = referenceLines
-      .filter(rl => rl.label)
-      .map(rl => ({
-        x:         0,
-        y:         rl.y,
+    referenceLines.forEach(rl => {
+      shapes.push({
+        type:      'line',
         xref:      'paper',
         yref:      'y',
-        text:      rl.label,
-        showarrow: false,
-        font:      { color: rl.color || '#6b7280', size: 9 },
-        xanchor:   'left',
-      }));
+        x0:        0,
+        x1:        1,
+        y0:        rl.y,
+        y1:        rl.y,
+        line:      { color: rl.color || '#6b7280', dash: 'dot', width: 1 },
+      });
+      if (rl.label) {
+        layoutAnnotations.push({
+          x:         0,
+          y:         rl.y,
+          xref:      'paper',
+          yref:      'y',
+          text:      rl.label,
+          showarrow: false,
+          font:      { color: rl.color || '#6b7280', size: 9 },
+          xanchor:   'left',
+        });
+      }
+    });
   }
+
+  // 이벤트 마커 — x 위치의 세로 점선 + 상단 라벨 (뉴스 이벤트 등을 시계열에 오버레이)
+  if (annotations?.length && type !== 'pie' && type !== 'donut') {
+    annotations.forEach(an => {
+      if (an?.x === undefined || an?.x === null) return;
+      shapes.push({
+        type: 'line',
+        xref: 'x',
+        yref: 'paper',
+        x0:   an.x,
+        x1:   an.x,
+        y0:   0,
+        y1:   1,
+        line: { color: an.color || '#f59e0b', dash: 'dash', width: 1 },
+      });
+      if (an.label) {
+        layoutAnnotations.push({
+          x:         an.x,
+          y:         1,
+          xref:      'x',
+          yref:      'paper',
+          text:      String(an.label).slice(0, 40),
+          showarrow: false,
+          font:      { color: an.color || '#f59e0b', size: 9 },
+          textangle: -90,
+          xanchor:   'left',
+          yanchor:   'top',
+        });
+      }
+    });
+  }
+
+  if (shapes.length) layout.shapes = shapes;
+  if (layoutAnnotations.length) layout.annotations = layoutAnnotations;
 
   return layout;
 }
@@ -254,18 +262,20 @@ export default function PlotlyChart({
   yFormatter,
   tooltipFormatter,
   referenceLines = [],
+  annotations = [],
 }) {
   const containerRef = useRef(null);
   const plotRef      = useRef(null);   // stores Plotly div element
+  const theme        = useThemeStore(state => state.theme);
 
   const traces = useMemo(
-    () => buildTraces(type, data, series, xKey, xFormatter, yFormatter),
-    [type, data, series, xKey, xFormatter, yFormatter],
+    () => buildTraces(type, data, series, xKey, xFormatter, yFormatter, theme),
+    [type, data, series, xKey, xFormatter, yFormatter, theme],
   );
 
   const layout = useMemo(
-    () => buildLayout(type, compact, yFormatter, referenceLines, fillContainer ? undefined : height),
-    [type, compact, yFormatter, referenceLines, fillContainer, height],
+    () => buildLayout(type, compact, yFormatter, referenceLines, fillContainer ? undefined : height, theme, annotations),
+    [type, compact, yFormatter, referenceLines, fillContainer, height, theme, annotations],
   );
 
   // ── Lazy-load Plotly to avoid large bundle in initial chunk ────────────────

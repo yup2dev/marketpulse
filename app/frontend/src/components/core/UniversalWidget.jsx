@@ -435,6 +435,7 @@ export default function UniversalWidget({
           type={chartType}
           fillContainer
           referenceLines={chartCfg.referenceLines}
+          annotations={response?.chart_hint?.annotations}
           yFormatter={chartCfg.yFormatter}
           xFormatter={chartCfg.xFormatter}
         />

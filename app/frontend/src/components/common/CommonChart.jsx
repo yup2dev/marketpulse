@@ -24,6 +24,7 @@ export default function CommonChart({
   yFormatter,
   tooltipFormatter,
   referenceLines = [],
+  annotations = [],
 }) {
   return (
     <PlotlyChart
@@ -41,6 +42,7 @@ export default function CommonChart({
       yFormatter={yFormatter}
       tooltipFormatter={tooltipFormatter}
       referenceLines={referenceLines}
+      annotations={annotations}
     />
   );
 }
