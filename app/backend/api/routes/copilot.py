@@ -13,9 +13,12 @@ add_widget 도구로 대시보드에 위젯 추가를 지시한다. 응답은 SS
 - 데이터 조회는 별도 커넥터 없이 '이 서버 자신의 REST API'를 in-process(ASGI)로 호출한다.
   요청자의 Bearer 토큰을 그대로 전달하므로 인증/사용자 컨텍스트(Fetcher 위임 포함)가 유지된다.
 - 위젯 추가는 서버가 직접 할 수 없으므로 SSE `widget` 이벤트로 프론트에 위임한다.
+  합성 데이터셋(create_dataset_widget)도 같은 방식 — 서버 저장소 없이 rows 전체가
+  SSE로 프론트에 전달되고 localStorage(copilot-ds:{id})에 보관된다.
 """
 import json
 import logging
+import uuid
 from typing import Any, AsyncIterator, Optional
 
 import httpx
@@ -35,6 +38,11 @@ router = APIRouter()
 MAX_TOOL_ITERATIONS = 8          # tool-use 왕복 상한 (폭주 방지)
 MAX_TOOL_RESULT_CHARS = 15000    # tool 결과가 컨텍스트를 잠식하지 않도록 축약
 MAX_LIST_ITEMS = 40
+
+# create_dataset_widget 한도 — 데이터는 SSE→localStorage로 가므로 과대 페이로드 방지
+MAX_DATASET_ROWS = 300
+MAX_DATASET_CHARS = 300_000
+_CHART_TYPES = {"line", "area", "bar", "stackedBar", "pie", "donut"}
 
 GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta"
 
@@ -61,7 +69,7 @@ SYSTEM_PROMPT = """You are MarketPulse Copilot, an AI assistant embedded in the 
 Your job:
 1. Answer questions about stocks, macro data, portfolios, and markets by fetching REAL data through the `get_data` tool (never invent numbers).
 2. Process/aggregate the fetched data and explain it clearly (tables, bullet summaries, computed ratios, YoY changes, index rebasing, etc.).
-3. When a visualization or persistent view would help — or when the user asks — add widgets to the user's dashboard with the `add_widget` tool.
+3. When a visualization or persistent view would help — or when the user asks — put it on the user's dashboard: `add_widget` for standard catalog widgets, `create_dataset_widget` for data YOU fetched and combined.
 4. Help the user navigate/use the app (widgets can be added via the "+ Widget" button; pages: / dashboard, /stock, /macro, /portfolios, /screener, /quantlib, /backtest).
 
 Always respond in the same language the user writes in (usually Korean).
@@ -99,6 +107,22 @@ Always respond in the same language the user writes in (usually Korean).
 - /api/quantitative/summary|normality|capm|rolling|unitroot?symbol=AAPL&target=close&start_date=...&end_date=...
 
 If a call fails with 404/422, adjust params or consult /api/providers. Prefer few, well-chosen calls over many.
+
+## Choosing how to present data
+- Quick answer / analysis → get_data, then answer in chat (markdown).
+- The user wants a STANDARD catalog widget as-is → add_widget.
+- The user wants to SEE combined/derived/custom data — merging multiple sources, computed metrics,
+  cross-symbol comparisons, rebased series, anything no single standard widget shows —
+  → fetch the pieces with get_data, compute the final rows YOURSELF, then call create_dataset_widget.
+  NEVER satisfy such requests by just dropping a standard widget on the dashboard.
+
+## create_dataset_widget — dashboard widget from YOUR computed data
+- rows: flat objects with consistent keys (≤300 rows). Keys become table columns; use clear snake_case names.
+- chart (optional): {type: line|area|bar|stackedBar|pie|donut, x_key, y_keys} — the widget opens as a chart
+  (user can toggle to table). Omit chart for list-like results.
+- Example: "AAPL이랑 MSFT 매출 비교해서 보여줘" → get_data income statements for both →
+  rows=[{"period": "2024", "aapl_revenue": 391.0, "msft_revenue": 245.1}, ...] →
+  create_dataset_widget(title="AAPL vs MSFT Revenue", rows=..., chart={"type": "bar", "x_key": "period", "y_keys": ["aapl_revenue", "msft_revenue"]}).
 
 ## add_widget — widget_type catalog
 Static types: dividend, stock-splits, company-filings, earnings, insider, ownership-institutional, holder-breakdown, management, swot, economic-moat, investment-scorecard, stock-sentiment, financials, news-feed, research-reports, institutional-portfolios, market-ranking, watchlist, screener, alerts, sparkline, comparison, heatmap, correlation, economic-calendar, notes, gdp-forecast, inflation-momentum, initial-claims, jobs-breakdown, yield-curve-snapshot, yield-trends, real-rates, fed-balance-sheet, inflation-trends, labor-market-dashboard, pmi, fin-conditions-tab, sentiment-tab, quant-summary, quant-capm, quant-rolling, option-pricing.
@@ -152,6 +176,37 @@ ANTHROPIC_TOOLS = [
             "required": ["widget_type"],
         },
     },
+    {
+        "name": "create_dataset_widget",
+        "description": (
+            "Create a dashboard widget from data YOU computed — merged/derived from get_data results. "
+            "Use this when the user wants to SEE combined or computed data that no standard widget covers. "
+            "Rows must be flat objects with consistent keys (keys become table columns)."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "title": {"type": "string", "description": "Widget header title, e.g. 'AAPL vs MSFT Revenue'"},
+                "rows": {
+                    "type": "array",
+                    "items": {"type": "object"},
+                    "description": "Result rows, e.g. [{\"period\": \"2024\", \"aapl_revenue\": 391.0, \"msft_revenue\": 245.1}]",
+                },
+                "chart": {
+                    "type": "object",
+                    "properties": {
+                        "type": {"type": "string", "enum": sorted(_CHART_TYPES)},
+                        "x_key": {"type": "string", "description": "x-axis column name"},
+                        "y_keys": {"type": "array", "items": {"type": "string"}, "description": "y-series column names"},
+                    },
+                    "description": "Optional — when given, the widget opens as a chart (user can toggle to table)",
+                },
+                "w": {"type": "integer", "description": "Grid width 1-12 (default 6)"},
+                "h": {"type": "integer", "description": "Grid height in rows (default 6)"},
+            },
+            "required": ["title", "rows"],
+        },
+    },
 ]
 
 # ── 도구 정의 — Gemini functionDeclarations ──────────────────────────────────
@@ -195,6 +250,30 @@ GEMINI_TOOL_DECLS = [
                 "h": {"type": "INTEGER", "description": "Grid height in rows (default 5)"},
             },
             "required": ["widget_type"],
+        },
+    },
+    {
+        "name": "create_dataset_widget",
+        "description": (
+            "Create a dashboard widget from data YOU computed — merged/derived from get_data results. "
+            "Use this when the user wants to SEE combined or computed data that no standard widget covers. "
+            "`rows_json` is a JSON array string of flat row objects (keys become table columns)."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "title": {"type": "STRING", "description": "Widget header title, e.g. 'AAPL vs MSFT Revenue'"},
+                "rows_json": {
+                    "type": "STRING",
+                    "description": "JSON array string of row objects, e.g. \"[{\\\"period\\\": \\\"2024\\\", \\\"revenue\\\": 391.0}]\"",
+                },
+                "chart_type": {"type": "STRING", "description": "Optional: line|area|bar|stackedBar|pie|donut — opens the widget as a chart"},
+                "x_key": {"type": "STRING", "description": "Optional: x-axis column name"},
+                "y_keys": {"type": "STRING", "description": "Optional: comma-separated y-series column names"},
+                "w": {"type": "INTEGER", "description": "Grid width 1-12 (default 6)"},
+                "h": {"type": "INTEGER", "description": "Grid height in rows (default 6)"},
+            },
+            "required": ["title", "rows_json"],
         },
     },
 ]
@@ -280,6 +359,57 @@ async def _exec_get_data(request: Request, auth_header: str, tool_input: dict) -
     return _tool_result_text(payload), False
 
 
+def _build_dataset_payload(tool_input: dict) -> tuple[Optional[dict], Optional[str]]:
+    """create_dataset_widget 입력 검증/정규화. 반환: (payload, error).
+
+    저장소는 없다 — 검증된 페이로드가 SSE `widget` 이벤트로 프론트에 전달되고
+    프론트가 localStorage(copilot-ds:{id})에 보관한다.
+    """
+    title = str(tool_input.get("title") or "").strip() or "Copilot Dataset"
+
+    rows = tool_input.get("rows")
+    if rows is None and tool_input.get("rows_json"):
+        # Gemini는 rows를 JSON 문자열로 보낸다
+        try:
+            rows = json.loads(tool_input["rows_json"])
+        except ValueError as exc:
+            return None, f"rows_json is not valid JSON: {exc}"
+    if not isinstance(rows, list) or not rows:
+        return None, "rows must be a non-empty array of objects."
+
+    clean_rows = []
+    for r in rows[:MAX_DATASET_ROWS]:
+        if not isinstance(r, dict):
+            continue
+        clean_rows.append({
+            str(k): (v if v is None or isinstance(v, (str, int, float, bool))
+                     else json.dumps(v, ensure_ascii=False, default=str))
+            for k, v in r.items()
+        })
+    if not clean_rows:
+        return None, 'rows items must be objects, e.g. [{"period": "2024", "value": 1.2}].'
+
+    # chart 힌트 — Anthropic은 chart 객체, Gemini는 chart_type/x_key/y_keys 평면 필드
+    chart = tool_input.get("chart") if isinstance(tool_input.get("chart"), dict) else {}
+    chart_type = str(chart.get("type") or tool_input.get("chart_type") or "").strip()
+    x_key = str(chart.get("x_key") or tool_input.get("x_key") or "").strip()
+    y_keys = chart.get("y_keys")
+    if not isinstance(y_keys, list):
+        y_keys = [s.strip() for s in str(tool_input.get("y_keys") or "").split(",") if s.strip()]
+    chart_hint = None
+    if chart_type in _CHART_TYPES:
+        chart_hint = {"type": chart_type}
+        if x_key:
+            chart_hint["x_key"] = x_key
+        if y_keys:
+            chart_hint["y_keys"] = [str(k) for k in y_keys]
+
+    payload = {"title": title, "rows": clean_rows, "chart_hint": chart_hint}
+    if len(json.dumps(payload, ensure_ascii=False, default=str)) > MAX_DATASET_CHARS:
+        return None, "Dataset too large — reduce rows/columns (keep the columns the user actually needs)."
+    return payload, None
+
+
 async def _run_tool(
     name: str, tool_input: dict, request: Request, auth_header: str
 ) -> tuple[str, bool, list[tuple[str, dict]]]:
@@ -304,6 +434,25 @@ async def _run_tool(
             "h": tool_input.get("h") or 5,
         }))
         return f"Widget '{widget_type}' add request sent to the dashboard.", False, events
+
+    if name == "create_dataset_widget":
+        payload, err = _build_dataset_payload(tool_input)
+        if err:
+            return f"Error: {err}", True, events
+        dataset_id = uuid.uuid4().hex[:12]
+        events.append(("widget", {
+            "widget_type": f"copilot/{dataset_id}",
+            "title": payload["title"],
+            "rows": payload["rows"],
+            "chart_hint": payload["chart_hint"],
+            "w": tool_input.get("w") or 6,
+            "h": tool_input.get("h") or 6,
+        }))
+        return (
+            f"Dataset widget '{payload['title']}' ({len(payload['rows'])} rows) "
+            "sent to the dashboard.",
+            False, events,
+        )
 
     return f"Unknown tool: {name}", True, events
 

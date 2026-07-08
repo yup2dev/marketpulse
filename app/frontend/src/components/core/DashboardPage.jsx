@@ -259,6 +259,17 @@ export default function DashboardPage() {
     const handler = (e) => {
       const { widget_type: widgetType, w, h } = e.detail || {};
       if (!widgetType) return;
+      // copilot/{id} 합성 데이터셋 — rows는 localStorage에 보관, 위젯은 타입으로 참조
+      if (widgetType.startsWith('copilot/')) {
+        try {
+          const { title, rows, chart_hint: chartHint } = e.detail;
+          localStorage.setItem(
+            `copilot-ds:${widgetType.slice('copilot/'.length)}`,
+            JSON.stringify({ title, rows, chart_hint: chartHint, savedAt: Date.now() }),
+          );
+          gcCopilotDatasets();
+        } catch { /* quota 초과 등 — 위젯은 추가하되 빈 데이터로 표시 */ }
+      }
       const addFn =
         addWidgetRefs.current[firstPaneId] ||
         Object.values(addWidgetRefs.current)[0];
@@ -483,6 +494,21 @@ export default function DashboardPage() {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
+
+// 위젯 제거 후 잔존하는 copilot 데이터셋 localStorage 정리 (30일 경과분)
+function gcCopilotDatasets() {
+  const cutoff = Date.now() - 30 * 24 * 3600 * 1000;
+  for (let i = localStorage.length - 1; i >= 0; i -= 1) {
+    const key = localStorage.key(i);
+    if (!key?.startsWith('copilot-ds:')) continue;
+    try {
+      const { savedAt } = JSON.parse(localStorage.getItem(key)) || {};
+      if (!savedAt || savedAt < cutoff) localStorage.removeItem(key);
+    } catch {
+      localStorage.removeItem(key);
+    }
+  }
+}
 
 function findFirstPaneId(tree) {
   if (tree.type === 'pane') return tree.id;

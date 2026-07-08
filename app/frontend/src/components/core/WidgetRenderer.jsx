@@ -8,6 +8,7 @@
  * Custom-component entries declare which props to inject via `propsFrom`,
  * e.g. `propsFrom: ['symbol', 'portfolioId']` resolves at render time.
  */
+import { useMemo } from 'react';
 import UniversalWidget from './UniversalWidget';
 import { WIDGET_ENDPOINTS } from '../../registry/widgetEndpoints';
 
@@ -24,6 +25,27 @@ export default function WidgetRenderer({ widget, symbol, portfolioData, onRemove
   const portfolioId = portfolioData?.selectedPortfolio?.portfolio_id;
   const type = DEPRECATED_TYPE_ALIASES[widget.type] ?? widget.type;
   const reg = WIDGET_ENDPOINTS[type];
+
+  // copilot/{id} — Copilot이 합성한 데이터셋. rows는 localStorage(copilot-ds:{id})에 있다.
+  const copilotDs = useMemo(() => {
+    if (!type?.startsWith('copilot/')) return null;
+    try {
+      return JSON.parse(localStorage.getItem(`copilot-ds:${type.slice('copilot/'.length)}`));
+    } catch {
+      return null;
+    }
+  }, [type]);
+
+  if (!reg && type?.startsWith('copilot/')) {
+    return (
+      <UniversalWidget
+        widgetId={type}
+        title={copilotDs?.title || 'Copilot Dataset'}
+        data={copilotDs || { rows: [] }}
+        onRemove={onRemove}
+      />
+    );
+  }
 
   if (reg?.component) {
     const Component = reg.component;

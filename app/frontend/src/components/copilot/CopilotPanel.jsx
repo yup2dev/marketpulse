@@ -299,10 +299,11 @@ export default function CopilotPanel({ open, onClose }) {
         if (event === 'text') {
           appendText(data.delta);
         } else if (event === 'tool') {
-          const isWidget = data.name === 'add_widget';
-          const label = isWidget
+          const label = data.name === 'add_widget'
             ? `위젯 추가: ${data.input?.widget_type || ''}`
-            : `데이터 조회: ${data.input?.path || data.name}`;
+            : data.name === 'create_dataset_widget'
+              ? `데이터셋 위젯 생성: ${data.input?.title || ''}`
+              : `데이터 조회: ${data.input?.path || data.name}`;
           updateBlocks((blocks) => [...blocks, {
             type: 'tool', tool: data.name, label, status: 'running',
           }]);
