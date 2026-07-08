@@ -1,7 +1,7 @@
 """Alpha Vantage Cryptocurrency — QueryParams + Data + Fetcher"""
 import logging
 from datetime import date as date_type, datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import Field
 
@@ -24,7 +24,7 @@ log = logging.getLogger(__name__)
 class CryptoQueryParams(EquityHistoricalQueryParams):
     """암호화폐 데이터 조회 파라미터 (standard EquityHistorical 경유)"""
     market: str = Field(default="USD", description="거래 시장 (예: USD, EUR, KRW)")
-    interval: str = Field(default="daily", description="데이터 간격 (daily, weekly, monthly)")
+    interval: Literal["daily", "weekly", "monthly"] = Field(default="daily", description="데이터 간격")
 
 
 # ── Data ──────────────────────────────────────────────────────────────────────

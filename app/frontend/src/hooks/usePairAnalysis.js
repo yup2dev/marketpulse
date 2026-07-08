@@ -9,6 +9,7 @@ import {
   mergeRegimeData,
 } from '../utils/pairAnalysis';
 import { API_BASE } from '../components/widgets/constants';
+import { apiClient } from '../config/api';
 
 /**
  * usePairAnalysis - Custom hook for pair trading analysis
@@ -91,21 +92,19 @@ const usePairAnalysis = ({
     if (!pairConfig.regimeSymbol) return null;
 
     try {
-      const regimeRes = await fetch(
+      // OBBject 응답({results}) — apiClient가 인증 헤더 포함
+      const regimeHistory = await apiClient.get(
         `${API_BASE}/stock/history/${encodeURIComponent(pairConfig.regimeSymbol)}?period=${period}&interval=${interval}`
       );
-
-      if (!regimeRes.ok) return null;
-
-      const regimeHistory = await regimeRes.json();
-      if (!regimeHistory?.data?.length) return null;
+      const rows = regimeHistory?.results;
+      if (!rows?.length) return null;
 
       // Store raw index data for display
-      setIndexData(regimeHistory.data);
+      setIndexData(rows);
 
       // Regime detection
       if (pairConfig.showRegime) {
-        const regime = detectRegime(regimeHistory.data);
+        const regime = detectRegime(rows);
         setRegimeData(regime);
 
         const periods = getRegimePeriods(regime);
@@ -117,7 +116,7 @@ const usePairAnalysis = ({
         }
       }
 
-      return regimeHistory.data;
+      return rows;
     } catch (error) {
       console.error('Error loading regime/index data:', error);
       return null;
@@ -132,10 +131,10 @@ const usePairAnalysis = ({
 
     const loadFinancials = async (symbol) => {
       try {
-        const res = await fetch(`${API_BASE}/stock/financials/${symbol}?freq=quarterly&limit=8`);
-        if (res.ok) {
-          return await res.json();
-        }
+        // OBBject 응답({results}) → 기존 소비 계약({data: rows[]})으로 정규화
+        const res = await apiClient.get(`${API_BASE}/stock/financials/${symbol}?freq=quarterly&limit=8`);
+        const rows = res?.results;
+        if (rows?.length) return { data: rows };
       } catch (error) {
         console.error(`Error loading financials for ${symbol}:`, error);
       }

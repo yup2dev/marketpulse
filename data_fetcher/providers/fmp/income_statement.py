@@ -106,7 +106,8 @@ class FMPIncomeStatementFetcher(ApiFetcher[FMPIncomeStatementQueryParams, FMPInc
         api_key = get_api_key(credentials=credentials, api_name="FMP", env_var="FMP_API_KEY")
         params = {"symbol": query.symbol, "apikey": api_key, "limit": query.limit or 10}
         if query.period:
-            params["period"] = query.period
+            # 표준 토큰 quarterly → FMP API 토큰 quarter
+            params["period"] = "quarter" if query.period == "quarterly" else query.period
         data = await amake_request(
             f"{FMP_STABLE_BASE}/income-statement",
             params=params,

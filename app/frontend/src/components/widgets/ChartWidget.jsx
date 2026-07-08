@@ -32,6 +32,7 @@ import {
   getRegimeColor,
   getRegimeBadge,
 } from '../../utils/pairAnalysis';
+import { apiClient } from '../../config/api';
 
 // Plotly-based stock chart component
 const PlotlyStockChart = ({
@@ -576,7 +577,8 @@ const calculateHeikinAshi = (data, symbol) => {
 
 const ChartWidget = ({
   widgetId,
-  initialSymbols = ['NVDA'],
+  symbol,                          // Single seed symbol (widget grid injects this)
+  initialSymbols,
   onRemove,
   // Series mode props (for external data charts)
   series,                          // Array<{id, name, data, color, visible}>
@@ -619,8 +621,9 @@ const ChartWidget = ({
 
   const savedState = loadSavedState();
 
+  const seedSymbols = initialSymbols || (symbol ? [symbol] : ['NVDA']);
   const [tickers, setTickers] = useState(
-    savedState?.tickers || initialSymbols.map(symbol => ({ symbol, color: CHART_COLORS[0], visible: true, type: 'stock' }))
+    savedState?.tickers || seedSymbols.map(sym => ({ symbol: sym, color: CHART_COLORS[0], visible: true, type: 'stock' }))
   );
   const [chartData, setChartData] = useState([]);
   const [timeRange, setTimeRange] = useState(savedState?.timeRange || '1yr');
@@ -986,25 +989,21 @@ const ChartWidget = ({
       const stocks = tickers.filter(t => t.type === 'stock');
       const indicators = tickers.filter(t => t.type === 'indicator');
 
-      // Load stock data
+      // Load stock data — apiClient(인증 헤더) + OBBject({results}) 응답 형태
       const stockPromises = stocks.map(async (ticker) => {
         try {
-          const [historyRes, quoteRes, infoRes] = await Promise.all([
-            fetch(`${API_BASE}/stock/history/${ticker.symbol}?period=${fetchPeriod}&interval=${interval}`),
-            fetch(`${API_BASE}/stock/quote/${ticker.symbol}`),
-            fetch(`${API_BASE}/stock/info/${ticker.symbol}`)
+          const [history, quote, info] = await Promise.all([
+            apiClient.get(`${API_BASE}/stock/history/${ticker.symbol}?period=${fetchPeriod}&interval=${interval}`).catch(() => null),
+            apiClient.get(`${API_BASE}/stock/quote/${ticker.symbol}`).catch(() => null),
+            apiClient.get(`${API_BASE}/stock/info/${ticker.symbol}`).catch(() => null),
           ]);
-
-          const history = historyRes.ok ? await historyRes.json() : null;
-          const quote = quoteRes.ok ? await quoteRes.json() : null;
-          const info = infoRes.ok ? await infoRes.json() : null;
 
           return {
             symbol: ticker.symbol,
             type: 'stock',
-            data: history?.data || [],
-            quote,
-            info
+            data: history?.results || [],
+            quote: quote?.results?.[0] || null,
+            info: info?.results?.[0] || null,
           };
         } catch (error) {
           console.error(`Error loading ${ticker.symbol}:`, error);
@@ -1015,13 +1014,12 @@ const ChartWidget = ({
       // Load indicator data
       const indicatorPromises = indicators.map(async (indicator) => {
         try {
-          const res = await fetch(`${API_BASE}/stock/indicator/${indicator.symbol}`);
-          const indicatorData = res.ok ? await res.json() : null;
+          const indicatorData = await apiClient.get(`${API_BASE}/stock/indicator/${indicator.symbol}`);
 
           return {
             symbol: indicator.symbol,
             type: 'indicator',
-            data: indicatorData?.data || [],
+            data: indicatorData?.results || [],
             name: indicator.name
           };
         } catch (error) {
@@ -1162,16 +1160,19 @@ const ChartWidget = ({
           }
         });
       } else {
-        // Indicator data
+        // Indicator data — 일부 fetcher는 value 대신 rate 필드를 쓴다(fed_funds_rate 등)
+        const numOf = (item) => item.value ?? item.rate ?? null;
         const sortedData = [...filteredData].sort((a, b) => new Date(a.date) - new Date(b.date));
-        const baseValue = normalize && sortedData.length > 0 ? sortedData[0].value : 1;
+        const baseValue = normalize && sortedData.length > 0 ? numOf(sortedData[0]) : 1;
 
         sortedData.forEach(item => {
+          const v = numOf(item);
+          if (v == null) return;
           if (!dateMap.has(item.date)) {
             dateMap.set(item.date, { date: item.date, timestamp: new Date(item.date).getTime() });
           }
           const entry = dateMap.get(item.date);
-          entry[symbol] = normalize ? ((item.value / baseValue - 1) * 100) : item.value;
+          entry[symbol] = normalize && baseValue ? ((v / baseValue - 1) * 100) : v;
         });
       }
     });

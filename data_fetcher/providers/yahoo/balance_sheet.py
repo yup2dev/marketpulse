@@ -39,7 +39,9 @@ class YFinanceBalanceSheetFetcher(YFinanceFetcher[YFinanceBalanceSheetQueryParam
         **kwargs: Any,
     ) -> Any:
         ticker = yf.Ticker(query.symbol)
-        df = ticker.get_balance_sheet(freq=query.period)
+        # yfinance freq 허용 토큰은 yearly/quarterly — 표준 annual을 yearly로 매핑
+        freq = "quarterly" if query.period == "quarterly" else "yearly"
+        df = ticker.get_balance_sheet(freq=freq)
         if df is None or df.empty:
             return []
         cols = sorted(df.columns)[-query.limit:]
