@@ -64,6 +64,11 @@ const AI_PROVIDERS = [
     docs: 'https://platform.claude.com/settings/keys',
     fields: [{ key: 'api_key', label: 'API Key', placeholder: 'sk-ant-…' }],
   },
+  {
+    id: 'openai', label: 'OpenAI ChatGPT', desc: 'AI Copilot — 유료 (기본 모델 gpt-4o-mini)',
+    docs: 'https://platform.openai.com/api-keys',
+    fields: [{ key: 'api_key', label: 'API Key', placeholder: 'sk-…' }],
+  },
 ];
 
 export default function SettingsPage() {

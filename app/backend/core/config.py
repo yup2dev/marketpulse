@@ -80,6 +80,8 @@ class Settings(BaseSettings):
     COPILOT_MODEL: str = "claude-opus-4-8"
     GEMINI_API_KEY: Optional[str] = None            # 무료 티어: aistudio.google.com
     COPILOT_GEMINI_MODEL: str = "gemini-2.5-flash"
+    OPENAI_API_KEY: Optional[str] = None
+    COPILOT_OPENAI_MODEL: str = "gpt-4o-mini"
 
     # API Keys
     FRED_API_KEY: Optional[str] = None

@@ -196,7 +196,7 @@ const SUGGESTIONS = [
   '버크셔 해서웨이 13F 포트폴리오 상위 보유 종목은?',
 ];
 
-const PROVIDER_LABELS = { anthropic: 'Claude', gemini: 'Gemini' };
+const PROVIDER_LABELS = { anthropic: 'Claude', openai: 'ChatGPT', gemini: 'Gemini' };
 
 export default function CopilotPanel({ open, onClose }) {
   const location = useLocation();
@@ -205,6 +205,7 @@ export default function CopilotPanel({ open, onClose }) {
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
   const [status, setStatus] = useState(null);     // {enabled, provider, providers, model} | null=미확인
+  const [provider, setProvider] = useState(null); // null = 서버 자동 선택
   const abortRef = useRef(null);
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
@@ -287,6 +288,7 @@ export default function CopilotPanel({ open, onClose }) {
             path: location.pathname,
             symbol: useNavigationStore.getState().lastSymbol || null,
           },
+          provider: provider || undefined,
         }),
       });
 
@@ -341,7 +343,7 @@ export default function CopilotPanel({ open, onClose }) {
       abortRef.current = null;
       setStreaming(false);
     }
-  }, [input, messages, streaming, location.pathname]);
+  }, [input, messages, streaming, location.pathname, provider]);
 
   if (!open) return null;
 
@@ -356,7 +358,20 @@ export default function CopilotPanel({ open, onClose }) {
         <div className="flex items-center gap-2">
           <Sparkles size={14} className="text-cyan-400" />
           <span className="text-sm font-semibold text-gray-200">Copilot</span>
-          {status?.provider && (
+          {status?.providers?.length > 1 ? (
+            <select
+              value={provider || status.provider || ''}
+              onChange={(e) => setProvider(e.target.value)}
+              className="px-1 py-0.5 text-[10px] text-cyan-300 bg-cyan-900/30 border border-cyan-800/40 rounded outline-none cursor-pointer"
+              title="LLM 프로바이더 선택"
+            >
+              {status.providers.map((p) => (
+                <option key={p} value={p} className="bg-[#0d0d12] text-gray-200">
+                  {PROVIDER_LABELS[p] || p}
+                </option>
+              ))}
+            </select>
+          ) : status?.provider && (
             <span className="px-1.5 py-0.5 text-[10px] text-cyan-300 bg-cyan-900/30 border border-cyan-800/40 rounded">
               {PROVIDER_LABELS[status.provider] || status.provider}
             </span>
