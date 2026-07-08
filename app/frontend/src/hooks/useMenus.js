@@ -174,6 +174,27 @@ const getFallbackMenus = () => [
     ]
   },
   {
+    menu_id: 'calendar',
+    menu_name: 'Calendar',
+    menu_icon: 'CalendarDays',
+    menu_path: 'calendar',
+    display_seq: 4,
+    children: [
+      {
+        menu_id: 'calendar-economic',
+        menu_name: '경제캘린더',
+        menu_path: 'calendar?tab=economic',
+        display_seq: 1
+      },
+      {
+        menu_id: 'calendar-earnings',
+        menu_name: '실적캘린더',
+        menu_path: 'calendar?tab=earnings',
+        display_seq: 2
+      }
+    ]
+  },
+  {
     menu_id: 'portfolio',
     menu_name: 'Portfolio',
     menu_icon: 'Briefcase',

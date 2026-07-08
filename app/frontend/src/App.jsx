@@ -5,6 +5,7 @@ import ProtectedRoute from './components/common/ProtectedRoute';
 import AppLayout from './components/core/AppLayout';
 import DashboardPage from './components/core/DashboardPage';
 import BacktestPage from './components/core/BacktestPage';
+import CalendarPage from './components/core/CalendarPage';
 import SettingsPage from './components/core/SettingsPage';
 import Login from './components/core/Login';
 import Register from './components/core/Register';
@@ -68,6 +69,7 @@ function App() {
           <Route path="quantlib" element={<DashboardPage />} />
           <Route path="screener" element={<DashboardPage />} />
           <Route path="backtest" element={<BacktestPage />} />
+          <Route path="calendar" element={<CalendarPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
 

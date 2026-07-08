@@ -39,6 +39,7 @@ import HeatmapWidget           from '../components/widgets/HeatmapWidget';
 import CorrelationWidget       from '../components/widgets/CorrelationWidget';
 import NoteWidget              from '../components/widgets/NoteWidget';
 import EconomicCalendarWidget  from '../components/widgets/EconomicCalendarWidget';
+import EarningsCalendarWidget  from '../components/widgets/EarningsCalendarWidget';
 import TerminalWidget          from '../components/widgets/TerminalWidget';
 import ResearchReportsWidget   from '../components/widgets/ResearchReportsWidget';
 
@@ -266,6 +267,10 @@ export const WIDGET_ENDPOINTS = {
   'economic-calendar': {
     title:     'Economic Calendar',
     component: EconomicCalendarWidget,
+  },
+  'earnings-calendar': {
+    title:     'Earnings Calendar',
+    component: EarningsCalendarWidget,
   },
   'terminal': {
     title:     'Terminal',

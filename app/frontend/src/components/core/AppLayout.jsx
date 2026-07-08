@@ -27,6 +27,7 @@ const ROUTE_MAP = {
   'screener':           '/screener',
   'quantlib':           '/quantlib',
   'backtest':           '/backtest',
+  'calendar':           '/calendar',
 };
 
 const AppLayout = () => {
