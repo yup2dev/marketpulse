@@ -161,11 +161,14 @@ try:
     from data_fetcher.providers.database.stock_ranking import DBStockRankingFetcher
     from data_fetcher.providers.database.institutions_list import DBInstitutionsListFetcher
     from data_fetcher.providers.database.institutional_holdings import DBInstitutionalHoldingsFetcher
+    from data_fetcher.providers.database.research_reports import DBResearchReportsFetcher
     _db_available = True
 except ImportError:
     _db_available = False
 
 from data_fetcher.providers.nasdaqtrader.listing import NasdaqTraderListingFetcher
+from data_fetcher.providers.nasdaq.economic_calendar import NasdaqEconomicCalendarFetcher
+from data_fetcher.providers.nasdaq.earnings_calendar import NasdaqEarningsCalendarFetcher
 from data_fetcher.providers.krx.listing import KRXListingFetcher
 from data_fetcher.providers.krx.bond import KRXBondFetcher
 
@@ -474,6 +477,7 @@ db_provider = Provider(
         "stock_ranking": DBStockRankingFetcher,
         "institutions_list": DBInstitutionsListFetcher,
         "institutional_holdings": DBInstitutionalHoldingsFetcher,
+        "research_reports": DBResearchReportsFetcher,
     },
 ) if _db_available else None
 
@@ -491,6 +495,21 @@ nasdaqtrader_provider = Provider(
     metadata={
         "rate_limit": "none (정적 공개 파일)",
         "data_coverage": "US NYSE/NASDAQ 상장 전 종목, 일 갱신",
+    },
+)
+
+nasdaq_provider = Provider(
+    name="nasdaq",
+    description="Nasdaq.com 공개 캘린더 API — 경제이벤트/실적 캘린더 (무료·키 불필요)",
+    website="https://www.nasdaq.com/market-activity/earnings",
+    credentials=[],
+    fetcher_dict={
+        "economic_calendar": NasdaqEconomicCalendarFetcher,
+        "earnings_calendar": NasdaqEarningsCalendarFetcher,
+    },
+    metadata={
+        "rate_limit": "명시 없음 (공개 API, User-Agent 필수)",
+        "data_coverage": "글로벌 경제 이벤트 + US 실적 발표 일정, 일자별 조회",
     },
 )
 
@@ -645,6 +664,7 @@ def register_all_providers():
     if db_provider is not None:
         ProviderRegistry.register(db_provider)
     ProviderRegistry.register(nasdaqtrader_provider)
+    ProviderRegistry.register(nasdaq_provider)
     ProviderRegistry.register(krx_provider)
     if kis_provider is not None:
         ProviderRegistry.register(kis_provider)

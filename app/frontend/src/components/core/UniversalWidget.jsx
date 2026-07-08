@@ -131,6 +131,7 @@ export default function UniversalWidget({
   title:    titleProp,
   symbol:   symbolProp,
   category: categoryProp,
+  data:     dataProp,        // 정적 응답 객체 — 주어지면 fetch 없이 그대로 렌더 (copilot 데이터셋)
   portfolioId,
   onRemove,
 }) {
@@ -168,7 +169,7 @@ export default function UniversalWidget({
   const paramsRef = useRef(initParams);
   useEffect(() => { paramsRef.current = params; }, [params]);
 
-  const [response,  setResponse]  = useState(null);
+  const [response,  setResponse]  = useState(dataProp ?? null);
   const [loading,   setLoading]   = useState(!!endpoint);
   const [error,     setError]     = useState(null);
   const [viewMode,  setViewMode]  = useState(null);
@@ -305,7 +306,15 @@ export default function UniversalWidget({
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  if (!endpoint) {
+  // 응답에 chart_hint가 실려 오면(copilot 데이터셋 등) 기본 차트형/뷰 적용
+  useEffect(() => {
+    const hint = response?.chart_hint;
+    if (!hint?.type) return;
+    setChartType(hint.type);
+    setViewMode('chart');
+  }, [response]);
+
+  if (!endpoint && !dataProp) {
     return (
       <div className="flex items-center justify-center h-full text-gray-500 text-xs p-4">
         No endpoint for: <code className="ml-1 font-mono text-red-400">{widgetId}</code>
@@ -313,7 +322,7 @@ export default function UniversalWidget({
     );
   }
 
-  if (endpoint.includes('{portfolioId}') && !portfolioId) {
+  if (endpoint?.includes('{portfolioId}') && !portfolioId) {
     return (
       <div className="flex items-center justify-center h-full text-gray-600 text-xs p-4">
         Select a portfolio to view this widget
@@ -345,14 +354,25 @@ export default function UniversalWidget({
   }, [response, dataPath, display]);
 
   const columns   = useMemo(() => (display === 'kv' ? KV_COLUMNS : autoColumns(rows)), [rows, display]);
-  const chartSpec = useMemo(() => (display === 'kv' ? null : buildChartFromRows(rows)), [rows, display]);
+  // chart_hint(x_key/y_keys)가 있으면 자동 감지 대신 지정된 축/시리즈 사용
+  const chartSpec = useMemo(() => {
+    if (display === 'kv') return null;
+    const hint = response?.chart_hint;
+    if (hint?.x_key && hint?.y_keys?.length) {
+      return {
+        xKey: hint.x_key,
+        series: hint.y_keys.map((k) => ({ key: k, name: k.replace(/_/g, ' ') })),
+      };
+    }
+    return buildChartFromRows(rows);
+  }, [rows, display, response]);
 
   // Has param? Hide BaseWidget header symbol/period selectors for those params
   const paramNames     = useMemo(() => new Set((paramsSpec || []).map(p => p.name)), [paramsSpec]);
   // 모델이 symbol을 받지 않으면(modelAcceptsSymbol===false) 심볼 셀렉터 숨김.
-  const requiresSymbol = endpoint.includes('{symbol}') && !paramNames.has('symbol')
+  const requiresSymbol = !!endpoint?.includes('{symbol}') && !paramNames.has('symbol')
     && modelAcceptsSymbol !== false;
-  const requiresPeriod = endpoint.includes('{period}') && !paramNames.has('period');
+  const requiresPeriod = !!endpoint?.includes('{period}') && !paramNames.has('period');
 
   const showChartTypeSelector = !OverrideView && activeView === 'chart' && renderType !== 'plotly' && display !== 'kv';
   const chartTypeSelector = showChartTypeSelector ? (
@@ -415,6 +435,7 @@ export default function UniversalWidget({
           type={chartType}
           fillContainer
           referenceLines={chartCfg.referenceLines}
+          annotations={response?.chart_hint?.annotations}
           yFormatter={chartCfg.yFormatter}
           xFormatter={chartCfg.xFormatter}
         />
@@ -430,7 +451,7 @@ export default function UniversalWidget({
     <BaseWidget
       title={title}
       loading={loading}
-      onRefresh={fetchData}
+      onRefresh={endpoint ? fetchData : undefined}
       onRun={paramsSpec?.length ? fetchData : undefined}
       onRemove={onRemove}
       symbol={requiresSymbol ? symbol : undefined}

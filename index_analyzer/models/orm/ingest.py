@@ -612,6 +612,50 @@ class MBS_IN_INSTI_HOLD(Base):
     )
 
 
+class MBS_IN_RESEARCH_RPT(Base):
+    """입수 - 리서치 보고서 (PDF 임포트: 애널리스트 보고서/추정치/연간보고서).
+
+    업로드 라우트(/api/reports/upload)가 PDF를 data/reports/ 에 저장하고
+    추출 텍스트와 함께 이 테이블에 적재한다. 조회는 db/research_reports fetcher.
+    """
+    __tablename__ = 'mbs_in_research_rpt'
+
+    report_id = Column(String(50), primary_key=True)
+    symbol = Column(String(20), index=True)              # 대상 종목 (없으면 NULL — 시장 전반 보고서)
+    title = Column(String(500), nullable=False)
+    report_type = Column(String(20), nullable=False, index=True)  # analyst | estimates | annual
+    source = Column(String(200))                         # 증권사/작성기관 (예: Goldman Sachs, 10-K)
+    published_date = Column(Date, index=True)
+
+    file_name = Column(String(300), nullable=False)      # 원본 파일명
+    file_path = Column(String(500), nullable=False)      # 저장 경로 (프로젝트 루트 상대)
+    file_size = Column(Integer)                          # bytes
+    num_pages = Column(Integer)
+    content_text = Column(Text)                          # pypdf 추출 전문 (검색/미리보기용)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        Index('idx_research_rpt_symbol_type', 'symbol', 'report_type'),
+        Index('idx_research_rpt_published', 'published_date'),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            'report_id': self.report_id,
+            'symbol': self.symbol,
+            'title': self.title,
+            'report_type': self.report_type,
+            'source': self.source,
+            'published_date': self.published_date.isoformat() if self.published_date else None,
+            'file_name': self.file_name,
+            'file_size': self.file_size,
+            'num_pages': self.num_pages,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
 __all__ = [
     "MBS_IN_STBD_MST",
     "MBS_IN_INDX_STBD",
@@ -628,4 +672,5 @@ __all__ = [
     "MBS_IN_INSTI_MST",
     "MBS_IN_INSTI_PORT",
     "MBS_IN_INSTI_HOLD",
+    "MBS_IN_RESEARCH_RPT",
 ]

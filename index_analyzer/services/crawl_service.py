@@ -16,6 +16,7 @@ from ..parsing.parser import Parser
 from ..utils.db import get_sqlite_db, generate_id, generate_batch_id
 from ..utils.logging import get_logger
 from ..models.orm import MBS_IN_ARTICLE
+from ..models.orm.process import MBS_PROC_ARTICLE
 from ..config.settings import settings
 from .ticker_service import TickerExtractor
 from .sentiment_service import SentimentAnalyzer
@@ -114,6 +115,43 @@ class CrawlerService:
             session.close()
             return None
 
+    def _save_proc_results(
+        self,
+        news_id: str,
+        base_ymd,
+        summary: str,
+        sentiment_score: float,
+        tickers: Optional[List[dict]],
+    ) -> int:
+        """MBS_PROC_ARTICLE 저장 — 크롤 시 계산한 감성/티커 매핑 결과.
+
+        매칭 티커당 1행(stk_cd·match_score=confidence), 티커 없으면 매크로 뉴스로
+        stk_cd=None 1행. 주가 차트 이벤트 오버레이(/api/news/events)의 데이터 소스.
+        """
+        session: Session = self.db.get_session()
+        saved = 0
+        try:
+            targets = tickers if tickers else [None]
+            for t in targets:
+                session.add(MBS_PROC_ARTICLE(
+                    proc_id=generate_id('PROC-'),
+                    news_id=news_id,
+                    stk_cd=(t.get('symbol') if isinstance(t, dict) else None),
+                    summary_text=summary,
+                    match_score=(t.get('confidence') if isinstance(t, dict) else None),
+                    sentiment_score=sentiment_score,
+                    base_ymd=base_ymd,
+                    source_batch_id=self.current_batch_id,
+                ))
+                saved += 1
+            session.commit()
+        except Exception as e:
+            session.rollback()
+            log.error(f"Failed to save to MBS_PROC_ARTICLE: {e}")
+        finally:
+            session.close()
+        return saved
+
 
 # ===== 싱글톤 =====
 
@@ -199,14 +237,21 @@ def crawl_with_stream(event_bus):
 
                         log.info(f"[PROC] Sentiment: {sentiment_label} ({sentiment_score:.2f}), Tickers: {tickers}, Summary length: {len(summary)}")
 
+                        published_time = parser.extract_published_time()
                         news_id = service._save_to_mbs_in_article(
-                            site_name, url, title, summary,
-                            parser.extract_published_time()
+                            site_name, url, title, summary, published_time
                         )
 
                         if news_id:
                             published_count += 1
                             log.info(f"[IN] Saved: {news_id} - {title[:60]}...")
+                            # 계산한 감성/티커 매핑을 PROC 테이블에 저장
+                            # (consumer의 proc_stage는 스텁 — 여기서 직접 영속화)
+                            base_ymd = (published_time or datetime.utcnow()).date()
+                            n_proc = service._save_proc_results(
+                                news_id, base_ymd, summary, sentiment_score, tickers
+                            )
+                            log.info(f"[PROC] Saved {n_proc} mapping rows for {news_id}")
 
                     except Exception as e:
                         log.error(f"[Crawl] Error processing {url}: {e}")

@@ -1,15 +1,15 @@
 /**
- * EconomicCalendarWidget — 일자별 경제 이벤트 캘린더 위젯.
- * 데이터: /api/data/nasdaq/economic_calendar (라이브 — 기존 정적 지표 목록 대체).
- * 본문은 캘린더 페이지와 공유하는 EconomicCalendarView, 헤더에서 일자 이동.
+ * EarningsCalendarWidget — 일자별 실적 발표 캘린더 위젯.
+ * 데이터: /api/data/nasdaq/earnings_calendar (라이브).
+ * 본문은 캘린더 페이지와 공유하는 EarningsCalendarView, 헤더에서 일자 이동.
  */
 import { useState, useMemo } from 'react';
-import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { BarChart3, ChevronLeft, ChevronRight } from 'lucide-react';
 import BaseWidget from './common/BaseWidget';
-import EconomicCalendarView from '../calendar/EconomicCalendarView';
+import EarningsCalendarView from '../calendar/EarningsCalendarView';
 import { isoDate, addDays } from '../calendar/calendarUtils';
 
-export default function EconomicCalendarWidget({ onRemove }) {
+export default function EarningsCalendarWidget({ onRemove }) {
   const todayIso = useMemo(() => isoDate(new Date()), []);
   const [date, setDate] = useState(todayIso);
 
@@ -17,8 +17,8 @@ export default function EconomicCalendarWidget({ onRemove }) {
 
   return (
     <BaseWidget
-      title="Economic Calendar"
-      icon={Calendar}
+      title="Earnings Calendar"
+      icon={BarChart3}
       onRemove={onRemove}
       showViewToggle={false}
       showPeriodSelector={false}
@@ -43,7 +43,7 @@ export default function EconomicCalendarWidget({ onRemove }) {
           <span className="text-[10px] text-gray-500 ml-1">{date}</span>
         </div>
         <div className="flex-1 min-h-0">
-          <EconomicCalendarView date={date} compact />
+          <EarningsCalendarView date={date} compact />
         </div>
       </div>
     </BaseWidget>

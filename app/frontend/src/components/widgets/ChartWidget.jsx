@@ -26,6 +26,8 @@ import {
   CANDLE_COLORS,
 } from './constants';
 import { calculateIndicator } from '../../utils/technicalIndicators';
+import useThemeStore from '../../store/themeStore';
+import { getPlotlyPalette } from '../../utils/plotlyTheme';
 import {
   getRegimeColor,
   getRegimeBadge,
@@ -61,6 +63,7 @@ const PlotlyStockChart = ({
   setSelectedDot,
 }) => {
   const divRef = useRef(null);
+  const theme = useThemeStore(state => state.theme);
 
   useEffect(() => {
     if (!divRef.current || !chartData || chartData.length === 0) return;
@@ -72,43 +75,44 @@ const PlotlyStockChart = ({
       const shapes = [];
       const annotations = [];
 
+      const pal = getPlotlyPalette(theme);
       const darkLayout = {
         paper_bgcolor: 'rgba(0,0,0,0)',
         plot_bgcolor: 'rgba(0,0,0,0)',
-        font: { family: 'Inter, system-ui', color: '#9ca3af', size: 11 },
+        font: { family: 'Inter, system-ui', color: pal.font, size: 11 },
         xaxis: {
-          gridcolor: chartTheme?.grid || '#1f2937',
-          linecolor: '#374151',
-          tickfont: { color: '#6b7280', size: 10 },
+          gridcolor: chartTheme?.grid || pal.grid,
+          linecolor: pal.line,
+          tickfont: { color: pal.tick, size: 10 },
           rangeslider: { visible: false },
           type: 'category',
         },
         yaxis: {
-          gridcolor: chartTheme?.grid || '#1f2937',
-          linecolor: '#374151',
-          tickfont: { color: '#6b7280', size: 10 },
+          gridcolor: chartTheme?.grid || pal.grid,
+          linecolor: pal.line,
+          tickfont: { color: pal.tick, size: 10 },
           automargin: true,
           side: 'right',
         },
         yaxis2: {
           gridcolor: 'rgba(0,0,0,0)',
-          linecolor: '#374151',
-          tickfont: { color: '#6b7280', size: 10 },
+          linecolor: pal.line,
+          tickfont: { color: pal.tick, size: 10 },
           automargin: true,
           side: 'left',
           overlaying: 'y',
         },
         yaxis3: {
           gridcolor: 'rgba(0,0,0,0)',
-          linecolor: '#374151',
+          linecolor: pal.line,
           tickfont: { color: '#f59e0b', size: 10 },
           automargin: true,
           side: 'left',
           overlaying: 'y',
         },
         margin: { t: 8, r: 60, b: 32, l: 60 },
-        legend: { font: { color: '#9ca3af', size: 10 }, bgcolor: 'rgba(0,0,0,0)', x: 0, y: 1 },
-        hoverlabel: { bgcolor: '#1a1f2e', bordercolor: '#374151', font: { color: '#f9fafb', size: 11 } },
+        legend: { font: { color: pal.legend, size: 10 }, bgcolor: 'rgba(0,0,0,0)', x: 0, y: 1 },
+        hoverlabel: { bgcolor: pal.hover.bg, bordercolor: pal.hover.border, font: { color: pal.hover.text, size: 11 } },
         hovermode: 'x unified',
         showlegend: true,
         shapes,
@@ -461,7 +465,7 @@ const PlotlyStockChart = ({
     };
   }, [chartData, tickers, chartType, normalized, showVolume, technicalIndicators, pairMode, pairConfig,
     spreadData, indexData, regimePeriods, outperformPeriods, externalReferenceLines, externalReferencePoints,
-    isSeriesMode, visibleSeries, hasVolumeInSeries]);
+    isSeriesMode, visibleSeries, hasVolumeInSeries, theme, chartTheme]);
 
   return <div ref={divRef} className="w-full h-full" />;
 };
@@ -469,6 +473,7 @@ const PlotlyStockChart = ({
 // Plotly oscillator sub-panel component
 const PlotlyOscillator = ({ chartData, traces: traceDefs, shapes: shapeDefs, yDomain, height = 192, chartTheme }) => {
   const divRef = useRef(null);
+  const theme = useThemeStore(state => state.theme);
 
   useEffect(() => {
     if (!divRef.current || !chartData || chartData.length === 0) return;
@@ -488,27 +493,28 @@ const PlotlyOscillator = ({ chartData, traces: traceDefs, shapes: shapeDefs, yDo
         connectgaps: true,
       }));
 
+      const pal = getPlotlyPalette(theme);
       const layout = {
         paper_bgcolor: 'rgba(0,0,0,0)',
         plot_bgcolor: 'rgba(0,0,0,0)',
-        font: { family: 'Inter, system-ui', color: '#9ca3af', size: 11 },
+        font: { family: 'Inter, system-ui', color: pal.font, size: 11 },
         xaxis: {
-          gridcolor: chartTheme?.grid || '#1f2937',
-          linecolor: '#374151',
-          tickfont: { color: '#6b7280', size: 10 },
+          gridcolor: chartTheme?.grid || pal.grid,
+          linecolor: pal.line,
+          tickfont: { color: pal.tick, size: 10 },
           rangeslider: { visible: false },
           type: 'category',
         },
         yaxis: {
-          gridcolor: chartTheme?.grid || '#1f2937',
-          linecolor: '#374151',
-          tickfont: { color: '#6b7280', size: 10 },
+          gridcolor: chartTheme?.grid || pal.grid,
+          linecolor: pal.line,
+          tickfont: { color: pal.tick, size: 10 },
           automargin: true,
           ...(yDomain ? { range: yDomain } : {}),
         },
         margin: { t: 4, r: 8, b: 32, l: 50 },
-        legend: { font: { color: '#9ca3af', size: 10 }, bgcolor: 'rgba(0,0,0,0)' },
-        hoverlabel: { bgcolor: '#1a1f2e', bordercolor: '#374151', font: { color: '#f9fafb', size: 11 } },
+        legend: { font: { color: pal.legend, size: 10 }, bgcolor: 'rgba(0,0,0,0)' },
+        hoverlabel: { bgcolor: pal.hover.bg, bordercolor: pal.hover.border, font: { color: pal.hover.text, size: 11 } },
         hovermode: 'x unified',
         showlegend: true,
         shapes: shapeDefs || [],
@@ -528,7 +534,7 @@ const PlotlyOscillator = ({ chartData, traces: traceDefs, shapes: shapeDefs, yDo
     return () => {
       if (divRef.current?._ro) divRef.current._ro.disconnect();
     };
-  }, [chartData, traceDefs, shapeDefs, yDomain]);
+  }, [chartData, traceDefs, shapeDefs, yDomain, theme, chartTheme]);
 
   return <div ref={divRef} style={{ width: '100%', height }} />;
 };

@@ -50,7 +50,8 @@ export const URL_WIDGET_MAP = {
           { id: 'comparison',         name: 'Stock Comparison',    description: 'Compare 2-4 stocks',         defaultSize: { w: 8, h: 10 } },
           { id: 'heatmap',            name: 'Sector Heatmap',      description: 'S&P 500 sector treemap',     defaultSize: { w: 8, h: 8 } },
           { id: 'correlation',        name: 'Correlation Matrix',  description: 'Multi-stock correlations',   defaultSize: { w: 8, h: 10 } },
-          { id: 'economic-calendar',  name: 'Economic Calendar',   description: 'Indicator release schedule', defaultSize: { w: 6, h: 8 } },
+          { id: 'economic-calendar',  name: 'Economic Calendar',   description: '경제 이벤트 (실제/예측/이전)', defaultSize: { w: 6, h: 8 } },
+          { id: 'earnings-calendar',  name: 'Earnings Calendar',   description: '실적 발표 일정 (예상 EPS/시총)', defaultSize: { w: 6, h: 8 } },
           { id: 'terminal',           name: 'Terminal',            description: 'Command-line data query',    defaultSize: { w: 8, h: 10 } },
           { id: 'notes',              name: 'Notes',               description: 'Personal memo pad',          defaultSize: { w: 6, h: 8 } },
         ],
@@ -77,6 +78,7 @@ export const URL_WIDGET_MAP = {
           { id: 'earnings',           name: 'Earnings',          description: 'Upcoming earnings',          defaultSize: { w: 6, h: 5 } },
           { id: 'insider',            name: 'Insider',           description: 'Insider trading activity',   defaultSize: { w: 4, h: 5 } },
           { id: 'ownership-overview', name: 'Ownership Overview', description: 'Ownership breakdown',      defaultSize: { w: 12, h: 6 } },
+          { id: 'research-reports',   name: 'Research Reports',  description: 'PDF import — analyst/estimates/annual reports', defaultSize: { w: 8, h: 10 } },
           { id: 'stock-sentiment',    name: 'News Sentiment',    description: 'News sentiment & trend',     defaultSize: { w: 6,  h: 8 } },
           { id: 'social-sentiment',   name: 'Social Sentiment',  description: 'Reddit & StockTwits',        defaultSize: { w: 6,  h: 8 } },
           { id: 'news-feed',          name: 'News Feed',         description: 'Latest news for this stock', defaultSize: { w: 6,  h: 8 } },
@@ -192,7 +194,8 @@ export const URL_WIDGET_MAP = {
           { id: 'initial-claims',     name: 'Initial Claims',     description: 'Weekly claims with 4-wk MA', defaultSize: { w: 6, h: 6 } },
           { id: 'jobs-breakdown',     name: 'Jobs Breakdown',     description: 'Private vs Government jobs',  defaultSize: { w: 6, h: 6 } },
           { id: 'pmi',                name: 'ISM PMI / LEI',      description: 'Manufacturing PMI & LEI',     defaultSize: { w: 8, h: 6 } },
-          { id: 'economic-calendar',  name: 'Economic Calendar',  description: 'Indicator release schedule', defaultSize: { w: 6, h: 8 } },
+          { id: 'economic-calendar',  name: 'Economic Calendar',  description: '경제 이벤트 (실제/예측/이전)', defaultSize: { w: 6, h: 8 } },
+          { id: 'earnings-calendar',  name: 'Earnings Calendar',  description: '실적 발표 일정 (예상 EPS/시총)', defaultSize: { w: 6, h: 8 } },
           { id: 'heatmap',            name: 'Sector Heatmap',     description: 'S&P 500 sector treemap',     defaultSize: { w: 8, h: 8 } },
           { id: 'notes',              name: 'Notes',              description: 'Personal memo pad',          defaultSize: { w: 6, h: 8 } },
         ],
@@ -383,5 +386,36 @@ export const URL_WIDGET_MAP = {
     ],
   },
 };
+
+/**
+ * getGlobalWidgetCategories — 전 페이지의 완성 위젯 카탈로그를 페이지 단위 카테고리로 집계.
+ *
+ * WidgetMenu에 현재 pane 카테고리 외에 다른 페이지의 완성 위젯
+ * (institutional-portfolios, holder-breakdown, quant-* 등)도 노출하기 위해 사용.
+ * 같은 위젯 id가 여러 페이지에 있으면 첫 등장만 유지(정의 순서 기준).
+ *
+ *   excludeIds       — 이미 메뉴에 있는 위젯 id (현재 pane 카테고리)
+ *   includePortfolio — portfolioId가 필요한 페이지(needsPortfolio) 포함 여부.
+ *                      포트폴리오 컨텍스트가 없는 페이지에서는 렌더링이 깨지므로 기본 제외.
+ */
+export function getGlobalWidgetCategories({ excludeIds, includePortfolio = false } = {}) {
+  const seen = new Set(excludeIds ?? []);
+  const result = [];
+  for (const [path, page] of Object.entries(URL_WIDGET_MAP)) {
+    if (!includePortfolio && page.needsPortfolio) continue;
+    const widgets = [];
+    for (const cat of page.categories || []) {
+      for (const w of cat.widgets || []) {
+        if (seen.has(w.id)) continue;
+        seen.add(w.id);
+        widgets.push(w);
+      }
+    }
+    if (widgets.length) {
+      result.push({ id: `page:${path}`, label: page.label, widgets });
+    }
+  }
+  return result;
+}
 
 export default URL_WIDGET_MAP;

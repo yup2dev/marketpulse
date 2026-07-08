@@ -289,44 +289,27 @@ async def get_real_rates(period: str = "5y", provider: str = "fred") -> OBBject:
     return _wrap(data, provider)
 
 
-# ── Economic Calendar (static) ────────────────────────────────────────────────
+# ── Economic Calendar ─────────────────────────────────────────────────────────
 
 @router.get("/economic-calendar")
 @route_handler
-async def get_economic_calendar(provider: str = "static") -> OBBject:
-    from datetime import datetime, timedelta
+async def get_economic_calendar(
+    date: Optional[str] = None,
+    country: Optional[str] = None,
+    provider: str = "nasdaq",
+) -> OBBject:
+    """일자별 경제 이벤트 (Nasdaq 공개 캘린더 API — 라이브 데이터).
 
-    today = datetime.now().date()
-    monday = today - timedelta(days=today.weekday())
-    friday = monday + timedelta(days=4)
+    구 버전은 정적 지표 목록을 반환했으나 실제 발표 일정/값으로 교체됨.
+    /api/data/nasdaq/economic_calendar 와 동일 데이터 (하위호환용 별칭 라우트).
+    """
+    from data_fetcher.query_executor import QueryExecutor
 
-    indicators = [
-        {"name": "GDP (Advanced)", "frequency": "Quarterly", "source": "BEA", "impact": "high", "category": "Growth"},
-        {"name": "Nonfarm Payrolls", "frequency": "Monthly", "source": "BLS", "impact": "high", "category": "Employment"},
-        {"name": "CPI", "frequency": "Monthly", "source": "BLS", "impact": "high", "category": "Inflation"},
-        {"name": "PPI", "frequency": "Monthly", "source": "BLS", "impact": "medium", "category": "Inflation"},
-        {"name": "Retail Sales", "frequency": "Monthly", "source": "Census Bureau", "impact": "high", "category": "Consumer"},
-        {"name": "Initial Jobless Claims", "frequency": "Weekly", "source": "DOL", "impact": "medium", "category": "Employment"},
-        {"name": "Consumer Sentiment (UMich)", "frequency": "Monthly", "source": "UMich", "impact": "medium", "category": "Sentiment"},
-        {"name": "ISM Manufacturing PMI", "frequency": "Monthly", "source": "ISM", "impact": "high", "category": "Manufacturing"},
-        {"name": "ISM Services PMI", "frequency": "Monthly", "source": "ISM", "impact": "high", "category": "Services"},
-        {"name": "FOMC Minutes / Rate Decision", "frequency": "8x/year", "source": "Fed", "impact": "high", "category": "Monetary Policy"},
-        {"name": "Housing Starts", "frequency": "Monthly", "source": "Census Bureau", "impact": "medium", "category": "Housing"},
-        {"name": "Industrial Production", "frequency": "Monthly", "source": "Fed", "impact": "medium", "category": "Manufacturing"},
-        {"name": "Durable Goods Orders", "frequency": "Monthly", "source": "Census Bureau", "impact": "medium", "category": "Manufacturing"},
-        {"name": "PCE Price Index", "frequency": "Monthly", "source": "BEA", "impact": "high", "category": "Inflation"},
-        {"name": "Trade Balance", "frequency": "Monthly", "source": "Census Bureau", "impact": "medium", "category": "Trade"},
-        {"name": "Continuing Claims", "frequency": "Weekly", "source": "DOL", "impact": "low", "category": "Employment"},
-        {"name": "Consumer Confidence (CB)", "frequency": "Monthly", "source": "Conference Board", "impact": "medium", "category": "Sentiment"},
-        {"name": "Existing Home Sales", "frequency": "Monthly", "source": "NAR", "impact": "medium", "category": "Housing"},
-        {"name": "New Home Sales", "frequency": "Monthly", "source": "Census Bureau", "impact": "medium", "category": "Housing"},
-        {"name": "EIA Crude Oil Inventories", "frequency": "Weekly", "source": "EIA", "impact": "medium", "category": "Energy"},
-    ]
-    return OBBject(
-        results=indicators,
-        provider=provider,
-        metadata={"week_start": monday.isoformat(), "week_end": friday.isoformat()},
+    params = {"date": date, "country": country}
+    data = await QueryExecutor.fetch(
+        "nasdaq", "economic_calendar", {k: v for k, v in params.items() if v},
     )
+    return _wrap(data, provider)
 
 
 # ── Bonds ─────────────────────────────────────────────────────────────────────

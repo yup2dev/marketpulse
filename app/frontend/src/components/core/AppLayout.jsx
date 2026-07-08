@@ -5,7 +5,7 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   TrendingUp, LayoutDashboard, BarChart3, Briefcase,
-  Globe, LogOut, Settings, ChevronDown, Search,
+  Globe, LogOut, Settings, ChevronDown, Search, Sparkles,
 } from 'lucide-react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -16,6 +16,7 @@ import { GlobalWidgetContext } from '../../contexts/GlobalWidgetContext';
 import { WidgetSyncProvider } from '../../contexts/WidgetSyncContext';
 import CommandPalette from '../common/CommandPalette';
 import FetcherStatus from './FetcherStatus';
+import CopilotPanel from '../copilot/CopilotPanel';
 
 // Menu path to URL route mapping
 const ROUTE_MAP = {
@@ -26,6 +27,7 @@ const ROUTE_MAP = {
   'screener':           '/screener',
   'quantlib':           '/quantlib',
   'backtest':           '/backtest',
+  'calendar':           '/calendar',
 };
 
 const AppLayout = () => {
@@ -35,6 +37,16 @@ const AppLayout = () => {
   const { menus, loading: menusLoading } = useMenus();
   const [hoveredMenu, setHoveredMenu] = useState(null);
   const [cmdOpen, setCmdOpen] = useState(false);
+  const [copilotOpen, setCopilotOpen] = useState(
+    () => localStorage.getItem('copilot-open') === '1',
+  );
+
+  const toggleCopilot = useCallback(() => {
+    setCopilotOpen((v) => {
+      localStorage.setItem('copilot-open', v ? '0' : '1');
+      return !v;
+    });
+  }, []);
 
   // Ctrl+K → 커맨드 팔레트 토글
   useEffect(() => {
@@ -153,6 +165,17 @@ const AppLayout = () => {
                 <span className="text-xs hidden md:inline">Search…</span>
                 <kbd className="text-[10px] text-gray-600 border border-gray-700 rounded px-1 hidden md:inline">⌃K</kbd>
               </button>
+              {/* AI Copilot 토글 */}
+              <button
+                onClick={toggleCopilot}
+                title="AI Copilot"
+                className={`p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors ${
+                  copilotOpen ? 'text-cyan-400' : ''
+                }`}
+                style={copilotOpen ? {} : { color: 'var(--color-text-secondary)' }}
+              >
+                <Sparkles size={16} />
+              </button>
               <FetcherStatus />
               <ThemeToggle />
               <button
@@ -190,8 +213,11 @@ const AppLayout = () => {
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="flex-1 pt-14">
+      {/* Main Content — Copilot 열림 시 우측 400px 도킹 공간 확보 */}
+      <main
+        className="flex-1 pt-14 transition-[margin] duration-200"
+        style={copilotOpen ? { marginRight: 400 } : undefined}
+      >
         <WidgetSyncProvider>
           <Outlet />
         </WidgetSyncProvider>
@@ -211,6 +237,7 @@ const AppLayout = () => {
       </footer>
     </div>
       <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} />
+      <CopilotPanel open={copilotOpen} onClose={toggleCopilot} />
     </GlobalWidgetContext.Provider>
   );
 };
