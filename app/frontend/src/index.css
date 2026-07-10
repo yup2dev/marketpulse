@@ -62,15 +62,40 @@ html.light {
 
 /* ── Light mode overrides (flat selectors — CSS nesting 미지원 환경 대응) ─── */
 
-/* 배경색 — 하드코딩 hex (브라우저 이스케이프 차이 대응: 양식 모두 작성) */
-html.light .bg-\[\#0d0d12\], html.light .bg-\[#0d0d12\],
-html.light .bg-\[\#0a0a0f\], html.light .bg-\[#0a0a0f\],
-html.light .bg-\[\#0a0e14\], html.light .bg-\[#0a0e14\],
-html.light .bg-\[\#111827\], html.light .bg-\[#111827\],
-html.light .bg-\[\#1a1a1f\], html.light .bg-\[#1a1a1f\],
-html.light .bg-\[\#12121a\], html.light .bg-\[#12121a\],
-html.light .bg-\[\#0d1117\], html.light .bg-\[#0d1117\] {
+/* 하드코딩 hex 배경 → 테마 서페이스.
+   IMPORTANT: 클래스 셀렉터(.bg-\[\#hex\])는 그룹 안에 잘못 이스케이프된 변형
+   (.bg-\[#hex\] — 대괄호 안 bare '#')이 하나라도 섞이면 CSS 규칙 파싱이 실패해
+   PostCSS가 규칙 '전체'를 폐기한다(→ 라이트에서 hex 배경이 다크로 남음).
+   [class~="bg-[#hex]"] 속성 셀렉터는 이스케이프가 필요 없어 이 문제를 회피한다.
+   (다크 hex → 라이트 서페이스 계층: 기본표면 / 오목한 내부 / 떠있는 카드) */
+
+/* 위젯 기본 표면 (흰색) */
+html.light [class~="bg-[#0d0d12]"],
+html.light [class~="bg-[#0d0d0d]"],
+html.light [class~="bg-[#0a0e14]"],
+html.light [class~="bg-[#08080d]"],
+html.light [class~="bg-[#0d1117]"],
+html.light [class~="bg-[#111827]"] {
   background-color: var(--color-bg-widget) !important;
+}
+
+/* 오목한 내부(리스트 행·입력칸·인셋) → 옅은 회색으로 위젯 위에서 구분 */
+html.light [class~="bg-[#0a0a0f]"] {
+  background-color: var(--color-bg-primary) !important;
+}
+
+/* 떠 있는 카드·패널 → 옅은 틴트로 위젯 위에서 대비 확보 (평탄화 방지) */
+html.light [class~="bg-[#111118]"],
+html.light [class~="bg-[#12121a]"],
+html.light [class~="bg-[#1a1a2e]"],
+html.light [class~="bg-[#161b22]"] {
+  background-color: var(--color-bg-tertiary) !important;
+}
+
+/* 드롭다운 / 팝오버 (그림자로 부양감) */
+html.light [class~="bg-[#1a1a1f]"] {
+  background-color: var(--color-bg-secondary) !important;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.1);
 }
 
 /* 배경색 — Tailwind gray */
@@ -98,14 +123,6 @@ html.light .border-gray-800 { border-color: var(--color-border) !important; }
 html.light .border-gray-700 { border-color: var(--color-border) !important; }
 html.light .border-gray-600 { border-color: #cbd5e1             !important; }
 
-/* 배경색 — 누락된 하드코딩 hex */
-html.light .bg-\[\#0d0d0d\], html.light .bg-\[#0d0d0d\],
-html.light .bg-\[\#111118\], html.light .bg-\[#111118\],
-html.light .bg-\[\#1a1a2e\], html.light .bg-\[#1a1a2e\],
-html.light .bg-\[\#161b22\], html.light .bg-\[#161b22\] {
-  background-color: var(--color-bg-widget) !important;
-}
-
 /* 배경색 — gray 투명도 변형 (위젯 내부 패널/칩 등) */
 html.light .bg-gray-800\/80,
 html.light .bg-gray-800\/60,
@@ -132,12 +149,6 @@ html.light .border-gray-500\/30 { border-color: #cbd5e1 !important; }
 html.light .hover\:bg-gray-800:hover { background-color: var(--color-bg-tertiary) !important; }
 html.light .hover\:bg-gray-700:hover { background-color: #e2e8f0                  !important; }
 
-/* 드롭다운 / 팝업 */
-html.light .bg-\[\#1a1a1f\] {
-  background-color: var(--color-bg-secondary) !important;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.1);
-}
-
 /* 입력창 */
 html.light input[type="text"],
 html.light input[type="search"],
@@ -151,11 +162,6 @@ html.light ::placeholder { color: var(--color-text-muted) !important; }
 html.light .react-grid-layout { background-color: var(--color-bg-primary); }
 
 /* ── 라이트 오버라이드 보강 (컴포넌트 색 클래스 audit 기반 — 전환 누락분) ──────── */
-
-/* 누락 하드코딩 hex 배경 */
-html.light .bg-\[\#08080d\], html.light .bg-\[#08080d\] {
-  background-color: var(--color-bg-widget) !important;
-}
 
 /* 어두운 그레이 텍스트(라이트 디자인 잔재) → 테마 텍스트로 전환 */
 html.light .text-gray-700 { color: var(--color-text-secondary) !important; }
@@ -186,10 +192,13 @@ html.light .bg-orange-900\/50, html.light .bg-orange-900 { background-color: rgb
 
 html.light .bg-yellow-900\/40, html.light .bg-yellow-900\/50,
 html.light .bg-yellow-900\/30, html.light .bg-yellow-900,
-html.light .bg-amber-900\/40,  html.light .bg-amber-900\/50 { background-color: rgba(245,158,11,0.14) !important; }
+html.light .bg-amber-900\/40,  html.light .bg-amber-900\/50,
+html.light .bg-amber-900\/30,  html.light .bg-amber-900\/20,
+html.light .bg-amber-800\/60,  html.light .bg-amber-800\/40 { background-color: rgba(245,158,11,0.14) !important; }
+html.light .hover\:bg-amber-800\/60:hover { background-color: rgba(245,158,11,0.22) !important; }
 
 html.light .bg-red-900\/40,    html.light .bg-red-900\/50,
-html.light .bg-red-900\/30,    html.light .bg-red-900,
+html.light .bg-red-900\/30,    html.light .bg-red-900\/20,   html.light .bg-red-900,
 html.light .bg-rose-900\/40 { background-color: rgba(239,68,68,0.10) !important; }
 
 html.light .bg-green-900\/40,  html.light .bg-green-900\/50,
@@ -212,16 +221,20 @@ html.light .text-teal-400,    html.light .text-teal-300    { color: #0d9488 !imp
 html.light .text-indigo-400,  html.light .text-indigo-300  { color: #4f46e5 !important; }
 html.light .text-violet-400,  html.light .text-violet-300  { color: #7c3aed !important; }
 html.light .text-lime-400 { color: #65a30d !important; }
+/* 어두운 배경 전제의 밝은 색조 텍스트(100/200) → 라이트 틴트 배지 위에서 읽히도록 진한 동색 */
+html.light .text-amber-100,   html.light .text-amber-200   { color: #b45309 !important; }
 
 /* 색조 배지 보더(짙은 700/800) → 라이트에선 옅은 동색 보더 */
 html.light .border-cyan-700,   html.light .border-cyan-800\/50,
-html.light .border-cyan-800\/40, html.light .border-cyan-700\/50 { border-color: rgba(8,145,178,0.35)  !important; }
-html.light .border-blue-700,   html.light .border-blue-800    { border-color: rgba(37,99,235,0.35)  !important; }
-html.light .border-purple-700, html.light .border-purple-800  { border-color: rgba(147,51,234,0.35) !important; }
+html.light .border-cyan-800\/40, html.light .border-cyan-700\/50,
+html.light .border-cyan-600\/60 { border-color: rgba(8,145,178,0.35)  !important; }
+html.light .border-blue-700,   html.light .border-blue-800,   html.light .border-blue-800\/50 { border-color: rgba(37,99,235,0.35)  !important; }
+html.light .border-purple-700, html.light .border-purple-800, html.light .border-purple-800\/50 { border-color: rgba(147,51,234,0.35) !important; }
 html.light .border-orange-700  { border-color: rgba(234,88,12,0.35)  !important; }
 html.light .border-green-800   { border-color: rgba(22,163,74,0.35)  !important; }
-html.light .border-red-800,    html.light .border-red-700     { border-color: rgba(220,38,38,0.35)  !important; }
+html.light .border-red-800,    html.light .border-red-700,    html.light .border-red-800\/40 { border-color: rgba(220,38,38,0.35)  !important; }
 html.light .border-yellow-800, html.light .border-yellow-700  { border-color: rgba(202,138,4,0.35)  !important; }
+html.light .border-amber-800,  html.light .border-amber-800\/40, html.light .border-amber-700\/50 { border-color: rgba(217,119,6,0.35)  !important; }
 
 /* ── Split pane 구분선 (양쪽 테마에서 뚜렷하게 보이도록) ─────────────────────── */
 .split-resize-handle {

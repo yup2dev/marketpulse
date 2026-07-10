@@ -381,6 +381,17 @@ export default function UniversalWidget({
 
   const setParam = (name, value) => setParams((s) => ({ ...s, [name]: value }));
 
+  // 파라미터 폼 → 헤더 컨트롤(뷰 토글·새로고침·닫기) 옆의 컴팩트 팝오버로 노출.
+  const paramMenu = paramsSpec?.length ? (
+    <WidgetParamForm
+      spec={paramsSpec}
+      values={params}
+      onChange={setParam}
+      onApply={fetchData}
+      loading={loading}
+    />
+  ) : null;
+
   // ── Render body ──────────────────────────────────────────────────────────
   let body;
   if (error) {
@@ -446,7 +457,6 @@ export default function UniversalWidget({
       title={title}
       loading={loading}
       onRefresh={endpoint ? fetchData : undefined}
-      onRun={paramsSpec?.length ? fetchData : undefined}
       onRemove={onRemove}
       symbol={requiresSymbol ? symbol : undefined}
       onSymbolChange={requiresSymbol ? setSymbol : undefined}
@@ -459,21 +469,10 @@ export default function UniversalWidget({
       viewMode={activeView}
       onViewModeChange={setViewMode}
       showViewToggle={showViewToggle}
-      headerExtra={chartTypeSelector}
+      headerExtra={<>{paramMenu}{chartTypeSelector}</>}
     >
-      <div className="flex flex-col h-full min-h-0">
-        {paramsSpec?.length ? (
-          <div className="px-2 pt-2 flex-shrink-0">
-            <WidgetParamForm
-              spec={paramsSpec}
-              values={params}
-              onChange={setParam}
-            />
-          </div>
-        ) : null}
-        <div className="flex-1 relative min-h-0">
-          {body}
-        </div>
+      <div className="relative h-full min-h-0">
+        {body}
       </div>
     </BaseWidget>
   );
