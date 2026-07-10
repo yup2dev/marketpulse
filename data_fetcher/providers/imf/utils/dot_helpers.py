@@ -2,13 +2,28 @@
 
 # pylint: disable=R0917,R0913,R0914,R0801
 
+import logging
+
+log = logging.getLogger(__name__)
+
 
 def load_country_choices() -> list[dict[str, str]]:
-    """Load IMF IRFCL country map."""
+    """Load IMF IRFCL country map.
+
+    ImfDirectionOfTradeQueryParams의 __json_schema_extra__ choices를 채우느라
+    import 시점에 호출된다. 메타데이터 캐시(imf_cache.pkl.gz)가 없는 빌드에서
+    예외가 새면 providers_init import 전체가 죽어 Fetcher REST/WS 워커가 아예
+    못 뜨므로, 실패 시 빈 목록으로 대체한다(조회 시 resolve_country_input이
+    명확한 오류를 낸다).
+    """
     # pylint: disable=import-outside-toplevel
     from data_fetcher.providers.imf.utils.metadata import ImfMetadata
 
-    data = ImfMetadata().get_dataflow_parameters("IMTS")["COUNTRY"]
+    try:
+        data = ImfMetadata().get_dataflow_parameters("IMTS")["COUNTRY"]
+    except Exception as exc:
+        log.warning("[imf] IMTS country choices 로드 실패 — 빈 목록으로 대체: %s", exc)
+        return []
     countries_list: list = []
     g_regions: list = []
     tx_groups: list = []
@@ -105,6 +120,12 @@ def resolve_country_input(value: str) -> str:
 
     code_set = set(list_country_choices())
     label_to_code = get_label_to_code_map()
+
+    if not code_set and not label_to_code:
+        raise ValueError(
+            "IMF country metadata unavailable (imf_cache.pkl.gz missing or failed to load) "
+            "— cannot resolve country input."
+        )
 
     v_upper = value.upper()
 

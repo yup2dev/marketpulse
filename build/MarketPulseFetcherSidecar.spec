@@ -20,6 +20,12 @@ data_fetcher = project_root / "data_fetcher"
 
 datas = [
     (str(data_fetcher / "assets"), "data_fetcher/assets"),
+    # IMF 메타데이터 캐시 — 누락 시 direction_of_trade import가 죽어
+    # providers_init 전체(→ REST/WS 워커)가 못 뜬다
+    (
+        str(data_fetcher / "providers" / "imf" / "assets" / "imf_cache.pkl.gz"),
+        "data_fetcher/providers/imf/assets",
+    ),
 ]
 
 hiddenimports = [
