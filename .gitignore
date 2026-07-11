@@ -56,3 +56,6 @@ bash.exe.stackdump
 /test_*.py
 .claude/
 quant_3d_scan.png
+
+# 클라우드 동기화 인증 (daily_ingest.bat)
+scripts/sync.env

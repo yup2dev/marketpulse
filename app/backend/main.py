@@ -32,6 +32,7 @@ from app.backend.api.routes.providers import router as providers_router
 from app.backend.api.routes.ws import router as ws_router
 from app.backend.api.routes.data import router as data_router
 from app.backend.api.routes.keys import router as keys_router
+from app.backend.api.routes.ingest import router as ingest_router
 
 
 @asynccontextmanager
@@ -265,6 +266,7 @@ app.include_router(export.router,     prefix="/api", tags=["export"])
 app.include_router(menu.router,       prefix="/api", tags=["menu"])
 app.include_router(providers_router,  prefix="/api", tags=["providers"])
 app.include_router(keys_router,       prefix="/api", tags=["keys"])
+app.include_router(ingest_router,     prefix="/api", tags=["ingest"])
 app.include_router(ws_router,                        tags=["websocket"])
 
 

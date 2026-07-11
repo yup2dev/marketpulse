@@ -11,6 +11,7 @@
  *   recheck  즉시 재확인 함수
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { syncFetcherToken } from '../utils/fetcherToken';
 
 const FETCHER_HEALTH_URL = 'http://127.0.0.1:8765/health';
 const POLL_INTERVAL_MS = 15000;
@@ -41,10 +42,20 @@ async function pingFetcher() {
 export default function useFetcherHealth() {
   const [status, setStatus] = useState('checking');
   const mountedRef = useRef(true);
+  const wasOnlineRef = useRef(false);
 
   const recheck = useCallback(async () => {
     const ok = await pingFetcher();
     if (mountedRef.current) setStatus(ok ? 'online' : 'offline');
+    // 토큰은 로그인/페이지 로드 시점에만 전달되므로, Fetcher를 페이지보다 늦게
+    // 띄우면 토큰 파일이 비어 워커가 클라우드 풀에 합류하지 못한다(연결됨으로
+    // 보이지만 fetch 위임이 실행 안 되는 증상). online 전환을 감지하면 저장된
+    // 토큰을 다시 전달해 실행 순서와 무관하게 합류하도록 한다.
+    if (ok && !wasOnlineRef.current) {
+      const token = localStorage.getItem('fetcher_token');
+      if (token) syncFetcherToken(token);
+    }
+    wasOnlineRef.current = ok;
     return ok;
   }, []);
 
