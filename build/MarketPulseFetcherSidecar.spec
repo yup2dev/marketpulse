@@ -51,6 +51,9 @@ hiddenimports = [
     "data_fetcher.providers.nasdaqtrader",
     "data_fetcher.server",
     "data_fetcher.tray",
+    # SEC provider가 함수 내부에서 지연 import — 정적분석이 못 잡아 누락되면
+    # 13F/form4/nport 파싱 시 ModuleNotFoundError (메인 spec과 동일하게 명시)
+    "xmltodict",
     "dotenv",
 ]
 
