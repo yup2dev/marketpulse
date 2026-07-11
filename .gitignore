@@ -54,7 +54,9 @@ logs/
 *.backup
 bash.exe.stackdump
 /test_*.py
-.claude/
+# .claude는 로컬 설정이므로 제외하되, 팀 공유용 스킬은 추적한다
+.claude/*
+!.claude/skills/
 quant_3d_scan.png
 
 # 클라우드 동기화 인증 (daily_ingest.bat)
