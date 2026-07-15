@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Plus, TrendingUp, Percent, Activity, X, TrendingDown, GitCompare, Settings, ChevronDown, ChevronUp, BarChart2, Layers, Target } from 'lucide-react';
+import { Plus, TrendingUp, Percent, Activity, X, TrendingDown, GitCompare, Settings, ChevronDown, ChevronUp, BarChart2, Layers, Target, ArrowRightLeft } from 'lucide-react';
 import StockSelectorModal from '../common/StockSelectorModal';
 import useTheme from '../../hooks/useTheme';
 import useChartZoom from '../../hooks/useChartZoom';
@@ -195,7 +195,7 @@ const PlotlyStockChart = ({
               mode: 'lines',
               x: dates,
               y: chartData.map(d => d[ticker.symbol]),
-              name: ticker.name || ticker.symbol,
+              name: tickerDisplayName(ticker),
               yaxis: 'y',
               line: { color: ticker.color, width: 3, dash: 'dot' },
               connectgaps: true,
@@ -215,7 +215,7 @@ const PlotlyStockChart = ({
                 high: chartData.map(d => d[`${ticker.symbol}_high`]),
                 low: chartData.map(d => d[`${ticker.symbol}_low`]),
                 close: chartData.map(d => d[`${ticker.symbol}_close`]),
-                name: ticker.name || ticker.symbol,
+                name: tickerDisplayName(ticker),
                 yaxis: 'y',
                 increasing: { line: { color: CANDLE_COLORS?.up || '#22c55e' } },
                 decreasing: { line: { color: CANDLE_COLORS?.down || '#ef4444' } },
@@ -229,7 +229,7 @@ const PlotlyStockChart = ({
                 high: chartData.map(d => d[`${ticker.symbol}_high`]),
                 low: chartData.map(d => d[`${ticker.symbol}_low`]),
                 close: chartData.map(d => d[`${ticker.symbol}_close`]),
-                name: ticker.name || ticker.symbol,
+                name: tickerDisplayName(ticker),
                 yaxis: 'y',
                 increasing: { line: { color: CANDLE_COLORS?.up || '#22c55e' }, fillcolor: CANDLE_COLORS?.up || '#22c55e' },
                 decreasing: { line: { color: CANDLE_COLORS?.down || '#ef4444' }, fillcolor: CANDLE_COLORS?.down || '#ef4444' },
@@ -241,7 +241,7 @@ const PlotlyStockChart = ({
               mode: 'lines',
               x: dates,
               y: chartData.map(d => d[ticker.symbol]),
-              name: ticker.name || ticker.symbol,
+              name: tickerDisplayName(ticker),
               yaxis: 'y',
               line: { color: ticker.color, width: 2 },
               fill: 'tozeroy',
@@ -255,7 +255,7 @@ const PlotlyStockChart = ({
               mode: 'lines',
               x: dates,
               y: chartData.map(d => d[ticker.symbol]),
-              name: ticker.name || ticker.symbol,
+              name: tickerDisplayName(ticker),
               yaxis: 'y',
               line: { color: ticker.color, width: 2 },
               connectgaps: true,
@@ -541,6 +541,35 @@ const PlotlyOscillator = ({ chartData, traces: traceDefs, shapes: shapeDefs, yDo
 };
 
 // Calculate Heikin-Ashi values
+// Time shift (lead/lag) helpers — shift a series' dates by calendar D/W/M.
+// Positive value = lead: data moves forward (right) so past values overlay the present.
+const SHIFT_UNITS = [
+  { id: 'D', label: 'Days' },
+  { id: 'W', label: 'Weeks' },
+  { id: 'M', label: 'Months' },
+];
+
+const shiftDateStr = (dateStr, value, unit) => {
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+  if (unit === 'M') d.setMonth(d.getMonth() + value);
+  else if (unit === 'W') d.setDate(d.getDate() + value * 7);
+  else d.setDate(d.getDate() + value);
+  const pad = (n) => String(n).padStart(2, '0');
+  const datePart = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  // Preserve time portion for intraday data (e.g. "2026-07-15T09:30:00")
+  return dateStr.length > 10 ? `${datePart}${dateStr.slice(10)}` : datePart;
+};
+
+const getShiftLabel = (shift) =>
+  shift?.value ? `${shift.value > 0 ? '+' : ''}${shift.value}${shift.unit}` : null;
+
+const tickerDisplayName = (ticker) => {
+  const base = ticker.name || ticker.symbol;
+  const label = getShiftLabel(ticker.shift);
+  return label ? `${base} (${label})` : base;
+};
+
 const calculateHeikinAshi = (data, symbol) => {
   if (!data || data.length === 0) return data;
 
@@ -639,6 +668,7 @@ const ChartWidget = ({
   const [priceTargets, setPriceTargets] = useState(null);
   const [selectedDot, setSelectedDot] = useState(null); // { x, y, ...analyst info }
   const [chartHeight, setChartHeight] = useState(420);
+  const [shiftEditorSymbol, setShiftEditorSymbol] = useState(null); // ticker symbol whose shift popover is open
   const widgetOuterRef = useRef(null);
 
   // Zoom/Pan functionality via custom hook
@@ -839,20 +869,56 @@ const ChartWidget = ({
     return Array.from(dataMap.values()).sort((a, b) => a.timestamp - b.timestamp);
   };
 
+  // Apply per-ticker time shift (lead/lag) — move a ticker's dates by calendar D/W/M
+  // so e.g. SIL shifted +4M overlays SOX 4 months ahead (leading indicator analysis)
+  const shiftedChartData = useMemo(() => {
+    if (isSeriesMode || !chartData || chartData.length === 0) return chartData;
+    const shiftedTickers = tickers.filter(t => t.shift?.value);
+    if (shiftedTickers.length === 0) return chartData;
+
+    const isTickerKey = (key, symbol) => key === symbol || key.startsWith(`${symbol}_`);
+
+    // Rebuild rows without the shifted tickers' columns
+    const map = new Map();
+    chartData.forEach(row => {
+      const rest = {};
+      Object.keys(row).forEach(k => {
+        if (!shiftedTickers.some(t => isTickerKey(k, t.symbol))) rest[k] = row[k];
+      });
+      map.set(row.date, rest);
+    });
+
+    // Re-insert shifted tickers' columns at their shifted dates
+    shiftedTickers.forEach(t => {
+      chartData.forEach(row => {
+        const keys = Object.keys(row).filter(k => isTickerKey(k, t.symbol));
+        if (keys.length === 0) return;
+        const newDate = shiftDateStr(row.date, t.shift.value, t.shift.unit || 'M');
+        if (!map.has(newDate)) {
+          map.set(newDate, { date: newDate, timestamp: new Date(newDate).getTime() });
+        }
+        const entry = map.get(newDate);
+        keys.forEach(k => { entry[k] = row[k]; });
+      });
+    });
+
+    return Array.from(map.values()).sort((a, b) => a.timestamp - b.timestamp);
+  }, [chartData, tickers, isSeriesMode]);
+
   // Full chart data with Heikin-Ashi transformation if needed
   const fullChartData = useMemo(() => {
-    if (chartType !== 'heikinashi' || !chartData || chartData.length === 0) {
-      return chartData;
+    if (chartType !== 'heikinashi' || !shiftedChartData || shiftedChartData.length === 0) {
+      return shiftedChartData;
     }
 
     // Apply Heikin-Ashi transformation for each stock ticker
-    let transformedData = [...chartData];
+    let transformedData = [...shiftedChartData];
     tickers.filter(t => t.type === 'stock').forEach(ticker => {
       transformedData = calculateHeikinAshi(transformedData, ticker.symbol);
     });
 
     return transformedData;
-  }, [chartData, chartType, tickers]);
+  }, [shiftedChartData, chartType, tickers]);
 
   // Slice data based on visible range for zoom/pan
   const displayChartData = useMemo(() => {
@@ -1262,6 +1328,19 @@ const ChartWidget = ({
     ));
   };
 
+  // Time shift (lead/lag): shift = { value, unit } or null to clear
+  const updateTickerShift = (symbol, shift) => {
+    setTickers(tickers.map(t =>
+      t.symbol === symbol ? { ...t, shift: shift?.value ? shift : null } : t
+    ));
+  };
+
+  const updateTickerColor = (symbol, color) => {
+    setTickers(tickers.map(t =>
+      t.symbol === symbol ? { ...t, color } : t
+    ));
+  };
+
 
   // Determine visible series for series mode
   const visibleSeries = useMemo(() =>
@@ -1560,7 +1639,7 @@ const ChartWidget = ({
                 {tickers.map((ticker) => (
                   <div
                     key={ticker.symbol}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${
+                    className={`relative flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${
                       !ticker.visible ? 'opacity-40 bg-gray-800/30 border-gray-700' : 'bg-gray-800/50 border-gray-700 hover:border-gray-600'
                     }`}
                   >
@@ -1582,6 +1661,22 @@ const ChartWidget = ({
                         {tickerStats[ticker.symbol].quote.change_percent?.toFixed(2)}%
                       </span>
                     )}
+                    {/* Series Settings (Color / Time Shift) toggle */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShiftEditorSymbol(shiftEditorSymbol === ticker.symbol ? null : ticker.symbol);
+                      }}
+                      className={`flex items-center gap-1 ${
+                        ticker.shift?.value ? 'text-amber-400 hover:text-amber-300' : 'text-gray-500 hover:text-white'
+                      }`}
+                      title="Series Settings (Color / Time Shift)"
+                    >
+                      <Settings size={12} />
+                      {ticker.shift?.value && (
+                        <span className="text-xs font-semibold">{getShiftLabel(ticker.shift)}</span>
+                      )}
+                    </button>
                     {tickers.length > 1 && (
                       <button
                         onClick={(e) => {
@@ -1592,6 +1687,117 @@ const ChartWidget = ({
                       >
                         <X size={14} />
                       </button>
+                    )}
+
+                    {/* Time Shift Editor Popover */}
+                    {shiftEditorSymbol === ticker.symbol && (
+                      <div
+                        className="absolute top-full left-0 mt-2 z-50 border border-gray-700 rounded-lg shadow-2xl p-3 w-64"
+                        style={{ backgroundColor: tokens.bg.tertiary }}
+                        onClick={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => e.stopPropagation()}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-semibold text-white flex items-center gap-1.5">
+                            <Settings size={12} className="text-amber-400" />
+                            {ticker.name || ticker.symbol}
+                          </span>
+                          <button
+                            onClick={() => setShiftEditorSymbol(null)}
+                            className="text-gray-400 hover:text-white"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+
+                        {/* Color picker */}
+                        <div className="text-[11px] text-gray-400 mb-1.5">Color</div>
+                        <div className="flex items-center gap-1.5 mb-3">
+                          {CHART_COLORS.map((color) => (
+                            <button
+                              key={color}
+                              onClick={() => updateTickerColor(ticker.symbol, color)}
+                              className={`w-5 h-5 rounded-full transition-transform hover:scale-110 ${
+                                ticker.color === color ? 'ring-2 ring-white ring-offset-1 ring-offset-gray-900' : ''
+                              }`}
+                              style={{ backgroundColor: color }}
+                              title={color}
+                            />
+                          ))}
+                          <label
+                            className="w-5 h-5 rounded-full cursor-pointer border border-dashed border-gray-500 hover:border-white flex items-center justify-center overflow-hidden relative"
+                            title="Custom color"
+                          >
+                            <span
+                              className="absolute inset-0.5 rounded-full"
+                              style={{
+                                background: CHART_COLORS.includes(ticker.color)
+                                  ? 'conic-gradient(#ef4444, #f59e0b, #10b981, #06b6d4, #8b5cf6, #ec4899, #ef4444)'
+                                  : ticker.color,
+                              }}
+                            />
+                            <input
+                              type="color"
+                              value={ticker.color || '#3b82f6'}
+                              onChange={(e) => updateTickerColor(ticker.symbol, e.target.value)}
+                              className="opacity-0 absolute inset-0 cursor-pointer"
+                            />
+                          </label>
+                        </div>
+
+                        {/* Time shift */}
+                        <div className="text-[11px] text-gray-400 mb-1.5 flex items-center gap-1">
+                          <ArrowRightLeft size={10} />
+                          Time Shift (Lead/Lag)
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            value={ticker.shift?.value ?? 0}
+                            onChange={(e) => {
+                              const v = parseInt(e.target.value, 10);
+                              updateTickerShift(ticker.symbol, {
+                                value: isNaN(v) ? 0 : v,
+                                unit: ticker.shift?.unit || 'M',
+                              });
+                            }}
+                            className="w-16 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-amber-500"
+                          />
+                          <div className="flex items-center bg-gray-800 rounded overflow-hidden">
+                            {SHIFT_UNITS.map((u) => (
+                              <button
+                                key={u.id}
+                                onClick={() =>
+                                  updateTickerShift(ticker.symbol, {
+                                    value: ticker.shift?.value || 0,
+                                    unit: u.id,
+                                  })
+                                }
+                                className={`px-2 py-1 text-xs font-medium transition-colors ${
+                                  (ticker.shift?.unit || 'M') === u.id
+                                    ? 'bg-amber-600 text-white'
+                                    : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                                }`}
+                                title={u.label}
+                              >
+                                {u.id}
+                              </button>
+                            ))}
+                          </div>
+                          {ticker.shift?.value ? (
+                            <button
+                              onClick={() => updateTickerShift(ticker.symbol, null)}
+                              className="ml-auto text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-gray-300"
+                            >
+                              Reset
+                            </button>
+                          ) : null}
+                        </div>
+                        <div className="text-[11px] text-gray-500 mt-2 leading-relaxed">
+                          +N = 선행(Lead): 이 시리즈를 오른쪽으로 N만큼 이동시켜 다른 종목과 겹쳐 봅니다.
+                          −N = 후행(Lag). 예: SIL에 +4M → 반도체보다 4개월 선행 비교.
+                        </div>
+                      </div>
                     )}
                   </div>
                 ))}
