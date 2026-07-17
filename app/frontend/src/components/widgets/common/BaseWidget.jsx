@@ -70,6 +70,14 @@ function SymbolSelector({ symbol, onSymbolChange }) {
     setSearch('');
   };
 
+  // 자유 입력 통과: DB 유니버스에 없는 심볼(OTC ADR, 'KRX:005930' 같은
+  // TradingView 표기 등)도 Enter로 그대로 사용할 수 있게 한다.
+  const freeText = search.trim().toUpperCase();
+  const hasExactMatch = results.some(r => (r.symbol || r) === freeText);
+  const submitFreeText = () => {
+    if (freeText) selectSymbol(freeText);
+  };
+
   return (
     <div ref={containerRef} className="relative" onMouseDown={(e) => e.stopPropagation()}>
       <button
@@ -90,7 +98,8 @@ function SymbolSelector({ symbol, onSymbolChange }) {
                 type="text"
                 value={search}
                 onChange={(e) => handleSearch(e.target.value)}
-                placeholder="Search symbol..."
+                onKeyDown={(e) => { if (e.key === 'Enter') submitFreeText(); }}
+                placeholder="Search or type symbol..."
                 className="flex-1 bg-transparent text-xs text-white outline-none placeholder-gray-500"
               />
             </div>
@@ -98,21 +107,31 @@ function SymbolSelector({ symbol, onSymbolChange }) {
           <div className="max-h-48 overflow-y-auto">
             {loading ? (
               <div className="p-3 text-center text-xs text-gray-500">Searching...</div>
-            ) : results.length > 0 ? (
-              results.map((item, i) => (
-                <button
-                  key={i}
-                  onClick={() => selectSymbol(item.symbol || item)}
-                  className="w-full px-3 py-2 text-left hover:bg-gray-800 transition-colors flex items-center justify-between"
-                >
-                  <span className="text-xs text-white font-medium">{item.symbol || item}</span>
-                  <span className="text-[10px] text-gray-500 truncate ml-2 max-w-[100px]">{item.name || ''}</span>
-                </button>
-              ))
-            ) : search ? (
-              <div className="p-3 text-center text-xs text-gray-500">No results</div>
             ) : (
-              <div className="p-3 text-center text-xs text-gray-500">Type to search</div>
+              <>
+                {results.map((item, i) => (
+                  <button
+                    key={i}
+                    onClick={() => selectSymbol(item.symbol || item)}
+                    className="w-full px-3 py-2 text-left hover:bg-gray-800 transition-colors flex items-center justify-between"
+                  >
+                    <span className="text-xs text-white font-medium">{item.symbol || item}</span>
+                    <span className="text-[10px] text-gray-500 truncate ml-2 max-w-[100px]">{item.name || ''}</span>
+                  </button>
+                ))}
+                {freeText && !hasExactMatch && (
+                  <button
+                    onClick={submitFreeText}
+                    className="w-full px-3 py-2 text-left hover:bg-gray-800 transition-colors flex items-center justify-between border-t border-gray-800"
+                  >
+                    <span className="text-xs text-cyan-400 font-medium">Use “{freeText}”</span>
+                    <span className="text-[10px] text-gray-500 ml-2">직접 입력</span>
+                  </button>
+                )}
+                {!search && results.length === 0 && (
+                  <div className="p-3 text-center text-xs text-gray-500">Type to search</div>
+                )}
+              </>
             )}
           </div>
         </div>
