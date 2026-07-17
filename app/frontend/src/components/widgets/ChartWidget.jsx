@@ -16,7 +16,6 @@ import {
   WIDGET_ICON_COLORS,
   LOADING_COLORS,
   CHART_COLORS,
-  TIME_RANGES,
   MACRO_INDICATORS,
   TECHNICAL_INDICATORS,
   INDICATOR_COLORS,
@@ -575,6 +574,43 @@ const calculateHeikinAshi = (data, symbol) => {
   return result;
 };
 
+const fmtDate = (d) => d.toISOString().slice(0, 10);
+
+// Default date range: last 1 month.
+const defaultDateRange = () => {
+  const end = new Date();
+  const start = new Date();
+  start.setMonth(start.getMonth() - 1);
+  return { start: fmtDate(start), end: fmtDate(end) };
+};
+
+const DATE_RANGE_PRESETS = [
+  { label: '1M', months: 1 },
+  { label: '6M', months: 6 },
+  { label: '1Y', months: 12 },
+  { label: '5Y', months: 60 },
+];
+
+const presetDateRange = (months) => {
+  const end = new Date();
+  const start = new Date();
+  start.setMonth(start.getMonth() - months);
+  return { start: fmtDate(start), end: fmtDate(end) };
+};
+
+// Period-anchored aux endpoints (regime 등) fetch startDate→today; pick the
+// smallest preset covering that span.
+const rangeToPeriod = (startDate) => {
+  const days = Math.ceil((Date.now() - new Date(startDate).getTime()) / 86400000);
+  if (days <= 31)   return '1mo';
+  if (days <= 93)   return '3mo';
+  if (days <= 186)  return '6mo';
+  if (days <= 366)  return '1y';
+  if (days <= 731)  return '2y';
+  if (days <= 1827) return '5y';
+  return 'max';
+};
+
 const ChartWidget = ({
   widgetId,
   symbol,                          // Single seed symbol (widget grid injects this)
@@ -626,7 +662,8 @@ const ChartWidget = ({
     savedState?.tickers || seedSymbols.map(sym => ({ symbol: sym, color: CHART_COLORS[0], visible: true, type: 'stock' }))
   );
   const [chartData, setChartData] = useState([]);
-  const [timeRange, setTimeRange] = useState(savedState?.timeRange || '1yr');
+  const [startDate, setStartDate] = useState(savedState?.startDate || defaultDateRange().start);
+  const [endDate, setEndDate]     = useState(savedState?.endDate || defaultDateRange().end);
   const [loading, setLoading] = useState(false);
   const [normalized, setNormalized] = useState(savedState?.normalized || false);
   const [showVolume, setShowVolume] = useState(savedState?.showVolume !== undefined ? savedState.showVolume : true);
@@ -678,10 +715,10 @@ const ChartWidget = ({
     mergeIndicatorData,
   } = useTechnicalIndicators({ initialIndicators: savedState?.technicalIndicators || [] });
 
-  // Reset visible range when time range changes
+  // Reset visible range when date range changes
   useEffect(() => {
     resetZoom();
-  }, [timeRange, resetZoom]);
+  }, [startDate, endDate, resetZoom]);
 
   // Pair Analysis via custom hook
   const {
@@ -942,7 +979,8 @@ const ChartWidget = ({
     if (storageKey) {
       const stateToSave = {
         tickers,
-        timeRange,
+        startDate,
+        endDate,
         normalized,
         showVolume,
         technicalIndicators,
@@ -952,7 +990,7 @@ const ChartWidget = ({
       };
       localStorage.setItem(storageKey, JSON.stringify(stateToSave));
     }
-  }, [storageKey, tickers, timeRange, normalized, showVolume, technicalIndicators, chartType, pairMode, pairConfig]);
+  }, [storageKey, tickers, startDate, endDate, normalized, showVolume, technicalIndicators, chartType, pairMode, pairConfig]);
 
   // Load data for all tickers and indicators
   const loadData = useCallback(async () => {
@@ -960,30 +998,33 @@ const ChartWidget = ({
     if (isSeriesMode) return;
 
     if (tickers.length === 0) return;
+    if (!startDate || !endDate || startDate > endDate) return;
 
     setLoading(true);
     try {
-      const rangeConfig = TIME_RANGES.find(r => r.id === timeRange);
-      let period = rangeConfig?.value || '1y';
-      const interval = rangeConfig?.interval || '1d';
+      const spanDays = Math.max(1, Math.round((new Date(endDate) - new Date(startDate)) / 86400000));
+      const startAgeDays = Math.round((Date.now() - new Date(startDate).getTime()) / 86400000);
+      // Intraday intervals are only available from the provider for recent data (~60 days)
+      const canIntraday = startAgeDays <= 55;
+      let interval;
+      if (spanDays <= 2)        interval = canIntraday ? '5m'  : '1d';
+      else if (spanDays <= 7)   interval = canIntraday ? '15m' : '1d';
+      else if (spanDays <= 32)  interval = canIntraday ? '30m' : '1d';
+      else if (spanDays <= 730) interval = '1d';
+      else if (spanDays <= 1830) interval = '1wk';
+      else interval = '1mo';
 
-      // Extend period to load extra data for technical indicators (need ~200 extra days for SMA200)
-      // This ensures indicators don't get cut off at the start
-      const extendedPeriodMap = {
-        '1d': '5d',      // 1d -> 5d for some buffer
-        '5d': '1mo',     // 5d -> 1mo
-        '1mo': '3mo',    // 1mo -> 3mo
-        '3mo': '6mo',    // 3mo -> 6mo (includes ~200 trading days buffer)
-        '6mo': '1y',     // 6mo -> 1y
-        '1y': '2y',      // 1y -> 2y
-        '5y': '10y',     // 5y -> 10y
-        'max': 'max',    // max stays max
-      };
-
-      // Use extended period if we have technical indicators that need historical data
-      const needsExtendedData = technicalIndicators.length > 0 ||
-        ['candlestick', 'ohlc', 'heikinashi'].includes(chartType);
-      const fetchPeriod = needsExtendedData ? (extendedPeriodMap[period] || period) : period;
+      // Extend fetch start so technical indicators have warm-up history
+      // (~200 extra trading days for SMA200); trimmed back before display.
+      // Skipped for intraday (provider limit) and normalized mode (rebase point).
+      const needsExtendedData = !normalized && !interval.endsWith('m') &&
+        (technicalIndicators.length > 0 || ['candlestick', 'ohlc', 'heikinashi'].includes(chartType));
+      let fetchStart = startDate;
+      if (needsExtendedData) {
+        const d = new Date(startDate);
+        d.setDate(d.getDate() - 300);
+        fetchStart = fmtDate(d);
+      }
 
       // Separate stocks and indicators
       const stocks = tickers.filter(t => t.type === 'stock');
@@ -993,7 +1034,7 @@ const ChartWidget = ({
       const stockPromises = stocks.map(async (ticker) => {
         try {
           const [history, quote, info] = await Promise.all([
-            apiClient.get(`${API_BASE}/stock/history/${ticker.symbol}?period=${fetchPeriod}&interval=${interval}`).catch(() => null),
+            apiClient.get(`${API_BASE}/stock/history/${ticker.symbol}?start_date=${fetchStart}&end_date=${endDate}&interval=${interval}`).catch(() => null),
             apiClient.get(`${API_BASE}/stock/quote/${ticker.symbol}`).catch(() => null),
             apiClient.get(`${API_BASE}/stock/info/${ticker.symbol}`).catch(() => null),
           ]);
@@ -1014,7 +1055,7 @@ const ChartWidget = ({
       // Load indicator data
       const indicatorPromises = indicators.map(async (indicator) => {
         try {
-          const indicatorData = await apiClient.get(`${API_BASE}/stock/indicator/${indicator.symbol}`);
+          const indicatorData = await apiClient.get(`${API_BASE}/stock/indicator/${indicator.symbol}?period=${rangeToPeriod(startDate)}`);
 
           return {
             symbol: indicator.symbol,
@@ -1068,7 +1109,7 @@ const ChartWidget = ({
 
         // Load regime/index data using hook function
         if (pairConfig.showRegime || pairConfig.showIndex) {
-          await loadRegimeData(period, interval);
+          await loadRegimeData(rangeToPeriod(startDate), interval);
         }
 
         // Load financial data using hook function
@@ -1083,13 +1124,19 @@ const ChartWidget = ({
         resetPairData();
       }
 
+      // Window to the selected range: drops the technical-indicator warm-up
+      // buffer and trims macro-indicator series (fetched period-anchored to today)
+      const startTs = new Date(startDate).getTime();
+      const endTs = new Date(endDate).getTime() + 86400000; // include the end day
+      mergedData = mergedData.filter(d => d.timestamp >= startTs && d.timestamp < endTs);
+
       setChartData(mergedData);
     } catch (error) {
       console.error('Error loading chart data:', error);
     } finally {
       setLoading(false);
     }
-  }, [tickers, timeRange, normalized, technicalIndicators, chartType, pairMode, pairConfig]);
+  }, [tickers, startDate, endDate, normalized, technicalIndicators, chartType, pairMode, pairConfig]);
 
   const mergeData = (results, normalize) => {
     if (results.length === 0) return [];
@@ -1185,7 +1232,7 @@ const ChartWidget = ({
   useEffect(() => {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tickers.length, timeRange, chartType, pairMode]);
+  }, [tickers.length, startDate, endDate, chartType, pairMode]);
 
   const handleAddTicker = (stock) => {
     if (tickers.length >= WIDGET_CONSTRAINTS.maxTickers) {
@@ -1635,27 +1682,43 @@ const ChartWidget = ({
 
               {/* Chart Controls */}
               <div className="flex items-center gap-2">
-                {/* Time Range Selector */}
-                {showTimeRanges && TIME_RANGES.map((range) => (
-                  <button
-                    key={range.id}
-                    onClick={() => {
-                      setTimeRange(range.id);
-                      // Call onPeriodChange callback for series mode
-                      if (isSeriesMode && onPeriodChange) {
-                        const rangeConfig = TIME_RANGES.find(r => r.id === range.id);
-                        onPeriodChange(rangeConfig?.period || range.id);
-                      }
-                    }}
-                    className={`px-2.5 py-1.5 rounded text-xs font-medium transition-colors ${
-                      timeRange === range.id
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700'
-                    }`}
-                  >
-                    {range.label}
-                  </button>
-                ))}
+                {/* Date Range Selector (symbol mode; series mode range comes from parent) */}
+                {showTimeRanges && !isSeriesMode && (
+                  <>
+                    <input
+                      type="date"
+                      value={startDate}
+                      max={endDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="px-2 py-1.5 rounded text-xs font-medium bg-gray-800 text-gray-300 outline-none focus:text-white tabular-nums [color-scheme:dark]"
+                    />
+                    <span className="text-gray-600 text-xs">~</span>
+                    <input
+                      type="date"
+                      value={endDate}
+                      min={startDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="px-2 py-1.5 rounded text-xs font-medium bg-gray-800 text-gray-300 outline-none focus:text-white tabular-nums [color-scheme:dark]"
+                    />
+                    {DATE_RANGE_PRESETS.map((preset) => {
+                      const r = presetDateRange(preset.months);
+                      const active = startDate === r.start && endDate === r.end;
+                      return (
+                        <button
+                          key={preset.label}
+                          onClick={() => { setStartDate(r.start); setEndDate(r.end); }}
+                          className={`px-2.5 py-1.5 rounded text-xs font-medium transition-colors ${
+                            active
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700'
+                          }`}
+                        >
+                          {preset.label}
+                        </button>
+                      );
+                    })}
+                  </>
+                )}
 
                 {showTimeRanges && showChartTypeSelector && !isSeriesMode && (
                   <div className="w-px h-6 bg-gray-700 mx-1"></div>
