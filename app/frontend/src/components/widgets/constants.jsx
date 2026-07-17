@@ -101,6 +101,9 @@ export const MACRO_INDICATORS = [
   { id: 'nonfarm_payroll',       name: 'Nonfarm Payroll',       description: 'Total Nonfarm Payrolls' },
   { id: 'housing_starts',        name: 'Housing Starts',        description: 'New Housing Starts' },
   { id: 'industrial_production', name: 'Industrial Production', description: 'Industrial Production Index' },
+  // 섹터별 수지 비교 — 정부 적자(음수)와 기업이익이 거울처럼 움직인다 (Kalecki)
+  { id: 'fiscal_balance',        name: 'Fiscal Balance (%GDP)', description: 'Federal Surplus/Deficit as % of GDP (deficit = negative)' },
+  { id: 'corp_profits_gdp',      name: 'Corp Profits (%GDP)',   description: 'Corporate Profits After Tax as % of GDP' },
 ];
 
 export const TECHNICAL_INDICATORS = [

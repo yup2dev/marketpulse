@@ -1,25 +1,35 @@
 /**
  * SeriesPicker — sidebar to add time-series to the backtest chart.
  *
- * Shows: shared symbol/period inputs, grouped catalog dropdown, "Add" button,
+ * Shows: shared symbol/date-range inputs, grouped catalog dropdown, "Add" button,
  * and a list of currently loaded series with pane toggle + remove.
  */
 import { useState, useMemo } from 'react';
 import { Plus, X, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { SERIES_CATALOG, GROUP_LABELS } from './seriesCatalog';
 
-const PERIOD_OPTIONS = [
-  { id: '6mo', label: '6M' },
-  { id: '1y',  label: '1Y' },
-  { id: '2y',  label: '2Y' },
-  { id: '5y',  label: '5Y' },
+const RANGE_PRESETS = [
+  { label: '1M', months: 1 },
+  { label: '6M', months: 6 },
+  { label: '1Y', months: 12 },
+  { label: '5Y', months: 60 },
 ];
+
+function presetRange(months) {
+  const end = new Date();
+  const start = new Date();
+  start.setMonth(start.getMonth() - months);
+  const fmt = d => d.toISOString().slice(0, 10);
+  return { start: fmt(start), end: fmt(end) };
+}
 
 export default function SeriesPicker({
   symbol,
   onSymbolChange,
-  period,
-  onPeriodChange,
+  startDate,
+  onStartDateChange,
+  endDate,
+  onEndDateChange,
   loadedSeries,
   onAddSeries,
   onRemoveSeries,
@@ -56,21 +66,42 @@ export default function SeriesPicker({
           />
         </div>
         <div>
-          <label className="block text-[10px] uppercase tracking-wide text-gray-500 mb-1">Period</label>
+          <label className="block text-[10px] uppercase tracking-wide text-gray-500 mb-1">Date Range</label>
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <input
+              type="date"
+              value={startDate}
+              max={endDate}
+              onChange={(e) => onStartDateChange(e.target.value)}
+              className="flex-1 min-w-0 bg-[#0a0a0f] border border-gray-800 rounded px-2 py-1.5 text-gray-200 outline-none focus:border-cyan-700 tabular-nums [color-scheme:dark]"
+            />
+            <span className="text-gray-600">~</span>
+            <input
+              type="date"
+              value={endDate}
+              min={startDate}
+              onChange={(e) => onEndDateChange(e.target.value)}
+              className="flex-1 min-w-0 bg-[#0a0a0f] border border-gray-800 rounded px-2 py-1.5 text-gray-200 outline-none focus:border-cyan-700 tabular-nums [color-scheme:dark]"
+            />
+          </div>
           <div className="flex items-center gap-1">
-            {PERIOD_OPTIONS.map(opt => (
-              <button
-                key={opt.id}
-                onClick={() => onPeriodChange(opt.id)}
-                className={`flex-1 px-2 py-1 rounded transition-colors ${
-                  period === opt.id
-                    ? 'bg-cyan-900/30 text-cyan-400 border border-cyan-800/50'
-                    : 'bg-gray-800/50 text-gray-400 hover:text-gray-200 border border-transparent'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
+            {RANGE_PRESETS.map(opt => {
+              const r = presetRange(opt.months);
+              const active = startDate === r.start && endDate === r.end;
+              return (
+                <button
+                  key={opt.label}
+                  onClick={() => { onStartDateChange(r.start); onEndDateChange(r.end); }}
+                  className={`flex-1 px-2 py-1 rounded transition-colors ${
+                    active
+                      ? 'bg-cyan-900/30 text-cyan-400 border border-cyan-800/50'
+                      : 'bg-gray-800/50 text-gray-400 hover:text-gray-200 border border-transparent'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -121,7 +152,7 @@ export default function SeriesPicker({
                 className="w-2 h-2 rounded-full flex-shrink-0"
                 style={{ backgroundColor: s.color }}
               />
-              <span className="flex-1 text-gray-300 truncate" title={s.label}>{s.label}</span>
+              <span className="flex-1 text-gray-300 truncate" title={s.name}>{s.name}</span>
               <button
                 onClick={() => onToggleVisible(s.id)}
                 className="p-1 text-gray-500 hover:text-cyan-400 transition-colors"
