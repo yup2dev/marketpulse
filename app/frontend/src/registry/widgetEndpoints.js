@@ -34,6 +34,7 @@ import NewsFeedWidget          from '../components/widgets/NewsFeedWidget';
 import SparklineWidget         from '../components/widgets/SparklineWidget';
 import TradingViewIndexChartsWidget from '../components/widgets/TradingViewIndexChartsWidget';
 import TradingViewRankingWidget     from '../components/widgets/TradingViewRankingWidget';
+import TradingViewMiniChartWidget   from '../components/widgets/TradingViewMiniChartWidget';
 import ComparisonWidget        from '../components/widgets/ComparisonWidget';
 import ChartWidget             from '../components/widgets/ChartWidget';
 import HeatmapWidget           from '../components/widgets/HeatmapWidget';
@@ -225,6 +226,11 @@ export const WIDGET_ENDPOINTS = {
   'tv-market-ranking': {
     title:     'Market Ranking (TV)',
     component: TradingViewRankingWidget,
+  },
+  'tv-mini-chart': {
+    title:     'Mini Chart (TV)',
+    component: TradingViewMiniChartWidget,   // 종목 선택형 단일 심볼 미니 차트
+    propsFrom: ['symbol'],
   },
 
   // ── Watchlist / Screener / Alerts / News (custom CRUD widgets) ─────────────
