@@ -373,7 +373,29 @@ _INDICATOR_MAP: Dict[str, tuple] = {
     "NONFARM_PAYROLL":       ("nonfarm_payroll",       {}),
     "HOUSING_STARTS":        ("housing_starts",        {}),
     "INDUSTRIAL_PRODUCTION": ("industrial_production", {}),
+    # 섹터별 수지: 연방 재정수지 %GDP (연간, 적자는 음수)
+    "FISCAL_BALANCE":        ("series",                {"series_id": "FYFSGDA188S"}),
 }
+
+
+async def _fetch_fred_series(series_id: str, start_date, end_date) -> List[Dict]:
+    raw = await QueryExecutor.fetch(
+        "fred", "series",
+        {"series_id": series_id, "start_date": start_date, "end_date": end_date},
+    )
+    return _serialize(_unwrap(raw))
+
+
+async def _corp_profits_pct_gdp(start_date, end_date) -> List[Dict]:
+    """세후 기업이익(CPATAX)을 명목 GDP 대비 %로 환산 — 재정수지 %GDP와 동일 축 비교용."""
+    profits = await _fetch_fred_series("CPATAX", start_date, end_date)
+    gdp = await _fetch_fred_series("GDP", start_date, end_date)
+    gdp_by_date = {row["date"]: row["value"] for row in gdp if row.get("value")}
+    return [
+        {"date": row["date"], "value": round(row["value"] / gdp_by_date[row["date"]] * 100, 2)}
+        for row in profits
+        if row.get("value") is not None and gdp_by_date.get(row["date"])
+    ]
 
 
 @router.get("/indicator/{indicator}")
@@ -386,14 +408,21 @@ async def get_indicator_history(
     from data_fetcher.utils.helpers import parse_period_to_dates
 
     key = indicator.upper()
+    start_date, end_date = parse_period_to_dates(period)
+
+    if key == "CORP_PROFITS_GDP":
+        data = await _corp_profits_pct_gdp(start_date, end_date)
+        if not data:
+            raise HTTPException(status_code=404, detail=f"No data for {indicator}")
+        return _wrap(data, provider)
+
     entry = _INDICATOR_MAP.get(key)
     if not entry:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid indicator. Valid: {', '.join(_INDICATOR_MAP)}",
+            detail=f"Invalid indicator. Valid: {', '.join([*_INDICATOR_MAP, 'CORP_PROFITS_GDP'])}",
         )
     model, base_params = entry
-    start_date, end_date = parse_period_to_dates(period)
     raw = await QueryExecutor.fetch("fred", model, {**base_params, "start_date": start_date, "end_date": end_date})
     if not _unwrap(raw):
         raise HTTPException(status_code=404, detail=f"No data for {indicator}")
