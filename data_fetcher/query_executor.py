@@ -160,6 +160,8 @@ _DEFAULT_TTL: Dict[str, int] = {
     "institutions_list":      7200,
     "filing_13f":             7200,
     "institutional_13f":      7200,
+    # 분기 공시 기반 + 다중 분기 파싱(요청당 N개 필링) — 길게 잡는다
+    "fund_performance":      21600,
     # ── No cache — computed on-the-fly ──────────────────────────────────────
     "capm":                      0,
     "rolling":                   0,

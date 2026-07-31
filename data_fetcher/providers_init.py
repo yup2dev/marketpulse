@@ -120,6 +120,7 @@ from data_fetcher.providers.imf.models.port_volume import ImfPortVolumeFetcher
 
 from data_fetcher.providers.sec.institutional_13f import SEC13FFetcher
 from data_fetcher.providers.sec.institutions_list import SECInstitutionsListFetcher
+from data_fetcher.providers.sec.fund_performance import SECFundPerformanceFetcher
 
 # SEC — OpenBB openbb_sec 이식본 (sec/models/ 하위, 기존 3개와 별도 카테고리)
 from data_fetcher.providers.sec.models.balance_sheet import SecBalanceSheetFetcher
@@ -557,7 +558,7 @@ sec_provider = Provider(
         "insider_trading": SecInsiderTradingFetcher,
         "institutional_13f": SEC13FFetcher,
         "institutions_list": SECInstitutionsListFetcher,
-        # OpenBB 이식본 (XBRL 재무제표/공시/검색 등)
+        "fund_performance": SECFundPerformanceFetcher,
         "financials": SecFinancialsFetcher,
         "balance_sheet": SecBalanceSheetFetcher,
         "balance_sheet_growth": SecBalanceSheetGrowthFetcher,

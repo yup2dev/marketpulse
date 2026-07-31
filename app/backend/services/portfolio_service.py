@@ -117,5 +117,40 @@ class PortfolioService:
             log.error(f"Error fetching portfolio for {institution_key}: {e}")
             raise
 
+    async def get_fund_performance(
+        self,
+        institution_key: str,
+        quarters: int = 8,
+        provider: str = 'sec',
+    ) -> List[Dict[str, Any]]:
+        """13F 보유종목 기반 분기별 추정 수익률.
+
+        실제 NAV 수익률이 아니라 공시 스냅샷 비교로 얻은 근사치다(한계는
+        standard_models/fund_performance.py 참고). 13F 원본을 직접 파싱해야 해서
+        db 캐시 경유가 아닌 provider 직접 조회 — QueryExecutor TTL(6h)이 보호한다.
+        """
+        try:
+            results = await QueryExecutor.fetch(
+                provider, 'fund_performance',
+                {'institution_key': institution_key, 'quarters': quarters},
+            )
+
+            if not results:
+                raise ValueError(
+                    f"'{institution_key}' 수익률을 산출할 수 없습니다. "
+                    f"13F 제출이 2개 분기 미만이거나 보유내역이 비어 있습니다."
+                )
+
+            return [
+                r.model_dump() if hasattr(r, 'model_dump') else dict(r)
+                for r in results
+            ]
+
+        except ValueError:
+            raise
+        except Exception as e:
+            log.error(f"Error fetching fund performance for {institution_key}: {e}")
+            raise
+
 
 portfolio_service = PortfolioService()

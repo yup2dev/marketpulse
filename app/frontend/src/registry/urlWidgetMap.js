@@ -110,10 +110,12 @@ export const URL_WIDGET_MAP = {
         label: 'Institutional Holdings',
         defaultWidgets: [
           { id: 'inst-portfolios-1',  type: 'institutional-portfolios', x: 0, y: 0,  w: 12, h: 10 },
-          { id: 'holder-breakdown-1', type: 'holder-breakdown',         x: 0, y: 10, w: 12, h: 7  },
+          { id: 'fund-performance-1', type: 'fund-performance',         x: 0, y: 10, w: 12, h: 8  },
+          { id: 'holder-breakdown-1', type: 'holder-breakdown',         x: 0, y: 18, w: 12, h: 7  },
         ],
         widgets: [
           { id: 'institutional-portfolios', name: 'Institutional Portfolios', description: '13F holdings by manager',              defaultSize: { w: 12, h: 10 } },
+          { id: 'fund-performance',         name: 'Fund Performance',         description: '13F 보유종목 기반 분기 추정 수익률(실제 NAV 아님)', defaultSize: { w: 12, h: 8  } },
           { id: 'holder-breakdown',         name: 'Holder Breakdown',         description: 'Holder weight & change (table/chart)', defaultSize: { w: 12, h: 7  } },
         ],
       },
