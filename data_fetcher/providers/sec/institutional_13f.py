@@ -80,7 +80,8 @@ INSTITUTIONS = {
 
     # Modern Icons
     "ark": {
-        "cik": "0001649339",
+        # 0001649339 는 Scion Asset Management(Michael Burry) — 오등록이었다.
+        "cik": "0001697748",
         "name": "ARK Investment Management LLC",
         "manager": "Cathie Wood"
     },
@@ -124,7 +125,8 @@ INSTITUTIONS = {
 
     # Prominent Hedge Funds
     "millennium": {
-        "cik": "0001099219",
+        # 0001099219 는 MetLife Inc — 오등록이었다.
+        "cik": "0001273087",
         "name": "Millennium Management LLC",
         "manager": "Israel Englander"
     },
@@ -149,8 +151,10 @@ INSTITUTIONS = {
         "manager": "Daniel Loeb"
     },
     "appaloosa": {
-        "cik": "0001418814",
-        "name": "Appaloosa Management LP",
+        # 0001418814 는 ValueAct Holdings — 오등록이었다. 구법인 APPALOOSA MANAGEMENT LP
+        # (0001006438)는 2015Q4를 끝으로 공시 중단 → 현행 Appaloosa LP 를 쓴다.
+        "cik": "0001656456",
+        "name": "Appaloosa LP",
         "manager": "David Tepper"
     },
     "greenlight": {
@@ -162,6 +166,11 @@ INSTITUTIONS = {
         "cik": "0001603466",
         "name": "Point72 Asset Management",
         "manager": "Steve Cohen"
+    },
+    "situational-awareness": {
+        "cik": "0002045724",
+        "name": "Situational Awareness LP",
+        "manager": "Leopold Aschenbrenner"
     }
 }
 
@@ -497,6 +506,10 @@ class SEC13FFetcher(ApiFetcher[InstitutionalHoldingsQueryParams, InstitutionalHo
                     value_elem = info_table.find('value')
                     shares_elem = info_table.find('sshPrnamt')
                     share_type_elem = info_table.find('sshPrnamtType')
+                    # <putCall> 이 있으면 파생 포지션(Put/Call). 이 라인의 <value> 는
+                    # 옵션 시가가 아니라 기초자산 명목가치라, 보통주 라인과 같은 종목이
+                    # 중복 등장한다. 수익률 산출(fund_performance)은 이걸 제외한다.
+                    put_call_elem = info_table.find('putCall')
 
                     if name_elem and value_elem and value_elem.text:
                         cusip = cusip_elem.text.strip() if cusip_elem and cusip_elem.text else ''
@@ -518,7 +531,11 @@ class SEC13FFetcher(ApiFetcher[InstitutionalHoldingsQueryParams, InstitutionalHo
                             'cusip': cusip,
                             'value': value,
                             'shares': shares,
-                            'share_type': share_type_elem.text.strip() if share_type_elem and share_type_elem.text else 'SH'
+                            'share_type': share_type_elem.text.strip() if share_type_elem and share_type_elem.text else 'SH',
+                            'put_call': (
+                                put_call_elem.text.strip()
+                                if put_call_elem and put_call_elem.text else None
+                            ),
                         }
 
                         holdings.append(holding)
