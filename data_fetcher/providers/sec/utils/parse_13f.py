@@ -221,7 +221,12 @@ async def parse_13f_hr(filing: str):
             df.drop(columns=col, inplace=True)
 
     total_value = df.value.sum()
-    df["weight"] = round(df.value.astype(float) / total_value, 6)
+    # 정정·공란 신고(13F-HR/A 등)는 value 합계가 0이라 나눗셈이 NaN/inf가 된다.
+    # 아래 .replace({nan: None})가 이를 weight=None으로 바꾸는데, weight는 필수 float이라
+    # 그런 파일링이 한 건만 섞여도 여러 분기를 함께 조회한 배치 전체가 검증에서 깨진다.
+    df["weight"] = (
+        round(df.value.astype(float) / total_value, 6) if total_value else 0.0
+    )
 
     return (
         df.reset_index()
