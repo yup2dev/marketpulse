@@ -12,9 +12,14 @@
  *              — renders an inline form; values feed both `{name}` placeholders and querystring.
  *              — initial fetch runs with defaults; Run button (in header) manually re-fetches.
  *   expandable: { keyField, endpoint, dataPath }             (sub-row drilldown)
- *   chart:     { defaultType?, allowedTypes?, referenceLines?, yFormatter?, xFormatter? }
+ *   chart:     { defaultType?, allowedTypes?, referenceLines?, yFormatter?, xFormatter?,
+ *                xKey?, yKeys? }
  *              — defaultType ∈ 'line'|'area'|'bar'|'stackedBar'|'pie'|'donut'
  *              — allowedTypes restricts the in-header type selector
+ *              — yKeys pins which numeric columns to plot (+ optional xKey for the axis).
+ *                Without it every numeric column becomes a series, which is unreadable for
+ *                wide rows; the table view still shows all columns either way.
+ *                Accepts 'col' or { key, name } entries.
  */
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import BaseWidget         from '../widgets/common/BaseWidget';
@@ -141,7 +146,7 @@ export default function UniversalWidget({
   const expandable = reg.expandable;
   const dataPath   = reg.dataPath;
   const display    = reg.display;
-  const chartCfg   = reg.chart || {};
+  const chartCfg   = useMemo(() => reg.chart || {}, [reg.chart]);
   // category = model 키 (provider 셀렉터 활성화 조건). 모델 단위 동적 위젯은 prop으로 주입.
   const category   = categoryProp ?? reg.category;
 
@@ -358,8 +363,18 @@ export default function UniversalWidget({
         series: hint.y_keys.map((k) => ({ key: k, name: k.replace(/_/g, ' ') })),
       };
     }
-    return buildChartFromRows(rows);
-  }, [rows, display, response]);
+    const auto = buildChartFromRows(rows);
+    // 위젯 등록부에서 시리즈를 고정한 경우 자동 감지 대신 그 목록만 그린다.
+    if (chartCfg.yKeys?.length) {
+      return {
+        xKey: chartCfg.xKey || auto?.xKey || 'date',
+        series: chartCfg.yKeys.map((k) =>
+          typeof k === 'string' ? { key: k, name: k.replace(/_/g, ' ') } : k
+        ),
+      };
+    }
+    return auto;
+  }, [rows, display, response, chartCfg]);
 
   // Has param? Hide BaseWidget header symbol/period selectors for those params
   const paramNames     = useMemo(() => new Set((paramsSpec || []).map(p => p.name)), [paramsSpec]);

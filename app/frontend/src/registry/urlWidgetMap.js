@@ -250,6 +250,26 @@ export const URL_WIDGET_MAP = {
           { id: 'commodities-tab',        name: 'Commodities',          description: 'Commodity ratios',             defaultSize: { w: 12, h: 8 } },
         ],
       },
+      {
+        // 엔 캐리 언와인드 모니터. 위에서 아래로 '빠른 돈 → 느린 돈' 순으로 배치했다:
+        // 변동성/상관(일간) → IMM 선물(주간, 후행) → MOF 대외투자(주간, sticky money).
+        id: 'carry',
+        label: 'Yen Carry',
+        defaultWidgets: [
+          { id: 'jpy-vol-1',    type: 'jpy-vol-regime',          x: 0, y: 0,  w: 6, h: 7 },
+          { id: 'jpy-corr-1',   type: 'jpy-nikkei-correlation',  x: 6, y: 0,  w: 6, h: 7 },
+          { id: 'jpy-fund-1',   type: 'jpy-funding-stress',      x: 0, y: 7,  w: 6, h: 7 },
+          { id: 'jpy-imm-1',    type: 'jpy-imm-positioning',     x: 6, y: 7,  w: 6, h: 7 },
+          { id: 'jpy-mof-1',    type: 'jpy-mof-flows',           x: 0, y: 14, w: 12, h: 8 },
+        ],
+        widgets: [
+          { id: 'jpy-vol-regime',         name: 'JPY 변동성 국면',      description: '실현변동성·기간구조·왜도 (IV 대체)',   defaultSize: { w: 6,  h: 7 } },
+          { id: 'jpy-nikkei-correlation', name: 'USDJPY–닛케이 상관',   description: '부호 전환 = 캐리 언와인드 국면 진입',   defaultSize: { w: 6,  h: 7 } },
+          { id: 'jpy-funding-stress',     name: 'JPY 조달 스트레스',    description: '미일 금리차·중앙은행 스왑·VIX (베이시스 대체)', defaultSize: { w: 6,  h: 7 } },
+          { id: 'jpy-imm-positioning',    name: 'IMM 순포지션',         description: 'CFTC COT 비상업 순포지션 + 변화 속도',  defaultSize: { w: 6,  h: 7 } },
+          { id: 'jpy-mof-flows',          name: 'MOF 대외증권투자 주보', description: '일본 투자자 중장기 외채 순매매 (sticky money)', defaultSize: { w: 12, h: 8 } },
+        ],
+      },
     ],
   },
 

@@ -82,3 +82,24 @@ def annualise_return(daily_ret: pd.Series) -> float:
 
 def annualise_vol(daily_ret: pd.Series) -> float:
     return float(daily_ret.std(ddof=1) * np.sqrt(252))
+
+
+def load_ohlc(
+    symbol: str,
+    start_date=None,
+    end_date=None,
+) -> pd.DataFrame:
+    """OHLC 프레임을 그대로 반환 (Parkinson 등 고가-저가 기반 추정량용).
+
+    load_series()는 단일 컬럼만 주므로 High/Low가 필요한 계산은 이쪽을 쓴다.
+    인덱스는 tz 제거 + 정규화된 DatetimeIndex.
+    """
+    end = _parse_date(end_date) or datetime.now()
+    start = _parse_date(start_date) or (end - timedelta(days=365 * 2))
+
+    df = yf.Ticker(symbol).history(start=start, end=end + timedelta(days=1), auto_adjust=False)
+    if df.empty:
+        raise ValueError(f"No price data for {symbol} between {start.date()} and {end.date()}")
+
+    df.index = pd.to_datetime(df.index).tz_localize(None).normalize()
+    return df

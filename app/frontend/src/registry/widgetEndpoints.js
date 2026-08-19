@@ -127,6 +127,134 @@ export const WIDGET_ENDPOINTS = {
   'sentiment-tab':          { title: 'Market Sentiment',       endpoint: '/data/fred/sentiment_composite' },
   'commodities-tab':        { title: 'Commodities',            endpoint: '/macro/fred/series' },
 
+  // ── 엔 캐리 언와인드 모니터 ────────────────────────────────────────────────
+  // 5개 지표를 빠른 돈 → 느린 돈 순으로 읽는다. 각 위젯의 데이터 한계는 해당
+  // standard model 도큐스트링에 적어뒀다 — 특히 vol-regime / carry-funding-stress는
+  // 원 지표(내재변동성·크로스커런시 베이시스)의 무료 대체물이라 선행성이 없다.
+
+  // ① 변동성 국면 — 진짜 1M IV/리스크리버설이 아니라 스팟 실현변동성 대체 지표.
+  //    term_ratio>1(단기>장기) + skew 음수(엔고 꼬리)가 겹치면 경계 신호.
+  'jpy-vol-regime': {
+    title:    'JPY 변동성 국면 (실현변동성 대체)',
+    endpoint: '/data/quantitative/vol_regime',
+    category: 'vol_regime',
+    provider: 'quantitative',
+    chart: {
+      defaultType: 'line',
+      // 실현변동성 3종만 그린다. term_ratio/skew/close는 스케일이 달라 같이 그리면
+      // 변동성 축이 뭉개진다 — 테이블 뷰에서 함께 확인.
+      yKeys: [
+        { key: 'rv_short',  name: '실현변동성 단기 (%)' },
+        { key: 'rv_long',   name: '실현변동성 장기 (%)' },
+        { key: 'parkinson', name: 'Parkinson 고가-저가 (%)' },
+      ],
+      xKey:  'date',
+    },
+    params: [
+      { name: 'symbol',       label: 'Symbol', kind: 'text',   default: 'JPY=X',
+        hint: 'JPY=X = USD/JPY. 임의 티커 가능' },
+      { name: 'window_short', label: '단기 윈도우', kind: 'number', default: 21, step: 1, hint: '거래일. 21 ≈ 1개월' },
+      { name: 'window_long',  label: '장기 윈도우', kind: 'number', default: 63, step: 1, hint: '거래일. 63 ≈ 3개월' },
+      { name: 'start_date',   label: 'Start',  kind: 'date',   default: () => yearsAgo(2) },
+      { name: 'end_date',     label: 'End',    kind: 'date',   default: today },
+    ],
+  },
+
+  // ② 조달 스트레스 — 크로스커런시 베이시스 대체. 스왑라인은 사후 확인 신호다.
+  'jpy-funding-stress': {
+    title:    'JPY 조달 스트레스 (베이시스 대체)',
+    endpoint: '/data/fred/carry_funding_stress',
+    category: 'carry_funding_stress',
+    provider: 'fred',
+    chart: {
+      defaultType: 'line',
+      // 금리차(%p)와 VIX만. usdjpy(~160)/cb_swap(백만$)은 자릿수가 달라 축을 지배한다.
+      yKeys: [
+        { key: 'rate_diff', name: '미–일 3M 금리차 (%p)' },
+        { key: 'vix',       name: 'VIX' },
+      ],
+      xKey:  'date',
+    },
+    params: [
+      { name: 'start_date', label: 'Start', kind: 'date', default: () => yearsAgo(2) },
+      { name: 'end_date',   label: 'End',   kind: 'date', default: today },
+    ],
+  },
+
+  // ③ MOF 대외증권투자 주보 — sticky money. 중장기채 순매매가 핵심 시계열이라
+  //    이것만 그린다(4주 합계 병기). 음수 = 일본 투자자의 외채 순매도 = 본국 송금.
+  'jpy-mof-flows': {
+    title:    'MOF 대외증권투자 주보 (중장기채)',
+    endpoint: '/data/mof/portfolio_flows',
+    category: 'portfolio_flows',
+    provider: 'mof',
+    chart: {
+      defaultType:    'bar',
+      yKeys: [
+        { key: 'assets_lt_debt_net',    name: '대외 중장기채 순매매 (억엔)' },
+        { key: 'assets_lt_debt_net_4w', name: '4주 합계 (억엔)' },
+      ],
+      xKey:           'period_start',
+      referenceLines: [{ y: 0, color: '#475569', label: '0 (순매수/순매도 경계)' }],
+    },
+    params: [
+      { name: 'start_date', label: 'Start', kind: 'date', default: () => yearsAgo(2),
+        hint: '원본은 2005년부터. 단위 억엔, + 취득초과 / − 처분초과' },
+      { name: 'end_date',   label: 'End',   kind: 'date', default: today },
+    ],
+  },
+
+  // ④ USDJPY-닛케이 롤링 상관 — 음(엔저=주가↑)에서 양으로 뒤집히면 언와인드 국면.
+  'jpy-nikkei-correlation': {
+    title:    'USDJPY–닛케이 롤링 상관',
+    endpoint: '/data/quantitative/pair_correlation',
+    category: 'pair_correlation',
+    provider: 'quantitative',
+    chart: {
+      defaultType:    'area',
+      yKeys:          [{ key: 'correlation', name: '롤링 상관계수' }],
+      xKey:           'date',
+      referenceLines: [{ y: 0, color: '#475569', label: '부호 전환선' }],
+    },
+    params: [
+      { name: 'symbol',        label: 'Symbol',    kind: 'text',   default: 'JPY=X', hint: 'USD/JPY' },
+      { name: 'benchmark',     label: 'Benchmark', kind: 'text',   default: '^N225', hint: '닛케이225' },
+      { name: 'window',        label: 'Window',    kind: 'number', default: 60, step: 1, hint: '거래일. 60 ≈ 3개월' },
+      { name: 'lag_benchmark', label: 'Bench Lag', kind: 'number', default: 0,  step: 1,
+        hint: '거래시간 불일치 점검용. 1로 두면 벤치마크를 하루 지연' },
+      { name: 'start_date',    label: 'Start',     kind: 'date',   default: () => yearsAgo(2) },
+      { name: 'end_date',      label: 'End',       kind: 'date',   default: today },
+    ],
+  },
+
+  // ⑤ CFTC IMM 순포지션 — 후행 지표이고 대형 헤지펀드는 선물을 안 쓴다. 수준보다
+  //    변화 속도(net_change_1w/4w)를 봐야 해서 테이블 컬럼에 함께 노출한다.
+  'jpy-imm-positioning': {
+    title:    'IMM 순포지션 (CFTC COT)',
+    endpoint: '/data/cftc/cot_positioning',
+    category: 'cot_positioning',
+    provider: 'cftc',
+    chart: {
+      defaultType:    'line',
+      // 계약 수(net_noncomm)와 주간 변화는 스케일이 비슷해 같이 볼 만하다.
+      yKeys: [
+        { key: 'net_noncomm',   name: '비상업 순포지션 (계약)' },
+        { key: 'net_change_4w', name: '4주 변화 (계약)' },
+      ],
+      xKey:           'report_date',
+      referenceLines: [{ y: 0, color: '#475569', label: '순중립' }],
+    },
+    params: [
+      { name: 'contract', label: 'Contract', kind: 'select', default: 'JAPANESE YEN',
+        options: ['JAPANESE YEN', 'EURO FX', 'SWISS FRANC', 'BRITISH POUND STERLING',
+                  'AUSTRALIAN DOLLAR', 'CANADIAN DOLLAR', 'MEXICAN PESO'],
+        hint: 'CFTC 계약명과 정확히 일치해야 한다' },
+      { name: 'start_date', label: 'Start', kind: 'date', default: () => yearsAgo(2),
+        hint: '4주 변화·z-score는 구간 이전 데이터까지 조회해 계산한다' },
+      { name: 'end_date',   label: 'End',   kind: 'date', default: today },
+    ],
+  },
+
   // ── QuantLib option pricing (form-driven, common-widget) ──────────────────
   'option-pricing': {
     title:    'Option Pricing',

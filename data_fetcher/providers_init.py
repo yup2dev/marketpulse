@@ -36,6 +36,7 @@ from data_fetcher.providers.fred.phillips_curve import FREDPhillipsCurveFetcher
 from data_fetcher.providers.fred.financial_conditions import FREDFinancialConditionsFetcher
 from data_fetcher.providers.fred.sentiment_composite import FREDSentimentCompositeFetcher
 from data_fetcher.providers.fred.labor_dashboard import FREDLaborDashboardFetcher
+from data_fetcher.providers.fred.carry_funding_stress import FREDCarryFundingStressFetcher
 
 from data_fetcher.providers.yahoo.stock_price import YFinanceStockPriceFetcher
 from data_fetcher.providers.yahoo.stock_quote import YFinanceQuoteFetcher
@@ -163,6 +164,7 @@ try:
     from data_fetcher.providers.database.institutions_list import DBInstitutionsListFetcher
     from data_fetcher.providers.database.institutional_holdings import DBInstitutionalHoldingsFetcher
     from data_fetcher.providers.database.research_reports import DBResearchReportsFetcher
+
     _db_available = True
 except ImportError:
     _db_available = False
@@ -176,16 +178,21 @@ from data_fetcher.providers.krx.bond import KRXBondFetcher
 # KIS(한국투자증권) — httpx만 있으면 동작. import 실패 시 조용히 스킵.
 try:
     from data_fetcher.providers.kis.ranking import KISRankingFetcher
+
     _kis_available = True
 except ImportError:
     _kis_available = False
 from data_fetcher.providers.whalewisdom.institutional_holdings import WhaleWisdomFetcher
 from data_fetcher.providers.whalewisdom.institutions_list import InstitutionsListFetcher
 
+from data_fetcher.providers.cftc.cot_positioning import CFTCCotPositioningFetcher
+from data_fetcher.providers.mof.portfolio_flows import MOFPortfolioFlowsFetcher
+
 # quantlib / quantitative는 scipy·QuantLib 등 선택적 의존성 필요.
 # 없는 환경(Fetcher exe)에서는 조용히 스킵한다.
 try:
     from data_fetcher.providers.quantlib.pricing import QuantLibPricingFetcher
+
     _quantlib_available = True
 except ImportError:
     _quantlib_available = False
@@ -196,12 +203,14 @@ try:
     from data_fetcher.providers.quantitative.capm import QuantCAPMFetcher
     from data_fetcher.providers.quantitative.rolling import QuantRollingFetcher
     from data_fetcher.providers.quantitative.unitroot import QuantUnitRootFetcher
+    from data_fetcher.providers.quantitative.pair_correlation import QuantPairCorrelationFetcher
+    from data_fetcher.providers.quantitative.vol_regime import QuantVolRegimeFetcher
+
     _quantitative_available = True
 except ImportError:
     _quantitative_available = False
 
 log = logging.getLogger(__name__)
-
 
 # ==================== FRED Provider ====================
 
@@ -222,29 +231,29 @@ fred_provider = Provider(
         "retail_sales": FREDRetailSalesFetcher,
         "nonfarm_payroll": FREDNonfarmPayrollFetcher,
         "series": FREDGenericSeriesFetcher,
-        "fed_balance_sheet":    FREDFedBalanceSheetFetcher,
-        "real_rates":           FREDRealRatesFetcher,
-        "pmi":                  FREDPMIFetcher,
-        "yield_curve":          FREDYieldCurveFetcher,
-        "inflation_momentum":           FREDInflationMomentumFetcher,
-        "yield_curve_history":          FREDYieldCurveHistoryFetcher,
-        "initial_claims":               FREDInitialClaimsFetcher,
-        "jobs_breakdown":               FREDJobsBreakdownFetcher,
+        "fed_balance_sheet": FREDFedBalanceSheetFetcher,
+        "real_rates": FREDRealRatesFetcher,
+        "pmi": FREDPMIFetcher,
+        "yield_curve": FREDYieldCurveFetcher,
+        "inflation_momentum": FREDInflationMomentumFetcher,
+        "yield_curve_history": FREDYieldCurveHistoryFetcher,
+        "initial_claims": FREDInitialClaimsFetcher,
+        "jobs_breakdown": FREDJobsBreakdownFetcher,
         "financial_conditions_history": FREDFinancialConditionsHistoryFetcher,
-        "sentiment_history":            FREDSentimentHistoryFetcher,
-        "inflation_sector":             FREDInflationSectorFetcher,
-        "regime_history":               FREDRegimeHistoryFetcher,
-        "phillips_curve":               FREDPhillipsCurveFetcher,
-        "financial_conditions":         FREDFinancialConditionsFetcher,
-        "sentiment_composite":          FREDSentimentCompositeFetcher,
-        "labor_dashboard":              FREDLaborDashboardFetcher,
+        "sentiment_history": FREDSentimentHistoryFetcher,
+        "inflation_sector": FREDInflationSectorFetcher,
+        "regime_history": FREDRegimeHistoryFetcher,
+        "phillips_curve": FREDPhillipsCurveFetcher,
+        "financial_conditions": FREDFinancialConditionsFetcher,
+        "sentiment_composite": FREDSentimentCompositeFetcher,
+        "labor_dashboard": FREDLaborDashboardFetcher,
+        "carry_funding_stress": FREDCarryFundingStressFetcher,
     },
     metadata={
         "rate_limit": "120 requests/minute",
         "data_coverage": "US economic data",
     }
 )
-
 
 # ==================== Yahoo Provider ====================
 
@@ -255,7 +264,7 @@ yahoo_provider = Provider(
     credentials=[],  # No API key required
     fetcher_dict={
         "stock_price": YFinanceStockPriceFetcher,
-        "quote":       YFinanceQuoteFetcher,
+        "quote": YFinanceQuoteFetcher,
         "batch_quotes": YFinanceBatchQuotesFetcher,
         "dividends": YFinanceDividendsFetcher,
         "company_info": YFinanceCompanyInfoFetcher,
@@ -282,7 +291,6 @@ yahoo_provider = Provider(
     }
 )
 
-
 # ==================== AlphaVantage Provider ====================
 
 alphavantage_provider = Provider(
@@ -304,7 +312,6 @@ alphavantage_provider = Provider(
         "data_coverage": "Global stock market and economic data",
     }
 )
-
 
 # ==================== FMP Provider ====================
 
@@ -335,7 +342,6 @@ fmp_provider = Provider(
     }
 )
 
-
 # ==================== Polygon Provider ====================
 
 polygon_provider = Provider(
@@ -358,7 +364,6 @@ polygon_provider = Provider(
     }
 )
 
-
 # ==================== Tiingo Provider (OpenBB 이식) ====================
 
 tiingo_provider = Provider(
@@ -374,7 +379,6 @@ tiingo_provider = Provider(
         "data_coverage": "US/global equity OHLCV (EOD + IEX intraday)",
     },
 )
-
 
 # ==================== OpenBB 이식 provider (MACRO/STOCK) ====================
 # Provider.metadata["group"] 로 MACRO/STOCK 분류를 표기한다 (providers API가 노출).
@@ -453,7 +457,6 @@ imf_provider = Provider(
     metadata={"group": "macro", "data_coverage": "IMF global economic data"},
 )
 
-
 # ==================== Social Provider ====================
 
 social_provider = Provider(
@@ -464,7 +467,6 @@ social_provider = Provider(
         "sentiment": SocialSentimentFetcher,
     },
 )
-
 
 # ==================== Database Provider ====================
 
@@ -481,7 +483,6 @@ db_provider = Provider(
         "research_reports": DBResearchReportsFetcher,
     },
 ) if _db_available else None
-
 
 # ==================== Universe Providers (무료·공개) ====================
 
@@ -529,7 +530,6 @@ krx_provider = Provider(
     },
 )
 
-
 # ==================== WhaleWisdom Provider ====================
 
 whalewisdom_provider = Provider(
@@ -541,7 +541,6 @@ whalewisdom_provider = Provider(
         "institutions_list": InstitutionsListFetcher,
     },
 )
-
 
 # ==================== SEC Provider ====================
 
@@ -592,6 +591,39 @@ sec_provider = Provider(
     },
 )
 
+# ==================== CFTC Provider ====================
+
+cftc_provider = Provider(
+    name="cftc",
+    description="CFTC Commitments of Traders — 주간 선물 포지션 (비상업/상업 순포지션)",
+    website="https://publicreporting.cftc.gov",
+    credentials=[],  # 앱 토큰 없이 조회 가능 (익명 쿼터)
+    fetcher_dict={
+        "cot_positioning": CFTCCotPositioningFetcher,
+    },
+    metadata={
+        "group": "macro",
+        "rate_limit": "Socrata 익명 쿼터 (앱 토큰 없이 시간당 제한)",
+        "data_coverage": "CME/CBOT 등 미국 선물 계약 주간 COT (1986~), 화요일 기준·금요일 공표",
+    },
+)
+
+# ==================== MOF (일본 재무성) Provider ====================
+
+mof_provider = Provider(
+    name="mof",
+    description="일본 재무성(財務省) — 대외·대내 증권투자 주간 통계",
+    website="https://www.mof.go.jp",
+    credentials=[],
+    fetcher_dict={
+        "portfolio_flows": MOFPortfolioFlowsFetcher,
+    },
+    metadata={
+        "group": "macro",
+        "rate_limit": "none (정적 CSV)",
+        "data_coverage": "지정보고기관 기준 주간 증권 순매매 (2005~), 목요일 공표",
+    },
+)
 
 # ==================== QuantLib Provider ====================
 
@@ -607,7 +639,6 @@ quantlib_provider = Provider(
     }
 ) if _quantlib_available else None
 
-
 # ==================== Quantitative Provider ====================
 
 quantitative_provider = Provider(
@@ -620,13 +651,15 @@ quantitative_provider = Provider(
         "capm": QuantCAPMFetcher,
         "rolling": QuantRollingFetcher,
         "unitroot": QuantUnitRootFetcher,
+        # 엔 캐리 언와인드 모니터 — 기본 심볼이 JPY=X / ^N225 지만 임의 티커에도 쓸 수 있다
+        "pair_correlation": QuantPairCorrelationFetcher,
+        "vol_regime": QuantVolRegimeFetcher,
     },
     metadata={
         "rate_limit": "yfinance only",
         "data_coverage": "any yfinance-available ticker",
     },
 ) if _quantitative_available else None
-
 
 # ==================== KIS Provider ====================
 
@@ -671,6 +704,8 @@ def register_all_providers():
         ProviderRegistry.register(kis_provider)
     ProviderRegistry.register(whalewisdom_provider)
     ProviderRegistry.register(sec_provider)
+    ProviderRegistry.register(cftc_provider)
+    ProviderRegistry.register(mof_provider)
     if quantlib_provider is not None:
         ProviderRegistry.register(quantlib_provider)
     if quantitative_provider is not None:

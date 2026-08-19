@@ -140,6 +140,13 @@ _DEFAULT_TTL: Dict[str, int] = {
     "sentiment_composite":          1800,  # snapshot — VIX 일중 변동
     "sentiment_history":            3600,
     "labor_dashboard":              1800,  # snapshot — 다수 현재값
+    # ── 엔 캐리 언와인드 모니터 ─────────────────────────────────────────────
+    # 주간 공표라 하루 캐시로 충분하다. COT는 금요일 15:30 ET, MOF는 목요일 공표.
+    "cot_positioning":             21600,  # 6h — 주 1회 갱신
+    "portfolio_flows":             21600,  # 6h — 주 1회 갱신 (250KB CSV 전량 파싱)
+    "carry_funding_stress":         3600,  # 1h — 일간 FRED 시리즈 혼합
+    "pair_correlation":             3600,  # 1h — 일간 종가 기반
+    "vol_regime":                   3600,  # 1h — 일간 종가 기반
     # ── Yahoo quote (별칭 구분) ─────────────────────────────────────────────
     "quote":                          60,  # yahoo:quote (StockQuoteFetcher)
     # ── Mostly static (1h+) ─────────────────────────────────────────────────
