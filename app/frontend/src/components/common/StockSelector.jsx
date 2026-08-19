@@ -2,6 +2,22 @@ import { useState } from 'react';
 import { Search, TrendingUp } from 'lucide-react';
 import TickerSearch from './TickerSearch';
 
+// 주요 지수를 목록 맨 앞에 둔다 — 지수는 DB 유니버스에 없어서 예전엔 이 화면에서
+// 아예 고를 수 없었다(검색도 0건이었다). 백엔드 symbol_cache에도 지수를 넣었지만,
+// 타이핑 없이 바로 고르는 경로도 있어야 한다.
+const POPULAR_INDICES = [
+  { symbol: '^GSPC',  name: 'S&P 500',        sector: 'Index' },
+  { symbol: '^IXIC',  name: 'NASDAQ Composite', sector: 'Index' },
+  { symbol: '^DJI',   name: 'Dow Jones',      sector: 'Index' },
+  { symbol: '^VIX',   name: 'VIX 변동성지수',   sector: 'Index' },
+  { symbol: '^N225',  name: '닛케이225 (일본)', sector: 'Index' },
+  { symbol: '^FTSE',  name: 'FTSE 100 (영국)', sector: 'Index' },
+  { symbol: '^GDAXI', name: 'DAX (독일)',      sector: 'Index' },
+  { symbol: '^FCHI',  name: 'CAC 40 (프랑스)',  sector: 'Index' },
+  { symbol: '^HSI',   name: '항셍 (홍콩)',      sector: 'Index' },
+  { symbol: '^KS11',  name: 'KOSPI (한국)',    sector: 'Index' },
+];
+
 const POPULAR_STOCKS = [
   { symbol: 'AAPL', name: 'Apple Inc.', sector: 'Technology' },
   { symbol: 'MSFT', name: 'Microsoft Corporation', sector: 'Technology' },
@@ -33,12 +49,14 @@ const StockSelector = ({ onSelect }) => {
     onSelect(stock);
   };
 
+  const ALL_POPULAR = [...POPULAR_INDICES, ...POPULAR_STOCKS];
+
   const filteredStocks = filter
-    ? POPULAR_STOCKS.filter(stock =>
+    ? ALL_POPULAR.filter(stock =>
         stock.symbol.toLowerCase().includes(filter.toLowerCase()) ||
         stock.name.toLowerCase().includes(filter.toLowerCase())
       )
-    : POPULAR_STOCKS;
+    : ALL_POPULAR;
 
   return (
     <div className="space-y-4">
@@ -66,7 +84,7 @@ const StockSelector = ({ onSelect }) => {
               : 'text-gray-400 hover:text-gray-300'
           }`}
         >
-          Popular Stocks
+          Popular / Indices
           {activeTab === 'popular' && (
             <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500"></div>
           )}

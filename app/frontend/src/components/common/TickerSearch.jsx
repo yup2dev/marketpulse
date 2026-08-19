@@ -50,6 +50,22 @@ const TickerSearch = ({ onSelect, placeholder = "Search stocks..." }) => {
     setIsOpen(false);
   };
 
+  // 유니버스에 없는 심볼(해외 지수·OTC·ADR 등)을 그대로 추가하는 탈출구.
+  // 서버 /stock/history 는 심볼 검증을 하지 않으므로 yfinance가 아는 심볼이면 바로 그려진다.
+  const handleFreeInput = () => {
+    const sym = query.trim().toUpperCase();
+    if (sym) handleSelect({ symbol: sym, name: sym, exchange: '', type: 'stock' });
+  };
+
+  const handleKeyDown = (e) => {
+    // 검색 결과가 없을 때만 Enter를 자유 입력으로 해석한다 —
+    // 결과가 있는데 Enter로 엉뚱한 심볼이 들어가는 걸 막는다.
+    if (e.key === 'Enter' && !loading && results.length === 0) {
+      e.preventDefault();
+      handleFreeInput();
+    }
+  };
+
   const handleClear = () => {
     setQuery('');
     setResults([]);
@@ -64,6 +80,7 @@ const TickerSearch = ({ onSelect, placeholder = "Search stocks..." }) => {
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value.toUpperCase())}
+          onKeyDown={handleKeyDown}
           onFocus={() => query && setIsOpen(true)}
           placeholder={placeholder}
           className="w-full pl-10 pr-10 py-2 bg-[#0d0d12] border border-gray-700 rounded text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
@@ -114,6 +131,17 @@ const TickerSearch = ({ onSelect, placeholder = "Search stocks..." }) => {
                 </div>
               </button>
             ))
+          ) : query.trim() ? (
+            <button
+              onClick={handleFreeInput}
+              className="w-full px-4 py-3 text-left hover:bg-gray-800 transition-colors"
+            >
+              <div className="text-sm text-gray-400">검색 결과 없음 — 직접 추가</div>
+              <div className="font-semibold text-white mt-0.5">{query.trim()}</div>
+              <div className="text-xs text-gray-500 mt-1">
+                Enter · 해외 지수/OTC 등 유니버스 밖 심볼 (예: ^N225, ^FTSE)
+              </div>
+            </button>
           ) : (
             <div className="p-4 text-center text-gray-400">No results found</div>
           )}
