@@ -77,6 +77,31 @@ Your job:
 
 Always respond in the same language the user writes in (usually Korean).
 
+## Analytical questions — reason, don't refuse
+"Never invent numbers" means: do not fabricate DATA. It does NOT mean you may only quote retrieved
+values. Analysis, estimation, and scenario questions are a core part of the job.
+
+When the user asks something analytical — "what happens if X", "how big is the impact of Y",
+"is Z overvalued", "compare A and B" — answer it. Structure the reply EXACTLY like this:
+
+1. FIRST LINE: the answer itself — a number, a range, or a direct verdict. Never open with a
+   disclaimer, never with a sentence about what you can or cannot do.
+2. Then the evidence: the real data you fetched, and the arithmetic or historical analogue that
+   gets from that data to your number.
+3. Then the assumptions and the single dominant uncertainty.
+4. Last, and only if it matters: what you could not measure with reachable data, and why.
+
+Hard rules:
+- NEVER write that you "cannot predict", "cannot simulate", "lack modelling capability", "are an AI",
+  or that MarketPulse "does not provide forecasting". These sentences are banned. Nobody asked whether
+  you can — they asked for your best grounded estimate.
+- NEVER substitute a list of generic textbook effects ("rate hikes strengthen the currency, curb
+  inflation, raise borrowing costs...") for an actual estimate. That is a non-answer.
+- Prefer a RANGE over a false point estimate, and label estimates as estimates. Uncertainty is
+  expressed as a range with a named driver, never as a refusal.
+- If a comparable historical episode exists, fetch it and use it as the anchor — it is far stronger
+  evidence than general reasoning.
+
 ## Dates — always work from TODAY
 - The latest user message starts with [current view: today=YYYY-MM-DD, ...]. That `today` is the CURRENT date — your internal sense of "now" is outdated; never compute dates from memory.
 - For recent/latest data prefer relative `period` params (period=1y, period=5y) — the server resolves them against the current date.
@@ -118,6 +143,14 @@ Always respond in the same language the user writes in (usually Korean).
   (date, title, summary, sentiment_score, price_impact) from the internal news pipeline; use for overlaying events on price charts
 - /api/portfolio/13f/institutions?use_dynamic=false — 20 featured 13F institutions
 - /api/portfolio/13f/{institution_key} — holdings of one institution (berkshire, ark, bridgewater, ...)
+  NOTE: this endpoint is cache-backed and ONLY works for those 20 featured keys. A CIK will 404 here.
+- ANY OTHER 13F FILER — the featured list is a shortcut, NOT the limit of what you can fetch.
+  Every institution that files a 13F with the SEC is reachable in two steps:
+    1. /api/data/sec/institutions_search?query=Thiel Macro   → [{name, cik}]
+    2. /api/data/sec/form_13FHR?symbol={cik}&limit=4         → holdings (cusip, value, weight, period_ending)
+  `symbol` here takes the CIK, not a ticker. limit = how many recent filings (1 = latest quarter only).
+  So NEVER tell the user an institution is unavailable just because it is not in the featured 20 —
+  search for it by name first. Only if institutions_search returns no match is it genuinely unavailable.
 - /api/user-portfolio/portfolios — the user's own portfolios (then /{id}/holdings, /{id}/transactions, /{id}/summary)
 - /api/quantitative/summary|normality|capm|rolling|unitroot?symbol=AAPL&target=close&start_date=...&end_date=...
 
@@ -813,6 +846,28 @@ def _gemini_error_message(status_code: int, body: str) -> str:
     return f"Gemini API 오류 ({status_code}): {detail}"
 
 
+#: 가시 출력 없이 스트림이 끝났을 때 사용자에게 보여줄 사유.
+#: 이게 없으면 candidates에 parts가 안 실려 온 경우(차단·토큰소진) 조용히 done으로 끝나
+#: 채팅창에 빈 말풍선만 남는다.
+_GEMINI_STOP_REASONS = {
+    "SAFETY":             "Gemini 안전 필터가 응답을 차단했습니다. 질문을 바꿔 다시 시도해 주세요.",
+    "PROHIBITED_CONTENT": "Gemini가 금지된 콘텐츠로 판단해 응답을 중단했습니다.",
+    "BLOCKLIST":          "Gemini 차단 목록에 걸려 응답이 중단됐습니다.",
+    "RECITATION":         "Gemini가 저작권 재현 위험으로 응답을 중단했습니다.",
+    "MAX_TOKENS":         "Gemini 출력 토큰 한도에 걸려 응답이 잘렸습니다. 질문을 좁혀 주세요.",
+    "MALFORMED_FUNCTION_CALL": "Gemini가 잘못된 도구 호출을 생성했습니다. 다시 시도해 주세요.",
+}
+
+
+def _gemini_empty_reason(finish: Optional[str], block: Optional[str]) -> str:
+    """가시 출력이 하나도 없을 때의 원인 문구."""
+    if block:
+        return f"Gemini가 요청을 차단했습니다 (blockReason={block})."
+    if finish and finish != "STOP":
+        return _GEMINI_STOP_REASONS.get(finish, f"Gemini가 응답을 중단했습니다 (finishReason={finish}).")
+    return "Gemini가 빈 응답을 반환했습니다. 다시 시도해 주세요."
+
+
 async def _stream_gemini(
     api_key: str, messages: list[dict], request: Request, auth_header: str
 ) -> AsyncIterator[str]:
@@ -838,6 +893,9 @@ async def _stream_gemini(
                 }
                 acc_text = ""
                 fn_calls: list[dict] = []
+                finish_reason: Optional[str] = None
+                block_reason: Optional[str] = None
+                emitted = False        # 가시 텍스트/도구호출을 하나라도 내보냈는가
 
                 async with http.stream(
                     "POST", url,
@@ -860,18 +918,38 @@ async def _stream_gemini(
                             chunk = json.loads(raw)
                         except ValueError:
                             continue
+                        # 차단·중단 사유는 parts와 별개 필드로 온다. 놓치면 원인 없는 빈 응답이 된다.
+                        if (fb := chunk.get("promptFeedback")) and fb.get("blockReason"):
+                            block_reason = fb["blockReason"]
                         cand = (chunk.get("candidates") or [{}])[0]
+                        if cand.get("finishReason"):
+                            finish_reason = cand["finishReason"]
                         for part in (cand.get("content") or {}).get("parts", []):
                             if part.get("thought"):
                                 continue  # thinking 요약은 표시하지 않음
                             if "text" in part:
                                 acc_text += part["text"]
+                                emitted = True
                                 yield _sse("text", {"delta": part["text"]})
                             elif "functionCall" in part:
+                                emitted = True
                                 fn_calls.append(part["functionCall"])
                                 yield _sse("tool_start", {"name": part["functionCall"].get("name")})
 
+                if not emitted:
+                    reason = _gemini_empty_reason(finish_reason, block_reason)
+                    log.warning(
+                        "copilot: Gemini produced no output (finishReason=%s, blockReason=%s)",
+                        finish_reason, block_reason,
+                    )
+                    yield _sse("error", {"message": reason})
+                    return
+
                 if not fn_calls:
+                    # 텍스트가 도중에 잘린 경우(MAX_TOKENS 등)는 사용자에게 알린다.
+                    if finish_reason and finish_reason not in ("STOP", None):
+                        yield _sse("error", {"message": _gemini_empty_reason(finish_reason, None)})
+                        return
                     yield _sse("done", {"stop_reason": "end_turn"})
                     return
 
