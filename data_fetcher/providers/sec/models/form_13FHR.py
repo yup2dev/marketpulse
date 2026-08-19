@@ -2,7 +2,7 @@
 
 # pylint: disable =unused-argument
 
-from typing import Any
+from typing import Any, Optional
 
 from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.form_13FHR import (
@@ -28,9 +28,11 @@ class SecForm13FHRData(Form13FHRData):
         "option_type": "putCall",
     }
 
-    weight: float = Field(
+    weight: Optional[float] = Field(
+        default=None,
         description="The weight of the security relative to the market value of all securities in the filing"
-        + " , as a normalized percent.",
+        + " , as a normalized percent."
+        + " 신고 총액이 0인 정정·공란 파일링에서는 산출 불가라 None일 수 있다.",
         json_schema_extra={"x-unit_measurement": "percent", "x-frontend_multiply": 100},
     )
 
@@ -103,7 +105,7 @@ class SecForm13FHRFetcher(ApiFetcher[SecForm13FHRQueryParams, list[SecForm13FHRD
             SecForm13FHRData.model_validate(d)
             for d in sorted(
                 data,
-                key=lambda d: [d["period_ending"], d["weight"]],
+                key=lambda d: [d["period_ending"], d.get("weight") or 0.0],
                 reverse=True,
             )
         ]
