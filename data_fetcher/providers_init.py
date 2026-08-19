@@ -36,6 +36,7 @@ from data_fetcher.providers.fred.models.phillips_curve import FREDPhillipsCurveF
 from data_fetcher.providers.fred.models.financial_conditions import FREDFinancialConditionsFetcher
 from data_fetcher.providers.fred.models.sentiment_composite import FREDSentimentCompositeFetcher
 from data_fetcher.providers.fred.models.labor_dashboard import FREDLaborDashboardFetcher
+from data_fetcher.providers.fred.models.carry_funding_stress import FREDCarryFundingStressFetcher
 
 from data_fetcher.providers.yahoo.models.stock_price import YFinanceStockPriceFetcher
 from data_fetcher.providers.yahoo.models.stock_quote import YFinanceQuoteFetcher
@@ -183,6 +184,9 @@ except ImportError:
 from data_fetcher.providers.whalewisdom.models.institutional_holdings import WhaleWisdomFetcher
 from data_fetcher.providers.whalewisdom.models.institutions_list import InstitutionsListFetcher
 
+from data_fetcher.providers.cftc.models.cot_positioning import CFTCCotPositioningFetcher
+from data_fetcher.providers.mof.models.portfolio_flows import MOFPortfolioFlowsFetcher
+
 # quantlib / quantitative는 scipy·QuantLib 등 선택적 의존성 필요.
 # 없는 환경(Fetcher exe)에서는 조용히 스킵한다.
 try:
@@ -197,6 +201,8 @@ try:
     from data_fetcher.providers.quantitative.models.capm import QuantCAPMFetcher
     from data_fetcher.providers.quantitative.models.rolling import QuantRollingFetcher
     from data_fetcher.providers.quantitative.models.unitroot import QuantUnitRootFetcher
+    from data_fetcher.providers.quantitative.models.pair_correlation import QuantPairCorrelationFetcher
+    from data_fetcher.providers.quantitative.models.vol_regime import QuantVolRegimeFetcher
     _quantitative_available = True
 except ImportError:
     _quantitative_available = False
@@ -239,6 +245,7 @@ fred_provider = Provider(
         "financial_conditions":         FREDFinancialConditionsFetcher,
         "sentiment_composite":          FREDSentimentCompositeFetcher,
         "labor_dashboard":              FREDLaborDashboardFetcher,
+        "carry_funding_stress":         FREDCarryFundingStressFetcher,
     },
     metadata={
         "rate_limit": "120 requests/minute",
@@ -595,6 +602,40 @@ sec_provider = Provider(
 )
 
 
+# ==================== CFTC Provider ====================
+
+cftc_provider = Provider(
+    name="cftc",
+    description="CFTC Commitments of Traders — 주간 선물 포지션 (비상업/상업 순포지션)",
+    website="https://publicreporting.cftc.gov",
+    credentials=[],  # 앱 토큰 없이 조회 가능 (익명 쿼터)
+    fetcher_dict={
+        "cot_positioning": CFTCCotPositioningFetcher,
+    },
+    metadata={
+        "group": "macro",
+        "rate_limit": "Socrata 익명 쿼터 (앱 토큰 없이 시간당 제한)",
+        "data_coverage": "CME/CBOT 등 미국 선물 계약 주간 COT (1986~), 화요일 기준·금요일 공표",
+    },
+)
+
+# ==================== MOF (일본 재무성) Provider ====================
+
+mof_provider = Provider(
+    name="mof",
+    description="일본 재무성(財務省) — 대외·대내 증권투자 주간 통계",
+    website="https://www.mof.go.jp",
+    credentials=[],
+    fetcher_dict={
+        "portfolio_flows": MOFPortfolioFlowsFetcher,
+    },
+    metadata={
+        "group": "macro",
+        "rate_limit": "none (정적 CSV)",
+        "data_coverage": "지정보고기관 기준 주간 증권 순매매 (2005~), 목요일 공표",
+    },
+)
+
 # ==================== QuantLib Provider ====================
 
 quantlib_provider = Provider(
@@ -622,6 +663,9 @@ quantitative_provider = Provider(
         "capm": QuantCAPMFetcher,
         "rolling": QuantRollingFetcher,
         "unitroot": QuantUnitRootFetcher,
+        # 엔 캐리 언와인드 모니터 — 기본 심볼이 JPY=X / ^N225 지만 임의 티커에도 쓸 수 있다
+        "pair_correlation": QuantPairCorrelationFetcher,
+        "vol_regime": QuantVolRegimeFetcher,
     },
     metadata={
         "rate_limit": "yfinance only",
@@ -673,6 +717,8 @@ def register_all_providers():
         ProviderRegistry.register(kis_provider)
     ProviderRegistry.register(whalewisdom_provider)
     ProviderRegistry.register(sec_provider)
+    ProviderRegistry.register(cftc_provider)
+    ProviderRegistry.register(mof_provider)
     if quantlib_provider is not None:
         ProviderRegistry.register(quantlib_provider)
     if quantitative_provider is not None:

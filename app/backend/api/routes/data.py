@@ -65,7 +65,8 @@ def _qp_fields(fetcher_cls) -> dict:
 
 
 # 행 dict에서 날짜 필드로 인정하는 키 (우선순위 순)
-_DATE_KEYS = ("date", "period_ending", "filing_date", "report_date", "datetime", "timestamp")
+_DATE_KEYS = ("date", "period_ending", "period_start", "filing_date", "report_date",
+              "datetime", "timestamp")
 
 
 def _row_date_key(rows: list) -> str | None:

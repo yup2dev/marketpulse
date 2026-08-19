@@ -47,6 +47,12 @@ class ApiFetcher(Fetcher[Q, R]):
     response_callback: ClassVar[Optional[Callable]] = None
     #: amake_request(s)에 전달할 추가 kwargs (예: {"timeout": 30})
     request_kwargs: ClassVar[Dict[str, Any]] = {}
+    #: fetch_data로 흘러온 오케스트레이션용 kwargs 중 HTTP 계층에 넘기면 안 되는 키.
+    #: QueryExecutor.fetch(**kwargs)가 그대로 fetch_data → extract_data로 전달되기 때문에
+    #: 걸러내지 않으면 aiohttp의 session.request()가 알 수 없는 인자로 TypeError를 낸다.
+    _NON_REQUEST_KWARGS: ClassVar[frozenset] = frozenset({
+        "use_cache", "ttl", "db_path", "provider", "model",
+    })
 
     @classmethod
     def get_api_key(cls, credentials: Optional[Dict[str, str]] = None) -> Optional[str]:
@@ -90,7 +96,10 @@ class ApiFetcher(Fetcher[Q, R]):
         from data_fetcher.utils.provider_helpers import amake_request, amake_requests
 
         urls = cls.build_url(query, cls.get_api_key(credentials))
-        req = {**cls.request_kwargs, **kwargs}
+        passthrough = {
+            k: v for k, v in kwargs.items() if k not in cls._NON_REQUEST_KWARGS
+        }
+        req = {**cls.request_kwargs, **passthrough}
         if isinstance(urls, (list, tuple)):
             return await amake_requests(
                 list(urls), response_callback=cls.response_callback, **req
