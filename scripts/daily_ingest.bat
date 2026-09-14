@@ -25,7 +25,11 @@ REM 1) 로컬 적재 — 최근 1개월치 백필 (누락 구간 보정 겸)
 .venv\Scripts\python.exe scripts\backfill_stk_stbd.py 1mo >> "%LOG%" 2>&1
 if errorlevel 1 echo [%date% %time%] backfill FAILED >> "%LOG%"
 
-REM 2) 클라우드 동기화 — 서버 max_base_ymd 이후 증분만 전송
+REM 2) 13F 기관 보유 + 추정 수익률 — 일요일에만 (13F는 분기 공시, 로컬에서 파싱)
+.venv\Scripts\python.exe scripts\collect_13f.py --only-on sun >> "%LOG%" 2>&1
+if errorlevel 1 echo [%date% %time%] 13F collect FAILED >> "%LOG%"
+
+REM 3) 클라우드 동기화 — 서버 max_base_ymd 이후 증분만 전송
 .venv\Scripts\python.exe scripts\sync_db_to_cloud.py >> "%LOG%" 2>&1
 if errorlevel 1 echo [%date% %time%] cloud sync FAILED >> "%LOG%"
 

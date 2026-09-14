@@ -612,6 +612,41 @@ class MBS_IN_INSTI_HOLD(Base):
     )
 
 
+class MBS_IN_INSTI_PERF(Base):
+    """기관 13F 기반 분기별 추정 수익률 — 한 행 = 한 분기. 배치가 기관별 교체.
+
+    로컬 배치가 13F 원본을 파싱해 산출한다(서버 파싱 금지). 실제 NAV 수익률이 아니며
+    coverage_pct / derivative_weight_pct 가 신뢰도 지표다(standard_models/fund_performance.py).
+    cumulative_return_pct 는 적재 구간 기준이라 조회 구간에 맞게 DB fetcher가 다시 계산한다.
+    """
+
+    __tablename__ = 'mbs_in_insti_perf'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    institution_key = Column(String(100), index=True, nullable=False)
+    period = Column(String(20), nullable=False)            # 분기말 기준일 (YYYY-MM-DD)
+    filing_date = Column(String(20))
+    name = Column(String(300))
+    manager = Column(String(300))
+    return_pct = Column(Float)
+    cumulative_return_pct = Column(Float)
+    aum_change_pct = Column(Float)
+    total_value = Column(Float)
+    num_holdings = Column(Integer)
+    coverage_pct = Column(Float)
+    derivative_weight_pct = Column(Float)
+    matched_positions = Column(Integer)
+    excluded_positions = Column(Integer)
+    top_contributor = Column(String(300))
+    top_contributor_pct = Column(Float)
+    top_detractor = Column(String(300))
+    top_detractor_pct = Column(Float)
+
+    __table_args__ = (
+        Index('ix_insti_perf_key_period', 'institution_key', 'period'),
+    )
+
+
 class MBS_IN_RESEARCH_RPT(Base):
     """입수 - 리서치 보고서 (PDF 임포트: 애널리스트 보고서/추정치/연간보고서).
 

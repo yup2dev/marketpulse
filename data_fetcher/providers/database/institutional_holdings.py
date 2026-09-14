@@ -1,8 +1,8 @@
 """DB Institutional Holdings Fetcher — 배치 적재한 13F 포트폴리오를 DB에서 조회.
 
 MBS_IN_INSTI_PORT(요약) + MBS_IN_INSTI_HOLD(보유종목)에서 읽어 whalewisdom과 동일한
-객체 형태로 복원한다(portfolio_service 직렬화 무수정). 미적재 기관이면 빈 리스트 →
-백엔드가 whalewisdom 온디맨드로 폴백.
+객체 형태로 복원한다(portfolio_service 직렬화 무수정). 미적재 기관이면 빈 리스트
+(서버 온디맨드 폴백 없음 — 13F 파싱은 로컬 배치에서만).
 """
 import logging
 from typing import Any, Dict, List, Optional
@@ -74,7 +74,7 @@ class DBInstitutionalHoldingsFetcher(
         with cls.db_session(**kwargs) as session:
             port = session.get(MBS_IN_INSTI_PORT, query.institution_key)
             if port is None:
-                return {}  # 미적재 → 폴백
+                return {}  # 미적재
             summary = {f: getattr(port, f, None) for f in _PORT_FIELDS}
 
             rows = (
@@ -100,7 +100,7 @@ class DBInstitutionalHoldingsFetcher(
         **kwargs: Any,
     ) -> List[InstitutionalHoldingsData]:
         if not data:
-            return []  # 폴백 트리거
+            return []  # 미적재
         stocks = [HoldingData.model_validate(h) for h in data.pop("stocks", [])]
         sold = [HoldingData.model_validate(h) for h in data.pop("sold_positions", [])]
         # whalewisdom과 동일하게 stocks/sold_positions + 요약필드를 extra로 부착

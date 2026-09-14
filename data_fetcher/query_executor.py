@@ -417,9 +417,22 @@ class QueryExecutor:
     # Class A — '로컬 실행 필수' provider. 비공식 스크래핑/라이브러리(yfinance 등)라 서버
     # 고정 IP에서 호출하면 차단되므로 반드시 사용자 PC Fetcher에서 실행한다(키 불필요).
     # 로그인 사용자 요청이면 폴백 없이 그 사용자 워커로만 위임한다.
-    # 참고: whalewisdom(13F)은 SEC EDGAR만 호출(yfinance 미사용)하므로 서버에서 직접
-    #       실행 가능 → Class A에서 제외(로컬 Fetcher 불필요). yahoo만 로컬 필수.
     _remote_only_providers: frozenset = frozenset({"yahoo"})
+
+    # 서버 실행 금지 모델 — 13F 원본(infotable XML 등) 파싱은 메모리를 크게 써서 작은 운영
+    # 서버를 죽인다. 조회는 로컬 배치가 파싱해 적재한 DB(db provider)를 쓰고, 이 모델을
+    # 직접 부르면 서버에서는 사용자 Fetcher로만 위임한다(위임 불가면 실행하지 않고 오류).
+    # 로컬 배치·Fetcher(_server_mode=False)에서는 그대로 직접 실행한다.
+    _local_only_models: frozenset = frozenset({
+        ("sec", "institutional_13f"),
+        ("sec", "fund_performance"),
+        ("sec", "institutions_list"),
+        ("whalewisdom", "institutional_holdings"),
+        ("whalewisdom", "institutions_list"),
+    })
+
+    # 백엔드(웹 서버) 프로세스 여부 — configure(server_mode=True)로 켠다.
+    _server_mode: bool = False
 
     # Class B — key-only provider는 서버에서 호출하되, 요청 사용자의 키(DB)로 호출한다.
     # _credential_resolver(provider, user_id) → {필드: 값} | None 을 백엔드가 주입한다.
@@ -444,6 +457,7 @@ class QueryExecutor:
         ttl_map: Optional[Dict[str, int]] = None,
         remote: Optional[RemoteTransport] = None,
         credential_resolver=None,
+        server_mode: bool = False,
     ) -> None:
         """앱 시작 시 캐시/원격/자격증명 해석기 주입. data_fetcher는 app.backend를 import하지 않는다.
 
@@ -453,6 +467,7 @@ class QueryExecutor:
             remote: 원격 위임 트랜스포트(Class A provider를 사용자 워커로 위임). None이면 직접 조회.
             credential_resolver: (provider, user_id) → 자격증명 dict | None.
                 key-only provider(Class B)를 서버에서 요청 사용자의 키로 호출하기 위해 백엔드가 주입.
+            server_mode: 웹 서버 프로세스면 True — _local_only_models를 서버에서 실행하지 않는다.
         """
         cls._cache = cache
         if ttl_map:
@@ -462,6 +477,8 @@ class QueryExecutor:
         if credential_resolver is not None:
             # staticmethod로 감싸 클래스 속성 접근 시 self가 바인딩되지 않게 한다
             cls._credential_resolver = staticmethod(credential_resolver)
+        if server_mode:
+            cls._server_mode = True
         log.info(
             "[QueryExecutor] configured: cache=%s upstream=%s resolver=%s",
             type(cache).__name__,
@@ -499,9 +516,11 @@ class QueryExecutor:
         """Provider/Fetcher 조회 → fetch_data() 호출 (캐시 없음).
 
         라우팅 정책:
-          - Class A (_remote_only_providers: 로컬 실행 필수, 예 yahoo/whalewisdom)
+          - Class A (_remote_only_providers: 로컬 실행 필수, 예 yahoo
+                       + _local_only_models: 13F 원본 파싱 모델)
             + 로그인 사용자 요청 → '그 사용자의 Fetcher 워커'로만 위임(폴백 없음).
               워커 미접속/끊김 → RemoteUnavailableError 전파(앱 실행 안내).
+            + 서버(_server_mode)인데 위임 transport가 없으면 _local_only_models는 실행 거부.
           - 그 외(Class B key-only / 로컬계산 / 또는 서버 배치작업) → 백엔드가 직접 호출.
             · key-only + 로그인 사용자 → 요청 사용자의 키(DB, _credential_resolver)로 호출.
               사용자 키 없으면 운영자 키로 폴백하지 않고 명확한 오류.
@@ -509,11 +528,12 @@ class QueryExecutor:
         """
         user_id = current_user_id.get()
 
-        # Class A(yahoo/whalewisdom): 위임 transport(_remote)가 설정된 백엔드에서는
+        # Class A(yahoo, 13F 파싱 모델): 위임 transport(_remote)가 설정된 백엔드에서는
         # 서버에서 직접 실행하지 않고 '그 사용자의 Fetcher 워커'로 위임한다.
         # _remote가 None이면 여기가 leaf(=Fetcher 자체/standalone)이므로 아래에서 직접 실행한다.
         # (이 분기를 _remote 유무와 무관하게 적용하면 Fetcher가 자기 자신을 막아버린다.)
-        if provider in cls._remote_only_providers and cls._remote is not None:
+        local_only_model = (provider, model) in cls._local_only_models
+        if (provider in cls._remote_only_providers or local_only_model) and cls._remote is not None:
             if not user_id:
                 # 위임 가능한 백엔드인데 사용자 컨텍스트가 없음(배경작업 등) → 서버 직접
                 # 스크래핑하지 않고 명확히 실패(작은 서버 부하 차단).
@@ -522,6 +542,13 @@ class QueryExecutor:
                     f"로그인하고 Fetcher를 실행하세요."
                 )
             return await cls._remote.fetch(provider, model, params, credentials, **kwargs)
+
+        if local_only_model and cls._server_mode:
+            # 위임 transport 없는 웹 서버 — leaf가 아니므로 파싱을 여기서 실행하지 않는다.
+            raise RemoteUnavailableError(
+                f"'{provider}/{model}'은(는) 13F 원본 파싱이라 서버에서 실행하지 않습니다. "
+                f"배치 적재 데이터(/api/portfolio/13f)를 사용하세요."
+            )
 
         try:
             provider_obj: Provider = ProviderRegistry.get(provider)
