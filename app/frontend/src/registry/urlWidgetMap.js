@@ -5,8 +5,8 @@
  *   label           — page title shown in header
  *   needsSymbol     — show stock symbol selector
  *   needsPortfolio  — show portfolio selector + actions
- *   categories      — tabs mapped to ?section= URL param
- *     ├ id            — used as ?section= value
+ *   categories      — tabs mapped to ?tab= URL param (헤더 메뉴의 하위 메뉴도 이 목록으로 생성)
+ *     ├ id            — used as ?tab= value
  *     ├ label         — tab display label
  *     ├ defaultWidgets — initial grid for this section (no saved workspace)
  *     └ widgets       — widget catalog for WidgetMenu popup
@@ -345,7 +345,7 @@ export const URL_WIDGET_MAP = {
     ],
   },
 
-  // ─── Screener (/screener) ───────────────────────────────────────────────────
+  // ─── Screener (/screener) ───────────────────────────────────────────
   '/screener': {
     label: 'Screener',
     needsSymbol: false,
@@ -358,11 +358,138 @@ export const URL_WIDGET_MAP = {
           { id: 'screener-1', type: 'screener', x: 0, y: 0, w: 12, h: 14 },
         ],
         widgets: [
-          { id: 'screener',        name: 'Stock Screener', description: 'Filter stocks by fundamentals', defaultSize: { w: 12, h: 14 } },
-          { id: 'market-ranking', name: 'Market Ranking', description: '실시간 급등/급락/거래량 랭킹', defaultSize: { w: 5, h: 10 } },
-          { id: 'watchlist',      name: 'Watchlist',       description: 'Manage watchlists',             defaultSize: { w: 6,  h: 8  } },
-          { id: 'heatmap',        name: 'Sector Heatmap',  description: 'S&P 500 sector treemap',        defaultSize: { w: 8,  h: 8  } },
-          { id: 'sparkline',      name: 'Index Charts',    description: 'Index ticker bar',              defaultSize: { w: 12, h: 3  } },
+          { id: 'screener',          name: 'Stock Screener',      description: 'Filter stocks by fundamentals', defaultSize: { w: 12, h: 14 } },
+          { id: 'market-ranking',    name: 'Market Ranking',      description: '실시간 급등/급락/거래량 랭킹',   defaultSize: { w: 5,  h: 10 } },
+          { id: 'tv-market-ranking', name: 'Market Ranking (TV)', description: 'TradingView 급등/급락/거래량',  defaultSize: { w: 5,  h: 10 } },
+          { id: 'heatmap',           name: 'Sector Heatmap',      description: 'S&P 500 sector treemap',        defaultSize: { w: 8,  h: 8  } },
+          { id: 'watchlist',         name: 'Watchlist',           description: 'Manage watchlists',             defaultSize: { w: 6,  h: 8  } },
+          { id: 'sparkline',         name: 'Index Charts',        description: 'Index ticker bar',              defaultSize: { w: 12, h: 3  } },
+        ],
+      },
+      {
+        id: 'ranking',
+        label: 'Market Ranking',
+        defaultWidgets: [
+          { id: 'market-ranking-1', type: 'market-ranking', x: 0, y: 0, w: 12, h: 12 },
+        ],
+        widgets: [
+          { id: 'screener',          name: 'Stock Screener',      description: 'Filter stocks by fundamentals', defaultSize: { w: 12, h: 14 } },
+          { id: 'market-ranking',    name: 'Market Ranking',      description: '실시간 급등/급락/거래량 랭킹',   defaultSize: { w: 5,  h: 10 } },
+          { id: 'tv-market-ranking', name: 'Market Ranking (TV)', description: 'TradingView 급등/급락/거래량',  defaultSize: { w: 5,  h: 10 } },
+          { id: 'heatmap',           name: 'Sector Heatmap',      description: 'S&P 500 sector treemap',        defaultSize: { w: 8,  h: 8  } },
+          { id: 'watchlist',         name: 'Watchlist',           description: 'Manage watchlists',             defaultSize: { w: 6,  h: 8  } },
+          { id: 'sparkline',         name: 'Index Charts',        description: 'Index ticker bar',              defaultSize: { w: 12, h: 3  } },
+        ],
+      },
+      {
+        id: 'heatmap',
+        label: 'Sector Heatmap',
+        defaultWidgets: [
+          { id: 'heatmap-1', type: 'heatmap', x: 0, y: 0, w: 12, h: 10 },
+        ],
+        widgets: [
+          { id: 'screener',          name: 'Stock Screener',      description: 'Filter stocks by fundamentals', defaultSize: { w: 12, h: 14 } },
+          { id: 'market-ranking',    name: 'Market Ranking',      description: '실시간 급등/급락/거래량 랭킹',   defaultSize: { w: 5,  h: 10 } },
+          { id: 'tv-market-ranking', name: 'Market Ranking (TV)', description: 'TradingView 급등/급락/거래량',  defaultSize: { w: 5,  h: 10 } },
+          { id: 'heatmap',           name: 'Sector Heatmap',      description: 'S&P 500 sector treemap',        defaultSize: { w: 8,  h: 8  } },
+          { id: 'watchlist',         name: 'Watchlist',           description: 'Manage watchlists',             defaultSize: { w: 6,  h: 8  } },
+          { id: 'sparkline',         name: 'Index Charts',        description: 'Index ticker bar',              defaultSize: { w: 12, h: 3  } },
+        ],
+      },
+      {
+        id: 'watchlist',
+        label: 'Watchlist',
+        defaultWidgets: [
+          { id: 'watchlist-1', type: 'watchlist', x: 0, y: 0, w: 12, h: 10 },
+        ],
+        widgets: [
+          { id: 'screener',          name: 'Stock Screener',      description: 'Filter stocks by fundamentals', defaultSize: { w: 12, h: 14 } },
+          { id: 'market-ranking',    name: 'Market Ranking',      description: '실시간 급등/급락/거래량 랭킹',   defaultSize: { w: 5,  h: 10 } },
+          { id: 'tv-market-ranking', name: 'Market Ranking (TV)', description: 'TradingView 급등/급락/거래량',  defaultSize: { w: 5,  h: 10 } },
+          { id: 'heatmap',           name: 'Sector Heatmap',      description: 'S&P 500 sector treemap',        defaultSize: { w: 8,  h: 8  } },
+          { id: 'watchlist',         name: 'Watchlist',           description: 'Manage watchlists',             defaultSize: { w: 6,  h: 8  } },
+          { id: 'sparkline',         name: 'Index Charts',        description: 'Index ticker bar',              defaultSize: { w: 12, h: 3  } },
+        ],
+      },
+    ],
+  },
+
+  // ─── Calendar (/calendar) ───────────────────────────────────────────
+  '/calendar': {
+    label: 'Calendar',
+    needsSymbol: false,
+    needsPortfolio: false,
+    categories: [
+      {
+        id: 'economic',
+        label: '경제캘린더',
+        defaultWidgets: [
+          { id: 'economic-calendar-1', type: 'economic-calendar', x: 0, y: 0, w: 12, h: 14 },
+        ],
+        widgets: [
+          { id: 'economic-calendar', name: 'Economic Calendar', description: '경제 이벤트 (실제/예측/이전)',   defaultSize: { w: 12, h: 14 } },
+          { id: 'earnings-calendar', name: 'Earnings Calendar', description: '실적 발표 일정 (예상 EPS/시총)', defaultSize: { w: 12, h: 14 } },
+          { id: 'news-feed',         name: 'News Feed',         description: 'Latest market news',            defaultSize: { w: 6,  h: 8  } },
+        ],
+      },
+      {
+        id: 'earnings',
+        label: '실적캘린더',
+        defaultWidgets: [
+          { id: 'earnings-calendar-1', type: 'earnings-calendar', x: 0, y: 0, w: 12, h: 14 },
+        ],
+        widgets: [
+          { id: 'economic-calendar', name: 'Economic Calendar', description: '경제 이벤트 (실제/예측/이전)',   defaultSize: { w: 12, h: 14 } },
+          { id: 'earnings-calendar', name: 'Earnings Calendar', description: '실적 발표 일정 (예상 EPS/시총)', defaultSize: { w: 12, h: 14 } },
+          { id: 'news-feed',         name: 'News Feed',         description: 'Latest market news',            defaultSize: { w: 6,  h: 8  } },
+        ],
+      },
+    ],
+  },
+
+  // ─── Backtest (/backtest) ───────────────────────────────────────────
+  '/backtest': {
+    label: 'Backtest',
+    needsSymbol: true,
+    needsPortfolio: false,
+    categories: [
+      {
+        id: 'studio',
+        label: 'Chart Studio',
+        defaultWidgets: [
+          { id: 'backtest-lab-1', type: 'backtest-lab', x: 0, y: 0, w: 12, h: 14 },
+        ],
+        widgets: [
+          { id: 'backtest-lab',   name: 'Backtest Lab',       description: '가격·재무·퀀트·매크로 시리즈를 한 차트에 조합', defaultSize: { w: 12, h: 14 } },
+          { id: 'advanced-chart', name: 'Advanced Chart',     description: '멀티심볼·캔들·보조지표·페어분석 차트',       defaultSize: { w: 12, h: 12 } },
+          { id: 'correlation',    name: 'Correlation Matrix', description: 'Multi-stock correlations',                  defaultSize: { w: 8,  h: 10 } },
+          { id: 'comparison',     name: 'Stock Comparison',   description: 'Compare 2-4 stocks',                        defaultSize: { w: 8,  h: 10 } },
+        ],
+      },
+      {
+        id: 'advanced-chart',
+        label: 'Advanced Chart',
+        defaultWidgets: [
+          { id: 'advanced-chart-1', type: 'advanced-chart', x: 0, y: 0, w: 12, h: 12 },
+        ],
+        widgets: [
+          { id: 'backtest-lab',   name: 'Backtest Lab',       description: '가격·재무·퀀트·매크로 시리즈를 한 차트에 조합', defaultSize: { w: 12, h: 14 } },
+          { id: 'advanced-chart', name: 'Advanced Chart',     description: '멀티심볼·캔들·보조지표·페어분석 차트',       defaultSize: { w: 12, h: 12 } },
+          { id: 'correlation',    name: 'Correlation Matrix', description: 'Multi-stock correlations',                  defaultSize: { w: 8,  h: 10 } },
+          { id: 'comparison',     name: 'Stock Comparison',   description: 'Compare 2-4 stocks',                        defaultSize: { w: 8,  h: 10 } },
+        ],
+      },
+      {
+        id: 'correlation',
+        label: 'Correlation',
+        defaultWidgets: [
+          { id: 'correlation-1', type: 'correlation', x: 0, y: 0, w: 12, h: 10 },
+        ],
+        widgets: [
+          { id: 'backtest-lab',   name: 'Backtest Lab',       description: '가격·재무·퀀트·매크로 시리즈를 한 차트에 조합', defaultSize: { w: 12, h: 14 } },
+          { id: 'advanced-chart', name: 'Advanced Chart',     description: '멀티심볼·캔들·보조지표·페어분석 차트',       defaultSize: { w: 12, h: 12 } },
+          { id: 'correlation',    name: 'Correlation Matrix', description: 'Multi-stock correlations',                  defaultSize: { w: 8,  h: 10 } },
+          { id: 'comparison',     name: 'Stock Comparison',   description: 'Compare 2-4 stocks',                        defaultSize: { w: 8,  h: 10 } },
         ],
       },
     ],

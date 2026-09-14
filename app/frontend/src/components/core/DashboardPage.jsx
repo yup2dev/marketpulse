@@ -57,7 +57,7 @@ function saveSplitTree(pathname, tree, wsId) {
 export default function DashboardPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { isAuthenticated } = useAuthStore();
   const { setLastSection, setLastSymbol } = useNavigationStore();
 
@@ -66,8 +66,14 @@ export default function DashboardPage() {
   const categories = config?.categories || [];
   const isDashboard = pathname === '/';
 
+  // ?tab= — 헤더 메뉴의 하위 메뉴가 붙인다(구버전 ?section= 도 허용). 이 화면에 없는 탭은 무시.
+  const tabParam =
+    [searchParams.get('tab'), searchParams.get('section')].find(
+      (t) => t && categories.some((c) => c.id === t),
+    ) || null;
+
   const defaultSection =
-    searchParams.get('section') ||
+    tabParam ||
     useNavigationStore.getState().lastSection[pathname] ||
     categories[0]?.id ||
     '';
@@ -126,15 +132,15 @@ export default function DashboardPage() {
   }, [activeWorkspace]);
 
   const [splitTree, setSplitTree] = useState(() =>
-    loadSplitTree(pathname, defaultSection, null),
+    withTab(loadSplitTree(pathname, defaultSection, null), tabParam),
   );
 
   // When active workspace changes, reload split tree (backend first, then local)
   useEffect(() => {
     if (splitTreeFromBackend) {
-      setSplitTree(splitTreeFromBackend);
+      setSplitTree(withTab(splitTreeFromBackend, tabParam));
     } else {
-      setSplitTree(loadSplitTree(pathname, defaultSection, activeWsId));
+      setSplitTree(withTab(loadSplitTree(pathname, defaultSection, activeWsId), tabParam));
     }
   }, [activeWorkspace?.id, splitTreeFromBackend]);
 
@@ -159,9 +165,21 @@ export default function DashboardPage() {
   // Reload tree when page changes (not workspace — handled by workspace effect above)
   useEffect(() => {
     if (!isDashboard) {
-      setSplitTree(loadSplitTree(pathname, defaultSection, null));
+      setSplitTree(withTab(loadSplitTree(pathname, defaultSection, null), tabParam));
     }
   }, [pathname]);
+
+  // 메뉴 진입(?tab=) 시 첫 pane 탭 전환. 같은 하위 메뉴를 다시 눌러도 navigate가 새
+  // location.key를 만들므로 다시 적용된다(사용자가 탭을 옮긴 뒤 메뉴로 되돌아오는 경우).
+  useEffect(() => {
+    if (!tabParam) return;
+    setSplitTree((prev) => {
+      const next = withTab(prev, tabParam);
+      saveSplitTree(pathname, next, activeWsId); // 초기 로드·페이지 전환에서 적용된 탭도 저장
+      return next;
+    });
+    setLastSection(pathname, tabParam);
+  }, [location.key]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Symbol state ────────────────────────────────────────────────────────
   const symbolFromUrl = searchParams.get('symbol')?.toUpperCase() || null;
@@ -219,8 +237,15 @@ export default function DashboardPage() {
     (paneId, sectionId) => {
       updateTree(updatePaneSection(splitTree, paneId, sectionId));
       setLastSection(pathname, sectionId);
+      // 첫 pane 탭은 URL(?tab=)과 동기화 — 헤더 하위 메뉴 활성 표시·새로고침·공유 링크가 현재 탭을 따른다.
+      if (paneId === findFirstPaneId(splitTree)) {
+        const next = new URLSearchParams(searchParams);
+        next.set('tab', sectionId);
+        next.delete('section');
+        setSearchParams(next, { replace: true });
+      }
     },
-    [splitTree, updateTree, pathname, setLastSection],
+    [splitTree, updateTree, pathname, setLastSection, searchParams, setSearchParams],
   );
 
   // ── Portfolio state ─────────────────────────────────────────────────────
@@ -513,6 +538,13 @@ function gcCopilotDatasets() {
 function findFirstPaneId(tree) {
   if (tree.type === 'pane') return tree.id;
   return findFirstPaneId(tree.children[0]);
+}
+
+// 첫 pane 을 tab 으로 전환한 트리(이미 그 탭이거나 tab 이 없으면 원본 그대로).
+function withTab(tree, tab) {
+  if (!tab) return tree;
+  const paneId = findFirstPaneId(tree);
+  return findPane(tree, paneId)?.sectionId === tab ? tree : updatePaneSection(tree, paneId, tab);
 }
 
 // ── WorkspaceSelector ────────────────────────────────────────────────────────
