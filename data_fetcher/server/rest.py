@@ -37,6 +37,7 @@ from data_fetcher.query_executor import QueryExecutor, QueryExecutorError
 from data_fetcher.server.auth import get_or_create_token
 from data_fetcher.server.cache import MemoryCache
 from data_fetcher.server.keystore import KeyStore
+from data_fetcher import __version__
 from data_fetcher.server.serialize import serialize_result
 
 log = logging.getLogger(__name__)
@@ -138,7 +139,7 @@ def create_app(
     allowed_origins: Optional[List[str]] = None,
     enable_cache: bool = True,
 ) -> FastAPI:
-    app = FastAPI(title="MarketPulse Fetcher", version="0.1.0", lifespan=_lifespan)
+    app = FastAPI(title="MarketPulse Fetcher", version=__version__, lifespan=_lifespan)
 
     # ── CORS ──────────────────────────────────────────────────────────────────
     # 민감 엔드포인트(/fetch, /keys)는 Fetcher 토큰으로 보호된다. 웹앱이 /health 와
