@@ -8,7 +8,7 @@
  */
 import { create } from 'zustand';
 import { authAPI, apiClient, setForceLogoutCallback } from '../config/api';
-import { syncFetcherToken } from '../utils/fetcherToken';
+import { clearFetcherToken, syncFetcherToken } from '../utils/fetcherToken';
 
 const _clearStorage = () => {
   localStorage.removeItem('access_token');
@@ -30,8 +30,9 @@ const _isJwtExpired = (token) => {
 const useAuthStore = create((set, get) => {
   // apiClient가 토큰을 모두 소진했을 때 호출하는 강제 로그아웃 콜백 등록
   setForceLogoutCallback(() => {
+    const fetcherToken = localStorage.getItem('fetcher_token');
     _clearStorage();
-    syncFetcherToken(null);   // 데스크톱: Fetcher 토큰 제거 → 워커 접속 보류
+    clearFetcherToken(fetcherToken);   // 이 세션의 토큰일 때만 제거 → 워커 접속 보류
     set({ user: null, accessToken: null, refreshToken: null, isAuthenticated: false, isInitializing: false });
   });
 
@@ -153,8 +154,9 @@ const useAuthStore = create((set, get) => {
     // ── Logout ─────────────────────────────────────────────────────────────────
     logout: async () => {
       try { await authAPI.logout(); } catch { /* ignore */ }
+      const fetcherToken = localStorage.getItem('fetcher_token');
       _clearStorage();
-      syncFetcherToken(null);   // 데스크톱: Fetcher 토큰 제거
+      clearFetcherToken(fetcherToken);   // 이 세션의 토큰일 때만 제거
       set({ user: null, accessToken: null, refreshToken: null, isAuthenticated: false, error: null });
     },
 

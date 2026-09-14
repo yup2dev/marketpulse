@@ -11,7 +11,8 @@ NAT/방화벽 뒤에서도 동작한다 — 연결을 먼저 여는 쪽이 Fetch
 
 토큰은 매 접속 시점에 token_provider()로 새로 읽는다. 데스크톱 앱이 로그인/갱신 때
 토큰 파일을 갱신하면, 다음 (재)접속에서 최신 토큰을 사용한다(Fetcher 재시작 불필요).
-토큰이 아직 없으면(로그인 전) 접속을 보류하고 주기적으로 재확인한다.
+토큰이 아직 없거나 거부된 동안에는 토큰 파일을 짧은 주기로 확인해, 새 토큰이 들어오는
+즉시 접속한다. 접속 중 다른 계정으로 로그인하면(sub 변경) 끊고 새 계정으로 재접속한다.
 
 (API 키 관리는 백엔드 DB에서 처리되므로 워커는 데이터 조회만 담당한다.)
 연결이 끊기면 자동 재연결한다.
@@ -27,6 +28,7 @@ from typing import Callable, Optional
 import websockets
 
 from data_fetcher.query_executor import QueryExecutor, QueryExecutorError
+from data_fetcher.server.auth import token_claims
 from data_fetcher.server.serialize import serialize_result
 
 log = logging.getLogger(__name__)
@@ -34,6 +36,7 @@ log = logging.getLogger(__name__)
 _RECONNECT_DELAY = 5.0
 _WAIT_TOKEN_DELAY = 10.0  # 로그인 전(토큰 없음) 재확인 간격
 _AUTH_FAIL_DELAY = 60.0  # 토큰 거부(401/403) 시 — 갱신 전엔 재시도해도 무의미하므로 길게 대기
+_TOKEN_POLL_INTERVAL = 2.0  # 대기·접속 중 토큰 파일 변경 확인 주기 — 새 토큰을 곧바로 반영
 
 
 def _ws_reject_status(exc) -> Optional[int]:
@@ -77,6 +80,45 @@ async def _handle_fetch(ws, msg: dict) -> None:
         }))
 
 
+def _read_token(token_provider: Callable[[], Optional[str]]) -> str:
+    return (token_provider() or "").strip()
+
+
+def _token_subject(token: str) -> Optional[str]:
+    claims = token_claims(token) if token else None
+    return str(claims.get("sub")) if claims and claims.get("sub") else None
+
+
+async def _wait_for_token_change(
+    token_provider: Callable[[], Optional[str]], previous: str, timeout: float,
+) -> None:
+    """최대 timeout초 기다리되, 토큰 파일이 바뀌면 즉시 반환한다."""
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    while (remaining := deadline - loop.time()) > 0:
+        await asyncio.sleep(min(_TOKEN_POLL_INTERVAL, remaining))
+        if _read_token(token_provider) != previous:
+            return
+
+
+async def _close_on_account_change(
+    ws, token_provider: Callable[[], Optional[str]], token: str,
+) -> None:
+    """접속 중 토큰의 사용자(sub)가 바뀌거나 로그아웃되면 연결을 닫는다.
+
+    같은 사용자의 토큰 갱신(주기적 refresh)은 무시한다 — 연결은 접속 시점에만 인증되므로
+    끊을 이유가 없고, 끊으면 진행 중인 위임 요청이 실패한다.
+    """
+    subject = _token_subject(token)
+    while True:
+        await asyncio.sleep(_TOKEN_POLL_INTERVAL)
+        current = _read_token(token_provider)
+        if current != token and _token_subject(current) != subject:
+            log.info("[fetcher-ws] 로그인 계정 변경 감지 — 새 토큰으로 재접속")
+            await ws.close()
+            return
+
+
 async def run_ws_worker(
     base_url: str,
     token_provider: Callable[[], Optional[str]],
@@ -87,18 +129,20 @@ async def run_ws_worker(
     매 (재)접속마다 토큰을 새로 읽으므로, 갱신된 토큰이 자동 반영된다.
     """
     while True:
-        token = (token_provider() or "").strip()
+        token = _read_token(token_provider)
         if not token:
-            # 아직 로그인 전 — 토큰이 생길 때까지 대기 후 재확인
-            await asyncio.sleep(_WAIT_TOKEN_DELAY)
+            # 아직 로그인 전 — 토큰이 생기면 바로 접속
+            await _wait_for_token_change(token_provider, token, _WAIT_TOKEN_DELAY)
             continue
 
         sep = "&" if "?" in base_url else "?"
         url = f"{base_url}{sep}token={token}"
         ssl_ctx = _ssl_context() if url.startswith("wss://") else None
+        watcher: Optional[asyncio.Task] = None
         try:
             async with websockets.connect(url, ssl=ssl_ctx, ping_interval=20, ping_timeout=20) as ws:
                 log.info("[fetcher-ws] connected to backend")
+                watcher = asyncio.create_task(_close_on_account_change(ws, token_provider, token))
                 async for raw in ws:
                     try:
                         msg = json.loads(raw)
@@ -112,12 +156,18 @@ async def run_ws_worker(
             status = _ws_reject_status(exc)
             if status in (401, 403):
                 # 토큰 만료/무효 — 같은 토큰으로 재시도해봐야 계속 거부된다. 웹 재로그인으로
-                # 토큰 파일이 갱신되면 다음 시도에서 자동 복구되므로, 길게 쉬며 대기한다.
+                # 토큰 파일이 갱신되면 그 즉시 재접속하고, 아니면 길게 쉬며 대기한다.
                 log.warning(
                     "[fetcher-ws] 인증 거부(HTTP %s) — 토큰 만료/무효. 웹에서 다시 로그인해 "
-                    "Fetcher 토큰을 갱신하세요. %ds 후 재시도", status, _AUTH_FAIL_DELAY,
+                    "Fetcher 토큰을 갱신하세요(갱신 즉시 재접속, 최대 %ds 대기)",
+                    status, _AUTH_FAIL_DELAY,
                 )
-                await asyncio.sleep(_AUTH_FAIL_DELAY)
+                await _wait_for_token_change(token_provider, token, _AUTH_FAIL_DELAY)
                 continue
             log.warning("[fetcher-ws] connection error: %s — %ds 후 재시도", exc, _RECONNECT_DELAY)
+        finally:
+            if watcher:
+                watcher.cancel()
+        if _read_token(token_provider) != token:
+            continue  # 계정 변경으로 닫은 연결 — 지체 없이 새 토큰으로 재접속
         await asyncio.sleep(_RECONNECT_DELAY)

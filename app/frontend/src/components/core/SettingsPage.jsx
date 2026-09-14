@@ -74,7 +74,7 @@ const AI_PROVIDERS = [
 export default function SettingsPage() {
   // 키 관리는 백엔드 DB 기반(online=백엔드 도달). Fetcher 상태는 별개(일부 데이터용).
   const { status: fetcherStatus, isTauri, recheck } = useFetcherHealth();
-  const fetcherOnline = fetcherStatus === 'online';
+  const fetcherOnline = fetcherStatus === 'online' || fetcherStatus === 'joining';  // 프로세스 실행 여부
 
   const [online, setOnline]       = useState(true);   // 백엔드 도달 가능 여부
   const [statusMap, setStatusMap] = useState({});   // provider → { configured, masked, fields }

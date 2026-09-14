@@ -2,6 +2,7 @@
  * FetcherStatus — 헤더에 표시되는 로컬 Fetcher 상태 표시기 + 실행/설치 안내.
  *
  * 온라인:  초록 점 + "Fetcher" (클릭 시 상태 패널)
+ * 연결 중: 노란 점 + "Fetcher 연결 중" — 실행 중이지만 클라우드 워커 풀에 아직 미합류
  * 오프라인: 빨간 점 + "Fetcher 꺼짐" — 클릭하면 패널이 열리고
  *           - 데스크탑(Tauri): "Fetcher 실행" 버튼(Tauri 명령 호출)
  *           - 웹: 다운로드/설치 안내 링크
@@ -22,13 +23,22 @@ const FETCHER_LAUNCH_URL = 'marketpulse://start';
 const DOT = {
   checking: 'bg-yellow-500 animate-pulse',
   online: 'bg-green-500',
+  joining: 'bg-amber-500 animate-pulse',
   offline: 'bg-red-500',
 };
 
 const LABEL = {
   checking: 'Fetcher 확인 중',
   online: 'Fetcher',
+  joining: 'Fetcher 연결 중',
   offline: 'Fetcher 꺼짐',
+};
+
+const TITLE = {
+  checking: 'Fetcher 상태 확인 중',
+  online: 'Fetcher 실행 중',
+  joining: 'Fetcher가 실행 중이지만 서버에 아직 연결되지 않았습니다',
+  offline: 'Fetcher가 실행되고 있지 않습니다',
 };
 
 export default function FetcherStatus() {
@@ -107,7 +117,7 @@ export default function FetcherStatus() {
     <div className="relative" ref={panelRef}>
       <button
         onClick={() => setOpen((v) => !v)}
-        title={status === 'online' ? 'Fetcher 실행 중' : 'Fetcher가 실행되고 있지 않습니다'}
+        title={TITLE[status]}
         className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors"
       >
         <span className={`w-2 h-2 rounded-full ${DOT[status]}`} />
@@ -136,6 +146,7 @@ export default function FetcherStatus() {
               <span className={`w-2 h-2 rounded-full ${DOT[status]}`} />
               <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
                 {status === 'online' && '실행 중 — 데이터 조회가 가능합니다.'}
+                {status === 'joining' && '실행 중 — 서버 연결을 기다리는 중입니다.'}
                 {status === 'checking' && '상태 확인 중…'}
                 {status === 'offline' && '실행되고 있지 않습니다.'}
               </span>
@@ -150,6 +161,13 @@ export default function FetcherStatus() {
               </p>
             )}
 
+            {status === 'joining' && (
+              <p className="text-[11px] leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
+                연결되면 실패했던 위젯이 자동으로 다시 조회됩니다. 계속 연결되지 않으면
+                로그아웃 후 다시 로그인해 Fetcher 토큰을 갱신하세요.
+              </p>
+            )}
+
             {status === 'offline' && !isTauri && launchTried && !launching && (
               <p className="text-[11px] leading-relaxed text-amber-400/80">
                 실행되지 않았나요? 아직 설치 전이거나 브라우저가 앱 열기를 차단했을 수 있습니다.
@@ -159,7 +177,7 @@ export default function FetcherStatus() {
 
             <div className="flex items-center gap-2 flex-wrap">
               {/* 종료 — 실행 중일 때 (loopback /shutdown) */}
-              {status === 'online' && (
+              {(status === 'online' || status === 'joining') && (
                 <button
                   onClick={handleStop}
                   disabled={stopping}
