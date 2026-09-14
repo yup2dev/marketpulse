@@ -9,8 +9,12 @@ Bearer <token> 헤더로 호출한다 (FetcherClient가 이미 지원).
 """
 from __future__ import annotations
 
+import base64
+import json
 import os
 import secrets
+import time
+from typing import Optional
 
 from data_fetcher.server.keystore import _config_dir
 
@@ -67,10 +71,51 @@ def write_user_token(token: str) -> None:
         pass
 
 
-def clear_user_token() -> None:
-    """로그아웃 시 토큰 파일 제거 → 워커가 접속을 보류한다."""
+def clear_user_token(expected: Optional[str] = None) -> bool:
+    """로그아웃 시 토큰 파일 제거 → 워커가 접속을 보류한다.
+
+    expected가 주어지면 저장된 토큰과 같을 때만 지운다. 오래된 탭의 강제 로그아웃이
+    다른 세션이 방금 넣은 유효한 토큰까지 지워 워커를 끊는 것을 막는다.
+    """
     path = _config_dir() / _USER_TOKEN_FILE
+    if expected is not None and get_user_token() != expected.strip():
+        return False
     try:
         path.unlink(missing_ok=True)
     except OSError:
-        pass
+        return False
+    return True
+
+
+def token_claims(token: str) -> Optional[dict]:
+    """JWT payload를 서명 검증 없이 읽는다(서명 키는 백엔드만 보유).
+
+    Fetcher는 진위를 판단할 수 없으므로, 명백히 쓸 수 없는 토큰을 거르는 데만 쓴다.
+    """
+    parts = (token or "").strip().split(".")
+    if len(parts) != 3:
+        return None
+    try:
+        claims = json.loads(base64.urlsafe_b64decode(parts[1] + "=" * (-len(parts[1]) % 4)))
+    except ValueError:  # binascii.Error / JSONDecodeError / UnicodeDecodeError 모두 ValueError
+        return None
+    return claims if isinstance(claims, dict) else None
+
+
+def user_token_problem(token: str) -> Optional[str]:
+    """워커 접속에 쓸 수 없는 토큰이면 사유를, 쓸 만하면 None을 반환한다.
+
+    만료·형식 오류 토큰을 저장하면 기존의 유효한 토큰을 덮어써 백엔드가 403으로
+    거부한다(오래된 탭 localStorage의 토큰이 흘러드는 경우).
+    """
+    claims = token_claims(token)
+    if claims is None:
+        return "malformed token"
+    if claims.get("type") not in ("fetcher", "access"):
+        return f"unsupported token type: {claims.get('type')}"
+    if not claims.get("sub"):
+        return "token missing subject"
+    exp = claims.get("exp")
+    if isinstance(exp, (int, float)) and exp <= time.time():
+        return "token expired"
+    return None

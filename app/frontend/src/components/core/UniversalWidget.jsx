@@ -24,6 +24,7 @@ import CommonChart        from '../common/CommonChart';
 import ChartTypeSelector  from '../common/ChartTypeSelector';
 import PlotlyRawChart     from './PlotlyRawChart';
 import { apiClient, API_BASE, providersAPI } from '../../config/api';
+import { FETCHER_WORKER_CONNECTED } from '../../hooks/useFetcherHealth';
 import { WIDGET_ENDPOINTS } from '../../registry/widgetEndpoints';
 import { resolveProviderView } from '../../registry/providerViews';
 import {
@@ -299,6 +300,13 @@ export default function UniversalWidget({
   }, [endpoint, buildUrl, provider, category, dynamicParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Fetcher 워커가 풀에 합류하면 실패 상태였던 위젯을 재조회 — 합류 전 요청의 503이 남지 않게.
+  useEffect(() => {
+    if (!error) return undefined;
+    window.addEventListener(FETCHER_WORKER_CONNECTED, fetchData);
+    return () => window.removeEventListener(FETCHER_WORKER_CONNECTED, fetchData);
+  }, [error, fetchData]);
 
   // 응답에 chart_hint가 실려 오면(copilot 데이터셋 등) 기본 차트형/뷰 적용
   useEffect(() => {

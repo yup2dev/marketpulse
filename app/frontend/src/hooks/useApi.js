@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { apiClient } from '../config/api';
 import { useLoading } from '../contexts/LoadingContext';
+import { FETCHER_WORKER_CONNECTED } from './useFetcherHealth';
 
 export const useApi = (url, options = {}) => {
   const [data, setData] = useState(null);
@@ -53,6 +54,13 @@ export const useApi = (url, options = {}) => {
   const refetch = useCallback(() => {
     fetchData();
   }, [fetchData]);
+
+  // Fetcher 워커가 풀에 합류하면 실패했던 조회를 재시도
+  useEffect(() => {
+    if (!error || manual) return undefined;
+    window.addEventListener(FETCHER_WORKER_CONNECTED, refetch);
+    return () => window.removeEventListener(FETCHER_WORKER_CONNECTED, refetch);
+  }, [error, manual, refetch]);
 
   return { data, loading, error, refetch };
 };

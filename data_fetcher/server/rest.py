@@ -74,6 +74,35 @@ class KeyRequest(BaseModel):
 
 class UserTokenRequest(BaseModel):
     token: str
+    backend: Optional[str] = None  # 토큰을 발급한 백엔드 API 주소(웹이 전달) — 워커 접속 대상과 대조
+
+
+class UserTokenClearRequest(BaseModel):
+    token: Optional[str] = None  # 로그아웃하는 세션의 토큰 — 저장된 토큰과 같을 때만 지운다
+
+
+def _backend_ws_url() -> str:
+    """워커가 합류할 백엔드 WS 주소. 미설정이면 클라우드 기본값, 빈 문자열이면 합류 비활성."""
+    raw = os.getenv("FETCHER_BACKEND_WS_URL")
+    return _DEFAULT_BACKEND_WS_URL if raw is None else raw.strip()
+
+
+_DEFAULT_PORTS = {"http": 80, "ws": 80, "https": 443, "wss": 443}
+_LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1"}
+
+
+def _same_backend(api_base: str, ws_url: str) -> bool:
+    """웹의 API 주소와 워커 WS 주소가 같은 서버(host+port)를 가리키는지."""
+    from urllib.parse import urlsplit
+
+    def _origin(url: str):
+        u = urlsplit(url.strip())
+        host = (u.hostname or "").lower()
+        if host in _LOOPBACK_HOSTS:
+            host = "localhost"
+        return host, u.port or _DEFAULT_PORTS.get(u.scheme.lower())
+
+    return _origin(api_base) == _origin(ws_url)
 
 
 @asynccontextmanager
@@ -88,8 +117,7 @@ async def _lifespan(app: FastAPI):
     (~/.marketpulse_fetcher/user_token)을 기록하면, 워커가 매 접속 시 이를 읽어 접속한다.
     토큰이 아직 없으면(로그인 전) 보류하고 주기적으로 재확인한다(재시작 불필요).
     """
-    raw = os.getenv("FETCHER_BACKEND_WS_URL")
-    ws_url = _DEFAULT_BACKEND_WS_URL if raw is None else raw.strip()
+    ws_url = _backend_ws_url()
     task: Optional[asyncio.Task] = None
     if ws_url:
         from data_fetcher.server.auth import get_user_token
@@ -180,17 +208,29 @@ def create_app(
     # 토큰의 유효성은 클라우드 백엔드가 /ws/fetcher 접속 시 검증한다(여기선 저장만).
     @app.post("/user-token")
     async def set_user_token(req: UserTokenRequest) -> Dict[str, str]:
-        from data_fetcher.server.auth import write_user_token
-        if not (req.token and req.token.strip()):
+        from data_fetcher.server.auth import user_token_problem, write_user_token
+        token = (req.token or "").strip()
+        if not token:
             raise HTTPException(status_code=400, detail="token is empty")
-        write_user_token(req.token)
+        # 쓸 수 없는 토큰으로 기존 토큰을 덮어쓰지 않는다 — 덮어쓰면 워커가 403으로 풀에서 빠진다.
+        problem = user_token_problem(token)
+        if problem:
+            raise HTTPException(status_code=400, detail=problem)
+        ws_url = _backend_ws_url()
+        if req.backend and ws_url and not _same_backend(req.backend, ws_url):
+            # 다른 백엔드(로컬 개발 서버 등)가 발급한 토큰 — 이 워커의 접속 대상에선 거부된다.
+            raise HTTPException(
+                status_code=409,
+                detail=f"token is for {req.backend}, but this Fetcher joins {ws_url}",
+            )
+        write_user_token(token)
         return {"status": "ok"}
 
     @app.delete("/user-token")
-    async def delete_user_token() -> Dict[str, str]:
+    async def delete_user_token(req: Optional[UserTokenClearRequest] = None) -> Dict[str, str]:
         from data_fetcher.server.auth import clear_user_token
-        clear_user_token()
-        return {"status": "cleared"}
+        cleared = clear_user_token(expected=req.token if req else None)
+        return {"status": "cleared" if cleared else "kept"}
 
     # ── 종료 (웹 '종료' 버튼이 loopback으로 호출) ──────────────────────────────
     # 브라우저는 로컬 프로세스를 직접 못 죽이므로, Fetcher가 자기 자신을 종료한다.

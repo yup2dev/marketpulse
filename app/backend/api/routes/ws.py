@@ -30,8 +30,9 @@ import json
 import logging
 from typing import Dict, Optional, Set
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, Query
 
+from app.backend.core.auth.dependencies import get_current_active_user
 from app.backend.core.auth.security import decode_token
 from app.backend.core.fetcher_pool import fetcher_pool
 from app.backend.core.pubsub import (
@@ -438,6 +439,13 @@ async def ws_quotes(
 
 
 # ── 사용자 PC Fetcher 워커 (push 위임) ─────────────────────────────────────────
+
+@router.get("/api/fetcher/status", summary="내 Fetcher 워커의 클라우드 풀 합류 여부")
+async def fetcher_status(user=Depends(get_current_active_user)) -> Dict[str, bool]:
+    """로컬 Fetcher가 떠 있어도 토큰 거부 등으로 풀에 합류하지 못했을 수 있다.
+    웹은 이 값으로 '실행 중'과 '연결됨'을 구분하고, 합류 시 실패한 조회를 재시도한다."""
+    return {"connected": fetcher_pool.has_worker(str(user.user_id))}
+
 
 @router.websocket("/ws/fetcher")
 async def ws_fetcher(
