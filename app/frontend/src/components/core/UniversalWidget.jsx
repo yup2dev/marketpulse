@@ -151,7 +151,32 @@ export default function UniversalWidget({
   const [dynamicParams, setDynamicParams] = useState(null);
   // 모델이 symbol을 받는지(null=미상/정적 위젯 → 기존대로 표시). false면 심볼 셀렉터 숨김.
   const [modelAcceptsSymbol, setModelAcceptsSymbol] = useState(null);
-  const paramsSpec = reg.params ?? dynamicParams ?? undefined;
+  // select 파라미터의 선택지를 API에서 채운다: p.optionsFrom = { endpoint, value, label }.
+  // 실패하거나 비면 정적 p.options 를 그대로 쓴다.
+  const [remoteOptions, setRemoteOptions] = useState({});
+  const paramsSpec = useMemo(() => {
+    const base = reg.params ?? dynamicParams ?? undefined;
+    if (!base || !Object.keys(remoteOptions).length) return base;
+    return base.map((p) => (remoteOptions[p.name] ? { ...p, options: remoteOptions[p.name] } : p));
+  }, [reg.params, dynamicParams, remoteOptions]);
+
+  useEffect(() => {
+    const specs = (reg.params || []).filter((p) => p.optionsFrom?.endpoint);
+    if (!specs.length) return undefined;
+    let cancelled = false;
+    specs.forEach((p) => {
+      const { endpoint: optionsEndpoint, value = 'value', label = 'label' } = p.optionsFrom;
+      apiClient.get(`${API_BASE}${optionsEndpoint}`)
+        .then((res) => {
+          const opts = (res?.results || [])
+            .filter((r) => r?.[value] != null)
+            .map((r) => ({ value: r[value], label: r[label] ?? r[value] }));
+          if (!cancelled && opts.length) setRemoteOptions((s) => ({ ...s, [p.name]: opts }));
+        })
+        .catch(() => { /* 정적 options 유지 */ });
+    });
+    return () => { cancelled = true; };
+  }, [reg.params]);
 
   const initParams = useMemo(() => {
     const obj = {};

@@ -1,7 +1,7 @@
 """DB Institutions List Fetcher — index_analyzer 배치가 적재한 13F 기관 목록 조회.
 
-MBS_IN_INSTI_MST 에서 읽는다(온디맨드 스크래핑 없음). 배치 미적재 시 빈 목록 →
-백엔드가 whalewisdom 온디맨드로 폴백.
+MBS_IN_INSTI_MST 에서 읽는다(온디맨드 스크래핑 없음). 배치 미적재 시 빈 목록
+(서버 온디맨드 폴백 없음 — 13F 파싱은 로컬 배치에서만).
 """
 import logging
 from typing import Any, Dict, List, Optional
@@ -11,7 +11,7 @@ from data_fetcher.abstract_provider.standard_models.institutions_list import (
     InstitutionsListQueryParams,
     InstitutionInfo,
 )
-from index_analyzer.models.orm import MBS_IN_INSTI_MST, MBS_IN_INSTI_PORT
+from index_analyzer.models.orm import MBS_IN_INSTI_MST, MBS_IN_INSTI_PERF, MBS_IN_INSTI_PORT
 
 log = logging.getLogger(__name__)
 
@@ -22,6 +22,8 @@ class DBInstitutionsListQueryParams(InstitutionsListQueryParams):
     # True면 포트폴리오(INSTI_PORT)가 실제 적재된 기관만 반환 — 13F 위젯이 조회
     # 가능한(선택하면 반드시 DB에 데이터가 있는) 기관만 목록에 노출하도록.
     loaded_only: bool = False
+    # True면 추정 수익률(INSTI_PERF)이 적재된 기관만 — Fund Performance 위젯 선택지용.
+    with_performance: bool = False
 
 
 class DBInstitutionsListFetcher(DbFetcher[DBInstitutionsListQueryParams, InstitutionInfo]):
@@ -48,6 +50,12 @@ class DBInstitutionsListFetcher(DbFetcher[DBInstitutionsListQueryParams, Institu
                 q = q.filter(
                     MBS_IN_INSTI_MST.institution_key.in_(
                         session.query(MBS_IN_INSTI_PORT.institution_key)
+                    )
+                )
+            if query.with_performance:
+                q = q.filter(
+                    MBS_IN_INSTI_MST.institution_key.in_(
+                        session.query(MBS_IN_INSTI_PERF.institution_key)
                     )
                 )
             q = q.order_by(MBS_IN_INSTI_MST.name)

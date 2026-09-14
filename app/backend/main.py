@@ -82,8 +82,10 @@ async def lifespan(app: FastAPI):
         from app.backend.services.user_key_service import get_credentials
         return get_credentials(user_id, provider)
 
+    # server_mode: 13F 원본 파싱 모델(_local_only_models)을 이 서버 프로세스에서 실행하지 않는다.
     QueryExecutor.configure(
         cache=cache, remote=fetcher_client, credential_resolver=_credential_resolver,
+        server_mode=True,
     )
 
     # ── Redis Pub/Sub (멀티워커 WS fan-out) ──────────────────────────────────

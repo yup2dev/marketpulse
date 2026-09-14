@@ -27,6 +27,7 @@ from .ingest import (
     MBS_IN_INSTI_MST,
     MBS_IN_INSTI_PORT,
     MBS_IN_INSTI_HOLD,
+    MBS_IN_INSTI_PERF,
     MBS_IN_RESEARCH_RPT,
 )
 from .process import MBS_PROC_ARTICLE
@@ -78,6 +79,7 @@ __all__ = [
     "MBS_IN_INSTI_MST",
     "MBS_IN_INSTI_PORT",
     "MBS_IN_INSTI_HOLD",
+    "MBS_IN_INSTI_PERF",
     "MBS_IN_RESEARCH_RPT",
     # PROC / CALC / RCMD
     "MBS_PROC_ARTICLE",

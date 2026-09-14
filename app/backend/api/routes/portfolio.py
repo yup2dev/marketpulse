@@ -22,11 +22,13 @@ async def get_13f_institutions(
     use_dynamic: bool = True,
     limit: int = 1000,
     loaded_only: bool = True,
+    with_performance: bool = False,
     provider: str = "sec",
 ) -> OBBject:
     try:
         institutions = await portfolio_service.get_institutions_list(
-            use_dynamic=use_dynamic, limit=limit, loaded_only=loaded_only
+            use_dynamic=use_dynamic, limit=limit, loaded_only=loaded_only,
+            with_performance=with_performance,
         )
         return OBBject(
             results=institutions,
@@ -52,10 +54,12 @@ async def get_fund_performance(
     어떤 소스로도 못 가져온다. 여기 값은 분기말 13F 스냅샷 2개를 비교한 근사치이며
     미국 상장주식 롱 포지션만 반영한다. 응답의 coverage_pct / derivative_weight_pct
     를 함께 봐야 신뢰도를 판단할 수 있다.
+
+    로컬 배치가 산출·적재한 값(db)만 읽는다 — provider 는 출처 표기용(원본은 SEC 13F).
     """
     try:
         rows = await portfolio_service.get_fund_performance(
-            institution_key=institution_key, quarters=quarters, provider=provider
+            institution_key=institution_key, quarters=quarters
         )
         return OBBject(
             results=rows,

@@ -51,6 +51,7 @@ TABLES: Dict[str, Dict[str, Any]] = {
     "mbs_in_insti_mst":         {},
     "mbs_in_insti_port":        {},
     "mbs_in_insti_hold":        {"group_by": "institution_key"},
+    "mbs_in_insti_perf":        {"group_by": "institution_key"},
     "mbs_in_research_rpt":      {},
 }
 

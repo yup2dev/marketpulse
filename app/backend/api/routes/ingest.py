@@ -37,6 +37,7 @@ from index_analyzer.models.orm.ingest import (
     MBS_IN_INDX_STBD,
     MBS_IN_INSTI_HOLD,
     MBS_IN_INSTI_MST,
+    MBS_IN_INSTI_PERF,
     MBS_IN_INSTI_PORT,
     MBS_IN_RESEARCH_RPT,
     MBS_IN_STBD_MST,
@@ -62,6 +63,7 @@ _TABLES: Dict[str, Dict[str, Any]] = {
     "mbs_in_insti_mst":         {"model": MBS_IN_INSTI_MST,         "conflict": ["institution_key"]},
     "mbs_in_insti_port":        {"model": MBS_IN_INSTI_PORT,        "conflict": ["institution_key"]},
     "mbs_in_insti_hold":        {"model": MBS_IN_INSTI_HOLD,        "replace_by": "institution_key"},
+    "mbs_in_insti_perf":        {"model": MBS_IN_INSTI_PERF,        "replace_by": "institution_key"},
     "mbs_in_research_rpt":      {"model": MBS_IN_RESEARCH_RPT,      "conflict": ["report_id"]},
 }
 

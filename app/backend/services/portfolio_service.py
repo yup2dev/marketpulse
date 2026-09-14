@@ -10,12 +10,12 @@ log = logging.getLogger(__name__)
 class PortfolioService:
 
     async def _fetch_cached(self, model: str, params: Dict[str, Any]):
-        """db(배치 캐싱) 전용 조회. whalewisdom 서버 온디맨드 폴백은 제거한다.
+        """db(배치 적재) 전용 조회. 13F 원본 파싱은 서버에서 하지 않는다.
 
         과거엔 캐시 미스 시 whalewisdom으로 온디맨드 스크래핑했으나, 동기 blocking
         fetch가 (a)백엔드 이벤트루프를 막고 (b)작은 운영 인스턴스에서 메모리 폭증→OOM으로
-        앱을 죽였다. 이제 미적재 기관은 폴백 없이 빈 결과를 반환하고, 호출부가 에러로
-        승격해 프론트가 표시한다(배치 캐시 워밍이 사실상 필수 보호장치).
+        앱을 죽였다. 이제 로컬 배치(Institutional13FCollector)가 파싱·산출해 적재한 데이터만
+        읽고, 미적재 기관은 빈 결과 → 호출부가 에러로 승격해 프론트가 표시한다.
         """
         return await QueryExecutor.fetch('db', model, params)
 
@@ -24,11 +24,13 @@ class PortfolioService:
         use_dynamic: bool = True,
         limit: int = 1000,
         loaded_only: bool = True,
+        with_performance: bool = False,
     ) -> List[Dict[str, Any]]:
         try:
             results = await self._fetch_cached(
                 'institutions_list',
-                {'use_dynamic': use_dynamic, 'limit': limit, 'loaded_only': loaded_only},
+                {'use_dynamic': use_dynamic, 'limit': limit, 'loaded_only': loaded_only,
+                 'with_performance': with_performance},
             )
             return [
                 {
@@ -121,24 +123,23 @@ class PortfolioService:
         self,
         institution_key: str,
         quarters: int = 8,
-        provider: str = 'sec',
     ) -> List[Dict[str, Any]]:
         """13F 보유종목 기반 분기별 추정 수익률.
 
         실제 NAV 수익률이 아니라 공시 스냅샷 비교로 얻은 근사치다(한계는
-        standard_models/fund_performance.py 참고). 13F 원본을 직접 파싱해야 해서
-        db 캐시 경유가 아닌 provider 직접 조회 — QueryExecutor TTL(6h)이 보호한다.
+        standard_models/fund_performance.py 참고). 13F 원본을 여러 분기 파싱해야 해서
+        로컬 배치가 산출·적재한 결과(db)만 읽는다.
         """
         try:
-            results = await QueryExecutor.fetch(
-                provider, 'fund_performance',
+            results = await self._fetch_cached(
+                'fund_performance',
                 {'institution_key': institution_key, 'quarters': quarters},
             )
 
             if not results:
                 raise ValueError(
-                    f"'{institution_key}' 수익률을 산출할 수 없습니다. "
-                    f"13F 제출이 2개 분기 미만이거나 보유내역이 비어 있습니다."
+                    f"'{institution_key}' 추정 수익률이 적재돼 있지 않습니다"
+                    f"(배치 미적재 또는 13F 제출 2개 분기 미만)."
                 )
 
             return [

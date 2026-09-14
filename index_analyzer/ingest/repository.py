@@ -23,6 +23,7 @@ from ..models.orm import (
     MBS_IN_INSTI_MST,
     MBS_IN_INSTI_PORT,
     MBS_IN_INSTI_HOLD,
+    MBS_IN_INSTI_PERF,
 )
 
 log = get_logger(__name__)
@@ -391,6 +392,47 @@ def store_institution_portfolio(institution_key: str, port: Dict[str, Any]) -> N
     except Exception as exc:
         session.rollback()
         log.error("[ingest] 13F %s 저장 실패: %s", institution_key, exc, exc_info=True)
+        raise
+    finally:
+        session.close()
+
+
+_PERF_FIELDS = (
+    "period", "filing_date", "name", "manager", "return_pct", "cumulative_return_pct",
+    "aum_change_pct", "total_value", "num_holdings", "coverage_pct", "derivative_weight_pct",
+    "matched_positions", "excluded_positions", "top_contributor", "top_contributor_pct",
+    "top_detractor", "top_detractor_pct",
+)
+
+
+def store_fund_performance(institution_key: str, rows: List[Dict[str, Any]]) -> int:
+    """한 기관의 13F 추정 분기 수익률(한 행=한 분기)을 교체 적재. 반환: 적재 행 수.
+
+    rows 가 비면(13F 2개 분기 미만 등) 기존 행만 지운다 — 오래된 수익률이 남지 않게.
+    """
+    if not institution_key:
+        return 0
+    institution_key = str(institution_key)
+    session = default_db.get_session()
+    try:
+        session.query(MBS_IN_INSTI_PERF).filter(
+            MBS_IN_INSTI_PERF.institution_key == institution_key
+        ).delete(synchronize_session=False)
+        n = 0
+        for r in rows or []:
+            if not r.get("period"):
+                continue
+            row = MBS_IN_INSTI_PERF(institution_key=institution_key)
+            for f in _PERF_FIELDS:
+                setattr(row, f, r.get(f))
+            session.add(row)
+            n += 1
+        session.commit()
+        log.info("[ingest] 13F %s 수익률 적재: %d분기", institution_key, n)
+        return n
+    except Exception as exc:
+        session.rollback()
+        log.error("[ingest] 13F %s 수익률 저장 실패: %s", institution_key, exc, exc_info=True)
         raise
     finally:
         session.close()

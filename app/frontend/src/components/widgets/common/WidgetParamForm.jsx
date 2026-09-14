@@ -6,6 +6,7 @@
  *
  * Param spec (each entry):
  *   { name, label, kind: 'select'|'number'|'date'|'text', default, options?, step?, min?, max?, hint?, upper? }
+ *   select 의 optionsFrom: { endpoint, value, label } 은 UniversalWidget 이 API 결과로 options 를 채운다.
  */
 import { useState, useRef } from 'react';
 import { SlidersHorizontal, ChevronDown } from 'lucide-react';

@@ -65,13 +65,14 @@ export const WIDGET_ENDPOINTS = {
   // 13F 보유종목 기반 '추정' 분기 수익률. 실제 NAV 수익률이 아니다(헤지펀드 실수익률은
   // 비공시). coverage_pct/derivative_weight_pct 컬럼이 신뢰도 지표라 차트가 아닌
   // 테이블로 노출한다 — 수익률만 그리면 커버리지 경고가 사라져 오독된다.
+  // 13F 파싱은 로컬 배치가 하고 서버는 적재 DB만 읽으므로 provider 셀렉터를 두지 않는다.
   'fund-performance': {
     title:    'Fund Performance (13F 추정)',
     endpoint: '/portfolio/13f/{institution_key}/performance?quarters={quarters}',
-    category: 'fund_performance',
-    provider: 'sec',
     params: [
       { name: 'institution_key', label: 'Fund', kind: 'select', default: 'situational-awareness',
+        // 수익률이 적재된 기관으로 채우고, 실패 시 아래 정적 목록 사용
+        optionsFrom: { endpoint: '/portfolio/13f/institutions?with_performance=true', value: 'key', label: 'name' },
         options: [
           'situational-awareness', 'berkshire', 'ark', 'pershing', 'tiger',
           'citadel', 'bridgewater', 'appaloosa', 'greenlight', 'thirdpoint',
