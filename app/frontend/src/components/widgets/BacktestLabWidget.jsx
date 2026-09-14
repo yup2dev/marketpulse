@@ -1,17 +1,17 @@
 /**
- * BacktestPage — visualization tab combining the existing Advanced Chart
- * (ChartWidget series-mode) with data drawn from the widget catalog.
+ * BacktestLabWidget — chart studio combining the Advanced Chart
+ * (ChartWidget series-mode) with data drawn from the series catalog.
  *
+ * /backtest 탭 템플릿(urlWidgetMap)의 'backtest-lab' 위젯. 헤더의 심볼 선택을 seed 로 받는다.
  * v1: chart-only (no strategy backtest engine yet — see roadmap).
  */
-import { useState, useCallback } from 'react';
-import { LineChart } from 'lucide-react';
+import { useState, useCallback, useEffect } from 'react';
 import toast from 'react-hot-toast';
 
 import SeriesPicker  from '../backtest/SeriesPicker';
-import ChartWidget   from '../widgets/ChartWidget';
+import ChartWidget   from './ChartWidget';
 import { extractPoints, resolveTemplate } from '../backtest/seriesCatalog';
-import { CHART_COLORS } from '../widgets/constants';
+import { CHART_COLORS } from './constants';
 import { apiClient, API_BASE } from '../../config/api';
 
 const fmtDate = d => d.toISOString().slice(0, 10);
@@ -38,12 +38,15 @@ function rangeToPeriod(startDate) {
   return 'max';
 }
 
-export default function BacktestPage() {
-  const [symbol, setSymbol]             = useState('AAPL');
+export default function BacktestLabWidget({ symbol: symbolProp, onRemove }) {
+  const [symbol, setSymbol]             = useState(symbolProp || 'AAPL');
   const [startDate, setStartDate]       = useState(() => defaultRange().start);
   const [endDate, setEndDate]           = useState(() => defaultRange().end);
   const [loadedSeries, setLoadedSeries] = useState([]);
   const [isAdding, setIsAdding]         = useState(false);
+
+  // 헤더 심볼 선택이 바뀌면 다음에 추가할 시리즈의 심볼도 따라간다(이미 그린 시리즈는 유지).
+  useEffect(() => { if (symbolProp) setSymbol(symbolProp); }, [symbolProp]);
 
   const handleAddSeries = useCallback(async (entry) => {
     if (!startDate || !endDate || startDate > endDate) {
@@ -101,18 +104,8 @@ export default function BacktestPage() {
   }, []);
 
   return (
-    <div className="px-6 py-4 min-h-[calc(100vh-3.5rem-4rem)]">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <LineChart className="text-cyan-400" size={18} />
-          <h1 className="text-lg font-semibold text-white">Backtest Lab</h1>
-          <span className="text-[11px] text-gray-500 ml-2">
-            Chart studio — combine price, fundamentals, quant & macro on one canvas
-          </span>
-        </div>
-      </div>
-
-      <div className="flex gap-4">
+    <div className="flex gap-3 h-full min-h-0">
+      <div className="flex-shrink-0 overflow-y-auto">
         <SeriesPicker
           symbol={symbol}
           onSymbolChange={setSymbol}
@@ -126,15 +119,16 @@ export default function BacktestPage() {
           onToggleVisible={handleToggleVisible}
           isAdding={isAdding}
         />
+      </div>
 
-        <div className="flex-1 min-w-0" style={{ minHeight: 600 }}>
-          <ChartWidget
-            series={loadedSeries}
-            title="Backtest Chart"
-            subtitle={`${symbol} · ${startDate} ~ ${endDate}`}
-            loading={isAdding}
-          />
-        </div>
+      <div className="flex-1 min-w-0 min-h-0">
+        <ChartWidget
+          series={loadedSeries}
+          title="Backtest Chart"
+          subtitle={`${symbol} · ${startDate} ~ ${endDate}`}
+          loading={isAdding}
+          onRemove={onRemove}
+        />
       </div>
     </div>
   );

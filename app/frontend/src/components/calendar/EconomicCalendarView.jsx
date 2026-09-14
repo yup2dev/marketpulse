@@ -1,7 +1,7 @@
 /**
  * EconomicCalendarView — 일자별 경제 이벤트 타임라인.
  * 데이터: /api/data/nasdaq/economic_calendar?date= (라이브, 하드코딩 없음)
- * CalendarPage 탭과 대시보드 위젯이 공유한다.
+ * 캘린더 위젯(/calendar 탭·대시보드)이 사용한다.
  */
 import { useState, useEffect, useCallback } from 'react';
 import { apiClient, API_BASE } from '../../config/api';

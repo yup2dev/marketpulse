@@ -37,6 +37,7 @@ import TradingViewRankingWidget     from '../components/widgets/TradingViewRanki
 import TradingViewMiniChartWidget   from '../components/widgets/TradingViewMiniChartWidget';
 import ComparisonWidget        from '../components/widgets/ComparisonWidget';
 import ChartWidget             from '../components/widgets/ChartWidget';
+import BacktestLabWidget       from '../components/widgets/BacktestLabWidget';
 import HeatmapWidget           from '../components/widgets/HeatmapWidget';
 import CorrelationWidget       from '../components/widgets/CorrelationWidget';
 import NoteWidget              from '../components/widgets/NoteWidget';
@@ -278,6 +279,11 @@ export const WIDGET_ENDPOINTS = {
   'advanced-chart': {
     title:     'Advanced Chart',
     component: ChartWidget,        // 멀티심볼·캔들·보조지표·페어분석 (symbol prop으로 시드)
+    propsFrom: ['symbol'],
+  },
+  'backtest-lab': {
+    title:     'Backtest Lab',
+    component: BacktestLabWidget,  // 시리즈 카탈로그 + 차트 스튜디오 (헤더 symbol을 seed로)
     propsFrom: ['symbol'],
   },
   'sparkline': {

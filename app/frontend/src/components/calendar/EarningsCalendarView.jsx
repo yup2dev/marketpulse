@@ -2,7 +2,7 @@
  * EarningsCalendarView — 일자별 실적 발표 종목 리스트.
  * 데이터: /api/data/nasdaq/earnings_calendar?date= (라이브, 하드코딩 없음)
  * 소스가 발표 후 실제 EPS는 제공하지 않아 예상 EPS·전년 EPS·시총·발표시간 중심.
- * CalendarPage 탭과 대시보드 위젯이 공유한다.
+ * 캘린더 위젯(/calendar 탭·대시보드)이 사용한다.
  */
 import { useState, useEffect, useCallback } from 'react';
 import { apiClient, API_BASE } from '../../config/api';

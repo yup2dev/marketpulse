@@ -16,6 +16,7 @@ import { GlobalWidgetContext } from '../../contexts/GlobalWidgetContext';
 import { WidgetSyncProvider } from '../../contexts/WidgetSyncContext';
 import CommandPalette from '../common/CommandPalette';
 import FetcherStatus from './FetcherStatus';
+import { URL_WIDGET_MAP } from '../../registry/urlWidgetMap';
 import CopilotPanel from '../copilot/CopilotPanel';
 
 // Menu path to URL route mapping
@@ -30,11 +31,31 @@ const ROUTE_MAP = {
   'calendar':           '/calendar',
 };
 
+// 하위 메뉴 = 그 화면의 탭(urlWidgetMap categories). 메뉴와 탭 id가 어긋나지 않도록
+// 메뉴 데이터의 children 대신 탭 정의에서 만든다. 탭이 하나뿐인 화면은 드롭다운 없음.
+function withTabChildren(menu) {
+  const [basePath] = menu.menu_path.split('?');
+  const categories = URL_WIDGET_MAP[ROUTE_MAP[basePath]]?.categories;
+  if (!categories) return menu;
+  return {
+    ...menu,
+    children: categories.length > 1
+      ? categories.map((c, i) => ({
+          menu_id: `${menu.menu_id}-${c.id}`,
+          menu_name: c.label,
+          menu_path: `${basePath}?tab=${c.id}`,
+          display_seq: i + 1,
+        }))
+      : [],
+  };
+}
+
 const AppLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuthStore();
-  const { menus, loading: menusLoading } = useMenus();
+  const { menus: rawMenus, loading: menusLoading } = useMenus();
+  const menus = useMemo(() => rawMenus.map(withTabChildren), [rawMenus]);
   const [hoveredMenu, setHoveredMenu] = useState(null);
   const [cmdOpen, setCmdOpen] = useState(false);
   const [copilotOpen, setCopilotOpen] = useState(
@@ -79,6 +100,13 @@ const AppLayout = () => {
     const [basePath] = menuPath.split('?');
     const route = ROUTE_MAP[basePath];
     return !!route && location.pathname === route;
+  };
+
+  // 하위 메뉴 활성 = 같은 화면 + 현재 URL ?tab= 일치 (DashboardPage가 첫 pane 탭을 URL에 동기화)
+  const isChildActive = (menuPath) => {
+    const [, query] = menuPath.split('?');
+    return isMenuActive(menuPath)
+      && new URLSearchParams(query).get('tab') === new URLSearchParams(location.search).get('tab');
   };
 
   const contextValue = useMemo(() => ({ registerWidgets, unregisterWidgets }), [registerWidgets, unregisterWidgets]);
@@ -134,16 +162,21 @@ const AppLayout = () => {
 
                       {hoveredMenu === menu.menu_id && menu.children?.length > 0 && (
                         <div className="absolute top-full left-0 mt-1 py-2 rounded-lg shadow-xl min-w-[180px] z-50 dark:border-gray-800 border-gray-200 border" style={{ backgroundColor: 'var(--color-bg-widget)' }}>
-                          {menu.children.map((child) => (
-                            <button
-                              key={child.menu_id}
-                              onClick={() => { handleMenuNavigate(child.menu_path); setHoveredMenu(null); }}
-                              className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors"
-                            style={{ color: 'var(--color-text-secondary)' }}
-                            >
-                              {child.menu_name}
-                            </button>
-                          ))}
+                          {menu.children.map((child) => {
+                            const childActive = isChildActive(child.menu_path);
+                            return (
+                              <button
+                                key={child.menu_id}
+                                onClick={() => { handleMenuNavigate(child.menu_path); setHoveredMenu(null); }}
+                                className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors ${
+                                  childActive ? 'text-cyan-400' : ''
+                                }`}
+                                style={childActive ? {} : { color: 'var(--color-text-secondary)' }}
+                              >
+                                {child.menu_name}
+                              </button>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
