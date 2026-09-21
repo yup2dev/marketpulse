@@ -20,18 +20,16 @@ import {
   TECHNICAL_INDICATORS,
   INDICATOR_COLORS,
   WIDGET_CONSTRAINTS,
-  formatCurrency,
   CHART_TYPES,
   CANDLE_COLORS,
 } from './constants';
 import { calculateIndicator } from '../../utils/technicalIndicators';
-import {
-  getRegimeColor,
-  getRegimeBadge,
-} from '../../utils/pairAnalysis';
+import { getRegimeColor } from '../../utils/pairAnalysis';
 import { apiClient } from '../../config/api';
 import PlotlyStockChart from './chart/PlotlyStockChart';
-import PlotlyOscillator from './chart/PlotlyOscillator';
+import PairSettingsPanel from './chart/PairSettingsPanel';
+import FcfComparisonPanel from './chart/FcfComparisonPanel';
+import OscillatorPanels from './chart/OscillatorPanels';
 import {
   SHIFT_UNITS,
   shiftDateStr,
@@ -1419,132 +1417,16 @@ const ChartWidget = ({
               </div>
             </div>
 
-            {/* Pair Analysis Settings Panel (symbol mode only) */}
-            {!isSeriesMode && pairMode && showPairSettings && (
-              <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-semibold text-white flex items-center gap-2">
-                    <GitCompare size={16} className="text-amber-400" />
-                    Pair Analysis Settings
-                  </h4>
-                  <button
-                    onClick={() => setShowPairSettings(false)}
-                    className="text-gray-400 hover:text-white"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                  {/* Long Position Selector */}
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">Long Position</label>
-                    <select
-                      value={pairConfig.longSymbol || ''}
-                      onChange={(e) => setPairConfig({ ...pairConfig, longSymbol: e.target.value || null })}
-                      className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-sm text-white focus:outline-none focus:border-amber-500"
-                    >
-                      <option value="">Select Long</option>
-                      {tickers.filter(t => t.type === 'stock' && t.symbol !== pairConfig.shortSymbol).map(t => (
-                        <option key={t.symbol} value={t.symbol}>{t.symbol}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Short Position Selector */}
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">Short Position</label>
-                    <select
-                      value={pairConfig.shortSymbol || ''}
-                      onChange={(e) => setPairConfig({ ...pairConfig, shortSymbol: e.target.value || null })}
-                      className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-sm text-white focus:outline-none focus:border-amber-500"
-                    >
-                      <option value="">Select Short</option>
-                      {tickers.filter(t => t.type === 'stock' && t.symbol !== pairConfig.longSymbol).map(t => (
-                        <option key={t.symbol} value={t.symbol}>{t.symbol}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Regime Index Selector */}
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">Regime Index</label>
-                    <select
-                      value={pairConfig.regimeSymbol}
-                      onChange={(e) => setPairConfig({ ...pairConfig, regimeSymbol: e.target.value })}
-                      className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-sm text-white focus:outline-none focus:border-amber-500"
-                    >
-                      <option value="^KS11">KOSPI (^KS11)</option>
-                      <option value="^GSPC">S&P 500 (^GSPC)</option>
-                      <option value="^IXIC">NASDAQ (^IXIC)</option>
-                      <option value="^DJI">Dow Jones (^DJI)</option>
-                    </select>
-                  </div>
-
-                  {/* Current Regime Badge */}
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">Current Regime</label>
-                    {(() => {
-                      const badge = getRegimeBadge(currentRegime);
-                      return (
-                        <div className={`${badge.bgColor} ${badge.textColor} px-3 py-1.5 rounded text-sm font-medium text-center`}>
-                          {badge.label}
-                        </div>
-                      );
-                    })()}
-                  </div>
-                </div>
-
-                {/* Toggle Options */}
-                <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t border-gray-700">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={pairConfig.showSpread}
-                      onChange={(e) => setPairConfig({ ...pairConfig, showSpread: e.target.checked })}
-                      className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-amber-500 focus:ring-amber-500"
-                    />
-                    <span className="text-sm text-gray-300">Spread Line</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={pairConfig.showIndex}
-                      onChange={(e) => setPairConfig({ ...pairConfig, showIndex: e.target.checked })}
-                      className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-amber-500 focus:ring-amber-500"
-                    />
-                    <span className="text-sm text-gray-300">Index Line (KOSPI)</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={pairConfig.showHighlight}
-                      onChange={(e) => setPairConfig({ ...pairConfig, showHighlight: e.target.checked })}
-                      className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-amber-500 focus:ring-amber-500"
-                    />
-                    <span className="text-sm text-gray-300">Outperform Highlight</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={pairConfig.showRegime}
-                      onChange={(e) => setPairConfig({ ...pairConfig, showRegime: e.target.checked })}
-                      className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-amber-500 focus:ring-amber-500"
-                    />
-                    <span className="text-sm text-gray-300">Regime Background</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={pairConfig.showFCF}
-                      onChange={(e) => setPairConfig({ ...pairConfig, showFCF: e.target.checked })}
-                      className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-amber-500 focus:ring-amber-500"
-                    />
-                    <span className="text-sm text-gray-300">FCF/CapEx Panel</span>
-                  </label>
-                </div>
-              </div>
-            )}
+            <PairSettingsPanel
+              isSeriesMode={isSeriesMode}
+              pairMode={pairMode}
+              showPairSettings={showPairSettings}
+              setShowPairSettings={setShowPairSettings}
+              pairConfig={pairConfig}
+              setPairConfig={setPairConfig}
+              tickers={tickers}
+              currentRegime={currentRegime}
+            />
 
             {/* Main Chart */}
             <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: chartTheme.background }}>
@@ -1605,264 +1487,22 @@ const ChartWidget = ({
               </div>
             </div>
 
-            {/* FCF/CapEx Comparison Panel */}
-            {pairMode && pairConfig.showFCF && pairConfig.longSymbol && pairConfig.shortSymbol && (
-              <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: chartTheme.background }}>
-                <h4 className="text-sm font-semibold text-gray-400 mb-3 flex items-center gap-2">
-                  <GitCompare size={14} className="text-amber-400" />
-                  FCF / CapEx Comparison
-                </h4>
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Long Position Financials */}
-                  <div className="bg-gray-800/30 rounded-lg p-3">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xs font-medium text-green-400 bg-green-400/20 px-2 py-0.5 rounded">LONG</span>
-                      <span className="text-sm font-semibold text-white">{pairConfig.longSymbol}</span>
-                    </div>
-                    {financialData.long?.data ? (
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-400">Free Cash Flow</span>
-                          <span className="text-white font-medium">
-                            {formatCurrency(financialData.long.data[0]?.free_cash_flow)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-400">CapEx</span>
-                          <span className="text-white font-medium">
-                            {formatCurrency(financialData.long.data[0]?.capital_expenditures)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-400">Operating CF</span>
-                          <span className="text-white font-medium">
-                            {formatCurrency(financialData.long.data[0]?.operating_cash_flow)}
-                          </span>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-xs text-gray-500">No financial data available</div>
-                    )}
-                  </div>
+            <FcfComparisonPanel
+              pairMode={pairMode}
+              pairConfig={pairConfig}
+              chartTheme={chartTheme}
+              financialData={financialData}
+              spreadData={spreadData}
+              indexData={indexData}
+              currentRegime={currentRegime}
+            />
 
-                  {/* Short Position Financials */}
-                  <div className="bg-gray-800/30 rounded-lg p-3">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xs font-medium text-red-400 bg-red-400/20 px-2 py-0.5 rounded">SHORT</span>
-                      <span className="text-sm font-semibold text-white">{pairConfig.shortSymbol}</span>
-                    </div>
-                    {financialData.short?.data ? (
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-400">Free Cash Flow</span>
-                          <span className="text-white font-medium">
-                            {formatCurrency(financialData.short.data[0]?.free_cash_flow)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-400">CapEx</span>
-                          <span className="text-white font-medium">
-                            {formatCurrency(financialData.short.data[0]?.capital_expenditures)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-400">Operating CF</span>
-                          <span className="text-white font-medium">
-                            {formatCurrency(financialData.short.data[0]?.operating_cash_flow)}
-                          </span>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-xs text-gray-500">No financial data available</div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Spread & Index Summary */}
-                {(spreadData.length > 0 || indexData.length > 0) && (
-                  <div className="mt-4 pt-4 border-t border-gray-700">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                      {spreadData.length > 0 && (
-                        <>
-                          <div>
-                            <div className="text-xs text-gray-400 mb-1">Current Spread</div>
-                            <div className="text-lg font-bold text-amber-400">
-                              {spreadData[spreadData.length - 1]?.normalizedSpread?.toFixed(3) || 'N/A'}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-xs text-gray-400 mb-1">Spread Range</div>
-                            <div className="text-sm font-bold">
-                              <span className="text-red-400">{Math.min(...spreadData.map(d => d.normalizedSpread))?.toFixed(3)}</span>
-                              <span className="text-gray-500 mx-1">~</span>
-                              <span className="text-green-400">{Math.max(...spreadData.map(d => d.normalizedSpread))?.toFixed(3)}</span>
-                            </div>
-                          </div>
-                        </>
-                      )}
-                      {indexData.length > 0 && (
-                        <>
-                          <div>
-                            <div className="text-xs text-gray-400 mb-1">{pairConfig.regimeSymbol === '^KS11' ? 'KOSPI' : pairConfig.regimeSymbol} Change</div>
-                            <div className={`text-lg font-bold ${
-                              indexData[indexData.length - 1]?.close > indexData[0]?.close ? 'text-green-400' : 'text-red-400'
-                            }`}>
-                              {(((indexData[indexData.length - 1]?.close / indexData[0]?.close) - 1) * 100).toFixed(2)}%
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-xs text-gray-400 mb-1">Current Regime</div>
-                            {(() => {
-                              const badge = getRegimeBadge(currentRegime);
-                              return (
-                                <div className={`${badge.bgColor} ${badge.textColor} px-2 py-1 rounded text-sm font-medium inline-block`}>
-                                  {badge.label}
-                                </div>
-                              );
-                            })()}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                    {/* Legend */}
-                    <div className="flex justify-center gap-6 mt-3 text-xs text-gray-500">
-                      {pairConfig.showSpread && <div className="flex items-center gap-1"><span className="w-3 h-0.5 bg-amber-500 inline-block"></span> L/S Spread</div>}
-                      {pairConfig.showIndex && <div className="flex items-center gap-1"><span className="w-3 h-0.5 bg-blue-500 inline-block" style={{borderTop: '2px dashed'}}></span> {pairConfig.regimeSymbol === '^KS11' ? 'KOSPI' : pairConfig.regimeSymbol}</div>}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* RSI Oscillator */}
-            {!normalized && technicalIndicators.some(ti => ti.indicatorId === 'RSI' && ti.visible) && (
-              <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: chartTheme.background }}>
-                <div className="mb-2">
-                  <h4 className="text-sm font-semibold text-gray-400">RSI (Relative Strength Index)</h4>
-                </div>
-                <PlotlyOscillator
-                  chartData={displayChartData}
-                  chartTheme={chartTheme}
-                  height={192}
-                  yDomain={[0, 100]}
-                  traces={technicalIndicators.filter(ti => ti.indicatorId === 'RSI' && ti.visible).map(indicator => ({
-                    dataKey: `${indicator.symbol}_RSI`,
-                    name: `${indicator.symbol} RSI`,
-                    line: { color: INDICATOR_COLORS.RSI, width: 2 },
-                  }))}
-                  shapes={[
-                    { type: 'line', xref: 'paper', yref: 'y', x0: 0, x1: 1, y0: 70, y1: 70, line: { color: '#ef4444', dash: 'dot', width: 1 } },
-                    { type: 'line', xref: 'paper', yref: 'y', x0: 0, x1: 1, y0: 30, y1: 30, line: { color: '#22c55e', dash: 'dot', width: 1 } },
-                  ]}
-                />
-              </div>
-            )}
-
-            {/* MACD Oscillator */}
-            {!normalized && technicalIndicators.some(ti => ti.indicatorId === 'MACD' && ti.visible) && (
-              <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: chartTheme.background }}>
-                <div className="mb-2">
-                  <h4 className="text-sm font-semibold text-gray-400">MACD (Moving Average Convergence Divergence)</h4>
-                </div>
-                <PlotlyOscillator
-                  chartData={displayChartData}
-                  chartTheme={chartTheme}
-                  height={192}
-                  traces={technicalIndicators.filter(ti => ti.indicatorId === 'MACD' && ti.visible).flatMap(indicator => [
-                    {
-                      type: 'bar',
-                      dataKey: `${indicator.symbol}_MACD_histogram`,
-                      name: `${indicator.symbol} Histogram`,
-                      marker: { color: INDICATOR_COLORS.MACD, opacity: 0.3 },
-                    },
-                    {
-                      dataKey: `${indicator.symbol}_MACD_macd`,
-                      name: `${indicator.symbol} MACD`,
-                      line: { color: INDICATOR_COLORS.MACD, width: 2 },
-                    },
-                    {
-                      dataKey: `${indicator.symbol}_MACD_signal`,
-                      name: `${indicator.symbol} Signal`,
-                      line: { color: INDICATOR_COLORS.MACD_signal, width: 2 },
-                    },
-                  ])}
-                  shapes={[
-                    { type: 'line', xref: 'paper', yref: 'y', x0: 0, x1: 1, y0: 0, y1: 0, line: { color: '#9ca3af', dash: 'dot', width: 1 } },
-                  ]}
-                />
-              </div>
-            )}
-
-            {/* Stochastic Oscillator */}
-            {!normalized && technicalIndicators.some(ti => ti.indicatorId === 'STOCH' && ti.visible) && (
-              <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: chartTheme.background }}>
-                <div className="mb-2">
-                  <h4 className="text-sm font-semibold text-gray-400">Stochastic Oscillator</h4>
-                </div>
-                <PlotlyOscillator
-                  chartData={displayChartData}
-                  chartTheme={chartTheme}
-                  height={192}
-                  yDomain={[0, 100]}
-                  traces={technicalIndicators.filter(ti => ti.indicatorId === 'STOCH' && ti.visible).flatMap(indicator => [
-                    {
-                      dataKey: `${indicator.symbol}_STOCH_k`,
-                      name: `${indicator.symbol} %K`,
-                      line: { color: INDICATOR_COLORS.STOCH_k, width: 2 },
-                    },
-                    {
-                      dataKey: `${indicator.symbol}_STOCH_d`,
-                      name: `${indicator.symbol} %D`,
-                      line: { color: INDICATOR_COLORS.STOCH_d, width: 2 },
-                    },
-                  ])}
-                  shapes={[
-                    { type: 'line', xref: 'paper', yref: 'y', x0: 0, x1: 1, y0: 80, y1: 80, line: { color: '#ef4444', dash: 'dot', width: 1 } },
-                    { type: 'line', xref: 'paper', yref: 'y', x0: 0, x1: 1, y0: 20, y1: 20, line: { color: '#22c55e', dash: 'dot', width: 1 } },
-                  ]}
-                />
-              </div>
-            )}
-
-            {/* ATR (Average True Range) */}
-            {!normalized && technicalIndicators.some(ti => ti.indicatorId === 'ATR' && ti.visible) && (
-              <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: chartTheme.background }}>
-                <div className="mb-2">
-                  <h4 className="text-sm font-semibold text-gray-400">ATR (Average True Range)</h4>
-                </div>
-                <PlotlyOscillator
-                  chartData={displayChartData}
-                  chartTheme={chartTheme}
-                  height={192}
-                  traces={technicalIndicators.filter(ti => ti.indicatorId === 'ATR' && ti.visible).map(indicator => ({
-                    dataKey: `${indicator.symbol}_ATR`,
-                    name: `${indicator.symbol} ATR`,
-                    line: { color: INDICATOR_COLORS.ATR, width: 2 },
-                  }))}
-                  shapes={[]}
-                />
-              </div>
-            )}
-
-            {/* OBV (On-Balance Volume) */}
-            {!normalized && technicalIndicators.some(ti => ti.indicatorId === 'OBV' && ti.visible) && (
-              <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: chartTheme.background }}>
-                <div className="mb-2">
-                  <h4 className="text-sm font-semibold text-gray-400">OBV (On-Balance Volume)</h4>
-                </div>
-                <PlotlyOscillator
-                  chartData={displayChartData}
-                  chartTheme={chartTheme}
-                  height={192}
-                  traces={technicalIndicators.filter(ti => ti.indicatorId === 'OBV' && ti.visible).map(indicator => ({
-                    dataKey: `${indicator.symbol}_OBV`,
-                    name: `${indicator.symbol} OBV`,
-                    line: { color: INDICATOR_COLORS.OBV, width: 2 },
-                  }))}
-                  shapes={[]}
-                />
-              </div>
-            )}
+            <OscillatorPanels
+              technicalIndicators={technicalIndicators}
+              normalized={normalized}
+              displayChartData={displayChartData}
+              chartTheme={chartTheme}
+            />
           </div>
         )}
       </div>
