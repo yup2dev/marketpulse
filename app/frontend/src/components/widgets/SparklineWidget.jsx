@@ -369,7 +369,7 @@ function MarketFilterTabs({ active, onChange, isKROpen, isUSOpen, width }) {
 }
 
 // ── 개별 카드 ────────────────────────────────────────────────────────────────
-function TickerCard({ label, sym, prices, price, pct, isUp, loading, cardW, cardH, onRemove }) {
+function TickerCard({ label, prices, price, pct, isUp, loading, cardW, cardH, onRemove }) {
   const color      = isUp ? '#ef4444' : '#3b82f6';
   const colorClass = isUp ? 'text-red-400' : 'text-blue-400';
 

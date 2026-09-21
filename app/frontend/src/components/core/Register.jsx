@@ -1,7 +1,7 @@
 /**
  * 회원가입 페이지
  */
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';

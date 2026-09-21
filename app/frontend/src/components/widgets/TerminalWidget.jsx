@@ -190,7 +190,7 @@ function formatResponse(data) {
   }
 
   if (hasNested) {
-    for (const [k, v] of Object.entries(data)) {
+    for (const v of Object.values(data)) {
       if (Array.isArray(v) && v.length > 0 && typeof v[0] === 'object') {
         return formatTable(v.slice(0, 20));
       }

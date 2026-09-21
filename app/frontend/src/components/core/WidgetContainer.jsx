@@ -21,7 +21,6 @@ function DynamicIcon({ name, size = 14, className }) {
 
 export default function WidgetContainer({
   widgetDef,
-  config,
   onRemove,
   children,
   className = '',
