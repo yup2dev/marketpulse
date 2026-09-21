@@ -102,6 +102,8 @@ class ApiClient {
 
   get(url)         { return this.request(url, { method: 'GET' }); }
   post(url, body)  { return this.request(url, { method: 'POST',   body: JSON.stringify(body) }); }
+  put(url, body)   { return this.request(url, { method: 'PUT',    body: JSON.stringify(body) }); }
+  del(url)         { return this.request(url, { method: 'DELETE' }); }
 }
 
 export const apiClient = new ApiClient();
@@ -123,15 +125,15 @@ export const portfolioAPI = {
   getAll:          ()            => apiClient.get(`${UP}/portfolios`),
   getById:         (id)          => apiClient.get(`${UP}/portfolios/${id}`),
   create:          (data)        => apiClient.post(`${UP}/portfolios`, data),
-  update:          (id, data)    => apiClient.request(`${UP}/portfolios/${id}`, { method: 'PUT',    body: JSON.stringify(data) }),
-  delete:          (id)          => apiClient.request(`${UP}/portfolios/${id}`, { method: 'DELETE' }),
+  update:          (id, data)    => apiClient.put(`${UP}/portfolios/${id}`, data),
+  delete:          (id)          => apiClient.del(`${UP}/portfolios/${id}`),
   getHoldings:     (id)          => apiClient.get(`${UP}/portfolios/${id}/holdings`),
   getTransactions: (id)          => apiClient.get(`${UP}/portfolios/${id}/transactions`),
   addTransaction:  (id, data)    => apiClient.post(`${UP}/portfolios/${id}/transactions`, data),
   updateTransaction: (pId, tId, data) =>
-    apiClient.request(`${UP}/portfolios/${pId}/transactions/${tId}`, { method: 'PUT',    body: JSON.stringify(data) }),
+    apiClient.put(`${UP}/portfolios/${pId}/transactions/${tId}`, data),
   deleteTransaction: (pId, tId)  =>
-    apiClient.request(`${UP}/portfolios/${pId}/transactions/${tId}`, { method: 'DELETE' }),
+    apiClient.del(`${UP}/portfolios/${pId}/transactions/${tId}`),
   getSummary:      (id)          => apiClient.get(`${UP}/portfolios/${id}/summary`),
   getPerformance:  (id, p = '1M')=> apiClient.get(`${UP}/portfolios/${id}/performance?period=${p}`),
   getAllocation:   (id)          => apiClient.get(`${UP}/portfolios/${id}/allocation`),
@@ -145,7 +147,7 @@ export const portfolioAPI = {
 export const keysAPI = {
   list:   ()              => apiClient.get(`${API_BASE}/keys`),
   set:    (data)          => apiClient.post(`${API_BASE}/keys`, data),
-  delete: (provider)      => apiClient.request(`${API_BASE}/keys/${provider}`, { method: 'DELETE' }),
+  delete: (provider)      => apiClient.del(`${API_BASE}/keys/${provider}`),
 };
 
 // ─── Providers API ────────────────────────────────────────────────────────────
@@ -176,8 +178,8 @@ export const exportAPI = {
 export const workspaceAPI = {
   list:       (screen)       => apiClient.get(`${API_BASE}/workspace?screen=${encodeURIComponent(screen)}`),
   create:     (data)         => apiClient.post(`${API_BASE}/workspace`, data),
-  update:     (id, data)     => apiClient.request(`${API_BASE}/workspace/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  delete:     (id)           => apiClient.request(`${API_BASE}/workspace/${id}`, { method: 'DELETE' }),
+  update:     (id, data)     => apiClient.put(`${API_BASE}/workspace/${id}`, data),
+  delete:     (id)           => apiClient.del(`${API_BASE}/workspace/${id}`),
   setDefault: (id)           => apiClient.post(`${API_BASE}/workspace/${id}/default`),
 };
 
@@ -188,16 +190,16 @@ export const watchlistAPI = {
   getAll:       ()              => apiClient.get(WL),
   create:       (data)          => apiClient.post(WL, data),
   getById:      (id)            => apiClient.get(`${WL}/${id}`),
-  update:       (id, data)      => apiClient.request(`${WL}/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  delete:       (id)            => apiClient.request(`${WL}/${id}`, { method: 'DELETE' }),
+  update:       (id, data)      => apiClient.put(`${WL}/${id}`, data),
+  delete:       (id)            => apiClient.del(`${WL}/${id}`),
   getItems:     (id)            => apiClient.get(`${WL}/${id}/items`),
   addTicker:    (id, data)      => apiClient.post(`${WL}/${id}/items`, data),
-  removeTicker: (id, ticker)    => apiClient.request(`${WL}/${id}/items/${encodeURIComponent(ticker)}`, { method: 'DELETE' }),
-  reorder:      (id, orders)    => apiClient.request(`${WL}/${id}/items/reorder`, { method: 'PUT', body: JSON.stringify({ ticker_orders: orders }) }),
+  removeTicker: (id, ticker)    => apiClient.del(`${WL}/${id}/items/${encodeURIComponent(ticker)}`),
+  reorder:      (id, orders)    => apiClient.put(`${WL}/${id}/items/reorder`, { ticker_orders: orders }),
   // 빠른 추가/제거 (그룹 선택 없이)
   getMyTickers: ()              => apiClient.get(`${WL}/my-tickers`),
   quickAdd:     (ticker_cd)     => apiClient.post(`${WL}/quick-add`, { ticker_cd }),
-  quickRemove:  (ticker_cd)     => apiClient.request(`${WL}/quick-remove/${encodeURIComponent(ticker_cd)}`, { method: 'DELETE' }),
+  quickRemove:  (ticker_cd)     => apiClient.del(`${WL}/quick-remove/${encodeURIComponent(ticker_cd)}`),
 };
 
 // ─── Screener API ────────────────────────────────────────────────────────────
@@ -216,10 +218,10 @@ export const screenerAPI = {
   runPreset:    (id, limit = 100)      => apiClient.post(`${SC}/presets/${id}/run?limit=${limit}`),
   getSectors:   ()                     => apiClient.get(`${SC}/sectors`),
   save:         (data)                 => apiClient.post(`${SC}/save`, data),
-  update:       (id, data)             => apiClient.request(`${SC}/saved/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  update:       (id, data)             => apiClient.put(`${SC}/saved/${id}`, data),
   getSaved:     ()                     => apiClient.get(`${SC}/saved`),
   runSaved:     (id, limit = 100)      => apiClient.post(`${SC}/saved/${id}/run?limit=${limit}`),
-  deleteSaved:  (id)                   => apiClient.request(`${SC}/saved/${id}`, { method: 'DELETE' }),
+  deleteSaved:  (id)                   => apiClient.del(`${SC}/saved/${id}`),
 };
 
 // ─── Alert API ───────────────────────────────────────────────────────────────
@@ -227,9 +229,9 @@ const AL = `${API_BASE}/alerts`;
 export const alertAPI = {
   getAll:       (isActive)     => apiClient.get(`${AL}${isActive != null ? `?is_active=${isActive}` : ''}`),
   create:       (data)         => apiClient.post(`${AL}/`, data),
-  update:       (id, data)     => apiClient.request(`${AL}/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  update:       (id, data)     => apiClient.put(`${AL}/${id}`, data),
   toggle:       (id)           => apiClient.post(`${AL}/${id}/toggle`),
-  delete:       (id)           => apiClient.request(`${AL}/${id}`, { method: 'DELETE' }),
+  delete:       (id)           => apiClient.del(`${AL}/${id}`),
   getHistory:   (alertId, limit = 50) => apiClient.get(`${AL}/history${alertId ? `?alert_id=${alertId}&` : '?'}limit=${limit}`),
   test:         (id)           => apiClient.post(`${AL}/${id}/test`),
 };
@@ -239,8 +241,8 @@ const NT = `${API_BASE}/notes`;
 export const notesAPI = {
   getAll:   (ticker)       => apiClient.get(`${NT}${ticker ? `?ticker_cd=${encodeURIComponent(ticker)}` : ''}`),
   create:   (data)         => apiClient.post(NT, data),
-  update:   (id, data)     => apiClient.request(`${NT}/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  delete:   (id)           => apiClient.request(`${NT}/${id}`, { method: 'DELETE' }),
+  update:   (id, data)     => apiClient.put(`${NT}/${id}`, data),
+  delete:   (id)           => apiClient.del(`${NT}/${id}`),
 };
 
 // ─── Backtest Lab API ─────────────────────────────────────────────────────────
@@ -249,12 +251,12 @@ const BT = `${API_BASE}/backtest`;
 export const backtestAPI = {
   listItems:  (kind)       => apiClient.get(`${BT}/items${kind ? `?kind=${kind}` : ''}`),
   createItem: (data)       => apiClient.post(`${BT}/items`, data),
-  updateItem: (id, data)   => apiClient.request(`${BT}/items/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  deleteItem: (id)         => apiClient.request(`${BT}/items/${id}`, { method: 'DELETE' }),
+  updateItem: (id, data)   => apiClient.put(`${BT}/items/${id}`, data),
+  deleteItem: (id)         => apiClient.del(`${BT}/items/${id}`),
   listRuns:   ()           => apiClient.get(`${BT}/runs`),
   getRun:     (id)         => apiClient.get(`${BT}/runs/${id}`),
   saveRun:    (data)       => apiClient.post(`${BT}/runs`, data),
-  deleteRun:  (id)         => apiClient.request(`${BT}/runs/${id}`, { method: 'DELETE' }),
+  deleteRun:  (id)         => apiClient.del(`${BT}/runs/${id}`),
 };
 
 // ─── News API ────────────────────────────────────────────────────────────────

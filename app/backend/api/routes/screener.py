@@ -1,17 +1,24 @@
 """
 종목 스크리너 API
+
+응답은 프로젝트 표준인 OBBject(`{results, provider, metadata}`)로 통일한다.
+행 목록은 `results` 에, 조회 조건·건수 같은 부가 정보는 `metadata` 에 담는다.
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Dict, Any, Optional
 
+from app.backend.api.deps import route_handler
 from app.backend.core.db import get_db
 from app.backend.core.auth.dependencies import get_current_active_user, get_optional_user
 from app.backend.services.screener_service import ScreenerService
+from data_fetcher.core import OBBject
 from index_analyzer.models.orm import User
 
 router = APIRouter(prefix="/screener", tags=["Screener"])
+
+_PROVIDER = "screener"
 
 
 # Request/Response Models
@@ -33,6 +40,7 @@ class SavedScreenerUpdate(BaseModel):
 
 
 @router.post("/screen")
+@route_handler
 async def screen_stocks(
     screen_request: ScreenRequest,
     current_user: Optional[User] = Depends(get_optional_user),
@@ -42,10 +50,14 @@ async def screen_stocks(
         filters=screen_request.filters,
         limit=screen_request.limit,
     )
-    return {"results": results, "count": len(results), "filters": screen_request.filters}
+    return OBBject(
+        results=results, provider=_PROVIDER,
+        metadata={"count": len(results), "filters": screen_request.filters},
+    )
 
 
 @router.post("/save", status_code=status.HTTP_201_CREATED)
+@route_handler
 def save_screener(
     screener_data: SavedScreenerCreate,
     current_user: User = Depends(get_current_active_user),
@@ -63,10 +75,11 @@ def save_screener(
         run_frequency=screener_data.run_frequency
     )
 
-    return screener.to_dict()
+    return OBBject(results=[screener.to_dict()], provider=_PROVIDER)
 
 
 @router.get("/saved")
+@route_handler
 def get_my_screeners(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
@@ -75,10 +88,11 @@ def get_my_screeners(
     저장된 스크리너 목록 조회
     """
     screeners = ScreenerService.get_user_screeners(db, current_user.user_id)
-    return [s.to_dict() for s in screeners]
+    return OBBject(results=[s.to_dict() for s in screeners], provider=_PROVIDER)
 
 
 @router.post("/saved/{screener_id}/run")
+@route_handler
 async def run_saved_screener(
     screener_id: str,
     limit: int = 100,
@@ -92,10 +106,11 @@ async def run_saved_screener(
     )
     if not result:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Screener not found")
-    return result
+    return OBBject(results=[result], provider=_PROVIDER)
 
 
 @router.put("/saved/{screener_id}")
+@route_handler
 def update_screener(
     screener_id: str,
     screener_data: SavedScreenerUpdate,
@@ -112,10 +127,11 @@ def update_screener(
     )
     if not screener:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Screener not found")
-    return screener.to_dict()
+    return OBBject(results=[screener.to_dict()], provider=_PROVIDER)
 
 
 @router.delete("/saved/{screener_id}")
+@route_handler
 def delete_screener(
     screener_id: str,
     current_user: User = Depends(get_current_active_user),
@@ -132,25 +148,28 @@ def delete_screener(
             detail="Screener not found"
         )
 
-    return {"message": "Screener deleted successfully"}
+    return OBBject(results=[], provider=_PROVIDER, metadata={"deleted": screener_id})
 
 
 @router.get("/sectors")
+@route_handler
 def get_sectors():
     """사용 가능한 섹터 목록 조회"""
-    return {"sectors": ScreenerService.get_available_sectors()}
+    return OBBject(results=ScreenerService.get_available_sectors(), provider=_PROVIDER)
 
 
 @router.get("/presets")
+@route_handler
 def get_screener_presets():
     """
     사전 정의된 스크리너 프리셋 목록 조회 (로그인 불필요)
     """
     presets = ScreenerService.get_presets()
-    return {"presets": presets}
+    return OBBject(results=presets, provider=_PROVIDER)
 
 
 @router.get("/presets/{preset_id}")
+@route_handler
 def get_screener_preset(preset_id: str):
     """
     특정 프리셋 조회 (로그인 불필요)
@@ -163,10 +182,11 @@ def get_screener_preset(preset_id: str):
             detail="Preset not found"
         )
 
-    return preset
+    return OBBject(results=[preset], provider=_PROVIDER)
 
 
 @router.post("/presets/{preset_id}/run")
+@route_handler
 async def run_preset_screener(
     preset_id: str,
     limit: int = 100,
@@ -177,4 +197,7 @@ async def run_preset_screener(
     if not preset:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Preset not found")
     results = await ScreenerService.screen_stocks(filters=preset["filters"], limit=limit)
-    return {"preset": preset, "results": results, "count": len(results)}
+    return OBBject(
+        results=results, provider=_PROVIDER,
+        metadata={"preset": preset, "count": len(results)},
+    )

@@ -1,18 +1,26 @@
 """
 Menu API Routes
 RESTful endpoints for menu management
+
+응답은 프로젝트 표준인 OBBject(`{results, provider, metadata}`)로 통일한다.
+단건도 `results` 배열에 담고, 계층 조회는 루트 노드들을 `results` 에 담는다.
+에러 처리는 `route_handler` 가 맡는다 — 핸들러마다 있던 try/except 500 래핑을 걷어냈다.
 """
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
+from app.backend.api.deps import route_handler
 from app.backend.core.db import get_db
 from app.backend.core.auth.dependencies import require_admin
 from app.backend.services.menu_service import MenuService
+from data_fetcher.core import OBBject
 from index_analyzer.models.orm import User
 
 router = APIRouter(prefix="/menu", tags=["menu"])
+
+_PROVIDER = "db"
 
 
 # Request/Response Models
@@ -45,7 +53,8 @@ class MenuUpdate(BaseModel):
     first_page_yn: Optional[str] = None
 
 
-@router.get("/list", response_model=List[Dict[str, Any]])
+@router.get("/list")
+@route_handler
 def get_menu_list(
     pkg_type: str = Query('MARKETPULSE', description="Package type"),
     db: Session = Depends(get_db)
@@ -60,14 +69,12 @@ def get_menu_list(
     Returns:
         List of menu objects
     """
-    try:
-        menus = MenuService.get_all_menus(db, pkg_type)
-        return [menu.to_dict() for menu in menus]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch menus: {str(e)}")
+    menus = MenuService.get_all_menus(db, pkg_type)
+    return OBBject(results=[menu.to_dict() for menu in menus], provider=_PROVIDER)
 
 
-@router.get("/hierarchy", response_model=List[Dict[str, Any]])
+@router.get("/hierarchy")
+@route_handler
 def get_menu_hierarchy(
     pkg_type: str = Query('MARKETPULSE', description="Package type"),
     db: Session = Depends(get_db)
@@ -82,13 +89,12 @@ def get_menu_hierarchy(
     Returns:
         Nested menu structure
     """
-    try:
-        return MenuService.get_menu_hierarchy(db, pkg_type)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to build menu hierarchy: {str(e)}")
+    # 트리 구조 — results 에는 루트 노드들이 담기고, 각 노드가 children 을 갖는다.
+    return OBBject(results=MenuService.get_menu_hierarchy(db, pkg_type), provider=_PROVIDER)
 
 
-@router.get("/user/{user_type_cd}", response_model=List[Dict[str, Any]])
+@router.get("/user/{user_type_cd}")
+@route_handler
 def get_menus_by_user_type(
     user_type_cd: Optional[str] = None,
     pkg_type: str = Query('MARKETPULSE', description="Package type"),
@@ -105,13 +111,12 @@ def get_menus_by_user_type(
     Returns:
         Filtered menu structure
     """
-    try:
-        return MenuService.get_menus_by_user_type(db, user_type_cd, pkg_type)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch user menus: {str(e)}")
+    return OBBject(results=MenuService.get_menus_by_user_type(db, user_type_cd, pkg_type),
+                   provider=_PROVIDER)
 
 
 @router.get("/first-page")
+@route_handler
 def get_first_page(
     pkg_type: str = Query('MARKETPULSE', description="Package type"),
     db: Session = Depends(get_db)
@@ -126,16 +131,15 @@ def get_first_page(
     Returns:
         First page menu object
     """
-    try:
-        menu = MenuService.get_first_page(db, pkg_type)
-        if not menu:
-            return {"menu_path": "professional", "menu_name": "Dashboard"}  # Default fallback
-        return menu.to_dict()
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch first page: {str(e)}")
+    menu = MenuService.get_first_page(db, pkg_type)
+    if not menu:  # Default fallback
+        return OBBject(results=[{"menu_path": "professional", "menu_name": "Dashboard"}],
+                       provider=_PROVIDER, metadata={"fallback": True})
+    return OBBject(results=[menu.to_dict()], provider=_PROVIDER)
 
 
 @router.get("/{menu_id}")
+@route_handler
 def get_menu_by_id(
     menu_id: str,
     db: Session = Depends(get_db)
@@ -150,18 +154,14 @@ def get_menu_by_id(
     Returns:
         Menu object
     """
-    try:
-        menu = MenuService.get_menu_by_id(db, menu_id)
-        if not menu:
-            raise HTTPException(status_code=404, detail=f"Menu '{menu_id}' not found")
-        return menu.to_dict(include_children=True)
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch menu: {str(e)}")
+    menu = MenuService.get_menu_by_id(db, menu_id)
+    if not menu:
+        raise HTTPException(status_code=404, detail=f"Menu '{menu_id}' not found")
+    return OBBject(results=[menu.to_dict(include_children=True)], provider=_PROVIDER)
 
 
 @router.post("/create")
+@route_handler
 def create_menu(
     menu_data: MenuCreate,
     db: Session = Depends(get_db),
@@ -177,21 +177,17 @@ def create_menu(
     Returns:
         Created menu object
     """
-    try:
-        # Check if menu already exists
-        existing = MenuService.get_menu_by_id(db, menu_data.menu_id)
-        if existing:
-            raise HTTPException(status_code=400, detail=f"Menu '{menu_data.menu_id}' already exists")
+    # Check if menu already exists
+    existing = MenuService.get_menu_by_id(db, menu_data.menu_id)
+    if existing:
+        raise HTTPException(status_code=400, detail=f"Menu '{menu_data.menu_id}' already exists")
 
-        menu = MenuService.create_menu(db, menu_data.model_dump())
-        return {"success": True, "menu": menu.to_dict()}
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to create menu: {str(e)}")
+    menu = MenuService.create_menu(db, menu_data.model_dump())
+    return OBBject(results=[menu.to_dict()], provider=_PROVIDER)
 
 
 @router.put("/update/{menu_id}")
+@route_handler
 def update_menu(
     menu_id: str,
     menu_data: MenuUpdate,
@@ -209,22 +205,18 @@ def update_menu(
     Returns:
         Updated menu object
     """
-    try:
-        # Filter out None values
-        update_data = {k: v for k, v in menu_data.model_dump().items() if v is not None}
+    # Filter out None values
+    update_data = {k: v for k, v in menu_data.model_dump().items() if v is not None}
 
-        menu = MenuService.update_menu(db, menu_id, update_data)
-        if not menu:
-            raise HTTPException(status_code=404, detail=f"Menu '{menu_id}' not found")
+    menu = MenuService.update_menu(db, menu_id, update_data)
+    if not menu:
+        raise HTTPException(status_code=404, detail=f"Menu '{menu_id}' not found")
 
-        return {"success": True, "menu": menu.to_dict()}
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to update menu: {str(e)}")
+    return OBBject(results=[menu.to_dict()], provider=_PROVIDER)
 
 
 @router.delete("/delete/{menu_id}")
+@route_handler
 def delete_menu(
     menu_id: str,
     db: Session = Depends(get_db),
@@ -240,13 +232,8 @@ def delete_menu(
     Returns:
         Success status
     """
-    try:
-        success = MenuService.delete_menu(db, menu_id)
-        if not success:
-            raise HTTPException(status_code=404, detail=f"Menu '{menu_id}' not found")
+    success = MenuService.delete_menu(db, menu_id)
+    if not success:
+        raise HTTPException(status_code=404, detail=f"Menu '{menu_id}' not found")
 
-        return {"success": True, "message": f"Menu '{menu_id}' deleted successfully"}
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to delete menu: {str(e)}")
+    return OBBject(results=[], provider=_PROVIDER, metadata={"deleted": menu_id})

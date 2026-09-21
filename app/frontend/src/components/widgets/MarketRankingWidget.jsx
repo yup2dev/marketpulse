@@ -137,7 +137,7 @@ export default function MarketRankingWidget({ onRemove }) {
   const isLive = LIVE_PERIODS.has(period);   // realtime만 WebSocket
 
   useEffect(() => {
-    watchlistAPI.getMyTickers().then(r => setFavorites(r.tickers||[])).catch(()=>{});
+    watchlistAPI.getMyTickers().then(r => setFavorites(r.results||[])).catch(()=>{});
   }, []);
 
   const fetchRanking = useCallback(async () => {

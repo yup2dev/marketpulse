@@ -95,7 +95,7 @@ function WatchlistTab() {
     watchlistAPI.getAll()
       .then(res => {
         if (cancelled) return;
-        const list = res.data || [];
+        const list = res.results || [];
         setWatchlists(list);
         setActiveId(list[0]?.watchlist_id ?? null);
       })
@@ -109,7 +109,7 @@ function WatchlistTab() {
     let cancelled = false;
     setLoading(true);
     watchlistAPI.getItems(activeId)
-      .then(res  => { if (!cancelled) setItems(res.data || []); })
+      .then(res  => { if (!cancelled) setItems(res.results || []); })
       .catch(()  => { if (!cancelled) setItems([]); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
@@ -138,7 +138,7 @@ function WatchlistTab() {
       // activeId가 있으면 서버 데이터로 갱신
       if (activeId) {
         const res = await watchlistAPI.getItems(activeId);
-        setItems(res.data || []);
+        setItems(res.results || []);
       }
     } catch {
       setItems(prev => prev.filter(it => it.ticker_cd !== sym));
@@ -154,7 +154,7 @@ function WatchlistTab() {
       // 실패 시 재로드
       if (activeId) {
         const res = await watchlistAPI.getItems(activeId);
-        setItems(res.data || []);
+        setItems(res.results || []);
       }
     }
   }, [activeId]);
@@ -164,7 +164,7 @@ function WatchlistTab() {
     if (!name) return;
     try {
       const res = await watchlistAPI.create({ name });
-      const wl  = res.data;
+      const wl  = res.results?.[0];
       setWatchlists(prev => [...prev, wl]);
       setActiveId(wl.watchlist_id);
       setNewName('');

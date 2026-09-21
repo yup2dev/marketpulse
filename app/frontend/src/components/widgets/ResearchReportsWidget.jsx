@@ -58,7 +58,7 @@ export default function ResearchReportsWidget({ symbol, onRemove }) {
   const handleDelete = async (e, report) => {
     e.stopPropagation();
     try {
-      await apiClient.request(`${API_BASE}/reports/${report.report_id}`, { method: 'DELETE' });
+      await apiClient.del(`${API_BASE}/reports/${report.report_id}`);
       if (viewing?.report_id === report.report_id) setViewing(null);
       fetchReports();
     } catch { /* 목록 갱신 없이 무시 */ }
