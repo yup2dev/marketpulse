@@ -46,6 +46,8 @@ from .user import (
     SavedScreener,
     UserNote,
     UserWorkspace,
+    UserBacktestItem,
+    UserBacktestRun,
 )
 
 # ── Backward-compatible re-exports from utils.db ──────────────────────────────
@@ -98,6 +100,8 @@ __all__ = [
     "SavedScreener",
     "UserNote",
     "UserWorkspace",
+    "UserBacktestItem",
+    "UserBacktestRun",
     # utils.db re-exports
     "Database",
     "get_sqlite_db",

@@ -413,6 +413,20 @@ export const GROUP_LABELS = {
   commodities:  'Commodities',
 };
 
+// Period-based endpoints anchor at today, so pick the smallest preset
+// covering startDate→today; the response is then filtered to [start, end].
+export function rangeToPeriod(startDate) {
+  const days = Math.ceil((Date.now() - new Date(startDate).getTime()) / 86400000);
+  if (days <= 31)   return '1mo';
+  if (days <= 93)   return '3mo';
+  if (days <= 186)  return '6mo';
+  if (days <= 366)  return '1y';
+  if (days <= 731)  return '2y';
+  if (days <= 1827) return '5y';
+  if (days <= 3653) return '10y';
+  return 'max';
+}
+
 // Apply {symbol} / {period} / {startDate} / {endDate} to label/endpoint
 export function resolveTemplate(tmpl, ctx) {
   return (tmpl || '').replace(/\{(\w+)\}/g, (_, k) => ctx[k] ?? '');

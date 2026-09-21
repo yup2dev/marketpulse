@@ -7,6 +7,7 @@ USER & PORTFOLIO Layer: 앱 도메인 (파이프라인 단계와 무관한 사�
 - Alert / AlertHistory                       : 알림
 - SavedScreener                              : 저장된 스크리너
 - UserNote / UserWorkspace                   : 메모·워크스페이스 레이아웃
+- UserBacktestItem / UserBacktestRun         : 백테스트 변수·이벤트·전략 정의 / 실행 결과
 """
 import uuid
 from datetime import datetime
@@ -474,6 +475,74 @@ class UserWorkspace(Base):
         }
 
 
+class UserBacktestItem(Base):
+    """사용자 백테스트 정의 — 변수(variable) / 이벤트(event) / 전략(strategy).
+
+    계산은 브라우저 엔진이 하고 서버는 정의만 저장한다(운영 서버 메모리 보호).
+    spec 은 kind 별 JSON: variable={type: source|formula, ...}, event={type: manual|condition, ...},
+    strategy={asset, entry, exit, ...}. variable/event 의 name 은 수식 식별자로 쓰여 사용자·kind 내 유일.
+    """
+    __tablename__ = 'user_backtest_items'
+
+    item_id = Column(String(50), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String(50), ForeignKey('users.user_id'), nullable=False, index=True)
+    kind = Column(String(20), nullable=False)
+    name = Column(String(80), nullable=False)
+    description = Column(String(500))
+    spec = Column(Text, nullable=False, default='{}')
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint('user_id', 'kind', 'name', name='uq_bt_item_user_kind_name'),
+        Index('idx_bt_item_user_kind', 'user_id', 'kind'),
+    )
+
+    def to_dict(self) -> dict:
+        import json
+        return {
+            'item_id': self.item_id,
+            'kind': self.kind,
+            'name': self.name,
+            'description': self.description,
+            'spec': json.loads(self.spec) if self.spec else {},
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class UserBacktestRun(Base):
+    """사용자 백테스트 실행 결과 스냅샷 — 설정·성과지표·자산곡선(다운샘플)·거래내역."""
+    __tablename__ = 'user_backtest_runs'
+
+    run_id = Column(String(50), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String(50), ForeignKey('users.user_id'), nullable=False, index=True)
+    strategy_id = Column(String(50), index=True)
+    name = Column(String(200), nullable=False)
+    config = Column(Text, nullable=False, default='{}')
+    metrics = Column(Text, nullable=False, default='{}')
+    equity = Column(Text, nullable=False, default='[]')
+    trades = Column(Text, nullable=False, default='[]')
+
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    def to_dict(self, full: bool = True) -> dict:
+        import json
+        d = {
+            'run_id': self.run_id,
+            'strategy_id': self.strategy_id,
+            'name': self.name,
+            'config': json.loads(self.config) if self.config else {},
+            'metrics': json.loads(self.metrics) if self.metrics else {},
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+        if full:
+            d['equity'] = json.loads(self.equity) if self.equity else []
+            d['trades'] = json.loads(self.trades) if self.trades else []
+        return d
+
+
 __all__ = [
     "User",
     "Portfolio",
@@ -486,4 +555,6 @@ __all__ = [
     "SavedScreener",
     "UserNote",
     "UserWorkspace",
+    "UserBacktestItem",
+    "UserBacktestRun",
 ]

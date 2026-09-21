@@ -240,6 +240,20 @@ export const notesAPI = {
   delete:   (id)           => apiClient.request(`${NT}/${id}`, { method: 'DELETE' }),
 };
 
+// ─── Backtest Lab API ─────────────────────────────────────────────────────────
+// 사용자별 변수·이벤트·전략 정의와 실행 결과 저장 (계산은 브라우저 엔진에서).
+const BT = `${API_BASE}/backtest`;
+export const backtestAPI = {
+  listItems:  (kind)       => apiClient.get(`${BT}/items${kind ? `?kind=${kind}` : ''}`),
+  createItem: (data)       => apiClient.post(`${BT}/items`, data),
+  updateItem: (id, data)   => apiClient.request(`${BT}/items/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteItem: (id)         => apiClient.request(`${BT}/items/${id}`, { method: 'DELETE' }),
+  listRuns:   ()           => apiClient.get(`${BT}/runs`),
+  getRun:     (id)         => apiClient.get(`${BT}/runs/${id}`),
+  saveRun:    (data)       => apiClient.post(`${BT}/runs`, data),
+  deleteRun:  (id)         => apiClient.request(`${BT}/runs/${id}`, { method: 'DELETE' }),
+};
+
 // ─── News API ────────────────────────────────────────────────────────────────
 export const newsAPI = {
   get: (symbol, limit = 20) => apiClient.get(`${API_BASE}/news${symbol ? `?symbol=${encodeURIComponent(symbol)}&` : '?'}limit=${limit}`),

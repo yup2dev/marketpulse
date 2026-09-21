@@ -24,7 +24,7 @@ from app.backend.core.db import init_db
 from app.backend.api.routes import (
     stock, news, portfolio, macro,
     auth, user_portfolio, screener, alerts, export, watchlist, menu,
-    quantlib, quantitative, notes, reports, copilot,
+    quantlib, quantitative, notes, reports, copilot, backtest,
 )
 from app.backend.api.routes.workspace import router as workspace_router
 from app.backend.api.routes.fundamental import router as fundamental_router
@@ -250,6 +250,7 @@ app.include_router(auth.router,      prefix="/api", tags=["auth"])
 app.include_router(alerts.router,    prefix="/api", tags=["alerts"])
 app.include_router(watchlist.router, prefix="/api", tags=["watchlist"])
 app.include_router(notes.router,     prefix="/api", tags=["notes"])
+app.include_router(backtest.router,  prefix="/api", tags=["backtest"])
 app.include_router(workspace_router, prefix="/api", tags=["workspace"])
 
 # ── Analysis ──────────────────────────────────────────────────────────────────
