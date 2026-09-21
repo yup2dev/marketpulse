@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Plus, TrendingUp, Percent, Activity, X, TrendingDown, GitCompare, Settings, BarChart2, Layers, ArrowRightLeft } from 'lucide-react';
+import { Plus, TrendingUp, Percent, Activity, X, TrendingDown, GitCompare, Settings, BarChart2, ArrowRightLeft } from 'lucide-react';
 import StockSelectorModal from '../common/StockSelectorModal';
 import useTheme from '../../hooks/useTheme';
 import useChartZoom from '../../hooks/useChartZoom';
@@ -16,7 +16,6 @@ import {
   WIDGET_ICON_COLORS,
   LOADING_COLORS,
   CHART_COLORS,
-  MACRO_INDICATORS,
   TECHNICAL_INDICATORS,
   INDICATOR_COLORS,
   WIDGET_CONSTRAINTS,
@@ -27,6 +26,9 @@ import { calculateIndicator } from '../../utils/technicalIndicators';
 import { getRegimeColor } from '../../utils/pairAnalysis';
 import { apiClient } from '../../config/api';
 import PlotlyStockChart from './chart/PlotlyStockChart';
+import ChartTypeDropdown from './chart/ChartTypeDropdown';
+import MacroIndicatorDropdown from './chart/MacroIndicatorDropdown';
+import TechnicalIndicatorDropdown from './chart/TechnicalIndicatorDropdown';
 import PairSettingsPanel from './chart/PairSettingsPanel';
 import FcfComparisonPanel from './chart/FcfComparisonPanel';
 import OscillatorPanels from './chart/OscillatorPanels';
@@ -899,166 +901,33 @@ const ChartWidget = ({
         )}
       </WidgetHeader>
 
-      {/* Chart Type Selector Dropdown */}
-      {showChartTypeSelectorDropdown && (
-        <div className="absolute top-14 right-4 z-50 border border-gray-700 rounded-lg shadow-2xl py-2 min-w-[200px]" style={{ backgroundColor: tokens.bg.tertiary }}>
-          <div className="px-3 py-2 border-b border-gray-800">
-            <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold text-white">Chart Type</div>
-              <button
-                onClick={() => setShowChartTypeSelectorDropdown(false)}
-                className="text-gray-400 hover:text-white"
-              >
-                <X size={14} />
-              </button>
-            </div>
-          </div>
-          <div className="py-1">
-            {CHART_TYPES.map((type) => (
-              <button
-                key={type.id}
-                onClick={() => {
-                  setChartType(type.id);
-                  setShowChartTypeSelectorDropdown(false);
-                }}
-                className={`w-full px-3 py-2 hover:bg-gray-800 transition-colors text-left flex items-center gap-3 ${
-                  chartType === type.id ? 'bg-blue-600/20 border-l-2 border-blue-500' : ''
-                }`}
-              >
-                <div className={`w-8 h-8 rounded flex items-center justify-center ${
-                  chartType === type.id ? 'bg-blue-600' : 'bg-gray-700'
-                }`}>
-                  {type.id === 'line' && <TrendingUp size={16} />}
-                  {type.id === 'area' && <Activity size={16} />}
-                  {type.id === 'candlestick' && <BarChart2 size={16} />}
-                  {type.id === 'ohlc' && <BarChart2 size={16} />}
-                  {type.id === 'heikinashi' && <Layers size={16} />}
-                </div>
-                <div>
-                  <div className="text-sm font-medium text-white">{type.name}</div>
-                  <div className="text-xs text-gray-400">{type.description}</div>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      <ChartTypeDropdown
+        show={showChartTypeSelectorDropdown}
+        onClose={() => setShowChartTypeSelectorDropdown(false)}
+        tokens={tokens}
+        chartType={chartType}
+        setChartType={setChartType}
+      />
 
-      {/* Macro Indicator Selector Dropdown */}
-      {showIndicatorSelector && (
-        <div className={`absolute top-14 right-4 z-50 ${tokens.bg.tertiary} border border-gray-700 rounded-lg shadow-2xl py-2 min-w-[300px]`} style={{ backgroundColor: tokens.bg.tertiary }}>
-          <div className="px-3 py-2 border-b border-gray-800">
-            <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold text-white">Macro Indicators</div>
-              <button
-                onClick={() => setShowIndicatorSelector(false)}
-                className="text-gray-400 hover:text-white"
-              >
-                <X size={14} />
-              </button>
-            </div>
-          </div>
-          <div className="py-1">
-            {MACRO_INDICATORS.map((indicator) => (
-              <button
-                key={indicator.id}
-                onClick={() => handleAddIndicator(indicator)}
-                className="w-full px-3 py-2 hover:bg-gray-800 transition-colors text-left"
-                disabled={tickers.some(t => t.symbol === indicator.id)}
-              >
-                <div className="text-sm font-medium text-white">{indicator.name}</div>
-                <div className="text-xs text-gray-400">{indicator.description}</div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      <MacroIndicatorDropdown
+        show={showIndicatorSelector}
+        onClose={() => setShowIndicatorSelector(false)}
+        tokens={tokens}
+        tickers={tickers}
+        onAdd={handleAddIndicator}
+      />
 
-      {/* Technical Indicator Selector Dropdown */}
-      {showTechnicalIndicatorSelector && (
-        <div className="absolute top-14 right-4 z-50 border border-gray-700 rounded-lg shadow-2xl py-2 min-w-[350px] max-h-[500px] overflow-y-auto" style={{ backgroundColor: tokens.bg.tertiary }}>
-          <div className="px-3 py-2 border-b border-gray-800 sticky top-0" style={{ backgroundColor: tokens.bg.tertiary }}>
-            <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold text-white">Technical Indicators</div>
-              <button
-                onClick={() => setShowTechnicalIndicatorSelector(false)}
-                className="text-gray-400 hover:text-white"
-              >
-                <X size={14} />
-              </button>
-            </div>
-            <div className="text-xs text-gray-500 mt-1">{isSeriesMode ? 'Select a series' : 'Select a stock first'}</div>
-          </div>
-
-          {/* Group by type */}
-          {['overlay', 'oscillator', 'separate'].map(type => {
-            const indicators = TECHNICAL_INDICATORS.filter(ind => ind.type === type);
-            if (indicators.length === 0) return null;
-
-            return (
-              <div key={type} className="border-b border-gray-800 last:border-0">
-                <div className="px-3 py-2 bg-gray-900/50">
-                  <div className="text-xs font-semibold text-gray-400 uppercase">
-                    {type === 'overlay' ? 'Price Overlays' : type === 'oscillator' ? 'Oscillators' : 'Separate Pane'}
-                  </div>
-                </div>
-                {/* Series mode: show visible series */}
-                {isSeriesMode && visibleSeries.map(s => (
-                  <div key={s.id}>
-                    <div className="px-3 py-1 bg-gray-800/30">
-                      <div className="text-xs text-blue-400">{s.name}</div>
-                    </div>
-                    {indicators.map(indicator => {
-                      const exists = technicalIndicators.some(
-                        ti => ti.indicatorId === indicator.id && ti.seriesId === s.id
-                      );
-                      return (
-                        <button
-                          key={`${s.id}-${indicator.id}`}
-                          onClick={() => handleAddSeriesTechnicalIndicator(indicator, s.id)}
-                          className={`w-full px-4 py-2 hover:bg-gray-800 transition-colors text-left ${
-                            exists ? 'opacity-50 cursor-not-allowed' : ''
-                          }`}
-                          disabled={exists}
-                        >
-                          <div className="text-sm font-medium text-white">{indicator.name}</div>
-                          <div className="text-xs text-gray-400">{indicator.description}</div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                ))}
-                {/* Symbol mode: show stock tickers */}
-                {!isSeriesMode && tickers.filter(t => t.type === 'stock').map(stock => (
-                  <div key={stock.symbol}>
-                    <div className="px-3 py-1 bg-gray-800/30">
-                      <div className="text-xs text-blue-400">{stock.symbol}</div>
-                    </div>
-                    {indicators.map(indicator => {
-                      const exists = technicalIndicators.some(
-                        ti => ti.indicatorId === indicator.id && ti.symbol === stock.symbol
-                      );
-                      return (
-                        <button
-                          key={`${stock.symbol}-${indicator.id}`}
-                          onClick={() => handleAddTechnicalIndicator(indicator, stock.symbol)}
-                          className={`w-full px-4 py-2 hover:bg-gray-800 transition-colors text-left ${
-                            exists ? 'opacity-50 cursor-not-allowed' : ''
-                          }`}
-                          disabled={exists}
-                        >
-                          <div className="text-sm font-medium text-white">{indicator.name}</div>
-                          <div className="text-xs text-gray-400">{indicator.description}</div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-            );
-          })}
-        </div>
-      )}
+      <TechnicalIndicatorDropdown
+        show={showTechnicalIndicatorSelector}
+        onClose={() => setShowTechnicalIndicatorSelector(false)}
+        tokens={tokens}
+        isSeriesMode={isSeriesMode}
+        visibleSeries={visibleSeries}
+        tickers={tickers}
+        technicalIndicators={technicalIndicators}
+        onAddSeries={handleAddSeriesTechnicalIndicator}
+        onAddSymbol={handleAddTechnicalIndicator}
+      />
 
       <div className={`${WIDGET_STYLES.content} ${WIDGET_STYLES.contentPadding}`}>
         {effectiveLoading && (isSeriesMode ? series.length === 0 : tickers.length === 0) ? (
