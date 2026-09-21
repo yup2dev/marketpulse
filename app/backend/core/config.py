@@ -32,6 +32,26 @@ class Settings(BaseSettings):
     # 워커가 유지되도록 access(30분)보다 길게 둔다. API/refresh로는 쓸 수 없다(type=fetcher).
     FETCHER_TOKEN_EXPIRE_DAYS: int = 30
 
+    # ── refresh token 쿠키 ────────────────────────────────────────────────────
+    # refresh token 은 httpOnly 쿠키로 내린다. localStorage 에 두면 XSS 한 건으로
+    # 장기 세션이 통째로 탈취된다(access 는 30분이지만 refresh 는 7일).
+    #
+    # SameSite 를 설정으로 빼는 이유: 프론트와 API 의 관계가 배포처마다 다르다.
+    #   finance.dns-co.kr ↔ api.finance.dns-co.kr  → same-site  (lax 로 충분)
+    #   frontend-*.vercel.app ↔ api.finance…       → cross-site (none + secure 필요)
+    #   localhost:5173 ↔ localhost:8000            → same-site  (secure 불가, http)
+    # 기본값은 운영 커스텀 도메인 기준(lax)이고, 프리뷰 배포에서 로그인 유지가
+    # 필요하면 운영 .env 에서 AUTH_COOKIE_SAMESITE=none 으로 올린다.
+    AUTH_COOKIE_NAME: str = "refresh_token"
+    AUTH_COOKIE_SAMESITE: str = "lax"          # lax | none | strict
+    AUTH_COOKIE_DOMAIN: Optional[str] = None   # None 이면 host-only
+    # None 이면 DEBUG 의 반대 — 운영은 자동으로 Secure, 로컬 http 개발은 자동으로 해제.
+    AUTH_COOKIE_SECURE: Optional[bool] = None
+
+    @property
+    def auth_cookie_secure(self) -> bool:
+        return (not self.DEBUG) if self.AUTH_COOKIE_SECURE is None else self.AUTH_COOKIE_SECURE
+
     # CORS — comma-separated in env: CORS_ORIGINS=https://example.com,http://localhost:5173
     CORS_ORIGINS: Annotated[List[str], NoDecode] = [
         "http://localhost:5173",

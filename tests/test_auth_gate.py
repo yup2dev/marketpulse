@@ -64,10 +64,16 @@ def test_refresh_token_cannot_be_used_as_access_token(client, prod_mode):
 
 
 def test_auth_endpoints_are_public(client, prod_mode):
-    """로그인/가입/갱신은 토큰 없이 도달해야 한다 (422 = 게이트 통과 후 본문 검증)."""
+    """로그인/가입/갱신은 토큰 없이 **핸들러까지 도달**해야 한다.
+
+    상태 코드만으로는 판단할 수 없다 — `/auth/refresh` 는 쿠키도 본문도 없으면
+    핸들러가 직접 401 을 준다(refresh token 없음). 게이트가 막은 401 과 구분해야 한다.
+    게이트는 `WWW-Authenticate: Bearer` 를 붙이므로 그것으로 가른다.
+    """
     for path in ("/api/auth/login", "/api/auth/register", "/api/auth/refresh"):
         r = client.post(path, json={})
-        assert r.status_code != 401, f"{path} 가 게이트에 막혔다 — 로그인 자체가 불가능해진다"
+        blocked_by_gate = r.status_code == 401 and "www-authenticate" in r.headers
+        assert not blocked_by_gate, f"{path} 가 게이트에 막혔다 — 로그인 자체가 불가능해진다"
 
 
 def test_cors_preflight_passes_gate(client, prod_mode):

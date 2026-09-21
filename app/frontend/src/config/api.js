@@ -7,6 +7,25 @@ const API_BASE_URL =
   import.meta.env.VITE_API_URL || 'http://localhost:8000';
 export const API_BASE = `${API_BASE_URL}/api`;
 
+// ─── Access token (메모리 보관) ───────────────────────────────────────────────
+// localStorage 에 두지 않는다 — XSS 스크립트가 바로 읽어간다. 탭을 새로고침하면
+// 사라지지만, refresh token 이 httpOnly 쿠키로 남아 있어 /auth/refresh 로 즉시 복구된다.
+let _accessToken = null;
+export function setAccessToken(token) { _accessToken = token || null; }
+export function getAccessToken() { return _accessToken; }
+
+// 전환기: 예전 프론트가 localStorage 에 남겨 둔 refresh token 을 한 번만 써서
+// 쿠키로 갈아탄 뒤 지운다. 이게 없으면 기존 로그인 사용자가 전부 로그아웃된다.
+function takeLegacyRefreshToken() {
+  try {
+    const t = localStorage.getItem('refresh_token');
+    if (t) localStorage.removeItem('refresh_token');
+    return t;
+  } catch {
+    return null;
+  }
+}
+
 // ─── Force-logout callback ────────────────────────────────────────────────────
 // Set by authStore so apiClient can trigger logout when tokens fully expire
 let _forceLogout = null;
@@ -24,8 +43,7 @@ class ApiClient {
   _refreshPromise = null;
 
   getAuthHeaders() {
-    const token = localStorage.getItem('access_token');
-    return token ? { Authorization: `Bearer ${token}` } : {};
+    return _accessToken ? { Authorization: `Bearer ${_accessToken}` } : {};
   }
 
   // Try to refresh access token using stored refresh token.
@@ -33,20 +51,21 @@ class ApiClient {
   async _tryRefresh() {
     if (this._refreshPromise) return this._refreshPromise;
 
-    const refreshToken = localStorage.getItem('refresh_token');
-    if (!refreshToken) return false;
+    // refresh token 은 httpOnly 쿠키에 있으므로 여기서 읽을 수 없다 — credentials 로 보낸다.
+    // 구 사용자는 legacy 토큰을 본문에 한 번 실어 보내 쿠키로 전환한다.
+    const legacy = takeLegacyRefreshToken();
 
     this._refreshPromise = fetch(`${API_BASE}/auth/refresh`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ refresh_token: refreshToken }),
+      method:      'POST',
+      credentials: 'include',
+      headers:     { 'Content-Type': 'application/json' },
+      body:        JSON.stringify(legacy ? { refresh_token: legacy } : {}),
     })
       .then(async (res) => {
         if (!res.ok) return false;
         const data = await res.json().catch(() => null);
         if (!data?.access_token) return false;
-        localStorage.setItem('access_token',  data.access_token);
-        localStorage.setItem('refresh_token', data.refresh_token);
+        setAccessToken(data.access_token);
         if (data.fetcher_token) localStorage.setItem('fetcher_token', data.fetcher_token);
         if (data.user) localStorage.setItem('user', JSON.stringify(data.user));
         // 갱신 시 fetcher 토큰도 새로 받아 Fetcher에 반영 (장수명 토큰 시계 리셋)
@@ -64,12 +83,16 @@ class ApiClient {
   // Core request method with automatic 401 → refresh → retry
   async request(url, options = {}, _isRetry = false) {
     const response = await fetch(url, {
+      ...options,
+      // refresh 쿠키가 실려야 한다 — 쿠키 인증의 전제.
+      credentials: 'include',
+      // headers 는 ...options 뒤에 둔다. 앞에 두면 options.headers 가 통째로
+      // 덮어써서 Authorization 이 사라진다.
       headers: {
         'Content-Type': 'application/json',
         ...this.getAuthHeaders(),
         ...options.headers,
       },
-      ...options,
     });
 
     const data = await response.json().catch(() => ({}));
