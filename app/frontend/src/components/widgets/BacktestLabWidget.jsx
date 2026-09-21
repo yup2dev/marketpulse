@@ -10,7 +10,7 @@ import toast from 'react-hot-toast';
 
 import SeriesPicker  from '../backtest/SeriesPicker';
 import ChartWidget   from './ChartWidget';
-import { extractPoints, resolveTemplate } from '../backtest/seriesCatalog';
+import { extractPoints, resolveTemplate, rangeToPeriod } from '../backtest/seriesCatalog';
 import { CHART_COLORS } from './constants';
 import { apiClient, API_BASE } from '../../config/api';
 
@@ -22,20 +22,6 @@ function defaultRange() {
   const start = new Date();
   start.setMonth(start.getMonth() - 1);
   return { start: fmtDate(start), end: fmtDate(end) };
-}
-
-// Period-based endpoints anchor at today, so pick the smallest preset
-// covering startDate→today; the response is then filtered to [start, end].
-function rangeToPeriod(startDate) {
-  const days = Math.ceil((Date.now() - new Date(startDate).getTime()) / 86400000);
-  if (days <= 31)   return '1mo';
-  if (days <= 93)   return '3mo';
-  if (days <= 186)  return '6mo';
-  if (days <= 366)  return '1y';
-  if (days <= 731)  return '2y';
-  if (days <= 1827) return '5y';
-  if (days <= 3653) return '10y';
-  return 'max';
 }
 
 export default function BacktestLabWidget({ symbol: symbolProp, onRemove }) {

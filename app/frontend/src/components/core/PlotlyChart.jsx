@@ -289,7 +289,8 @@ export default function PlotlyChart({
         await Plotly.newPlot(el, traces, layout, { ...PLOTLY_CONFIG, responsive: true });
         plotRef.current = el;
         // Wire resize observer
-        const ro = new ResizeObserver(() => Plotly.Plots.resize(el));
+        // 탭 전환 등으로 숨겨지거나 떼어진 뒤의 콜백은 무시 (Plotly가 오류를 던진다)
+        const ro = new ResizeObserver(() => { if (el.isConnected && el.offsetParent !== null) Plotly.Plots.resize(el); });
         ro.observe(el);
         el._ro = ro;
       } else {

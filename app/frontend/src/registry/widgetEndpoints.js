@@ -38,6 +38,12 @@ import TradingViewMiniChartWidget   from '../components/widgets/TradingViewMiniC
 import ComparisonWidget        from '../components/widgets/ComparisonWidget';
 import ChartWidget             from '../components/widgets/ChartWidget';
 import BacktestLabWidget       from '../components/widgets/BacktestLabWidget';
+import BtVariablesWidget        from '../components/widgets/backtest/BtVariablesWidget';
+import BtVariableExplorerWidget from '../components/widgets/backtest/BtVariableExplorerWidget';
+import BtEventsWidget           from '../components/widgets/backtest/BtEventsWidget';
+import BtEventStudyWidget       from '../components/widgets/backtest/BtEventStudyWidget';
+import BtStrategyWidget         from '../components/widgets/backtest/BtStrategyWidget';
+import BtResultsWidget          from '../components/widgets/backtest/BtResultsWidget';
 import HeatmapWidget           from '../components/widgets/HeatmapWidget';
 import CorrelationWidget       from '../components/widgets/CorrelationWidget';
 import NoteWidget              from '../components/widgets/NoteWidget';
@@ -286,6 +292,13 @@ export const WIDGET_ENDPOINTS = {
     component: BacktestLabWidget,  // 시리즈 카탈로그 + 차트 스튜디오 (헤더 symbol을 seed로)
     propsFrom: ['symbol'],
   },
+  // Backtest Lab — 사용자 변수·이벤트·전략(서버 저장) + 브라우저 계산 엔진(components/backtest/engine)
+  'bt-variables':         { title: 'Variables',         component: BtVariablesWidget },
+  'bt-variable-explorer': { title: 'Variable Explorer', component: BtVariableExplorerWidget },
+  'bt-events':            { title: 'Events',            component: BtEventsWidget },
+  'bt-event-study':       { title: 'Event Study',       component: BtEventStudyWidget },
+  'bt-strategy':          { title: 'Strategy',          component: BtStrategyWidget },
+  'bt-results':           { title: 'Backtest Results',  component: BtResultsWidget },
   'sparkline': {
     title:     'Mini Charts',
     component: SparklineWidget,
