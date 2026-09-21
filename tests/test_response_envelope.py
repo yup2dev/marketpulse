@@ -45,6 +45,8 @@ ENVELOPE_GETS = [
     "/api/menu/hierarchy",
     "/api/screener/saved",
     "/api/screener/presets",
+    "/api/alerts/",
+    "/api/alerts/history",
 ]
 
 
@@ -61,7 +63,7 @@ def test_get_endpoints_return_obbject(auth_client, path):
     assert isinstance(body["results"], list), f"{path} 의 results 가 배열이 아니다"
     assert body.get("provider"), f"{path} 에 provider 가 없다"
     # 구형 키가 남아 있으면 프론트가 그쪽을 계속 읽게 된다
-    for legacy in ("success", "data", "tickers", "presets", "sectors", "menu", "result"):
+    for legacy in ("success", "data", "tickers", "presets", "sectors", "menu", "result", "history"):
         assert legacy not in body, f"{path} 가 아직 구형 키 '{legacy}' 를 준다"
 
 
