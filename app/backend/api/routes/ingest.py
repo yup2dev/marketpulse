@@ -134,7 +134,7 @@ def _replace(session: Session, model, key_col: str, rows: List[Dict[str, Any]]) 
 
 
 @router.get("/ingest/status")
-async def ingest_status(db: Session = Depends(get_db)) -> Dict[str, Any]:
+def ingest_status(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """테이블별 행수와 최신 base_ymd — 클라이언트가 증분 범위를 정하는 기준."""
     out: Dict[str, Any] = {}
     for name, cfg in _TABLES.items():
@@ -152,7 +152,7 @@ async def ingest_status(db: Session = Depends(get_db)) -> Dict[str, Any]:
 
 
 @router.post("/ingest/{table}")
-async def ingest_rows(table: str, req: IngestRequest, db: Session = Depends(get_db)) -> Dict[str, Any]:
+def ingest_rows(table: str, req: IngestRequest, db: Session = Depends(get_db)) -> Dict[str, Any]:
     cfg = _TABLES.get(table)
     if cfg is None:
         raise HTTPException(status_code=404, detail=f"unknown ingest table '{table}'")

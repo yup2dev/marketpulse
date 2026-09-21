@@ -123,7 +123,7 @@ def _get_report(db: Session, report_id: str) -> MBS_IN_RESEARCH_RPT:
 
 
 @router.get("/reports/{report_id}/file")
-async def get_report_file(report_id: str, db: Session = Depends(get_db)):
+def get_report_file(report_id: str, db: Session = Depends(get_db)):
     """PDF 원본 — 위젯 iframe에서 인라인으로 띄운다."""
     row = _get_report(db, report_id)
     path = _PROJECT_ROOT / row.file_path
@@ -138,14 +138,14 @@ async def get_report_file(report_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/reports/{report_id}/text")
-async def get_report_text(report_id: str, db: Session = Depends(get_db)):
+def get_report_text(report_id: str, db: Session = Depends(get_db)):
     """추출 전문 텍스트 (fetcher 목록에는 excerpt만 실리므로 전문은 여기서)."""
     row = _get_report(db, report_id)
     return {"report_id": row.report_id, "title": row.title, "text": row.content_text or ""}
 
 
 @router.delete("/reports/{report_id}")
-async def delete_report(report_id: str, db: Session = Depends(get_db)):
+def delete_report(report_id: str, db: Session = Depends(get_db)):
     """보고서 행 + 저장 파일 삭제."""
     row = _get_report(db, report_id)
     path = _PROJECT_ROOT / row.file_path

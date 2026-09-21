@@ -24,7 +24,7 @@ const useBacktestStore = create((set, get) => ({
     try {
       const res = await backtestAPI.listItems();
       const grouped = { variable: [], event: [], strategy: [] };
-      for (const item of res.data || []) grouped[item.kind]?.push(item);
+      for (const item of res.results || []) grouped[item.kind]?.push(item);
       set({ items: grouped, loaded: true, loading: false });
     } catch (e) {
       set({ loading: false, error: e.detail || e.message || '불러오기 실패' });
@@ -36,7 +36,7 @@ const useBacktestStore = create((set, get) => ({
     const res = itemId
       ? await backtestAPI.updateItem(itemId, { name, description, spec })
       : await backtestAPI.createItem({ kind, name, description, spec });
-    const saved = res.data;
+    const saved = res.results?.[0];   // OBBject — 단건도 results 배열에 담겨 온다
     set((s) => {
       const list = s.items[kind].filter((i) => i.item_id !== saved.item_id);
       return { items: { ...s.items, [kind]: [...list, saved].sort((a, b) => a.name.localeCompare(b.name)) } };

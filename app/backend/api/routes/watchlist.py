@@ -52,7 +52,7 @@ class QuickAddRequest(BaseModel):
 # =============================================================================
 
 @router.get("/my-tickers")
-async def get_my_tickers(
+def get_my_tickers(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
@@ -67,7 +67,7 @@ async def get_my_tickers(
 
 
 @router.post("/quick-add")
-async def quick_add_ticker(
+def quick_add_ticker(
     request: QuickAddRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
@@ -83,7 +83,7 @@ async def quick_add_ticker(
 
 
 @router.delete("/quick-remove/{ticker_cd}")
-async def quick_remove_ticker(
+def quick_remove_ticker(
     ticker_cd: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
@@ -103,7 +103,7 @@ async def quick_remove_ticker(
 # =============================================================================
 
 @router.get("")
-async def get_watchlists(
+def get_watchlists(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
@@ -125,7 +125,7 @@ async def get_watchlists(
 
 
 @router.post("")
-async def create_watchlist(
+def create_watchlist(
     request: CreateWatchlistRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
@@ -156,7 +156,7 @@ async def create_watchlist(
 
 
 @router.get("/{watchlist_id}")
-async def get_watchlist(
+def get_watchlist(
     watchlist_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
@@ -191,7 +191,7 @@ async def get_watchlist(
 
 
 @router.put("/{watchlist_id}")
-async def update_watchlist(
+def update_watchlist(
     watchlist_id: str,
     request: UpdateWatchlistRequest,
     db: Session = Depends(get_db),
@@ -234,7 +234,7 @@ async def update_watchlist(
 
 
 @router.delete("/{watchlist_id}")
-async def delete_watchlist(
+def delete_watchlist(
     watchlist_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
@@ -273,7 +273,7 @@ async def delete_watchlist(
 # =============================================================================
 
 @router.get("/{watchlist_id}/items")
-async def get_watchlist_items(
+def get_watchlist_items(
     watchlist_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
@@ -299,7 +299,7 @@ async def get_watchlist_items(
 
 
 @router.post("/{watchlist_id}/items")
-async def add_ticker_to_watchlist(
+def add_ticker_to_watchlist(
     watchlist_id: str,
     request: AddTickerRequest,
     db: Session = Depends(get_db),
@@ -342,7 +342,7 @@ async def add_ticker_to_watchlist(
 
 
 @router.delete("/{watchlist_id}/items/{ticker_cd}")
-async def remove_ticker_from_watchlist(
+def remove_ticker_from_watchlist(
     watchlist_id: str,
     ticker_cd: str,
     db: Session = Depends(get_db),
@@ -384,7 +384,7 @@ async def remove_ticker_from_watchlist(
 
 
 @router.put("/{watchlist_id}/items/reorder")
-async def reorder_watchlist_items(
+def reorder_watchlist_items(
     watchlist_id: str,
     request: ReorderItemsRequest,
     db: Session = Depends(get_db),

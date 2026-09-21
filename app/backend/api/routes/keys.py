@@ -25,12 +25,12 @@ class KeyRequest(BaseModel):
 
 
 @router.get("/keys", summary="내 API 키 상태(마스킹) 조회")
-async def list_keys(user: User = Depends(get_current_active_user)) -> Dict[str, Any]:
+def list_keys(user: User = Depends(get_current_active_user)) -> Dict[str, Any]:
     return {"keys": user_key_service.list_status(str(user.user_id))}
 
 
 @router.post("/keys", summary="내 API 키 저장(암호화)")
-async def set_key(req: KeyRequest, user: User = Depends(get_current_active_user)) -> Dict[str, str]:
+def set_key(req: KeyRequest, user: User = Depends(get_current_active_user)) -> Dict[str, str]:
     try:
         user_key_service.set_key(
             str(user.user_id), req.provider, api_key=req.api_key, fields=req.fields
@@ -41,7 +41,7 @@ async def set_key(req: KeyRequest, user: User = Depends(get_current_active_user)
 
 
 @router.delete("/keys/{provider}", summary="내 API 키 삭제")
-async def delete_key(provider: str, user: User = Depends(get_current_active_user)) -> Dict[str, str]:
+def delete_key(provider: str, user: User = Depends(get_current_active_user)) -> Dict[str, str]:
     if not user_key_service.delete_key(str(user.user_id), provider):
         raise HTTPException(status_code=404, detail=f"no key for '{provider}'")
     return {"status": "deleted", "provider": provider.lower()}
