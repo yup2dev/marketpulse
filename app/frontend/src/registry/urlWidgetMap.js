@@ -54,7 +54,6 @@ export const URL_WIDGET_MAP = {
           { id: 'correlation',        name: 'Correlation Matrix',  description: 'Multi-stock correlations',   defaultSize: { w: 8, h: 10 } },
           { id: 'economic-calendar',  name: 'Economic Calendar',   description: '경제 이벤트 (실제/예측/이전)', defaultSize: { w: 6, h: 8 } },
           { id: 'earnings-calendar',  name: 'Earnings Calendar',   description: '실적 발표 일정 (예상 EPS/시총)', defaultSize: { w: 6, h: 8 } },
-          { id: 'terminal',           name: 'Terminal',            description: 'Command-line data query',    defaultSize: { w: 8, h: 10 } },
           { id: 'notes',              name: 'Notes',               description: 'Personal memo pad',          defaultSize: { w: 6, h: 8 } },
         ],
       },
@@ -92,7 +91,6 @@ export const URL_WIDGET_MAP = {
           { id: 'comparison',         name: 'Stock Comparison',  description: 'Compare 2-4 stocks',         defaultSize: { w: 8,  h: 10 } },
           { id: 'correlation',        name: 'Correlation Matrix',description: 'Multi-stock correlations',   defaultSize: { w: 8,  h: 10 } },
           { id: 'notes',              name: 'Notes',             description: 'Personal memo pad',          defaultSize: { w: 6,  h: 8 } },
-          { id: 'terminal',           name: 'Terminal',          description: 'Command-line data query',    defaultSize: { w: 8,  h: 10 } },
         ],
       },
       {
