@@ -13,7 +13,7 @@ from data_fetcher.abstract_provider.standard_models import (
     MACDData as _StdMACDData,
     BollingerBandsData as _StdBollingerBandsData,
 )
-from data_fetcher.providers.alphavantage.equity_quote import AlphaVantageTimeseriesFetcher  # noqa: F401
+from data_fetcher.providers.alphavantage.models.equity_quote import AlphaVantageTimeseriesFetcher  # noqa: F401
 
 
 # ── Provider 클래스 (표준 모델 상속) ──────────────────────────────────────────

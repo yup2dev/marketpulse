@@ -24,7 +24,7 @@ from data_fetcher.abstract_provider.standard_models.fund_performance import (
     FundPerformanceQueryParams,
     FundPerformanceData,
 )
-from data_fetcher.providers.sec.institutional_13f import SEC13FFetcher, _value_scale
+from data_fetcher.providers.sec.models.institutional_13f import SEC13FFetcher, _value_scale
 
 log = logging.getLogger(__name__)
 

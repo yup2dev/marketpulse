@@ -23,7 +23,7 @@ from collections import defaultdict
 from typing import Any, Dict, List, Optional
 
 from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
-from data_fetcher.providers.polygon.news import PolygonNewsFetcher
+from data_fetcher.providers.polygon.models.news import PolygonNewsFetcher
 
 log = logging.getLogger(__name__)
 

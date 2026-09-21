@@ -1,2 +1,2 @@
 """Bond Provider"""
-from data_fetcher.providers.bond.bond_prices import FMPBondPricesFetcher
+from data_fetcher.providers.bond.models.bond_prices import FMPBondPricesFetcher
