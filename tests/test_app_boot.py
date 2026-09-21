@@ -2,18 +2,27 @@
 
 CI 게이트의 1차 방어선이다. 라우트 파일 하나가 import 에러를 내거나 main.py 등록을
 빠뜨리면 여기서 걸린다 — 배포 후 500 으로 발견하는 것보다 훨씬 싸다.
+
+경로 목록은 `app.routes`(Starlette 내부 구조)가 아니라 **OpenAPI 스키마**에서 읽는다.
+fastapi 0.141 에서 라우터 구성이 바뀌어 `app.routes` 순회가 등록된 라우트를 보지
+못했다(로컬 0.116 에서는 통과, CI 에서만 실패). 앱 자체는 멀쩡했고 테스트의 내부
+구조 의존이 문제였다 — openapi() 는 버전을 넘어 안정적인 공개 계약이다.
 """
 import pytest
 
 
 def _http_paths(app) -> set:
-    return {r.path for r in app.routes if getattr(r, "methods", None)}
+    """앱이 실제로 서빙하는 HTTP 경로 (OpenAPI 스키마 기준).
+
+    include_in_schema=False 인 라우트(/docs, /openapi.json 등)는 포함되지 않는다.
+    """
+    return set(app.openapi().get("paths", {}))
 
 
 def test_app_imports_and_has_routes():
     from app.backend.main import app
 
-    assert len(app.routes) > 50, "라우터 등록이 누락된 것으로 보인다"
+    assert len(_http_paths(app)) > 50, "라우터 등록이 누락된 것으로 보인다"
 
 
 def test_every_route_module_is_registered():
@@ -91,6 +100,8 @@ def test_non_api_http_paths_are_only_the_known_public_ones():
         p for p in _http_paths(app)
         if not p.startswith("/api/") and not p.startswith("/ws/")
     }
+    # OpenAPI 스키마에는 /docs·/openapi.json 이 들어오지 않지만, 혹시 포함되더라도
+    # 공개 대상이므로 허용 집합에 함께 둔다.
     allowed = set(_PUBLIC_PATHS) | set(_DOCS_PATHS)
     assert non_api <= allowed, (
         f"공개 목록에 없는 루트 경로가 추가됐다: {non_api - allowed} — "
