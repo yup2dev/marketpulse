@@ -6,7 +6,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
-from data_fetcher.providers.sec.institutional_13f import (
+from data_fetcher.providers.sec.models.institutional_13f import (
     SEC13FFetcher, INSTITUTIONS,
     InstitutionalHoldingsQueryParams,
     InstitutionalHoldingsData,

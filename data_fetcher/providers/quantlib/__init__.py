@@ -1,2 +1,2 @@
 """QuantLib Provider"""
-from data_fetcher.providers.quantlib.pricing import QuantLibPricingFetcher
+from data_fetcher.providers.quantlib.models.pricing import QuantLibPricingFetcher

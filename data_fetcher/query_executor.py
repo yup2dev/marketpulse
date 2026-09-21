@@ -158,7 +158,6 @@ _DEFAULT_TTL: Dict[str, int] = {
     "bond":                  21600,  # KR 국고채 벤치마크 (krx) — 일 갱신
     "institutional_holdings": 3600,
     "institutions_list":      7200,
-    "filing_13f":             7200,
     "institutional_13f":      7200,
     # 분기 공시 기반 + 다중 분기 파싱(요청당 N개 필링) — 길게 잡는다
     "fund_performance":      21600,
