@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Plus, TrendingUp, Percent, Activity, X, TrendingDown, GitCompare, Settings, BarChart2, ArrowRightLeft } from 'lucide-react';
+import { Plus, TrendingUp, Activity, X, TrendingDown, Settings, BarChart2 } from 'lucide-react';
 import StockSelectorModal from '../common/StockSelectorModal';
 import useTheme from '../../hooks/useTheme';
 import useChartZoom from '../../hooks/useChartZoom';
@@ -19,13 +19,14 @@ import {
   TECHNICAL_INDICATORS,
   INDICATOR_COLORS,
   WIDGET_CONSTRAINTS,
-  CHART_TYPES,
   CANDLE_COLORS,
 } from './constants';
 import { calculateIndicator } from '../../utils/technicalIndicators';
 import { getRegimeColor } from '../../utils/pairAnalysis';
 import { apiClient } from '../../config/api';
 import PlotlyStockChart from './chart/PlotlyStockChart';
+import ChartControls from './chart/ChartControls';
+import TickerShiftPopover from './chart/TickerShiftPopover';
 import ChartTypeDropdown from './chart/ChartTypeDropdown';
 import MacroIndicatorDropdown from './chart/MacroIndicatorDropdown';
 import TechnicalIndicatorDropdown from './chart/TechnicalIndicatorDropdown';
@@ -33,14 +34,11 @@ import PairSettingsPanel from './chart/PairSettingsPanel';
 import FcfComparisonPanel from './chart/FcfComparisonPanel';
 import OscillatorPanels from './chart/OscillatorPanels';
 import {
-  SHIFT_UNITS,
   shiftDateStr,
   getShiftLabel,
   calculateHeikinAshi,
   fmtDate,
   defaultDateRange,
-  DATE_RANGE_PRESETS,
-  presetDateRange,
   rangeToPeriod,
 } from './chart/chartHelpers';
 
@@ -1007,116 +1005,14 @@ const ChartWidget = ({
                       </button>
                     )}
 
-                    {/* Time Shift Editor Popover */}
-                    {shiftEditorSymbol === ticker.symbol && (
-                      <div
-                        className="absolute top-full left-0 mt-2 z-50 border border-gray-700 rounded-lg shadow-2xl p-3 w-64"
-                        style={{ backgroundColor: tokens.bg.tertiary }}
-                        onClick={(e) => e.stopPropagation()}
-                        onMouseDown={(e) => e.stopPropagation()}
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-semibold text-white flex items-center gap-1.5">
-                            <Settings size={12} className="text-amber-400" />
-                            {ticker.name || ticker.symbol}
-                          </span>
-                          <button
-                            onClick={() => setShiftEditorSymbol(null)}
-                            className="text-gray-400 hover:text-white"
-                          >
-                            <X size={12} />
-                          </button>
-                        </div>
-
-                        {/* Color picker */}
-                        <div className="text-[11px] text-gray-400 mb-1.5">Color</div>
-                        <div className="flex items-center gap-1.5 mb-3">
-                          {CHART_COLORS.map((color) => (
-                            <button
-                              key={color}
-                              onClick={() => updateTickerColor(ticker.symbol, color)}
-                              className={`w-5 h-5 rounded-full transition-transform hover:scale-110 ${
-                                ticker.color === color ? 'ring-2 ring-white ring-offset-1 ring-offset-gray-900' : ''
-                              }`}
-                              style={{ backgroundColor: color }}
-                              title={color}
-                            />
-                          ))}
-                          <label
-                            className="w-5 h-5 rounded-full cursor-pointer border border-dashed border-gray-500 hover:border-white flex items-center justify-center overflow-hidden relative"
-                            title="Custom color"
-                          >
-                            <span
-                              className="absolute inset-0.5 rounded-full"
-                              style={{
-                                background: CHART_COLORS.includes(ticker.color)
-                                  ? 'conic-gradient(#ef4444, #f59e0b, #10b981, #06b6d4, #8b5cf6, #ec4899, #ef4444)'
-                                  : ticker.color,
-                              }}
-                            />
-                            <input
-                              type="color"
-                              value={ticker.color || '#3b82f6'}
-                              onChange={(e) => updateTickerColor(ticker.symbol, e.target.value)}
-                              className="opacity-0 absolute inset-0 cursor-pointer"
-                            />
-                          </label>
-                        </div>
-
-                        {/* Time shift */}
-                        <div className="text-[11px] text-gray-400 mb-1.5 flex items-center gap-1">
-                          <ArrowRightLeft size={10} />
-                          Time Shift (Lead/Lag)
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="number"
-                            value={ticker.shift?.value ?? 0}
-                            onChange={(e) => {
-                              const v = parseInt(e.target.value, 10);
-                              updateTickerShift(ticker.symbol, {
-                                value: isNaN(v) ? 0 : v,
-                                unit: ticker.shift?.unit || 'M',
-                              });
-                            }}
-                            className="w-16 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-amber-500"
-                          />
-                          <div className="flex items-center bg-gray-800 rounded overflow-hidden">
-                            {SHIFT_UNITS.map((u) => (
-                              <button
-                                key={u.id}
-                                onClick={() =>
-                                  updateTickerShift(ticker.symbol, {
-                                    value: ticker.shift?.value || 0,
-                                    unit: u.id,
-                                  })
-                                }
-                                className={`px-2 py-1 text-xs font-medium transition-colors ${
-                                  (ticker.shift?.unit || 'M') === u.id
-                                    ? 'bg-amber-600 text-white'
-                                    : 'text-gray-400 hover:text-white hover:bg-gray-700'
-                                }`}
-                                title={u.label}
-                              >
-                                {u.id}
-                              </button>
-                            ))}
-                          </div>
-                          {ticker.shift?.value ? (
-                            <button
-                              onClick={() => updateTickerShift(ticker.symbol, null)}
-                              className="ml-auto text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-gray-300"
-                            >
-                              Reset
-                            </button>
-                          ) : null}
-                        </div>
-                        <div className="text-[11px] text-gray-500 mt-2 leading-relaxed">
-                          +N = 선행(Lead): 이 시리즈를 오른쪽으로 N만큼 이동시켜 다른 종목과 겹쳐 봅니다.
-                          −N = 후행(Lag). 예: SIL에 +4M → 반도체보다 4개월 선행 비교.
-                        </div>
-                      </div>
-                    )}
+                    <TickerShiftPopover
+                      open={shiftEditorSymbol === ticker.symbol}
+                      ticker={ticker}
+                      tokens={tokens}
+                      onClose={() => setShiftEditorSymbol(null)}
+                      updateTickerColor={updateTickerColor}
+                      updateTickerShift={updateTickerShift}
+                    />
                   </div>
                 ))}
 
@@ -1157,133 +1053,31 @@ const ChartWidget = ({
               </div>
               )}
 
-              {/* Chart Controls */}
-              <div className="flex items-center gap-2">
-                {/* Date Range Selector (symbol mode; series mode range comes from parent) */}
-                {showTimeRanges && !isSeriesMode && (
-                  <>
-                    <input
-                      type="date"
-                      value={startDate}
-                      max={endDate}
-                      onChange={(e) => setStartDate(e.target.value)}
-                      className="px-2 py-1.5 rounded text-xs font-medium bg-gray-800 text-gray-300 outline-none focus:text-white tabular-nums [color-scheme:dark]"
-                    />
-                    <span className="text-gray-600 text-xs">~</span>
-                    <input
-                      type="date"
-                      value={endDate}
-                      min={startDate}
-                      onChange={(e) => setEndDate(e.target.value)}
-                      className="px-2 py-1.5 rounded text-xs font-medium bg-gray-800 text-gray-300 outline-none focus:text-white tabular-nums [color-scheme:dark]"
-                    />
-                    {DATE_RANGE_PRESETS.map((preset) => {
-                      const r = presetDateRange(preset.months);
-                      const active = startDate === r.start && endDate === r.end;
-                      return (
-                        <button
-                          key={preset.label}
-                          onClick={() => { setStartDate(r.start); setEndDate(r.end); }}
-                          className={`px-2.5 py-1.5 rounded text-xs font-medium transition-colors ${
-                            active
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700'
-                          }`}
-                        >
-                          {preset.label}
-                        </button>
-                      );
-                    })}
-                  </>
-                )}
-
-                {showTimeRanges && showChartTypeSelector && !isSeriesMode && (
-                  <div className="w-px h-6 bg-gray-700 mx-1"></div>
-                )}
-
-                {/* Chart Type Quick Selector (symbol mode only) */}
-                {showChartTypeSelector && !isSeriesMode && (
-                  <div className="flex items-center bg-gray-800 rounded overflow-hidden">
-                    {CHART_TYPES.map((type) => (
-                      <button
-                        key={type.id}
-                        onClick={() => setChartType(type.id)}
-                        className={`px-2 py-1.5 text-xs font-medium transition-colors ${
-                          chartType === type.id
-                            ? 'bg-blue-600 text-white'
-                            : 'text-gray-400 hover:text-white hover:bg-gray-700'
-                        }`}
-                        title={type.description}
-                      >
-                        {type.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {((showTimeRanges || (showChartTypeSelector && !isSeriesMode)) && (showNormalize || showVolumeToggle)) && (
-                  <div className="w-px h-6 bg-gray-700 mx-1"></div>
-                )}
-
-                {showNormalize && (
-                  <button
-                    onClick={() => setNormalized(!normalized)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-                      normalized ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
-                    }`}
-                    title="Normalize to percentage change"
-                  >
-                    <Percent size={14} />
-                    Normalize
-                  </button>
-                )}
-
-                {showVolumeToggle && (isSeriesMode ? hasVolumeInSeries : tickers.some(t => t.type === 'stock')) && (
-                  <button
-                    onClick={() => setShowVolume(!showVolume)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-                      showVolume ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
-                    }`}
-                    title="Show volume"
-                  >
-                    Volume
-                  </button>
-                )}
-
-                {/* Pair Analysis Mode Toggle (symbol mode only) */}
-                {showPairAnalysis && !isSeriesMode && (
-                  <>
-                    <div className="w-px h-6 bg-gray-700 mx-1"></div>
-
-                    <button
-                      onClick={() => {
-                        setPairMode(!pairMode);
-                        if (!pairMode) {
-                          setShowPairSettings(true);
-                        }
-                      }}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-                        pairMode ? 'bg-amber-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
-                      }`}
-                      title="Pair Analysis Mode"
-                    >
-                      <GitCompare size={14} />
-                      Pair
-                    </button>
-
-                    {/* Pair Settings Toggle */}
-                    {pairMode && (
-                      <button
-                        onClick={() => setShowPairSettings(!showPairSettings)}
-                        className="flex items-center gap-1 px-2 py-1.5 rounded text-xs font-medium transition-colors bg-gray-800 text-gray-400 hover:text-white"
-                        title="Pair Settings"
-                      >
-                        <Settings size={14} />
-                      </button>
-                    )}
-                  </>
-                )}
-              </div>
+              <ChartControls
+                show={{
+                  timeRanges: showTimeRanges,
+                  chartTypeSelector: showChartTypeSelector,
+                  normalize: showNormalize,
+                  volumeToggle: showVolumeToggle,
+                  pairAnalysis: showPairAnalysis,
+                }}
+                isSeriesMode={isSeriesMode}
+                startDate={startDate}
+                endDate={endDate}
+                setStartDate={setStartDate}
+                setEndDate={setEndDate}
+                chartType={chartType}
+                setChartType={setChartType}
+                normalized={normalized}
+                setNormalized={setNormalized}
+                showVolume={showVolume}
+                setShowVolume={setShowVolume}
+                volumeAvailable={isSeriesMode ? hasVolumeInSeries : tickers.some(t => t.type === 'stock')}
+                pairMode={pairMode}
+                setPairMode={setPairMode}
+                showPairSettings={showPairSettings}
+                setShowPairSettings={setShowPairSettings}
+              />
             </div>
 
             <PairSettingsPanel
