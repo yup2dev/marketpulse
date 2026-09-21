@@ -1,129 +1,26 @@
 """
 MarketPulse Web Application
 FastAPI-based dashboard for financial data visualization
+
+이 파일은 앱을 '조립'만 한다. 내용은 아래로 나뉘어 있다:
+  core/lifespan.py               기동/종료 (캐시·Pub/Sub·WS 스트림·워밍업 태스크)
+  core/middleware/auth_gate.py   인증 게이트(deny-by-default) + 공개 경로 목록
+  api/routers.py                 라우터 등록
 """
 import sys
-import json
-import logging
 from pathlib import Path
-from contextlib import asynccontextmanager
-
-log = logging.getLogger(__name__)
-
-from fastapi import FastAPI, Request, Response
-from fastapi.responses import JSONResponse
 
 # Add project root to path (must be before app imports)
 project_root = str(Path(__file__).parent.parent.parent)
 sys.path.insert(0, project_root)
 
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.backend.core.config import settings
-from app.backend.core.db import init_db
-from app.backend.api.routes import (
-    stock, news, portfolio, macro,
-    auth, user_portfolio, screener, alerts, export, watchlist, menu,
-    quantlib, quantitative, notes, reports, copilot, backtest,
-)
-from app.backend.api.routes.admin import router as admin_router
-from app.backend.api.routes.workspace import router as workspace_router
-from app.backend.api.routes.fundamental import router as fundamental_router
-from app.backend.api.routes.providers import router as providers_router
-from app.backend.api.routes.ws import router as ws_router
-from app.backend.api.routes.data import router as data_router
-from app.backend.api.routes.keys import router as keys_router
-from app.backend.api.routes.ingest import router as ingest_router
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    import data_fetcher.providers_init  # noqa: F401 — registers all providers/fetchers
-    init_db()
-
-    from app.backend.services.symbol_cache import get_symbol_cache
-    await get_symbol_cache().ensure_loaded()
-
-    from app.backend.core.cache import cache
-    from data_fetcher.query_executor import QueryExecutor
-    await cache.init(redis_url=settings.REDIS_URL if settings.QUEUE_ENABLED else None)
-    # FETCHER_REMOTE_ENABLED=True 면 모든 데이터 조회를 로컬 Fetcher(exe) REST로 위임한다.
-    # (배포 WebServer는 provider 키를 갖지 않음 — 키와 외부 호출은 Fetcher에 집중)
-    # False(기본)에서는 기존처럼 백엔드가 provider를 직접 호출한다.
-    fetcher_client = None
-    if settings.FETCHER_REMOTE_ENABLED:
-        if settings.FETCHER_WORKER_MODE:
-            # 사용자 PC의 Fetcher가 /ws/fetcher 로 outbound 접속(push) → 워커 풀에 위임
-            from app.backend.core.fetcher_ws_transport import WSFetcherTransport
-            fetcher_client = WSFetcherTransport(timeout=settings.FETCHER_TIMEOUT)
-            log.info("[startup] Fetcher 위임 활성화 (WS 워커 풀, /ws/fetcher)")
-        else:
-            from app.backend.core.fetcher_client import FetcherClient
-            # 풀 모드는 백엔드와 Fetcher가 같은 PC에서 돌며 data_fetcher 패키지의
-            # 공유 토큰 파일(%APPDATA%\MarketPulseFetcher\token)을 함께 쓴다.
-            # FETCHER_TOKEN 을 .env 로 수동 지정하지 않아도, Fetcher 가 생성한
-            # 그 토큰을 여기서 그대로 읽어 401 을 방지한다(명시 설정이 있으면 우선).
-            fetcher_token = settings.FETCHER_TOKEN
-            if not fetcher_token:
-                try:
-                    from data_fetcher.server.auth import get_or_create_token
-                    fetcher_token = get_or_create_token()
-                except Exception as exc:  # 파일 접근 실패 등은 무시(토큰 없이 진행)
-                    log.warning("[startup] 로컬 Fetcher 토큰 자동 로드 실패: %s", exc)
-            fetcher_client = FetcherClient(
-                base_url=settings.FETCHER_URL,
-                timeout=settings.FETCHER_TIMEOUT,
-                token=fetcher_token or None,
-            )
-            log.info("[startup] Fetcher 위임 활성화 → %s", settings.FETCHER_URL)
-
-    # key-only provider(Class B)를 서버에서 '요청 사용자의 키'로 호출하기 위한 해석기.
-    # current_user_id별로 DB에 저장된 사용자 키를 복호화해 반환한다.
-    def _credential_resolver(provider: str, user_id: str):
-        from app.backend.services.user_key_service import get_credentials
-        return get_credentials(user_id, provider)
-
-    # server_mode: 13F 원본 파싱 모델(_local_only_models)을 이 서버 프로세스에서 실행하지 않는다.
-    QueryExecutor.configure(
-        cache=cache, remote=fetcher_client, credential_resolver=_credential_resolver,
-        server_mode=True,
-    )
-
-    # ── Redis Pub/Sub (멀티워커 WS fan-out) ──────────────────────────────────
-    from app.backend.core.pubsub import init_pubsub, close_pubsub
-    from app.backend.api.routes.ws import register_pubsub_handlers, quote_publisher_loop
-    await init_pubsub(redis_url=settings.REDIS_URL if settings.QUEUE_ENABLED else None)
-    register_pubsub_handlers()
-
-    import asyncio
-    quote_pub_task = asyncio.create_task(quote_publisher_loop())
-
-    # KIS(한국투자증권) 실시간 체결 스트림 — KIS_APPKEY/SECRET 없으면 즉시 종료(폴링 백업)
-    import os
-    from app.backend.api.routes.ws import kis_stream_loop
-    kis_task = asyncio.create_task(kis_stream_loop(env=os.getenv("KIS_ENV", "real")))
-
-    from app.backend.services.ranking_service import warmup_ranking_loop
-    warmup_task = asyncio.create_task(warmup_ranking_loop())
-
-    from app.backend.services.stock_list_service import refresh_cache, stock_list_warmup_loop
-    await refresh_cache()
-    stock_list_task = asyncio.create_task(stock_list_warmup_loop())
-
-    yield
-
-    quote_pub_task.cancel()
-    kis_task.cancel()
-    warmup_task.cancel()
-    stock_list_task.cancel()
-    if fetcher_client is not None:
-        await fetcher_client.aclose()
-    await cache.close()
-    await close_pubsub()
-
-    from data_fetcher.utils.provider_helpers import aclose_shared_session
-    await aclose_shared_session()
-
+from app.backend.core.lifespan import lifespan
+from app.backend.core.middleware.auth_gate import AuthGateMiddleware
+from app.backend.api.routers import register_routers
 
 app = FastAPI(
     title="MarketPulse Dashboard",
@@ -132,169 +29,23 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# ── Auth Gate Middleware ───────────────────────────────────────────────────────
-# deny-by-default: 아래 공개 목록에 없는 모든 HTTP 경로는 유효한 Bearer 토큰을 요구합니다.
-# 401 응답 → 프론트엔드 apiClient가 refresh 시도 → 실패 시 forceLogout() → /login 이동
-#
-# 예전에는 `/api/` 로 시작하는 경로만 검사(allow-by-default)했다. 그래서 `/api/` 밖에
-# 추가된 운영 엔드포인트(`/cache/*`, `/circuit-breakers/*`, `/fetcher-workers`)가 조용히
-# 무인증으로 공개됐다 — `DELETE /cache/{prefix}` 로 누구나 운영 캐시를 날릴 수 있었다.
-# 그 엔드포인트들은 routes/admin.py(`/api/admin/*`, require_admin)로 옮겼고, 같은 실수가
-# 재발하지 않도록 게이트를 뒤집었다. 새 경로는 기본적으로 '막힌 상태'로 태어난다.
-_PUBLIC_PATHS = frozenset({
-    "/",          # 앱 이름·버전 (업타임 체크)
-    "/health",    # 헬스체크 (Docker/LB)
-})
-_PUBLIC_PREFIXES = (
-    "/api/auth/login",
-    "/api/auth/register",
-    "/api/auth/refresh",
-)
-# OpenAPI 문서는 브라우저가 Bearer 없이 여는 페이지라 게이트를 통과시킬 수밖에 없다.
-# 운영에서 API 스키마를 공개할 이유가 없으므로 DEBUG=true 일 때만 연다.
-# (운영에서 잠깐 봐야 하면 코드 수정 없이 DEBUG 환경변수로 켤 수 있다.)
-_DOCS_PATHS = frozenset({
-    "/docs",
-    "/docs/oauth2-redirect",
-    "/redoc",
-    "/openapi.json",
-})
-
-
-async def _send_json(send, status: int, detail: str, extra_headers=None) -> None:
-    body = json.dumps({"detail": detail}).encode()
-    headers = [(b"content-type", b"application/json"),
-               (b"content-length", str(len(body)).encode())]
-    headers += (extra_headers or [])
-    await send({"type": "http.response.start", "status": status, "headers": headers})
-    await send({"type": "http.response.body", "body": body})
-
-
-class AuthGateMiddleware:
-    """순수 ASGI 인증 게이트 (deny-by-default).
-
-    @app.middleware("http")(=BaseHTTPMiddleware)는 downstream을 별도 task로 실행해
-    여기서 set한 current_user_id contextvar가 실 uvicorn 런타임에서 엔드포인트까지
-    전파되지 않는다(요청이 user_id=None으로 보여 Fetcher 위임 실패). 순수 ASGI
-    미들웨어는 같은 컨텍스트에서 downstream을 호출하므로 contextvar가 정상 전파된다.
-
-    CORS가 최외곽이 되도록 이 미들웨어를 CORSMiddleware보다 먼저 add 한다.
-    """
-
-    def __init__(self, app):
-        self.app = app
-
-    @staticmethod
-    def _is_public(path: str) -> bool:
-        if path in _PUBLIC_PATHS:
-            return True
-        if any(path.startswith(p) for p in _PUBLIC_PREFIXES):
-            return True
-        if settings.DEBUG and path in _DOCS_PATHS:
-            return True
-        return False
-
-    async def __call__(self, scope, receive, send):
-        # WebSocket(/ws/quotes, /ws/fetcher)은 핸들러가 직접 토큰을 검증한다.
-        if scope["type"] != "http":
-            await self.app(scope, receive, send)
-            return
-
-        path = scope.get("path", "")
-        method = scope.get("method", "")
-        # CORS preflight와 공개 경로만 통과 — 나머지는 전부 Bearer 검사
-        if method == "OPTIONS" or self._is_public(path):
-            await self.app(scope, receive, send)
-            return
-
-        headers = dict(scope.get("headers") or [])
-        auth_header = headers.get(b"authorization", b"").decode("latin-1")
-        bearer = (b"www-authenticate", b"Bearer")
-        if not auth_header.startswith("Bearer "):
-            await _send_json(send, 401, "Not authenticated", [bearer])
-            return
-
-        from app.backend.core.auth.security import decode_token
-        token = auth_header.split(" ", 1)[1]
-        payload = decode_token(token)
-        if payload is None or payload.get("type") == "refresh":
-            await _send_json(send, 401, "Invalid or expired token", [bearer])
-            return
-
-        # 요청 범위 사용자 컨텍스트 — 데이터 조회가 '이 사용자의 Fetcher 워커'로 위임되도록.
-        from data_fetcher.query_executor import current_user_id
-        sub = payload.get("sub")
-        ctx_token = current_user_id.set(str(sub) if sub is not None else None)
-        try:
-            await self.app(scope, receive, send)
-        finally:
-            current_user_id.reset(ctx_token)
-
-
+# ── Middleware ────────────────────────────────────────────────────────────────
+# 등록 순서가 중요하다. Starlette은 나중에 add한 미들웨어가 더 바깥(outermost)이므로
+# auth_gate 를 먼저 add 해야 CORS가 최외곽이 되고, auth_gate가 단락(401)으로 반환하는
+# 응답에도 CORS 헤더가 붙는다. 그렇지 않으면 브라우저가 401 응답을 막아 프론트가
+# status를 못 보고(네트워크 오류로 처리) refresh/forceLogout/로그인 리다이렉트가
+# 동작하지 않는다.
 app.add_middleware(AuthGateMiddleware)
-
-
-# ── CORS ───────────────────────────────────────────────────────────────────────
-# 반드시 auth_gate 뒤에 등록한다. Starlette은 나중에 add한 미들웨어가 더 바깥(outermost)
-# 이므로, CORS가 최외곽이 되어 auth_gate가 단락(401)으로 반환하는 응답에도 CORS 헤더가
-# 붙는다. 그렇지 않으면 브라우저가 401 응답을 막아 프론트가 status를 못 보고(네트워크 오류로
-# 처리) refresh/forceLogout/로그인 리다이렉트가 동작하지 않는다.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        *settings.CORS_ORIGINS,
-        "https://frontend-yup2devs-projects.vercel.app",  # Vercel 프론트엔드
-        "http://localhost",
-        "http://127.0.0.1",
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://localhost:5175",
-    ],
+    allow_origins=settings.cors_allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ── Stock / Market ────────────────────────────────────────────────────────────
-app.include_router(stock.router,     prefix="/api/stock",    tags=["stock"])
-app.include_router(news.router,      prefix="/api/news",     tags=["news"])
-app.include_router(reports.router,   prefix="/api",          tags=["reports"])
-app.include_router(screener.router,  prefix="/api",          tags=["screener"])
-
-# ── Macro / Economic ─────────────────────────────────────────────────────────
-app.include_router(macro.router,     prefix="/api/macro",    tags=["macro"])
-
-# ── Portfolio ─────────────────────────────────────────────────────────────────
-app.include_router(portfolio.router,      prefix="/api/portfolio", tags=["portfolio"])
-app.include_router(user_portfolio.router, prefix="/api",           tags=["user-portfolio"])
-
-# ── User / Auth ───────────────────────────────────────────────────────────────
-app.include_router(auth.router,      prefix="/api", tags=["auth"])
-app.include_router(alerts.router,    prefix="/api", tags=["alerts"])
-app.include_router(watchlist.router, prefix="/api", tags=["watchlist"])
-app.include_router(notes.router,     prefix="/api", tags=["notes"])
-app.include_router(backtest.router,  prefix="/api", tags=["backtest"])
-app.include_router(workspace_router, prefix="/api", tags=["workspace"])
-
-# ── Analysis ──────────────────────────────────────────────────────────────────
-app.include_router(fundamental_router.router, prefix="/api/v1",           tags=["equity-fundamental"])
-app.include_router(quantlib.router,           prefix="/api/quantlib",     tags=["quantlib"])
-app.include_router(quantitative.router,       prefix="/api/quantitative", tags=["quantitative"])
-
-# ── Universal Data Gateway ───────────────────────────────────────────────────
-app.include_router(data_router,       prefix="/api/data", tags=["data"])
-
-# ── AI Copilot ────────────────────────────────────────────────────────────────
-app.include_router(copilot.router,    prefix="/api", tags=["copilot"])
-
-# ── System ────────────────────────────────────────────────────────────────────
-app.include_router(export.router,     prefix="/api", tags=["export"])
-app.include_router(menu.router,       prefix="/api", tags=["menu"])
-app.include_router(providers_router,  prefix="/api", tags=["providers"])
-app.include_router(keys_router,       prefix="/api", tags=["keys"])
-app.include_router(ingest_router,     prefix="/api", tags=["ingest"])
-app.include_router(admin_router,      prefix="/api", tags=["admin"])
-app.include_router(ws_router,                        tags=["websocket"])
+# ── Routers ───────────────────────────────────────────────────────────────────
+register_routers(app)
 
 
 @app.get("/")

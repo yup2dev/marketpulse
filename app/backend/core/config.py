@@ -40,12 +40,31 @@ class Settings(BaseSettings):
         "http://localhost:3000",
     ]
 
-    @field_validator("CORS_ORIGINS", mode="before")
+    # 배포와 무관하게 항상 허용하는 origin — CORS_ORIGINS(env) 에 '덧붙는다'.
+    # 별도 필드로 두는 이유: env 로 CORS_ORIGINS 를 지정하면 위 기본값을 통째로
+    # 대체하므로, 여기 있는 것들을 같은 목록에 합쳐두면 운영 env 설정이 Vercel
+    # 프론트 origin 을 조용히 지워버린다(프론트 전체가 CORS 로 막힌다).
+    CORS_ALWAYS_ALLOWED_ORIGINS: Annotated[List[str], NoDecode] = [
+        "https://frontend-yup2devs-projects.vercel.app",  # Vercel 프론트엔드
+        "http://localhost",
+        "http://127.0.0.1",
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:5175",
+    ]
+
+    @field_validator("CORS_ORIGINS", "CORS_ALWAYS_ALLOWED_ORIGINS", mode="before")
     @classmethod
     def _split_cors_origins(cls, v):
         if isinstance(v, str):
             return [origin.strip() for origin in v.split(",") if origin.strip()]
         return v
+
+    @property
+    def cors_allow_origins(self) -> List[str]:
+        """CORSMiddleware 에 넘길 최종 origin 목록 (등장 순서 유지 + 중복 제거)."""
+        merged = dict.fromkeys((*self.CORS_ORIGINS, *self.CORS_ALWAYS_ALLOWED_ORIGINS))
+        return list(merged)
 
     # Database
     SQLITE_PATH: str = "data/marketpulse.db"
