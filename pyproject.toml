@@ -1,0 +1,30 @@
+# 루트 설정 — 도구(pytest/mypy) 설정만 모은다.
+#
+# [project] / [build-system] 섹션은 일부러 두지 않는다. 이 저장소의 루트는 설치 가능한
+# 패키지가 아니며, data_fetcher/ 와 index_analyzer/ 가 각자 poetry pyproject 를 갖고 있다.
+# 여기에 [project] 를 추가하면 pip 가 루트를 패키지로 취급해 배포가 꼬인다.
+#
+# 의존성은 여전히 requirements.txt 가 단일 소스다 (Docker/CI 가 이걸 쓴다).
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests", "data_fetcher/tests"]
+# 루트를 import 경로에 넣어야 `app.backend...` / `index_analyzer...` 가 풀린다.
+# (main.py 의 sys.path 조작에 의존하지 않기 위해 명시한다)
+pythonpath = ["."]
+addopts = "-q --strict-markers --strict-config"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "network: 외부 네트워크가 필요한 테스트 (기본 CI에서는 제외)",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning:passlib.*",
+]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+# 기존 코드가 타입 힌트를 부분적으로만 갖고 있어 아직 전면 적용하지 않는다.
+# 새 모듈부터 파일 단위로 strict 를 켜 나간다.
+follow_imports = "silent"

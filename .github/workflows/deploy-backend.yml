@@ -14,7 +14,13 @@ on:
   workflow_dispatch:
 
 jobs:
+  # 테스트 게이트 — 실패하면 이미지 빌드도 배포도 하지 않는다.
+  # (예전에는 검증 없이 main push 가 곧바로 운영 재배포로 이어졌다)
+  test:
+    uses: ./.github/workflows/test.yml
+
   deploy:
+    needs: test
     runs-on: ubuntu-latest
     env:
       SERVER_HOST: ${{ secrets.SERVER_HOST }}
