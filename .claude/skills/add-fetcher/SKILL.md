@@ -43,13 +43,17 @@ UniversalWidget의 provider 셀렉터가 shape-safe하게 동작한다.
 ```
 data_fetcher/providers/<p>/
   __init__.py
-  models/              ← model fetcher 전부. 파일명 = category 키 (snake_case)
+  models/              ← model fetcher 전부. 파일명은 주 category 키 (snake_case)
     __init__.py
     <model>.py
   utils/               ← 그 provider 전용 헬퍼 (파싱·URL 빌더 등)
   assets/              ← 동봉 데이터 파일 (imf_cache.pkl.gz 등)
   rest.py / stream.py / client.py   ← provider 인프라 (kis 처럼 필요할 때만)
 ```
+
+한 모듈이 **밀접하게 관련된 category 여럿**을 담는 것은 정상이다 — fmp `gainers.py` 는
+gainers/losers/most_actives 를, yahoo `insider_trading.py` 는 거래·보유·요약 3종을 함께
+정의한다(같은 QueryParams·엔드포인트를 공유한다). 쪼개지 말고 주 category 이름을 쓴다.
 
 배치를 **데이터 소스 유형이나 이식 출처와 무관하게 하나로 고정**한다. 예전에는 OpenBB에서
 이식한 provider만 `models/`를 쓰고 나머지는 최상위에 평평하게 뒀는데, 이건 코드의 성질이
