@@ -175,7 +175,7 @@ providers_init이 정적 import하므로 **모듈 자체는 자동 번들**된�
 1. **함수 내부 지연 import 모듈은 정적분석이 못 잡는다** → `build/MarketPulseFetcher.spec`과 `build/MarketPulseFetcherSidecar.spec` **양쪽** `hiddenimports`에 추가. (사례: SEC의 `xmltodict` 누락 → exe에서 13F 파싱 시 ModuleNotFoundError)
 2. **provider 자산 파일**(예: IMF `imf_cache.pkl.gz`)은 양쪽 spec `datas`에 추가하고, 없어도 import가 죽지 않게 fail-soft.
 3. 무거운/백엔드 전용 의존성(sqlalchemy, scipy 등)은 spec `excludes` 유지 + providers_init try/except.
-4. 빌드·배포: `bash build/build.sh` (Win/Mac 공용, 실제 바탕화면에 복사). Tauri sidecar는 `build/build_sidecar.sh`.
+4. 빌드·배포: `bash build/build.sh` (Win/Mac 공용, 실제 바탕화면에 복사).
 5. 배포 환경에서 keyless 스크래핑 provider(yahoo/whalewisdom 등)는 **사용자 로컬 Fetcher 워커로 위임**된다 — default 위젯에는 지양(SEC 게이트웨이 위젯 선호).
 
 ---

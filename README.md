@@ -3,7 +3,7 @@
 주식·거시경제·포트폴리오를 한 화면에서 보는 금융 데이터 대시보드.
 터미널 스타일의 다크 UI 위에 위젯을 배치하고, 여러 데이터 소스를 통합해 시세·재무·뉴스·13F·거시지표를 제공한다.
 
-- **Frontend**: React + Vite (Vercel 배포) · 데스크톱은 Tauri 래퍼
+- **Frontend**: React + Vite (Vercel 배포)
 - **Backend**: FastAPI (AWS Lightsail, Docker)
 - **데이터 수집**: `index_analyzer`(크롤링 데몬) + `data_fetcher`(통합 조회 시스템)
 - **저장소**: SQLite (`data/marketpulse.db`) · Redis(캐시)
@@ -19,7 +19,7 @@
 │  (Vercel)    │ ◀───────────────── │                        │
 └──────┬───────┘                    │  ├─ QueryExecutor      │
        │                            │  │   ├ 서버 직접 조회   │
-       │ Tauri 래핑(데스크톱)        │  │   └ Fetcher 위임     │
+       │                            │  │   └ Fetcher 위임     │
        ▼                            │  ├─ user_key_service   │ ← 사용자 API 키(Fernet 암호화 DB)
 ┌──────────────┐                    │  └─ scheduler/crawl    │
 │ 로컬 Fetcher  │  /ws/fetcher       └───────┬────────────────┘
@@ -65,10 +65,9 @@ marketpulse/
 │   ├── query_executor.py     # 조회 실행 · 서버/Fetcher 라우팅 seam
 │   ├── server/  app.py       # 로컬 REST 서버(.exe 패키징)
 │   └── tray.py               # 트레이 상주
-├── desktop/                  # Tauri 데스크톱 래퍼 (Vercel 프론트 로드 + sidecar fetcher)
-│   └── src-tauri/
+├── migrations/               # alembic 마이그레이션 (baseline + 리비전)
+├── tests/                    # 백엔드 테스트 (인증 게이트·캐시·ORM metadata)
 ├── scripts/                  # DB 초기화·시드·백필 스크립트
-├── launcher.py / launch.vbs  # Windows 트레이 런처
 ├── Dockerfile                # 백엔드 컨테이너
 ├── docker-compose.yml        # app + redis
 └── requirements.txt
@@ -80,10 +79,9 @@ marketpulse/
 
 | 영역 | 사용 |
 |------|------|
-| Frontend | React 18, Vite, React Router, Zustand, TanStack Table, Plotly/Recharts, Tailwind, react-grid-layout |
+| Frontend | React 18, Vite, React Router, Zustand, TanStack Table, Plotly, Tailwind, react-grid-layout |
 | Backend | FastAPI, Uvicorn, SQLAlchemy 2, Pydantic v2, python-jose(JWT), passlib/bcrypt, cryptography(Fernet) |
 | 데이터 | SQLite, Redis, aiohttp/requests, BeautifulSoup/lxml, feedparser |
-| 데스크톱 | Tauri (Rust) + sidecar fetcher |
 | 인프라 | Docker, AWS Lightsail, GitHub Actions, Docker Hub, Vercel |
 
 ---
@@ -120,17 +118,22 @@ npm run build    # 프로덕션 빌드 (dist/)
 npm run lint
 ```
 
-> `VITE_API_URL`이 비면 `config/api.js`가 운영(`https://api.finance.dns-co.kr`)으로 폴백한다. 로컬 백엔드로 테스트하려면 `.env.local`이 반드시 필요하다. (`.env.local`은 `.gitignore`의 `*.local`로 커밋되지 않음)
+> `VITE_API_URL`이 비면 `config/api.js`가 `http://localhost:8000`으로 폴백한다.
+> 운영 URL은 `.env.production`(또는 Vercel 환경변수)으로만 주입한다 — 폴백을 운영 서버로 두면
+> `.env` 없이 dev 서버를 띄운 개발자가 운영 API를 직접 때리게 된다.
 
-### 3) 데스크톱 (Tauri, 선택)
+### 3) 로컬 Fetcher (선택)
+
+Yahoo 등 일부 소스는 서버 고정 IP에서 차단되므로 사용자 PC의 Fetcher가 대신 조회한다.
+[Releases](https://github.com/yup2dev/marketpulse/releases/latest)에서 받아 실행하면
+트레이에 상주하고, 웹앱 로그인 시 토큰이 자동 전달되어 클라우드 워커 풀에 합류한다.
+
+### 4) 테스트
 
 ```bash
-cd desktop
-npm install
-npm run tauri dev
+pytest                    # 전체
+pytest tests/             # 백엔드만
 ```
-
-Tauri 앱은 Vercel 프론트를 로드하고 sidecar로 로컬 Fetcher를 기동한다. Windows에서는 `launch.vbs`(트레이 런처)로 상주 실행한다.
 
 ---
 
