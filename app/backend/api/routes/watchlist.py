@@ -1,18 +1,27 @@
 """
 Watchlist API Routes
 관심종목 관리 엔드포인트
+
+응답은 프로젝트 표준인 OBBject(`{results, provider, metadata}`)로 통일한다.
+단건도 `results` 배열에 담고, 삭제/이동처럼 돌려줄 본문이 없으면 `results=[]` +
+`metadata` 에 대상 식별자를 담는다.
+에러 처리는 `route_handler` 가 맡는다 — 핸들러마다 있던 try/except 500 래핑을 걷어냈다.
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import BaseModel
 
+from app.backend.api.deps import route_handler
 from app.backend.core.db import get_db
 from app.backend.core.auth.dependencies import get_current_active_user
 from app.backend.services.watchlist_service import WatchlistService
+from data_fetcher.core import OBBject
 from index_analyzer.models.orm import User
 
 router = APIRouter(prefix="/watchlist", tags=["watchlist"])
+
+_PROVIDER = "db"
 
 
 # =============================================================================
@@ -52,6 +61,7 @@ class QuickAddRequest(BaseModel):
 # =============================================================================
 
 @router.get("/my-tickers")
+@route_handler
 def get_my_tickers(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
@@ -59,14 +69,12 @@ def get_my_tickers(
     """
     사용자가 관심 등록한 모든 종목 코드 목록 (그룹 무관 flat)
     """
-    try:
-        tickers = WatchlistService.get_all_user_tickers(db, current_user.user_id)
-        return {"success": True, "tickers": tickers}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    tickers = WatchlistService.get_all_user_tickers(db, current_user.user_id)
+    return OBBject(results=tickers, provider=_PROVIDER)
 
 
 @router.post("/quick-add")
+@route_handler
 def quick_add_ticker(
     request: QuickAddRequest,
     db: Session = Depends(get_db),
@@ -75,14 +83,12 @@ def quick_add_ticker(
     """
     관심종목 빠른 추가 — 기본 그룹이 없으면 자동 생성
     """
-    try:
-        result = WatchlistService.quick_add_ticker(db, current_user.user_id, request.ticker_cd)
-        return {"success": True, "data": result}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    result = WatchlistService.quick_add_ticker(db, current_user.user_id, request.ticker_cd)
+    return OBBject(results=[result], provider=_PROVIDER)
 
 
 @router.delete("/quick-remove/{ticker_cd}")
+@route_handler
 def quick_remove_ticker(
     ticker_cd: str,
     db: Session = Depends(get_db),
@@ -91,11 +97,8 @@ def quick_remove_ticker(
     """
     관심종목 빠른 제거 — 모든 그룹에서 제거
     """
-    try:
-        WatchlistService.quick_remove_ticker(db, current_user.user_id, ticker_cd)
-        return {"success": True}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    WatchlistService.quick_remove_ticker(db, current_user.user_id, ticker_cd)
+    return OBBject(results=[], provider=_PROVIDER, metadata={"removed": ticker_cd})
 
 
 # =============================================================================
@@ -103,6 +106,7 @@ def quick_remove_ticker(
 # =============================================================================
 
 @router.get("")
+@route_handler
 def get_watchlists(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
@@ -113,18 +117,13 @@ def get_watchlists(
     Returns:
         관심종목 리스트 목록
     """
-    try:
-        user_id = current_user.user_id
-        watchlists = WatchlistService.get_user_watchlists(db, user_id)
-        return {"success": True, "data": watchlists}
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch watchlists: {str(e)}"
-        )
+    user_id = current_user.user_id
+    watchlists = WatchlistService.get_user_watchlists(db, user_id)
+    return OBBject(results=watchlists, provider=_PROVIDER)
 
 
 @router.post("")
+@route_handler
 def create_watchlist(
     request: CreateWatchlistRequest,
     db: Session = Depends(get_db),
@@ -139,23 +138,18 @@ def create_watchlist(
     Returns:
         생성된 관심종목 리스트
     """
-    try:
-        user_id = current_user.user_id
-        watchlist = WatchlistService.create_watchlist(
-            db,
-            user_id,
-            request.name,
-            request.description
-        )
-        return {"success": True, "data": watchlist}
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create watchlist: {str(e)}"
-        )
+    user_id = current_user.user_id
+    watchlist = WatchlistService.create_watchlist(
+        db,
+        user_id,
+        request.name,
+        request.description
+    )
+    return OBBject(results=[watchlist], provider=_PROVIDER)
 
 
 @router.get("/{watchlist_id}")
+@route_handler
 def get_watchlist(
     watchlist_id: str,
     db: Session = Depends(get_db),
@@ -170,27 +164,20 @@ def get_watchlist(
     Returns:
         관심종목 리스트
     """
-    try:
-        user_id = current_user.user_id
-        watchlist = WatchlistService.get_watchlist_by_id(db, watchlist_id, user_id)
+    user_id = current_user.user_id
+    watchlist = WatchlistService.get_watchlist_by_id(db, watchlist_id, user_id)
 
-        if not watchlist:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Watchlist not found"
-            )
-
-        return {"success": True, "data": watchlist}
-    except HTTPException:
-        raise
-    except Exception as e:
+    if not watchlist:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch watchlist: {str(e)}"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Watchlist not found"
         )
+
+    return OBBject(results=[watchlist], provider=_PROVIDER)
 
 
 @router.put("/{watchlist_id}")
+@route_handler
 def update_watchlist(
     watchlist_id: str,
     request: UpdateWatchlistRequest,
@@ -207,33 +194,26 @@ def update_watchlist(
     Returns:
         수정된 관심종목 리스트
     """
-    try:
-        user_id = current_user.user_id
-        watchlist = WatchlistService.update_watchlist(
-            db,
-            watchlist_id,
-            user_id,
-            request.name,
-            request.description
-        )
+    user_id = current_user.user_id
+    watchlist = WatchlistService.update_watchlist(
+        db,
+        watchlist_id,
+        user_id,
+        request.name,
+        request.description
+    )
 
-        if not watchlist:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Watchlist not found"
-            )
-
-        return {"success": True, "data": watchlist}
-    except HTTPException:
-        raise
-    except Exception as e:
+    if not watchlist:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update watchlist: {str(e)}"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Watchlist not found"
         )
+
+    return OBBject(results=[watchlist], provider=_PROVIDER)
 
 
 @router.delete("/{watchlist_id}")
+@route_handler
 def delete_watchlist(
     watchlist_id: str,
     db: Session = Depends(get_db),
@@ -248,24 +228,16 @@ def delete_watchlist(
     Returns:
         성공 메시지
     """
-    try:
-        user_id = current_user.user_id
-        success = WatchlistService.delete_watchlist(db, watchlist_id, user_id)
+    user_id = current_user.user_id
+    success = WatchlistService.delete_watchlist(db, watchlist_id, user_id)
 
-        if not success:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Watchlist not found"
-            )
-
-        return {"success": True, "message": "Watchlist deleted successfully"}
-    except HTTPException:
-        raise
-    except Exception as e:
+    if not success:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete watchlist: {str(e)}"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Watchlist not found"
         )
+
+    return OBBject(results=[], provider=_PROVIDER, metadata={"deleted": watchlist_id})
 
 
 # =============================================================================
@@ -273,6 +245,7 @@ def delete_watchlist(
 # =============================================================================
 
 @router.get("/{watchlist_id}/items")
+@route_handler
 def get_watchlist_items(
     watchlist_id: str,
     db: Session = Depends(get_db),
@@ -287,18 +260,13 @@ def get_watchlist_items(
     Returns:
         관심종목 항목 리스트 (가격 정보 포함)
     """
-    try:
-        user_id = current_user.user_id
-        items = WatchlistService.get_watchlist_items(db, watchlist_id, user_id)
-        return {"success": True, "data": items}
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch watchlist items: {str(e)}"
-        )
+    user_id = current_user.user_id
+    items = WatchlistService.get_watchlist_items(db, watchlist_id, user_id)
+    return OBBject(results=items, provider=_PROVIDER)
 
 
 @router.post("/{watchlist_id}/items")
+@route_handler
 def add_ticker_to_watchlist(
     watchlist_id: str,
     request: AddTickerRequest,
@@ -315,33 +283,26 @@ def add_ticker_to_watchlist(
     Returns:
         추가된 항목
     """
-    try:
-        user_id = current_user.user_id
-        item = WatchlistService.add_ticker_to_watchlist(
-            db,
-            watchlist_id,
-            user_id,
-            request.ticker_cd,
-            request.notes
-        )
+    user_id = current_user.user_id
+    item = WatchlistService.add_ticker_to_watchlist(
+        db,
+        watchlist_id,
+        user_id,
+        request.ticker_cd,
+        request.notes
+    )
 
-        if not item:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Ticker already exists in watchlist or watchlist not found"
-            )
-
-        return {"success": True, "data": item}
-    except HTTPException:
-        raise
-    except Exception as e:
+    if not item:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to add ticker to watchlist: {str(e)}"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Ticker already exists in watchlist or watchlist not found"
         )
+
+    return OBBject(results=[item], provider=_PROVIDER)
 
 
 @router.delete("/{watchlist_id}/items/{ticker_cd}")
+@route_handler
 def remove_ticker_from_watchlist(
     watchlist_id: str,
     ticker_cd: str,
@@ -358,32 +319,25 @@ def remove_ticker_from_watchlist(
     Returns:
         성공 메시지
     """
-    try:
-        user_id = current_user.user_id
-        success = WatchlistService.remove_ticker_from_watchlist(
-            db,
-            watchlist_id,
-            user_id,
-            ticker_cd
-        )
+    user_id = current_user.user_id
+    success = WatchlistService.remove_ticker_from_watchlist(
+        db,
+        watchlist_id,
+        user_id,
+        ticker_cd
+    )
 
-        if not success:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Ticker not found in watchlist or watchlist not found"
-            )
-
-        return {"success": True, "message": "Ticker removed successfully"}
-    except HTTPException:
-        raise
-    except Exception as e:
+    if not success:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to remove ticker from watchlist: {str(e)}"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Ticker not found in watchlist or watchlist not found"
         )
+
+    return OBBject(results=[], provider=_PROVIDER, metadata={"removed": ticker_cd})
 
 
 @router.put("/{watchlist_id}/items/reorder")
+@route_handler
 def reorder_watchlist_items(
     watchlist_id: str,
     request: ReorderItemsRequest,
@@ -400,26 +354,18 @@ def reorder_watchlist_items(
     Returns:
         성공 메시지
     """
-    try:
-        user_id = current_user.user_id
-        success = WatchlistService.reorder_watchlist_items(
-            db,
-            watchlist_id,
-            user_id,
-            request.ticker_orders
-        )
+    user_id = current_user.user_id
+    success = WatchlistService.reorder_watchlist_items(
+        db,
+        watchlist_id,
+        user_id,
+        request.ticker_orders
+    )
 
-        if not success:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Watchlist not found"
-            )
-
-        return {"success": True, "message": "Items reordered successfully"}
-    except HTTPException:
-        raise
-    except Exception as e:
+    if not success:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to reorder items: {str(e)}"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Watchlist not found"
         )
+
+    return OBBject(results=[], provider=_PROVIDER, metadata={"reordered": watchlist_id})

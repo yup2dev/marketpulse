@@ -635,10 +635,10 @@ export default function ScreenerWidget({ onRemove }) {
   const titleInputRef = useRef(null);
 
   useEffect(() => {
-    screenerAPI.getPresets().then((r) => setPresets(r.presets || [])).catch(() => {});
-    screenerAPI.getSectors().then((r) => setSectors(r.sectors || [])).catch(() => {});
-    screenerAPI.getSaved().then((r) => setSaved(r || [])).catch(() => {});
-    watchlistAPI.getMyTickers().then((r) => setFavorites(r.tickers || [])).catch(() => {});
+    screenerAPI.getPresets().then((r) => setPresets(r.results || [])).catch(() => {});
+    screenerAPI.getSectors().then((r) => setSectors(r.results || [])).catch(() => {});
+    screenerAPI.getSaved().then((r) => setSaved(r.results || [])).catch(() => {});
+    watchlistAPI.getMyTickers().then((r) => setFavorites(r.results || [])).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -670,7 +670,7 @@ export default function ScreenerWidget({ onRemove }) {
       const params = buildParams(activeFilters);
       const res = await screenerAPI.screen(params);
       setResults(res.results || []);
-      setResultCount(res.count ?? (res.results || []).length);
+      setResultCount(res.metadata?.count ?? (res.results || []).length);
     } catch {
       setResults([]); setResultCount(0);
     } finally { setLoading(false); }
@@ -725,7 +725,7 @@ export default function ScreenerWidget({ onRemove }) {
     try {
       const res = await screenerAPI.runPreset(preset.preset_id);
       setResults(res.results || []);
-      setResultCount(res.count ?? (res.results || []).length);
+      setResultCount(res.metadata?.count ?? (res.results || []).length);
     } catch { setResults([]); setResultCount(0); }
     finally { setLoading(false); }
   }, []);
@@ -778,12 +778,12 @@ export default function ScreenerWidget({ onRemove }) {
     try {
       if (currentSaved?.screener_id) {
         // 기존 스크리너 필터 조건만 업데이트
-        const s = await screenerAPI.update(currentSaved.screener_id, { filters: params, name: screenTitle });
+        const s = (await screenerAPI.update(currentSaved.screener_id, { filters: params, name: screenTitle })).results?.[0];
         setSaved((prev) => prev.map((x) => x.screener_id === s.screener_id ? s : x));
         setCurrentSaved(s);
       } else {
         // 신규 저장
-        const s = await screenerAPI.save({ name: screenTitle, filters: params });
+        const s = (await screenerAPI.save({ name: screenTitle, filters: params })).results?.[0];
         setSaved((prev) => [...prev, s]);
         setCurrentSaved(s);
         setActiveId(s.screener_id);

@@ -22,7 +22,7 @@ export default function NoteWidget({ onRemove }) {
   const fetchNotes = useCallback(async () => {
     try {
       const res = await notesAPI.getAll();
-      setNotes(res.data || []);
+      setNotes(res.results || []);
     } catch { /* silent */ }
     setLoading(false);
   }, []);
@@ -32,9 +32,10 @@ export default function NoteWidget({ onRemove }) {
   const createNote = async () => {
     try {
       const res = await notesAPI.create({ title: '', content: '', color: 'default' });
-      if (res.data) {
-        setNotes((prev) => [res.data, ...prev]);
-        setEditing(res.data.note_id);
+      const created = res.results?.[0];
+      if (created) {
+        setNotes((prev) => [created, ...prev]);
+        setEditing(created.note_id);
       }
     } catch { /* silent */ }
   };
@@ -42,8 +43,9 @@ export default function NoteWidget({ onRemove }) {
   const updateNote = async (id, updates) => {
     try {
       const res = await notesAPI.update(id, updates);
-      if (res.data) {
-        setNotes((prev) => prev.map((n) => (n.note_id === id ? res.data : n)));
+      const updated = res.results?.[0];
+      if (updated) {
+        setNotes((prev) => prev.map((n) => (n.note_id === id ? updated : n)));
       }
     } catch { /* silent */ }
   };

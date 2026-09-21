@@ -24,7 +24,8 @@ export const useMenus = () => {
       // (게이트가 deny-by-default 로 바뀐 뒤 계속 이 상태였다.)
       const data = await apiClient.get(`${API_BASE}/menu/hierarchy?pkg_type=MARKETPULSE`);
 
-      setMenus(data.filter(m => m.menu_path !== 'alerts' && m.menu_path !== 'screener'));
+      const rows = data.results || [];
+      setMenus(rows.filter(m => m.menu_path !== 'alerts' && m.menu_path !== 'screener'));
     } catch (err) {
       console.error('Error fetching menus:', err);
       setError(err.message);
