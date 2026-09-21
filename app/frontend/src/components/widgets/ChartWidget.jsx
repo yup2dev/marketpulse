@@ -8,9 +8,6 @@ import useTechnicalIndicators from '../../hooks/useTechnicalIndicators';
 import {
   WidgetHeader,
   LoadingSpinner,
-  formatNumber,
-  formatPrice,
-  formatDate,
   WIDGET_STYLES,
   WIDGET_ICON_COLORS,
   LOADING_COLORS,
@@ -21,7 +18,6 @@ import {
   CANDLE_COLORS,
 } from './constants';
 import { calculateIndicator } from '../../utils/technicalIndicators';
-import { getRegimeColor } from '../../utils/pairAnalysis';
 import PlotlyStockChart from './chart/PlotlyStockChart';
 import {
   resolveInterval,
@@ -66,7 +62,6 @@ const ChartWidget = ({
   showVolume: showVolumeToggle = true, // Show volume toggle
   showTechnicalIndicators = true,  // Show technical indicators
   // Callbacks
-  onPeriodChange,                  // Period change callback (series mode)
   onAddSeries,                     // Add series callback (series mode)
   // External state
   loading: externalLoading = false, // External loading state
@@ -77,7 +72,7 @@ const ChartWidget = ({
 }) => {
   // Detect series mode: when series prop is provided and has data
   const isSeriesMode = series && series.length > 0;
-  const { classes, chartTheme, tokens } = useTheme();
+  const { chartTheme, tokens } = useTheme();
   const storageKey = widgetId ? `chart-widget-${widgetId}` : null;
 
   // Load saved state or use initial values
@@ -109,9 +104,6 @@ const ChartWidget = ({
   const [tickerStats, setTickerStats] = useState({});
   const [chartType, setChartType] = useState(savedState?.chartType || 'line');
   const [showChartTypeSelectorDropdown, setShowChartTypeSelectorDropdown] = useState(false);
-  const [showTargets, setShowTargets] = useState(savedState?.showTargets || false);
-  const [priceTargets, setPriceTargets] = useState(null);
-  const [selectedDot, setSelectedDot] = useState(null); // { x, y, ...analyst info }
   const [chartHeight, setChartHeight] = useState(420);
   const [shiftEditorSymbol, setShiftEditorSymbol] = useState(null); // ticker symbol whose shift popover is open
   const widgetOuterRef = useRef(null);
@@ -119,7 +111,6 @@ const ChartWidget = ({
   // Zoom/Pan functionality via custom hook
   const {
     visibleRange,
-    setVisibleRange,
     isZoomed,
     chartContainerRef,
     handleMouseDown,
@@ -141,7 +132,6 @@ const ChartWidget = ({
   // Technical Indicators via custom hook
   const {
     technicalIndicators,
-    setTechnicalIndicators,
     showSelector: showTechnicalIndicatorSelector,
     setShowSelector: setShowTechnicalIndicatorSelector,
     addIndicator: addTechnicalIndicator,
@@ -149,7 +139,6 @@ const ChartWidget = ({
     removeIndicator: removeTechnicalIndicator,
     toggleVisibility: toggleTechnicalIndicatorVisibility,
     removeAllForSymbol: removeAllIndicatorsForSymbol,
-    applyIndicators,
     mergeIndicatorData,
   } = useTechnicalIndicators({ initialIndicators: savedState?.technicalIndicators || [] });
 
@@ -167,7 +156,6 @@ const ChartWidget = ({
     showSettings: showPairSettings,
     setShowSettings: setShowPairSettings,
     spreadData,
-    regimeData,
     regimePeriods,
     outperformPeriods,
     indexData,
@@ -335,78 +323,6 @@ const ChartWidget = ({
 
     return fullChartData.slice(startIdx, endIdx);
   }, [fullChartData, visibleRange]);
-
-  // Add candleBody data for candlestick/OHLC charts
-  const chartDataWithCandles = useMemo(() => {
-    if (!displayChartData || displayChartData.length === 0) return displayChartData;
-
-    const isOHLCChart = ['candlestick', 'ohlc', 'heikinashi'].includes(chartType) && !normalized;
-    if (!isOHLCChart) return displayChartData;
-
-    return displayChartData.map(item => {
-      const newItem = { ...item };
-      tickers.filter(t => t.type === 'stock' && t.visible).forEach(ticker => {
-        const open = item[`${ticker.symbol}_open`];
-        const close = item[`${ticker.symbol}_close`];
-        if (open !== undefined && close !== undefined) {
-          // candleBody represents the body range (from min(open,close) to max(open,close))
-          newItem[`${ticker.symbol}_candleBody`] = [Math.min(open, close), Math.max(open, close)];
-        }
-      });
-      return newItem;
-    });
-  }, [displayChartData, chartType, normalized, tickers]);
-
-  // Calculate Y-axis domain — include reference lines so target prices are always visible
-  const priceYDomain = useMemo(() => {
-    if (!displayChartData || displayChartData.length === 0) return ['auto', 'auto'];
-
-    const isOHLCChart = ['candlestick', 'ohlc', 'heikinashi'].includes(chartType) && !normalized;
-    const hasRefLines = !normalized && externalReferenceLines?.length > 0;
-
-    if (!isOHLCChart && !hasRefLines) return ['auto', 'auto'];
-
-    let minPrice = Infinity;
-    let maxPrice = -Infinity;
-
-    displayChartData.forEach(item => {
-      tickers.filter(t => t.type === 'stock' && t.visible).forEach(ticker => {
-        if (isOHLCChart) {
-          const high = item[`${ticker.symbol}_high`];
-          const low = item[`${ticker.symbol}_low`];
-          if (high !== undefined && high > maxPrice) maxPrice = high;
-          if (low !== undefined && low < minPrice) minPrice = low;
-        } else {
-          const val = item[ticker.symbol];
-          if (val !== undefined && val !== null) {
-            if (val > maxPrice) maxPrice = val;
-            if (val < minPrice) minPrice = val;
-          }
-        }
-      });
-    });
-
-    // Extend domain to include external reference lines (analyst targets)
-    // Cap expansion so extreme targets don't squash the stock price chart
-    if (hasRefLines) {
-      const priceRange = maxPrice - minPrice;
-      const maxExpansion = priceRange * 0.5; // allow up to 50% extension
-      externalReferenceLines.forEach(line => {
-        if (line.y != null) {
-          const cappedHigh = Math.min(line.y, maxPrice + maxExpansion);
-          const cappedLow = Math.max(line.y, minPrice - maxExpansion);
-          if (cappedHigh > maxPrice) maxPrice = cappedHigh;
-          if (cappedLow < minPrice) minPrice = cappedLow;
-        }
-      });
-    }
-
-    if (minPrice === Infinity || maxPrice === -Infinity) return ['auto', 'auto'];
-
-    // Add some padding (2%)
-    const padding = (maxPrice - minPrice) * 0.02;
-    return [minPrice - padding, maxPrice + padding];
-  }, [displayChartData, chartType, normalized, tickers, externalReferenceLines]);
 
   // Save state to localStorage whenever key settings change
   useEffect(() => {
@@ -816,7 +732,6 @@ const ChartWidget = ({
 
                 {/* Technical Indicator Chips */}
                 {technicalIndicators.map((indicator) => {
-                  const indicatorConfig = TECHNICAL_INDICATORS.find(ind => ind.id === indicator.indicatorId);
                   return (
                     <div
                       key={`${indicator.symbol}_${indicator.indicatorId}`}
@@ -916,14 +831,6 @@ const ChartWidget = ({
                   isSeriesMode={isSeriesMode}
                   visibleSeries={visibleSeries}
                   hasVolumeInSeries={hasVolumeInSeries}
-                  formatPrice={formatPrice}
-                  formatDate={formatDate}
-                  formatNumber={formatNumber}
-                  INDICATOR_COLORS={INDICATOR_COLORS}
-                  CANDLE_COLORS={CANDLE_COLORS}
-                  getRegimeColor={getRegimeColor}
-                  selectedDot={selectedDot}
-                  setSelectedDot={setSelectedDot}
                 />
               </div>
 

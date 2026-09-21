@@ -56,7 +56,7 @@ function SymbolSelector({ symbol, onSymbolChange }) {
       // 인증 게이트(AuthGateMiddleware)에서 401이 나 결과가 조용히 비어버린다.
       const data = await apiClient.get(`${API_BASE}/stock/search?query=${encodeURIComponent(query)}&limit=8`);
       setResults(data.results || data || []);
-    } catch (e) {
+    } catch {
       const common = ['AAPL', 'MSFT', 'NVDA', 'GOOGL', 'META', 'TSLA', 'AMZN', 'AMD'];
       setResults(common.filter(s => s.toLowerCase().includes(query.toLowerCase())).map(s => ({ symbol: s })));
     } finally {
@@ -263,7 +263,12 @@ export default function BaseWidget({
   // ── Widget Sync (Phase 3) ────────────────────────────────────────────────
   const syncCtx = useWidgetSync();
   const [isSynced, setIsSynced] = useState(false);
-  const canSync = syncable && syncCtx && (symbol ? !!onSymbolChange : false || (period ? !!onPeriodChange : false));
+  // 괄호 주의: `?:` 가 `||` 보다 결합력이 낮아, 괄호가 없으면
+  // `symbol ? !!onSymbolChange : (false || …)` 로 묶여 symbol 이 있을 때 period 분기를
+  // 아예 보지 않았다. 심볼 핸들러 '또는' 기간 핸들러가 있으면 동기화 가능이 맞다.
+  const canSync = syncable && syncCtx && (
+    (symbol ? !!onSymbolChange : false) || (period ? !!onPeriodChange : false)
+  );
 
   // When global symbol changes and this widget is synced → push to widget
   useEffect(() => {

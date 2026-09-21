@@ -121,10 +121,9 @@ function ResizeHandle({ direction, onResize }) {
 // ── Recursive layout ──────────────────────────────────────────────────────────
 
 export default function SplitPaneLayout({ tree, renderPane, onTreeChange }) {
-  if (tree.type === 'pane') {
-    return <div className="h-full w-full overflow-hidden">{renderPane(tree)}</div>;
-  }
-
+  // 훅은 분기보다 먼저 — 같은 위치의 노드가 pane ↔ split 으로 바뀌면 훅 개수가 달라져
+  // React 가 "Rendered more hooks than during the previous render" 로 터진다.
+  // (분할/병합은 실제로 일어나는 조작이다.)
   const { direction, sizes, children } = tree;
   const isH = direction === 'horizontal';
   const half = HANDLE / 2;
@@ -142,6 +141,10 @@ export default function SplitPaneLayout({ tree, renderPane, onTreeChange }) {
     },
     [tree, children, onTreeChange],
   );
+
+  if (tree.type === 'pane') {
+    return <div className="h-full w-full overflow-hidden">{renderPane(tree)}</div>;
+  }
 
   const paneStyle0 = isH
     ? { width: `calc(${sizes[0]}% - ${half}px)`, minWidth: 0, height: '100%' }

@@ -49,7 +49,7 @@ import {
   flexRender,
 } from '@tanstack/react-table';
 import { rankItem } from '@tanstack/match-sorter-utils';
-import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import {
   ChevronUp, ChevronDown, ChevronsUpDown,
   Search, Download, ChevronLeft, ChevronRight,
@@ -230,7 +230,7 @@ export default function CommonTable({
         enableSorting: false,
         size: 32,
         minSize: 32,
-        cell: ({ row }) => null,   // rendered manually below
+        cell: () => null,   // rendered manually below
         meta: { align: 'center', isExpandCol: true },
       },
       ...dataCols,

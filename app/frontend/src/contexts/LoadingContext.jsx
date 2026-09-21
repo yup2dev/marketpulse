@@ -5,7 +5,7 @@ const LoadingContext = createContext();
 export const LoadingProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
-  const [loadingCount, setLoadingCount] = useState(0);
+  const [, setLoadingCount] = useState(0);
 
   const showLoading = useCallback((message = '데이터를 불러오는 중...') => {
     setLoadingCount(prev => {

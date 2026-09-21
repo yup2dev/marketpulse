@@ -27,7 +27,7 @@ const _isJwtExpired = (token) => {
   }
 };
 
-const useAuthStore = create((set, get) => {
+const useAuthStore = create((set) => {
   // apiClient가 토큰을 모두 소진했을 때 호출하는 강제 로그아웃 콜백 등록
   setForceLogoutCallback(() => {
     const fetcherToken = localStorage.getItem('fetcher_token');
