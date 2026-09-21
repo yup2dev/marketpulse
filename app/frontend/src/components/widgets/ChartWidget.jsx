@@ -11,7 +11,6 @@ import {
   formatNumber,
   formatPrice,
   formatDate,
-  API_BASE,
   WIDGET_STYLES,
   WIDGET_ICON_COLORS,
   LOADING_COLORS,
@@ -23,8 +22,16 @@ import {
 } from './constants';
 import { calculateIndicator } from '../../utils/technicalIndicators';
 import { getRegimeColor } from '../../utils/pairAnalysis';
-import { apiClient } from '../../config/api';
 import PlotlyStockChart from './chart/PlotlyStockChart';
+import {
+  resolveInterval,
+  resolveFetchStart,
+  fetchTickerData,
+  collectTickerStats,
+  windowToRange,
+  mergeData,
+  mergeSeriesIndicatorData,
+} from './chart/chartData';
 import ChartControls from './chart/ChartControls';
 import TickerShiftPopover from './chart/TickerShiftPopover';
 import ChartTypeDropdown from './chart/ChartTypeDropdown';
@@ -37,7 +44,6 @@ import {
   shiftDateStr,
   getShiftLabel,
   calculateHeikinAshi,
-  fmtDate,
   defaultDateRange,
   rangeToPeriod,
 } from './chart/chartHelpers';
@@ -268,46 +274,6 @@ const ChartWidget = ({
   }, [isSeriesMode, series, normalized, technicalIndicators]);
 
   // Helper to merge indicator data in series mode
-  const mergeSeriesIndicatorData = (chartData, indicatorData, indicatorId, seriesId) => {
-    const dataMap = new Map(chartData.map(d => [d.date, { ...d }]));
-
-    if (indicatorData.macd) {
-      indicatorData.macd.forEach((item, idx) => {
-        if (dataMap.has(item.date)) {
-          const entry = dataMap.get(item.date);
-          entry[`${seriesId}_${indicatorId}_macd`] = item.value;
-          entry[`${seriesId}_${indicatorId}_signal`] = indicatorData.signal[idx]?.value || null;
-          entry[`${seriesId}_${indicatorId}_histogram`] = indicatorData.histogram[idx]?.value || null;
-        }
-      });
-    } else if (indicatorData.upper) {
-      indicatorData.upper.forEach((item, idx) => {
-        if (dataMap.has(item.date)) {
-          const entry = dataMap.get(item.date);
-          entry[`${seriesId}_${indicatorId}_upper`] = item.value;
-          entry[`${seriesId}_${indicatorId}_middle`] = indicatorData.middle[idx]?.value || null;
-          entry[`${seriesId}_${indicatorId}_lower`] = indicatorData.lower[idx]?.value || null;
-        }
-      });
-    } else if (indicatorData.k) {
-      indicatorData.k.forEach((item, idx) => {
-        if (dataMap.has(item.date)) {
-          const entry = dataMap.get(item.date);
-          entry[`${seriesId}_${indicatorId}_k`] = item.value;
-          entry[`${seriesId}_${indicatorId}_d`] = indicatorData.d[idx]?.value || null;
-        }
-      });
-    } else {
-      indicatorData.forEach(item => {
-        if (dataMap.has(item.date)) {
-          dataMap.get(item.date)[`${seriesId}_${indicatorId}`] = item.value;
-        }
-      });
-    }
-
-    return Array.from(dataMap.values()).sort((a, b) => a.timestamp - b.timestamp);
-  };
-
   // Apply per-ticker time shift (lead/lag) — move a ticker's dates by calendar D/W/M
   // so e.g. SIL shifted +4M overlays SOX 4 months ahead (leading indicator analysis)
   const shiftedChartData = useMemo(() => {
@@ -470,85 +436,18 @@ const ChartWidget = ({
 
     setLoading(true);
     try {
-      const spanDays = Math.max(1, Math.round((new Date(endDate) - new Date(startDate)) / 86400000));
-      const startAgeDays = Math.round((Date.now() - new Date(startDate).getTime()) / 86400000);
-      // Intraday intervals are only available from the provider for recent data (~60 days)
-      const canIntraday = startAgeDays <= 55;
-      let interval;
-      if (spanDays <= 2)        interval = canIntraday ? '5m'  : '1d';
-      else if (spanDays <= 7)   interval = canIntraday ? '15m' : '1d';
-      else if (spanDays <= 32)  interval = canIntraday ? '30m' : '1d';
-      else if (spanDays <= 730) interval = '1d';
-      else if (spanDays <= 1830) interval = '1wk';
-      else interval = '1mo';
-
-      // Extend fetch start so technical indicators have warm-up history
-      // (~200 extra trading days for SMA200); trimmed back before display.
-      // Skipped for intraday (provider limit) and normalized mode (rebase point).
-      const needsExtendedData = !normalized && !interval.endsWith('m') &&
-        (technicalIndicators.length > 0 || ['candlestick', 'ohlc', 'heikinashi'].includes(chartType));
-      let fetchStart = startDate;
-      if (needsExtendedData) {
-        const d = new Date(startDate);
-        d.setDate(d.getDate() - 300);
-        fetchStart = fmtDate(d);
-      }
-
-      // Separate stocks and indicators
-      const stocks = tickers.filter(t => t.type === 'stock');
-      const indicators = tickers.filter(t => t.type === 'indicator');
-
-      // Load stock data — apiClient(인증 헤더) + OBBject({results}) 응답 형태
-      const stockPromises = stocks.map(async (ticker) => {
-        try {
-          const [history, quote, info] = await Promise.all([
-            apiClient.get(`${API_BASE}/stock/history/${ticker.symbol}?start_date=${fetchStart}&end_date=${endDate}&interval=${interval}`).catch(() => null),
-            apiClient.get(`${API_BASE}/stock/quote/${ticker.symbol}`).catch(() => null),
-            apiClient.get(`${API_BASE}/stock/info/${ticker.symbol}`).catch(() => null),
-          ]);
-
-          return {
-            symbol: ticker.symbol,
-            type: 'stock',
-            data: history?.results || [],
-            quote: quote?.results?.[0] || null,
-            info: info?.results?.[0] || null,
-          };
-        } catch (error) {
-          console.error(`Error loading ${ticker.symbol}:`, error);
-          return { symbol: ticker.symbol, type: 'stock', data: [], quote: null, info: null };
-        }
+      const interval = resolveInterval(startDate, endDate);
+      const fetchStart = resolveFetchStart({
+        startDate,
+        interval,
+        normalized,
+        hasTechnicalIndicators: technicalIndicators.length > 0,
+        chartType,
       });
 
-      // Load indicator data
-      const indicatorPromises = indicators.map(async (indicator) => {
-        try {
-          const indicatorData = await apiClient.get(`${API_BASE}/stock/indicator/${indicator.symbol}?period=${rangeToPeriod(startDate)}`);
+      const results = await fetchTickerData(tickers, { fetchStart, endDate, interval, startDate });
+      setTickerStats(collectTickerStats(results));
 
-          return {
-            symbol: indicator.symbol,
-            type: 'indicator',
-            data: indicatorData?.results || [],
-            name: indicator.name
-          };
-        } catch (error) {
-          console.error(`Error loading indicator ${indicator.symbol}:`, error);
-          return { symbol: indicator.symbol, type: 'indicator', data: [], name: indicator.name };
-        }
-      });
-
-      const results = await Promise.all([...stockPromises, ...indicatorPromises]);
-
-      // Store stats for stocks
-      const stats = {};
-      results.filter(r => r.type === 'stock').forEach(({ symbol, quote, info }) => {
-        if (quote && info) {
-          stats[symbol] = { quote, info };
-        }
-      });
-      setTickerStats(stats);
-
-      // Merge data from all sources by date
       let mergedData = mergeData(results, normalized);
 
       // Calculate and add technical indicators for each stock
@@ -558,7 +457,6 @@ const ChartWidget = ({
           if (stockData && stockData.data && stockData.data.length > 0) {
             const indicatorData = calculateIndicator(indicatorId, stockData.data);
             if (indicatorData) {
-              // Merge indicator data into chart data
               mergedData = mergeIndicatorData(mergedData, indicatorData, indicatorId, symbol);
             }
           }
@@ -570,20 +468,16 @@ const ChartWidget = ({
         const longStockData = results.find(r => r.symbol === pairConfig.longSymbol && r.type === 'stock');
         const shortStockData = results.find(r => r.symbol === pairConfig.shortSymbol && r.type === 'stock');
 
-        // Calculate spread using hook function
         if (longStockData?.data?.length && shortStockData?.data?.length) {
           calculateSpreadData(longStockData.data, shortStockData.data);
         }
 
-        // Load regime/index data using hook function
         if (pairConfig.showRegime || pairConfig.showIndex) {
           await loadRegimeData(rangeToPeriod(startDate), interval);
         }
 
-        // Load financial data using hook function
         await loadFinancialData();
 
-        // Merge pair analysis data into chart data
         mergedData = mergeSpreadToChart(mergedData);
         mergedData = mergeRegimeToChart(mergedData);
         mergedData = mergeIndexToChart(mergedData);
@@ -592,109 +486,13 @@ const ChartWidget = ({
         resetPairData();
       }
 
-      // Window to the selected range: drops the technical-indicator warm-up
-      // buffer and trims macro-indicator series (fetched period-anchored to today)
-      const startTs = new Date(startDate).getTime();
-      const endTs = new Date(endDate).getTime() + 86400000; // include the end day
-      mergedData = mergedData.filter(d => d.timestamp >= startTs && d.timestamp < endTs);
-
-      setChartData(mergedData);
+      setChartData(windowToRange(mergedData, startDate, endDate));
     } catch (error) {
       console.error('Error loading chart data:', error);
     } finally {
       setLoading(false);
     }
   }, [tickers, startDate, endDate, normalized, technicalIndicators, chartType, pairMode, pairConfig]);
-
-  const mergeData = (results, normalize) => {
-    if (results.length === 0) return [];
-
-    // Find the date range from stock data (if any)
-    let minDate = null;
-    let maxDate = null;
-
-    const stockResults = results.filter(r => r.type === 'stock');
-    const indicatorResults = results.filter(r => r.type === 'indicator');
-
-    // Determine date range from stocks, or from all data if no stocks
-    if (stockResults.length > 0) {
-      stockResults.forEach(({ data }) => {
-        if (data && data.length > 0) {
-          const dates = data.map(d => new Date(d.date));
-          const localMin = new Date(Math.min(...dates));
-          const localMax = new Date(Math.max(...dates));
-          if (!minDate || localMin < minDate) minDate = localMin;
-          if (!maxDate || localMax > maxDate) maxDate = localMax;
-        }
-      });
-    } else {
-      // If no stocks, use indicator date range
-      results.forEach(({ data }) => {
-        if (data && data.length > 0) {
-          const dates = data.map(d => new Date(d.date));
-          const localMin = new Date(Math.min(...dates));
-          const localMax = new Date(Math.max(...dates));
-          if (!minDate || localMin < minDate) minDate = localMin;
-          if (!maxDate || localMax > maxDate) maxDate = localMax;
-        }
-      });
-    }
-
-    const dateMap = new Map();
-
-    results.forEach(({ symbol, type, data }) => {
-      if (!data || data.length === 0) return;
-
-      // Filter data to match date range if we have a range
-      let filteredData = data;
-      if (minDate && maxDate) {
-        filteredData = data.filter(item => {
-          const itemDate = new Date(item.date);
-          return itemDate >= minDate && itemDate <= maxDate;
-        });
-      }
-
-      if (type === 'stock') {
-        // Sort by date and use first item as base for normalization
-        const sortedData = [...filteredData].sort((a, b) => new Date(a.date) - new Date(b.date));
-        const basePrice = normalize && sortedData.length > 0 ? sortedData[0].close : 1;
-
-        sortedData.forEach(item => {
-          if (!dateMap.has(item.date)) {
-            dateMap.set(item.date, { date: item.date, timestamp: new Date(item.date).getTime() });
-          }
-          const entry = dateMap.get(item.date);
-          entry[symbol] = normalize ? ((item.close / basePrice - 1) * 100) : item.close;
-          entry[`${symbol}_volume`] = item.volume;
-          // Store OHLC data for candlestick/OHLC charts
-          if (!normalize) {
-            entry[`${symbol}_open`] = item.open;
-            entry[`${symbol}_high`] = item.high;
-            entry[`${symbol}_low`] = item.low;
-            entry[`${symbol}_close`] = item.close;
-          }
-        });
-      } else {
-        // Indicator data — 일부 fetcher는 value 대신 rate 필드를 쓴다(fed_funds_rate 등)
-        const numOf = (item) => item.value ?? item.rate ?? null;
-        const sortedData = [...filteredData].sort((a, b) => new Date(a.date) - new Date(b.date));
-        const baseValue = normalize && sortedData.length > 0 ? numOf(sortedData[0]) : 1;
-
-        sortedData.forEach(item => {
-          const v = numOf(item);
-          if (v == null) return;
-          if (!dateMap.has(item.date)) {
-            dateMap.set(item.date, { date: item.date, timestamp: new Date(item.date).getTime() });
-          }
-          const entry = dateMap.get(item.date);
-          entry[symbol] = normalize && baseValue ? ((v / baseValue - 1) * 100) : v;
-        });
-      }
-    });
-
-    // Sort by timestamp to ensure proper ordering
-    return Array.from(dateMap.values()).sort((a, b) => a.timestamp - b.timestamp);
-  };
 
   // Load data when key dependencies change (not on every loadData reference change)
   useEffect(() => {
