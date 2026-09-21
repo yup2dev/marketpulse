@@ -11,7 +11,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, LayoutDashboard, BarChart3, Globe, Briefcase, Zap, FlaskConical, Bell, ArrowRight, Hash, Keyboard } from 'lucide-react';
-import { API_BASE } from '../../config/api';
+import { API_BASE, apiClient } from '../../config/api';
 
 // ── 정적 명령 목록 ──────────────────────────────────────────────────────────
 
@@ -69,21 +69,16 @@ export default function CommandPalette({ open, onClose }) {
     const timer = setTimeout(async () => {
       setSymbolLoading(true);
       try {
-        const res = await fetch(`${API_BASE}/stock/search?query=${encodeURIComponent(query)}&limit=5`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem('access_token') || ''}` },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const items = (data.results || data || []).slice(0, 5).map(s => ({
-            id:    `sym-${s.symbol}`,
-            label: s.symbol,
-            desc:  s.name || '',
-            icon:  Hash,
-            group: 'symbol',
-            action: (nav) => nav(`/stock?symbol=${s.symbol}`),
-          }));
-          setSymbolResults(items);
-        }
+        // apiClient 를 쓴다 — 토큰 보관 방식(메모리)과 401 재시도를 한 곳에서 관리한다.
+        const data = await apiClient.get(`${API_BASE}/stock/search?query=${encodeURIComponent(query)}&limit=5`);
+        setSymbolResults((data.results || data || []).slice(0, 5).map(s => ({
+          id:    `sym-${s.symbol}`,
+          label: s.symbol,
+          desc:  s.name || '',
+          icon:  Hash,
+          group: 'symbol',
+          action: (nav) => nav(`/stock?symbol=${s.symbol}`),
+        })));
       } catch { /* 무시 */ } finally {
         setSymbolLoading(false);
       }

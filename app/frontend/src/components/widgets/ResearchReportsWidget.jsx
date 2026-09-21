@@ -20,10 +20,9 @@ const TYPE_STYLES = {
 };
 const TYPE_LABELS = { analyst: 'Analyst', estimates: 'Estimates', annual: 'Annual' };
 
-function authHeaders() {
-  const token = localStorage.getItem('access_token');
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
+// multipart 업로드라 apiClient.request 를 못 쓴다(Content-Type 을 브라우저가 정해야 함).
+// 헤더 생성은 apiClient 에 위임해 토큰 보관 방식이 바뀌어도 여기가 깨지지 않게 한다.
+const authHeaders = () => apiClient.getAuthHeaders();
 
 function fmtSize(bytes) {
   if (!bytes) return '';
