@@ -42,7 +42,7 @@ from data_fetcher.server.serialize import serialize_result
 
 log = logging.getLogger(__name__)
 
-# 독립 실행 Fetcher가 Tauri 주입 없이도 합류할 클라우드 백엔드 기본 WS 주소.
+# 독립 실행 Fetcher가 합류할 클라우드 백엔드 기본 WS 주소.
 # 환경변수 FETCHER_BACKEND_WS_URL로 덮어쓸 수 있다(빈 문자열로 설정하면 합류 비활성).
 _DEFAULT_BACKEND_WS_URL = "wss://api.finance.dns-co.kr/ws/fetcher"
 
@@ -51,9 +51,6 @@ _DEFAULT_BACKEND_WS_URL = "wss://api.finance.dns-co.kr/ws/fetcher"
 _DEFAULT_WEB_ORIGINS = [
     "https://finance.dns-co.kr",
     "https://frontend-yup2devs-projects.vercel.app",  # Vercel 운영 프론트 — /user-token(토큰 전달)이 CORS로 막히지 않게
-    "tauri://localhost",
-    "http://tauri.localhost",
-    "https://tauri.localhost",
     "http://localhost:5173",
     "http://localhost:5174",
     "http://localhost:5175",
@@ -112,10 +109,9 @@ async def _lifespan(app: FastAPI):
 
     WS 주소: FETCHER_BACKEND_WS_URL 환경변수가 있으면 그 값, 미설정이면 클라우드 기본값
     (_DEFAULT_BACKEND_WS_URL). 빈 문자열로 명시 설정하면 합류를 비활성화한다(로컬 전용).
-    → 독립 실행 Fetcher도 Tauri 주입 없이 클라우드 풀에 합류한다.
-
-    인증은 '사용자 로그인 JWT'. 데스크톱 앱이 로그인/갱신 시 토큰 파일
-    (~/.marketpulse_fetcher/user_token)을 기록하면, 워커가 매 접속 시 이를 읽어 접속한다.
+    인증은 '사용자 로그인 JWT'. 웹앱이 로그인/갱신 시 loopback /user-token 으로 토큰을
+    전달해 토큰 파일(~/.marketpulse_fetcher/user_token)이 기록되면, 워커가 매 접속 시
+    이를 읽어 접속한다.
     토큰이 아직 없으면(로그인 전) 보류하고 주기적으로 재확인한다(재시작 불필요).
     """
     ws_url = _backend_ws_url()

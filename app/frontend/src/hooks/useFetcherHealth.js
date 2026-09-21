@@ -1,7 +1,7 @@
 /**
  * useFetcherHealth — 로컬 Fetcher(:8765) 실행 여부와 클라우드 워커 풀 합류 여부를 감지한다.
  *
- * 웹/데스크탑 공용. 브라우저는 loopback(127.0.0.1)으로 직접 헬스체크하며,
+ * 브라우저가 loopback(127.0.0.1)으로 직접 헬스체크하며,
  * loopback은 mixed-content 차단 예외라 https 페이지에서도 호출 가능하다.
  * Fetcher REST는 CORS `*` 를 내려주므로 별도 설정 없이 동작한다.
  *
@@ -10,7 +10,6 @@
  *
  * 반환:
  *   status   'checking' | 'online'(실행+합류) | 'joining'(실행 중, 풀 미합류) | 'offline'
- *   isTauri  데스크탑(Tauri) 웹뷰 여부 — 실행 버튼 노출 분기에 사용
  *   recheck  즉시 재확인 함수 (로컬 실행 여부를 boolean으로 반환)
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -23,13 +22,6 @@ const JOINING_POLL_INTERVAL_MS = 3000;  // 실행 중인데 미합류 — 합류
 
 /** 워커가 풀에 (재)합류하면 window에 발행 — 합류 전에 실패한 조회의 재시도 신호. */
 export const FETCHER_WORKER_CONNECTED = 'marketpulse:fetcher-worker-connected';
-
-export function isTauriRuntime() {
-  return (
-    typeof window !== 'undefined' &&
-    (!!window.__TAURI__ || !!window.__TAURI_INTERNALS__)
-  );
-}
 
 async function pingFetcher() {
   try {
@@ -116,5 +108,5 @@ export default function useFetcherHealth() {
     };
   }, [recheck]);
 
-  return { status, isTauri: isTauriRuntime(), recheck };
+  return { status, recheck };
 }

@@ -34,7 +34,7 @@ async def get_news(
 
 @router.get("/events")
 @route_handler
-async def get_news_events(
+def get_news_events(
     symbol: Optional[str] = None,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,

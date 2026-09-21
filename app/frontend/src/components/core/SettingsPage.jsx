@@ -11,7 +11,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import {
-  KeyRound, Trash2, Save, ExternalLink, RefreshCw, ShieldCheck, Download, Play, Sparkles,
+  KeyRound, Trash2, Save, ExternalLink, RefreshCw, ShieldCheck, Download, Sparkles,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { keysAPI } from '../../config/api';
@@ -73,14 +73,13 @@ const AI_PROVIDERS = [
 
 export default function SettingsPage() {
   // 키 관리는 백엔드 DB 기반(online=백엔드 도달). Fetcher 상태는 별개(일부 데이터용).
-  const { status: fetcherStatus, isTauri, recheck } = useFetcherHealth();
+  const { status: fetcherStatus, recheck } = useFetcherHealth();
   const fetcherOnline = fetcherStatus === 'online' || fetcherStatus === 'joining';  // 프로세스 실행 여부
 
   const [online, setOnline]       = useState(true);   // 백엔드 도달 가능 여부
   const [statusMap, setStatusMap] = useState({});   // provider → { configured, masked, fields }
   const [inputs, setInputs]       = useState({});    // provider → { fieldKey: value }
   const [saving, setSaving]       = useState({});    // provider → bool
-  const [starting, setStarting]   = useState(false);
 
   const loadKeys = useCallback(async () => {
     try {
@@ -143,23 +142,6 @@ export default function SettingsPage() {
     }
   };
 
-  const handleStart = async () => {
-    setStarting(true);
-    try {
-      const invoke = window.__TAURI__?.core?.invoke;
-      if (invoke) await invoke('start_fetcher');
-      await new Promise((r) => setTimeout(r, 1500));
-      for (let i = 0; i < 6; i += 1) {
-        if (await recheck()) break;
-        await new Promise((r) => setTimeout(r, 1000));
-      }
-    } catch (e) {
-      console.error('[settings] fetcher start failed', e);
-    } finally {
-      setStarting(false);
-    }
-  };
-
   return (
     <div className="px-6 py-6 max-w-3xl mx-auto">
       <div className="flex items-center gap-2 mb-1">
@@ -168,7 +150,7 @@ export default function SettingsPage() {
       </div>
       <p className="text-sm mb-6" style={{ color: 'var(--color-text-muted)' }}>
         키는 서버에 암호화되어 저장되며 내 계정에서만 사용됩니다. 등록한 키로 FRED·FMP·Polygon
-        등 데이터를 서버에서 조회합니다. (Yahoo 등 일부 소스는 데스크톱 Fetcher 실행이 필요합니다)
+        등 데이터를 서버에서 조회합니다. (Yahoo 등 일부 소스는 로컬 Fetcher 실행이 필요합니다)
       </p>
 
       {/* Fetcher 상태 배너 — 키 관리는 Fetcher 없이도 되지만, Yahoo 등 일부 데이터는 필요 */}
@@ -184,25 +166,14 @@ export default function SettingsPage() {
             키 등록·관리는 Fetcher 없이도 가능하지만, Yahoo 등 일부 데이터는 Fetcher 실행이 필요합니다.
           </p>
           <div className="flex items-center gap-2">
-            {isTauri ? (
-              <button
-                onClick={handleStart}
-                disabled={starting}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-cyan-600 hover:bg-cyan-500 text-white disabled:opacity-50 transition-colors"
-              >
-                {starting ? <RefreshCw size={13} className="animate-spin" /> : <Play size={13} />}
-                {starting ? '실행 중…' : 'Fetcher 실행'}
-              </button>
-            ) : (
-              <a
-                href={FETCHER_DOWNLOAD_URL}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-cyan-600 hover:bg-cyan-500 text-white transition-colors"
-              >
-                <Download size={13} /> Fetcher 다운로드
-              </a>
-            )}
+            <a
+              href={FETCHER_DOWNLOAD_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-cyan-600 hover:bg-cyan-500 text-white transition-colors"
+            >
+              <Download size={13} /> Fetcher 다운로드
+            </a>
             <button
               onClick={() => recheck()}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border border-gray-700 hover:bg-gray-800/50 transition-colors"

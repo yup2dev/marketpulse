@@ -39,7 +39,7 @@ export default function BtResultsWidget({ onRemove }) {
     setRunsLoading(true);
     try {
       const res = await backtestAPI.listRuns();
-      setRuns(res.data || []);
+      setRuns(res.results || []);
     } catch (e) {
       setError(e.detail || e.message);
     } finally {
@@ -70,7 +70,7 @@ export default function BtResultsWidget({ onRemove }) {
         config: lastRun.config,
         ...compact,
       });
-      setLastRun({ ...lastRun, savedRunId: res.data.run_id });
+      setLastRun({ ...lastRun, savedRunId: res.results?.[0]?.run_id });
       bumpRuns();
     } catch (e) {
       setError(e.detail || e.message);
@@ -82,7 +82,9 @@ export default function BtResultsWidget({ onRemove }) {
   const openRun = async (row) => {
     setError(null);
     try {
-      const { data } = await backtestAPI.getRun(row.run_id);
+      const res = await backtestAPI.getRun(row.run_id);
+      const data = res.results?.[0];
+      if (!data) throw new Error('실행 결과를 찾을 수 없습니다');
       setLastRun({ name: data.name, strategyId: data.strategy_id, config: data.config, result: { equity: data.equity, trades: data.trades, metrics: data.metrics }, savedRunId: data.run_id });
       setView('summary');
     } catch (e) {

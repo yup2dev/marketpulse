@@ -4,14 +4,13 @@
  * 온라인:  초록 점 + "Fetcher" (클릭 시 상태 패널)
  * 연결 중: 노란 점 + "Fetcher 연결 중" — 실행 중이지만 클라우드 워커 풀에 아직 미합류
  * 오프라인: 빨간 점 + "Fetcher 꺼짐" — 클릭하면 패널이 열리고
- *           - 데스크탑(Tauri): "Fetcher 실행" 버튼(Tauri 명령 호출)
- *           - 웹: 다운로드/설치 안내 링크
+ *           marketpulse:// 딥링크 실행 버튼과 다운로드/설치 안내가 나온다.
  */
 import { useEffect, useRef, useState } from 'react';
 import { Activity, Download, Play, Power, RefreshCw, X } from 'lucide-react';
 import useFetcherHealth from '../../hooks/useFetcherHealth';
 
-// Fetcher(데스크톱 앱) 다운로드 위치 (웹 사용자용)
+// 로컬 Fetcher 다운로드 위치
 const FETCHER_DOWNLOAD_URL =
   'https://github.com/yup2dev/marketpulse/releases/latest';
 
@@ -42,9 +41,8 @@ const TITLE = {
 };
 
 export default function FetcherStatus() {
-  const { status, isTauri, recheck } = useFetcherHealth();
+  const { status, recheck } = useFetcherHealth();
   const [open, setOpen] = useState(false);
-  const [starting, setStarting] = useState(false);
   const [launching, setLaunching] = useState(false);
   const [launchTried, setLaunchTried] = useState(false);
   const [stopping, setStopping] = useState(false);
@@ -59,25 +57,7 @@ export default function FetcherStatus() {
     return () => document.removeEventListener('mousedown', onClick);
   }, [open]);
 
-  const handleStart = async () => {
-    setStarting(true);
-    try {
-      const invoke = window.__TAURI__?.core?.invoke;
-      if (invoke) await invoke('start_fetcher');
-      // 기동까지 잠깐 대기 후 재확인
-      await new Promise((r) => setTimeout(r, 1500));
-      for (let i = 0; i < 6; i += 1) {
-        if (await recheck()) break;
-        await new Promise((r) => setTimeout(r, 1000));
-      }
-    } catch (e) {
-      console.error('[fetcher] start failed', e);
-    } finally {
-      setStarting(false);
-    }
-  };
-
-  // 웹: 커스텀 스킴 딥링크로 OS가 Fetcher를 기동 (설치+자가등록돼 있어야 동작).
+  // 커스텀 스킴 딥링크로 OS가 Fetcher를 기동 (설치+자가등록돼 있어야 동작).
   // 스킴이 없으면 아무 일도 안 일어나므로, 폴링 후에도 offline이면 다운로드 안내를 노출한다.
   const handleWebStart = async () => {
     setLaunching(true);
@@ -155,9 +135,7 @@ export default function FetcherStatus() {
             {status === 'offline' && (
               <p className="text-[11px] leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
                 시세·재무 등 외부 데이터를 가져오려면 로컬 Fetcher가 실행되어 있어야 합니다.
-                {isTauri
-                  ? ' 아래 버튼으로 바로 실행하세요.'
-                  : ' 설치돼 있으면 실행을 누르세요. 처음이면 먼저 다운로드·설치하세요.'}
+                {' 설치돼 있으면 실행을 누르세요. 처음이면 먼저 다운로드·설치하세요.'}
               </p>
             )}
 
@@ -168,7 +146,7 @@ export default function FetcherStatus() {
               </p>
             )}
 
-            {status === 'offline' && !isTauri && launchTried && !launching && (
+            {status === 'offline' && launchTried && !launching && (
               <p className="text-[11px] leading-relaxed text-amber-400/80">
                 실행되지 않았나요? 아직 설치 전이거나 브라우저가 앱 열기를 차단했을 수 있습니다.
                 다운로드·설치 후 다시 시도하세요.
@@ -188,20 +166,8 @@ export default function FetcherStatus() {
                 </button>
               )}
 
-              {/* 실행 — 데스크톱(Tauri) */}
-              {status === 'offline' && isTauri && (
-                <button
-                  onClick={handleStart}
-                  disabled={starting}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-cyan-600 hover:bg-cyan-500 text-white disabled:opacity-50 transition-colors"
-                >
-                  {starting ? <RefreshCw size={13} className="animate-spin" /> : <Play size={13} />}
-                  {starting ? '실행 중…' : 'Fetcher 실행'}
-                </button>
-              )}
-
-              {/* 실행 — 웹(marketpulse:// 딥링크) */}
-              {status === 'offline' && !isTauri && (
+              {/* 실행 — marketpulse:// 딥링크 */}
+              {status === 'offline' && (
                 <button
                   onClick={handleWebStart}
                   disabled={launching}
@@ -212,8 +178,8 @@ export default function FetcherStatus() {
                 </button>
               )}
 
-              {/* 다운로드 — 웹 보조(미설치/실행 실패 대비) */}
-              {status === 'offline' && !isTauri && (
+              {/* 다운로드 — 미설치/실행 실패 대비 */}
+              {status === 'offline' && (
                 <a
                   href={FETCHER_DOWNLOAD_URL}
                   target="_blank"

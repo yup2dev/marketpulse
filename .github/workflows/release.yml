@@ -1,10 +1,19 @@
-name: Release Desktop App
+name: Release Fetcher
 
 # git tag v1.0.0 && git push origin v1.0.0 으로 트리거
+#
+# 2026-09-21: Tauri 데스크톱 앱을 제거하고 독립 실행 Fetcher만 릴리스한다.
+# 프론트엔드는 Vercel, 백엔드는 Docker로 배포되므로 여기서 만드는 산출물은
+# 사용자가 자기 PC에서 실행하는 Fetcher 하나뿐이다.
+#
+# 예전에는 tauri-action 이 GitHub Release 를 만들고 그 뒤에 Fetcher 를 붙였다.
+# Tauri 를 걷어내면 릴리스를 만들 주체가 사라지므로 softprops/action-gh-release 로
+# 직접 만든다(이미 있으면 에셋만 추가 — 매트릭스 두 잡이 같은 릴리스에 올린다).
 on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: write   # GitHub Release 생성 권한
@@ -17,55 +26,26 @@ jobs:
         include:
           - platform: windows-latest
             target_triple: x86_64-pc-windows-msvc
-            ext: .exe
           - platform: macos-latest
             target_triple: aarch64-apple-darwin
-            ext: ""
 
     runs-on: ${{ matrix.platform }}
 
     steps:
       - uses: actions/checkout@v4
 
-      # ── 툴체인 설치 ───────────────────────────────────────────────────────
-      - name: Setup Node.js 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
       - name: Setup Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: pip
+          cache-dependency-path: requirements.txt
 
-      - name: Setup Rust (stable)
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Rust build
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: desktop/src-tauri -> target
-
-      # ── Python 의존성 + Fetcher sidecar 빌드 ──────────────────────────────
-      # MarketPulseFetcherSidecar.spec(onefile)을 사용해야 한다 — onedir 빌드의
-      # 실행파일만 추출하면 Frameworks/_internal 의존성이 빠져 구동되지 않는다
-      # ("Failed to load Python shared library"). build/build_sidecar.sh와 동일한
-      # 산출물 명명 규칙(<name>-<target-triple>[.exe])을 따른다.
       - name: Install Python dependencies
         run: pip install -r requirements.txt pyinstaller pystray pillow
 
-      - name: Build fetcher sidecar (PyInstaller)
-        shell: bash
-        run: |
-          pyinstaller build/MarketPulseFetcherSidecar.spec --noconfirm
-          mkdir -p desktop/src-tauri/binaries
-          SRC="dist/marketpulse-fetcher-sidecar${{ matrix.ext }}"
-          DST="desktop/src-tauri/binaries/marketpulse-fetcher-${{ matrix.target_triple }}${{ matrix.ext }}"
-          cp "$SRC" "$DST"
-          chmod +x "$DST"
-
-      # ── 독립 실행 Fetcher 빌드 (웹 사용자용 단독 다운로드 에셋) ─────────────
-      # 데스크톱 앱과 별개로, 웹 사용자가 자기 PC에서 직접 실행할 수 있는 Fetcher.
+      # ── 독립 실행 Fetcher 빌드 ────────────────────────────────────────────
+      # 사용자가 자기 PC에서 실행해 /ws/fetcher 워커 풀에 합류시키는 실행파일.
       - name: Build standalone Fetcher (PyInstaller)
         shell: bash
         run: |
@@ -78,43 +58,24 @@ jobs:
             ditto -c -k --keepParent "dist/MarketPulseFetcher.app" "release-assets/MarketPulseFetcher-${{ matrix.target_triple }}.zip"
           fi
 
-      # ── 프론트엔드는 Vercel에서 서빙 — Tauri가 번들하지 않으므로 빌드 불필요 ──
-
-      - name: Install desktop dependencies
-        working-directory: desktop
-        run: npm ci
-
-      # ── Tauri 빌드 (Rust + fetcher sidecar) + GitHub Release ────────────
-      - name: Build and release Tauri app
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Tauri 업데이터 서명 키 (npx tauri signer generate 로 생성)
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: 'MarketPulse ${{ github.ref_name }}'
-          releaseBody: |
-            ## MarketPulse ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          name: 'MarketPulse Fetcher ${{ github.ref_name }}'
+          body: |
+            ## MarketPulse Fetcher ${{ github.ref_name }}
 
-            ### 설치
-            - **Windows**: `MarketPulse_x.x.x_x64-setup.exe` 다운로드 후 실행
-            - **macOS (Apple Silicon)**: `MarketPulse_x.x.x_aarch64.dmg` 다운로드 후 실행
+            웹앱에서 Yahoo 등 로컬 실행이 필요한 데이터를 쓰려면 이 Fetcher를
+            내 PC에서 실행하세요.
 
-            ### 업데이트
-            앱 실행 중 자동으로 최신 버전을 감지하고 업데이트합니다.
-          releaseDraft: false
+            ### 다운로드
+            - **Windows**: `MarketPulseFetcher-x86_64-pc-windows-msvc.exe`
+            - **macOS (Apple Silicon)**: `MarketPulseFetcher-aarch64-apple-darwin.zip`
+
+            ### 사용
+            실행하면 트레이에 상주하며, 웹앱에 로그인하면 토큰이 자동 전달되어
+            클라우드 워커 풀에 합류합니다.
+          files: release-assets/*
+          draft: false
           prerelease: false
-          projectPath: ./desktop
-          includeUpdaterJson: true
-
-      # ── 독립 Fetcher 바이너리를 같은 릴리스에 첨부 ────────────────────────
-      # tauri-action이 태그 릴리스를 먼저 생성한 뒤 실행되어야 한다.
-      - name: Attach standalone Fetcher to release
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release upload "${{ github.ref_name }}" release-assets/* \
-            --clobber --repo "${{ github.repository }}"

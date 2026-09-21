@@ -279,7 +279,7 @@ async def get_company_relations_route(symbol: str, provider: str = "db") -> OBBj
 
 @router.get("/sector-performance")
 @route_handler
-async def get_sector_performance(provider: str = "db") -> OBBject:
+def get_sector_performance(provider: str = "db") -> OBBject:
     from app.backend.core.db import get_db_sync
     from index_analyzer.models.orm import MBS_IN_STK_PROFILE
 

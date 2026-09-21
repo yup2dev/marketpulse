@@ -46,7 +46,7 @@ class MenuUpdate(BaseModel):
 
 
 @router.get("/list", response_model=List[Dict[str, Any]])
-async def get_menu_list(
+def get_menu_list(
     pkg_type: str = Query('MARKETPULSE', description="Package type"),
     db: Session = Depends(get_db)
 ):
@@ -68,7 +68,7 @@ async def get_menu_list(
 
 
 @router.get("/hierarchy", response_model=List[Dict[str, Any]])
-async def get_menu_hierarchy(
+def get_menu_hierarchy(
     pkg_type: str = Query('MARKETPULSE', description="Package type"),
     db: Session = Depends(get_db)
 ):
@@ -89,7 +89,7 @@ async def get_menu_hierarchy(
 
 
 @router.get("/user/{user_type_cd}", response_model=List[Dict[str, Any]])
-async def get_menus_by_user_type(
+def get_menus_by_user_type(
     user_type_cd: Optional[str] = None,
     pkg_type: str = Query('MARKETPULSE', description="Package type"),
     db: Session = Depends(get_db)
@@ -112,7 +112,7 @@ async def get_menus_by_user_type(
 
 
 @router.get("/first-page")
-async def get_first_page(
+def get_first_page(
     pkg_type: str = Query('MARKETPULSE', description="Package type"),
     db: Session = Depends(get_db)
 ):
@@ -136,7 +136,7 @@ async def get_first_page(
 
 
 @router.get("/{menu_id}")
-async def get_menu_by_id(
+def get_menu_by_id(
     menu_id: str,
     db: Session = Depends(get_db)
 ):
@@ -162,7 +162,7 @@ async def get_menu_by_id(
 
 
 @router.post("/create")
-async def create_menu(
+def create_menu(
     menu_data: MenuCreate,
     db: Session = Depends(get_db),
     _admin: User = Depends(require_admin)
@@ -192,7 +192,7 @@ async def create_menu(
 
 
 @router.put("/update/{menu_id}")
-async def update_menu(
+def update_menu(
     menu_id: str,
     menu_data: MenuUpdate,
     db: Session = Depends(get_db),
@@ -225,7 +225,7 @@ async def update_menu(
 
 
 @router.delete("/delete/{menu_id}")
-async def delete_menu(
+def delete_menu(
     menu_id: str,
     db: Session = Depends(get_db),
     _admin: User = Depends(require_admin)

@@ -32,7 +32,7 @@ class UpdateNoteRequest(BaseModel):
 
 
 @router.get("")
-async def get_notes(
+def get_notes(
     ticker_cd: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
@@ -45,7 +45,7 @@ async def get_notes(
 
 
 @router.post("")
-async def create_note(
+def create_note(
     request: CreateNoteRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
@@ -65,7 +65,7 @@ async def create_note(
 
 
 @router.put("/{note_id}")
-async def update_note(
+def update_note(
     note_id: str,
     request: UpdateNoteRequest,
     db: Session = Depends(get_db),
@@ -96,7 +96,7 @@ async def update_note(
 
 
 @router.delete("/{note_id}")
-async def delete_note(
+def delete_note(
     note_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
