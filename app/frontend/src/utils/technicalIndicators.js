@@ -272,7 +272,7 @@ export const calculateOBV = (data) => {
 /**
  * Main function to calculate indicator based on ID
  */
-export const calculateIndicator = (indicatorId, data, params = {}) => {
+export const calculateIndicator = (indicatorId, data, _params = {}) => {
   if (!data || data.length === 0) return null;
 
   switch (indicatorId) {

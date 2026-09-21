@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react';
-import { formatNumber, formatPrice, formatDate, INDICATOR_COLORS, CANDLE_COLORS } from '../constants';
+import { INDICATOR_COLORS, CANDLE_COLORS } from '../constants';
+import { getRegimeColor } from '../../../utils/pairAnalysis';
 import useThemeStore from '../../../store/themeStore';
 import { getPlotlyPalette } from '../../../utils/plotlyTheme';
-import { getRegimeColor } from '../../../utils/pairAnalysis';
 import { tickerDisplayName } from './chartHelpers';
 
 // Plotly-based stock chart component
@@ -25,14 +25,6 @@ const PlotlyStockChart = ({
   isSeriesMode,
   visibleSeries,
   hasVolumeInSeries,
-  formatPrice,
-  formatDate,
-  formatNumber,
-  INDICATOR_COLORS,
-  CANDLE_COLORS,
-  getRegimeColor,
-  selectedDot,
-  setSelectedDot,
 }) => {
   const divRef = useRef(null);
   const theme = useThemeStore(state => state.theme);
@@ -299,7 +291,7 @@ const PlotlyStockChart = ({
 
       // External reference lines (analyst targets)
       if (!normalized && externalReferenceLines?.length > 0) {
-        externalReferenceLines.forEach((line, idx) => {
+        externalReferenceLines.forEach((line) => {
           if (line.y != null) {
             shapes.push({
               type: 'line', xref: 'paper', yref: 'y',
@@ -406,10 +398,6 @@ const PlotlyStockChart = ({
         }
       }
 
-      // Y-axis tick formatters
-      const yTickFormatter = normalized
-        ? (v) => `${v.toFixed(0)}%`
-        : (v) => `${parseFloat(v).toFixed(0)}`;
 
       darkLayout.yaxis.tickformat = normalized ? '.0f' : undefined;
       darkLayout.yaxis.ticksuffix = normalized ? '%' : '';

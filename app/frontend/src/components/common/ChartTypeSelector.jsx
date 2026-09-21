@@ -25,7 +25,7 @@ export default function ChartTypeSelector({ value, onChange, types }) {
 
   return (
     <div className="flex items-center gap-0.5 bg-gray-800/60 rounded p-0.5">
-      {options.map(({ id, label, Icon }) => (
+      {options.map(({ id, label }) => (
         <button
           key={id}
           onClick={() => onChange(id)}

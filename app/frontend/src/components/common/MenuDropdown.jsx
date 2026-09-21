@@ -2,7 +2,7 @@
  * MenuDropdown Component
  * Displays sub-menu items in a dropdown with hover animation
  */
-const MenuDropdown = ({ menuItems, onNavigate, position }) => {
+const MenuDropdown = ({ menuItems, onNavigate }) => {
   if (!menuItems || menuItems.length === 0) {
     return null;
   }

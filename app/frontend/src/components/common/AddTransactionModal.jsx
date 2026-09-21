@@ -75,11 +75,12 @@ export default function AddTransactionModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initialValues?.transaction_id]);
 
-  if (!open) return null;
-
   const upd = (key, val) => setForm((prev) => ({ ...prev, [key]: val }));
 
   useEffect(() => {
+    // 닫혀 있으면 조회하지 않는다 — 조기 반환을 훅 뒤로 내리면서 이 가드가 그 역할을 맡는다.
+    if (!open) return;
+
     const ticker = form.ticker_cd.trim().toUpperCase();
     const date   = form.transaction_date.slice(0, 10);
 
@@ -109,7 +110,11 @@ export default function AddTransactionModal({
     }, 700);
 
     return () => clearTimeout(debounceRef.current);
-  }, [form.ticker_cd, form.transaction_date.slice(0, 10), form.transaction_type]);
+  }, [open, form.ticker_cd, form.transaction_date.slice(0, 10), form.transaction_type]);
+
+  // 조기 반환은 모든 훅 뒤에 — 모달을 열고 닫을 때마다 훅 개수가 달라지면
+  // React 가 "Rendered more hooks than during the previous render" 로 터진다.
+  if (!open) return null;
 
   const applyPrice = (source) => {
     if (!fetchedQuote) return;
