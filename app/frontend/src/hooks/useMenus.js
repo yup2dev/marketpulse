@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { API_BASE } from '../config/api';
+import { API_BASE, apiClient } from '../config/api';
 
 /**
  * Custom hook to fetch and manage menu data from API
@@ -19,14 +19,11 @@ export const useMenus = () => {
       setLoading(true);
       setError(null);
 
-      // Fetch hierarchical menu structure
-      const response = await fetch(`${API_BASE}/menu/hierarchy?pkg_type=MARKETPULSE`);
+      // apiClient 를 쓴다 — 생 fetch 는 Authorization 헤더가 없어 인증 게이트에서 401이
+      // 나고, 그 401이 아래 catch 로 흘러 **항상 폴백 메뉴로 조용히 대체**됐다.
+      // (게이트가 deny-by-default 로 바뀐 뒤 계속 이 상태였다.)
+      const data = await apiClient.get(`${API_BASE}/menu/hierarchy?pkg_type=MARKETPULSE`);
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
       setMenus(data.filter(m => m.menu_path !== 'alerts' && m.menu_path !== 'screener'));
     } catch (err) {
       console.error('Error fetching menus:', err);
