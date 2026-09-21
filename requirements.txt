@@ -26,6 +26,10 @@ pypdf>=4.0.0                   # 리서치 보고서 PDF 임포트 텍스트 추
 # API Framework
 # ==============================================================================
 fastapi>=0.104.0
+# starlette 은 fastapi 가 끌어오지만 상한을 여기서 못 박는다.
+# starlette 1.x 는 현재 쓰는 fastapi 0.116 과 충돌해 앱이 기동하지 않는다.
+# 이 줄이 없으면 새 환경/Docker 재빌드에서 1.x 가 들어와 그대로 깨진다.
+starlette<0.48
 uvicorn[standard]>=0.24.0
 pydantic>=2.0.0
 pydantic-settings>=2.0.0
@@ -46,7 +50,7 @@ xmltodict>=0.13.0      # SEC 13F/form4/nport/litigation XML 파싱(지연 import
 yfinance>=0.2.0
 QuantLib>=1.42
 statsmodels>=0.14
-async_lru>=2.0.0       # OpenBB 이식 fetcher(IMF port_volume, EIA helpers)의 alru_cache 의존성
+async-lru>=2.0.0       # OpenBB 이식 fetcher(IMF port_volume, EIA helpers)의 alru_cache 의존성
 pykrx>=1.2.8           # KR 국고채 수집(선택) — KRX_ID/KRX_PW 로그인 필요. 주식·ETF는 KIND/Naver(무로그인) 사용
 
 # ==============================================================================
@@ -82,11 +86,6 @@ spacy>=3.7.0
 Pillow>=10.0.0
 
 # ==============================================================================
-# Multi-threading Support
-# ==============================================================================
-concurrent-futures>=3.1.1; python_version < '3.0'
-
-# ==============================================================================
 # Message Queue & Caching
 # ==============================================================================
 redis>=5.0.0
@@ -113,8 +112,6 @@ openpyxl>=3.1.0
 reportlab>=4.0.0
 urllib3>=2.0.0
 cryptography~=47.0.0
-dotenv~=0.9.9
-async-lru~=2.3.0
 defusedxml~=0.7.1
 scipy~=1.16.1
 python-dateutil~=2.9.0.post0

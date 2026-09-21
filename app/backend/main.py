@@ -26,6 +26,7 @@ from app.backend.api.routes import (
     auth, user_portfolio, screener, alerts, export, watchlist, menu,
     quantlib, quantitative, notes, reports, copilot, backtest,
 )
+from app.backend.api.routes.admin import router as admin_router
 from app.backend.api.routes.workspace import router as workspace_router
 from app.backend.api.routes.fundamental import router as fundamental_router
 from app.backend.api.routes.providers import router as providers_router
@@ -132,13 +133,32 @@ app = FastAPI(
 )
 
 # ── Auth Gate Middleware ───────────────────────────────────────────────────────
-# /api/* 요청 중 공개 경로 이외에는 유효한 Bearer 토큰을 요구합니다.
+# deny-by-default: 아래 공개 목록에 없는 모든 HTTP 경로는 유효한 Bearer 토큰을 요구합니다.
 # 401 응답 → 프론트엔드 apiClient가 refresh 시도 → 실패 시 forceLogout() → /login 이동
+#
+# 예전에는 `/api/` 로 시작하는 경로만 검사(allow-by-default)했다. 그래서 `/api/` 밖에
+# 추가된 운영 엔드포인트(`/cache/*`, `/circuit-breakers/*`, `/fetcher-workers`)가 조용히
+# 무인증으로 공개됐다 — `DELETE /cache/{prefix}` 로 누구나 운영 캐시를 날릴 수 있었다.
+# 그 엔드포인트들은 routes/admin.py(`/api/admin/*`, require_admin)로 옮겼고, 같은 실수가
+# 재발하지 않도록 게이트를 뒤집었다. 새 경로는 기본적으로 '막힌 상태'로 태어난다.
+_PUBLIC_PATHS = frozenset({
+    "/",          # 앱 이름·버전 (업타임 체크)
+    "/health",    # 헬스체크 (Docker/LB)
+})
 _PUBLIC_PREFIXES = (
     "/api/auth/login",
     "/api/auth/register",
     "/api/auth/refresh",
 )
+# OpenAPI 문서는 브라우저가 Bearer 없이 여는 페이지라 게이트를 통과시킬 수밖에 없다.
+# 운영에서 API 스키마를 공개할 이유가 없으므로 DEBUG=true 일 때만 연다.
+# (운영에서 잠깐 봐야 하면 코드 수정 없이 DEBUG 환경변수로 켤 수 있다.)
+_DOCS_PATHS = frozenset({
+    "/docs",
+    "/docs/oauth2-redirect",
+    "/redoc",
+    "/openapi.json",
+})
 
 
 async def _send_json(send, status: int, detail: str, extra_headers=None) -> None:
@@ -151,7 +171,7 @@ async def _send_json(send, status: int, detail: str, extra_headers=None) -> None
 
 
 class AuthGateMiddleware:
-    """순수 ASGI 인증 게이트.
+    """순수 ASGI 인증 게이트 (deny-by-default).
 
     @app.middleware("http")(=BaseHTTPMiddleware)는 downstream을 별도 task로 실행해
     여기서 set한 current_user_id contextvar가 실 uvicorn 런타임에서 엔드포인트까지
@@ -164,20 +184,26 @@ class AuthGateMiddleware:
     def __init__(self, app):
         self.app = app
 
+    @staticmethod
+    def _is_public(path: str) -> bool:
+        if path in _PUBLIC_PATHS:
+            return True
+        if any(path.startswith(p) for p in _PUBLIC_PREFIXES):
+            return True
+        if settings.DEBUG and path in _DOCS_PATHS:
+            return True
+        return False
+
     async def __call__(self, scope, receive, send):
+        # WebSocket(/ws/quotes, /ws/fetcher)은 핸들러가 직접 토큰을 검증한다.
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
 
         path = scope.get("path", "")
         method = scope.get("method", "")
-        # WebSocket, 비-API 경로, 공개 Auth 경로, CORS preflight는 통과
-        if (
-            method == "OPTIONS"
-            or not path.startswith("/api/")
-            or path.startswith("/ws/")
-            or any(path.startswith(p) for p in _PUBLIC_PREFIXES)
-        ):
+        # CORS preflight와 공개 경로만 통과 — 나머지는 전부 Bearer 검사
+        if method == "OPTIONS" or self._is_public(path):
             await self.app(scope, receive, send)
             return
 
@@ -217,9 +243,6 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         *settings.CORS_ORIGINS,
-        "tauri://localhost",          # Tauri 데스크탑 앱 (macOS/Linux)
-        "http://tauri.localhost",     # Tauri 데스크탑 앱 (Windows WebView2/Edge)
-        "https://tauri.localhost",    # Tauri 데스크탑 앱 (Windows WebView2/Edge, HTTPS)
         "https://frontend-yup2devs-projects.vercel.app",  # Vercel 프론트엔드
         "http://localhost",
         "http://127.0.0.1",
@@ -270,6 +293,7 @@ app.include_router(menu.router,       prefix="/api", tags=["menu"])
 app.include_router(providers_router,  prefix="/api", tags=["providers"])
 app.include_router(keys_router,       prefix="/api", tags=["keys"])
 app.include_router(ingest_router,     prefix="/api", tags=["ingest"])
+app.include_router(admin_router,      prefix="/api", tags=["admin"])
 app.include_router(ws_router,                        tags=["websocket"])
 
 
@@ -286,46 +310,8 @@ async def health_check():
     return {"status": "healthy", "version": settings.APP_VERSION}
 
 
-@app.get("/cache/stats")
-async def cache_stats():
-    from app.backend.core.cache import cache, CACHE_VERSION
-    return {"version": CACHE_VERSION, **cache.stats()}
-
-
-@app.delete("/cache/{prefix}")
-async def cache_invalidate(prefix: str):
-    from app.backend.core.cache import cache
-    count = await cache.invalidate_prefix(prefix)
-    return {"invalidated": count, "prefix": prefix}
-
-
-@app.post("/cache/refresh")
-async def cache_refresh_stocks():
-    from app.backend.services.stock_list_service import refresh_cache
-    count = await refresh_cache()
-    return {"status": "ok", "count": count}
-
-
-@app.get("/circuit-breakers")
-async def circuit_breaker_stats():
-    """모든 provider 서킷브레이커 상태 조회."""
-    from data_fetcher.utils.circuit_breaker import all_stats
-    return all_stats()
-
-
-@app.post("/circuit-breakers/{provider}/reset")
-async def circuit_breaker_reset(provider: str):
-    """특정 provider 서킷브레이커 수동 리셋 (OPEN → CLOSED)."""
-    from data_fetcher.utils.circuit_breaker import reset
-    reset(provider)
-    return {"status": "reset", "provider": provider}
-
-
-@app.get("/fetcher-workers")
-async def fetcher_workers():
-    """/ws/fetcher 로 접속 중인 사용자 PC Fetcher 워커 풀 상태."""
-    from app.backend.core.fetcher_pool import fetcher_pool
-    return {"connected": fetcher_pool.count(), "workers": fetcher_pool.status()}
+# 운영 엔드포인트(캐시·서킷브레이커·Fetcher 워커)는 routes/admin.py 의
+# `/api/admin/*` (require_admin) 으로 이동했다.
 
 
 if __name__ == "__main__":
