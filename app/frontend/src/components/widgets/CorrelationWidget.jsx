@@ -36,8 +36,9 @@ export default function CorrelationWidget({ onRemove }) {
       const res = await apiClient.get(
         `${API_BASE}/quantitative/correlation?symbols=${symbols.join(',')}&period=${period}`
       );
-      setMatrix(res?.matrix ?? null);
-      setLabels(Array.isArray(res?.labels) ? res.labels : []);
+      const row = res?.results?.[0];
+      setMatrix(row?.matrix ?? null);
+      setLabels(Array.isArray(row?.labels) ? row.labels : []);
     } catch (e) {
       setMatrix(null);
       setLabels([]);

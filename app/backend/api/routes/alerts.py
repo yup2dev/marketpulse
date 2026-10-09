@@ -7,12 +7,16 @@ from pydantic import BaseModel
 from typing import Optional
 from decimal import Decimal
 
+from app.backend.api.deps import route_handler
+from data_fetcher.core import OBBject
 from app.backend.core.db import get_db
 from app.backend.core.auth.dependencies import get_current_active_user
 from app.backend.services.alert_service import AlertService
 from index_analyzer.models.orm import User
 
 router = APIRouter(prefix="/alerts", tags=["Alerts"])
+
+_PROVIDER = "db"
 
 
 # Request/Response Models
@@ -33,6 +37,7 @@ class AlertUpdate(BaseModel):
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
+@route_handler
 def create_alert(
     alert_data: AlertCreate,
     current_user: User = Depends(get_current_active_user),
@@ -52,10 +57,11 @@ def create_alert(
         message=alert_data.message
     )
 
-    return alert.to_dict()
+    return OBBject(results=[alert.to_dict()], provider=_PROVIDER)
 
 
 @router.get("/")
+@route_handler
 def get_my_alerts(
     is_active: Optional[bool] = None,
     current_user: User = Depends(get_current_active_user),
@@ -65,10 +71,11 @@ def get_my_alerts(
     내 알림 목록 조회
     """
     alerts = AlertService.get_user_alerts(db, current_user.user_id, is_active)
-    return [a.to_dict() for a in alerts]
+    return OBBject(results=[a.to_dict() for a in alerts], provider=_PROVIDER)
 
 
 @router.put("/{alert_id}")
+@route_handler
 def update_alert(
     alert_id: str,
     alert_data: AlertUpdate,
@@ -90,10 +97,11 @@ def update_alert(
             detail="Alert not found"
         )
 
-    return alert.to_dict()
+    return OBBject(results=[alert.to_dict()], provider=_PROVIDER)
 
 
 @router.post("/{alert_id}/toggle")
+@route_handler
 def toggle_alert(
     alert_id: str,
     current_user: User = Depends(get_current_active_user),
@@ -110,10 +118,11 @@ def toggle_alert(
             detail="Alert not found"
         )
 
-    return alert.to_dict()
+    return OBBject(results=[alert.to_dict()], provider=_PROVIDER)
 
 
 @router.delete("/{alert_id}")
+@route_handler
 def delete_alert(
     alert_id: str,
     current_user: User = Depends(get_current_active_user),
@@ -130,10 +139,11 @@ def delete_alert(
             detail="Alert not found"
         )
 
-    return {"message": "Alert deleted successfully"}
+    return OBBject(results=[], provider=_PROVIDER, metadata={"deleted": alert_id})
 
 
 @router.get("/history")
+@route_handler
 def get_alert_history(
     alert_id: Optional[str] = None,
     limit: int = 50,
@@ -151,10 +161,11 @@ def get_alert_history(
         db, current_user.user_id, alert_id, limit
     )
 
-    return {"history": history, "count": len(history)}
+    return OBBject(results=history, provider=_PROVIDER, metadata={"count": len(history)})
 
 
 @router.post("/{alert_id}/test")
+@route_handler
 def test_alert(
     alert_id: str,
     current_user: User = Depends(get_current_active_user),
@@ -171,4 +182,4 @@ def test_alert(
             detail="Alert not found"
         )
 
-    return result
+    return OBBject(results=[result], provider=_PROVIDER)

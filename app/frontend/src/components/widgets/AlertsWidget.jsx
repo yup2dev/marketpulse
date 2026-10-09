@@ -178,7 +178,7 @@ export default function AlertsWidget({ onRemove }) {
     setLoading(true);
     try {
       const res = await alertAPI.getAll();
-      setAlerts(res || []);
+      setAlerts(res.results || []);
     } catch {
       setAlerts([]);
     } finally {
@@ -189,7 +189,7 @@ export default function AlertsWidget({ onRemove }) {
   const fetchHistory = useCallback(async () => {
     try {
       const res = await alertAPI.getHistory();
-      setHistory(res.history || []);
+      setHistory(res.results || []);
     } catch {
       setHistory([]);
     }
@@ -199,16 +199,16 @@ export default function AlertsWidget({ onRemove }) {
 
   const handleCreate = async (data) => {
     try {
-      const alert = await alertAPI.create(data);
-      setAlerts(prev => [alert, ...prev]);
+      const alert = (await alertAPI.create(data)).results?.[0];
+      if (alert) setAlerts(prev => [alert, ...prev]);
       setCreating(false);
     } catch { /* ignore */ }
   };
 
   const handleToggle = async (id) => {
     try {
-      const updated = await alertAPI.toggle(id);
-      setAlerts(prev => prev.map(a => a.alert_id === id ? updated : a));
+      const updated = (await alertAPI.toggle(id)).results?.[0];
+      if (updated) setAlerts(prev => prev.map(a => a.alert_id === id ? updated : a));
     } catch { /* ignore */ }
   };
 

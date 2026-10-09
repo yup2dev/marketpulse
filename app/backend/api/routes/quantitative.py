@@ -6,6 +6,7 @@ from typing import Literal, Optional
 from fastapi import APIRouter, Query
 
 from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
+from data_fetcher.core import OBBject
 from data_fetcher.query_executor import QueryExecutor
 from app.backend.api.deps import route_handler
 
@@ -25,15 +26,15 @@ def _common(symbol: str, target: _TARGET, start_date, end_date):
 
 
 def _first_dict(raw) -> dict:
-    """fetcher 결과(리스트)에서 첫 번째 항목을 dict로 반환 — frontend dataPath: 'result' 에 대응."""
+    """fetcher 결과(리스트)에서 첫 번째 항목을 dict로 반환 — 프론트는 dataPath: 'results.0' 으로 읽는다."""
     items = raw.result if isinstance(raw, AnnotatedResult) else (raw or [])
     item = items[0] if items else None
     return item.model_dump(mode="json") if item else {}
 
 
-def _wrap(data: dict, provider: str = "quantitative") -> dict:
-    """{ result: {...}, provider: '...' } 형태로 래핑."""
-    return {"result": data, "provider": provider}
+def _wrap(data: dict, provider: str = "quantitative") -> OBBject:
+    """프로젝트 표준 OBBject 로 래핑 — 단건이라 results 는 1개짜리 배열."""
+    return OBBject(results=[data], provider=provider)
 
 
 @router.get("/summary")
@@ -188,4 +189,7 @@ async def correlation(
         [round(float(corr.loc[a, b]), 4) if np.isfinite(corr.loc[a, b]) else 0 for b in labels]
         for a in labels
     ]
-    return {"labels": labels, "matrix": matrix, "rows": int(returns.shape[0]), "provider": provider}
+    return OBBject(
+        results=[{"labels": labels, "matrix": matrix, "rows": int(returns.shape[0])}],
+        provider=provider,
+    )

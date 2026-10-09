@@ -31,7 +31,7 @@ export const fmtPercent = (v, dec = 2) => {
   return `${v >= 0 ? '+' : ''}${v.toFixed(dec)}%`;
 };
 
-// posNeg: widgetConfigs에서 사용 (JSX 반환)
+// posNeg: 값의 부호에 따라 색을 입혀 JSX 로 반환
 export const posNeg = (v) =>
   v == null
     ? h('span', { className: 'text-gray-500' }, '-')

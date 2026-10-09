@@ -1,6 +1,9 @@
 """
 Notes API Routes
 사용자 메모 CRUD 엔드포인트
+
+응답은 프로젝트 표준인 OBBject(`{results, provider, metadata}`)로 통일한다.
+단건도 `results` 배열에 담는다 — 프론트가 엔드포인트마다 다른 껍데기를 알 필요가 없다.
 """
 import uuid
 from datetime import datetime
@@ -9,11 +12,15 @@ from sqlalchemy.orm import Session
 from typing import Optional
 from pydantic import BaseModel
 
+from app.backend.api.deps import route_handler
 from app.backend.core.db import get_db
 from app.backend.core.auth.dependencies import get_current_active_user
+from data_fetcher.core import OBBject
 from index_analyzer.models.orm import User, UserNote
 
 router = APIRouter(prefix="/notes", tags=["notes"])
+
+_PROVIDER = "db"
 
 
 class CreateNoteRequest(BaseModel):
@@ -32,6 +39,7 @@ class UpdateNoteRequest(BaseModel):
 
 
 @router.get("")
+@route_handler
 def get_notes(
     ticker_cd: Optional[str] = Query(None),
     db: Session = Depends(get_db),
@@ -41,10 +49,11 @@ def get_notes(
     if ticker_cd:
         q = q.filter(UserNote.ticker_cd == ticker_cd.upper())
     notes = q.order_by(UserNote.pinned.desc(), UserNote.updated_at.desc()).all()
-    return {"success": True, "data": [n.to_dict() for n in notes]}
+    return OBBject(results=[n.to_dict() for n in notes], provider=_PROVIDER)
 
 
 @router.post("")
+@route_handler
 def create_note(
     request: CreateNoteRequest,
     db: Session = Depends(get_db),
@@ -61,10 +70,11 @@ def create_note(
     db.add(note)
     db.commit()
     db.refresh(note)
-    return {"success": True, "data": note.to_dict()}
+    return OBBject(results=[note.to_dict()], provider=_PROVIDER)
 
 
 @router.put("/{note_id}")
+@route_handler
 def update_note(
     note_id: str,
     request: UpdateNoteRequest,
@@ -92,10 +102,11 @@ def update_note(
     note.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(note)
-    return {"success": True, "data": note.to_dict()}
+    return OBBject(results=[note.to_dict()], provider=_PROVIDER)
 
 
 @router.delete("/{note_id}")
+@route_handler
 def delete_note(
     note_id: str,
     db: Session = Depends(get_db),
@@ -110,4 +121,4 @@ def delete_note(
 
     db.delete(note)
     db.commit()
-    return {"success": True, "message": "Note deleted"}
+    return OBBject(results=[], provider=_PROVIDER, metadata={"deleted": note_id})

@@ -139,7 +139,7 @@ export const WIDGET_ENDPOINTS = {
   'option-pricing': {
     title:    'Option Pricing',
     endpoint: '/quantlib/pricing/option',
-    dataPath: 'result',
+    dataPath: 'results.0',
     display:  'kv',
     params: [
       { name: 'option_type',     label: 'Type',     kind: 'select', default: 'call',
@@ -189,7 +189,7 @@ export const WIDGET_ENDPOINTS = {
   'quant-capm': {
     title:    'Quant — CAPM',
     endpoint: '/quantitative/capm',
-    dataPath: 'result',
+    dataPath: 'results.0',
     display:  'kv',
     params: [
       { name: 'symbol',         label: 'Symbol',    kind: 'text',   default: 'AAPL', upper: true },
@@ -203,7 +203,7 @@ export const WIDGET_ENDPOINTS = {
   'quant-rolling': {
     title:    'Quant — Rolling',
     endpoint: '/quantitative/rolling',
-    dataPath: 'result.points',
+    dataPath: 'results.0.points',
     chart: {
       defaultType:    'area',
       referenceLines: [{ y: 0, color: '#475569', label: 'zero' }],
@@ -223,7 +223,7 @@ export const WIDGET_ENDPOINTS = {
   'quant-adf': {
     title:    'Quant — ADF (Stationarity)',
     endpoint: '/quantitative/unitroot',
-    dataPath: 'result',
+    dataPath: 'results.0',
     display:  'kv',
     params: [
       { name: 'symbol',     label: 'Symbol', kind: 'text',   default: 'AAPL', upper: true },

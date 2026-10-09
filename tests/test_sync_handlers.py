@@ -9,57 +9,9 @@ AuthGateMiddleware 가 `current_user_id` contextvar 를 설정하고, QueryExecu
 그 값으로 '이 사용자의 Fetcher 워커'에 위임한다. 스레드풀로 넘어가면서 값이 사라지면
 데이터 조회가 조용히 user_id=None 으로 떨어진다. 그래서 여기서 명시적으로 검증한다.
 """
-import uuid
-
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
-from app.backend.core.auth.security import create_access_token
-from app.backend.core.config import settings
-from app.backend.core.db import get_db
 from app.backend.main import app
-from index_analyzer.models.all_models import Base
-from index_analyzer.models.orm import User
-
-
-@pytest.fixture
-def db_session(tmp_path):
-    """테스트 전용 SQLite — 개발 DB(data/marketpulse.db)를 건드리지 않는다."""
-    engine = create_engine(f"sqlite:///{tmp_path / 'test.db'}")
-    Base.metadata.create_all(bind=engine)
-    session = sessionmaker(bind=engine)()
-    try:
-        yield session
-    finally:
-        session.close()
-        engine.dispose()
-
-
-@pytest.fixture
-def auth_client(db_session, monkeypatch):
-    """로그인된 사용자로 요청하는 클라이언트."""
-    monkeypatch.setattr(settings, "DEBUG", False)
-
-    user_id = str(uuid.uuid4())
-    db_session.add(User(
-        user_id=user_id,
-        email="tester@example.com",
-        username="tester",
-        hashed_password="x",   # 로그인 경로를 타지 않으므로 검증되지 않는다
-        is_active=True,
-        role="user",
-    ))
-    db_session.commit()
-
-    app.dependency_overrides[get_db] = lambda: db_session
-    token = create_access_token({"sub": user_id})
-    client = TestClient(app, headers={"Authorization": f"Bearer {token}"})
-    try:
-        yield client, user_id
-    finally:
-        app.dependency_overrides.clear()
 
 
 # ── 전환된 핸들러가 실제로 동작하는가 ─────────────────────────────────────────
