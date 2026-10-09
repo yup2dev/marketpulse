@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Plus, TrendingUp, Percent, Activity, X, TrendingDown, GitCompare, Settings, ChevronDown, ChevronUp, BarChart2, Layers, Target, ArrowRightLeft } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { Plus, TrendingUp, Activity, X, TrendingDown, Settings, BarChart2 } from 'lucide-react';
 import StockSelectorModal from '../common/StockSelectorModal';
 import useTheme from '../../hooks/useTheme';
 import useChartZoom from '../../hooks/useChartZoom';
@@ -11,634 +11,42 @@ import {
   formatNumber,
   formatPrice,
   formatDate,
-  API_BASE,
   WIDGET_STYLES,
   WIDGET_ICON_COLORS,
   LOADING_COLORS,
   CHART_COLORS,
-  MACRO_INDICATORS,
   TECHNICAL_INDICATORS,
   INDICATOR_COLORS,
   WIDGET_CONSTRAINTS,
-  formatCurrency,
-  CHART_TYPES,
   CANDLE_COLORS,
 } from './constants';
 import { calculateIndicator } from '../../utils/technicalIndicators';
-import useThemeStore from '../../store/themeStore';
-import { getPlotlyPalette } from '../../utils/plotlyTheme';
+import { getRegimeColor } from '../../utils/pairAnalysis';
+import PlotlyStockChart from './chart/PlotlyStockChart';
 import {
-  getRegimeColor,
-  getRegimeBadge,
-} from '../../utils/pairAnalysis';
-import { apiClient } from '../../config/api';
-
-// Plotly-based stock chart component
-const PlotlyStockChart = ({
-  chartData,
-  tickers,
-  chartType,
-  normalized,
-  showVolume,
-  technicalIndicators,
-  pairMode,
-  pairConfig,
-  spreadData,
-  indexData,
-  regimePeriods,
-  outperformPeriods,
-  externalReferenceLines,
-  externalReferencePoints,
-  chartTheme,
-  isSeriesMode,
-  visibleSeries,
-  hasVolumeInSeries,
-  formatPrice,
-  formatDate,
-  formatNumber,
-  INDICATOR_COLORS,
-  CANDLE_COLORS,
-  getRegimeColor,
-  selectedDot,
-  setSelectedDot,
-}) => {
-  const divRef = useRef(null);
-  const theme = useThemeStore(state => state.theme);
-
-  useEffect(() => {
-    if (!divRef.current || !chartData || chartData.length === 0) return;
-
-    const loadPlotly = async () => {
-      const Plotly = (await import('plotly.js-dist-min')).default;
-
-      const traces = [];
-      const shapes = [];
-      const annotations = [];
-
-      const pal = getPlotlyPalette(theme);
-      const darkLayout = {
-        paper_bgcolor: 'rgba(0,0,0,0)',
-        plot_bgcolor: 'rgba(0,0,0,0)',
-        font: { family: 'Inter, system-ui', color: pal.font, size: 11 },
-        xaxis: {
-          gridcolor: chartTheme?.grid || pal.grid,
-          linecolor: pal.line,
-          tickfont: { color: pal.tick, size: 10 },
-          rangeslider: { visible: false },
-          type: 'category',
-        },
-        yaxis: {
-          gridcolor: chartTheme?.grid || pal.grid,
-          linecolor: pal.line,
-          tickfont: { color: pal.tick, size: 10 },
-          automargin: true,
-          side: 'right',
-        },
-        yaxis2: {
-          gridcolor: 'rgba(0,0,0,0)',
-          linecolor: pal.line,
-          tickfont: { color: pal.tick, size: 10 },
-          automargin: true,
-          side: 'left',
-          overlaying: 'y',
-        },
-        yaxis3: {
-          gridcolor: 'rgba(0,0,0,0)',
-          linecolor: pal.line,
-          tickfont: { color: '#f59e0b', size: 10 },
-          automargin: true,
-          side: 'left',
-          overlaying: 'y',
-        },
-        margin: { t: 8, r: 60, b: 32, l: 60 },
-        legend: { font: { color: pal.legend, size: 10 }, bgcolor: 'rgba(0,0,0,0)', x: 0, y: 1 },
-        hoverlabel: { bgcolor: pal.hover.bg, bordercolor: pal.hover.border, font: { color: pal.hover.text, size: 11 } },
-        hovermode: 'x unified',
-        showlegend: true,
-        shapes,
-        annotations,
-      };
-
-      const dates = chartData.map(d => d.date);
-
-      // Regime background areas
-      if (pairMode && pairConfig?.showRegime) {
-        regimePeriods?.forEach((period) => {
-          shapes.push({
-            type: 'rect',
-            xref: 'x',
-            yref: 'paper',
-            x0: period.start,
-            x1: period.end,
-            y0: 0,
-            y1: 1,
-            fillcolor: getRegimeColor?.(period.regime) || 'rgba(100,100,100,0.1)',
-            line: { width: 0 },
-          });
-        });
-      }
-
-      // Outperform highlight areas
-      if (pairMode && pairConfig?.showHighlight) {
-        outperformPeriods?.forEach((period) => {
-          shapes.push({
-            type: 'rect',
-            xref: 'x',
-            yref: 'paper',
-            x0: period.start,
-            x1: period.end,
-            y0: 0,
-            y1: 1,
-            fillcolor: 'rgba(34, 197, 94, 0.15)',
-            line: { color: 'rgba(34, 197, 94, 0.3)', dash: 'dot', width: 1 },
-          });
-        });
-      }
-
-      // Series mode rendering
-      if (isSeriesMode && visibleSeries) {
-        visibleSeries.forEach((s) => {
-          // Price line
-          traces.push({
-            type: 'scatter',
-            mode: 'lines',
-            x: dates,
-            y: chartData.map(d => d[s.id]),
-            name: s.name,
-            yaxis: 'y',
-            line: { color: s.color || '#06b6d4', width: 2 },
-            connectgaps: true,
-          });
-          // Volume bars
-          if (showVolume && hasVolumeInSeries) {
-            traces.push({
-              type: 'bar',
-              x: dates,
-              y: chartData.map(d => d[`${s.id}_volume`]),
-              name: `${s.name} Vol`,
-              yaxis: 'y2',
-              marker: { color: s.color || '#06b6d4', opacity: 0.3 },
-              showlegend: false,
-            });
-          }
-        });
-      } else {
-        // Symbol mode rendering
-        const stockTickers = tickers?.filter(t => t.visible) || [];
-
-        stockTickers.forEach((ticker) => {
-          if (ticker.type === 'indicator') {
-            // Macro indicator - dashed line
-            traces.push({
-              type: 'scatter',
-              mode: 'lines',
-              x: dates,
-              y: chartData.map(d => d[ticker.symbol]),
-              name: tickerDisplayName(ticker),
-              yaxis: 'y',
-              line: { color: ticker.color, width: 3, dash: 'dot' },
-              connectgaps: true,
-            });
-            return;
-          }
-
-          // Stock rendering based on chart type
-          const isOHLCType = ['candlestick', 'ohlc', 'heikinashi'].includes(chartType) && !normalized;
-
-          if (isOHLCType) {
-            if (chartType === 'ohlc') {
-              traces.push({
-                type: 'ohlc',
-                x: dates,
-                open: chartData.map(d => d[`${ticker.symbol}_open`]),
-                high: chartData.map(d => d[`${ticker.symbol}_high`]),
-                low: chartData.map(d => d[`${ticker.symbol}_low`]),
-                close: chartData.map(d => d[`${ticker.symbol}_close`]),
-                name: tickerDisplayName(ticker),
-                yaxis: 'y',
-                increasing: { line: { color: CANDLE_COLORS?.up || '#22c55e' } },
-                decreasing: { line: { color: CANDLE_COLORS?.down || '#ef4444' } },
-              });
-            } else {
-              // candlestick and heikinashi
-              traces.push({
-                type: 'candlestick',
-                x: dates,
-                open: chartData.map(d => d[`${ticker.symbol}_open`]),
-                high: chartData.map(d => d[`${ticker.symbol}_high`]),
-                low: chartData.map(d => d[`${ticker.symbol}_low`]),
-                close: chartData.map(d => d[`${ticker.symbol}_close`]),
-                name: tickerDisplayName(ticker),
-                yaxis: 'y',
-                increasing: { line: { color: CANDLE_COLORS?.up || '#22c55e' }, fillcolor: CANDLE_COLORS?.up || '#22c55e' },
-                decreasing: { line: { color: CANDLE_COLORS?.down || '#ef4444' }, fillcolor: CANDLE_COLORS?.down || '#ef4444' },
-              });
-            }
-          } else if (chartType === 'area') {
-            traces.push({
-              type: 'scatter',
-              mode: 'lines',
-              x: dates,
-              y: chartData.map(d => d[ticker.symbol]),
-              name: tickerDisplayName(ticker),
-              yaxis: 'y',
-              line: { color: ticker.color, width: 2 },
-              fill: 'tozeroy',
-              fillcolor: ticker.color.replace(')', ', 0.1)').replace('rgb', 'rgba').replace('#', 'rgba(') || 'rgba(6,182,212,0.1)',
-              connectgaps: true,
-            });
-          } else {
-            // line (default)
-            traces.push({
-              type: 'scatter',
-              mode: 'lines',
-              x: dates,
-              y: chartData.map(d => d[ticker.symbol]),
-              name: tickerDisplayName(ticker),
-              yaxis: 'y',
-              line: { color: ticker.color, width: 2 },
-              connectgaps: true,
-            });
-          }
-
-          // Volume bars
-          if (showVolume) {
-            traces.push({
-              type: 'bar',
-              x: dates,
-              y: chartData.map(d => d[`${ticker.symbol}_volume`]),
-              name: `${ticker.symbol} Vol`,
-              yaxis: 'y2',
-              marker: { color: ticker.color, opacity: 0.3 },
-              showlegend: false,
-            });
-          }
-        });
-
-        // Technical indicator overlays
-        if (!normalized && technicalIndicators) {
-          technicalIndicators.filter(ti => ti.visible).forEach((indicator) => {
-            const { indicatorId, symbol } = indicator;
-
-            if (indicatorId === 'BBANDS') {
-              traces.push({
-                type: 'scatter', mode: 'lines',
-                x: dates, y: chartData.map(d => d[`${symbol}_${indicatorId}_upper`]),
-                name: `${symbol} BB Upper`, yaxis: 'y',
-                line: { color: INDICATOR_COLORS?.BBANDS_upper || '#6b7280', width: 1, dash: 'dash' },
-                connectgaps: true, showlegend: true,
-              });
-              traces.push({
-                type: 'scatter', mode: 'lines',
-                x: dates, y: chartData.map(d => d[`${symbol}_${indicatorId}_middle`]),
-                name: `${symbol} BB Middle`, yaxis: 'y',
-                line: { color: INDICATOR_COLORS?.BBANDS_middle || '#9ca3af', width: 1.5 },
-                connectgaps: true,
-              });
-              traces.push({
-                type: 'scatter', mode: 'lines',
-                x: dates, y: chartData.map(d => d[`${symbol}_${indicatorId}_lower`]),
-                name: `${symbol} BB Lower`, yaxis: 'y',
-                line: { color: INDICATOR_COLORS?.BBANDS_lower || '#6b7280', width: 1, dash: 'dash' },
-                fill: 'tonexty', fillcolor: 'rgba(107,114,128,0.05)',
-                connectgaps: true,
-              });
-            } else if (['SMA_20', 'SMA_50', 'SMA_200', 'EMA_12', 'EMA_26'].includes(indicatorId)) {
-              traces.push({
-                type: 'scatter', mode: 'lines',
-                x: dates, y: chartData.map(d => d[`${symbol}_${indicatorId}`]),
-                name: `${symbol} ${indicator.name}`, yaxis: 'y',
-                line: { color: INDICATOR_COLORS?.[indicatorId] || '#f59e0b', width: 1.5 },
-                connectgaps: true,
-              });
-            }
-          });
-        }
-      }
-
-      // Normalized baseline
-      if (normalized) {
-        shapes.push({
-          type: 'line', xref: 'paper', yref: 'y',
-          x0: 0, x1: 1, y0: 0, y1: 0,
-          line: { color: '#9ca3af', dash: 'dot', width: 1 },
-        });
-      }
-
-      // External reference lines (analyst targets)
-      if (!normalized && externalReferenceLines?.length > 0) {
-        externalReferenceLines.forEach((line, idx) => {
-          if (line.y != null) {
-            shapes.push({
-              type: 'line', xref: 'paper', yref: 'y',
-              x0: 0, x1: 1, y0: line.y, y1: line.y,
-              line: {
-                color: line.color,
-                dash: line.dashed ? 'dash' : 'solid',
-                width: line.dashed ? 1 : 1.5,
-              },
-            });
-            if (line.label) {
-              annotations.push({
-                xref: 'paper', yref: 'y',
-                x: 1, y: line.y,
-                text: line.label,
-                showarrow: false,
-                font: { color: line.color, size: 10 },
-                xanchor: 'right',
-              });
-            }
-          }
-        });
-      }
-
-      // Pair Analysis: spread line
-      if (pairMode && pairConfig?.showSpread && spreadData?.length > 0) {
-        traces.push({
-          type: 'scatter', mode: 'lines',
-          x: dates, y: chartData.map(d => d.spread),
-          name: 'Spread', yaxis: 'y3',
-          line: { color: '#f59e0b', width: 2.5 },
-          connectgaps: true,
-        });
-        shapes.push({
-          type: 'line', xref: 'paper', yref: 'y3',
-          x0: 0, x1: 1, y0: 1, y1: 1,
-          line: { color: '#f59e0b', dash: 'dot', width: 1 },
-        });
-        annotations.push({
-          xref: 'paper', yref: 'y3',
-          x: 0, y: 1,
-          text: 'Base (1.0)',
-          showarrow: false,
-          font: { color: '#f59e0b', size: 10 },
-          xanchor: 'left',
-        });
-      }
-
-      // Pair Analysis: index line
-      if (pairMode && pairConfig?.showIndex && indexData?.length > 0) {
-        traces.push({
-          type: 'scatter', mode: 'lines',
-          x: dates, y: chartData.map(d => d.indexNormalized),
-          name: pairConfig.regimeSymbol === '^KS11' ? 'KOSPI' : pairConfig.regimeSymbol,
-          yaxis: 'y3',
-          line: { color: '#3b82f6', width: 2, dash: 'dash' },
-          connectgaps: true,
-        });
-      }
-
-      // External reference points (analyst dots)
-      if (!normalized && externalReferencePoints?.length > 0 && chartData.length > 0) {
-        const primarySymbol = tickers?.find(t => t.type === 'stock')?.symbol;
-        const dataByDate = {};
-        chartData.forEach(d => { if (d.date) dataByDate[d.date] = d; });
-        const chartDates = Object.keys(dataByDate);
-
-        const findClosestDate = (targetDate) => {
-          if (!targetDate) return chartDates[chartDates.length - 1];
-          const target = new Date(targetDate).getTime();
-          let closest = chartDates[0];
-          let minDiff = Math.abs(new Date(closest).getTime() - target);
-          for (const d of chartDates) {
-            const diff = Math.abs(new Date(d).getTime() - target);
-            if (diff < minDiff) { minDiff = diff; closest = d; }
-          }
-          return closest;
-        };
-
-        const ptX = [], ptY = [], ptText = [], ptColors = [];
-        externalReferencePoints.forEach((pt) => {
-          const snappedDate = findClosestDate(pt.x);
-          let yVal = pt.y;
-          if (yVal == null && primarySymbol && dataByDate[snappedDate]) {
-            yVal = dataByDate[snappedDate][primarySymbol];
-          }
-          if (yVal == null) return;
-          ptX.push(snappedDate);
-          ptY.push(yVal);
-          ptText.push(pt.tooltip || pt.label || '');
-          ptColors.push(pt.color || '#a78bfa');
-        });
-
-        if (ptX.length > 0) {
-          traces.push({
-            type: 'scatter', mode: 'markers',
-            x: ptX, y: ptY,
-            name: 'Targets',
-            yaxis: 'y',
-            marker: { color: ptColors, size: 8, symbol: 'circle', line: { color: '#1a1a2e', width: 1.5 } },
-            text: ptText,
-            hovertemplate: '%{text}<extra></extra>',
-          });
-        }
-      }
-
-      // Y-axis tick formatters
-      const yTickFormatter = normalized
-        ? (v) => `${v.toFixed(0)}%`
-        : (v) => `${parseFloat(v).toFixed(0)}`;
-
-      darkLayout.yaxis.tickformat = normalized ? '.0f' : undefined;
-      darkLayout.yaxis.ticksuffix = normalized ? '%' : '';
-      darkLayout.yaxis2.tickformat = '.2s';
-
-      await Plotly.react(divRef.current, traces, darkLayout, {
-        displayModeBar: false,
-        responsive: true,
-        scrollZoom: true,
-      });
-
-      const ro = new ResizeObserver(() => {
-        if (divRef.current) Plotly.Plots.resize(divRef.current);
-      });
-      ro.observe(divRef.current);
-      divRef.current._ro = ro;
-    };
-
-    loadPlotly();
-
-    return () => {
-      if (divRef.current?._ro) {
-        divRef.current._ro.disconnect();
-      }
-    };
-  }, [chartData, tickers, chartType, normalized, showVolume, technicalIndicators, pairMode, pairConfig,
-    spreadData, indexData, regimePeriods, outperformPeriods, externalReferenceLines, externalReferencePoints,
-    isSeriesMode, visibleSeries, hasVolumeInSeries, theme, chartTheme]);
-
-  return <div ref={divRef} className="w-full h-full" />;
-};
-
-// Plotly oscillator sub-panel component
-const PlotlyOscillator = ({ chartData, traces: traceDefs, shapes: shapeDefs, yDomain, height = 192, chartTheme }) => {
-  const divRef = useRef(null);
-  const theme = useThemeStore(state => state.theme);
-
-  useEffect(() => {
-    if (!divRef.current || !chartData || chartData.length === 0) return;
-
-    const loadPlotly = async () => {
-      const Plotly = (await import('plotly.js-dist-min')).default;
-      const dates = chartData.map(d => d.date);
-
-      const traces = traceDefs.map(td => ({
-        type: td.type || 'scatter',
-        mode: td.mode || 'lines',
-        x: dates,
-        y: chartData.map(d => d[td.dataKey]),
-        name: td.name,
-        line: td.line,
-        marker: td.marker,
-        connectgaps: true,
-      }));
-
-      const pal = getPlotlyPalette(theme);
-      const layout = {
-        paper_bgcolor: 'rgba(0,0,0,0)',
-        plot_bgcolor: 'rgba(0,0,0,0)',
-        font: { family: 'Inter, system-ui', color: pal.font, size: 11 },
-        xaxis: {
-          gridcolor: chartTheme?.grid || pal.grid,
-          linecolor: pal.line,
-          tickfont: { color: pal.tick, size: 10 },
-          rangeslider: { visible: false },
-          type: 'category',
-        },
-        yaxis: {
-          gridcolor: chartTheme?.grid || pal.grid,
-          linecolor: pal.line,
-          tickfont: { color: pal.tick, size: 10 },
-          automargin: true,
-          ...(yDomain ? { range: yDomain } : {}),
-        },
-        margin: { t: 4, r: 8, b: 32, l: 50 },
-        legend: { font: { color: pal.legend, size: 10 }, bgcolor: 'rgba(0,0,0,0)' },
-        hoverlabel: { bgcolor: pal.hover.bg, bordercolor: pal.hover.border, font: { color: pal.hover.text, size: 11 } },
-        hovermode: 'x unified',
-        showlegend: true,
-        shapes: shapeDefs || [],
-      };
-
-      await Plotly.react(divRef.current, traces, layout, { displayModeBar: false, responsive: true });
-
-      const ro = new ResizeObserver(() => {
-        if (divRef.current) Plotly.Plots.resize(divRef.current);
-      });
-      ro.observe(divRef.current);
-      divRef.current._ro = ro;
-    };
-
-    loadPlotly();
-
-    return () => {
-      if (divRef.current?._ro) divRef.current._ro.disconnect();
-    };
-  }, [chartData, traceDefs, shapeDefs, yDomain, theme, chartTheme]);
-
-  return <div ref={divRef} style={{ width: '100%', height }} />;
-};
-
-// Calculate Heikin-Ashi values
-// Time shift (lead/lag) helpers — shift a series' dates by calendar D/W/M.
-// Positive value = lead: data moves forward (right) so past values overlay the present.
-const SHIFT_UNITS = [
-  { id: 'D', label: 'Days' },
-  { id: 'W', label: 'Weeks' },
-  { id: 'M', label: 'Months' },
-];
-
-const shiftDateStr = (dateStr, value, unit) => {
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return dateStr;
-  if (unit === 'M') d.setMonth(d.getMonth() + value);
-  else if (unit === 'W') d.setDate(d.getDate() + value * 7);
-  else d.setDate(d.getDate() + value);
-  const pad = (n) => String(n).padStart(2, '0');
-  const datePart = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  // Preserve time portion for intraday data (e.g. "2026-07-15T09:30:00")
-  return dateStr.length > 10 ? `${datePart}${dateStr.slice(10)}` : datePart;
-};
-
-const getShiftLabel = (shift) =>
-  shift?.value ? `${shift.value > 0 ? '+' : ''}${shift.value}${shift.unit}` : null;
-
-const tickerDisplayName = (ticker) => {
-  const base = ticker.name || ticker.symbol;
-  const label = getShiftLabel(ticker.shift);
-  return label ? `${base} (${label})` : base;
-};
-
-const calculateHeikinAshi = (data, symbol) => {
-  if (!data || data.length === 0) return data;
-
-  const result = [...data];
-  let prevHA = null;
-
-  for (let i = 0; i < result.length; i++) {
-    const item = result[i];
-    const open = item[`${symbol}_open`];
-    const high = item[`${symbol}_high`];
-    const low = item[`${symbol}_low`];
-    const close = item[`${symbol}_close`];
-
-    if (open === undefined || close === undefined) continue;
-
-    const haClose = (open + high + low + close) / 4;
-    const haOpen = prevHA ? (prevHA.open + prevHA.close) / 2 : (open + close) / 2;
-    const haHigh = Math.max(high || haClose, haOpen, haClose);
-    const haLow = Math.min(low || haClose, haOpen, haClose);
-
-    result[i] = {
-      ...item,
-      [`${symbol}_open`]: haOpen,
-      [`${symbol}_high`]: haHigh,
-      [`${symbol}_low`]: haLow,
-      [`${symbol}_close`]: haClose,
-    };
-
-    prevHA = { open: haOpen, close: haClose };
-  }
-
-  return result;
-};
-
-const fmtDate = (d) => d.toISOString().slice(0, 10);
-
-// Default date range: last 1 month.
-const defaultDateRange = () => {
-  const end = new Date();
-  const start = new Date();
-  start.setMonth(start.getMonth() - 1);
-  return { start: fmtDate(start), end: fmtDate(end) };
-};
-
-const DATE_RANGE_PRESETS = [
-  { label: '1M', months: 1 },
-  { label: '6M', months: 6 },
-  { label: '1Y', months: 12 },
-  { label: '5Y', months: 60 },
-];
-
-const presetDateRange = (months) => {
-  const end = new Date();
-  const start = new Date();
-  start.setMonth(start.getMonth() - months);
-  return { start: fmtDate(start), end: fmtDate(end) };
-};
-
-// Period-anchored aux endpoints (regime 등) fetch startDate→today; pick the
-// smallest preset covering that span.
-const rangeToPeriod = (startDate) => {
-  const days = Math.ceil((Date.now() - new Date(startDate).getTime()) / 86400000);
-  if (days <= 31)   return '1mo';
-  if (days <= 93)   return '3mo';
-  if (days <= 186)  return '6mo';
-  if (days <= 366)  return '1y';
-  if (days <= 731)  return '2y';
-  if (days <= 1827) return '5y';
-  return 'max';
-};
+  resolveInterval,
+  resolveFetchStart,
+  fetchTickerData,
+  collectTickerStats,
+  windowToRange,
+  mergeData,
+  mergeSeriesIndicatorData,
+} from './chart/chartData';
+import ChartControls from './chart/ChartControls';
+import TickerShiftPopover from './chart/TickerShiftPopover';
+import ChartTypeDropdown from './chart/ChartTypeDropdown';
+import MacroIndicatorDropdown from './chart/MacroIndicatorDropdown';
+import TechnicalIndicatorDropdown from './chart/TechnicalIndicatorDropdown';
+import PairSettingsPanel from './chart/PairSettingsPanel';
+import FcfComparisonPanel from './chart/FcfComparisonPanel';
+import OscillatorPanels from './chart/OscillatorPanels';
+import {
+  shiftDateStr,
+  getShiftLabel,
+  calculateHeikinAshi,
+  defaultDateRange,
+  rangeToPeriod,
+} from './chart/chartHelpers';
 
 const ChartWidget = ({
   widgetId,
@@ -866,46 +274,6 @@ const ChartWidget = ({
   }, [isSeriesMode, series, normalized, technicalIndicators]);
 
   // Helper to merge indicator data in series mode
-  const mergeSeriesIndicatorData = (chartData, indicatorData, indicatorId, seriesId) => {
-    const dataMap = new Map(chartData.map(d => [d.date, { ...d }]));
-
-    if (indicatorData.macd) {
-      indicatorData.macd.forEach((item, idx) => {
-        if (dataMap.has(item.date)) {
-          const entry = dataMap.get(item.date);
-          entry[`${seriesId}_${indicatorId}_macd`] = item.value;
-          entry[`${seriesId}_${indicatorId}_signal`] = indicatorData.signal[idx]?.value || null;
-          entry[`${seriesId}_${indicatorId}_histogram`] = indicatorData.histogram[idx]?.value || null;
-        }
-      });
-    } else if (indicatorData.upper) {
-      indicatorData.upper.forEach((item, idx) => {
-        if (dataMap.has(item.date)) {
-          const entry = dataMap.get(item.date);
-          entry[`${seriesId}_${indicatorId}_upper`] = item.value;
-          entry[`${seriesId}_${indicatorId}_middle`] = indicatorData.middle[idx]?.value || null;
-          entry[`${seriesId}_${indicatorId}_lower`] = indicatorData.lower[idx]?.value || null;
-        }
-      });
-    } else if (indicatorData.k) {
-      indicatorData.k.forEach((item, idx) => {
-        if (dataMap.has(item.date)) {
-          const entry = dataMap.get(item.date);
-          entry[`${seriesId}_${indicatorId}_k`] = item.value;
-          entry[`${seriesId}_${indicatorId}_d`] = indicatorData.d[idx]?.value || null;
-        }
-      });
-    } else {
-      indicatorData.forEach(item => {
-        if (dataMap.has(item.date)) {
-          dataMap.get(item.date)[`${seriesId}_${indicatorId}`] = item.value;
-        }
-      });
-    }
-
-    return Array.from(dataMap.values()).sort((a, b) => a.timestamp - b.timestamp);
-  };
-
   // Apply per-ticker time shift (lead/lag) — move a ticker's dates by calendar D/W/M
   // so e.g. SIL shifted +4M overlays SOX 4 months ahead (leading indicator analysis)
   const shiftedChartData = useMemo(() => {
@@ -1068,85 +436,18 @@ const ChartWidget = ({
 
     setLoading(true);
     try {
-      const spanDays = Math.max(1, Math.round((new Date(endDate) - new Date(startDate)) / 86400000));
-      const startAgeDays = Math.round((Date.now() - new Date(startDate).getTime()) / 86400000);
-      // Intraday intervals are only available from the provider for recent data (~60 days)
-      const canIntraday = startAgeDays <= 55;
-      let interval;
-      if (spanDays <= 2)        interval = canIntraday ? '5m'  : '1d';
-      else if (spanDays <= 7)   interval = canIntraday ? '15m' : '1d';
-      else if (spanDays <= 32)  interval = canIntraday ? '30m' : '1d';
-      else if (spanDays <= 730) interval = '1d';
-      else if (spanDays <= 1830) interval = '1wk';
-      else interval = '1mo';
-
-      // Extend fetch start so technical indicators have warm-up history
-      // (~200 extra trading days for SMA200); trimmed back before display.
-      // Skipped for intraday (provider limit) and normalized mode (rebase point).
-      const needsExtendedData = !normalized && !interval.endsWith('m') &&
-        (technicalIndicators.length > 0 || ['candlestick', 'ohlc', 'heikinashi'].includes(chartType));
-      let fetchStart = startDate;
-      if (needsExtendedData) {
-        const d = new Date(startDate);
-        d.setDate(d.getDate() - 300);
-        fetchStart = fmtDate(d);
-      }
-
-      // Separate stocks and indicators
-      const stocks = tickers.filter(t => t.type === 'stock');
-      const indicators = tickers.filter(t => t.type === 'indicator');
-
-      // Load stock data — apiClient(인증 헤더) + OBBject({results}) 응답 형태
-      const stockPromises = stocks.map(async (ticker) => {
-        try {
-          const [history, quote, info] = await Promise.all([
-            apiClient.get(`${API_BASE}/stock/history/${ticker.symbol}?start_date=${fetchStart}&end_date=${endDate}&interval=${interval}`).catch(() => null),
-            apiClient.get(`${API_BASE}/stock/quote/${ticker.symbol}`).catch(() => null),
-            apiClient.get(`${API_BASE}/stock/info/${ticker.symbol}`).catch(() => null),
-          ]);
-
-          return {
-            symbol: ticker.symbol,
-            type: 'stock',
-            data: history?.results || [],
-            quote: quote?.results?.[0] || null,
-            info: info?.results?.[0] || null,
-          };
-        } catch (error) {
-          console.error(`Error loading ${ticker.symbol}:`, error);
-          return { symbol: ticker.symbol, type: 'stock', data: [], quote: null, info: null };
-        }
+      const interval = resolveInterval(startDate, endDate);
+      const fetchStart = resolveFetchStart({
+        startDate,
+        interval,
+        normalized,
+        hasTechnicalIndicators: technicalIndicators.length > 0,
+        chartType,
       });
 
-      // Load indicator data
-      const indicatorPromises = indicators.map(async (indicator) => {
-        try {
-          const indicatorData = await apiClient.get(`${API_BASE}/stock/indicator/${indicator.symbol}?period=${rangeToPeriod(startDate)}`);
+      const results = await fetchTickerData(tickers, { fetchStart, endDate, interval, startDate });
+      setTickerStats(collectTickerStats(results));
 
-          return {
-            symbol: indicator.symbol,
-            type: 'indicator',
-            data: indicatorData?.results || [],
-            name: indicator.name
-          };
-        } catch (error) {
-          console.error(`Error loading indicator ${indicator.symbol}:`, error);
-          return { symbol: indicator.symbol, type: 'indicator', data: [], name: indicator.name };
-        }
-      });
-
-      const results = await Promise.all([...stockPromises, ...indicatorPromises]);
-
-      // Store stats for stocks
-      const stats = {};
-      results.filter(r => r.type === 'stock').forEach(({ symbol, quote, info }) => {
-        if (quote && info) {
-          stats[symbol] = { quote, info };
-        }
-      });
-      setTickerStats(stats);
-
-      // Merge data from all sources by date
       let mergedData = mergeData(results, normalized);
 
       // Calculate and add technical indicators for each stock
@@ -1156,7 +457,6 @@ const ChartWidget = ({
           if (stockData && stockData.data && stockData.data.length > 0) {
             const indicatorData = calculateIndicator(indicatorId, stockData.data);
             if (indicatorData) {
-              // Merge indicator data into chart data
               mergedData = mergeIndicatorData(mergedData, indicatorData, indicatorId, symbol);
             }
           }
@@ -1168,20 +468,16 @@ const ChartWidget = ({
         const longStockData = results.find(r => r.symbol === pairConfig.longSymbol && r.type === 'stock');
         const shortStockData = results.find(r => r.symbol === pairConfig.shortSymbol && r.type === 'stock');
 
-        // Calculate spread using hook function
         if (longStockData?.data?.length && shortStockData?.data?.length) {
           calculateSpreadData(longStockData.data, shortStockData.data);
         }
 
-        // Load regime/index data using hook function
         if (pairConfig.showRegime || pairConfig.showIndex) {
           await loadRegimeData(rangeToPeriod(startDate), interval);
         }
 
-        // Load financial data using hook function
         await loadFinancialData();
 
-        // Merge pair analysis data into chart data
         mergedData = mergeSpreadToChart(mergedData);
         mergedData = mergeRegimeToChart(mergedData);
         mergedData = mergeIndexToChart(mergedData);
@@ -1190,109 +486,13 @@ const ChartWidget = ({
         resetPairData();
       }
 
-      // Window to the selected range: drops the technical-indicator warm-up
-      // buffer and trims macro-indicator series (fetched period-anchored to today)
-      const startTs = new Date(startDate).getTime();
-      const endTs = new Date(endDate).getTime() + 86400000; // include the end day
-      mergedData = mergedData.filter(d => d.timestamp >= startTs && d.timestamp < endTs);
-
-      setChartData(mergedData);
+      setChartData(windowToRange(mergedData, startDate, endDate));
     } catch (error) {
       console.error('Error loading chart data:', error);
     } finally {
       setLoading(false);
     }
   }, [tickers, startDate, endDate, normalized, technicalIndicators, chartType, pairMode, pairConfig]);
-
-  const mergeData = (results, normalize) => {
-    if (results.length === 0) return [];
-
-    // Find the date range from stock data (if any)
-    let minDate = null;
-    let maxDate = null;
-
-    const stockResults = results.filter(r => r.type === 'stock');
-    const indicatorResults = results.filter(r => r.type === 'indicator');
-
-    // Determine date range from stocks, or from all data if no stocks
-    if (stockResults.length > 0) {
-      stockResults.forEach(({ data }) => {
-        if (data && data.length > 0) {
-          const dates = data.map(d => new Date(d.date));
-          const localMin = new Date(Math.min(...dates));
-          const localMax = new Date(Math.max(...dates));
-          if (!minDate || localMin < minDate) minDate = localMin;
-          if (!maxDate || localMax > maxDate) maxDate = localMax;
-        }
-      });
-    } else {
-      // If no stocks, use indicator date range
-      results.forEach(({ data }) => {
-        if (data && data.length > 0) {
-          const dates = data.map(d => new Date(d.date));
-          const localMin = new Date(Math.min(...dates));
-          const localMax = new Date(Math.max(...dates));
-          if (!minDate || localMin < minDate) minDate = localMin;
-          if (!maxDate || localMax > maxDate) maxDate = localMax;
-        }
-      });
-    }
-
-    const dateMap = new Map();
-
-    results.forEach(({ symbol, type, data }) => {
-      if (!data || data.length === 0) return;
-
-      // Filter data to match date range if we have a range
-      let filteredData = data;
-      if (minDate && maxDate) {
-        filteredData = data.filter(item => {
-          const itemDate = new Date(item.date);
-          return itemDate >= minDate && itemDate <= maxDate;
-        });
-      }
-
-      if (type === 'stock') {
-        // Sort by date and use first item as base for normalization
-        const sortedData = [...filteredData].sort((a, b) => new Date(a.date) - new Date(b.date));
-        const basePrice = normalize && sortedData.length > 0 ? sortedData[0].close : 1;
-
-        sortedData.forEach(item => {
-          if (!dateMap.has(item.date)) {
-            dateMap.set(item.date, { date: item.date, timestamp: new Date(item.date).getTime() });
-          }
-          const entry = dateMap.get(item.date);
-          entry[symbol] = normalize ? ((item.close / basePrice - 1) * 100) : item.close;
-          entry[`${symbol}_volume`] = item.volume;
-          // Store OHLC data for candlestick/OHLC charts
-          if (!normalize) {
-            entry[`${symbol}_open`] = item.open;
-            entry[`${symbol}_high`] = item.high;
-            entry[`${symbol}_low`] = item.low;
-            entry[`${symbol}_close`] = item.close;
-          }
-        });
-      } else {
-        // Indicator data — 일부 fetcher는 value 대신 rate 필드를 쓴다(fed_funds_rate 등)
-        const numOf = (item) => item.value ?? item.rate ?? null;
-        const sortedData = [...filteredData].sort((a, b) => new Date(a.date) - new Date(b.date));
-        const baseValue = normalize && sortedData.length > 0 ? numOf(sortedData[0]) : 1;
-
-        sortedData.forEach(item => {
-          const v = numOf(item);
-          if (v == null) return;
-          if (!dateMap.has(item.date)) {
-            dateMap.set(item.date, { date: item.date, timestamp: new Date(item.date).getTime() });
-          }
-          const entry = dateMap.get(item.date);
-          entry[symbol] = normalize && baseValue ? ((v / baseValue - 1) * 100) : v;
-        });
-      }
-    });
-
-    // Sort by timestamp to ensure proper ordering
-    return Array.from(dateMap.values()).sort((a, b) => a.timestamp - b.timestamp);
-  };
 
   // Load data when key dependencies change (not on every loadData reference change)
   useEffect(() => {
@@ -1497,166 +697,33 @@ const ChartWidget = ({
         )}
       </WidgetHeader>
 
-      {/* Chart Type Selector Dropdown */}
-      {showChartTypeSelectorDropdown && (
-        <div className="absolute top-14 right-4 z-50 border border-gray-700 rounded-lg shadow-2xl py-2 min-w-[200px]" style={{ backgroundColor: tokens.bg.tertiary }}>
-          <div className="px-3 py-2 border-b border-gray-800">
-            <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold text-white">Chart Type</div>
-              <button
-                onClick={() => setShowChartTypeSelectorDropdown(false)}
-                className="text-gray-400 hover:text-white"
-              >
-                <X size={14} />
-              </button>
-            </div>
-          </div>
-          <div className="py-1">
-            {CHART_TYPES.map((type) => (
-              <button
-                key={type.id}
-                onClick={() => {
-                  setChartType(type.id);
-                  setShowChartTypeSelectorDropdown(false);
-                }}
-                className={`w-full px-3 py-2 hover:bg-gray-800 transition-colors text-left flex items-center gap-3 ${
-                  chartType === type.id ? 'bg-blue-600/20 border-l-2 border-blue-500' : ''
-                }`}
-              >
-                <div className={`w-8 h-8 rounded flex items-center justify-center ${
-                  chartType === type.id ? 'bg-blue-600' : 'bg-gray-700'
-                }`}>
-                  {type.id === 'line' && <TrendingUp size={16} />}
-                  {type.id === 'area' && <Activity size={16} />}
-                  {type.id === 'candlestick' && <BarChart2 size={16} />}
-                  {type.id === 'ohlc' && <BarChart2 size={16} />}
-                  {type.id === 'heikinashi' && <Layers size={16} />}
-                </div>
-                <div>
-                  <div className="text-sm font-medium text-white">{type.name}</div>
-                  <div className="text-xs text-gray-400">{type.description}</div>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      <ChartTypeDropdown
+        show={showChartTypeSelectorDropdown}
+        onClose={() => setShowChartTypeSelectorDropdown(false)}
+        tokens={tokens}
+        chartType={chartType}
+        setChartType={setChartType}
+      />
 
-      {/* Macro Indicator Selector Dropdown */}
-      {showIndicatorSelector && (
-        <div className={`absolute top-14 right-4 z-50 ${tokens.bg.tertiary} border border-gray-700 rounded-lg shadow-2xl py-2 min-w-[300px]`} style={{ backgroundColor: tokens.bg.tertiary }}>
-          <div className="px-3 py-2 border-b border-gray-800">
-            <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold text-white">Macro Indicators</div>
-              <button
-                onClick={() => setShowIndicatorSelector(false)}
-                className="text-gray-400 hover:text-white"
-              >
-                <X size={14} />
-              </button>
-            </div>
-          </div>
-          <div className="py-1">
-            {MACRO_INDICATORS.map((indicator) => (
-              <button
-                key={indicator.id}
-                onClick={() => handleAddIndicator(indicator)}
-                className="w-full px-3 py-2 hover:bg-gray-800 transition-colors text-left"
-                disabled={tickers.some(t => t.symbol === indicator.id)}
-              >
-                <div className="text-sm font-medium text-white">{indicator.name}</div>
-                <div className="text-xs text-gray-400">{indicator.description}</div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      <MacroIndicatorDropdown
+        show={showIndicatorSelector}
+        onClose={() => setShowIndicatorSelector(false)}
+        tokens={tokens}
+        tickers={tickers}
+        onAdd={handleAddIndicator}
+      />
 
-      {/* Technical Indicator Selector Dropdown */}
-      {showTechnicalIndicatorSelector && (
-        <div className="absolute top-14 right-4 z-50 border border-gray-700 rounded-lg shadow-2xl py-2 min-w-[350px] max-h-[500px] overflow-y-auto" style={{ backgroundColor: tokens.bg.tertiary }}>
-          <div className="px-3 py-2 border-b border-gray-800 sticky top-0" style={{ backgroundColor: tokens.bg.tertiary }}>
-            <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold text-white">Technical Indicators</div>
-              <button
-                onClick={() => setShowTechnicalIndicatorSelector(false)}
-                className="text-gray-400 hover:text-white"
-              >
-                <X size={14} />
-              </button>
-            </div>
-            <div className="text-xs text-gray-500 mt-1">{isSeriesMode ? 'Select a series' : 'Select a stock first'}</div>
-          </div>
-
-          {/* Group by type */}
-          {['overlay', 'oscillator', 'separate'].map(type => {
-            const indicators = TECHNICAL_INDICATORS.filter(ind => ind.type === type);
-            if (indicators.length === 0) return null;
-
-            return (
-              <div key={type} className="border-b border-gray-800 last:border-0">
-                <div className="px-3 py-2 bg-gray-900/50">
-                  <div className="text-xs font-semibold text-gray-400 uppercase">
-                    {type === 'overlay' ? 'Price Overlays' : type === 'oscillator' ? 'Oscillators' : 'Separate Pane'}
-                  </div>
-                </div>
-                {/* Series mode: show visible series */}
-                {isSeriesMode && visibleSeries.map(s => (
-                  <div key={s.id}>
-                    <div className="px-3 py-1 bg-gray-800/30">
-                      <div className="text-xs text-blue-400">{s.name}</div>
-                    </div>
-                    {indicators.map(indicator => {
-                      const exists = technicalIndicators.some(
-                        ti => ti.indicatorId === indicator.id && ti.seriesId === s.id
-                      );
-                      return (
-                        <button
-                          key={`${s.id}-${indicator.id}`}
-                          onClick={() => handleAddSeriesTechnicalIndicator(indicator, s.id)}
-                          className={`w-full px-4 py-2 hover:bg-gray-800 transition-colors text-left ${
-                            exists ? 'opacity-50 cursor-not-allowed' : ''
-                          }`}
-                          disabled={exists}
-                        >
-                          <div className="text-sm font-medium text-white">{indicator.name}</div>
-                          <div className="text-xs text-gray-400">{indicator.description}</div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                ))}
-                {/* Symbol mode: show stock tickers */}
-                {!isSeriesMode && tickers.filter(t => t.type === 'stock').map(stock => (
-                  <div key={stock.symbol}>
-                    <div className="px-3 py-1 bg-gray-800/30">
-                      <div className="text-xs text-blue-400">{stock.symbol}</div>
-                    </div>
-                    {indicators.map(indicator => {
-                      const exists = technicalIndicators.some(
-                        ti => ti.indicatorId === indicator.id && ti.symbol === stock.symbol
-                      );
-                      return (
-                        <button
-                          key={`${stock.symbol}-${indicator.id}`}
-                          onClick={() => handleAddTechnicalIndicator(indicator, stock.symbol)}
-                          className={`w-full px-4 py-2 hover:bg-gray-800 transition-colors text-left ${
-                            exists ? 'opacity-50 cursor-not-allowed' : ''
-                          }`}
-                          disabled={exists}
-                        >
-                          <div className="text-sm font-medium text-white">{indicator.name}</div>
-                          <div className="text-xs text-gray-400">{indicator.description}</div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-            );
-          })}
-        </div>
-      )}
+      <TechnicalIndicatorDropdown
+        show={showTechnicalIndicatorSelector}
+        onClose={() => setShowTechnicalIndicatorSelector(false)}
+        tokens={tokens}
+        isSeriesMode={isSeriesMode}
+        visibleSeries={visibleSeries}
+        tickers={tickers}
+        technicalIndicators={technicalIndicators}
+        onAddSeries={handleAddSeriesTechnicalIndicator}
+        onAddSymbol={handleAddTechnicalIndicator}
+      />
 
       <div className={`${WIDGET_STYLES.content} ${WIDGET_STYLES.contentPadding}`}>
         {effectiveLoading && (isSeriesMode ? series.length === 0 : tickers.length === 0) ? (
@@ -1736,116 +803,14 @@ const ChartWidget = ({
                       </button>
                     )}
 
-                    {/* Time Shift Editor Popover */}
-                    {shiftEditorSymbol === ticker.symbol && (
-                      <div
-                        className="absolute top-full left-0 mt-2 z-50 border border-gray-700 rounded-lg shadow-2xl p-3 w-64"
-                        style={{ backgroundColor: tokens.bg.tertiary }}
-                        onClick={(e) => e.stopPropagation()}
-                        onMouseDown={(e) => e.stopPropagation()}
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-semibold text-white flex items-center gap-1.5">
-                            <Settings size={12} className="text-amber-400" />
-                            {ticker.name || ticker.symbol}
-                          </span>
-                          <button
-                            onClick={() => setShiftEditorSymbol(null)}
-                            className="text-gray-400 hover:text-white"
-                          >
-                            <X size={12} />
-                          </button>
-                        </div>
-
-                        {/* Color picker */}
-                        <div className="text-[11px] text-gray-400 mb-1.5">Color</div>
-                        <div className="flex items-center gap-1.5 mb-3">
-                          {CHART_COLORS.map((color) => (
-                            <button
-                              key={color}
-                              onClick={() => updateTickerColor(ticker.symbol, color)}
-                              className={`w-5 h-5 rounded-full transition-transform hover:scale-110 ${
-                                ticker.color === color ? 'ring-2 ring-white ring-offset-1 ring-offset-gray-900' : ''
-                              }`}
-                              style={{ backgroundColor: color }}
-                              title={color}
-                            />
-                          ))}
-                          <label
-                            className="w-5 h-5 rounded-full cursor-pointer border border-dashed border-gray-500 hover:border-white flex items-center justify-center overflow-hidden relative"
-                            title="Custom color"
-                          >
-                            <span
-                              className="absolute inset-0.5 rounded-full"
-                              style={{
-                                background: CHART_COLORS.includes(ticker.color)
-                                  ? 'conic-gradient(#ef4444, #f59e0b, #10b981, #06b6d4, #8b5cf6, #ec4899, #ef4444)'
-                                  : ticker.color,
-                              }}
-                            />
-                            <input
-                              type="color"
-                              value={ticker.color || '#3b82f6'}
-                              onChange={(e) => updateTickerColor(ticker.symbol, e.target.value)}
-                              className="opacity-0 absolute inset-0 cursor-pointer"
-                            />
-                          </label>
-                        </div>
-
-                        {/* Time shift */}
-                        <div className="text-[11px] text-gray-400 mb-1.5 flex items-center gap-1">
-                          <ArrowRightLeft size={10} />
-                          Time Shift (Lead/Lag)
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="number"
-                            value={ticker.shift?.value ?? 0}
-                            onChange={(e) => {
-                              const v = parseInt(e.target.value, 10);
-                              updateTickerShift(ticker.symbol, {
-                                value: isNaN(v) ? 0 : v,
-                                unit: ticker.shift?.unit || 'M',
-                              });
-                            }}
-                            className="w-16 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-amber-500"
-                          />
-                          <div className="flex items-center bg-gray-800 rounded overflow-hidden">
-                            {SHIFT_UNITS.map((u) => (
-                              <button
-                                key={u.id}
-                                onClick={() =>
-                                  updateTickerShift(ticker.symbol, {
-                                    value: ticker.shift?.value || 0,
-                                    unit: u.id,
-                                  })
-                                }
-                                className={`px-2 py-1 text-xs font-medium transition-colors ${
-                                  (ticker.shift?.unit || 'M') === u.id
-                                    ? 'bg-amber-600 text-white'
-                                    : 'text-gray-400 hover:text-white hover:bg-gray-700'
-                                }`}
-                                title={u.label}
-                              >
-                                {u.id}
-                              </button>
-                            ))}
-                          </div>
-                          {ticker.shift?.value ? (
-                            <button
-                              onClick={() => updateTickerShift(ticker.symbol, null)}
-                              className="ml-auto text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-gray-300"
-                            >
-                              Reset
-                            </button>
-                          ) : null}
-                        </div>
-                        <div className="text-[11px] text-gray-500 mt-2 leading-relaxed">
-                          +N = 선행(Lead): 이 시리즈를 오른쪽으로 N만큼 이동시켜 다른 종목과 겹쳐 봅니다.
-                          −N = 후행(Lag). 예: SIL에 +4M → 반도체보다 4개월 선행 비교.
-                        </div>
-                      </div>
-                    )}
+                    <TickerShiftPopover
+                      open={shiftEditorSymbol === ticker.symbol}
+                      ticker={ticker}
+                      tokens={tokens}
+                      onClose={() => setShiftEditorSymbol(null)}
+                      updateTickerColor={updateTickerColor}
+                      updateTickerShift={updateTickerShift}
+                    />
                   </div>
                 ))}
 
@@ -1886,261 +851,43 @@ const ChartWidget = ({
               </div>
               )}
 
-              {/* Chart Controls */}
-              <div className="flex items-center gap-2">
-                {/* Date Range Selector (symbol mode; series mode range comes from parent) */}
-                {showTimeRanges && !isSeriesMode && (
-                  <>
-                    <input
-                      type="date"
-                      value={startDate}
-                      max={endDate}
-                      onChange={(e) => setStartDate(e.target.value)}
-                      className="px-2 py-1.5 rounded text-xs font-medium bg-gray-800 text-gray-300 outline-none focus:text-white tabular-nums [color-scheme:dark]"
-                    />
-                    <span className="text-gray-600 text-xs">~</span>
-                    <input
-                      type="date"
-                      value={endDate}
-                      min={startDate}
-                      onChange={(e) => setEndDate(e.target.value)}
-                      className="px-2 py-1.5 rounded text-xs font-medium bg-gray-800 text-gray-300 outline-none focus:text-white tabular-nums [color-scheme:dark]"
-                    />
-                    {DATE_RANGE_PRESETS.map((preset) => {
-                      const r = presetDateRange(preset.months);
-                      const active = startDate === r.start && endDate === r.end;
-                      return (
-                        <button
-                          key={preset.label}
-                          onClick={() => { setStartDate(r.start); setEndDate(r.end); }}
-                          className={`px-2.5 py-1.5 rounded text-xs font-medium transition-colors ${
-                            active
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700'
-                          }`}
-                        >
-                          {preset.label}
-                        </button>
-                      );
-                    })}
-                  </>
-                )}
-
-                {showTimeRanges && showChartTypeSelector && !isSeriesMode && (
-                  <div className="w-px h-6 bg-gray-700 mx-1"></div>
-                )}
-
-                {/* Chart Type Quick Selector (symbol mode only) */}
-                {showChartTypeSelector && !isSeriesMode && (
-                  <div className="flex items-center bg-gray-800 rounded overflow-hidden">
-                    {CHART_TYPES.map((type) => (
-                      <button
-                        key={type.id}
-                        onClick={() => setChartType(type.id)}
-                        className={`px-2 py-1.5 text-xs font-medium transition-colors ${
-                          chartType === type.id
-                            ? 'bg-blue-600 text-white'
-                            : 'text-gray-400 hover:text-white hover:bg-gray-700'
-                        }`}
-                        title={type.description}
-                      >
-                        {type.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {((showTimeRanges || (showChartTypeSelector && !isSeriesMode)) && (showNormalize || showVolumeToggle)) && (
-                  <div className="w-px h-6 bg-gray-700 mx-1"></div>
-                )}
-
-                {showNormalize && (
-                  <button
-                    onClick={() => setNormalized(!normalized)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-                      normalized ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
-                    }`}
-                    title="Normalize to percentage change"
-                  >
-                    <Percent size={14} />
-                    Normalize
-                  </button>
-                )}
-
-                {showVolumeToggle && (isSeriesMode ? hasVolumeInSeries : tickers.some(t => t.type === 'stock')) && (
-                  <button
-                    onClick={() => setShowVolume(!showVolume)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-                      showVolume ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
-                    }`}
-                    title="Show volume"
-                  >
-                    Volume
-                  </button>
-                )}
-
-                {/* Pair Analysis Mode Toggle (symbol mode only) */}
-                {showPairAnalysis && !isSeriesMode && (
-                  <>
-                    <div className="w-px h-6 bg-gray-700 mx-1"></div>
-
-                    <button
-                      onClick={() => {
-                        setPairMode(!pairMode);
-                        if (!pairMode) {
-                          setShowPairSettings(true);
-                        }
-                      }}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-                        pairMode ? 'bg-amber-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
-                      }`}
-                      title="Pair Analysis Mode"
-                    >
-                      <GitCompare size={14} />
-                      Pair
-                    </button>
-
-                    {/* Pair Settings Toggle */}
-                    {pairMode && (
-                      <button
-                        onClick={() => setShowPairSettings(!showPairSettings)}
-                        className="flex items-center gap-1 px-2 py-1.5 rounded text-xs font-medium transition-colors bg-gray-800 text-gray-400 hover:text-white"
-                        title="Pair Settings"
-                      >
-                        <Settings size={14} />
-                      </button>
-                    )}
-                  </>
-                )}
-              </div>
+              <ChartControls
+                show={{
+                  timeRanges: showTimeRanges,
+                  chartTypeSelector: showChartTypeSelector,
+                  normalize: showNormalize,
+                  volumeToggle: showVolumeToggle,
+                  pairAnalysis: showPairAnalysis,
+                }}
+                isSeriesMode={isSeriesMode}
+                startDate={startDate}
+                endDate={endDate}
+                setStartDate={setStartDate}
+                setEndDate={setEndDate}
+                chartType={chartType}
+                setChartType={setChartType}
+                normalized={normalized}
+                setNormalized={setNormalized}
+                showVolume={showVolume}
+                setShowVolume={setShowVolume}
+                volumeAvailable={isSeriesMode ? hasVolumeInSeries : tickers.some(t => t.type === 'stock')}
+                pairMode={pairMode}
+                setPairMode={setPairMode}
+                showPairSettings={showPairSettings}
+                setShowPairSettings={setShowPairSettings}
+              />
             </div>
 
-            {/* Pair Analysis Settings Panel (symbol mode only) */}
-            {!isSeriesMode && pairMode && showPairSettings && (
-              <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-semibold text-white flex items-center gap-2">
-                    <GitCompare size={16} className="text-amber-400" />
-                    Pair Analysis Settings
-                  </h4>
-                  <button
-                    onClick={() => setShowPairSettings(false)}
-                    className="text-gray-400 hover:text-white"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                  {/* Long Position Selector */}
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">Long Position</label>
-                    <select
-                      value={pairConfig.longSymbol || ''}
-                      onChange={(e) => setPairConfig({ ...pairConfig, longSymbol: e.target.value || null })}
-                      className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-sm text-white focus:outline-none focus:border-amber-500"
-                    >
-                      <option value="">Select Long</option>
-                      {tickers.filter(t => t.type === 'stock' && t.symbol !== pairConfig.shortSymbol).map(t => (
-                        <option key={t.symbol} value={t.symbol}>{t.symbol}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Short Position Selector */}
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">Short Position</label>
-                    <select
-                      value={pairConfig.shortSymbol || ''}
-                      onChange={(e) => setPairConfig({ ...pairConfig, shortSymbol: e.target.value || null })}
-                      className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-sm text-white focus:outline-none focus:border-amber-500"
-                    >
-                      <option value="">Select Short</option>
-                      {tickers.filter(t => t.type === 'stock' && t.symbol !== pairConfig.longSymbol).map(t => (
-                        <option key={t.symbol} value={t.symbol}>{t.symbol}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Regime Index Selector */}
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">Regime Index</label>
-                    <select
-                      value={pairConfig.regimeSymbol}
-                      onChange={(e) => setPairConfig({ ...pairConfig, regimeSymbol: e.target.value })}
-                      className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-sm text-white focus:outline-none focus:border-amber-500"
-                    >
-                      <option value="^KS11">KOSPI (^KS11)</option>
-                      <option value="^GSPC">S&P 500 (^GSPC)</option>
-                      <option value="^IXIC">NASDAQ (^IXIC)</option>
-                      <option value="^DJI">Dow Jones (^DJI)</option>
-                    </select>
-                  </div>
-
-                  {/* Current Regime Badge */}
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">Current Regime</label>
-                    {(() => {
-                      const badge = getRegimeBadge(currentRegime);
-                      return (
-                        <div className={`${badge.bgColor} ${badge.textColor} px-3 py-1.5 rounded text-sm font-medium text-center`}>
-                          {badge.label}
-                        </div>
-                      );
-                    })()}
-                  </div>
-                </div>
-
-                {/* Toggle Options */}
-                <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t border-gray-700">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={pairConfig.showSpread}
-                      onChange={(e) => setPairConfig({ ...pairConfig, showSpread: e.target.checked })}
-                      className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-amber-500 focus:ring-amber-500"
-                    />
-                    <span className="text-sm text-gray-300">Spread Line</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={pairConfig.showIndex}
-                      onChange={(e) => setPairConfig({ ...pairConfig, showIndex: e.target.checked })}
-                      className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-amber-500 focus:ring-amber-500"
-                    />
-                    <span className="text-sm text-gray-300">Index Line (KOSPI)</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={pairConfig.showHighlight}
-                      onChange={(e) => setPairConfig({ ...pairConfig, showHighlight: e.target.checked })}
-                      className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-amber-500 focus:ring-amber-500"
-                    />
-                    <span className="text-sm text-gray-300">Outperform Highlight</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={pairConfig.showRegime}
-                      onChange={(e) => setPairConfig({ ...pairConfig, showRegime: e.target.checked })}
-                      className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-amber-500 focus:ring-amber-500"
-                    />
-                    <span className="text-sm text-gray-300">Regime Background</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={pairConfig.showFCF}
-                      onChange={(e) => setPairConfig({ ...pairConfig, showFCF: e.target.checked })}
-                      className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-amber-500 focus:ring-amber-500"
-                    />
-                    <span className="text-sm text-gray-300">FCF/CapEx Panel</span>
-                  </label>
-                </div>
-              </div>
-            )}
+            <PairSettingsPanel
+              isSeriesMode={isSeriesMode}
+              pairMode={pairMode}
+              showPairSettings={showPairSettings}
+              setShowPairSettings={setShowPairSettings}
+              pairConfig={pairConfig}
+              setPairConfig={setPairConfig}
+              tickers={tickers}
+              currentRegime={currentRegime}
+            />
 
             {/* Main Chart */}
             <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: chartTheme.background }}>
@@ -2201,264 +948,22 @@ const ChartWidget = ({
               </div>
             </div>
 
-            {/* FCF/CapEx Comparison Panel */}
-            {pairMode && pairConfig.showFCF && pairConfig.longSymbol && pairConfig.shortSymbol && (
-              <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: chartTheme.background }}>
-                <h4 className="text-sm font-semibold text-gray-400 mb-3 flex items-center gap-2">
-                  <GitCompare size={14} className="text-amber-400" />
-                  FCF / CapEx Comparison
-                </h4>
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Long Position Financials */}
-                  <div className="bg-gray-800/30 rounded-lg p-3">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xs font-medium text-green-400 bg-green-400/20 px-2 py-0.5 rounded">LONG</span>
-                      <span className="text-sm font-semibold text-white">{pairConfig.longSymbol}</span>
-                    </div>
-                    {financialData.long?.data ? (
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-400">Free Cash Flow</span>
-                          <span className="text-white font-medium">
-                            {formatCurrency(financialData.long.data[0]?.free_cash_flow)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-400">CapEx</span>
-                          <span className="text-white font-medium">
-                            {formatCurrency(financialData.long.data[0]?.capital_expenditures)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-400">Operating CF</span>
-                          <span className="text-white font-medium">
-                            {formatCurrency(financialData.long.data[0]?.operating_cash_flow)}
-                          </span>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-xs text-gray-500">No financial data available</div>
-                    )}
-                  </div>
+            <FcfComparisonPanel
+              pairMode={pairMode}
+              pairConfig={pairConfig}
+              chartTheme={chartTheme}
+              financialData={financialData}
+              spreadData={spreadData}
+              indexData={indexData}
+              currentRegime={currentRegime}
+            />
 
-                  {/* Short Position Financials */}
-                  <div className="bg-gray-800/30 rounded-lg p-3">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xs font-medium text-red-400 bg-red-400/20 px-2 py-0.5 rounded">SHORT</span>
-                      <span className="text-sm font-semibold text-white">{pairConfig.shortSymbol}</span>
-                    </div>
-                    {financialData.short?.data ? (
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-400">Free Cash Flow</span>
-                          <span className="text-white font-medium">
-                            {formatCurrency(financialData.short.data[0]?.free_cash_flow)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-400">CapEx</span>
-                          <span className="text-white font-medium">
-                            {formatCurrency(financialData.short.data[0]?.capital_expenditures)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-400">Operating CF</span>
-                          <span className="text-white font-medium">
-                            {formatCurrency(financialData.short.data[0]?.operating_cash_flow)}
-                          </span>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-xs text-gray-500">No financial data available</div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Spread & Index Summary */}
-                {(spreadData.length > 0 || indexData.length > 0) && (
-                  <div className="mt-4 pt-4 border-t border-gray-700">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                      {spreadData.length > 0 && (
-                        <>
-                          <div>
-                            <div className="text-xs text-gray-400 mb-1">Current Spread</div>
-                            <div className="text-lg font-bold text-amber-400">
-                              {spreadData[spreadData.length - 1]?.normalizedSpread?.toFixed(3) || 'N/A'}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-xs text-gray-400 mb-1">Spread Range</div>
-                            <div className="text-sm font-bold">
-                              <span className="text-red-400">{Math.min(...spreadData.map(d => d.normalizedSpread))?.toFixed(3)}</span>
-                              <span className="text-gray-500 mx-1">~</span>
-                              <span className="text-green-400">{Math.max(...spreadData.map(d => d.normalizedSpread))?.toFixed(3)}</span>
-                            </div>
-                          </div>
-                        </>
-                      )}
-                      {indexData.length > 0 && (
-                        <>
-                          <div>
-                            <div className="text-xs text-gray-400 mb-1">{pairConfig.regimeSymbol === '^KS11' ? 'KOSPI' : pairConfig.regimeSymbol} Change</div>
-                            <div className={`text-lg font-bold ${
-                              indexData[indexData.length - 1]?.close > indexData[0]?.close ? 'text-green-400' : 'text-red-400'
-                            }`}>
-                              {(((indexData[indexData.length - 1]?.close / indexData[0]?.close) - 1) * 100).toFixed(2)}%
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-xs text-gray-400 mb-1">Current Regime</div>
-                            {(() => {
-                              const badge = getRegimeBadge(currentRegime);
-                              return (
-                                <div className={`${badge.bgColor} ${badge.textColor} px-2 py-1 rounded text-sm font-medium inline-block`}>
-                                  {badge.label}
-                                </div>
-                              );
-                            })()}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                    {/* Legend */}
-                    <div className="flex justify-center gap-6 mt-3 text-xs text-gray-500">
-                      {pairConfig.showSpread && <div className="flex items-center gap-1"><span className="w-3 h-0.5 bg-amber-500 inline-block"></span> L/S Spread</div>}
-                      {pairConfig.showIndex && <div className="flex items-center gap-1"><span className="w-3 h-0.5 bg-blue-500 inline-block" style={{borderTop: '2px dashed'}}></span> {pairConfig.regimeSymbol === '^KS11' ? 'KOSPI' : pairConfig.regimeSymbol}</div>}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* RSI Oscillator */}
-            {!normalized && technicalIndicators.some(ti => ti.indicatorId === 'RSI' && ti.visible) && (
-              <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: chartTheme.background }}>
-                <div className="mb-2">
-                  <h4 className="text-sm font-semibold text-gray-400">RSI (Relative Strength Index)</h4>
-                </div>
-                <PlotlyOscillator
-                  chartData={displayChartData}
-                  chartTheme={chartTheme}
-                  height={192}
-                  yDomain={[0, 100]}
-                  traces={technicalIndicators.filter(ti => ti.indicatorId === 'RSI' && ti.visible).map(indicator => ({
-                    dataKey: `${indicator.symbol}_RSI`,
-                    name: `${indicator.symbol} RSI`,
-                    line: { color: INDICATOR_COLORS.RSI, width: 2 },
-                  }))}
-                  shapes={[
-                    { type: 'line', xref: 'paper', yref: 'y', x0: 0, x1: 1, y0: 70, y1: 70, line: { color: '#ef4444', dash: 'dot', width: 1 } },
-                    { type: 'line', xref: 'paper', yref: 'y', x0: 0, x1: 1, y0: 30, y1: 30, line: { color: '#22c55e', dash: 'dot', width: 1 } },
-                  ]}
-                />
-              </div>
-            )}
-
-            {/* MACD Oscillator */}
-            {!normalized && technicalIndicators.some(ti => ti.indicatorId === 'MACD' && ti.visible) && (
-              <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: chartTheme.background }}>
-                <div className="mb-2">
-                  <h4 className="text-sm font-semibold text-gray-400">MACD (Moving Average Convergence Divergence)</h4>
-                </div>
-                <PlotlyOscillator
-                  chartData={displayChartData}
-                  chartTheme={chartTheme}
-                  height={192}
-                  traces={technicalIndicators.filter(ti => ti.indicatorId === 'MACD' && ti.visible).flatMap(indicator => [
-                    {
-                      type: 'bar',
-                      dataKey: `${indicator.symbol}_MACD_histogram`,
-                      name: `${indicator.symbol} Histogram`,
-                      marker: { color: INDICATOR_COLORS.MACD, opacity: 0.3 },
-                    },
-                    {
-                      dataKey: `${indicator.symbol}_MACD_macd`,
-                      name: `${indicator.symbol} MACD`,
-                      line: { color: INDICATOR_COLORS.MACD, width: 2 },
-                    },
-                    {
-                      dataKey: `${indicator.symbol}_MACD_signal`,
-                      name: `${indicator.symbol} Signal`,
-                      line: { color: INDICATOR_COLORS.MACD_signal, width: 2 },
-                    },
-                  ])}
-                  shapes={[
-                    { type: 'line', xref: 'paper', yref: 'y', x0: 0, x1: 1, y0: 0, y1: 0, line: { color: '#9ca3af', dash: 'dot', width: 1 } },
-                  ]}
-                />
-              </div>
-            )}
-
-            {/* Stochastic Oscillator */}
-            {!normalized && technicalIndicators.some(ti => ti.indicatorId === 'STOCH' && ti.visible) && (
-              <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: chartTheme.background }}>
-                <div className="mb-2">
-                  <h4 className="text-sm font-semibold text-gray-400">Stochastic Oscillator</h4>
-                </div>
-                <PlotlyOscillator
-                  chartData={displayChartData}
-                  chartTheme={chartTheme}
-                  height={192}
-                  yDomain={[0, 100]}
-                  traces={technicalIndicators.filter(ti => ti.indicatorId === 'STOCH' && ti.visible).flatMap(indicator => [
-                    {
-                      dataKey: `${indicator.symbol}_STOCH_k`,
-                      name: `${indicator.symbol} %K`,
-                      line: { color: INDICATOR_COLORS.STOCH_k, width: 2 },
-                    },
-                    {
-                      dataKey: `${indicator.symbol}_STOCH_d`,
-                      name: `${indicator.symbol} %D`,
-                      line: { color: INDICATOR_COLORS.STOCH_d, width: 2 },
-                    },
-                  ])}
-                  shapes={[
-                    { type: 'line', xref: 'paper', yref: 'y', x0: 0, x1: 1, y0: 80, y1: 80, line: { color: '#ef4444', dash: 'dot', width: 1 } },
-                    { type: 'line', xref: 'paper', yref: 'y', x0: 0, x1: 1, y0: 20, y1: 20, line: { color: '#22c55e', dash: 'dot', width: 1 } },
-                  ]}
-                />
-              </div>
-            )}
-
-            {/* ATR (Average True Range) */}
-            {!normalized && technicalIndicators.some(ti => ti.indicatorId === 'ATR' && ti.visible) && (
-              <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: chartTheme.background }}>
-                <div className="mb-2">
-                  <h4 className="text-sm font-semibold text-gray-400">ATR (Average True Range)</h4>
-                </div>
-                <PlotlyOscillator
-                  chartData={displayChartData}
-                  chartTheme={chartTheme}
-                  height={192}
-                  traces={technicalIndicators.filter(ti => ti.indicatorId === 'ATR' && ti.visible).map(indicator => ({
-                    dataKey: `${indicator.symbol}_ATR`,
-                    name: `${indicator.symbol} ATR`,
-                    line: { color: INDICATOR_COLORS.ATR, width: 2 },
-                  }))}
-                  shapes={[]}
-                />
-              </div>
-            )}
-
-            {/* OBV (On-Balance Volume) */}
-            {!normalized && technicalIndicators.some(ti => ti.indicatorId === 'OBV' && ti.visible) && (
-              <div className="rounded-lg p-4 border border-gray-800" style={{ backgroundColor: chartTheme.background }}>
-                <div className="mb-2">
-                  <h4 className="text-sm font-semibold text-gray-400">OBV (On-Balance Volume)</h4>
-                </div>
-                <PlotlyOscillator
-                  chartData={displayChartData}
-                  chartTheme={chartTheme}
-                  height={192}
-                  traces={technicalIndicators.filter(ti => ti.indicatorId === 'OBV' && ti.visible).map(indicator => ({
-                    dataKey: `${indicator.symbol}_OBV`,
-                    name: `${indicator.symbol} OBV`,
-                    line: { color: INDICATOR_COLORS.OBV, width: 2 },
-                  }))}
-                  shapes={[]}
-                />
-              </div>
-            )}
+            <OscillatorPanels
+              technicalIndicators={technicalIndicators}
+              normalized={normalized}
+              displayChartData={displayChartData}
+              chartTheme={chartTheme}
+            />
           </div>
         )}
       </div>

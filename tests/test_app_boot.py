@@ -94,7 +94,8 @@ def test_non_api_http_paths_are_only_the_known_public_ones():
 
     새 엔드포인트를 무심코 루트에 다는 순간 여기서 걸린다 — 1.1 회귀의 근본 원인이었다.
     """
-    from app.backend.main import app, _DOCS_PATHS, _PUBLIC_PATHS
+    from app.backend.main import app
+    from app.backend.core.middleware.auth_gate import DOCS_PATHS, PUBLIC_PATHS
 
     non_api = {
         p for p in _http_paths(app)
@@ -102,7 +103,7 @@ def test_non_api_http_paths_are_only_the_known_public_ones():
     }
     # OpenAPI 스키마에는 /docs·/openapi.json 이 들어오지 않지만, 혹시 포함되더라도
     # 공개 대상이므로 허용 집합에 함께 둔다.
-    allowed = set(_PUBLIC_PATHS) | set(_DOCS_PATHS)
+    allowed = set(PUBLIC_PATHS) | set(DOCS_PATHS)
     assert non_api <= allowed, (
         f"공개 목록에 없는 루트 경로가 추가됐다: {non_api - allowed} — "
         "/api/ 아래로 옮기고 필요한 권한 의존성을 걸어라"
