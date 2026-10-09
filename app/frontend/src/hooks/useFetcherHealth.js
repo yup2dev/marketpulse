@@ -13,7 +13,7 @@
  *   recheck  즉시 재확인 함수 (로컬 실행 여부를 boolean으로 반환)
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { API_BASE, apiClient } from '../config/api';
+import { API_BASE, apiClient, getAccessToken } from '../config/api';
 import { syncFetcherToken } from '../utils/fetcherToken';
 
 const FETCHER_HEALTH_URL = 'http://127.0.0.1:8765/health';
@@ -41,7 +41,7 @@ async function pingFetcher() {
 
 /** 내 워커의 풀 합류 여부. 알 수 없으면(비로그인·구버전 백엔드·네트워크 오류) null. */
 async function fetchWorkerConnected() {
-  if (!localStorage.getItem('access_token')) return null;
+  if (!getAccessToken()) return null;
   try {
     const res = await apiClient.get(`${API_BASE}/fetcher/status`);
     return typeof res?.connected === 'boolean' ? res.connected : null;

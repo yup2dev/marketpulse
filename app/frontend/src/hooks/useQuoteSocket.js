@@ -7,6 +7,7 @@
  *   // quotes['AAPL'] → { price, change, change_percent, volume, ... }
  */
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { getAccessToken } from '../config/api';
 
 const WS_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:8000')
   .replace(/^http/, 'ws');
@@ -35,7 +36,9 @@ export default function useQuoteSocket() {
     if (!mountedRef.current) return;
     if (wsRef.current && wsRef.current.readyState <= WebSocket.OPEN) return;
 
-    const token = localStorage.getItem('access_token') || '';
+    // access token 은 메모리 보관 — initializeAuth 가 채우기 전이면 비어 있다.
+    // 그때는 토큰 없이 붙고, 아래 onclose 재연결 때 다시 시도한다.
+    const token = getAccessToken() || '';
     const url = token ? `${WS_URL}?token=${encodeURIComponent(token)}` : WS_URL;
     const ws = new WebSocket(url);
     wsRef.current = ws;
