@@ -1,21 +1,21 @@
 """Alpha Vantage Provider"""
-from data_fetcher.providers.alphavantage.equity_quote import (
+from data_fetcher.providers.alphavantage.models.equity_quote import (
     AlphaVantageEquityQuoteQueryParams,
     AlphaVantageEquityQuoteData,
     AlphaVantageQuoteFetcher,
     AlphaVantageTimeseriesFetcher,
 )
-from data_fetcher.providers.alphavantage.company_overview import (
+from data_fetcher.providers.alphavantage.models.company_overview import (
     CompanyOverviewQueryParams,
     CompanyOverviewData,
     AlphaVantageCompanyOverviewFetcher,
 )
-from data_fetcher.providers.alphavantage.crypto import (
+from data_fetcher.providers.alphavantage.models.crypto import (
     CryptoQueryParams,
     CryptoData,
     AlphaVantageCryptoFetcher,
 )
-from data_fetcher.providers.alphavantage.forex import (
+from data_fetcher.providers.alphavantage.models.forex import (
     ForexQueryParams,
     ForexData,
     AlphaVantageForexFetcher,

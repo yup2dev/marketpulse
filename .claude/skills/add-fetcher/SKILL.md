@@ -1,9 +1,9 @@
 ---
 name: add-fetcher
-description: data_fetcher에 새 데이터 소스(provider/model fetcher)를 추가할 때 사용. 구조별 플레이북(ApiFetcher 선언형 / LibraryFetcher·yfinance / DbFetcher / ComputeFetcher / OpenBB 이식형 / KIS형 다중자격증명) + TET 파이프라인 + standard model 상속 + providers_init 등록 + 라우트/위젯 연결 + exe(PyInstaller) 번들 주의사항까지 안내한다. "fetcher 추가", "새 provider 붙이기", "새 지표/모델 추가", "yahoo/fmp/polygon 등에 모델 추가" 같은 요청에 사용.
+description: data_fetcher에 새 데이터 소스(provider/model fetcher)를 추가할 때 사용. provider 디렉터리 배치 표준(model fetcher는 예외 없이 providers/<p>/models/) + 베이스 클래스 선택(ApiFetcher 선언형 / LibraryFetcher·yfinance / DbFetcher / ComputeFetcher / KIS형 다중자격증명) + TET 파이프라인 + standard model 상속 + providers_init 등록 + 라우트 등록(api/routers.py)·인증 게이트 + 위젯 연결 + exe(PyInstaller) 번들 주의사항까지 안내한다. "fetcher 추가", "새 provider 붙이기", "새 지표/모델 추가", "yahoo/fmp/polygon 등에 모델 추가" 같은 요청에 사용.
 ---
 
-# Fetcher 추가 가이드 (구조별)
+# Fetcher 추가 가이드
 
 이 프로젝트의 데이터 계층은 OpenBB 스타일 **TET 파이프라인 + standard model** 구조다.
 provider가 달라도 같은 `category`(model)는 **동일 standard model을 상속**해 동일 shape를 반환하므로,
@@ -36,16 +36,39 @@ UniversalWidget의 provider 셀렉터가 shape-safe하게 동작한다.
 
 ---
 
-## 1. 구조 선택 매트릭스
+## 1. provider 디렉터리 배치 (모든 provider 동일)
 
-| 데이터 소스 유형 | 베이스 | 파일 위치 | 예시 |
-|---|---|---|---|
-| 원격 HTTP API (키 유/무) | `ApiFetcher` | `providers/<p>/<model>.py` | fmp, polygon, fred |
-| 파이썬 라이브러리 래퍼 | `LibraryFetcher` / `YFinanceFetcher` | `providers/<p>/<model>.py` | yahoo(yfinance), krx(pykrx) |
-| 로컬 SQLite 조회 | `DbFetcher` | `providers/database/<model>.py` | stock_ranking, stock_list |
-| 순수 로컬 계산 | `ComputeFetcher` | `providers/<p>/<model>.py` | quantitative, quantlib |
-| OpenBB에서 이식 | `ApiFetcher` | `providers/<p>/models/<model>.py` + `utils/` | wsj, bls, eia, oecd, imf, sec/models |
-| 다중 자격증명·스트림 | `ApiFetcher` + rest/stream 분리 | `providers/<p>/{ranking,rest,stream}.py` | kis (appkey/appsecret) |
+**model fetcher는 예외 없이 `models/` 안에 둔다.** provider 최상위에는 인프라 파일만 남긴다.
+
+```
+data_fetcher/providers/<p>/
+  __init__.py
+  models/              ← model fetcher 전부. 파일명은 주 category 키 (snake_case)
+    __init__.py
+    <model>.py
+  utils/               ← 그 provider 전용 헬퍼 (파싱·URL 빌더 등)
+  assets/              ← 동봉 데이터 파일 (imf_cache.pkl.gz 등)
+  rest.py / stream.py / client.py   ← provider 인프라 (kis 처럼 필요할 때만)
+```
+
+한 모듈이 **밀접하게 관련된 category 여럿**을 담는 것은 정상이다 — fmp `gainers.py` 는
+gainers/losers/most_actives 를, yahoo `insider_trading.py` 는 거래·보유·요약 3종을 함께
+정의한다(같은 QueryParams·엔드포인트를 공유한다). 쪼개지 말고 주 category 이름을 쓴다.
+
+배치를 **데이터 소스 유형이나 이식 출처와 무관하게 하나로 고정**한다. 예전에는 OpenBB에서
+이식한 provider만 `models/`를 쓰고 나머지는 최상위에 평평하게 뒀는데, 이건 코드의 성질이
+아니라 **출처**로 갈린 규칙이라 처음 보는 사람이 예측할 수 없었다(`bls`는 `models/`인데
+`fred`는 최상위인 이유를 코드만 봐서는 알 수 없다). 한 provider가 양쪽을 동시에 쓰는 일도 생겼다.
+
+## 1-1. 베이스 클래스 선택
+
+| 데이터 소스 유형 | 베이스 | 예시 |
+|---|---|---|
+| 원격 HTTP API (키 유/무) | `ApiFetcher` | fmp, polygon, fred, wsj, bls, eia, oecd, imf, sec |
+| 파이썬 라이브러리 래퍼 | `LibraryFetcher` / `YFinanceFetcher` | yahoo(yfinance), krx(pykrx) |
+| 로컬 SQLite 조회 | `DbFetcher` | database(stock_ranking, stock_list) |
+| 순수 로컬 계산 | `ComputeFetcher` | quantitative, quantlib |
+| 다중 자격증명·스트림 | `ApiFetcher` + `rest.py`/`stream.py` 분리 | kis (appkey/appsecret) |
 
 모든 베이스는 제네릭 subscript 필수: `class My(ApiFetcher[MyQuery, MyData])` — `_generic_args()`가 이걸로 `query_params_type`을 해석한다.
 
@@ -98,19 +121,18 @@ class DBThingFetcher(DbFetcher[Q, D]):
 
 - 네트워크/credentials 없음. scipy·QuantLib 등 **선택적 의존성이면 providers_init에서 try/except 등록** (quantlib/quantitative 블록 참조) + PyInstaller spec `excludes` 유지 확인.
 
-### E. OpenBB 이식형 — `providers/<p>/models/` 구조
+### E. OpenBB 이식 시 추가로 할 일
 
-OpenBB provider를 이식할 때(프로젝트 네이티브 — `_obb` shim 금지):
-1. 파일 배치: `providers/<p>/models/<model>.py`, 공용 유틸은 `providers/<p>/utils/`.
-2. import 경로 치환: `openbb_core.provider.abstract.*` → `data_fetcher.abstract_provider.abstract.*`, standard models → `data_fetcher.abstract_provider.standard_models.*` (OpenBB 전용 베이스는 `standard_models/openbb/_base` 참조), 요청 헬퍼 → `data_fetcher/utils/provider_helpers.py`.
-3. raw 키 매핑은 `__alias_dict__` + `field_validator(..., mode="before")` 패턴 유지 (예: `providers/wsj/models/active.py`).
-4. **provider가 import 시점에 자산 파일/네트워크를 요구하면 fail-soft로** — IMF `imf_cache.pkl.gz`가 없어 import가 죽으면 providers_init 전체(→ REST/WS 워커)가 못 뜨는 사고가 있었다. 자산 파일은 두 spec의 `datas`에 추가.
-5. Provider `metadata={"group": "macro"|"stock"}` 지정 → `/api/providers` 그룹 노출.
+배치는 §1과 같다(`models/`). 이식 특유의 작업만 여기 적는다 — 프로젝트 네이티브로 옮긴다(`_obb` shim 금지):
+1. import 경로 치환: `openbb_core.provider.abstract.*` → `data_fetcher.abstract_provider.abstract.*`, standard models → `data_fetcher.abstract_provider.standard_models.*` (OpenBB 전용 베이스는 `standard_models/openbb/_base` 참조), 요청 헬퍼 → `data_fetcher/utils/provider_helpers.py`.
+2. raw 키 매핑은 `__alias_dict__` + `field_validator(..., mode="before")` 패턴 유지 (예: `providers/wsj/models/active.py`).
+3. **provider가 import 시점에 자산 파일/네트워크를 요구하면 fail-soft로** — IMF `imf_cache.pkl.gz`가 없어 import가 죽으면 providers_init 전체(→ REST/WS 워커)가 못 뜨는 사고가 있었다. 자산 파일은 두 spec의 `datas`에 추가.
+4. Provider `metadata={"group": "macro"|"stock"}` 지정 → `/api/providers` 그룹 노출.
 
 ### F. KIS형 — 다중 자격증명 / 스트리밍
 
 - `Provider(credentials=["appkey", "appsecret"])` — 단일 `api_key`가 아님.
-- Fetcher 키스토어(`data_fetcher/server/keystore.py`)는 다중 필드 지원: 프론트 `/settings`(SettingsPage.jsx)와 keys API의 `fields` 사용.
+- Fetcher 키스토어(`data_fetcher/server/keystore.py`)는 다중 필드 지원: 프론트 `/settings`(`app/frontend/src/components/core/SettingsPage.jsx`)와 keys API의 `fields` 사용.
 - REST/WS 분리를 `rest.py`/`stream.py`로. httpx/websockets는 함수 내부 지연 import(§7 hiddenimports 주의).
 - providers_init에서 try/except 등록(의존성 없는 환경 fail-soft).
 
@@ -162,7 +184,9 @@ model별 TTL(초). 실시간 60 / 반-신선 300~600 / 일일 1800~3600. 같은 
 ## 6. 라우트 + 프론트 위젯
 
 - 기본: 게이트웨이 `GET /api/data/<provider>/<category>?param=…` — 무코드. provider별 파라미터 폼은 `/api/data/{provider}/{model}/schema`가 자동 생성.
-- 전용 라우트가 필요하면 `routes/<area>.py`에서 `QueryExecutor.fetch(...)` 호출 + **`provider: str = "<default>"` 쿼리 파라미터 노출**.
+- 전용 라우트가 필요하면 `app/backend/api/routes/<area>.py`에서 `QueryExecutor.fetch(...)` 호출 + **`provider: str = "<default>"` 쿼리 파라미터 노출**.
+- **새 라우트 파일을 만들었으면 `app/backend/api/routers.py`의 `register_routers()`에 `include_router` 를 추가한다.** 빠뜨리면 그 엔드포인트는 조용히 404가 되고 보통 프론트에서야 발견된다 — `tests/test_app_boot.py`가 이걸 잡으므로 `pytest` 로 먼저 확인할 수 있다. (등록 지점은 `main.py`가 아니다. main.py는 조립만 한다.)
+- **인증 게이트는 deny-by-default다**(`app/backend/core/middleware/auth_gate.py`). `/api/` 아래 새 경로는 자동으로 Bearer 토큰을 요구하므로 별도 조치가 필요 없다. 반대로 **공개가 필요하면 그 파일의 `PUBLIC_PATHS`/`PUBLIC_PREFIXES`에 명시해야 한다** — 무심코 `/api/` 밖(루트)에 엔드포인트를 달면 `test_app_boot.py`가 실패한다(과거 무인증 노출 사고의 재발 방지).
 - `widgetEndpoints.js`에 위젯 추가(`category` 지정 시 provider 셀렉터 자동) + `urlWidgetMap.js` 화면 등록.
 - 프론트는 항상 `res.results`로 읽는다(OBBject 계약) — `.data` 참조 금지.
 
@@ -183,24 +207,27 @@ providers_init이 정적 import하므로 **모듈 자체는 자동 번들**된�
 ## 8. 검증
 
 ```bash
-# (a) 레지스트리 등록 + category별 provider 확인
+# (a) 테스트 기준선 — import 깨짐·라우터 등록 누락을 여기서 먼저 잡는다
+pytest
+
+# (b) 레지스트리 등록 + category별 provider 확인
 python -c "import data_fetcher.providers_init; from data_fetcher.utils.registry import FetcherRegistry; print(FetcherRegistry.list_providers('<category>'))"
 
-# (b) fetcher 단위 TET 검증 (실 호출)
-python -c "import data_fetcher.providers_init; from data_fetcher.providers.<p>.<m> import <F> as F; F.test({'symbol':'AAPL'})"
+# (c) fetcher 단위 TET 검증 (실 호출)
+python -c "import data_fetcher.providers_init; from data_fetcher.providers.<p>.models.<m> import <F> as F; F.test({'symbol':'AAPL'})"
 
-# (c) 게이트웨이: GET /api/data/<provider>/<category>?symbol=AAPL / GET /api/providers
-# (d) 프론트 빌드: cd app/frontend && npm run build
-# (e) 지연 import를 추가했다면: bash build/build.sh 후 exe로 해당 model 1회 호출
+# (d) 게이트웨이: GET /api/data/<provider>/<category>?symbol=AAPL / GET /api/providers
+# (e) 프론트 빌드: cd app/frontend && npm run build
+# (f) 지연 import를 추가했다면: bash build/build.sh 후 exe로 해당 model 1회 호출
 ```
 
 ## 체크리스트
 
-- [ ] §1 구조 선택 (베이스 클래스 + 파일 위치)
+- [ ] 파일 위치: `providers/<p>/models/<model>.py` (예외 없음) + 베이스 클래스 선택(§1-1)
 - [ ] standard model(신규 시) + `__init__.py` export
 - [ ] provider fetcher: 표준 상속 + TET + 제네릭 subscript
 - [ ] 같은 category 내 입력 필드명 통일
 - [ ] providers_init: import + fetcher_dict + (신규 provider) register (+ 취약 import는 fail-soft)
-- [ ] TTL / 라우트(`?provider=` 노출) / widgetEndpoints + urlWidgetMap
+- [ ] TTL / 라우트(`?provider=` 노출) + **새 라우트면 `api/routers.py` 등록** / widgetEndpoints + urlWidgetMap
 - [ ] 지연 import·자산 파일 → 두 spec 반영 (hiddenimports / datas)
 - [ ] §8 검증 통과

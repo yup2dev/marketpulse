@@ -31,7 +31,7 @@ class InstitutionsListFetcher(ApiFetcher[InstitutionsListQueryParams, Institutio
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any,
     ) -> List[InstitutionInfo]:
-        from data_fetcher.providers.sec.institutional_13f import SEC13FFetcher
+        from data_fetcher.providers.sec.models.institutional_13f import SEC13FFetcher
         return SEC13FFetcher.get_institutions_list(
             use_dynamic=query.use_dynamic,
             limit=query.limit,

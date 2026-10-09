@@ -89,6 +89,18 @@ API fetch 이외의 상태(portfolioData 등)가 필요할 때만:
 ```
 컴포넌트는 `components/widgets/`에. 차트는 `PlotlyChart`/`CommonChart`, 표는 `CommonTable` 재사용 (recharts 신규 사용 금지).
 
+**차트 위젯을 만든다면 `components/widgets/chart/` 를 먼저 본다** — ChartWidget에서 분해해
+둔 조각들이라 그대로 가져다 쓸 수 있다. 차트 코드를 복사해 오지 말 것:
+
+| 파일 | 쓸모 |
+|---|---|
+| `chart/PlotlyStockChart.jsx` | 가격 차트 렌더러 (line/area/candle/OHLC/Heikin-Ashi, 거래량, 지표 오버레이) |
+| `chart/PlotlyOscillator.jsx` | 오실레이터 서브패널 렌더러 |
+| `chart/OscillatorPanels.jsx` | RSI/MACD/STOCH/ATR/OBV 패널 일괄 — 지표 추가는 `OSCILLATORS` 표에 한 줄 |
+| `chart/ChartControls.jsx` | 기간·차트타입·정규화/거래량 토글 |
+| `chart/chartData.js` | 조회·병합 (`resolveInterval`/`fetchTickerData`/`mergeData`/`windowToRange`) — React 비의존이라 단독 호출 가능 |
+| `chart/chartHelpers.js` | 날짜 프리셋·시프트(lead/lag)·Heikin-Ashi 변환 (순수 함수) |
+
 ---
 
 ## 2. 화면 배치 (`urlWidgetMap.js`)

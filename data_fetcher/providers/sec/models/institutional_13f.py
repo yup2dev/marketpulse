@@ -16,7 +16,7 @@ from pydantic import Field
 from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
 from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.utils.cusip_mapper import cusip_to_ticker
-from data_fetcher.providers.sec.institutions_list import SECInstitutionsListFetcher
+from data_fetcher.providers.sec.models.institutions_list import SECInstitutionsListFetcher
 
 
 # ── QueryParams / Data (standard InstitutionalHoldings 경유; sec/whalewisdom 공유) ──

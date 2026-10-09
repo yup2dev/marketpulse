@@ -12,17 +12,17 @@ from datetime import datetime, timedelta
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from app.backend.core.cache import cached
-from data_fetcher.providers.fred.gdp import FREDGDPFetcher
-from data_fetcher.providers.fred.unemployment import FREDUnemploymentFetcher
-from data_fetcher.providers.fred.cpi import FREDCPIFetcher
-from data_fetcher.providers.fred.interest_rate import FREDInterestRateFetcher
-from data_fetcher.providers.fred.retail_sales import FREDRetailSalesFetcher
-from data_fetcher.providers.fred.consumer_sentiment import FREDConsumerSentimentFetcher
-from data_fetcher.providers.fred.nonfarm_payroll import FREDNonfarmPayrollFetcher
-from data_fetcher.providers.fred.employment import FREDEmploymentFetcher
-from data_fetcher.providers.fred.housing_starts import FREDHousingStartsFetcher
-from data_fetcher.providers.fred.industrial_production import FREDIndustrialProductionFetcher
-from data_fetcher.providers.bond.bond_prices import FMPBondPricesFetcher
+from data_fetcher.providers.fred.models.gdp import FREDGDPFetcher
+from data_fetcher.providers.fred.models.unemployment import FREDUnemploymentFetcher
+from data_fetcher.providers.fred.models.cpi import FREDCPIFetcher
+from data_fetcher.providers.fred.models.interest_rate import FREDInterestRateFetcher
+from data_fetcher.providers.fred.models.retail_sales import FREDRetailSalesFetcher
+from data_fetcher.providers.fred.models.consumer_sentiment import FREDConsumerSentimentFetcher
+from data_fetcher.providers.fred.models.nonfarm_payroll import FREDNonfarmPayrollFetcher
+from data_fetcher.providers.fred.models.employment import FREDEmploymentFetcher
+from data_fetcher.providers.fred.models.housing_starts import FREDHousingStartsFetcher
+from data_fetcher.providers.fred.models.industrial_production import FREDIndustrialProductionFetcher
+from data_fetcher.providers.bond.models.bond_prices import FMPBondPricesFetcher
 from data_fetcher.query_executor import QueryExecutor
 from data_fetcher.utils.helpers import parse_period_to_dates
 from data_fetcher.utils.api_keys import get_api_key
