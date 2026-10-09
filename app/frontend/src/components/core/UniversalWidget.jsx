@@ -341,22 +341,6 @@ export default function UniversalWidget({
     setViewMode('chart');
   }, [response]);
 
-  if (!endpoint && !dataProp) {
-    return (
-      <div className="flex items-center justify-center h-full text-gray-500 text-xs p-4">
-        No endpoint for: <code className="ml-1 font-mono text-red-400">{widgetId}</code>
-      </div>
-    );
-  }
-
-  if (endpoint?.includes('{portfolioId}') && !portfolioId) {
-    return (
-      <div className="flex items-center justify-center h-full text-gray-600 text-xs p-4">
-        Select a portfolio to view this widget
-      </div>
-    );
-  }
-
   // ── Derived state ────────────────────────────────────────────────────────
   const renderType  = response ? detectRenderType(response) : null;
   const defaultView = renderType === 'plotly' ? 'chart' : 'table';
@@ -400,6 +384,27 @@ export default function UniversalWidget({
   const requiresSymbol = !!endpoint?.includes('{symbol}') && !paramNames.has('symbol')
     && modelAcceptsSymbol !== false;
   const requiresPeriod = !!endpoint?.includes('{period}') && !paramNames.has('period');
+
+  // ── 조기 반환은 반드시 모든 훅 뒤에 둔다 ──────────────────────────────────
+  // 앞쪽(파생 useMemo 위)에 있던 것을 여기로 내렸다. 조건에 따라 훅을 건너뛰면
+  // 렌더마다 훅 개수가 달라져 React 가 "Rendered more hooks than during the
+  // previous render" 로 터진다 — 포트폴리오 위젯에서 portfolioId 를 고르는 순간
+  // 실제로 발생하는 경로였다.
+  if (!endpoint && !dataProp) {
+    return (
+      <div className="flex items-center justify-center h-full text-gray-500 text-xs p-4">
+        No endpoint for: <code className="ml-1 font-mono text-red-400">{widgetId}</code>
+      </div>
+    );
+  }
+
+  if (endpoint?.includes('{portfolioId}') && !portfolioId) {
+    return (
+      <div className="flex items-center justify-center h-full text-gray-600 text-xs p-4">
+        Select a portfolio to view this widget
+      </div>
+    );
+  }
 
   const showChartTypeSelector = !OverrideView && activeView === 'chart' && renderType !== 'plotly' && display !== 'kv';
   const chartTypeSelector = showChartTypeSelector ? (

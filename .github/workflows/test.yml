@@ -39,3 +39,25 @@ jobs:
 
       - name: Run tests
         run: pytest
+
+      # ── 프론트엔드 ──────────────────────────────────────────────────────────
+      # eslint 설정이 깨져 있어(플러그인 flat config 키 오류) 그동안 CI에 넣지 못했다.
+      # 에러 0을 만든 뒤 게이트로 추가한다. 경고(react-refresh / exhaustive-deps)는
+      # 아직 남아 있으므로 --max-warnings 는 걸지 않는다 — 에러만 배포를 막는다.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: app/frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: app/frontend
+        run: npm ci
+
+      - name: Lint frontend
+        working-directory: app/frontend
+        run: npm run lint
+
+      - name: Build frontend
+        working-directory: app/frontend
+        run: npm run build

@@ -101,6 +101,11 @@ API fetch 이외의 상태(portfolioData 등)가 필요할 때만:
 | `chart/chartData.js` | 조회·병합 (`resolveInterval`/`fetchTickerData`/`mergeData`/`windowToRange`) — React 비의존이라 단독 호출 가능 |
 | `chart/chartHelpers.js` | 날짜 프리셋·시프트(lead/lag)·Heikin-Ashi 변환 (순수 함수) |
 
+필터 UI 가 필요하면 `components/widgets/screener/` 도 같은 이유로 먼저 본다 —
+`RangeSlider.jsx`(양끝 슬라이더), `FilterConfigPanel.jsx`(range/multiselect 자동 렌더),
+`FilterPickerModal.jsx`(카탈로그 기반 선택 오버레이). 조건 추가는 `screenerCatalog.js` 에
+한 줄이면 된다.
+
 ---
 
 ## 2. 화면 배치 (`urlWidgetMap.js`)

@@ -260,7 +260,6 @@ export default function PlotlyChart({
   compact = false,
   xFormatter,
   yFormatter,
-  tooltipFormatter,
   referenceLines = [],
   annotations = [],
 }) {
