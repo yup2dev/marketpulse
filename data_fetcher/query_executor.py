@@ -144,6 +144,7 @@ _DEFAULT_TTL: Dict[str, int] = {
     "quote":                          60,  # yahoo:quote (StockQuoteFetcher)
     # ── Mostly static (1h+) ─────────────────────────────────────────────────
     "company_info":           3600,
+    "company_peers":          86400,  # 유사종목 — 거의 변하지 않음
     "key_metrics":            3600,
     "management":             3600,
     "moat":                   3600,
