@@ -27,6 +27,7 @@ from typing import Any, Dict, List, Optional
 from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
 from data_fetcher.utils.api_keys import get_api_key
+from data_fetcher.providers.fred.utils.yoy import yoy_at
 
 log = logging.getLogger(__name__)
 
@@ -81,7 +82,7 @@ class FREDPhillipsCurveFetcher(ApiFetcher[PhillipsCurveQueryParams, PhillipsCurv
             if o.get("value") not in (None, ".", "")
         ]
         cpi_filtered = [c for c in cpi_all if s_str <= c["date"] <= e_str]
-        cpi_desc = sorted(cpi_all, key=lambda x: x["date"], reverse=True)
+        cpi_by_date = {c["date"]: c["value"] for c in cpi_all}
 
         results: List[PhillipsCurveData] = []
         for u_pt in u_points:
@@ -91,17 +92,12 @@ class FREDPhillipsCurveFetcher(ApiFetcher[PhillipsCurveQueryParams, PhillipsCurv
             closest = min(cpi_filtered, key=lambda c: abs(
                 (date_type.fromisoformat(c["date"][:10]) - u_date).days
             ))
-            try:
-                idx = next(i for i, c in enumerate(cpi_desc) if c["date"] == closest["date"])
-                if idx + 12 < len(cpi_desc):
-                    year_ago = cpi_desc[idx + 12]["value"]
-                    if year_ago:
-                        cpi_yoy = (closest["value"] - year_ago) / year_ago * 100
-                        results.append(PhillipsCurveData(
-                            date=u_pt["date"],
-                            unemployment=round(u_pt["value"], 1),
-                            inflation=round(cpi_yoy, 1),
-                        ))
-            except (StopIteration, ZeroDivisionError):
-                continue
+            # 날짜 매칭 YoY — 결측월('.')을 건너뛰면 12칸 뒤가 13개월 전이 된다
+            cpi_yoy = yoy_at(cpi_by_date, closest["date"])
+            if cpi_yoy is not None:
+                results.append(PhillipsCurveData(
+                    date=u_pt["date"],
+                    unemployment=round(u_pt["value"], 1),
+                    inflation=round(cpi_yoy, 1),
+                ))
         return results
