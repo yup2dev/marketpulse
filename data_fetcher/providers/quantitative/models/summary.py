@@ -1,11 +1,11 @@
-"""Summary fetcher — descriptive statistics on a yfinance time series."""
+"""Summary fetcher — descriptive statistics on a daily price/return series (yahoo via QueryExecutor)."""
 import logging
 from typing import Any, Dict, List, Optional
 
 from scipy import stats
 
 from data_fetcher.abstract_provider.abstract.base_fetchers import ComputeFetcher
-from data_fetcher.providers.quantitative._data import load_series
+from data_fetcher.providers.quantitative._data import aload_series
 from data_fetcher.providers.quantitative.analysis import (
     SummaryData,
     SummaryQueryParams,
@@ -24,12 +24,12 @@ class QuantSummaryFetcher(ComputeFetcher[SummaryQueryParams, SummaryData]):
         return SummaryQueryParams(**params)
 
     @staticmethod
-    def extract_data(
+    async def aextract_data(
         query: SummaryQueryParams,
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any,
     ) -> Dict[str, Any]:
-        series, _ = load_series(query.symbol, query.target, query.start_date, query.end_date)
+        series, _ = await aload_series(query.symbol, query.target, query.start_date, query.end_date)
         s = series.values
 
         return {

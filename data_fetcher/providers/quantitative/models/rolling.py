@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 from data_fetcher.abstract_provider.abstract.base_fetchers import ComputeFetcher
-from data_fetcher.providers.quantitative._data import load_series, to_returns
+from data_fetcher.providers.quantitative._data import aload_series, to_returns
 from data_fetcher.providers.quantitative.analysis import (
     RollingData,
     RollingPoint,
@@ -42,12 +42,12 @@ class QuantRollingFetcher(ComputeFetcher[RollingQueryParams, RollingData]):
         return RollingQueryParams(**params)
 
     @staticmethod
-    def extract_data(
+    async def aextract_data(
         query: RollingQueryParams,
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any,
     ) -> Dict[str, Any]:
-        series, returns = load_series(
+        series, returns = await aload_series(
             query.symbol, query.target, query.start_date, query.end_date
         )
 

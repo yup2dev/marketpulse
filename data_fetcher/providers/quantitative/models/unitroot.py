@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 from statsmodels.tsa.stattools import adfuller
 
 from data_fetcher.abstract_provider.abstract.base_fetchers import ComputeFetcher
-from data_fetcher.providers.quantitative._data import load_series
+from data_fetcher.providers.quantitative._data import aload_series
 from data_fetcher.providers.quantitative.analysis import (
     UnitRootData,
     UnitRootQueryParams,
@@ -24,12 +24,12 @@ class QuantUnitRootFetcher(ComputeFetcher[UnitRootQueryParams, UnitRootData]):
         return UnitRootQueryParams(**params)
 
     @staticmethod
-    def extract_data(
+    async def aextract_data(
         query: UnitRootQueryParams,
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any,
     ) -> Dict[str, Any]:
-        series, _ = load_series(query.symbol, query.target, query.start_date, query.end_date)
+        series, _ = await aload_series(query.symbol, query.target, query.start_date, query.end_date)
         if len(series) < 30:
             raise ValueError(f"ADF needs ≥30 obs (got {len(series)})")
 

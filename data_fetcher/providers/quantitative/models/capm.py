@@ -8,9 +8,9 @@ from scipy import stats
 
 from data_fetcher.abstract_provider.abstract.base_fetchers import ComputeFetcher
 from data_fetcher.providers.quantitative._data import (
+    aload_many,
     annualise_return,
     annualise_vol,
-    load_series,
 )
 from data_fetcher.providers.quantitative.analysis import CAPMData, CAPMQueryParams
 
@@ -27,14 +27,15 @@ class QuantCAPMFetcher(ComputeFetcher[CAPMQueryParams, CAPMData]):
         return CAPMQueryParams(**params)
 
     @staticmethod
-    def extract_data(
+    async def aextract_data(
         query: CAPMQueryParams,
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any,
     ) -> Dict[str, Any]:
         # always use returns (target=close → derive returns inside the helper)
-        _, asset_ret = load_series(query.symbol, "close", query.start_date, query.end_date)
-        _, mkt_ret = load_series(query.benchmark, "close", query.start_date, query.end_date)
+        (_, asset_ret), (_, mkt_ret) = await aload_many(
+            [query.symbol, query.benchmark], "close", query.start_date, query.end_date
+        )
 
         df = pd.concat(
             {"asset": asset_ret, "mkt": mkt_ret}, axis=1, join="inner"
