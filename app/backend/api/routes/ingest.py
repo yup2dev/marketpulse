@@ -33,6 +33,7 @@ from app.backend.core.db import get_db
 from index_analyzer.models.orm.ingest import (
     MBS_IN_ARTICLE,
     MBS_IN_FINANCIAL_METRICS,
+    MBS_IN_FX_STBD,
     MBS_IN_INDX_MEMBER,
     MBS_IN_INDX_STBD,
     MBS_IN_INSTI_HOLD,
@@ -56,6 +57,7 @@ _TABLES: Dict[str, Dict[str, Any]] = {
     "mbs_in_indx_stbd":         {"model": MBS_IN_INDX_STBD,         "conflict": ["indx_cd"]},
     "mbs_in_article":           {"model": MBS_IN_ARTICLE,           "conflict": ["news_id"]},
     "mbs_in_stk_stbd":          {"model": MBS_IN_STK_STBD,          "conflict": ["stk_cd", "base_ymd"]},
+    "mbs_in_fx_stbd":           {"model": MBS_IN_FX_STBD,           "conflict": ["fx_cd", "base_ymd"]},
     "mbs_in_financial_metrics": {"model": MBS_IN_FINANCIAL_METRICS, "conflict": ["stk_cd", "base_ymd", "fiscal_period"]},
     "mbs_in_stk_profile":       {"model": MBS_IN_STK_PROFILE,       "conflict": ["stk_cd"]},
     "mbs_in_stk_relations":     {"model": MBS_IN_STK_RELATIONS,     "conflict": ["stk_cd", "related_cd", "relation_type"]},

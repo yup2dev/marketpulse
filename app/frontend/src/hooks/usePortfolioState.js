@@ -57,6 +57,7 @@ export default function usePortfolioState() {
   // ── Currency ──────────────────────────────────────────────────────────────
   const [displayCurrency, setDisplayCurrency] = useState('USD');
   const [exchangeRate, setExchangeRate] = useState(null);
+  const [exchangeRateAsOf, setExchangeRateAsOf] = useState(null);
   const [loadingRate, setLoadingRate] = useState(false);
 
   // ── UI state ──────────────────────────────────────────────────────────────
@@ -151,15 +152,17 @@ export default function usePortfolioState() {
     }
   }, []);
 
-  // ── Exchange rate ─────────────────────────────────────────────────────────
+  // ── Exchange rate (서버 DB의 일일 배치 환율) ───────────────────────────────
   const fetchExchangeRate = useCallback(async () => {
     setLoadingRate(true);
     try {
-      const res = await fetch('https://api.frankfurter.app/latest?from=USD&to=KRW');
-      const data = await res.json();
-      setExchangeRate(data?.rates?.KRW ?? null);
+      const res = await portfolioAPI.getFxRate('USD', 'KRW');
+      const fx = res?.results?.[0];
+      setExchangeRate(fx?.rate ?? null);
+      setExchangeRateAsOf(fx?.as_of ?? null);
     } catch {
       setExchangeRate(null);
+      setExchangeRateAsOf(null);
     } finally {
       setLoadingRate(false);
     }
@@ -312,7 +315,7 @@ export default function usePortfolioState() {
     lastRefreshed, isRefreshingPrices,
     doRefreshPrices: () => selectedPortfolio && doRefreshPrices(selectedPortfolio.portfolio_id, false),
     // Currency
-    displayCurrency, exchangeRate, loadingRate, formatKRW: fmtKRW,
+    displayCurrency, exchangeRate, exchangeRateAsOf, loadingRate, formatKRW: fmtKRW,
     handleCurrencyToggle,
     // Period / filters
     selectedPeriod, setSelectedPeriod,

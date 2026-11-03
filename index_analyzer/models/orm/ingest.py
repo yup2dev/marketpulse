@@ -9,6 +9,7 @@ IN Layer: 입수 (크롤러/수집기가 넣는 원본 데이터)
 - ETF_STBD          : ETF 상태판                              [활성]
 - BOND_STBD         : 채권 상태판                              [활성]
 - CMDTY_STBD        : 원자재 상태판                            [활성]
+- FX_STBD           : 환율 일별 (USDKRW 등, FXRateCollector)    [활성]
 - FINANCIAL_METRICS : 기업 재무지표                            [활성]
 - STK_PROFILE       : 종목 상세 프로필                         [활성]
 - STK_RELATIONS     : 종목 관계 (peer/competitor)             [활성]
@@ -307,6 +308,44 @@ class MBS_IN_CMDTY_STBD(Base):
             'close_price': float(self.close_price) if self.close_price else None,
             'change_rate': float(self.change_rate) if self.change_rate else None,
             'base_ymd': self.base_ymd.isoformat() if self.base_ymd else None
+        }
+
+
+class MBS_IN_FX_STBD(Base):
+    """입수 - 환율 일별 상태판.
+
+    적재: index_analyzer.collectors.market.fx_rate.FXRateCollector
+          (scripts/collect_fx.py — daily_ingest.bat) → sync_db_to_cloud → /api/ingest.
+    rate = base_curr 1단위당 quote_curr (예: USDKRW 1400.5 → 1 USD = 1400.5 KRW).
+    """
+    __tablename__ = 'mbs_in_fx_stbd'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    fx_cd = Column(String(20), nullable=False, index=True)       # 'USDKRW'
+    base_curr = Column(String(10), nullable=False)               # 'USD'
+    quote_curr = Column(String(10), nullable=False)              # 'KRW'
+    rate = Column(DECIMAL(20, 6), nullable=False)                # 종가 기준 환율
+    change_rate = Column(DECIMAL(10, 4))                         # 전일比 (%)
+    base_ymd = Column(Date, nullable=False, index=True)
+    data_source = Column(String(50))
+    ingest_batch_id = Column(String(50), index=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint('fx_cd', 'base_ymd', name='uq_fx_date'),
+        Index('idx_in_fx_cd_date', 'fx_cd', 'base_ymd'),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            'fx_cd': self.fx_cd,
+            'base_curr': self.base_curr,
+            'quote_curr': self.quote_curr,
+            'rate': float(self.rate) if self.rate is not None else None,
+            'change_rate': float(self.change_rate) if self.change_rate is not None else None,
+            'base_ymd': self.base_ymd.isoformat() if self.base_ymd else None,
         }
 
 

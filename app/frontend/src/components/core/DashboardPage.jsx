@@ -396,8 +396,11 @@ export default function DashboardPage() {
                   </div>
                   {portfolio.displayCurrency === 'KRW' &&
                     portfolio.exchangeRate && (
-                      <span className="text-[10px] text-gray-600 hidden sm:inline">
-                        1$ = ₩{portfolio.exchangeRate.toLocaleString('ko-KR')}
+                      <span
+                        className="text-[10px] text-gray-600 hidden sm:inline"
+                        title={portfolio.exchangeRateAsOf ? `기준일 ${portfolio.exchangeRateAsOf}` : undefined}
+                      >
+                        1$ = ₩{portfolio.exchangeRate.toLocaleString('ko-KR', { maximumFractionDigits: 2 })}
                       </span>
                     )}
                   <button

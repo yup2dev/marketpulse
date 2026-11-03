@@ -13,6 +13,7 @@ from app.backend.core.db import get_db
 from app.backend.core.auth.dependencies import get_current_active_user
 from app.backend.api.deps import route_handler
 from app.backend.services.user_portfolio_service import UserPortfolioService
+from app.backend.services.fx_service import FXRateNotFound, convert_fields, get_rate
 from data_fetcher.query_executor import QueryExecutor
 from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
 from index_analyzer.models.orm import User
@@ -303,15 +304,22 @@ def get_holdings(
     return [h.to_dict() for h in holdings]
 
 
+_SUMMARY_MONEY_FIELDS = ("total_cost", "total_market_value", "total_unrealized_pnl")
+
+
 @router.get("/portfolios/{portfolio_id}/summary")
 def get_portfolio_summary(
     portfolio_id: str,
+    currency: Optional[str] = None,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
     """
     포트폴리오 요약 통계 조회
     총 자산, 총 비용, 미실현 손익, 수익률 등
+
+    currency 를 주면 금액 필드를 서버에서 환산해 돌려준다(일일 배치 환율, mbs_in_fx_stbd).
+    수익률(%)은 통화와 무관하므로 그대로 둔다. 사용한 환율은 `fx` 에 담는다.
     """
     summary = UserPortfolioService.get_portfolio_summary(db, portfolio_id, current_user.user_id)
 
@@ -320,6 +328,18 @@ def get_portfolio_summary(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Portfolio not found"
         )
+
+    base = (summary.get("currency") or "USD").upper()
+    target = (currency or base).upper()
+    if target != base:
+        try:
+            fx = get_rate(db, base, target)
+        except FXRateNotFound as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        summary = convert_fields(summary, _SUMMARY_MONEY_FIELDS, fx)
+        summary["currency"] = target
+        summary["base_currency"] = base
+        summary["fx"] = fx.as_dict()
 
     return summary
 
