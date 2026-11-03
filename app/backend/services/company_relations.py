@@ -1,48 +1,64 @@
-"""기업 관계 그래프 서비스 (DB-first → Yahoo Finance fallback)."""
+"""기업 관계 그래프 서비스 (DB-first → Fetcher yahoo fallback).
+
+외부 소스(Yahoo)는 직접 호출하지 않고 QueryExecutor로 Fetcher에 위임한다
+(배포 환경에선 RemoteTransport → 사용자 Fetcher(exe)). 서버에서 yfinance를
+직접 부르면 고정 IP 차단·OOM 위험이 있다.
+"""
 import asyncio
 import logging
+from typing import Any, List
+
+from data_fetcher.abstract_provider.abstract.annotated_result import AnnotatedResult
+from data_fetcher.query_executor import QueryExecutor, RemoteUnavailableError
 
 log = logging.getLogger(__name__)
 
 
-async def _fetch_yahoo_similar(symbol: str, base_sector: str) -> list:
-    import httpx
-    url = f"https://query2.finance.yahoo.com/v6/finance/recommendationsbysymbol/{symbol}"
-    headers = {"User-Agent": "Mozilla/5.0 (compatible; MarketPulse/1.0)"}
+def _items(raw: Any) -> List[Any]:
+    return raw.result if isinstance(raw, AnnotatedResult) else (raw or [])
+
+
+async def _fetch_profile(symbol: str) -> dict:
+    """DB 프로필이 없을 때 Fetcher company_info로 이름·섹터 보충."""
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            r = await client.get(url, headers=headers)
-            if r.status_code != 200:
-                return []
-            result = r.json().get("finance", {}).get("result", [])
-            if not result:
-                return []
-            syms = result[0].get("recommendedSymbols", [])
+        items = _items(await QueryExecutor.fetch("yahoo", "company_info", {"symbol": symbol}))
+    except RemoteUnavailableError:
+        raise
     except Exception as e:
-        log.warning(f"Yahoo 유사종목 fallback 실패 [{symbol}]: {e}")
+        log.warning(f"company_info 조회 실패 [{symbol}]: {e}")
+        return {}
+    if not items:
+        return {}
+    it = items[0]
+    return {"name": getattr(it, "company_name", None), "sector": getattr(it, "sector", None)}
+
+
+async def _fetch_peers(symbol: str, base_sector: str) -> list:
+    try:
+        items = _items(await QueryExecutor.fetch("yahoo", "company_peers", {"symbol": symbol}))
+    except RemoteUnavailableError:
+        raise
+    except Exception as e:
+        log.warning(f"유사종목 fallback 실패 [{symbol}]: {e}")
         return []
 
     nodes = []
-    for item in syms[:10]:
-        sym = item.get("symbol", "")
-        if not sym or sym == symbol:
+    for it in items:
+        sym = getattr(it, "symbol", None)
+        if not sym:
             continue
-        try:
-            import yfinance as yf
-            info = await asyncio.to_thread(lambda s=sym: yf.Ticker(s).info)
-            nodes.append({
-                "symbol": sym,
-                "name": info.get("longName", sym),
-                "type": "competitor",
-                "detail": f"{info.get('industry', base_sector)} peer",
-            })
-        except Exception:
-            nodes.append({"symbol": sym, "name": sym, "type": "competitor", "detail": "Peer"})
+        industry = getattr(it, "industry", None) or base_sector
+        nodes.append({
+            "symbol": sym,
+            "name": getattr(it, "name", None) or sym,
+            "type": "competitor",
+            "detail": f"{industry} peer" if industry else "Peer",
+        })
     return nodes
 
 
 async def get_company_relations(symbol: str) -> dict:
-    """종목 관계 그래프 반환 (DB-first → Yahoo Finance fallback)."""
+    """종목 관계 그래프 반환 (DB-first → Fetcher yahoo fallback)."""
     from index_analyzer.services.stock_service import get_relations_from_db, get_profile_from_db
 
     symbol = symbol.upper()
@@ -57,14 +73,10 @@ async def get_company_relations(symbol: str) -> dict:
                 "nodes": db_nodes, "found": True, "data_source": "db_fmp_peers"}
 
     if not sector:
-        try:
-            import yfinance as yf
-            info = await asyncio.to_thread(lambda: yf.Ticker(symbol).info)
-            name   = info.get("longName", symbol)
-            sector = info.get("sector", "")
-        except Exception:
-            pass
+        extra = await _fetch_profile(symbol)
+        name   = extra.get("name") or name
+        sector = extra.get("sector") or ""
 
-    yahoo_nodes = await _fetch_yahoo_similar(symbol, sector)
+    peer_nodes = await _fetch_peers(symbol, sector)
     return {"symbol": symbol, "name": name, "sector": sector,
-            "nodes": yahoo_nodes, "found": bool(yahoo_nodes), "data_source": "yahoo_finance"}
+            "nodes": peer_nodes, "found": bool(peer_nodes), "data_source": "yahoo_finance"}

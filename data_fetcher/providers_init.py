@@ -42,6 +42,7 @@ from data_fetcher.providers.yahoo.models.stock_quote import YFinanceQuoteFetcher
 from data_fetcher.providers.yahoo.models.batch_quotes import YFinanceBatchQuotesFetcher
 from data_fetcher.providers.yahoo.models.dividends import YFinanceDividendsFetcher
 from data_fetcher.providers.yahoo.models.company_info import YFinanceCompanyInfoFetcher
+from data_fetcher.providers.yahoo.models.company_peers import YFinanceCompanyPeersFetcher
 from data_fetcher.providers.yahoo.models.financials import YFinanceFinancialsFetcher
 from data_fetcher.providers.yahoo.models.balance_sheet import YFinanceBalanceSheetFetcher
 from data_fetcher.providers.yahoo.models.key_metrics import YFinanceKeyMetricsFetcher
@@ -260,6 +261,7 @@ yahoo_provider = Provider(
         "batch_quotes": YFinanceBatchQuotesFetcher,
         "dividends": YFinanceDividendsFetcher,
         "company_info": YFinanceCompanyInfoFetcher,
+        "company_peers": YFinanceCompanyPeersFetcher,
         "financials": YFinanceFinancialsFetcher,
         "balance_sheet": YFinanceBalanceSheetFetcher,
         "key_metrics": YFinanceKeyMetricsFetcher,

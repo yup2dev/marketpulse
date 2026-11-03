@@ -77,6 +77,9 @@ from data_fetcher.abstract_provider.standard_models.stock_list import (
 from data_fetcher.abstract_provider.standard_models.fund_performance import (
     FundPerformanceQueryParams, FundPerformanceData,
 )
+from data_fetcher.abstract_provider.standard_models.company_peers import (
+    CompanyPeersQueryParams, CompanyPeersData,
+)
 
 __all__ = [
     "EquityQuoteQueryParams", "EquityQuoteData",
@@ -101,4 +104,5 @@ __all__ = [
     "KeyMetricsQueryParams", "KeyMetricsData",
     "StockListQueryParams", "StockListData",
     "FundPerformanceQueryParams", "FundPerformanceData",
+    "CompanyPeersQueryParams", "CompanyPeersData",
 ]
