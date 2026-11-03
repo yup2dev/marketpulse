@@ -140,6 +140,9 @@ _DEFAULT_TTL: Dict[str, int] = {
     "sentiment_composite":          1800,  # snapshot — VIX 일중 변동
     "sentiment_history":            3600,
     "labor_dashboard":              1800,  # snapshot — 다수 현재값
+    "regime_current":               1800,  # snapshot — 월간/분기 지표
+    "fed_policy_stance":            1800,
+    "inflation_decomposition":      1800,
     # ── Yahoo quote (별칭 구분) ─────────────────────────────────────────────
     "quote":                          60,  # yahoo:quote (StockQuoteFetcher)
     # ── Mostly static (1h+) ─────────────────────────────────────────────────
