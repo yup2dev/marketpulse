@@ -31,6 +31,7 @@ from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
 from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
 from data_fetcher.utils.api_keys import get_api_key
+from data_fetcher.providers.fred.utils.yoy import yoy_at
 
 log = logging.getLogger(__name__)
 
@@ -124,16 +125,8 @@ class FREDRegimeHistoryFetcher(ApiFetcher[RegimeHistoryQueryParams, RegimeHistor
                 (date_type.fromisoformat(c["date"][:10]) - gdp_date).days
             ))
 
-            # Compute CPI YoY
-            try:
-                idx = next(i for i, c in enumerate(cpi_sorted_desc) if c["date"] == closest["date"])
-                cpi_yoy = 0.0
-                if idx + 12 < len(cpi_sorted_desc):
-                    year_ago = cpi_sorted_desc[idx + 12]["value"]
-                    if year_ago:
-                        cpi_yoy = (closest["value"] - year_ago) / year_ago * 100
-            except (StopIteration, ZeroDivisionError):
-                cpi_yoy = 0.0
+            # Compute CPI YoY — 날짜 매칭(결측월 '.'을 건너뛰면 12칸 뒤가 13개월 전이 됨)
+            cpi_yoy = yoy_at(cpi_by_date, closest["date"]) or 0.0
 
             growth_score    = max(-100.0, min(100.0, (gdp_growth / 5.0) * 100))
             inflation_score = max(-100.0, min(100.0, (cpi_yoy - 2.0) / 6.0 * 100))
