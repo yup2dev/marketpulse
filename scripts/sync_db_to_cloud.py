@@ -44,6 +44,7 @@ TABLES: Dict[str, Dict[str, Any]] = {
     "mbs_in_indx_stbd":         {},
     "mbs_in_article":           {"incremental": "base_ymd"},
     "mbs_in_stk_stbd":          {"incremental": "base_ymd"},
+    "mbs_in_fx_stbd":           {"incremental": "base_ymd"},
     "mbs_in_financial_metrics": {"incremental": "base_ymd"},
     "mbs_in_stk_profile":       {},
     "mbs_in_stk_relations":     {},

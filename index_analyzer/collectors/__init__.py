@@ -6,3 +6,4 @@ from index_analyzer.collectors.universe.kr_etf import KRETFCollector
 from index_analyzer.collectors.universe.us_etf import USETFCollector
 from index_analyzer.collectors.universe.kr_bond import KRBondCollector
 from index_analyzer.collectors.institutional.holdings_13f import Institutional13FCollector
+from index_analyzer.collectors.market.fx_rate import FXRateCollector

@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from app.backend.api.routes import (
     stock, news, portfolio, macro,
     auth, user_portfolio, screener, alerts, export, watchlist, menu,
-    quantlib, quantitative, notes, reports, copilot, backtest,
+    quantlib, quantitative, notes, reports, copilot, backtest, fx,
 )
 from app.backend.api.routes.admin import router as admin_router
 from app.backend.api.routes.workspace import router as workspace_router
@@ -35,6 +35,7 @@ def register_routers(app: FastAPI) -> None:
     # ── Portfolio ─────────────────────────────────────────────────────────────
     app.include_router(portfolio.router,      prefix="/api/portfolio", tags=["portfolio"])
     app.include_router(user_portfolio.router, prefix="/api",           tags=["user-portfolio"])
+    app.include_router(fx.router,             prefix="/api",           tags=["fx"])
 
     # ── User / Auth ───────────────────────────────────────────────────────────
     app.include_router(auth.router,      prefix="/api", tags=["auth"])

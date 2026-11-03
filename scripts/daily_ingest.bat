@@ -25,6 +25,10 @@ REM 1) 로컬 적재 — 최근 1개월치 백필 (누락 구간 보정 겸)
 .venv\Scripts\python.exe scripts\backfill_stk_stbd.py 1mo >> "%LOG%" 2>&1
 if errorlevel 1 echo [%date% %time%] backfill FAILED >> "%LOG%"
 
+REM 1-1) 일별 환율 (USDKRW 등) - 최근 1개월 재적재, 서버 통화 환산 기준
+.venv\Scripts\python.exe scripts\collect_fx.py 1mo >> "%LOG%" 2>&1
+if errorlevel 1 echo [%date% %time%] fx collect FAILED >> "%LOG%"
+
 REM 2) 13F 기관 보유 + 추정 수익률 — 일요일에만 (13F는 분기 공시, 로컬에서 파싱)
 .venv\Scripts\python.exe scripts\collect_13f.py --only-on sun >> "%LOG%" 2>&1
 if errorlevel 1 echo [%date% %time%] 13F collect FAILED >> "%LOG%"
