@@ -198,6 +198,7 @@ try:
     from data_fetcher.providers.quantitative.models.capm import QuantCAPMFetcher
     from data_fetcher.providers.quantitative.models.rolling import QuantRollingFetcher
     from data_fetcher.providers.quantitative.models.unitroot import QuantUnitRootFetcher
+    from data_fetcher.providers.quantitative.models.correlation import QuantCorrelationFetcher
     _quantitative_available = True
 except ImportError:
     _quantitative_available = False
@@ -616,7 +617,7 @@ quantlib_provider = Provider(
 
 quantitative_provider = Provider(
     name="quantitative",
-    description="Quantitative Analysis Suite — descriptive stats, normality, CAPM, rolling metrics, ADF",
+    description="Quantitative Analysis Suite — descriptive stats, normality, CAPM, rolling metrics, ADF, correlation",
     credentials=[],
     fetcher_dict={
         "summary": QuantSummaryFetcher,
@@ -624,6 +625,7 @@ quantitative_provider = Provider(
         "capm": QuantCAPMFetcher,
         "rolling": QuantRollingFetcher,
         "unitroot": QuantUnitRootFetcher,
+        "correlation": QuantCorrelationFetcher,
     },
     metadata={
         "rate_limit": "yfinance only",

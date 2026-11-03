@@ -167,6 +167,7 @@ _DEFAULT_TTL: Dict[str, int] = {
     "rolling":                   0,
     "normality":                 0,
     "unitroot":                  0,
+    "correlation":               0,  # 입력 시세(yahoo stock_price)가 캐시됨
     "summary":                   0,
     "pricing":                   0,
 }
