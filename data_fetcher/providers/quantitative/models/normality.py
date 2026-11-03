@@ -6,7 +6,7 @@ import numpy as np
 from scipy import stats
 
 from data_fetcher.abstract_provider.abstract.base_fetchers import ComputeFetcher
-from data_fetcher.providers.quantitative._data import load_series
+from data_fetcher.providers.quantitative._data import aload_series
 from data_fetcher.providers.quantitative.analysis import (
     NormalityData,
     NormalityQueryParams,
@@ -27,12 +27,12 @@ class QuantNormalityFetcher(ComputeFetcher[NormalityQueryParams, NormalityData])
         return NormalityQueryParams(**params)
 
     @staticmethod
-    def extract_data(
+    async def aextract_data(
         query: NormalityQueryParams,
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any,
     ) -> Dict[str, Any]:
-        series, _ = load_series(query.symbol, query.target, query.start_date, query.end_date)
+        series, _ = await aload_series(query.symbol, query.target, query.start_date, query.end_date)
         x = series.values.astype(float)
 
         # Kurtosis test (Anscombe-Glynn) — needs ≥20 samples
