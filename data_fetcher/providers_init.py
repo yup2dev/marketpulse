@@ -32,6 +32,9 @@ from data_fetcher.providers.fred.models.financial_conditions_history import FRED
 from data_fetcher.providers.fred.models.sentiment_history import FREDSentimentHistoryFetcher
 from data_fetcher.providers.fred.models.inflation_sector import FREDInflationSectorFetcher
 from data_fetcher.providers.fred.models.regime_history import FREDRegimeHistoryFetcher
+from data_fetcher.providers.fred.models.regime_current import FREDRegimeCurrentFetcher
+from data_fetcher.providers.fred.models.fed_policy_stance import FREDFedPolicyStanceFetcher
+from data_fetcher.providers.fred.models.inflation_decomposition import FREDInflationDecompositionFetcher
 from data_fetcher.providers.fred.models.phillips_curve import FREDPhillipsCurveFetcher
 from data_fetcher.providers.fred.models.financial_conditions import FREDFinancialConditionsFetcher
 from data_fetcher.providers.fred.models.sentiment_composite import FREDSentimentCompositeFetcher
@@ -237,6 +240,9 @@ fred_provider = Provider(
         "sentiment_history":            FREDSentimentHistoryFetcher,
         "inflation_sector":             FREDInflationSectorFetcher,
         "regime_history":               FREDRegimeHistoryFetcher,
+        "regime_current":               FREDRegimeCurrentFetcher,
+        "fed_policy_stance":            FREDFedPolicyStanceFetcher,
+        "inflation_decomposition":      FREDInflationDecompositionFetcher,
         "phillips_curve":               FREDPhillipsCurveFetcher,
         "financial_conditions":         FREDFinancialConditionsFetcher,
         "sentiment_composite":          FREDSentimentCompositeFetcher,

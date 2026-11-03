@@ -7,7 +7,6 @@ import sys
 import logging
 from pathlib import Path
 from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
@@ -25,8 +24,6 @@ from data_fetcher.providers.fred.models.industrial_production import FREDIndustr
 from data_fetcher.providers.bond.models.bond_prices import FMPBondPricesFetcher
 from data_fetcher.query_executor import QueryExecutor
 from data_fetcher.utils.helpers import parse_period_to_dates
-from data_fetcher.utils.api_keys import get_api_key
-from data_fetcher.utils.api_keys import get_api_key
 
 # Fetcher class → (provider, model) mapping for QueryExecutor
 _FETCHER_MAP = {
@@ -42,14 +39,6 @@ _FETCHER_MAP = {
     FREDIndustrialProductionFetcher: ('fred', 'industrial_production'),
     FMPBondPricesFetcher:            ('fmp', 'bond_prices'),
 }
-from app.backend.constants.fred_series import (
-    STICKY_CORE_CPI,
-    FLEXIBLE_CORE_CPI,
-    BREAKEVEN_5Y,
-    BREAKEVEN_10Y,
-    CORE_CPI,
-    CPI_SECTOR_SERIES
-)
 
 log = logging.getLogger(__name__)
 
@@ -498,36 +487,6 @@ class MacroService:
 
         return []
 
-    def _calculate_ratio_series(
-        self,
-        numerator_obs: List,
-        denominator_obs: List,
-        numerator_scale: float = 1.0
-    ) -> List[Dict[str, Any]]:
-        """Calculate ratio time series from two observation series"""
-        # Create date map for denominator
-        denom_map = {
-            obs['date']: obs['value']
-            for obs in denominator_obs
-        }
-
-        data = []
-        for num_obs in numerator_obs:
-            if num_obs['value'] == '.':
-                continue
-
-            date = num_obs['date']
-            num_value = float(num_obs['value']) * numerator_scale
-            denom_value = denom_map.get(date)
-
-            if denom_value and denom_value != 0:
-                data.append({
-                    'date': date,
-                    'value': num_value / denom_value
-                })
-
-        return data
-
     def _calculate_change(self, data: List) -> Optional[float]:
         """Calculate percentage change between two data points (supports dicts and Pydantic models)"""
         if len(data) < 2 or data[1] is None:
@@ -543,144 +502,9 @@ class MacroService:
         return ((current - previous) / previous) * 100
 
     @cached(ttl=1800)
-    async def get_current_regime(self) -> Dict[str, Any]:
-        """
-        Calculate current economic regime based on Growth and Inflation
-
-        Returns:
-            {
-                'regime': str,  # 'goldilocks', 'reflation', 'stagflation', 'deflation'
-                'growth_score': float,  # -100 to +100
-                'inflation_score': float,  # -100 to +100
-                'growth_momentum': float,  # 3m change
-                'inflation_momentum': float,  # 3m change
-                'timestamp': str,
-                'components': {
-                    'gdp_growth': float,  # Already in %
-                    'industrial_production_yoy': float,
-                    'employment_yoy': float,
-                    'cpi_yoy': float
-                }
-            }
-        """
-        try:
-            components = {}
-
-            # Fetch Growth components
-            # 1. GDP Growth Rate (already in % from FRED)
-            gdp_data = await self._qe(FREDGDPFetcher, {})
-            components['gdp_growth'] = gdp_data[0]['value'] if gdp_data else 0
-
-            # 2. Industrial Production YoY
-            try:
-                indpro = await self._qe(FREDIndustrialProductionFetcher, {})
-                indpro_sorted = sorted(indpro, key=lambda x: x['date'], reverse=True)
-                if len(indpro_sorted) >= 13:
-                    current_ip, year_ago_ip = indpro_sorted[0]['value'], indpro_sorted[12]['value']
-                    components['industrial_production_yoy'] = ((current_ip - year_ago_ip) / year_ago_ip * 100) if year_ago_ip else 0
-                else:
-                    components['industrial_production_yoy'] = 0
-            except Exception as e:
-                log.warning(f"Could not fetch industrial production: {e}")
-                components['industrial_production_yoy'] = 0
-
-            # 3. Employment YoY (using Nonfarm Payroll)
-            try:
-                emp = await self._qe(FREDNonfarmPayrollFetcher, {})
-                emp_sorted = sorted(emp, key=lambda x: x['date'], reverse=True)
-                if len(emp_sorted) >= 13:
-                    current_emp, year_ago_emp = emp_sorted[0]['value'], emp_sorted[12]['value']
-                    components['employment_yoy'] = ((current_emp - year_ago_emp) / year_ago_emp * 100) if year_ago_emp else 0
-                else:
-                    components['employment_yoy'] = 0
-            except Exception as e:
-                log.warning(f"Could not fetch employment: {e}")
-                components['employment_yoy'] = 0
-
-            # Fetch Inflation components
-            # 4. CPI YoY
-            cpi_data = await self._qe(FREDCPIFetcher, {})
-            cpi_sorted = sorted(cpi_data, key=lambda x: x['date'], reverse=True)
-            if len(cpi_sorted) >= 13:
-                current_cpi, year_ago_cpi = cpi_sorted[0]['value'], cpi_sorted[12]['value']
-                components['cpi_yoy'] = ((current_cpi - year_ago_cpi) / year_ago_cpi * 100) if year_ago_cpi else 0
-            else:
-                components['cpi_yoy'] = 0
-
-            # Calculate composite scores
-            # Growth Score: weighted average, normalized to -100 to +100
-            growth_score = (
-                (components['gdp_growth'] / 5.0) * 100 * 0.5 +
-                (components['industrial_production_yoy'] / 10.0) * 100 * 0.25 +
-                (components['employment_yoy'] / 3.0) * 100 * 0.25
-            )
-            growth_score = max(-100, min(100, growth_score))
-
-            # Inflation Score: normalized (CPI YoY: -2% to +10%, centered at 2% target)
-            inflation_score = (components['cpi_yoy'] - 2.0) / 6.0 * 100
-            inflation_score = max(-100, min(100, inflation_score))
-
-            # Calculate momentum
-            growth_momentum = 0.0
-            inflation_momentum = 0.0
-
-            if len(gdp_data) >= 2:
-                growth_momentum = gdp_data[0]['value'] - gdp_data[1]['value']
-
-            if len(cpi_sorted) >= 4:
-                current_cpi_yoy = components['cpi_yoy']
-                if len(cpi_sorted) >= 16:
-                    three_mo_ago = cpi_sorted[3]['value']
-                    fifteen_mo_ago = cpi_sorted[15]['value']
-                    three_mo_cpi_yoy = ((three_mo_ago - fifteen_mo_ago) / fifteen_mo_ago * 100) if fifteen_mo_ago else current_cpi_yoy
-                    inflation_momentum = current_cpi_yoy - three_mo_cpi_yoy
-                else:
-                    inflation_momentum = 0
-
-            # Determine regime
-            regime = self._classify_regime(growth_score, inflation_score, components['cpi_yoy'])
-
-            return [{
-                'regime': regime,
-                'growth_score': round(growth_score, 2),
-                'inflation_score': round(inflation_score, 2),
-                'growth_momentum': round(growth_momentum, 2),
-                'inflation_momentum': round(inflation_momentum, 2),
-                'timestamp': datetime.now().isoformat(),
-                **{f'cmp_{k}': round(v, 2) for k, v in components.items()}
-            }]
-
-        except Exception as e:
-            log.error(f"Error calculating current regime: {e}")
-            raise
-
-    def _classify_regime(self, growth_score: float, inflation_score: float, cpi_yoy: float) -> str:
-        """
-        Classify economic regime based on growth and inflation scores
-
-        4 Regimes:
-        - Goldilocks: Growth positive, Inflation moderate (ideal)
-        - Reflation: Growth recovering, Inflation rising (recovery phase)
-        - Stagflation: Growth weak, Inflation high (worst case)
-        - Deflation: Growth weak, Inflation low/negative (recession)
-        """
-        # Thresholds
-        GROWTH_THRESHOLD = 0  # Above 0 is positive growth
-        INFLATION_TARGET = 2.0  # Fed's 2% target
-        INFLATION_HIGH = 3.0  # Above 3% is concerning
-
-        if growth_score > GROWTH_THRESHOLD:
-            # Positive growth
-            if cpi_yoy < INFLATION_HIGH:
-                return 'goldilocks'  # Growth + moderate inflation = ideal
-            else:
-                return 'reflation'  # Growth + high inflation = overheating
-        else:
-            # Negative/weak growth
-            if cpi_yoy > INFLATION_HIGH:
-                return 'stagflation'  # Weak growth + high inflation = worst
-            else:
-                return 'deflation'  # Weak growth + low inflation = recession
+    async def get_current_regime(self) -> List:
+        """현재 경제 레짐 스냅샷 — FREDRegimeCurrentFetcher 위임."""
+        return await QueryExecutor.fetch('fred', 'regime_current', {})
 
     @cached(ttl=3600)
     async def get_regime_history(self, period: str = '5y') -> List:
@@ -690,78 +514,9 @@ class MacroService:
             'start_date': start_date, 'end_date': end_date,
         })
     @cached(ttl=1800)
-    async def get_fed_policy_stance(self) -> Dict[str, Any]:
-        """
-        Calculate Federal Reserve policy stance
-
-        Returns analysis of Fed's hawkish/dovish position based on:
-        - Fed Funds Rate level and trajectory
-        - Rate change velocity
-        - Historical context
-        """
-        try:
-            rates = await self._qe(FREDInterestRateFetcher, {'rate_type': 'federal_funds'})
-
-            if len(rates) < 2:
-                raise ValueError("Insufficient Fed Funds Rate data")
-
-            rates_sorted = sorted(rates, key=lambda x: x['date'], reverse=True)
-            current_rate = rates_sorted[0]['rate']
-            current_date = rates_sorted[0]['date']
-
-            # Rate changes over 12 months
-            twelve_months_ago = str(datetime.now().date() - timedelta(days=365))
-            recent_rates = [r for r in rates_sorted if r.get('date') and r['date'] >= twelve_months_ago]
-            rate_changes_12m = sum(
-                1 for i in range(len(recent_rates) - 1)
-                if abs(recent_rates[i]['rate'] - recent_rates[i+1]['rate']) > 0.01
-            )
-
-            peak_rate = max(r['rate'] for r in rates_sorted)
-            trough_rate = min(r['rate'] for r in rates_sorted)
-
-            rate_level_score = ((current_rate - 2.0) / 3.0) * 50
-
-            three_months_ago = str(datetime.now().date() - timedelta(days=90))
-            three_month_rates = [r for r in rates_sorted if r.get('date') and r['date'] >= three_months_ago]
-            rate_momentum = (three_month_rates[0]['rate'] - three_month_rates[-1]['rate']) * 10 if len(three_month_rates) >= 2 else 0
-
-            stance_score = max(-100, min(100, rate_level_score + rate_momentum))
-
-            if stance_score > 30:
-                stance = 'hawkish'
-            elif stance_score < -30:
-                stance = 'dovish'
-            else:
-                stance = 'neutral'
-
-            if stance == 'hawkish' and current_rate < peak_rate - 0.5:
-                probs = {'hike': 65, 'hold': 30, 'cut': 5}
-            elif stance == 'dovish' and current_rate > trough_rate + 0.5:
-                probs = {'hike': 5, 'hold': 30, 'cut': 65}
-            else:
-                probs = {'hike': 20, 'hold': 60, 'cut': 20}
-
-            percentile = round((current_rate - trough_rate) / (peak_rate - trough_rate) * 100, 1) if peak_rate != trough_rate else 50
-            return [
-                {'metric': 'Stance',           'value': stance,                        'unit': ''},
-                {'metric': 'Stance Score',     'value': round(stance_score, 2),         'unit': '/100'},
-                {'metric': 'Fed Funds Rate',   'value': round(current_rate, 2),         'unit': '%'},
-                {'metric': 'Target Lower',     'value': round(current_rate - 0.25, 2),  'unit': '%'},
-                {'metric': 'Target Upper',     'value': round(current_rate, 2),         'unit': '%'},
-                {'metric': 'Rate Changes 12M', 'value': rate_changes_12m,               'unit': 'times'},
-                {'metric': 'Peak Rate',        'value': round(peak_rate, 2),            'unit': '%'},
-                {'metric': 'Trough Rate',      'value': round(trough_rate, 2),          'unit': '%'},
-                {'metric': 'Rate Percentile',  'value': percentile,                     'unit': '%'},
-                {'metric': 'Hike Prob',        'value': probs['hike'],                  'unit': '%'},
-                {'metric': 'Hold Prob',        'value': probs['hold'],                  'unit': '%'},
-                {'metric': 'Cut Prob',         'value': probs['cut'],                   'unit': '%'},
-                {'metric': 'Last Updated',     'value': current_date,                   'unit': ''},
-            ]
-
-        except Exception as e:
-            log.error(f"Error calculating Fed policy stance: {e}")
-            raise
+    async def get_fed_policy_stance(self) -> List:
+        """연준 정책 기조 스냅샷 — FREDFedPolicyStanceFetcher 위임."""
+        return await QueryExecutor.fetch('fred', 'fed_policy_stance', {})
 
     @cached(ttl=3600)
     async def get_yield_curve(self) -> List:
@@ -777,140 +532,9 @@ class MacroService:
         })
 
     @cached(ttl=1800)
-    async def get_inflation_decomposition(self) -> Dict[str, Any]:
-        """
-        Get detailed inflation breakdown and analysis
-
-        Returns inflation components, sticky vs flexible prices, and expectations
-        """
-        try:
-
-            # Fetch CPI data
-            cpi_data = await self._qe(FREDCPIFetcher, {})
-            cpi_sorted = sorted(cpi_data, key=lambda x: x['date'], reverse=True)
-
-            # Calculate headline CPI metrics
-            headline_cpi = {}
-            if len(cpi_sorted) >= 13:
-                current_cpi = cpi_sorted[0]['value']
-                month_ago_cpi = cpi_sorted[1]['value'] if len(cpi_sorted) > 1 else current_cpi
-                year_ago_cpi = cpi_sorted[12]['value']
-
-                headline_cpi = {
-                    'current': round(current_cpi, 2),
-                    'yoy': round(((current_cpi - year_ago_cpi) / year_ago_cpi * 100), 2),
-                    'mom': round(((current_cpi - month_ago_cpi) / month_ago_cpi * 100), 2),
-                    'date': cpi_sorted[0]['date']
-                }
-
-            # Fetch Core CPI (CPI Less Food and Energy)
-            core_cpi = {}
-            try:
-                core_obs = await self._qe_series(
-                    CORE_CPI,
-                    limit=13,
-                    sort_order='desc',
-                )
-                if core_obs and len(core_obs) >= 13:
-                    current_core = float(core_obs[0]['value'])
-                    month_ago_core = float(core_obs[1]['value'])
-                    year_ago_core = float(core_obs[12]['value'])
-
-                    core_cpi = {
-                        'current': round(current_core, 2),
-                        'yoy': round(((current_core - year_ago_core) / year_ago_core * 100), 2),
-                        'mom': round(((current_core - month_ago_core) / month_ago_core * 100), 2)
-                    }
-            except Exception as e:
-                log.warning(f"Could not fetch core CPI: {e}")
-
-            # CPI Component breakdown (simplified - FRED has limited granular data)
-            # In production, would fetch from BLS API with detailed categories
-            components = [
-                {
-                    'category': 'Food',
-                    'weight': 13.4,  # % of CPI basket
-                    'yoy_change': 2.5,  # Simplified estimate
-                    'contribution': 0.34
-                },
-                {
-                    'category': 'Energy',
-                    'weight': 7.2,
-                    'yoy_change': -5.0,
-                    'contribution': -0.36
-                },
-                {
-                    'category': 'Shelter',
-                    'weight': 32.9,
-                    'yoy_change': 5.5,
-                    'contribution': 1.81
-                },
-                {
-                    'category': 'Services (ex-shelter)',
-                    'weight': 24.5,
-                    'yoy_change': 3.8,
-                    'contribution': 0.93
-                },
-                {
-                    'category': 'Goods (ex-food, energy)',
-                    'weight': 22.0,
-                    'yoy_change': 1.2,
-                    'contribution': 0.26
-                }
-            ]
-
-            # Sticky vs Flexible CPI (from Atlanta Fed)
-            sticky_vs_flexible = {}
-            try:
-                # Sticky CPI
-                sticky_obs = await self._qe_series(
-                    STICKY_CORE_CPI,
-                    limit=1,
-                    sort_order='desc',
-                )
-                # Flexible CPI
-                flexible_obs = await self._qe_series(
-                    FLEXIBLE_CORE_CPI,
-                    limit=1,
-                    sort_order='desc',
-                )
-
-                if sticky_obs and flexible_obs:
-                    sticky_vs_flexible = {
-                        'sticky_cpi_yoy': round(float(sticky_obs[0]['value']), 2) if sticky_obs[0]['value'] != '.' else None,
-                        'flexible_cpi_yoy': round(float(flexible_obs[0]['value']), 2) if flexible_obs[0]['value'] != '.' else None
-                    }
-            except Exception as e:
-                log.warning(f"Could not fetch sticky/flexible CPI: {e}")
-
-            # Inflation Expectations (Breakeven rates)
-            expectations = {}
-            try:
-                # 5-Year Breakeven
-                five_yr_obs = await self._qe_series(
-                    BREAKEVEN_5Y,
-                    limit=1,
-                    sort_order='desc',
-                )
-                # 10-Year Breakeven
-                ten_yr_obs = await self._qe_series(
-                    BREAKEVEN_10Y,
-                    limit=1,
-                    sort_order='desc',
-                )
-
-                if five_yr_obs and five_yr_obs[0]['value'] != '.':
-                    expectations['5y_breakeven'] = round(float(five_yr_obs[0]['value']), 2)
-                if ten_yr_obs and ten_yr_obs[0]['value'] != '.':
-                    expectations['10y_breakeven'] = round(float(ten_yr_obs[0]['value']), 2)
-            except Exception as e:
-                log.warning(f"Could not fetch breakeven rates: {e}")
-
-            return components
-
-        except Exception as e:
-            log.error(f"Error fetching inflation decomposition: {e}")
-            raise
+    async def get_inflation_decomposition(self) -> List:
+        """CPI 구성요소별 YoY·기여도 — FREDInflationDecompositionFetcher 위임."""
+        return await QueryExecutor.fetch('fred', 'inflation_decomposition', {})
 
     @cached(ttl=1800)
     async def get_labor_dashboard(self) -> List:
