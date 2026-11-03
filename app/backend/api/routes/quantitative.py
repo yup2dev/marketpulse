@@ -126,70 +126,24 @@ async def correlation(
     start_date: Optional[date_type] = Query(None),
     end_date: Optional[date_type] = Query(None),
     period: str = Query("1y"),
-    provider: str = "yahoo",
+    provider: str = "quantitative",
 ) -> dict:
-    """종목 간 일간수익률 상관행렬.
+    """종목 간 일간수익률 상관행렬 — 계산은 quantitative:correlation fetcher.
 
-    가격 시계열은 yahoo provider를 QueryExecutor로 조회한다 → 배포 환경에선
-    RemoteTransport가 사용자 Fetcher(exe)로 위임한다. Fetcher 미실행 시
-    RemoteUnavailableError가 전파되어 route_handler가 503 "Fetcher 연결 실패"로
-    처리한다(서버에서 yfinance 직접 호출 금지: 고정 IP 차단/OOM).
-
-    응답은 프론트 CorrelationWidget이 읽는 최상위 {labels, matrix, rows} 형태.
+    fetcher가 시세를 yahoo provider(QueryExecutor)로 받으므로 배포 환경에선 사용자
+    Fetcher(exe)로 위임된다. Fetcher 미실행 시 RemoteUnavailableError → 503.
+    응답은 프론트 CorrelationWidget이 읽는 results[0] = {labels, matrix, rows}.
     """
-    import asyncio
-    import numpy as np
-    import pandas as pd
-
-    tickers = [s.strip().upper() for s in symbols.split(",") if s.strip()]
-    # 중복 제거(순서 보존)
-    tickers = list(dict.fromkeys(tickers))
+    tickers = list(dict.fromkeys(s.strip().upper() for s in symbols.split(",") if s.strip()))
     if len(tickers) < 2:
         raise ValueError("At least 2 symbols required")
     if len(tickers) > 10:
         raise ValueError("Maximum 10 symbols allowed")
 
-    def _params(sym: str) -> dict:
-        p = {"symbol": sym, "period": period}
-        if start_date:
-            p["start_date"] = str(start_date)
-        if end_date:
-            p["end_date"] = str(end_date)
-        return p
-
-    # 종목별 가격 시계열을 yahoo provider 경유로 병렬 조회.
-    # RemoteUnavailableError(Fetcher 미가용)는 잡지 않고 전파 → 503으로 통일 처리.
-    raws = await asyncio.gather(
-        *[QueryExecutor.fetch("yahoo", "stock_price", _params(t)) for t in tickers]
-    )
-
-    series: dict[str, pd.Series] = {}
-    for ticker, raw in zip(tickers, raws):
-        items = raw.result if isinstance(raw, AnnotatedResult) else (raw or [])
-        closes = {}
-        for it in items:
-            d = getattr(it, "date", None)
-            c = getattr(it, "close", None)
-            if d is not None and c is not None:
-                closes[str(d)] = float(c)
-        if closes:
-            series[ticker] = pd.Series(closes)
-
-    if len(series) < 2:
-        raise ValueError("Insufficient price data for correlation")
-
-    closes_df = pd.DataFrame(series).sort_index()
-    returns = closes_df.pct_change().dropna()
-    if returns.empty or returns.shape[0] < 2:
-        raise ValueError("Insufficient data for correlation")
-
-    corr = returns.corr()
-    labels = list(corr.columns)
-    matrix = [
-        [round(float(corr.loc[a, b]), 4) if np.isfinite(corr.loc[a, b]) else 0 for b in labels]
-        for a in labels
-    ]
-    return OBBject(
-        results=[{"labels": labels, "matrix": matrix, "rows": int(returns.shape[0])}],
-        provider=provider,
-    )
+    params = {"symbols": tickers, "period": period}
+    if start_date:
+        params["start_date"] = start_date
+    if end_date:
+        params["end_date"] = end_date
+    raw = await QueryExecutor.fetch("quantitative", "correlation", params)
+    return _wrap(_first_dict(raw), provider)

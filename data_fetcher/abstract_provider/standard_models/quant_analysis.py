@@ -1,4 +1,4 @@
-"""Standard Model: Quantitative Analysis — summary / normality / CAPM / rolling / unit root."""
+"""Standard Model: Quantitative Analysis — summary / normality / CAPM / rolling / unit root / correlation."""
 from datetime import date as date_type
 from typing import List, Literal, Optional
 
@@ -136,3 +136,18 @@ class UnitRootData(BaseData):
     critical_5pct: float
     critical_10pct: float
     stationary: bool = Field(description="True if p_value < 0.05")
+
+
+# ── 6. Correlation matrix (다종목) ──────────────────────────────────────────
+class CorrelationQueryParams(BaseQueryParams):
+    symbols: List[str] = Field(min_length=2, max_length=10, description="종목 코드 2~10개")
+    period: str = Field(default="1y", description="조회 기간 (3mo, 6mo, 1y, 2y, 5y)")
+    start_date: Optional[date_type] = Field(default=None, description="시작일 (period 대신)")
+    end_date: Optional[date_type] = Field(default=None, description="종료일")
+
+
+class CorrelationData(BaseData):
+    labels: List[str] = Field(description="행렬 행/열 순서의 종목 코드")
+    matrix: List[List[float]] = Field(description="일간수익률 피어슨 상관계수 행렬")
+    rows: int = Field(description="상관 계산에 쓴 공통 거래일 수")
+    missing: List[str] = Field(default_factory=list, description="가격 데이터가 없어 제외된 종목")

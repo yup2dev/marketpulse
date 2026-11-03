@@ -14,4 +14,6 @@ from data_fetcher.abstract_provider.standard_models.quant_analysis import (  # n
     RollingData,
     UnitRootQueryParams,
     UnitRootData,
+    CorrelationQueryParams,
+    CorrelationData,
 )
