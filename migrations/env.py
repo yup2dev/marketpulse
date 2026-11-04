@@ -44,7 +44,7 @@ def _database_url() -> str:
     env_url = os.getenv("DATABASE_URL")
     if env_url:
         return env_url
-    # 앱이 실제로 여는 파일과 같은 경로를 쓴다 (app/backend/core/db.py 와 동일 규칙)
+    # 앱이 실제로 여는 파일과 같은 경로를 쓴다 (MarketpulseWeb/app/backend/core/db.py 와 동일 규칙)
     db_path = Path(__file__).resolve().parent.parent / "data" / "marketpulse.db"
     return f"sqlite:///{db_path}"
 

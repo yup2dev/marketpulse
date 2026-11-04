@@ -19,13 +19,13 @@ UniversalWidget의 provider 셀렉터가 shape-safe하게 동작한다.
 ```
 
 핵심 파일:
-- 유형별 베이스: `data_fetcher/abstract_provider/abstract/base_fetchers.py`
-- 표준 모델: `data_fetcher/abstract_provider/standard_models/<model>.py` (+ `__init__.py` export)
-- provider fetcher: `data_fetcher/providers/<provider>/…` (구조는 아래 §1)
-- 등록: `data_fetcher/providers_init.py` / 캐시 TTL: `query_executor.py`의 `_DEFAULT_TTL`
-- 라우트: 범용 게이트웨이 `app/backend/api/routes/data.py`(무코드) 또는 전용 `routes/<area>.py`
-- 프론트: `app/frontend/src/registry/widgetEndpoints.js` + `urlWidgetMap.js`
-- exe 빌드 spec: `build/MarketPulseFetcher.spec`
+- 유형별 베이스: `MarketpulseFetcher/data_fetcher/abstract_provider/abstract/base_fetchers.py`
+- 표준 모델: `MarketpulseFetcher/data_fetcher/abstract_provider/standard_models/<model>.py` (+ `__init__.py` export)
+- provider fetcher: `MarketpulseFetcher/data_fetcher/providers/<provider>/…` (구조는 아래 §1)
+- 등록: `MarketpulseFetcher/data_fetcher/providers_init.py` / 캐시 TTL: `query_executor.py`의 `_DEFAULT_TTL`
+- 라우트: 범용 게이트웨이 `MarketpulseWeb/app/backend/api/routes/data.py`(무코드) 또는 전용 `routes/<area>.py`
+- 프론트: `MarketpulseWeb/app/frontend/src/registry/widgetEndpoints.js` + `urlWidgetMap.js`
+- exe 빌드 spec: `MarketpulseFetcher/build/MarketPulseFetcher.spec`
 
 ---
 
@@ -41,7 +41,7 @@ UniversalWidget의 provider 셀렉터가 shape-safe하게 동작한다.
 **model fetcher는 예외 없이 `models/` 안에 둔다.** provider 최상위에는 인프라 파일만 남긴다.
 
 ```
-data_fetcher/providers/<p>/
+MarketpulseFetcher/data_fetcher/providers/<p>/
   __init__.py
   models/              ← model fetcher 전부. 파일명은 주 category 키 (snake_case)
     __init__.py
@@ -115,7 +115,7 @@ class DBThingFetcher(DbFetcher[Q, D]):
 ```
 - **주의**: sqlalchemy는 Fetcher(exe) 환경에 없다 → providers_init에서 database provider는 `try/except ImportError`로 fail-soft 등록된다(기존 블록에 추가하면 됨).
 - 테이블은 적재 배치 의존(예: `mbs_in_stk_stbd` ← `MarketpulseBatch/jobs/backfill_stk_stbd.py`). **적재가 없으면 빈 응답**이므로 어느 배치가 채우는지 도큐스트링에 명시. 클라우드 반영은 `MarketpulseBatch/jobs/sync_db_to_cloud.py`(/api/ingest) 경유.
-- 새 테이블이면 `index_analyzer/models/orm/ingest.py`에 ORM + `/api/ingest` whitelist(`app/backend/api/routes/ingest.py` `_TABLES`) + sync 스크립트 `TABLES`에도 추가.
+- 새 테이블이면 `MarketpulseCommon/marketpulse_common/models/orm/ingest.py`에 ORM + `/api/ingest` whitelist(`MarketpulseWeb/app/backend/api/routes/ingest.py` `_TABLES`) + sync 스크립트 `TABLES`에도 추가.
 
 ### D. ComputeFetcher — 순수 로컬 계산
 
@@ -124,7 +124,7 @@ class DBThingFetcher(DbFetcher[Q, D]):
 ### E. OpenBB 이식 시 추가로 할 일
 
 배치는 §1과 같다(`models/`). 이식 특유의 작업만 여기 적는다 — 프로젝트 네이티브로 옮긴다(`_obb` shim 금지):
-1. import 경로 치환: `openbb_core.provider.abstract.*` → `data_fetcher.abstract_provider.abstract.*`, standard models → `data_fetcher.abstract_provider.standard_models.*` (OpenBB 전용 베이스는 `standard_models/openbb/_base` 참조), 요청 헬퍼 → `data_fetcher/utils/provider_helpers.py`.
+1. import 경로 치환: `openbb_core.provider.abstract.*` → `data_fetcher.abstract_provider.abstract.*`, standard models → `data_fetcher.abstract_provider.standard_models.*` (OpenBB 전용 베이스는 `standard_models/openbb/_base` 참조), 요청 헬퍼 → `MarketpulseFetcher/data_fetcher/utils/provider_helpers.py`.
 2. raw 키 매핑은 `__alias_dict__` + `field_validator(..., mode="before")` 패턴 유지 (예: `providers/wsj/models/active.py`).
 3. **provider가 import 시점에 자산 파일/네트워크를 요구하면 fail-soft로** — IMF `imf_cache.pkl.gz`가 없어 import가 죽으면 providers_init 전체(→ REST/WS 워커)가 못 뜨는 사고가 있었다. 자산 파일은 spec의 `datas`에 추가.
 4. Provider `metadata={"group": "macro"|"stock"}` 지정 → `/api/providers` 그룹 노출.
@@ -132,7 +132,7 @@ class DBThingFetcher(DbFetcher[Q, D]):
 ### F. KIS형 — 다중 자격증명 / 스트리밍
 
 - `Provider(credentials=["appkey", "appsecret"])` — 단일 `api_key`가 아님.
-- Fetcher 키스토어(`data_fetcher/server/keystore.py`)는 다중 필드 지원: 프론트 `/settings`(`app/frontend/src/components/core/SettingsPage.jsx`)와 keys API의 `fields` 사용.
+- Fetcher 키스토어(`MarketpulseFetcher/data_fetcher/server/keystore.py`)는 다중 필드 지원: 프론트 `/settings`(`MarketpulseWeb/app/frontend/src/components/core/SettingsPage.jsx`)와 keys API의 `fields` 사용.
 - REST/WS 분리를 `rest.py`/`stream.py`로. httpx/websockets는 함수 내부 지연 import(§7 hiddenimports 주의).
 - providers_init에서 try/except 등록(의존성 없는 환경 fail-soft).
 
@@ -140,7 +140,7 @@ class DBThingFetcher(DbFetcher[Q, D]):
 
 ## 2. Standard model (신규 model일 때만)
 
-`data_fetcher/abstract_provider/standard_models/<model>.py`:
+`MarketpulseFetcher/data_fetcher/abstract_provider/standard_models/<model>.py`:
 
 ```python
 from data_fetcher.abstract_provider.abstract.data import BaseData
@@ -171,7 +171,7 @@ class <P><M>Fetcher(<베이스>[<P><M>QueryParams, <P><M>Data]):
 
 ---
 
-## 4. 등록 (`data_fetcher/providers_init.py`)
+## 4. 등록 (`MarketpulseFetcher/data_fetcher/providers_init.py`)
 
 - 상단 import + 해당 provider `fetcher_dict`에 `"<category>": <Fetcher>` 추가. category key가 곧 QueryExecutor model / API category 이름(snake_case).
 - **새 provider면**: `Provider(...)` 생성 + `register_all_providers()`에 register. 키 필요 시 `credentials=[...]`, `routes/providers.py`의 `_PROVIDER_META`/`_PROVIDER_GROUP_FALLBACK`에 표시 메타.
@@ -184,9 +184,9 @@ model별 TTL(초). 실시간 60 / 반-신선 300~600 / 일일 1800~3600. 같은 
 ## 6. 라우트 + 프론트 위젯
 
 - 기본: 게이트웨이 `GET /api/data/<provider>/<category>?param=…` — 무코드. provider별 파라미터 폼은 `/api/data/{provider}/{model}/schema`가 자동 생성.
-- 전용 라우트가 필요하면 `app/backend/api/routes/<area>.py`에서 `QueryExecutor.fetch(...)` 호출 + **`provider: str = "<default>"` 쿼리 파라미터 노출**.
-- **새 라우트 파일을 만들었으면 `app/backend/api/routers.py`의 `register_routers()`에 `include_router` 를 추가한다.** 빠뜨리면 그 엔드포인트는 조용히 404가 되고 보통 프론트에서야 발견된다 — `tests/test_app_boot.py`가 이걸 잡으므로 `pytest` 로 먼저 확인할 수 있다. (등록 지점은 `main.py`가 아니다. main.py는 조립만 한다.)
-- **인증 게이트는 deny-by-default다**(`app/backend/core/middleware/auth_gate.py`). `/api/` 아래 새 경로는 자동으로 Bearer 토큰을 요구하므로 별도 조치가 필요 없다. 반대로 **공개가 필요하면 그 파일의 `PUBLIC_PATHS`/`PUBLIC_PREFIXES`에 명시해야 한다** — 무심코 `/api/` 밖(루트)에 엔드포인트를 달면 `test_app_boot.py`가 실패한다(과거 무인증 노출 사고의 재발 방지).
+- 전용 라우트가 필요하면 `MarketpulseWeb/app/backend/api/routes/<area>.py`에서 `QueryExecutor.fetch(...)` 호출 + **`provider: str = "<default>"` 쿼리 파라미터 노출**.
+- **새 라우트 파일을 만들었으면 `MarketpulseWeb/app/backend/api/routers.py`의 `register_routers()`에 `include_router` 를 추가한다.** 빠뜨리면 그 엔드포인트는 조용히 404가 되고 보통 프론트에서야 발견된다 — `tests/test_app_boot.py`가 이걸 잡으므로 `pytest` 로 먼저 확인할 수 있다. (등록 지점은 `main.py`가 아니다. main.py는 조립만 한다.)
+- **인증 게이트는 deny-by-default다**(`MarketpulseWeb/app/backend/core/middleware/auth_gate.py`). `/api/` 아래 새 경로는 자동으로 Bearer 토큰을 요구하므로 별도 조치가 필요 없다. 반대로 **공개가 필요하면 그 파일의 `PUBLIC_PATHS`/`PUBLIC_PREFIXES`에 명시해야 한다** — 무심코 `/api/` 밖(루트)에 엔드포인트를 달면 `test_app_boot.py`가 실패한다(과거 무인증 노출 사고의 재발 방지).
 - `widgetEndpoints.js`에 위젯 추가(`category` 지정 시 provider 셀렉터 자동) + `urlWidgetMap.js` 화면 등록.
 - 프론트는 항상 `res.results`로 읽는다(OBBject 계약) — `.data` 참조 금지.
 
@@ -196,10 +196,10 @@ model별 TTL(초). 실시간 60 / 반-신선 300~600 / 일일 1800~3600. 같은 
 
 providers_init이 정적 import하므로 **모듈 자체는 자동 번들**된다. 하지만:
 
-1. **함수 내부 지연 import 모듈은 정적분석이 못 잡는다** → `build/MarketPulseFetcher.spec` `hiddenimports`에 추가. (사례: SEC의 `xmltodict` 누락 → exe에서 13F 파싱 시 ModuleNotFoundError)
+1. **함수 내부 지연 import 모듈은 정적분석이 못 잡는다** → `MarketpulseFetcher/build/MarketPulseFetcher.spec` `hiddenimports`에 추가. (사례: SEC의 `xmltodict` 누락 → exe에서 13F 파싱 시 ModuleNotFoundError)
 2. **provider 자산 파일**(예: IMF `imf_cache.pkl.gz`)은 spec `datas`에 추가하고, 없어도 import가 죽지 않게 fail-soft.
 3. 무거운/백엔드 전용 의존성(sqlalchemy, scipy 등)은 spec `excludes` 유지 + providers_init try/except.
-4. 빌드·배포: `bash build/build.sh` (Win/Mac 공용, 실제 바탕화면에 복사).
+4. 빌드·배포: `bash MarketpulseFetcher/build/build.sh` (Win/Mac 공용, 실제 바탕화면에 복사).
 5. 배포 환경에서 keyless 스크래핑 provider(yahoo/whalewisdom 등)는 **사용자 로컬 Fetcher 워커로 위임**된다 — default 위젯에는 지양(SEC 게이트웨이 위젯 선호).
 
 ---
@@ -208,17 +208,18 @@ providers_init이 정적 import하므로 **모듈 자체는 자동 번들**된�
 
 ```bash
 # (a) 테스트 기준선 — import 깨짐·라우터 등록 누락을 여기서 먼저 잡는다
-pytest
+python -m pytest
 
 # (b) 레지스트리 등록 + category별 provider 확인
-python -c "import data_fetcher.providers_init; from data_fetcher.utils.registry import FetcherRegistry; print(FetcherRegistry.list_providers('<category>'))"
+# 패키지가 MarketpulseFetcher/ 아래에 있으므로 import 경로 지정 (Common 은 database provider 용, Mac 은 ; 대신 :)
+PYTHONPATH="MarketpulseFetcher;MarketpulseCommon" python -c "import data_fetcher.providers_init; from data_fetcher.utils.registry import FetcherRegistry; print(FetcherRegistry.list_providers('<category>'))"
 
 # (c) fetcher 단위 TET 검증 (실 호출)
-python -c "import data_fetcher.providers_init; from data_fetcher.providers.<p>.models.<m> import <F> as F; F.test({'symbol':'AAPL'})"
+PYTHONPATH="MarketpulseFetcher;MarketpulseCommon" python -c "import data_fetcher.providers_init; from data_fetcher.providers.<p>.models.<m> import <F> as F; F.test({'symbol':'AAPL'})"
 
 # (d) 게이트웨이: GET /api/data/<provider>/<category>?symbol=AAPL / GET /api/providers
-# (e) 프론트 빌드: cd app/frontend && npm run build
-# (f) 지연 import를 추가했다면: bash build/build.sh 후 exe로 해당 model 1회 호출
+# (e) 프론트 빌드: cd MarketpulseWeb/app/frontend && npm run build
+# (f) 지연 import를 추가했다면: bash MarketpulseFetcher/build/build.sh 후 exe로 해당 model 1회 호출
 ```
 
 ## 체크리스트

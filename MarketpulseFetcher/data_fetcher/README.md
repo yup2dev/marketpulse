@@ -1,7 +1,7 @@
 # data_fetcher — 데이터 조회 계층
 
 OpenBB 스타일 **TET(Transform-Extract-Transform) 파이프라인 + standard model** 구조.
-웹 백엔드(`app/backend`)와 사용자 PC에 배포되는 Fetcher exe가 같은 코드를 공유한다.
+웹 백엔드(`MarketpulseWeb/app/backend`)와 사용자 PC에 배포되는 Fetcher exe가 같은 코드를 공유한다.
 
 새 provider/model 추가 절차는 `.claude/skills/add-fetcher/SKILL.md`가 기준 문서다.
 
@@ -65,8 +65,8 @@ class FMPThingFetcher(ApiFetcher[FMPThingQueryParams, FMPThingData]):
 ## 검증
 
 ```bash
-python -m pytest                       # tests/ + data_fetcher/tests
+python -m pytest                       # tests/ + MarketpulseFetcher/data_fetcher/tests
 python -c "import data_fetcher.providers_init; from data_fetcher.providers.fred.models.gdp import FREDGDPFetcher as F; F.test({})"
 ```
 
-exe 빌드는 `bash build/build.sh` (spec: `build/MarketPulseFetcher.spec`).
+exe 빌드는 `bash MarketpulseFetcher/build/build.sh` (spec: `MarketpulseFetcher/build/MarketPulseFetcher.spec`).

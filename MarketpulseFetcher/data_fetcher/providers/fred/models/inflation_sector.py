@@ -37,7 +37,7 @@ class InflationSectorData(FredSeriesData):
 
 log = logging.getLogger(__name__)
 
-# CPI sector FRED series (mirrors app/backend/constants/fred_series.py CPI_SECTOR_SERIES)
+# CPI sector FRED series (mirrors MarketpulseWeb/app/backend/constants/fred_series.py CPI_SECTOR_SERIES)
 _SECTOR_SERIES: Dict[str, str] = {
     "headline": "CPIAUCSL",
     "core":     "CPILFESL",

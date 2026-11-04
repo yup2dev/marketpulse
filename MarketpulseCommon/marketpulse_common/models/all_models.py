@@ -16,7 +16,7 @@
     import 하므로). 그래서 한 단계 위에 이 모듈을 둔다.
 
 사용처:
-    - app/backend/core/db.py  : init_db() 의 create_all 직전
+    - MarketpulseWeb/app/backend/core/db.py  : init_db() 의 create_all 직전
     - migrations/env.py       : autogenerate 의 target_metadata 준비
 
 새 ORM 모델을 추가하면 여기에 import 를 추가할 것.

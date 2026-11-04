@@ -10,7 +10,7 @@ BYOK 조회), ② Phase 1 — 종목 유니버스 입수, ③ 뉴스 입수, ④
 
 ```
                          ┌──────────────────────────────────────────────┐
-   사용자 본인 API 키 ──▶ │ app/backend (FastAPI)                        │
+   사용자 본인 API 키 ──▶ │ MarketpulseWeb/app/backend (FastAPI)                        │
    (BYOK)                │   · 시세/재무/실시간 = 사용자 키로 on-demand   │
                          │   · 종목/뉴스        = DB 조회 (데몬이 적재)   │
                          └───────┬───────────────────────────┬──────────┘
@@ -64,7 +64,7 @@ BYOK 조회), ② Phase 1 — 종목 유니버스 입수, ③ 뉴스 입수, ④
 |---|---|---|
 | `data_fetcher` | "어떻게 가져오나"(HOW). QueryExecutor 가 인증·서킷브레이커·공유 SWR 캐시 담당 | BYOK(사용자 키) + 무료 provider(krx/nasdaqtrader) |
 | `index_analyzer` (데몬) | "언제/무엇을/어디에 적재"(WHEN/WHAT/WHERE) — 뉴스·종목 유니버스 중앙 수집 | 무료 소스만 |
-| `app/backend` | "사용자에게 어떻게"(SHOW) — BYOK 조회 + DB 조회 + 필터/정제 | 사용자 키 주입 |
+| `MarketpulseWeb/app/backend` | "사용자에게 어떻게"(SHOW) — BYOK 조회 + DB 조회 + 필터/정제 | 사용자 키 주입 |
 
 ---
 
@@ -118,7 +118,7 @@ MBS_IN_INDX_MEMBER ← 소속 관계 (indx_cd, stk_cd, stk_nm, sector, date_adde
 ### 4.3 모듈 구조
 
 ```
-index_analyzer/
+MarketpulseBatch/index_analyzer/
 ├── collectors/                  # ★신규 — "무엇을 수집" (작업 정의)
 │   ├── base.py                  #   Collector ABC: targets() → fetch() → store()
 │   └── universe/                #   Phase 1
@@ -129,7 +129,7 @@ index_analyzer/
 └── server/
     └── scheduler.py             # universe_kr_job(일) / universe_us_job(주·월) 등록
 
-data_fetcher/providers/          # ★신규 무료 provider (credentials=[])
+MarketpulseFetcher/data_fetcher/providers/          # ★신규 무료 provider (credentials=[])
 ├── krx/listing.py               #   pykrx 기반 KOSPI/KOSDAQ 종목 리스트
 └── nasdaqtrader/listing.py      #   NASDAQ Trader 공개 파일 파싱 (NYSE/NASDAQ)
 ```
@@ -153,7 +153,7 @@ class Collector(ABC):
         """repository.upsert(MBS_IN_STBD_MST + MBS_IN_INDX_MEMBER) — ingest_batch_id 단위 bulk."""
 ```
 
-`RawDataDTO` 는 `data_fetcher/abstract_provider/standard_models/*` 의 표준 모델을 재사용
+`RawDataDTO` 는 `MarketpulseFetcher/data_fetcher/abstract_provider/standard_models/*` 의 표준 모델을 재사용
 (예: stock_list 표준 스키마) → "규격화" 단계가 무료로 해결.
 
 ### 4.5 시퀀스
@@ -204,7 +204,7 @@ IN(크롤) ──▶ stream:new_articles ──▶ PROC(감정·티커추출·�
 ### 6.1 사용자 키 등록
 
 - 사용자가 본인 provider 키(fmp/polygon/alphavantage/kis 등)를 등록 → **암호화 저장**.
-- 위치: `app/backend` (User 도메인). 권장: `UserApiKey(user_id, provider, enc_key, ...)` 신규 테이블
+- 위치: `MarketpulseWeb/app/backend` (User 도메인). 권장: `UserApiKey(user_id, provider, enc_key, ...)` 신규 테이블
   + 앱 비밀키로 대칭 암호화. (ORM `models/orm/user.py` 에 추가)
 
 ### 6.2 조회 경로
@@ -276,7 +276,7 @@ worker.main()
 ## 10. 모듈 구조 (변경 요약)
 
 ```
-index_analyzer/
+MarketpulseBatch/index_analyzer/
 ├── collectors/            ★신규  universe/(kr_listing, us_listing) + base
 ├── ingest/               ★신규  repository(bulk upsert)
 ├── services/             crawl/sentiment/ticker (뉴스). stock_service → universe 로 마이그레이션
@@ -284,7 +284,7 @@ index_analyzer/
 ├── server/               worker/scheduler/consumer/redis_bus/command_handler (실시간폴러 제외)
 └── models/orm/           ingest(MBS_IN_*)/process/calc/recommend/user
 
-data_fetcher/
+MarketpulseFetcher/data_fetcher/
 └── providers/
     ├── krx/listing.py           ★신규  무료 (KOSPI/KOSDAQ)
     ├── nasdaqtrader/listing.py  ★신규  무료 (NYSE/NASDAQ)
@@ -306,10 +306,10 @@ data_fetcher/
 
 ## 12. 구현 순서
 
-1. `data_fetcher/providers/nasdaqtrader/listing.py` — US 종목 리스트(무료) + provider 등록
-2. `data_fetcher/providers/krx/listing.py` — KR 종목 리스트(pykrx) + provider 등록
-3. `index_analyzer/ingest/repository.py` — `MBS_IN_STBD_MST`/`INDX_STBD`/`INDX_MEMBER` bulk upsert
-4. `index_analyzer/collectors/base.py` + `collectors/universe/{kr,us}_listing.py`
+1. `MarketpulseFetcher/data_fetcher/providers/nasdaqtrader/listing.py` — US 종목 리스트(무료) + provider 등록
+2. `MarketpulseFetcher/data_fetcher/providers/krx/listing.py` — KR 종목 리스트(pykrx) + provider 등록
+3. `MarketpulseBatch/index_analyzer/ingest/repository.py` — `MBS_IN_STBD_MST`/`INDX_STBD`/`INDX_MEMBER` bulk upsert
+4. `MarketpulseBatch/index_analyzer/collectors/base.py` + `collectors/universe/{kr,us}_listing.py`
 5. `server/scheduler.py` — `universe_kr_job`/`universe_us_job` 등록(기존 S&P500 잡 대체)
 6. backend `GET /api/stocks` — `MBS_IN_*` 조회 엔드포인트
 7. (이후) BYOK: `UserApiKey` 저장 + backend 조회 시 `QueryExecutor(credentials=user_key)` 연결

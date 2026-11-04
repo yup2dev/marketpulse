@@ -36,6 +36,7 @@ poetry run crawler
 
 ### 직접 실행
 ```bash
+cd MarketpulseBatch
 python -m index_analyzer.server.worker
 ```
 
