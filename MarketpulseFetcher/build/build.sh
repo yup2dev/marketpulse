@@ -2,10 +2,11 @@
 # MarketPulse Fetcher 빌드 스크립트 (Mac / Windows git-bash 공용)
 # 출력: Mac     → build/dist/MarketPulseFetcher.app
 #       Windows → build/dist/MarketPulseFetcher.exe
-# 사용: bash build/build.sh [--clean]
+# 사용: bash MarketpulseFetcher/build/build.sh [--clean]
 set -e
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"          # MarketpulseFetcher/
+REPO="$(cd "$ROOT/.." && pwd)"                    # 저장소 루트 (.venv 위치)
 BUILD_DIR="$ROOT/build"
 DIST_DIR="$BUILD_DIR/dist"
 WORK_DIR="$BUILD_DIR/work"
@@ -28,10 +29,10 @@ fi
 # 반드시 프로젝트 venv 파이썬으로 설치/빌드한다.
 # bare pip/pyinstaller 는 PATH의 다른 파이썬을 잡아 구버전 의존성이
 # 번들되는 사고(빌드는 되는데 런타임 동작이 다른)의 단골 원인.
-if [[ -x "$ROOT/.venv/Scripts/python.exe" ]]; then
-  PY="$ROOT/.venv/Scripts/python.exe"
-elif [[ -x "$ROOT/.venv/bin/python" ]]; then
-  PY="$ROOT/.venv/bin/python"
+if [[ -x "$REPO/.venv/Scripts/python.exe" ]]; then
+  PY="$REPO/.venv/Scripts/python.exe"
+elif [[ -x "$REPO/.venv/bin/python" ]]; then
+  PY="$REPO/.venv/bin/python"
 else
   PY="python"
 fi

@@ -9,7 +9,7 @@ import shutil
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DF = ROOT / "data_fetcher"
+DF = ROOT / "MarketpulseFetcher" / "data_fetcher"
 SEC = DF / "providers" / "sec"
 SRC = SEC / "openbb"
 

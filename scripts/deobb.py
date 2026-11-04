@@ -9,7 +9,7 @@ import shutil
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DF = ROOT / "data_fetcher"
+DF = ROOT / "MarketpulseFetcher" / "data_fetcher"
 OBB = DF / "_obb"
 STD_DST = DF / "abstract_provider" / "standard_models" / "openbb"
 

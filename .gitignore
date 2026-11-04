@@ -30,8 +30,8 @@ env/
 
 # ── Python 빌드 결과물 (PyInstaller) ──────────────────────────────────────────
 dist/
-build/dist/
-build/work/
+MarketpulseFetcher/build/dist/
+MarketpulseFetcher/build/work/
 
 # ── app/frontend ───────────────────────────────────────────────────────────────
 node_modules/

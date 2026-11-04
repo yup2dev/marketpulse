@@ -9,7 +9,7 @@ MarketPulse Fetcher — PyInstaller 빌드 스펙 (Windows / Mac 공용)
 import sys
 from pathlib import Path
 
-project_root = Path(SPECPATH).parent          # marketpulse/
+project_root = Path(SPECPATH).parent          # MarketpulseFetcher/ (data_fetcher 패키지의 부모)
 data_fetcher = project_root / "data_fetcher"
 
 # ── 수집할 데이터 파일 ────────────────────────────────────────────────────────
