@@ -1,6 +1,6 @@
 """quantitative 단일종목 모델 — 서버에서 yfinance를 직접 부르지 않고 시세를 사용자 Fetcher로 위임.
 
-quantitative provider는 웹 서버에서 실행된다. 시세 로딩(_data.aload_series)이
+quantitative provider는 웹 서버에서 실행된다. 시세 로딩(utils.prices.aload_series)이
 QueryExecutor yahoo 경유인지, 결과가 정상 계산되는지 확인한다.
 """
 from datetime import date, timedelta
@@ -10,7 +10,7 @@ import pytest
 
 import data_fetcher.providers_init  # noqa: F401 — provider 등록
 from data_fetcher.query_executor import QueryExecutor, RemoteUnavailableError, current_user_id
-from data_fetcher.providers.quantitative._data import prices_to_frame, series_from_frame
+from data_fetcher.providers.quantitative.utils.prices import prices_to_frame, series_from_frame
 
 
 def _walk(seed: int, n: int = 300, start: float = 100.0):

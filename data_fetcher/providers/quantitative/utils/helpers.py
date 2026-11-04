@@ -1,1 +1,0 @@
-"""Quantitative Analysis Provider Helpers."""
