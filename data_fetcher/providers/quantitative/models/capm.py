@@ -7,12 +7,12 @@ import pandas as pd
 from scipy import stats
 
 from data_fetcher.abstract_provider.abstract.base_fetchers import ComputeFetcher
-from data_fetcher.providers.quantitative._data import (
+from data_fetcher.providers.quantitative.utils.prices import (
     aload_many,
     annualise_return,
     annualise_vol,
 )
-from data_fetcher.providers.quantitative.analysis import CAPMData, CAPMQueryParams
+from data_fetcher.abstract_provider.standard_models.quant_analysis import CAPMData, CAPMQueryParams
 
 log = logging.getLogger(__name__)
 

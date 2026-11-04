@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 
 from data_fetcher.abstract_provider.abstract.base_fetchers import ComputeFetcher
-from data_fetcher.providers.quantitative.analysis import CorrelationData, CorrelationQueryParams
+from data_fetcher.abstract_provider.standard_models.quant_analysis import CorrelationData, CorrelationQueryParams
 
 log = logging.getLogger(__name__)
 

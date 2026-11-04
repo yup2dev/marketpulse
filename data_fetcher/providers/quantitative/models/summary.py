@@ -5,8 +5,8 @@ from typing import Any, Dict, List, Optional
 from scipy import stats
 
 from data_fetcher.abstract_provider.abstract.base_fetchers import ComputeFetcher
-from data_fetcher.providers.quantitative._data import aload_series
-from data_fetcher.providers.quantitative.analysis import (
+from data_fetcher.providers.quantitative.utils.prices import aload_series
+from data_fetcher.abstract_provider.standard_models.quant_analysis import (
     SummaryData,
     SummaryQueryParams,
 )
