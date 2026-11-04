@@ -100,7 +100,7 @@ class FMPThingFetcher(ApiFetcher[FMPThingQueryParams, FMPThingData]):
 ### B. LibraryFetcher / YFinanceFetcher — 라이브러리 래퍼
 
 - **라이브러리 import는 반드시 메서드 내부에서** (모듈 상단 금지 아님, 다만 무거운 것은 지연 권장). yfinance는 `YFinanceFetcher.get_ticker(symbol)` 헬퍼 사용.
-- sync `extract_data`로 구현해도 됨(스레드로 감싸짐). `library_name` 선언.
+- sync `extract_data`로 구현해도 됨 — `fetch_data`가 `asyncio.to_thread`로 워커 스레드에서 실행한다(루프 블로킹 없음, contextvar 전달). 단 스레드풀 크기만큼만 동시 실행되므로 대량 병렬 HTTP는 aextract_data가 낫다. `library_name` 선언.
 - 예시: `providers/yahoo/models/dividends.py`.
 
 ### C. DbFetcher — 로컬 SQLite
