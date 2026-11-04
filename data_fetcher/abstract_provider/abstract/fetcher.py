@@ -23,9 +23,16 @@ class classproperty:
 
 
 async def maybe_coroutine(func, **kwargs):
-    """함수가 코루틴이면 await, 아니면 바로 실행"""
-    result = func(**kwargs)
-    if inspect.iscoroutine(result):
+    """코루틴 함수면 await, 동기 함수면 워커 스레드에서 실행한다.
+
+    동기 extract_data(requests·yfinance·pykrx·SQLite 등)를 이벤트 루프에서 바로 부르면
+    호출이 끝날 때까지 같은 루프의 모든 요청이 멈춘다(웹 서버에서 치명적).
+    asyncio.to_thread는 contextvars를 복사하므로 current_user_id 등은 그대로 전달된다.
+    """
+    if inspect.iscoroutinefunction(func):
+        return await func(**kwargs)
+    result = await asyncio.to_thread(func, **kwargs)
+    if inspect.iscoroutine(result):   # 동기 래퍼가 코루틴을 돌려준 경우
         return await result
     return result
 
