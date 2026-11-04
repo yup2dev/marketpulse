@@ -754,42 +754,6 @@ def run_index_constituents_download() -> dict:
 
 # ── 쿼리 헬퍼 ─────────────────────────────────────────────────────────────────
 
-def get_relations_from_db(symbol: str) -> List[dict]:
-    """DB에서 종목 관계 조회"""
-    session = default_db.get_session()
-    try:
-        rows = session.query(MBS_IN_STK_RELATIONS).filter_by(stk_cd=symbol).all()
-        return [
-            {
-                "symbol": row.related_cd,
-                "name": row.related_nm or row.related_cd,
-                "type": row.relation_type,
-                "detail": row.detail or "",
-                "confidence": float(row.confidence) if row.confidence else 0.85,
-                "data_source": row.data_source,
-            }
-            for row in rows
-        ]
-    except Exception as e:
-        log.error(f"DB 관계 조회 실패 [{symbol}]: {e}")
-        return []
-    finally:
-        session.close()
-
-
-def get_profile_from_db(symbol: str) -> Optional[dict]:
-    """DB에서 종목 프로필 조회"""
-    session = default_db.get_session()
-    try:
-        row = session.query(MBS_IN_STK_PROFILE).filter_by(stk_cd=symbol).first()
-        return row.to_dict() if row else None
-    except Exception as e:
-        log.error(f"DB 프로필 조회 실패 [{symbol}]: {e}")
-        return None
-    finally:
-        session.close()
-
-
 def get_sp500_symbols() -> List[str]:
     """DB에서 현재 S&P 500 구성종목 심볼 목록 조회"""
     session = default_db.get_session()

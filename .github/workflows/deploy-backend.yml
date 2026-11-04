@@ -6,8 +6,10 @@ on:
     branches:
       - main
     paths:
-      - 'app/backend/**'
-      - 'data_fetcher/**'
+      - 'MarketpulseWeb/app/backend/**'
+      - 'MarketpulseFetcher/data_fetcher/**'
+      - 'MarketpulseCommon/**'
+      - 'migrations/**'
       - 'requirements.txt'
       - 'Dockerfile'
       - 'docker-compose.yml'

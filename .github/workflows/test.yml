@@ -34,7 +34,7 @@ jobs:
       # 걸린다. 실제 버그가 아니므로 F821/F822/F823 만 명시한다.
       - name: Lint (errors only)
         run: |
-          flake8 app data_fetcher index_analyzer scripts \
+          flake8 MarketpulseWeb/app MarketpulseFetcher MarketpulseBatch MarketpulseCommon scripts migrations \
             --count --select=E9,F63,F7,F821,F822,F823 --show-source --statistics
 
       - name: Run tests
@@ -48,16 +48,16 @@ jobs:
         with:
           node-version: '20'
           cache: npm
-          cache-dependency-path: app/frontend/package-lock.json
+          cache-dependency-path: MarketpulseWeb/app/frontend/package-lock.json
 
       - name: Install frontend dependencies
-        working-directory: app/frontend
+        working-directory: MarketpulseWeb/app/frontend
         run: npm ci
 
       - name: Lint frontend
-        working-directory: app/frontend
+        working-directory: MarketpulseWeb/app/frontend
         run: npm run lint
 
       - name: Build frontend
-        working-directory: app/frontend
+        working-directory: MarketpulseWeb/app/frontend
         run: npm run build

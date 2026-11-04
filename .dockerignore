@@ -9,8 +9,8 @@ __pycache__
 .pytest_cache
 .mypy_cache
 node_modules
-app/frontend/node_modules
-app/frontend/dist
+MarketpulseWeb/app/frontend/node_modules
+MarketpulseWeb/app/frontend/dist
 logs/
 models/
 data/
