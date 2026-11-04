@@ -9,9 +9,9 @@
 [tool.pytest.ini_options]
 minversion = "8.0"
 testpaths = ["tests", "data_fetcher/tests"]
-# 루트를 import 경로에 넣어야 `app.backend...` / `index_analyzer...` 가 풀린다.
+# 패키지는 최상위 폴더 4개 아래에 있다 — 각 폴더를 import 경로에 넣는다.
 # (main.py 의 sys.path 조작에 의존하지 않기 위해 명시한다)
-pythonpath = ["."]
+pythonpath = [".", "MarketpulseCommon", "MarketpulseFetcher", "MarketpulseBatch", "MarketpulseWeb"]
 addopts = "-q --strict-markers --strict-config"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"

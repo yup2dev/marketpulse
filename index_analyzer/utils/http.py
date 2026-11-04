@@ -1,7 +1,7 @@
 """Shared HTTP client utility"""
 import requests
 from typing import Optional
-from .logging import get_logger
+from marketpulse_common.utils.logging import get_logger
 
 log = get_logger(__name__)
 

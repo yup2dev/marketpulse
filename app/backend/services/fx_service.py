@@ -14,7 +14,7 @@ from typing import Iterable, Mapping, Optional
 
 from sqlalchemy.orm import Session
 
-from index_analyzer.models.orm import MBS_IN_FX_STBD
+from marketpulse_common.models.orm import MBS_IN_FX_STBD
 
 
 class FXRateNotFound(LookupError):

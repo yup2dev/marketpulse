@@ -1,6 +1,5 @@
 """Database utility functions and session management"""
 import uuid
-from pathlib import Path
 from typing import Optional
 
 from sqlalchemy import create_engine
@@ -37,12 +36,12 @@ class Database:
 
     def create_tables(self):
         """Create all tables defined in the ORM models."""
-        from index_analyzer.models.orm import Base  # lazy import to avoid circular deps
+        from marketpulse_common.models.orm import Base  # lazy import to avoid circular deps
         Base.metadata.create_all(bind=self.engine)
 
     def drop_tables(self):
         """Drop all tables (caution!)."""
-        from index_analyzer.models.orm import Base
+        from marketpulse_common.models.orm import Base
         Base.metadata.drop_all(bind=self.engine)
 
     def get_session(self):
@@ -86,8 +85,8 @@ def generate_batch_id() -> str:
 # =============================================================================
 import os
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent
-DB_PATH = PROJECT_ROOT / "data" / "marketpulse.db"
+from marketpulse_common.paths import DB_PATH, REPO_ROOT as PROJECT_ROOT  # noqa: E402,F401
+
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 default_db = get_sqlite_db(str(DB_PATH))

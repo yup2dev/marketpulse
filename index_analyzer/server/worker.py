@@ -15,7 +15,7 @@ from .command_handler import CommandHandler
 from .consumer import start_analyzer_consumer
 from ..services.crawl_service import crawl_with_stream
 from ..config.settings import settings
-from ..utils.logging import configure_logging, get_logger
+from marketpulse_common.utils.logging import configure_logging, get_logger
 
 configure_logging(log_file=settings.LOG_FILE)
 log = get_logger(__name__)

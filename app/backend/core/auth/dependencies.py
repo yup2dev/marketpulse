@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.backend.core.db import get_db
 from app.backend.core.auth.security import decode_token
-from index_analyzer.models.orm import User
+from marketpulse_common.models.orm import User
 
 
 class HTTPBearer401(HTTPBearer):

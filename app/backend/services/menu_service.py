@@ -2,16 +2,12 @@
 Menu Service
 Business logic for menu management
 """
-import sys
-from pathlib import Path
 from typing import List, Optional, Dict
 
-# Add project root to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
-from index_analyzer.models.menu import MenuManagement
+from marketpulse_common.models.menu import MenuManagement
 
 
 class MenuService:

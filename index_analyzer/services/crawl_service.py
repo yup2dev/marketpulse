@@ -13,10 +13,10 @@ from ..crawling.crawler import Crawler
 from ..crawling.classifier import URLClassifier
 from ..parsing.heuristics import ArticleHeuristics
 from ..parsing.parser import Parser
-from ..utils.db import get_sqlite_db, generate_id, generate_batch_id
-from ..utils.logging import get_logger
-from ..models.orm import MBS_IN_ARTICLE
-from ..models.orm.process import MBS_PROC_ARTICLE
+from marketpulse_common.utils.db import get_sqlite_db, generate_id, generate_batch_id
+from marketpulse_common.utils.logging import get_logger
+from marketpulse_common.models.orm import MBS_IN_ARTICLE
+from marketpulse_common.models.orm.process import MBS_PROC_ARTICLE
 from ..config.settings import settings
 from .ticker_service import TickerExtractor
 from .sentiment_service import SentimentAnalyzer

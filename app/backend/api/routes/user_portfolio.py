@@ -16,7 +16,7 @@ from app.backend.services.user_portfolio_service import UserPortfolioService
 from app.backend.services.fx_service import FXRateNotFound, convert_fields, get_rate
 from data_fetcher.query_executor import QueryExecutor
 from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
-from index_analyzer.models.orm import User
+from marketpulse_common.models.orm import User
 
 router = APIRouter(prefix="/user-portfolio", tags=["User Portfolio"])
 

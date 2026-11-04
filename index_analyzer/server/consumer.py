@@ -1,7 +1,7 @@
 """
 Analyzer Consumer - Redis Stream에서 신규 기사 수신 및 분석 파이프라인 실행
 """
-from ..utils.logging import get_logger
+from marketpulse_common.utils.logging import get_logger
 
 log = get_logger(__name__)
 

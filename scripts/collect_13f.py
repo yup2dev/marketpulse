@@ -40,7 +40,7 @@ def main() -> int:
         log.info("오늘(%s)은 수집 요일(%s)이 아니라 건너뜀", today, args.only_on)
         return 0
 
-    from index_analyzer.utils.db import default_db
+    from marketpulse_common.utils.db import default_db
     from index_analyzer.collectors import Institutional13FCollector
 
     default_db.create_tables()  # 신규 적재 테이블(mbs_in_insti_perf 등) 보장

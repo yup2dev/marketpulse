@@ -2,18 +2,14 @@
 Watchlist Service
 관심종목 관리 비즈니스 로직
 """
-import sys
-from pathlib import Path
 from typing import List, Dict, Optional
 from datetime import datetime
 import uuid
 
-# Add project root to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
-from index_analyzer.models.orm import Watchlist, WatchlistItem, MBS_IN_STBD_MST
+from marketpulse_common.models.orm import Watchlist, WatchlistItem, MBS_IN_STBD_MST
 
 
 class WatchlistService:

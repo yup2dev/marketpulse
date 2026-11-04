@@ -24,8 +24,8 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 
-from index_analyzer.models.orm import Base
-from index_analyzer.utils.db import default_db
+from marketpulse_common.models.orm import Base
+from marketpulse_common.utils.db import default_db
 
 def main():
     # 1. 테이블 생성 (신규 테이블 포함)

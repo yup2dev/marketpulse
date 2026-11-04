@@ -15,7 +15,7 @@ from typing import Dict, List, Optional
 
 from app.backend.core.db import get_db_sync
 from app.backend.core.key_crypto import decrypt, encrypt
-from index_analyzer.models.orm import UserApiKey
+from marketpulse_common.models.orm import UserApiKey
 
 log = logging.getLogger(__name__)
 

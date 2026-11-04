@@ -57,7 +57,7 @@ async def _load_screener_universe() -> List[Dict]:
     # 2. 프로필 + 재무지표 — DB에서만 로딩 (기본 목록 쿼리 제거)
     def _query_enrichment():
         from app.backend.core.db import get_db_sync
-        from index_analyzer.models.orm import MBS_IN_STK_PROFILE, MBS_IN_FINANCIAL_METRICS
+        from marketpulse_common.models.orm import MBS_IN_STK_PROFILE, MBS_IN_FINANCIAL_METRICS
 
         db = get_db_sync()
         try:
@@ -354,7 +354,7 @@ class ScreenerService:
         filters: Dict[str, Any], description: Optional[str] = None,
         run_frequency: str = "manual",
     ):
-        from index_analyzer.models.orm import SavedScreener
+        from marketpulse_common.models.orm import SavedScreener
         screener = SavedScreener(
             screener_id=f"scrn_{uuid.uuid4().hex[:16]}",
             user_id=user_id, name=name, description=description,
@@ -371,7 +371,7 @@ class ScreenerService:
         db: Session, screener_id: str, user_id: str,
         filters: Dict[str, Any], name: Optional[str] = None,
     ):
-        from index_analyzer.models.orm import SavedScreener
+        from marketpulse_common.models.orm import SavedScreener
         screener = db.query(SavedScreener).filter(
             SavedScreener.screener_id == screener_id,
             SavedScreener.user_id == user_id,
@@ -387,7 +387,7 @@ class ScreenerService:
 
     @staticmethod
     def get_user_screeners(db: Session, user_id: str):
-        from index_analyzer.models.orm import SavedScreener
+        from marketpulse_common.models.orm import SavedScreener
         return db.query(SavedScreener).filter(SavedScreener.user_id == user_id).all()
 
     @staticmethod
@@ -395,7 +395,7 @@ class ScreenerService:
         db: Session, screener_id: str, user_id: str, limit: int = 100,
     ) -> Optional[Dict]:
         from datetime import datetime
-        from index_analyzer.models.orm import SavedScreener
+        from marketpulse_common.models.orm import SavedScreener
         screener = db.query(SavedScreener).filter(
             SavedScreener.screener_id == screener_id,
             SavedScreener.user_id == user_id,
@@ -410,7 +410,7 @@ class ScreenerService:
 
     @staticmethod
     def delete_screener(db: Session, screener_id: str, user_id: str) -> bool:
-        from index_analyzer.models.orm import SavedScreener
+        from marketpulse_common.models.orm import SavedScreener
         screener = db.query(SavedScreener).filter(
             SavedScreener.screener_id == screener_id,
             SavedScreener.user_id == user_id,

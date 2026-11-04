@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 from datetime import datetime
 
-from ..utils.logging import get_logger
+from marketpulse_common.utils.logging import get_logger
 
 log = get_logger(__name__)
 

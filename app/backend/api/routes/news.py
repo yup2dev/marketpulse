@@ -48,8 +48,8 @@ def get_news_events(
     - symbol: 종목코드 필터 (매핑된 이벤트만; 미지정 시 전체 — stk_cd 없는 매크로 뉴스 포함)
     - start_date/end_date: base_ymd 범위 (YYYY-MM-DD)
     """
-    from index_analyzer.models.orm.process import MBS_PROC_ARTICLE
-    from index_analyzer.models.orm.ingest import MBS_IN_ARTICLE
+    from marketpulse_common.models.orm.process import MBS_PROC_ARTICLE
+    from marketpulse_common.models.orm.ingest import MBS_IN_ARTICLE
 
     q = (
         db.query(MBS_PROC_ARTICLE, MBS_IN_ARTICLE)
