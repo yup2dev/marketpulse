@@ -1,7 +1,7 @@
 """
 전체 종목 Relations 적재 스크립트
 ====================================
-실행: python scripts/load_all_relations.py [옵션]
+실행: python MarketpulseBatch/jobs/load_all_relations.py [옵션]
 
 옵션:
   --all          전체 종목 (기본값, skip_existing=True)
@@ -9,17 +9,20 @@
   --limit N      N개 종목만 처리 (테스트용)
 
 예시:
-  python scripts/load_all_relations.py              # 미적재 종목만
-  python scripts/load_all_relations.py --force      # 전체 강제 갱신
-  python scripts/load_all_relations.py --limit 50   # 50개 테스트
+  python MarketpulseBatch/jobs/load_all_relations.py              # 미적재 종목만
+  python MarketpulseBatch/jobs/load_all_relations.py --force      # 전체 강제 갱신
+  python MarketpulseBatch/jobs/load_all_relations.py --limit 50   # 50개 테스트
 """
 import sys
 import argparse
 import logging
 from pathlib import Path
 
-ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(ROOT))
+# import 경로: 저장소 루트 + 최상위 폴더 4개 (mp-bootstrap)
+_ROOT = Path(__file__).resolve().parents[2]
+for _d in ("", *("MarketpulseCommon", "MarketpulseFetcher", "MarketpulseBatch", "MarketpulseWeb")):
+    if str(_ROOT / _d) not in sys.path:
+        sys.path.insert(0, str(_ROOT / _d))
 
 logging.basicConfig(
     level=logging.INFO,

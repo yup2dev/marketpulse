@@ -16,7 +16,8 @@ log = logging.getLogger("multiseed-extractor")
 try:
     from constants import SITES_CONFIG_PATH as _CONST_SITES_CFG  # type: ignore
 except Exception:
-    _CONST_SITES_CFG = os.environ.get("SITES_CONFIG_PATH", "./sites.yaml")
+    _CONST_SITES_CFG = os.environ.get(
+        "SITES_CONFIG_PATH", os.path.join(os.path.dirname(__file__), "..", "..", "sites.yaml"))
 
 
 class ConfigLoader:

@@ -315,7 +315,7 @@ class MBS_IN_FX_STBD(Base):
     """입수 - 환율 일별 상태판.
 
     적재: index_analyzer.collectors.market.fx_rate.FXRateCollector
-          (scripts/collect_fx.py — daily_ingest.bat) → sync_db_to_cloud → /api/ingest.
+          (MarketpulseBatch/jobs/collect_fx.py — daily_ingest.bat) → sync_db_to_cloud → /api/ingest.
     rate = base_curr 1단위당 quote_curr (예: USDKRW 1400.5 → 1 USD = 1400.5 KRW).
     """
     __tablename__ = 'mbs_in_fx_stbd'

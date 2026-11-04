@@ -8,11 +8,11 @@
       (--full 로 전체 재전송). base_ymd 없는 마스터성 테이블은 항상 전체 upsert.
 
 사용:
-    python scripts/sync_db_to_cloud.py --email admin@x.com --password ...
-    python scripts/sync_db_to_cloud.py --token <admin access_token>
-    python scripts/sync_db_to_cloud.py --tables mbs_in_stk_stbd,mbs_in_stbd_mst
-    python scripts/sync_db_to_cloud.py --base-url http://127.0.0.1:8000   # 로컬 테스트
-    python scripts/sync_db_to_cloud.py --full                             # 전체 재전송
+    python MarketpulseBatch/jobs/sync_db_to_cloud.py --email admin@x.com --password ...
+    python MarketpulseBatch/jobs/sync_db_to_cloud.py --token <admin access_token>
+    python MarketpulseBatch/jobs/sync_db_to_cloud.py --tables mbs_in_stk_stbd,mbs_in_stbd_mst
+    python MarketpulseBatch/jobs/sync_db_to_cloud.py --base-url http://127.0.0.1:8000   # 로컬 테스트
+    python MarketpulseBatch/jobs/sync_db_to_cloud.py --full                             # 전체 재전송
 
 인증: admin 계정 JWT. --email/--password (또는 환경변수 MP_SYNC_EMAIL /
       MP_SYNC_PASSWORD)로 로그인하거나 --token 으로 직접 주입.
@@ -33,7 +33,7 @@ import httpx
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("sync")
 
-DB_PATH = Path(__file__).resolve().parent.parent / "data" / "marketpulse.db"
+DB_PATH = Path(__file__).resolve().parents[2] / "data" / "marketpulse.db"
 DEFAULT_BASE_URL = "https://api.finance.dns-co.kr"
 CHUNK_SIZE = 2000
 

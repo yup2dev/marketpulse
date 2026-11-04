@@ -114,7 +114,7 @@ class DBThingFetcher(DbFetcher[Q, D]):
         return [...]
 ```
 - **주의**: sqlalchemy는 Fetcher(exe) 환경에 없다 → providers_init에서 database provider는 `try/except ImportError`로 fail-soft 등록된다(기존 블록에 추가하면 됨).
-- 테이블은 적재 배치 의존(예: `mbs_in_stk_stbd` ← `scripts/backfill_stk_stbd.py`). **적재가 없으면 빈 응답**이므로 어느 배치가 채우는지 도큐스트링에 명시. 클라우드 반영은 `scripts/sync_db_to_cloud.py`(/api/ingest) 경유.
+- 테이블은 적재 배치 의존(예: `mbs_in_stk_stbd` ← `MarketpulseBatch/jobs/backfill_stk_stbd.py`). **적재가 없으면 빈 응답**이므로 어느 배치가 채우는지 도큐스트링에 명시. 클라우드 반영은 `MarketpulseBatch/jobs/sync_db_to_cloud.py`(/api/ingest) 경유.
 - 새 테이블이면 `index_analyzer/models/orm/ingest.py`에 ORM + `/api/ingest` whitelist(`app/backend/api/routes/ingest.py` `_TABLES`) + sync 스크립트 `TABLES`에도 추가.
 
 ### D. ComputeFetcher — 순수 로컬 계산

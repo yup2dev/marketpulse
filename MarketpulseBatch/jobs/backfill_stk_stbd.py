@@ -5,8 +5,8 @@
 (stk_cd, base_ymd) 유니크 제약으로 재실행 시 덮어쓴다.
 
 사용:
-    python scripts/backfill_stk_stbd.py            # 기본 1년치
-    python scripts/backfill_stk_stbd.py 6mo        # 기간 지정
+    python MarketpulseBatch/jobs/backfill_stk_stbd.py            # 기본 1년치
+    python MarketpulseBatch/jobs/backfill_stk_stbd.py 6mo        # 기간 지정
 """
 import sys
 import sqlite3
@@ -21,7 +21,7 @@ import yfinance as yf
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("backfill")
 
-DB_PATH = Path(__file__).resolve().parent.parent / "data" / "marketpulse.db"
+DB_PATH = Path(__file__).resolve().parents[2] / "data" / "marketpulse.db"
 
 CHUNK_SIZE = 50
 MAX_WORKERS = 4

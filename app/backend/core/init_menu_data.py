@@ -2,14 +2,9 @@
 Initialize Menu Data
 Populates the menu_management table with initial navigation structure
 """
-import sys
-from pathlib import Path
 from datetime import datetime
 
-# Add project root to path
-project_root = str(Path(__file__).parent.parent)
-sys.path.insert(0, project_root)
-
+from marketpulse_common.paths import DB_PATH
 from marketpulse_common.utils.db import get_sqlite_db
 from marketpulse_common.models.menu import MenuManagement
 from marketpulse_common.models.orm import Base
@@ -19,8 +14,7 @@ def init_menu_data():
     """Initialize menu data in database"""
 
     # Get database session
-    db_path = Path(__file__).parent.parent / "data" / "marketpulse.db"
-    db_instance = get_sqlite_db(str(db_path))
+    db_instance = get_sqlite_db(str(DB_PATH))
     Base.metadata.create_all(bind=db_instance.engine)
     session = db_instance.get_session()
 

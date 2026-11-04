@@ -1,7 +1,7 @@
 """적재 데이터 수신(ingest) API — 로컬 배치 DB를 클라우드로 동기화하는 수신단.
 
-로컬 PC에서 적재 배치(scripts/backfill_stk_stbd.py 등)가 채운 SQLite 테이블을
-scripts/sync_db_to_cloud.py 가 읽어 이 API로 전송(bulk upsert)한다.
+로컬 PC에서 적재 배치(MarketpulseBatch/jobs/backfill_stk_stbd.py 등)가 채운 SQLite 테이블을
+MarketpulseBatch/jobs/sync_db_to_cloud.py 가 읽어 이 API로 전송(bulk upsert)한다.
 EAI식 별도 미들웨어 없이 REST로 단방향(로컬 → 클라우드) 연계한다.
 
 인증: admin 로그인 JWT (require_admin).

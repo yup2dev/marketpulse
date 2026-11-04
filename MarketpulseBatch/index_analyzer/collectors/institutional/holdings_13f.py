@@ -1,14 +1,14 @@
 """13F Institutional Holdings Collector — SEC EDGAR 13F를 로컬에서 파싱해 DB 적재.
 
 13F 원본 파싱은 메모리 부담이 커서 운영 서버에서 하지 않는다. 이 배치가 로컬에서
-파싱·산출한 결과만 적재하고(scripts/sync_db_to_cloud.py로 클라우드 전송), 서버는 DB만 읽는다.
+파싱·산출한 결과만 적재하고(MarketpulseBatch/jobs/sync_db_to_cloud.py로 클라우드 전송), 서버는 DB만 읽는다.
 
 - 기관 목록(이름/CIK)은 **전체** 적재(MBS_IN_INSTI_MST) — 검색/리스트용.
 - 포트폴리오는 featured + AUM 상위 TOP_N 기관만 수집(MBS_IN_INSTI_PORT/HOLD).
 - 같은 대상의 13F 기반 분기 추정 수익률도 산출해 적재(MBS_IN_INSTI_PERF).
   미적재 기관은 서버 온디맨드 폴백 없이 '미적재'로 표시된다.
 
-실행: scripts/collect_13f.py (daily_ingest.bat 가 주 1회 호출 — 13F는 분기 공시).
+실행: MarketpulseBatch/jobs/collect_13f.py (daily_ingest.bat 가 주 1회 호출 — 13F는 분기 공시).
 QueryExecutor를 server_mode 없이 in-process(leaf)로 쓰므로 로컬에서 직접 파싱한다.
 """
 import os
