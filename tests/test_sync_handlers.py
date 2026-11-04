@@ -153,7 +153,10 @@ def test_db_handlers_are_not_async():
             self.found = True
 
     offenders = []
-    for path in sorted(pathlib.Path("app/backend/api/routes").glob("*.py")):
+    routes_dir = pathlib.Path(__file__).resolve().parents[1] / "MarketpulseWeb" / "app" / "backend" / "api" / "routes"
+    paths = sorted(routes_dir.glob("*.py"))
+    assert paths, f"라우트 디렉터리를 못 찾음: {routes_dir}"  # 0개면 조용히 통과하던 문제 방지
+    for path in paths:
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if not isinstance(node, ast.AsyncFunctionDef):
