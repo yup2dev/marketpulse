@@ -113,7 +113,7 @@ export default function HeatmapWidget({ onRemove }) {
     setLoading(true);
     try {
       const res = await apiClient.get(`${API_BASE}/stock/sector-performance`);
-      setSectors(res.sectors || []);
+      setSectors(res.results || []);   // OBBject 규약 — 섹터 목록은 results
     } catch {
       setSectors([]);
     }
