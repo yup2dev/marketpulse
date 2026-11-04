@@ -305,8 +305,7 @@ alphavantage_provider = Provider(
         "quote": AlphaVantageQuoteFetcher,
         "timeseries": AlphaVantageTimeseriesFetcher,
         "forex": AlphaVantageForexFetcher,
-        "company_overview": AlphaVantageCompanyOverviewFetcher,
-        # company_info: yahoo와 동일 model 키로 멀티프로바이더 제공 (standard CompanyProfile 공유)
+        # yahoo와 같은 model 키 — standard CompanyProfile 공유로 provider 셀렉터 전환 가능
         "company_info": AlphaVantageCompanyOverviewFetcher,
         "crypto": AlphaVantageCryptoFetcher,
     },
@@ -379,8 +378,8 @@ tiingo_provider = Provider(
     website="https://www.tiingo.com",
     credentials=["api_key"],
     fetcher_dict={
-        "equity_historical": TiingoEquityHistoricalFetcher,
-        "stock_price": TiingoEquityHistoricalFetcher,  # 별칭 — yahoo stock_price 대체용
+        # yahoo와 같은 model 키 — standard EquityHistorical 공유 (yahoo stock_price 대체용)
+        "stock_price": TiingoEquityHistoricalFetcher,
     },
     metadata={
         "data_coverage": "US/global equity OHLCV (EOD + IEX intraday)",
@@ -580,8 +579,7 @@ sec_provider = Provider(
         "income_statement": SecIncomeStatementFetcher,
         "income_statement_growth": SecIncomeStatementGrowthFetcher,
         "cik_map": SecCikMapFetcher,
-        "company_filings": SecCompanyFilingsFetcher,
-        # filings: yahoo와 동일 model 키로 멀티프로바이더 제공 (standard CompanyFilings 공유)
+        # yahoo와 같은 model 키 — standard CompanyFilings 공유
         "filings": SecCompanyFilingsFetcher,
         "compare_company_facts": SecCompareCompanyFactsFetcher,
         "equity_ftd": SecEquityFtdFetcher,
