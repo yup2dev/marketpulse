@@ -38,8 +38,8 @@ def main():
 
     # ── DB 테이블 확인 ─────────────────────────────────────────────────────
     print("[1/3] DB 테이블 확인 중...")
-    from index_analyzer.models.orm import Base
-    from index_analyzer.utils.db import default_db
+    from marketpulse_common.models.orm import Base
+    from marketpulse_common.utils.db import default_db
     Base.metadata.create_all(bind=default_db.engine)
     print("      완료")
 

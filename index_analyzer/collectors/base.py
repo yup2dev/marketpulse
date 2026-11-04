@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
-from ..utils.logging import get_logger
+from marketpulse_common.utils.logging import get_logger
 from ..ingest.repository import store_universe, StoreResult
 
 log = get_logger(__name__)

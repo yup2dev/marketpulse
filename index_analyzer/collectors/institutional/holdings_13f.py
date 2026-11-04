@@ -18,7 +18,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List
 
 from ..base import Collector, Target, _to_dict
-from ...utils.logging import get_logger
+from marketpulse_common.utils.logging import get_logger
 from ...ingest.repository import (
     store_fund_performance,
     store_institution_portfolio,

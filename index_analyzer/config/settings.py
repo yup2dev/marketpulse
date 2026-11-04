@@ -3,6 +3,8 @@ Configuration Management — merged from config/constants.py + core/config.py
 환경 변수 및 애플리케이션 설정 관리
 """
 from pathlib import Path
+
+from marketpulse_common.paths import REPO_ROOT
 from typing import Optional
 from pydantic_settings import BaseSettings
 from pydantic import Field
@@ -30,7 +32,7 @@ class Settings(BaseSettings):
 
     # SQLite (개발용 폴백)
     SQLITE_PATH: str = Field(
-        default=str(Path(__file__).parent.parent.parent / "data" / "marketpulse.db"),
+        default=str(REPO_ROOT / "data" / "marketpulse.db"),
         description="SQLite 데이터베이스 경로"
     )
 
@@ -72,7 +74,7 @@ class Settings(BaseSettings):
     # ===== NLP/ML Settings =====
     USE_TRANSFORMERS: bool = Field(default=False, description="Transformers (FinBERT) 사용 여부")
     MODEL_CACHE_DIR: Optional[str] = Field(
-        default=str(Path(__file__).parent.parent.parent / "models"),
+        default=str(REPO_ROOT / "models"),
         description="ML 모델 캐시 디렉토리"
     )
 
@@ -87,12 +89,12 @@ class Settings(BaseSettings):
     # ===== Logging =====
     LOG_LEVEL: str = Field(default="INFO", description="로그 레벨")
     LOG_FILE: str = Field(
-        default=str(Path(__file__).parent.parent.parent / "logs" / "app.log"),
+        default=str(REPO_ROOT / "logs" / "app.log"),
         description="로그 파일 경로"
     )
 
     class Config:
-        env_file = str(Path(__file__).parent.parent.parent / ".env")
+        env_file = str(REPO_ROOT / ".env")
         env_file_encoding = "utf-8"
         case_sensitive = True
         extra = "ignore"

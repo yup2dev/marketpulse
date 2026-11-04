@@ -23,11 +23,11 @@
 (tests/test_orm_metadata.py 가 누락을 잡는다)
 """
 # orm/ 패키지 (Base 와 대부분의 모델)
-from index_analyzer.models.orm import Base  # noqa: F401
+from marketpulse_common.models.orm import Base  # noqa: F401
 
 # orm/ 바깥에 있는 모델들 — 반드시 함께 import 해야 metadata 가 완전해진다
-from index_analyzer.models import menu  # noqa: F401
-from index_analyzer.models import quant_factor  # noqa: F401
-from index_analyzer.models import quant_factor_catalog  # noqa: F401
+from marketpulse_common.models import menu  # noqa: F401
+from marketpulse_common.models import quant_factor  # noqa: F401
+from marketpulse_common.models import quant_factor_catalog  # noqa: F401
 
 __all__ = ["Base"]

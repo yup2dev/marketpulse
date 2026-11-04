@@ -3,12 +3,9 @@ Macro Economic Service
 Provides comprehensive macroeconomic data and analysis
 """
 import asyncio
-import sys
 import logging
-from pathlib import Path
 from typing import Dict, Any, List, Optional
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from app.backend.core.cache import cached
 from data_fetcher.providers.fred.models.gdp import FREDGDPFetcher

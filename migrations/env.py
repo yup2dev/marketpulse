@@ -18,13 +18,16 @@ from sqlalchemy import engine_from_config, pool
 
 from alembic import context
 
-# 프로젝트 루트를 import 경로에 추가 (alembic 은 루트에서 실행된다)
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+# import 경로: 저장소 루트 + 최상위 폴더 4개 (mp-bootstrap)
+_ROOT = Path(__file__).resolve().parents[1]
+for _d in ("", *("MarketpulseCommon", "MarketpulseFetcher", "MarketpulseBatch", "MarketpulseWeb")):
+    if str(_ROOT / _d) not in sys.path:
+        sys.path.insert(0, str(_ROOT / _d))
 
 # 모든 ORM 모델을 등록시킨다 — import 누락 시 autogenerate 가 테이블을
 # '삭제됨'으로 오판해 DROP TABLE 을 생성한다. (실제로 menu_management 31행,
 # quant_factors 등이 그렇게 잡힌 적이 있다 — all_models.py 주석 참고)
-from index_analyzer.models.all_models import Base  # noqa: E402
+from marketpulse_common.models.all_models import Base  # noqa: E402
 
 # 모델이 없는 채 DB 에만 남아 있는 테이블을 비교에서 제외한다 (orphan_tables.py 참고)
 from migrations.orphan_tables import include_object  # noqa: E402

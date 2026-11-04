@@ -10,9 +10,11 @@ FastAPI-based dashboard for financial data visualization
 import sys
 from pathlib import Path
 
-# Add project root to path (must be before app imports)
-project_root = str(Path(__file__).parent.parent.parent)
-sys.path.insert(0, project_root)
+# import 경로: 저장소 루트 + 최상위 폴더 4개 (mp-bootstrap)
+_ROOT = Path(__file__).resolve().parents[2]
+for _d in ("", *("MarketpulseCommon", "MarketpulseFetcher", "MarketpulseBatch", "MarketpulseWeb")):
+    if str(_ROOT / _d) not in sys.path:
+        sys.path.insert(0, str(_ROOT / _d))
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

@@ -10,9 +10,9 @@ from datetime import datetime
 project_root = str(Path(__file__).parent.parent)
 sys.path.insert(0, project_root)
 
-from index_analyzer.utils.db import get_sqlite_db
-from index_analyzer.models.menu import MenuManagement
-from index_analyzer.models.orm import Base
+from marketpulse_common.utils.db import get_sqlite_db
+from marketpulse_common.models.menu import MenuManagement
+from marketpulse_common.models.orm import Base
 
 
 def init_menu_data():

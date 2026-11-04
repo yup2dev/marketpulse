@@ -120,7 +120,7 @@ class DbFetcher(Fetcher[Q, R]):
             return str(kwargs["db_path"])
         if cls.db_path:
             return str(cls.db_path)
-        from index_analyzer.utils.db import DB_PATH
+        from marketpulse_common.utils.db import DB_PATH
 
         return str(DB_PATH)
 
@@ -128,7 +128,7 @@ class DbFetcher(Fetcher[Q, R]):
     @contextmanager
     def db_session(cls, **kwargs: Any):
         """SQLAlchemy 세션 컨텍스트 매니저 (자동 close)."""
-        from index_analyzer.utils.db import get_sqlite_db
+        from marketpulse_common.utils.db import get_sqlite_db
 
         session = get_sqlite_db(cls._resolve_db_path(**kwargs)).get_session()
         try:

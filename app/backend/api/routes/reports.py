@@ -22,13 +22,14 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.backend.core.db import get_db
-from index_analyzer.models.orm import MBS_IN_RESEARCH_RPT
-from index_analyzer.utils.db import generate_id
+from marketpulse_common.models.orm import MBS_IN_RESEARCH_RPT
+from marketpulse_common.paths import REPO_ROOT
+from marketpulse_common.utils.db import generate_id
 
 log = logging.getLogger(__name__)
 router = APIRouter()
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[4]
+_PROJECT_ROOT = REPO_ROOT
 _REPORTS_DIR = _PROJECT_ROOT / "data" / "reports"
 
 _REPORT_TYPES = {"analyst", "estimates", "annual"}

@@ -5,7 +5,7 @@ import re
 import logging
 from typing import Dict, Optional
 
-from ..utils.logging import get_logger
+from marketpulse_common.utils.logging import get_logger
 
 log = get_logger(__name__)
 
@@ -74,9 +74,8 @@ class SentimentAnalyzer:
         """DB에서 ticker → name 매핑 로드"""
         try:
             if db_session is None:
-                from ..utils.db import get_sqlite_db
-                from pathlib import Path
-                DB_PATH = Path(__file__).parent.parent.parent / "data" / "marketpulse.db"
+                from marketpulse_common.utils.db import get_sqlite_db
+                from marketpulse_common.paths import DB_PATH
                 db = get_sqlite_db(str(DB_PATH))
                 session = db.get_session()
                 close_session = True
@@ -84,7 +83,7 @@ class SentimentAnalyzer:
                 session = db_session
                 close_session = False
 
-            from ..models.orm import MBS_IN_STBD_MST
+            from marketpulse_common.models.orm import MBS_IN_STBD_MST
             tickers = session.query(MBS_IN_STBD_MST).filter_by(is_active=True).all()
 
             for ticker in tickers:

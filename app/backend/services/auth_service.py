@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from typing import Optional
 import uuid
 
-from index_analyzer.models.orm import User
+from marketpulse_common.models.orm import User
 from app.backend.core.auth.security import verify_password, get_password_hash, create_access_token, create_refresh_token, create_fetcher_token
 
 

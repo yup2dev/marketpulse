@@ -37,7 +37,7 @@ class DBStockListFetcher(DbFetcher[StockListQueryParams, StockListData]):
         1차: MBS_IN_STBD_MST (is_active 컬럼 보유)
         2차: MBS_IN_STK_STBD distinct stk_cd (time-series)
         """
-        from index_analyzer.models.orm import MBS_IN_STBD_MST, MBS_IN_STK_STBD
+        from marketpulse_common.models.orm import MBS_IN_STBD_MST, MBS_IN_STK_STBD
 
         # 1차: 마스터 테이블
         try:

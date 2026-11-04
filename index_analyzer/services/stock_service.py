@@ -8,12 +8,11 @@ import requests
 import pandas as pd
 from datetime import date, datetime
 from typing import List, Optional
-from pathlib import Path
 from sqlalchemy.orm import Session
 
-from ..utils.db import default_db
-from ..utils.logging import get_logger
-from ..models.orm import (
+from marketpulse_common.utils.db import default_db
+from marketpulse_common.utils.logging import get_logger
+from marketpulse_common.models.orm import (
     MBS_IN_STBD_MST,
     MBS_IN_STK_PROFILE,
     MBS_IN_STK_RELATIONS,
@@ -687,13 +686,13 @@ def run_weekly_relations_refresh() -> dict:
 
 def run_index_constituents_download() -> dict:
     """GitHub CSV에서 S&P 500, NASDAQ 100, Dow 30 구성종목 다운로드"""
-    from ..utils.db import get_sqlite_db, generate_batch_id
+    from marketpulse_common.utils.db import get_sqlite_db, generate_batch_id
 
     log.info("=" * 60)
     log.info("지수 구성종목 다운로드 시작")
     log.info("=" * 60)
 
-    DB_PATH = Path(__file__).parent.parent.parent / "data" / "marketpulse.db"
+    from marketpulse_common.paths import DB_PATH
     db = get_sqlite_db(str(DB_PATH))
     db.create_tables()
 

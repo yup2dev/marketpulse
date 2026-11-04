@@ -9,9 +9,9 @@ from datetime import datetime, date
 from sqlalchemy.orm import Session
 from decimal import Decimal
 
-from ..utils.db import get_sqlite_db, generate_id
+from marketpulse_common.utils.db import get_sqlite_db, generate_id
 from ..config.settings import settings
-from ..models.orm import (
+from marketpulse_common.models.orm import (
     MBS_CALC_METRIC,
     MBS_PROC_ARTICLE,
     MBS_IN_ARTICLE,

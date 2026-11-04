@@ -4,10 +4,9 @@ Ticker Extractor - 뉴스에서 종목 티커 자동 추출 (DB 연동)
 """
 import re
 from typing import List, Dict, Set, Optional
-from pathlib import Path
 from sqlalchemy.orm import Session
 
-from ..utils.logging import get_logger
+from marketpulse_common.utils.logging import get_logger
 
 log = get_logger(__name__)
 
@@ -52,8 +51,8 @@ class TickerExtractor:
         """데이터베이스에서 티커 정보 로드"""
         try:
             if db_session is None:
-                from ..utils.db import get_sqlite_db
-                DB_PATH = Path(__file__).parent.parent.parent / "data" / "marketpulse.db"
+                from marketpulse_common.utils.db import get_sqlite_db
+                from marketpulse_common.paths import DB_PATH
                 db = get_sqlite_db(str(DB_PATH))
                 session = db.get_session()
                 close_session = True
@@ -61,7 +60,7 @@ class TickerExtractor:
                 session = db_session
                 close_session = False
 
-            from ..models.orm import MBS_IN_STBD_MST
+            from marketpulse_common.models.orm import MBS_IN_STBD_MST
             tickers = session.query(MBS_IN_STBD_MST).filter_by(is_active=True).all()
 
             log.info(f"Loading {len(tickers)} tickers from database...")
@@ -142,8 +141,6 @@ class TickerExtractor:
     def _init_minimal_tickers(self):
         """DB 로드 실패 시 FMP API에서 가장 활발한 종목 로드"""
         try:
-            import sys
-            sys.path.insert(0, str(Path(__file__).parent.parent.parent))
             from data_fetcher.providers.fmp.models.gainers import FMPMostActivesFetcher
 
             import asyncio
