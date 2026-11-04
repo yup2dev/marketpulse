@@ -1,7 +1,7 @@
 @echo off
 REM MarketPulse Fetcher Windows 빌드 스크립트
-REM 출력: build\dist\MarketPulseFetcher.exe
-REM 사용: build\build.bat [--clean]
+REM 출력: MarketpulseFetcher\build\dist\MarketPulseFetcher.exe
+REM 사용: MarketpulseFetcher\build\build.bat [--clean]
 
 setlocal enabledelayedexpansion
 set ROOT=%~dp0..

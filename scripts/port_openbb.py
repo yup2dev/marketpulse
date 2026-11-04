@@ -18,7 +18,7 @@ import sys
 from pathlib import Path
 
 OPENBB = Path(r"C:\Users\pro\PycharmProjects\OpenBB\openbb_platform")
-DST_ROOT = Path(__file__).resolve().parents[1] / "data_fetcher"
+DST_ROOT = Path(__file__).resolve().parents[1] / "MarketpulseFetcher" / "data_fetcher"
 
 PKG_MAP = {
     "openbb_us_eia": "data_fetcher.providers.eia",

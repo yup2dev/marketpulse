@@ -49,7 +49,7 @@ jobs:
       - name: Build standalone Fetcher (PyInstaller)
         shell: bash
         run: |
-          pyinstaller build/MarketPulseFetcher.spec --noconfirm
+          pyinstaller MarketpulseFetcher/build/MarketPulseFetcher.spec --noconfirm
           mkdir -p release-assets
           if [ "${{ matrix.platform }}" = "windows-latest" ]; then
             cp "dist/MarketPulseFetcher.exe" "release-assets/MarketPulseFetcher-${{ matrix.target_triple }}.exe"

@@ -14,7 +14,11 @@ import json
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+# import 경로: 저장소 루트 + 최상위 폴더 4개 (mp-bootstrap)
+_ROOT = Path(__file__).resolve().parents[1]
+for _d in ("", *("MarketpulseCommon", "MarketpulseFetcher", "MarketpulseBatch", "MarketpulseWeb")):
+    if str(_ROOT / _d) not in sys.path:
+        sys.path.insert(0, str(_ROOT / _d))
 
 from pydantic import BaseModel  # noqa: E402
 

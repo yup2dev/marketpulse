@@ -10,11 +10,9 @@ log = logging.getLogger(__name__)
 try:
     from dotenv import load_dotenv
 
-    # 프로젝트 루트에서 .env 파일 찾기
-    # data_fetcher/utils/api_keys.py -> index_analyzer/.env
-    current_file = Path(__file__)
-    project_root = current_file.parent.parent.parent  # utils -> data_fetcher -> index_analyzer
-    env_file = project_root / ".env"
+    # 저장소 루트의 .env — MarketpulseFetcher/data_fetcher/utils/api_keys.py → parents[3]
+    # (exe 에는 marketpulse_common 이 번들되지 않으므로 paths 모듈 대신 직접 센다)
+    env_file = Path(__file__).resolve().parents[3] / ".env"
 
     if env_file.exists():
         load_dotenv(dotenv_path=env_file)
