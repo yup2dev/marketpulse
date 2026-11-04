@@ -13,7 +13,9 @@ import pathlib
 
 import pytest
 
-ROUTES_DIR = pathlib.Path("app/backend/api/routes")
+# cwd 와 무관하게 — 예전 상대경로("app/backend/...")는 폴더 이동 후 0개를 찾고 조용히 통과했다
+ROUTES_DIR = pathlib.Path(__file__).resolve().parents[1] / "MarketpulseWeb" / "app" / "backend" / "api" / "routes"
+assert any(ROUTES_DIR.glob("*.py")), f"라우트 디렉터리를 못 찾음: {ROUTES_DIR}"
 
 
 def test_no_legacy_success_envelope_in_routes():
