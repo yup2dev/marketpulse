@@ -6,3 +6,4 @@ from data_fetcher.providers.polygon.models.sentiment import PolygonStockSentimen
 from data_fetcher.providers.polygon.models.options import PolygonOptionsFetcher
 from data_fetcher.providers.polygon.models.short_interest import PolygonShortInterestFetcher
 from data_fetcher.providers.polygon.models.technical_indicators import PolygonTechnicalIndicatorsFetcher
+from data_fetcher.providers.polygon.models.orderbook import PolygonOrderBookFetcher

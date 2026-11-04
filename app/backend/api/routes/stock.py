@@ -249,9 +249,8 @@ async def get_stock_history(
 @router.get("/orderbook/{symbol}")
 @route_handler
 async def get_stock_orderbook(symbol: str, provider: str = "polygon") -> OBBject:
-    from data_fetcher.providers.polygon.orderbook import fetch_stock_orderbook
-    data = await fetch_stock_orderbook(symbol.upper())
-    return _wrap_one(data, provider)
+    raw = await QueryExecutor.fetch(provider, "orderbook", {"symbol": symbol.upper()})
+    return _wrap(raw, provider)
 
 
 @router.get("/search")
