@@ -1,7 +1,7 @@
 """
 S&P 500 최초 데이터 수집 스크립트
 ====================================
-실행: python scripts/collect_sp500.py
+실행: python MarketpulseBatch/jobs/collect_sp500.py
 
 수집 내용:
   1. S&P 500 구성종목 → mbs_in_indx_member + mbs_in_stbd_mst
@@ -15,8 +15,11 @@ import logging
 from pathlib import Path
 
 # 프로젝트 루트를 Python 경로에 추가
-ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(ROOT))
+# import 경로: 저장소 루트 + 최상위 폴더 4개 (mp-bootstrap)
+_ROOT = Path(__file__).resolve().parents[2]
+for _d in ("", *("MarketpulseCommon", "MarketpulseFetcher", "MarketpulseBatch", "MarketpulseWeb")):
+    if str(_ROOT / _d) not in sys.path:
+        sys.path.insert(0, str(_ROOT / _d))
 
 logging.basicConfig(
     level=logging.INFO,

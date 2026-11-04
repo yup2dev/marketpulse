@@ -7,7 +7,11 @@ from pathlib import Path
 from datetime import datetime, date
 
 # Add project root to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# import 경로: 저장소 루트 + 최상위 폴더 4개 (mp-bootstrap)
+_ROOT = Path(__file__).resolve().parents[2]
+for _d in ("", *("MarketpulseCommon", "MarketpulseFetcher", "MarketpulseBatch", "MarketpulseWeb")):
+    if str(_ROOT / _d) not in sys.path:
+        sys.path.insert(0, str(_ROOT / _d))
 
 from sqlalchemy import Column, String, Text, Integer, DateTime, Date, Boolean, Index, create_engine
 from sqlalchemy.ext.declarative import declarative_base
@@ -173,7 +177,7 @@ INITIAL_BENCHMARKS = [
 def main():
     """테이블 생성 및 초기 데이터 입력"""
     # Database path
-    DB_PATH = Path(__file__).parent.parent / "data" / "marketpulse.db"
+    DB_PATH = _ROOT / "data" / "marketpulse.db"
 
     # Create engine
     engine = create_engine(f'sqlite:///{DB_PATH}')

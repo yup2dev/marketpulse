@@ -1,6 +1,6 @@
 """환율 조회·통화 환산 서비스.
 
-환율은 일일 배치(scripts/collect_fx.py → mbs_in_fx_stbd)가 적재한 값만 쓴다.
+환율은 일일 배치(MarketpulseBatch/jobs/collect_fx.py → mbs_in_fx_stbd)가 적재한 값만 쓴다.
 요청 시 외부 API를 호출하지 않으므로 Fetcher 가용 여부와 무관하게 동작한다.
 
 방향: mbs_in_fx_stbd 의 rate 는 base_curr 1단위당 quote_curr.
@@ -72,7 +72,7 @@ def get_rate(db: Session, base: str, quote: str, on_or_before: Optional[date] = 
             chg = round((1 / (1 + c) - 1) * 100, 4) if c != -1 else None
         return FXRate(base, quote, 1 / float(row.rate), row.base_ymd, chg, inverted=True)
 
-    raise FXRateNotFound(f"{base}{quote} 환율이 적재되어 있지 않습니다 (scripts/collect_fx.py 실행 필요)")
+    raise FXRateNotFound(f"{base}{quote} 환율이 적재되어 있지 않습니다 (MarketpulseBatch/jobs/collect_fx.py 실행 필요)")
 
 
 def convert_fields(data: Mapping, fields: Iterable[str], fx: FXRate) -> dict:

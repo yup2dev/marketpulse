@@ -90,7 +90,7 @@ def start_scheduler(event_bus=None):
             f"뉴스크롤: {settings.CRAWL_INTERVAL_HOURS}h, "
             f"KR유니버스: daily@05:00, "
             f"US유니버스: weekly@Sun 04:00; "
-            f"13F는 scripts/collect_13f.py — daily_ingest 주 1회)"
+            f"13F는 MarketpulseBatch/jobs/collect_13f.py — daily_ingest 주 1회)"
         )
 
     except Exception as e:

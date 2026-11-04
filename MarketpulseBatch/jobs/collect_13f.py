@@ -2,14 +2,14 @@
 
 SEC EDGAR 13F 원본을 **로컬에서** 파싱해 로컬 DB(data/marketpulse.db)에 적재한다.
 13F 파싱은 메모리 부담이 커서 운영 서버에서는 실행하지 않으며, 적재 결과는
-scripts/sync_db_to_cloud.py 가 /api/ingest 로 전송한다.
+MarketpulseBatch/jobs/sync_db_to_cloud.py 가 /api/ingest 로 전송한다.
 
 적재 테이블: mbs_in_insti_mst(기관 목록) / mbs_in_insti_port·hold(포트폴리오)
             / mbs_in_insti_perf(분기 추정 수익률)
 
 사용:
-    python scripts/collect_13f.py                  # 즉시 실행
-    python scripts/collect_13f.py --only-on sun    # 오늘이 일요일일 때만 실행(daily_ingest.bat용)
+    python MarketpulseBatch/jobs/collect_13f.py                  # 즉시 실행
+    python MarketpulseBatch/jobs/collect_13f.py --only-on sun    # 오늘이 일요일일 때만 실행(daily_ingest.bat용)
 
 조정(환경변수): FETCHER_13F_TOP_N(기본 300), FETCHER_13F_SCAN_WORKERS(4),
                FETCHER_13F_SCAN_LIMIT(0=전체), FETCHER_13F_PERF_QUARTERS(8)
@@ -22,7 +22,11 @@ import sys
 from datetime import date
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+# import 경로: 저장소 루트 + 최상위 폴더 4개 (mp-bootstrap)
+_ROOT = Path(__file__).resolve().parents[2]
+for _d in ("", *("MarketpulseCommon", "MarketpulseFetcher", "MarketpulseBatch", "MarketpulseWeb")):
+    if str(_ROOT / _d) not in sys.path:
+        sys.path.insert(0, str(_ROOT / _d))
 
 _WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 

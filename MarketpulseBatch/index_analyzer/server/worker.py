@@ -8,6 +8,13 @@ D2: Orchestrator (APScheduler + Stream Consumer)
 import signal
 import sys
 import threading
+from pathlib import Path
+
+# import 경로: 저장소 루트 + 최상위 폴더 4개 (mp-bootstrap)
+_ROOT = Path(__file__).resolve().parents[3]
+for _d in ("", *("MarketpulseCommon", "MarketpulseFetcher", "MarketpulseBatch", "MarketpulseWeb")):
+    if str(_ROOT / _d) not in sys.path:
+        sys.path.insert(0, str(_ROOT / _d))
 
 from .scheduler import start_scheduler, stop_scheduler
 from .redis_bus import create_redis_event_bus, RedisEventBus

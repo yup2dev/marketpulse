@@ -50,7 +50,7 @@ def init_db() -> None:
 
     # 시드는 실패해도 기동을 막지 않는다 (메뉴가 비어 보일 뿐, 복구 가능하다)
     try:
-        from scripts.init_menu_data import init_menu_data
+        from app.backend.core.init_menu_data import init_menu_data
         init_menu_data()
         log.info("[DB] Menu data seeded")
     except Exception as e:
