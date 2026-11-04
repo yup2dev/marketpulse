@@ -33,10 +33,10 @@ dist/
 MarketpulseFetcher/build/dist/
 MarketpulseFetcher/build/work/
 
-# ── app/frontend ───────────────────────────────────────────────────────────────
+# ── MarketpulseWeb/app/frontend ───────────────────────────────────────────────────────────────
 node_modules/
-app/frontend/dist/
-app/frontend/src/lib/
+MarketpulseWeb/app/frontend/dist/
+MarketpulseWeb/app/frontend/src/lib/
 
 # ── 프로젝트 데이터 / 캐시 ──────────────────────────────────────────────────────
 data/

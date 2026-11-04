@@ -6,12 +6,50 @@
 """
 import asyncio
 import logging
-from typing import Any, List
+from typing import Any, List, Optional
 
 from data_fetcher.abstract_provider.abstract.annotated_result import AnnotatedResult
 from data_fetcher.query_executor import QueryExecutor, RemoteUnavailableError
+from marketpulse_common.models.orm import MBS_IN_STK_PROFILE, MBS_IN_STK_RELATIONS
+from marketpulse_common.utils.db import default_db
 
 log = logging.getLogger(__name__)
+
+
+def get_relations_from_db(symbol: str) -> List[dict]:
+    """DB에서 종목 관계 조회 (적재: MarketpulseBatch/jobs/load_all_relations.py)"""
+    session = default_db.get_session()
+    try:
+        rows = session.query(MBS_IN_STK_RELATIONS).filter_by(stk_cd=symbol).all()
+        return [
+            {
+                "symbol": row.related_cd,
+                "name": row.related_nm or row.related_cd,
+                "type": row.relation_type,
+                "detail": row.detail or "",
+                "confidence": float(row.confidence) if row.confidence else 0.85,
+                "data_source": row.data_source,
+            }
+            for row in rows
+        ]
+    except Exception as e:
+        log.error(f"DB 관계 조회 실패 [{symbol}]: {e}")
+        return []
+    finally:
+        session.close()
+
+
+def get_profile_from_db(symbol: str) -> Optional[dict]:
+    """DB에서 종목 프로필 조회 (적재: MarketpulseBatch/jobs/collect_sp500.py)"""
+    session = default_db.get_session()
+    try:
+        row = session.query(MBS_IN_STK_PROFILE).filter_by(stk_cd=symbol).first()
+        return row.to_dict() if row else None
+    except Exception as e:
+        log.error(f"DB 프로필 조회 실패 [{symbol}]: {e}")
+        return None
+    finally:
+        session.close()
 
 
 def _items(raw: Any) -> List[Any]:
@@ -59,8 +97,6 @@ async def _fetch_peers(symbol: str, base_sector: str) -> list:
 
 async def get_company_relations(symbol: str) -> dict:
     """종목 관계 그래프 반환 (DB-first → Fetcher yahoo fallback)."""
-    from index_analyzer.services.stock_service import get_relations_from_db, get_profile_from_db
-
     symbol = symbol.upper()
     db_nodes = await asyncio.to_thread(get_relations_from_db, symbol)
     profile  = await asyncio.to_thread(get_profile_from_db, symbol)
