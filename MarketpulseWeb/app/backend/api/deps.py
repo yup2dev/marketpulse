@@ -25,7 +25,9 @@ from fastapi.responses import JSONResponse
 
 from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
 from data_fetcher.core.obbject import OBBject
-from data_fetcher.query_executor import QueryExecutorError, RemoteUnavailableError
+from data_fetcher.query_executor import (
+    MissingCredentialsError, QueryExecutorError, RemoteUnavailableError,
+)
 from data_fetcher.utils.circuit_breaker import CircuitBreakerOpen
 from data_fetcher.utils.http_client import HTTPClientError
 
@@ -63,8 +65,23 @@ def _find_cause(e: Exception, types: tuple) -> Exception | None:
     return None
 
 
+def missing_key_response(err: MissingCredentialsError) -> JSONResponse:
+    """사용자 키 미등록 → 424 + code/provider. 프론트는 이 code로 '키 등록' 안내를 띄운다.
+
+    401/403 을 쓰지 않는 이유: apiClient 가 그 둘을 세션 만료로 보고 refresh·로그아웃한다.
+    """
+    return JSONResponse(
+        status_code=424,
+        content={"detail": str(err), "code": "missing_key", "provider": err.provider},
+    )
+
+
 def _query_executor_response(e: Exception, log, name: str):
     """QueryExecutorError 계열 → 간결한 로그(트레이스백 X) + 적절한 상태코드. 해당 없으면 None."""
+    missing = _find_cause(e, (MissingCredentialsError,))
+    if missing is not None:
+        log.info(f"[{name}] {missing}")
+        return missing_key_response(missing)
     # 원격(Fetcher/워커) 미가용 → 503
     unavailable = _find_cause(e, (RemoteUnavailableError,))
     if unavailable is not None:

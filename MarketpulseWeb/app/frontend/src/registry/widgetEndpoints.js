@@ -59,6 +59,17 @@ const monthsAhead = (n) => { const d = new Date(); d.setMonth(d.getMonth() + n);
 
 const TARGET_OPTIONS = ['close', 'open', 'high', 'low', 'adj_close', 'return'];
 
+// 지표 개념 위젯 — 국가 셀렉터는 그 개념이 지원하는 국가로 채운다(실패 시 정적 목록).
+const conceptWidget = (concept, title, country = 'USA') => ({
+  title,
+  concept,
+  params: [
+    { name: 'country', label: 'Country', kind: 'select', default: country,
+      optionsFrom: { endpoint: `/concepts/${concept}/countries`, value: 'code', label: 'label' },
+      options: [{ value: 'USA', label: '미국' }, { value: 'KOR', label: '한국' }] },
+  ],
+});
+
 export const WIDGET_ENDPOINTS = {
 
   // ── Institutional 13F ─────────────────────────────────────────────────────
@@ -116,6 +127,13 @@ export const WIDGET_ENDPOINTS = {
   'stock-sentiment':       { title: 'News Sentiment',         endpoint: '/stock/sentiment/{symbol}' },
   'social-sentiment':      { title: 'Social Sentiment',       endpoint: '/stock/reddit/{symbol}' },
   'financials':            { title: 'Financial Statements',   endpoint: '/stock/financials/{symbol}', category: 'financials' },
+
+  // ── Macro 지표 개념 (provider 무관 — 국가 + '내 키'로 FRED/ECOS/OECD 중 자동 선택) ──
+  'concept-cpi':          conceptWidget('cpi_yoy',           '소비자물가 상승률 (%)'),
+  'concept-unemployment': conceptWidget('unemployment_rate', '실업률 (%)'),
+  'concept-policy-rate':  conceptWidget('policy_rate',       '기준금리 (%)', 'KOR'),
+  'concept-long-rate':    conceptWidget('long_rate_10y',     '국채 10년 금리 (%)'),
+  'concept-gdp-growth':   conceptWidget('real_gdp_growth',   '실질 GDP 성장률 (%)'),
 
   // ── Macro (Universal Data Gateway 경유) ───────────────────────────────────
   'gdp-forecast':           { title: 'GDP Forecast',           endpoint: '/data/fred/gdp?period={period}' },

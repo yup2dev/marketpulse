@@ -6,51 +6,41 @@
  * 단, Yahoo 등 일부 소스는 사용자 PC의 Fetcher에서 실행돼야 한다(IP 차단 회피).
  * 그래서 Fetcher 실행 여부를 안내하는 배너를 별도로 표시한다.
  *
- * - 단일 키 provider(fmp/polygon/fred/alphavantage) → { provider, api_key }
- * - 다중 필드 provider(kis: appkey+appsecret)        → { provider, fields }
+ * 데이터 provider 카드는 /api/providers 카탈로그에서 만든다 — 키가 필요한 provider 가 추가되면
+ * (코드 provider든 JSON 스펙 provider든) 이 화면을 고치지 않아도 카드가 생긴다.
+ * 저장하면 바로 키 검증(실제 호출)을 돌리고, 카드마다 '이 키로 열리는 지표'를 보여준다.
+ *
+ * - 단일 키 provider(fmp/polygon/fred/…) → { provider, api_key }
+ * - 다중 필드 provider(kis: appkey+appsecret) → { provider, fields }
  */
 import { useCallback, useEffect, useState } from 'react';
 import {
   KeyRound, Trash2, Save, ExternalLink, RefreshCw, ShieldCheck, Download, Sparkles,
+  CheckCircle2, XCircle, FlaskConical,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { keysAPI } from '../../config/api';
+import { keysAPI, providersAPI, conceptsAPI } from '../../config/api';
 import useFetcherHealth from '../../hooks/useFetcherHealth';
 
 const FETCHER_DOWNLOAD_URL = 'https://github.com/yup2dev/marketpulse/releases/latest';
 
-const PROVIDERS = [
-  {
-    id: 'kis',
-    label: '한국투자증권 (KIS)',
-    desc: '국내주식 실시간 · 1일 랭킹',
-    docs: 'https://apiportal.koreainvestment.com',
-    fields: [
-      { key: 'appkey',    label: 'App Key',    placeholder: 'KIS App Key' },
-      { key: 'appsecret', label: 'App Secret', placeholder: 'KIS App Secret' },
-    ],
-  },
-  {
-    id: 'fmp', label: 'Financial Modeling Prep', desc: '재무 · 기업 · 애널리스트 데이터',
-    docs: 'https://site.financialmodelingprep.com/developer/docs',
-    fields: [{ key: 'api_key', label: 'API Key', placeholder: 'FMP API Key' }],
-  },
-  {
-    id: 'polygon', label: 'Polygon.io', desc: '미국 시세 · 뉴스 · 옵션',
-    docs: 'https://polygon.io/dashboard/api-keys',
-    fields: [{ key: 'api_key', label: 'API Key', placeholder: 'Polygon API Key' }],
-  },
-  {
-    id: 'fred', label: 'FRED', desc: '거시경제 지표 (미 연준)',
-    docs: 'https://fred.stlouisfed.org/docs/api/api_key.html',
-    fields: [{ key: 'api_key', label: 'API Key', placeholder: 'FRED API Key' }],
-  },
-  {
-    id: 'alphavantage', label: 'Alpha Vantage', desc: '시세 · 환율 · 암호화폐',
-    docs: 'https://www.alphavantage.co/support/#api-key',
-    fields: [{ key: 'api_key', label: 'API Key', placeholder: 'Alpha Vantage API Key' }],
-  },
-];
+// 카드 정렬 우선순위 (나머지는 이름순)
+const PROVIDER_ORDER = ['ecos', 'fred', 'kis', 'fmp', 'polygon', 'alphavantage', 'tiingo', 'eia'];
+
+// /api/providers 카탈로그 항목 → 카드 모델
+function toCard(p) {
+  return {
+    id: p.id,
+    label: p.name,
+    desc: p.description,
+    docs: p.key_docs || p.website,
+    fields: (p.credentials || []).map((f) => ({ key: f.key, label: f.label, placeholder: `${p.name} ${f.label}` })),
+    keyTestable: p.key_testable,
+    declarative: p.declarative,
+    modelCount: (p.models || []).length,
+    concepts: p.concepts || [],
+  };
+}
 
 // AI Copilot 채팅용 LLM 키 — 데이터 provider와 동일한 /api/keys 저장소 사용
 const AI_PROVIDERS = [
@@ -80,6 +70,42 @@ export default function SettingsPage() {
   const [statusMap, setStatusMap] = useState({});   // provider → { configured, masked, fields }
   const [inputs, setInputs]       = useState({});    // provider → { fieldKey: value }
   const [saving, setSaving]       = useState({});    // provider → bool
+  const [dataProviders, setDataProviders] = useState([]);  // 카탈로그에서 만든 키 필요 provider 카드
+  const [conceptLabels, setConceptLabels] = useState({});  // concept id → 표시명
+  const [testResult, setTestResult] = useState({});   // provider → { ok, message }
+  const [testing, setTesting]       = useState({});   // provider → bool
+
+  useEffect(() => {
+    providersAPI.invalidate();
+    providersAPI.list()
+      .then((res) => {
+        const rank = (id) => { const i = PROVIDER_ORDER.indexOf(id); return i < 0 ? PROVIDER_ORDER.length : i; };
+        setDataProviders((res?.providers || [])
+          .filter((p) => p.requires_key)
+          .sort((a, b) => rank(a.id) - rank(b.id) || a.name.localeCompare(b.name))
+          .map(toCard));
+      })
+      .catch(() => setDataProviders([]));
+    conceptsAPI.list()
+      .then((res) => setConceptLabels(Object.fromEntries((res?.results || []).map((c) => [c.id, c.label]))))
+      .catch(() => {});
+  }, []);
+
+  const runTest = useCallback(async (p, { quiet = false } = {}) => {
+    setTesting((t) => ({ ...t, [p.id]: true }));
+    try {
+      const r = await keysAPI.test(p.id);
+      setTestResult((m) => ({ ...m, [p.id]: r }));
+      if (!quiet || r.ok === false) {
+        if (r.ok) toast.success(`${p.label} 키 확인 완료`);
+        else if (r.ok === false) toast.error(`${p.label} 키 검증 실패: ${r.message}`);
+      }
+    } catch (e) {
+      setTestResult((m) => ({ ...m, [p.id]: { ok: false, message: e?.message || '검증 요청 실패' } }));
+    } finally {
+      setTesting((t) => ({ ...t, [p.id]: false }));
+    }
+  }, []);
 
   const loadKeys = useCallback(async () => {
     try {
@@ -121,9 +147,11 @@ export default function SettingsPage() {
     setSaving((s) => ({ ...s, [p.id]: true }));
     try {
       await keysAPI.set(body);
+      providersAPI.invalidate();   // 위젯 기본 provider 선택이 새 키를 반영하도록
       toast.success(`${p.label} 키 저장 완료`);
       setInputs((prev) => ({ ...prev, [p.id]: {} }));
       await loadKeys();
+      if (p.keyTestable) runTest(p, { quiet: true });   // 저장 즉시 실제 호출로 검증
     } catch (e) {
       toast.error(e?.message || '저장 실패 — Fetcher 연결을 확인하세요');
     } finally {
@@ -135,6 +163,8 @@ export default function SettingsPage() {
     if (!window.confirm(`${p.label} 키를 삭제하시겠습니까?`)) return;
     try {
       await keysAPI.delete(p.id);
+      providersAPI.invalidate();
+      setTestResult((m) => ({ ...m, [p.id]: undefined }));
       toast.success(`${p.label} 키 삭제됨`);
       await loadKeys();
     } catch (e) {
@@ -186,7 +216,7 @@ export default function SettingsPage() {
       )}
 
       <div className="space-y-3">
-        {PROVIDERS.map(renderCard)}
+        {dataProviders.map(renderCard)}
       </div>
 
       {/* ── AI Copilot 키 ──────────────────────────────────────────────── */}
@@ -230,6 +260,21 @@ export default function SettingsPage() {
                     )}
                   </div>
                   <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>{p.desc}</p>
+                  {(p.modelCount > 0 || p.concepts?.length > 0) && (
+                    <p className="text-[11px] mt-1 text-gray-500">
+                      이 키로 열리는 것: 데이터 모델 {p.modelCount}개
+                      {p.concepts?.length > 0 && (
+                        <> · 지표 {p.concepts.map((c) => conceptLabels[c] || c).join(', ')}</>
+                      )}
+                      {p.declarative && <span className="ml-1.5 text-gray-600">(JSON 스펙 provider)</span>}
+                    </p>
+                  )}
+                  {testResult[p.id] && testResult[p.id].ok !== null && (
+                    <p className={`flex items-center gap-1 text-[11px] mt-1 ${testResult[p.id].ok ? 'text-green-400' : 'text-red-400'}`}>
+                      {testResult[p.id].ok ? <CheckCircle2 size={11} /> : <XCircle size={11} />}
+                      {testResult[p.id].message}
+                    </p>
+                  )}
                 </div>
                 <a
                   href={p.docs}
@@ -273,6 +318,16 @@ export default function SettingsPage() {
                   {busy ? <RefreshCw size={13} className="animate-spin" /> : <Save size={13} />}
                   저장
                 </button>
+                {configured && p.keyTestable && (
+                  <button
+                    onClick={() => runTest(p)}
+                    disabled={busy || !!testing[p.id]}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border border-gray-700 text-gray-300 hover:border-cyan-500 hover:text-cyan-300 disabled:opacity-40 transition-colors"
+                  >
+                    {testing[p.id] ? <RefreshCw size={13} className="animate-spin" /> : <FlaskConical size={13} />}
+                    검증
+                  </button>
+                )}
                 {configured && (
                   <button
                     onClick={() => deleteProvider(p)}

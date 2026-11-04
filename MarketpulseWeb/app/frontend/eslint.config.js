@@ -1,5 +1,6 @@
 import js from '@eslint/js'
 import globals from 'globals'
+import react from 'eslint-plugin-react'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
@@ -24,7 +25,14 @@ export default defineConfig([
         sourceType: 'module',
       },
     },
+    plugins: { react },
     rules: {
+      // JSX 안에서 쓴 변수(<Icon/>)를 '사용'으로 인식시킨다. 없으면 no-unused-vars 가 오탐을 내고,
+      // 그 경고를 지우려다 실제로 쓰는 변수를 지워 런타임에 'Icon is not defined' 로 페이지가
+      // 통째로 깨졌다(ChartTypeSelector, WatchlistWidget EmptyState).
+      'react/jsx-uses-vars': 'error',
+      // 정의되지 않은 컴포넌트를 JSX 로 렌더하면 빌드는 통과하고 런타임에야 터진다 — lint 에서 막는다.
+      'react/jsx-no-undef': 'error',
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]', argsIgnorePattern: '^_' }],
       // 의도적으로 삼키는 catch 가 있다 — 빈 블록 자체는 막되 catch 는 허용한다.
       'no-empty': ['error', { allowEmptyCatch: true }],

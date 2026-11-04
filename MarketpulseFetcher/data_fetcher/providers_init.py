@@ -688,6 +688,10 @@ def register_all_providers():
     if quantitative_provider is not None:
         ProviderRegistry.register(quantitative_provider)
 
+    # 선언형 provider (providers/declarative/specs/*.json — 코드 없이 JSON 스펙만으로 추가)
+    from data_fetcher.providers.declarative import register_declarative_providers
+    register_declarative_providers()
+
     log.info(f"Registered {len(ProviderRegistry.list())} providers")
 
 

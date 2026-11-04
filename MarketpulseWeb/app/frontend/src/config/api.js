@@ -117,6 +117,9 @@ class ApiClient {
       const err = new Error(data.detail || `HTTP ${response.status}`);
       err.status  = response.status;
       err.detail  = data.detail;
+      // 구조화된 오류(예: 424 code=missing_key, provider=fred) — 위젯이 '키 등록' 안내로 바꾼다
+      err.code     = data.code;
+      err.provider = data.provider;
       throw err;
     }
 
@@ -174,6 +177,13 @@ export const keysAPI = {
   list:   ()              => apiClient.get(`${API_BASE}/keys`),
   set:    (data)          => apiClient.post(`${API_BASE}/keys`, data),
   delete: (provider)      => apiClient.del(`${API_BASE}/keys/${provider}`),
+  // body 생략 → 저장된 키로 검증. 결과 { ok: true|false|null(미지원), message }
+  test:   (provider, body) => apiClient.post(`${API_BASE}/keys/${provider}/test`, body || {}),
+};
+
+// ─── Concepts API (provider 무관 지표) ────────────────────────────────────────
+export const conceptsAPI = {
+  list: () => apiClient.get(`${API_BASE}/concepts`),
 };
 
 // ─── Providers API ────────────────────────────────────────────────────────────
@@ -191,6 +201,8 @@ export const providersAPI = {
     }
     return _providersPromise;
   },
+  // configured 는 '내 키' 기준이라 키를 저장·삭제하면 캐시를 버려야 위젯 기본 provider 가 갱신된다
+  invalidate: () => { _providersPromise = null; },
 };
 
 // ─── Export API ───────────────────────────────────────────────────────────────

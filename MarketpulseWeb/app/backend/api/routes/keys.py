@@ -40,6 +40,47 @@ def set_key(req: KeyRequest, user: User = Depends(get_current_active_user)) -> D
     return {"status": "ok", "provider": req.provider.lower()}
 
 
+class KeyTestRequest(BaseModel):
+    api_key: Optional[str] = None
+    fields: Optional[Dict[str, str]] = None
+
+
+@router.post("/keys/{provider}/test", summary="API 키 동작 확인 (저장 전 값 또는 저장된 키)")
+async def test_key(
+    provider: str,
+    req: Optional[KeyTestRequest] = None,
+    user: User = Depends(get_current_active_user),
+) -> Dict[str, Any]:
+    """provider 카탈로그의 key_test(가장 싼 호출)를 이 키로 실제 실행한다. 캐시는 쓰지 않는다.
+
+    키를 넘기지 않으면 저장된 키로 검증한다. 결과는 HTTP 200 + {ok, message} —
+    키가 틀린 것은 요청 오류가 아니라 검증 결과이므로.
+    """
+    from data_fetcher.provider_catalog import key_test_for
+    from data_fetcher.query_executor import QueryExecutor
+
+    provider = provider.lower()
+    test = key_test_for(provider)
+    if test is None:
+        return {"ok": None, "provider": provider, "message": "이 provider는 키 검증을 지원하지 않습니다"}
+
+    if req and req.fields:
+        creds = {k: v.strip() for k, v in req.fields.items() if v and v.strip()}
+    elif req and req.api_key and req.api_key.strip():
+        creds = {"api_key": req.api_key.strip()}
+    else:
+        creds = user_key_service.get_credentials(str(user.user_id), provider)
+    if not creds:
+        return {"ok": False, "provider": provider, "message": "등록된 키가 없습니다"}
+
+    try:
+        await QueryExecutor.fetch(provider, test["model"], test["params"], credentials=creds, ttl=0)
+    except Exception as exc:  # noqa: BLE001 — 어떤 실패든 '키로 호출 불가'로 보고
+        cause = exc.__cause__ or exc
+        return {"ok": False, "provider": provider, "message": str(cause)[:300] or type(cause).__name__}
+    return {"ok": True, "provider": provider, "message": "키가 정상 동작합니다"}
+
+
 @router.delete("/keys/{provider}", summary="내 API 키 삭제")
 def delete_key(provider: str, user: User = Depends(get_current_active_user)) -> Dict[str, str]:
     if not user_key_service.delete_key(str(user.user_id), provider):
