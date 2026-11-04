@@ -154,7 +154,6 @@ _DEFAULT_TTL: Dict[str, int] = {
     "swot":                   3600,
     "scorecard":              3600,
     "company_profile":        3600,
-    "company_overview":       3600,
     "income_statement":       3600,
     "index_constituents":     7200,
     "stock_list":             7200,
