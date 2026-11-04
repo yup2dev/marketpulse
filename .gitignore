@@ -38,12 +38,6 @@ node_modules/
 app/frontend/dist/
 app/frontend/src/lib/
 
-# ── desktop (Tauri) ────────────────────────────────────────────────────────────
-desktop/node_modules/
-desktop/src-tauri/target/
-# sidecar 바이너리 (빌드 산출물)
-desktop/src-tauri/binaries/
-
 # ── 프로젝트 데이터 / 캐시 ──────────────────────────────────────────────────────
 data/
 cache/
