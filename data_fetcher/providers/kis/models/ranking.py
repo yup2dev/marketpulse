@@ -19,9 +19,13 @@ import logging
 import os
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel
+from pydantic import Field
 
 from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
+from data_fetcher.abstract_provider.standard_models.stock_ranking import (
+    StockRankingData,
+    StockRankingQueryParams,
+)
 from data_fetcher.providers.kis.rest import kis_get
 
 log = logging.getLogger(__name__)
@@ -146,21 +150,20 @@ def _normalize(o: Dict[str, Any]) -> Dict[str, Any]:
 # 백엔드(WebServer)는 RemoteTransport로 'kis' 조회를 Fetcher(exe)에 위임하고,
 # Fetcher가 보유한 자격증명(appkey/appsecret)으로 실제 KIS REST를 호출한다.
 
-class KISRankingQueryParams(BaseModel):
-    sort_by: str = "gainers"   # gainers | losers | volume | trade_value
-    market: str = "domestic"   # all | domestic | kospi | kosdaq
-    limit: int = 50
+class KISRankingQueryParams(StockRankingQueryParams):
+    """KIS 실시간 순위 파라미터 — 기간은 당일(period='1d') 고정, 정렬은 KIS 서버가 한다."""
+
+    sort_by: str = Field(default="gainers", description="gainers | losers | volume | trade_value")
+    market: str = Field(default="domestic", description="all | domestic | kospi | kosdaq")
+    limit: int = Field(default=50, ge=1, description="최대 종목 수")
 
 
-class KISRankingData(BaseModel):
-    stk_cd: str
-    stk_nm: str
-    curr: str = "KRW"
-    sector: str = ""
-    close_price: float = 0.0
-    change_rate: float = 0.0
-    volume: int = 0
-    trade_value: float = 0.0
+class KISRankingData(StockRankingData):
+    """KIS 실시간 순위 행 — DBStockRankingFetcher와 같은 standard StockRanking shape."""
+
+    curr: Optional[str] = Field(default="KRW", description="통화")
+    close_price: Optional[float] = Field(default=0.0, description="현재가")
+    change_rate: Optional[float] = Field(default=0.0, description="당일 등락률 (%)")
 
 
 class KISRankingFetcher(ApiFetcher[KISRankingQueryParams, KISRankingData]):
