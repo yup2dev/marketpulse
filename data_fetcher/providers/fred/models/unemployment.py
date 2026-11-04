@@ -1,11 +1,17 @@
 """FRED Unemployment provider (standard Unemployment 모델 경유)."""
-from datetime import date as date_type, datetime, timedelta
-from typing import Optional
+import logging
+from datetime import datetime
+from typing import Optional, Any, Dict, List
+
 from pydantic import Field
+
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.unemployment import (
     UnemploymentQueryParams as BaseUnemploymentQueryParams,
     UnemploymentData as BaseUnemploymentData,
 )
+from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
+from data_fetcher.utils.api_keys import get_api_key
 
 
 class FredUnemploymentQueryParams(BaseUnemploymentQueryParams):
@@ -30,14 +36,9 @@ class FredUnemploymentData(BaseUnemploymentData):
     )
 
 
-"""FRED API Unemployment Data Fetcher"""
-import logging
-from datetime import datetime
-from typing import Any, Dict, List, Optional
+# ────────────────────────────────────────────────────────────────────────────
+# FRED API Unemployment Data Fetcher
 
-from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
-from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
-from data_fetcher.utils.api_keys import get_api_key
 
 log = logging.getLogger(__name__)
 

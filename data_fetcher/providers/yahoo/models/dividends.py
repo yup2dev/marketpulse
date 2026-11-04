@@ -1,7 +1,12 @@
 """Yahoo Finance Dividends Model (배당 데이터)"""
-from datetime import date as date_type
-from typing import Optional
+import logging
+from datetime import datetime, timedelta
+from typing import Optional, Any, Dict, List
+
+import yfinance as yf
 from pydantic import Field
+
+from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 from data_fetcher.abstract_provider.standard_models import DividendsQueryParams, DividendData
 
 
@@ -10,21 +15,15 @@ class YFinanceDividendsQueryParams(DividendsQueryParams):
 
 
 class YFinanceDividendData(DividendData):
-    pass
     yoy_growth: Optional[float] = Field(
         default=None,
         description="전년 대비 배당 성장률 (%)"
     )
 
 
-"""Yahoo Finance Dividends Fetcher"""
-import logging
-from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
-import yfinance as yf
-import pandas as pd
+# ────────────────────────────────────────────────────────────────────────────
+# Yahoo Finance Dividends Fetcher
 
-from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 
 log = logging.getLogger(__name__)
 

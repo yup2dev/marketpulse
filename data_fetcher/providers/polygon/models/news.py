@@ -1,7 +1,14 @@
 """Polygon.io News Model"""
-from typing import Optional, List
+import logging
+from datetime import datetime
+from typing import Optional, List, Any, Dict
+
 from pydantic import Field
+
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models import NewsQueryParams, NewsData
+from data_fetcher.utils.api_keys import get_api_key
+from data_fetcher.utils.provider_helpers import amake_json_request as amake_request, HTTPClientError
 
 
 class PolygonNewsQueryParams(NewsQueryParams):
@@ -56,14 +63,9 @@ class PolygonNewsData(NewsData):
     )
 
 
-"""Polygon.io News Fetcher"""
-import logging
-from datetime import datetime
-from typing import Any, Dict, List, Optional
+# ────────────────────────────────────────────────────────────────────────────
+# Polygon.io News Fetcher
 
-from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
-from data_fetcher.utils.api_keys import get_api_key
-from data_fetcher.utils.provider_helpers import amake_json_request as amake_request, HTTPClientError
 
 log = logging.getLogger(__name__)
 

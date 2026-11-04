@@ -1,11 +1,17 @@
 """Inflation Sector Models"""
+import logging
 from datetime import date as date_type
-from typing import Optional
+from typing import Optional, Any, Dict, List
+
 from pydantic import Field
+
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.fred_series import (
     FredSeriesQueryParams,
     FredSeriesData,
 )
+from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
+from data_fetcher.utils.api_keys import get_api_key
 
 
 class InflationSectorQueryParams(FredSeriesQueryParams):
@@ -25,14 +31,9 @@ class InflationSectorData(FredSeriesData):
     vehicles: Optional[float] = Field(default=None)
 
 
-"""Inflation Sector History Fetcher — 8개 CPI 섹터별 YoY 변화율 시계열."""
-import logging
-from datetime import date as date_type
-from typing import Any, Dict, List, Optional
+# ────────────────────────────────────────────────────────────────────────────
+# Inflation Sector History Fetcher — 8개 CPI 섹터별 YoY 변화율 시계열.
 
-from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
-from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
-from data_fetcher.utils.api_keys import get_api_key
 
 log = logging.getLogger(__name__)
 

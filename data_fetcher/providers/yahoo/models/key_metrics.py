@@ -1,6 +1,10 @@
 """Yahoo Finance Key Metrics Model"""
-from typing import Optional
-from pydantic import Field
+import logging
+from typing import Optional, Any, Dict, List
+
+import yfinance as yf
+
+from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 from data_fetcher.abstract_provider.standard_models import KeyMetricsQueryParams, KeyMetricsData
 
 
@@ -9,7 +13,6 @@ class YFinanceKeyMetricsQueryParams(KeyMetricsQueryParams):
 
 
 class YFinanceKeyMetricsData(KeyMetricsData):
-    pass
 
     # Valuation
     pe_ratio: Optional[float] = None
@@ -116,12 +119,9 @@ class YFinanceKeyMetricsData(KeyMetricsData):
     }
 
 
-"""Yahoo Finance Key Metrics Fetcher"""
-import logging
-from typing import Any, Dict, List, Optional
-import yfinance as yf
+# ────────────────────────────────────────────────────────────────────────────
+# Yahoo Finance Key Metrics Fetcher
 
-from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 
 log = logging.getLogger(__name__)
 

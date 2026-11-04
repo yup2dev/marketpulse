@@ -1,11 +1,17 @@
 """Employment Data Standard Model (고용 데이터)"""
-from datetime import date as date_type, datetime, timedelta
-from typing import Optional
+import logging
+from datetime import date as date_type, datetime
+from typing import Optional, Any, Dict, List
+
 from pydantic import Field
+
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.fred_series import (
     FredSeriesQueryParams,
     FredSeriesData,
 )
+from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
+from data_fetcher.utils.api_keys import get_api_key
 
 
 class EmploymentQueryParams(FredSeriesQueryParams):
@@ -59,14 +65,9 @@ class EmploymentData(FredSeriesData):
     )
 
 
-"""FRED API Employment Data Fetcher"""
-import logging
-from datetime import datetime, date as date_type
-from typing import Any, Dict, List, Optional
+# ────────────────────────────────────────────────────────────────────────────
+# FRED API Employment Data Fetcher
 
-from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
-from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
-from data_fetcher.utils.api_keys import get_api_key
 
 log = logging.getLogger(__name__)
 

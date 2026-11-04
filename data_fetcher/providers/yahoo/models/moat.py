@@ -1,4 +1,11 @@
 """Yahoo Finance Moat Analysis Model"""
+import logging
+from typing import Any, Dict, List, Optional
+
+import numpy as np
+import yfinance as yf
+
+from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 from data_fetcher.abstract_provider.standard_models.economic_moat import (
     EconomicMoatYearData as YFinanceMoatYearData,
     EconomicMoatQueryParams,
@@ -14,13 +21,9 @@ class YFinanceMoatData(EconomicMoatData):
     """Moat 분석 데이터 (standard EconomicMoat 경유)"""
 
 
-"""Yahoo Finance Moat Analysis Fetcher"""
-import logging
-from typing import Any, Dict, List, Optional
-import numpy as np
-import yfinance as yf
+# ────────────────────────────────────────────────────────────────────────────
+# Yahoo Finance Moat Analysis Fetcher
 
-from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 
 log = logging.getLogger(__name__)
 

@@ -1,7 +1,11 @@
 """Polygon.io Technical Indicators Model"""
-from datetime import date as date_type
-from typing import Optional
+import logging
+from datetime import datetime
+from typing import Optional, Any, Dict, List, Union
+
 from pydantic import Field, model_validator
+
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models import (
     TechnicalIndicatorQueryParams as _StdTIQueryParams,
     TechnicalIndicatorData,
@@ -11,6 +15,8 @@ from data_fetcher.abstract_provider.standard_models import (
 from data_fetcher.abstract_provider.standard_models.technical_indicators import (
     TechnicalIndicatorsWideData,
 )
+from data_fetcher.utils.api_keys import get_api_key
+from data_fetcher.utils.provider_helpers import amake_json_request as amake_request, HTTPClientError
 
 
 class TechnicalIndicatorsQueryParams(_StdTIQueryParams):
@@ -79,14 +85,9 @@ class TechnicalIndicatorsData(TechnicalIndicatorsWideData):
     """통합 기술적 지표 데이터 (standard TechnicalIndicatorsWide 경유)"""
 
 
-"""Polygon.io Technical Indicators Fetcher"""
-import logging
-from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+# ────────────────────────────────────────────────────────────────────────────
+# Polygon.io Technical Indicators Fetcher
 
-from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
-from data_fetcher.utils.api_keys import get_api_key
-from data_fetcher.utils.provider_helpers import amake_json_request as amake_request, HTTPClientError
 
 log = logging.getLogger(__name__)
 

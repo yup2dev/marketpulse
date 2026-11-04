@@ -1,4 +1,10 @@
 """Yahoo Finance Management Model"""
+import logging
+from typing import Any, Dict, List, Optional
+
+import yfinance as yf
+
+from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 from data_fetcher.abstract_provider.standard_models.company_management import (
     CompanyOfficerData,
     CompanyManagementQueryParams,
@@ -23,12 +29,9 @@ class YFinanceManagementData(CompanyManagementData):
     """경영진 및 거버넌스 데이터 (standard CompanyManagement 경유)"""
 
 
-"""Yahoo Finance Management Fetcher"""
-import logging
-from typing import Any, Dict, List, Optional
-import yfinance as yf
+# ────────────────────────────────────────────────────────────────────────────
+# Yahoo Finance Management Fetcher
 
-from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 
 log = logging.getLogger(__name__)
 

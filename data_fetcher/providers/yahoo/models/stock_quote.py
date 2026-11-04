@@ -1,6 +1,10 @@
 """Yahoo Finance Stock Quote Model"""
-from typing import Optional
+import logging
+from typing import Optional, Any, Dict, List
+
 from pydantic import Field
+
+from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 from data_fetcher.abstract_provider.standard_models import EquityQuoteQueryParams, EquityQuoteData
 
 # 한국/기타 시장 별칭 → Yahoo Finance 공식 티커
@@ -26,11 +30,9 @@ class StockQuoteData(EquityQuoteData):
     timestamp: Optional[str] = Field(default=None, description="타임스탬프")
 
 
-"""Stock Quote Fetcher — 최신 주가·등락 스냅샷 (stock_price 5d/1d 기반)."""
-import logging
-from typing import Any, Dict, List, Optional
+# ────────────────────────────────────────────────────────────────────────────
+# Stock Quote Fetcher — 최신 주가·등락 스냅샷 (stock_price 5d/1d 기반).
 
-from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 
 log = logging.getLogger(__name__)
 

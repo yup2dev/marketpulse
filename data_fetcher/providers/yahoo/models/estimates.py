@@ -1,21 +1,20 @@
 """Yahoo Finance Estimates provider (standard EquityEstimates 모델 경유)"""
+import logging
+from typing import Any, Dict, List, Optional
+
+import pandas as pd
+import yfinance as yf
+
+from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 from data_fetcher.abstract_provider.standard_models.equity_estimates import (
     EquityEstimatesQueryParams as YFinanceEstimatesQueryParams,
-    PriceTargetData as YFinancePriceTargetData,
-    EarningsEstimateData as YFinanceEarningsEstimateData,
-    RevenueEstimateData as YFinanceRevenueEstimateData,
-    GrowthEstimateData as YFinanceGrowthEstimateData,
     EquityEstimatesData as YFinanceEstimatesData,
 )
 
 
-"""Yahoo Finance Estimates Fetcher"""
-import logging
-from typing import Any, Dict, List, Optional
-import yfinance as yf
-import pandas as pd
+# ────────────────────────────────────────────────────────────────────────────
+# Yahoo Finance Estimates Fetcher
 
-from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 
 log = logging.getLogger(__name__)
 

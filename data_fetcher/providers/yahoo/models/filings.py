@@ -1,7 +1,12 @@
 """Yahoo Finance SEC Filings Model (standard CompanyFilings 경유)"""
+import logging
 from datetime import date as date_type
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
+
+import yfinance as yf
 from pydantic import Field
+
+from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 from data_fetcher.abstract_provider.standard_models.company_filings import (
     CompanyFilingsQueryParams,
     CompanyFilingsData,
@@ -30,12 +35,9 @@ class YFinanceFilingData(CompanyFilingsData):
     exhibits: Optional[Dict[str, Any]] = Field(default=None, description="첨부 파일 목록")
 
 
-"""Yahoo Finance SEC Filings Fetcher"""
-import logging
-from typing import Any, Dict, List, Optional
-import yfinance as yf
+# ────────────────────────────────────────────────────────────────────────────
+# Yahoo Finance SEC Filings Fetcher
 
-from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 
 log = logging.getLogger(__name__)
 

@@ -1,4 +1,11 @@
 """Yahoo Finance Calendar Model (회사 일정)"""
+import logging
+from typing import Any, Dict, List, Optional
+
+import pandas as pd
+import yfinance as yf
+
+from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 from data_fetcher.abstract_provider.standard_models.company_calendar import (
     CompanyCalendarQueryParams,
     CompanyCalendarData,
@@ -13,13 +20,9 @@ class YFinanceCalendarData(CompanyCalendarData):
     """회사 일정 데이터 (standard CompanyCalendar 경유)"""
 
 
-"""Yahoo Finance Calendar Fetcher"""
-import logging
-from typing import Any, Dict, List, Optional
-import yfinance as yf
-import pandas as pd
+# ────────────────────────────────────────────────────────────────────────────
+# Yahoo Finance Calendar Fetcher
 
-from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 
 log = logging.getLogger(__name__)
 

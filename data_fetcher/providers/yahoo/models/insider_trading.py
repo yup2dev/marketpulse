@@ -1,11 +1,19 @@
 """Yahoo Finance Insider Trading Models"""
-from data_fetcher.abstract_provider.standard_models import InsiderTradingQueryParams, InsiderTradingData
-from data_fetcher.abstract_provider.standard_models.insider_holders import (
-    InsiderHoldersQueryParams,
-    InsiderHolderData,
+import logging
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+import pandas as pd
+import yfinance as yf
+
+from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
+from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
+from data_fetcher.abstract_provider.standard_models import (
+    InsiderTradingQueryParams,
+    InsiderTradingData,
 )
+from data_fetcher.abstract_provider.standard_models.insider_holders import InsiderHolderData
 from data_fetcher.abstract_provider.standard_models.insider_trading_summary import (
-    InsiderTradingSummaryQueryParams,
     InsiderTradingSummaryData,
 )
 
@@ -27,15 +35,9 @@ class YFinanceInsiderTradingSummaryData(InsiderTradingSummaryData):
     source: str = 'yahoo'
 
 
-"""Yahoo Finance Insider Trading Fetcher"""
-import logging
-from datetime import datetime
-from typing import Any, Dict, List, Optional
-import yfinance as yf
-import pandas as pd
+# ────────────────────────────────────────────────────────────────────────────
+# Yahoo Finance Insider Trading Fetcher
 
-from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
-from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 
 log = logging.getLogger(__name__)
 

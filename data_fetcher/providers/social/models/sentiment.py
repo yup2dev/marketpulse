@@ -1,10 +1,17 @@
 """Social Sentiment Model (StockTwits + Reddit)"""
-from typing import Any, Dict, List
+import datetime
+import logging
+import os
+from typing import Any, Dict, List, Optional
+
 from pydantic import Field
+
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.stock_sentiment import (
     StockSentimentQueryParams,
     StockSentimentData,
 )
+from data_fetcher.utils.provider_helpers import amake_json_request as amake_request
 
 
 class SocialSentimentQueryParams(StockSentimentQueryParams):
@@ -18,14 +25,9 @@ class SocialSentimentData(StockSentimentData):
     has_reddit: bool = False
 
 
-"""Social Sentiment Fetcher - StockTwits + Reddit"""
-import datetime
-import logging
-import os
-from typing import Any, Dict, List, Optional
+# ────────────────────────────────────────────────────────────────────────────
+# Social Sentiment Fetcher - StockTwits + Reddit
 
-from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
-from data_fetcher.utils.provider_helpers import amake_json_request as amake_request
 
 log = logging.getLogger(__name__)
 

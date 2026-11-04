@@ -1,22 +1,21 @@
 """Bond Prices provider (standard BondPrices 모델 경유)"""
-from datetime import date as date_type
-from typing import List, Optional
-from pydantic import Field
+import logging
+from datetime import datetime
+from typing import List, Optional, Any, Dict
 
+
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.bond_prices import (
     BondPricesQueryParams,
     BondPricesData,
 )
-
-
-"""FMP Bond Prices Fetcher"""
-import logging
-from datetime import datetime
-from typing import Any, Dict, List, Optional
-
-from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.utils.api_keys import get_api_key
 from data_fetcher.utils.provider_helpers import amake_json_request as amake_request, HTTPClientError
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# FMP Bond Prices Fetcher
+
 
 log = logging.getLogger(__name__)
 

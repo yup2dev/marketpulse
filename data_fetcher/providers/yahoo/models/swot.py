@@ -1,4 +1,10 @@
 """Yahoo Finance SWOT Analysis Model"""
+import logging
+from typing import Any, Dict, List, Optional
+
+import yfinance as yf
+
+from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 from data_fetcher.abstract_provider.standard_models.swot_analysis import (
     SwotItem as YFinanceSWOTItem,
     SwotAnalysisQueryParams,
@@ -14,12 +20,9 @@ class YFinanceSWOTData(SwotAnalysisData):
     """SWOT 분석 데이터 (standard SwotAnalysis 경유)"""
 
 
-"""Yahoo Finance SWOT Analysis Fetcher"""
-import logging
-from typing import Any, Dict, List, Optional
-import yfinance as yf
+# ────────────────────────────────────────────────────────────────────────────
+# Yahoo Finance SWOT Analysis Fetcher
 
-from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 
 log = logging.getLogger(__name__)
 
