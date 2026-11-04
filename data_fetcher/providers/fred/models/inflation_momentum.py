@@ -1,11 +1,17 @@
 """Inflation Momentum Models"""
+import logging
 from datetime import date as date_type
-from typing import Optional
+from typing import Optional, Any, Dict, List
+
 from pydantic import Field
+
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.fred_series import (
     FredSeriesQueryParams,
     FredSeriesData,
 )
+from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
+from data_fetcher.utils.api_keys import get_api_key
 
 
 class InflationMomentumQueryParams(FredSeriesQueryParams):
@@ -20,14 +26,9 @@ class InflationMomentumData(FredSeriesData):
     yoy_3m: Optional[float] = Field(default=None, description="3개월 연율화 (%)")
 
 
-"""Inflation Momentum Fetcher — CPIAUCSL 기반 12M/6M/3M 연율화 변화율."""
-import logging
-from datetime import date as date_type
-from typing import Any, Dict, List, Optional
+# ────────────────────────────────────────────────────────────────────────────
+# Inflation Momentum Fetcher — CPIAUCSL 기반 12M/6M/3M 연율화 변화율.
 
-from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
-from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
-from data_fetcher.utils.api_keys import get_api_key
 
 log = logging.getLogger(__name__)
 

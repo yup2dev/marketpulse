@@ -1,4 +1,11 @@
 """Yahoo Finance Holders Model"""
+import logging
+from typing import Any, Dict, List, Optional
+
+import yfinance as yf
+
+from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
+from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
 from data_fetcher.abstract_provider.standard_models.equity_holders import (
     EquityHoldersQueryParams,
     InstitutionalHolderData as YFinanceInstitutionalHolderData,
@@ -14,13 +21,9 @@ class YFinanceHoldersData(EquityHoldersData):
     """보유 현황 통합 데이터 (standard EquityHolders 경유)"""
 
 
-"""Yahoo Finance Holders Fetcher"""
-import logging
-from typing import Any, Dict, List, Optional
-import yfinance as yf
+# ────────────────────────────────────────────────────────────────────────────
+# Yahoo Finance Holders Fetcher
 
-from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
-from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 
 log = logging.getLogger(__name__)
 

@@ -1,11 +1,18 @@
 """Phillips Curve Models"""
+import logging
 from datetime import date as date_type
-from typing import Optional
+from typing import Optional, Any, Dict, List
+
 from pydantic import Field
+
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.fred_series import (
     FredSeriesQueryParams,
     FredSeriesData,
 )
+from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
+from data_fetcher.providers.fred.utils.yoy import yoy_at
+from data_fetcher.utils.api_keys import get_api_key
 
 
 class PhillipsCurveQueryParams(FredSeriesQueryParams):
@@ -19,15 +26,9 @@ class PhillipsCurveData(FredSeriesData):
     inflation: float = Field(description="CPI YoY (%)")
 
 
-"""Phillips Curve Fetcher — Unemployment vs CPI YoY (UNRATE + CPIAUCSL)."""
-import logging
-from datetime import date as date_type
-from typing import Any, Dict, List, Optional
+# ────────────────────────────────────────────────────────────────────────────
+# Phillips Curve Fetcher — Unemployment vs CPI YoY (UNRATE + CPIAUCSL).
 
-from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
-from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
-from data_fetcher.utils.api_keys import get_api_key
-from data_fetcher.providers.fred.utils.yoy import yoy_at
 
 log = logging.getLogger(__name__)
 

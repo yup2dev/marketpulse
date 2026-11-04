@@ -1,4 +1,11 @@
 """Yahoo Finance Quarterly P&L Model"""
+import logging
+from typing import Any, Dict, List, Optional
+
+import numpy as np
+import yfinance as yf
+
+from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 from data_fetcher.abstract_provider.standard_models.quarterly_pnl import (
     QuarterlyPnLPeriodData as YFinanceQuarterlyPeriodData,
     QuarterlyPnLQueryParams,
@@ -14,13 +21,9 @@ class YFinanceQuarterlyPnLData(QuarterlyPnLData):
     """분기 P&L 통합 데이터 (standard QuarterlyPnL 경유)"""
 
 
-"""Yahoo Finance Quarterly P&L Fetcher"""
-import logging
-from typing import Any, Dict, List, Optional
-import numpy as np
-import yfinance as yf
+# ────────────────────────────────────────────────────────────────────────────
+# Yahoo Finance Quarterly P&L Fetcher
 
-from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 
 log = logging.getLogger(__name__)
 

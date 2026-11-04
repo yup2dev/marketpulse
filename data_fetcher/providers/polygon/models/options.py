@@ -1,18 +1,19 @@
 """Polygon.io Options provider (standard OptionsChains 모델 경유)"""
-from data_fetcher.abstract_provider.standard_models.options_chains import (
-    OptionsQueryParams,
-    OptionsContractData,
-    OptionsChainData,
-)
-
-
-"""Polygon.io Options Data Fetcher"""
 import logging
 from typing import Any, Dict, List, Optional
 
 from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
+from data_fetcher.abstract_provider.standard_models.options_chains import (
+    OptionsQueryParams,
+    OptionsContractData,
+)
 from data_fetcher.utils.api_keys import get_api_key
 from data_fetcher.utils.provider_helpers import amake_json_request as amake_request, HTTPClientError
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Polygon.io Options Data Fetcher
+
 
 log = logging.getLogger(__name__)
 

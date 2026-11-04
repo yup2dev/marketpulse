@@ -1,6 +1,11 @@
 """Yahoo Finance Company Info Model (회사 정보)"""
-from typing import Optional
+import logging
+from typing import Optional, Any, Dict, List
+
+import yfinance as yf
 from pydantic import Field
+
+from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 from data_fetcher.abstract_provider.standard_models.company_profile import (
     CompanyProfileQueryParams,
     CompanyProfileData,
@@ -110,12 +115,9 @@ class YFinanceCompanyInfoData(CompanyProfileData):
     }
 
 
-"""Yahoo Finance Company Info Fetcher"""
-import logging
-from typing import Any, Dict, List, Optional
-import yfinance as yf
+# ────────────────────────────────────────────────────────────────────────────
+# Yahoo Finance Company Info Fetcher
 
-from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 
 log = logging.getLogger(__name__)
 

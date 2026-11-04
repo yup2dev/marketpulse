@@ -1,11 +1,17 @@
 """Non-Farm Payroll (비농업 취업자) Standard Model"""
+import logging
 from datetime import date as date_type, datetime, timedelta
-from typing import Optional
+from typing import Optional, Any, Dict, List
+
 from pydantic import Field
+
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.fred_series import (
     FredSeriesQueryParams,
     FredSeriesData,
 )
+from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
+from data_fetcher.utils.api_keys import get_api_key
 
 
 class NonfarmPayrollQueryParams(FredSeriesQueryParams):
@@ -72,14 +78,9 @@ class NonfarmPayrollData(FredSeriesData):
     )
 
 
-"""FRED API Non-Farm Payroll Fetcher"""
-import logging
-from datetime import datetime, date as date_type
-from typing import Any, Dict, List, Optional
+# ────────────────────────────────────────────────────────────────────────────
+# FRED API Non-Farm Payroll Fetcher
 
-from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
-from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
-from data_fetcher.utils.api_keys import get_api_key
 
 log = logging.getLogger(__name__)
 

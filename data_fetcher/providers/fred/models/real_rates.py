@@ -1,11 +1,17 @@
 """Real Rates Models (TIPS + Breakeven)"""
+import logging
 from datetime import date as date_type
-from typing import Optional
+from typing import Optional, Any, Dict, List
+
 from pydantic import Field
+
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.fred_series import (
     FredSeriesQueryParams,
     FredSeriesData,
 )
+from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
+from data_fetcher.utils.api_keys import get_api_key
 
 
 class RealRatesQueryParams(FredSeriesQueryParams):
@@ -23,13 +29,9 @@ class RealRatesData(FredSeriesData):
     breakeven_10y: Optional[float] = Field(default=None, description="10년 손익분기 인플레이션 (%)")
 
 
-"""Real Rates Fetcher — TIPS yields + breakeven inflation (6 FRED series merged by date)."""
-import logging
-from typing import Any, Dict, List, Optional
+# ────────────────────────────────────────────────────────────────────────────
+# Real Rates Fetcher — TIPS yields + breakeven inflation (6 FRED series merged by date).
 
-from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
-from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
-from data_fetcher.utils.api_keys import get_api_key
 
 log = logging.getLogger(__name__)
 

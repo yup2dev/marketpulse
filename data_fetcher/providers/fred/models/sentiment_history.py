@@ -1,11 +1,17 @@
 """Sentiment History Models"""
+import logging
 from datetime import date as date_type
-from typing import Optional
+from typing import Optional, Any, Dict, List
+
 from pydantic import Field
+
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.fred_series import (
     FredSeriesQueryParams,
     FredSeriesData,
 )
+from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
+from data_fetcher.utils.api_keys import get_api_key
 
 
 class SentimentHistoryQueryParams(FredSeriesQueryParams):
@@ -20,13 +26,9 @@ class SentimentHistoryData(FredSeriesData):
     fear_greed_score: Optional[float] = Field(default=None, description="공포/탐욕 점수 (0-100)")
 
 
-"""Sentiment History Fetcher — VIX + HY Spread → fear/greed score."""
-import logging
-from typing import Any, Dict, List, Optional
+# ────────────────────────────────────────────────────────────────────────────
+# Sentiment History Fetcher — VIX + HY Spread → fear/greed score.
 
-from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
-from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
-from data_fetcher.utils.api_keys import get_api_key
 
 log = logging.getLogger(__name__)
 

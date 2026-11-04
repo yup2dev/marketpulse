@@ -1,9 +1,17 @@
 """Polygon.io Short Interest Model"""
-from datetime import date as date_type
-from typing import Optional
+import logging
+from datetime import datetime
+from typing import Optional, Any, Dict, List
+
 from pydantic import Field, model_validator
-from data_fetcher.abstract_provider.standard_models import ShortInterestQueryParams as _StdShortInterestQueryParams
-from data_fetcher.abstract_provider.standard_models import ShortInterestData
+
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
+from data_fetcher.abstract_provider.standard_models import (
+    ShortInterestQueryParams as _StdShortInterestQueryParams,
+    ShortInterestData,
+)
+from data_fetcher.utils.api_keys import get_api_key
+from data_fetcher.utils.provider_helpers import amake_json_request as amake_request, HTTPClientError
 
 
 class ShortInterestQueryParams(_StdShortInterestQueryParams):
@@ -35,7 +43,6 @@ class ShortInterestQueryParams(_StdShortInterestQueryParams):
 
 class PolygonShortInterestData(ShortInterestData):
     """Polygon 공매도 — 표준 ShortInterestData 상속"""
-    pass
     shares_outstanding: Optional[int] = Field(
         default=None,
         description="발행주식 수"
@@ -48,14 +55,9 @@ class PolygonShortInterestData(ShortInterestData):
     )
 
 
-"""Polygon.io Short Interest Fetcher"""
-import logging
-from datetime import datetime
-from typing import Any, Dict, List, Optional
+# ────────────────────────────────────────────────────────────────────────────
+# Polygon.io Short Interest Fetcher
 
-from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
-from data_fetcher.utils.api_keys import get_api_key
-from data_fetcher.utils.provider_helpers import amake_json_request as amake_request, HTTPClientError
 
 log = logging.getLogger(__name__)
 

@@ -1,19 +1,20 @@
 """Yield Curve Models"""
-from typing import Optional
-from pydantic import Field
+import logging
+from typing import Optional, Any, Dict, List
+
+
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.yield_curve import (
     YieldCurveQueryParams,
     YieldCurveData,
 )
-
-
-"""Yield Curve Snapshot Fetcher — 7개 만기별 최신 수익률."""
-import logging
-from typing import Any, Dict, List, Optional
-
-from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
 from data_fetcher.utils.api_keys import get_api_key
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Yield Curve Snapshot Fetcher — 7개 만기별 최신 수익률.
+
 
 log = logging.getLogger(__name__)
 

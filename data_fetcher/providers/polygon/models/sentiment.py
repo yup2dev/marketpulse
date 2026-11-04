@@ -1,10 +1,16 @@
 """Polygon Stock Sentiment Model"""
-from typing import Any, Dict, List
+import logging
+from collections import defaultdict
+from typing import Any, Dict, List, Optional
+
 from pydantic import Field
+
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.stock_sentiment import (
     StockSentimentQueryParams,
     StockSentimentData,
 )
+from data_fetcher.providers.polygon.models.news import PolygonNewsFetcher
 
 
 class PolygonStockSentimentQueryParams(StockSentimentQueryParams):
@@ -17,13 +23,9 @@ class PolygonStockSentimentData(StockSentimentData):
     trend: List[Dict[str, Any]] = Field(default_factory=list)
 
 
-"""Polygon Stock Sentiment Fetcher - keyword-based sentiment from news feed"""
-import logging
-from collections import defaultdict
-from typing import Any, Dict, List, Optional
+# ────────────────────────────────────────────────────────────────────────────
+# Polygon Stock Sentiment Fetcher - keyword-based sentiment from news feed
 
-from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
-from data_fetcher.providers.polygon.models.news import PolygonNewsFetcher
 
 log = logging.getLogger(__name__)
 

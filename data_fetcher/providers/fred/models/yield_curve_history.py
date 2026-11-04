@@ -1,24 +1,24 @@
 """Yield Curve History Models"""
-from datetime import date as date_type
-from typing import Optional
-from pydantic import Field
+import logging
+from typing import Optional, Any, Dict, List
+
+
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.yield_curve import (
     YieldCurveQueryParams,
     YieldCurveHistoryData,
 )
+from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
+from data_fetcher.utils.api_keys import get_api_key
 
 
 class YieldCurveHistoryQueryParams(YieldCurveQueryParams):
     """standard YieldCurve 파라미터 경유 (start_date/end_date)."""
 
 
-"""Yield Curve History Fetcher — 7개 만기 수익률 시계열 병합."""
-import logging
-from typing import Any, Dict, List, Optional
+# ────────────────────────────────────────────────────────────────────────────
+# Yield Curve History Fetcher — 7개 만기 수익률 시계열 병합.
 
-from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
-from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
-from data_fetcher.utils.api_keys import get_api_key
 
 log = logging.getLogger(__name__)
 

@@ -1,19 +1,4 @@
 """Yahoo Finance Batch Quotes Models"""
-from data_fetcher.abstract_provider.standard_models.batch_quotes import (
-    BatchQuotesQueryParams as YFinanceBatchQuotesQueryParams,
-    BatchQuoteData as YFinanceBatchQuoteData,
-)
-
-
-"""
-Yahoo Finance Batch Quotes Fetcher
-
-여러 심볼을 yf.download() 배치로 동시 조회.
-단일 심볼 Ticker 방식보다 300개 기준 3× 빠름.
-
-mode='live'   → 현재가 vs 전일 종가  (WS·랭킹 등락률)
-mode='period' → 현재가 vs 기간 시작가 (기간별 랭킹)
-"""
 import concurrent.futures as _cf
 import contextlib
 import logging
@@ -23,6 +8,21 @@ import pandas as pd
 import yfinance as yf
 
 from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
+from data_fetcher.abstract_provider.standard_models.batch_quotes import (
+    BatchQuotesQueryParams as YFinanceBatchQuotesQueryParams,
+    BatchQuoteData as YFinanceBatchQuoteData,
+)
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Yahoo Finance Batch Quotes Fetcher
+#
+# 여러 심볼을 yf.download() 배치로 동시 조회.
+# 단일 심볼 Ticker 방식보다 300개 기준 3× 빠름.
+#
+# mode='live'   → 현재가 vs 전일 종가  (WS·랭킹 등락률)
+# mode='period' → 현재가 vs 기간 시작가 (기간별 랭킹)
+
 
 log = logging.getLogger(__name__)
 

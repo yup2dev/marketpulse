@@ -1,11 +1,17 @@
 """Jobs Breakdown Models"""
+import logging
 from datetime import date as date_type
-from typing import Optional
+from typing import Optional, Any, Dict, List
+
 from pydantic import Field
+
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.fred_series import (
     FredSeriesQueryParams,
     FredSeriesData,
 )
+from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
+from data_fetcher.utils.api_keys import get_api_key
 
 
 class JobsBreakdownQueryParams(FredSeriesQueryParams):
@@ -21,13 +27,9 @@ class JobsBreakdownData(FredSeriesData):
     government_level: Optional[float] = Field(default=None, description="정부 고용 수준")
 
 
-"""Jobs Breakdown Fetcher — 민간 vs 정부 고용 변화 (USPRIV + USGOVT)."""
-import logging
-from typing import Any, Dict, List, Optional
+# ────────────────────────────────────────────────────────────────────────────
+# Jobs Breakdown Fetcher — 민간 vs 정부 고용 변화 (USPRIV + USGOVT).
 
-from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
-from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
-from data_fetcher.utils.api_keys import get_api_key
 
 log = logging.getLogger(__name__)
 

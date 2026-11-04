@@ -1,4 +1,10 @@
 """Yahoo Finance Stock Splits Model"""
+import logging
+from typing import Any, Dict, List, Optional
+
+import yfinance as yf
+
+from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 from data_fetcher.abstract_provider.standard_models.equity_splits import (
     EquitySplitsQueryParams,
     EquitySplitsData,
@@ -13,12 +19,9 @@ class YFinanceSplitData(EquitySplitsData):
     """주식 분할 데이터 (standard EquitySplits 경유)"""
 
 
-"""Yahoo Finance Stock Splits Fetcher"""
-import logging
-from typing import Any, Dict, List, Optional
-import yfinance as yf
+# ────────────────────────────────────────────────────────────────────────────
+# Yahoo Finance Stock Splits Fetcher
 
-from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 
 log = logging.getLogger(__name__)
 

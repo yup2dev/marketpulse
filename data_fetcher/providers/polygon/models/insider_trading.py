@@ -1,9 +1,16 @@
 """Polygon.io Insider Trading Model"""
-from datetime import date as date_type
-from typing import Optional
+import logging
+from typing import Optional, Any, Dict, List
+
 from pydantic import Field, model_validator
-from data_fetcher.abstract_provider.standard_models import InsiderTradingQueryParams as _StdInsiderTradingQueryParams
-from data_fetcher.abstract_provider.standard_models import InsiderTradingData
+
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
+from data_fetcher.abstract_provider.standard_models import (
+    InsiderTradingQueryParams as _StdInsiderTradingQueryParams,
+    InsiderTradingData,
+)
+from data_fetcher.utils.api_keys import get_api_key
+from data_fetcher.utils.provider_helpers import amake_json_request as amake_request, HTTPClientError
 
 
 class InsiderTradingQueryParams(_StdInsiderTradingQueryParams):
@@ -45,13 +52,9 @@ class PolygonInsiderTradingData(InsiderTradingData):
     }
 
 
-"""Polygon.io Insider Trading Fetcher"""
-import logging
-from typing import Any, Dict, List, Optional
+# ────────────────────────────────────────────────────────────────────────────
+# Polygon.io Insider Trading Fetcher
 
-from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
-from data_fetcher.utils.api_keys import get_api_key
-from data_fetcher.utils.provider_helpers import amake_json_request as amake_request, HTTPClientError
 
 log = logging.getLogger(__name__)
 

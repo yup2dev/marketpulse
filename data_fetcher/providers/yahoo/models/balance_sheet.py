@@ -1,6 +1,12 @@
 """Yahoo Finance Balance Sheet Model"""
-from typing import Optional
+import logging
+from typing import Optional, Any, Dict, List
+
+import numpy as np
+import yfinance as yf
 from pydantic import Field
+
+from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 from data_fetcher.abstract_provider.standard_models import BalanceSheetQueryParams, BalanceSheetData
 
 
@@ -13,13 +19,9 @@ class YFinanceBalanceSheetData(BalanceSheetData):
     pass
 
 
-"""Yahoo Finance Balance Sheet Fetcher"""
-import logging
-import numpy as np
-import yfinance as yf
-from typing import Any, Dict, List, Optional
+# ────────────────────────────────────────────────────────────────────────────
+# Yahoo Finance Balance Sheet Fetcher
 
-from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 
 log = logging.getLogger(__name__)
 

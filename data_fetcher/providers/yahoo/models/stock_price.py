@@ -1,7 +1,18 @@
 """Yahoo Finance Stock Price Model (주가 데이터)"""
-from typing import Optional
+import logging
+from datetime import datetime, timedelta
+from typing import Optional, Any, Dict, List
+
+import pandas as pd
+import yfinance as yf
 from pydantic import Field
-from data_fetcher.abstract_provider.standard_models import EquityHistoricalQueryParams, EquityHistoricalData
+
+from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
+from data_fetcher.abstract_provider.standard_models import (
+    EquityHistoricalQueryParams,
+    EquityHistoricalData,
+)
+from data_fetcher.providers.yahoo.models.stock_quote import SYMBOL_ALIASES
 
 
 class YFinanceStockPriceQueryParams(EquityHistoricalQueryParams):
@@ -27,15 +38,9 @@ class YFinanceStockPriceData(EquityHistoricalData):
     pass
 
 
-"""Yahoo Finance Stock Price Fetcher"""
-import logging
-from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
-import yfinance as yf
-import pandas as pd
+# ────────────────────────────────────────────────────────────────────────────
+# Yahoo Finance Stock Price Fetcher
 
-from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
-from data_fetcher.providers.yahoo.models.stock_quote import SYMBOL_ALIASES
 
 log = logging.getLogger(__name__)
 

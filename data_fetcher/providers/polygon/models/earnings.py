@@ -1,9 +1,17 @@
 """Polygon.io Earnings Model"""
-from datetime import date as date_type, datetime
-from typing import Optional
+import logging
+from datetime import datetime
+from typing import Optional, Any, Dict, List
+
 from pydantic import Field
-from data_fetcher.abstract_provider.standard_models import EarningsQueryParams as _StdEarningsQueryParams
-from data_fetcher.abstract_provider.standard_models import EarningsData
+
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
+from data_fetcher.abstract_provider.standard_models import (
+    EarningsQueryParams as _StdEarningsQueryParams,
+    EarningsData,
+)
+from data_fetcher.utils.api_keys import get_api_key
+from data_fetcher.utils.provider_helpers import amake_json_request as amake_request, HTTPClientError
 
 
 class EarningsQueryParams(_StdEarningsQueryParams):
@@ -20,14 +28,9 @@ class PolygonEarningsData(EarningsData):
     weighted_average_shares: Optional[float] = Field(default=None, description="가중평균 발행주식 수")
 
 
-"""Polygon.io Earnings Fetcher"""
-import logging
-from datetime import datetime
-from typing import Any, Dict, List, Optional
+# ────────────────────────────────────────────────────────────────────────────
+# Polygon.io Earnings Fetcher
 
-from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
-from data_fetcher.utils.api_keys import get_api_key
-from data_fetcher.utils.provider_helpers import amake_json_request as amake_request, HTTPClientError
 
 log = logging.getLogger(__name__)
 

@@ -1,11 +1,17 @@
 """PMI Proxy Models (CFNAI 기반)"""
+import logging
 from datetime import date as date_type
-from typing import Optional
+from typing import Optional, Any, Dict, List
+
 from pydantic import Field
+
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.fred_series import (
     FredSeriesQueryParams,
     FredSeriesData,
 )
+from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
+from data_fetcher.utils.api_keys import get_api_key
 
 
 class PMIQueryParams(FredSeriesQueryParams):
@@ -21,13 +27,9 @@ class PMIData(FredSeriesData):
     sahm: Optional[float] = Field(default=None, description="Sahm Rule 지표")
 
 
-"""PMI Proxy Fetcher — CFNAI + Diffusion Index + Sahm Rule (3 FRED series merged)."""
-import logging
-from typing import Any, Dict, List, Optional
+# ────────────────────────────────────────────────────────────────────────────
+# PMI Proxy Fetcher — CFNAI + Diffusion Index + Sahm Rule (3 FRED series merged).
 
-from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
-from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
-from data_fetcher.utils.api_keys import get_api_key
 
 log = logging.getLogger(__name__)
 

@@ -1,4 +1,10 @@
 """Yahoo Finance Investment Scorecard Model"""
+import logging
+from typing import Any, Dict, List, Optional
+
+import yfinance as yf
+
+from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 from data_fetcher.abstract_provider.standard_models.investment_scorecard import (
     InvestmentScorecardQueryParams,
     InvestmentScorecardData,
@@ -13,12 +19,9 @@ class YFinanceScorecardData(InvestmentScorecardData):
     """투자 스코어카드 데이터 (standard InvestmentScorecard 경유)"""
 
 
-"""Yahoo Finance Investment Scorecard Fetcher"""
-import logging
-from typing import Any, Dict, List, Optional
-import yfinance as yf
+# ────────────────────────────────────────────────────────────────────────────
+# Yahoo Finance Investment Scorecard Fetcher
 
-from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 
 log = logging.getLogger(__name__)
 

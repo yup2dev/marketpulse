@@ -1,11 +1,17 @@
 """Fed Balance Sheet Models"""
+import logging
 from datetime import date as date_type
-from typing import Optional
+from typing import Optional, Any, Dict, List
+
 from pydantic import Field
+
+from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.fred_series import (
     FredSeriesQueryParams,
     FredSeriesData,
 )
+from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
+from data_fetcher.utils.api_keys import get_api_key
 
 
 class FedBalanceSheetQueryParams(FredSeriesQueryParams):
@@ -18,13 +24,9 @@ class FedBalanceSheetData(FredSeriesData):
     value: float = Field(description="총자산 (조 달러)")
 
 
-"""Federal Reserve Balance Sheet (Total Assets) Fetcher — FRED WALCL series."""
-import logging
-from typing import Any, Dict, List, Optional
+# ────────────────────────────────────────────────────────────────────────────
+# Federal Reserve Balance Sheet (Total Assets) Fetcher — FRED WALCL series.
 
-from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
-from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
-from data_fetcher.utils.api_keys import get_api_key
 
 log = logging.getLogger(__name__)
 
