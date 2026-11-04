@@ -5,7 +5,7 @@ yahoo fetcher(QueryExecutor in-process)로 환율을 받아 로컬 DB에 적재�
 서버는 이 테이블만 읽어 통화 환산을 계산한다.
 
 사용:
-    python MarketpulseBatch/jobs/collect_fx.py          # 최근 1개월 (누락 구간 보정 겸, daily_ingest 기본)
+    python MarketpulseBatch/jobs/collect_fx.py          # 최근 1개월 (누락 구간 보정 겸, run_job.py daily 기본)
     python MarketpulseBatch/jobs/collect_fx.py 1y       # 기간 지정 (최초 백필)
 """
 from __future__ import annotations

@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 
 
 def get_relations_from_db(symbol: str) -> List[dict]:
-    """DB에서 종목 관계 조회 (적재: MarketpulseBatch/jobs/load_all_relations.py)"""
+    """DB에서 종목 관계 조회 (적재: MarketpulseBatch/run_job.py sp500 / relations)"""
     session = default_db.get_session()
     try:
         rows = session.query(MBS_IN_STK_RELATIONS).filter_by(stk_cd=symbol).all()

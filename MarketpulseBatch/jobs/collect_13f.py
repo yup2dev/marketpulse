@@ -9,7 +9,8 @@ MarketpulseBatch/jobs/sync_db_to_cloud.py 가 /api/ingest 로 전송한다.
 
 사용:
     python MarketpulseBatch/jobs/collect_13f.py                  # 즉시 실행
-    python MarketpulseBatch/jobs/collect_13f.py --only-on sun    # 오늘이 일요일일 때만 실행(daily_ingest.bat용)
+    python MarketpulseBatch/jobs/collect_13f.py --only-on sun    # 오늘이 일요일일 때만 실행
+    (정기 실행은 run_job.py daily 가 일요일에만 부른다 — 요일 판단은 실행기 몫)
 
 조정(환경변수): FETCHER_13F_TOP_N(기본 300), FETCHER_13F_SCAN_WORKERS(4),
                FETCHER_13F_SCAN_LIMIT(0=전체), FETCHER_13F_PERF_QUARTERS(8)

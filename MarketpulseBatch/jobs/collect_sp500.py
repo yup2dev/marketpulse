@@ -53,10 +53,9 @@ def main():
     print(f"      관계(양방): {stats['relations']:,}개")
     print(f"      오류      : {stats['errors']:,}개")
     print()
-    print("이후 스케줄러가 자동으로 갱신합니다:")
-    print("  - 매일 06:00  → 주가/시총 업데이트")
-    print("  - 매주 일요일 → Peer 관계 갱신")
-    print("  - 매월 1일    → 전체 재수집")
+    print("이후 갱신 (자동 아님 — 필요하면 daily 묶음에 추가):")
+    print("  - 가격/시총  : python MarketpulseBatch/run_job.py profile")
+    print("  - Peer 관계  : python MarketpulseBatch/run_job.py relations")
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@
 yahoo `stock_price` fetcher(FX 티커 `KRW=X` 등)를 QueryExecutor로 호출해 일별 종가를
 받고, 전일比 등락률을 계산해 (fx_cd, base_ymd) 기준으로 UPSERT한다. 재실행해도 덮어쓴다.
 
-실행: MarketpulseBatch/jobs/collect_fx.py (daily_ingest.bat) → sync_db_to_cloud.py → 서버 /api/ingest.
+실행: MarketpulseBatch/jobs/collect_fx.py (run_job.py daily) → sync_db_to_cloud.py → 서버 /api/ingest.
 서버는 이 테이블만 읽어 통화 환산을 계산한다(요청 시 외부 호출 없음).
 """
 from dataclasses import dataclass

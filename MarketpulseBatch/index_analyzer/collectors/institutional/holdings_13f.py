@@ -8,7 +8,7 @@
 - 같은 대상의 13F 기반 분기 추정 수익률도 산출해 적재(MBS_IN_INSTI_PERF).
   미적재 기관은 서버 온디맨드 폴백 없이 '미적재'로 표시된다.
 
-실행: MarketpulseBatch/jobs/collect_13f.py (daily_ingest.bat 가 주 1회 호출 — 13F는 분기 공시).
+실행: MarketpulseBatch/jobs/collect_13f.py (run_job.py daily 가 일요일에 1회 호출 — 13F는 분기 공시).
 QueryExecutor를 server_mode 없이 in-process(leaf)로 쓰므로 로컬에서 직접 파싱한다.
 """
 import os

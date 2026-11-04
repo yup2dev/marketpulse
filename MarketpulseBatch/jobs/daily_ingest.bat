@@ -1,41 +1,22 @@
 @echo off
-REM MarketPulse 일일 적재 + 클라우드 동기화 (Windows 작업 스케줄러용)
+REM MarketPulse 일일 배치 (Windows 작업 스케줄러용) — 실행기 run_job.py 의 daily 묶음을 부른다.
+REM
+REM   daily = universe_kr → universe_us(일) → stk_backfill → fx → 13f(일) → sync_cloud
+REM   (순서·요일 조건·실패 처리·lock·로그는 MarketpulseBatch\run_job.py 가 담당)
 REM
 REM 등록 (매일 07:30 실행):
-REM   schtasks /Create /TN "MarketPulse Ingest Sync" ^
-REM     /TR "C:\Users\pro\PycharmProjects\marketpulse\MarketpulseBatch\jobs\daily_ingest.bat" ^
+REM   schtasks /Create /TN "MarketPulse Daily Batch" ^
+REM     /TR "C:\Users\TRIA\PycharmProjects\marketpulse\MarketpulseBatch\jobs\daily_ingest.bat" ^
 REM     /SC DAILY /ST 07:30
-REM 해제: schtasks /Delete /TN "MarketPulse Ingest Sync" /F
+REM 해제: schtasks /Delete /TN "MarketPulse Daily Batch" /F
 REM
-REM 인증: MarketpulseBatch\jobs\sync.env 에 MP_SYNC_EMAIL / MP_SYNC_PASSWORD 를 넣는다
-REM       (sync.env.example 참고 — git에 커밋하지 말 것)
+REM 인증: MarketpulseBatch\jobs\sync.env 에 MP_SYNC_EMAIL / MP_SYNC_PASSWORD (sync.env.example 참고, 커밋 금지)
+REM 로그: logs\batch\<작업>_<YYYYMMDD>.log, 이력: logs\batch\history.jsonl, 요약: logs\batch\daily_console.log
+REM 종료 코드: 0 성공 / 1 일부 작업 실패 / 2 이미 실행 중 — 작업 스케줄러 "마지막 실행 결과"에 그대로 보인다.
 
 setlocal
 cd /d "%~dp0..\.."
-set LOG=data\ingest_sync.log
-
-REM sync.env 로드 (KEY=VALUE 한 줄씩)
-if exist "MarketpulseBatch\jobs\sync.env" (
-  for /f "usebackq eol=# tokens=1,* delims==" %%a in ("MarketpulseBatch\jobs\sync.env") do set "%%a=%%b"
-)
-
-echo [%date% %time%] ==== daily ingest start ==== >> "%LOG%"
-
-REM 1) 로컬 적재 — 최근 1개월치 백필 (누락 구간 보정 겸)
-.venv\Scripts\python.exe MarketpulseBatch\jobs\backfill_stk_stbd.py 1mo >> "%LOG%" 2>&1
-if errorlevel 1 echo [%date% %time%] backfill FAILED >> "%LOG%"
-
-REM 1-1) 일별 환율 (USDKRW 등) - 최근 1개월 재적재, 서버 통화 환산 기준
-.venv\Scripts\python.exe MarketpulseBatch\jobs\collect_fx.py 1mo >> "%LOG%" 2>&1
-if errorlevel 1 echo [%date% %time%] fx collect FAILED >> "%LOG%"
-
-REM 2) 13F 기관 보유 + 추정 수익률 — 일요일에만 (13F는 분기 공시, 로컬에서 파싱)
-.venv\Scripts\python.exe MarketpulseBatch\jobs\collect_13f.py --only-on sun >> "%LOG%" 2>&1
-if errorlevel 1 echo [%date% %time%] 13F collect FAILED >> "%LOG%"
-
-REM 3) 클라우드 동기화 — 서버 max_base_ymd 이후 증분만 전송
-.venv\Scripts\python.exe MarketpulseBatch\jobs\sync_db_to_cloud.py >> "%LOG%" 2>&1
-if errorlevel 1 echo [%date% %time%] cloud sync FAILED >> "%LOG%"
-
-echo [%date% %time%] ==== daily ingest done ==== >> "%LOG%"
-endlocal
+if not exist logs\batch mkdir logs\batch
+.venv\Scripts\python.exe MarketpulseBatch\run_job.py daily >> logs\batch\daily_console.log 2>&1
+set RC=%ERRORLEVEL%
+endlocal & exit /b %RC%

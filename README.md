@@ -54,7 +54,8 @@ marketpulse/
 │   └── build/                     # PyInstaller spec, build.sh/.bat
 ├── MarketpulseBatch/              # 스케줄러(외부 C 스케줄러)가 실행하는 프로그램
 │   ├── jobs/                      # 적재 배치: backfill_stk_stbd, collect_fx, collect_13f,
-│   │                              #   collect_sp500, load_all_relations, sync_db_to_cloud ...
+│   │                              #   collect_sp500, stock_profile, universe, sync_db_to_cloud ...
+│   ├── run_job.py                 # 배치 실행기 (작업·daily 묶음, 종료코드·lock·로그)
 │   ├── index_analyzer/            # 수집기(collectors), 뉴스 크롤러·분석(Redis worker)
 │   └── sites.yaml                 # 크롤링 대상 사이트
 ├── MarketpulseCommon/             # 공통 — ORM, DB 세션, 경로(paths.py), 로깅
@@ -129,7 +130,23 @@ Yahoo 등 일부 소스는 서버 고정 IP에서 차단되므로 사용자 PC�
 [Releases](https://github.com/yup2dev/marketpulse/releases/latest)에서 받아 실행하면
 트레이에 상주하고, 웹앱 로그인 시 토큰이 자동 전달되어 클라우드 워커 풀에 합류한다.
 
-### 4) 테스트
+### 4) 배치
+
+적재 배치는 실행기 하나로 돌린다. 언제 돌릴지는 Windows 작업 스케줄러가 정한다
+(`MarketpulseBatch/jobs/daily_ingest.bat` → `run_job.py daily`, 매일 07:30).
+
+```bash
+python MarketpulseBatch/run_job.py list                  # 작업·묶음 목록
+python MarketpulseBatch/run_job.py daily --dry-run       # 오늘 실행 계획 (실행 안 함)
+python MarketpulseBatch/run_job.py fx 1y                 # 작업 하나 + 인자
+```
+
+- `daily` = universe_kr → universe_us(일) → stk_backfill → fx → 13f(일) → sync_cloud
+- 종료 코드 0 성공 / 1 실패 / 2 이미 실행 중 / 3 사용법 오류
+- 로그 `logs/batch/<작업>_<YYYYMMDD>.log`, 이력 `logs/batch/history.jsonl`
+- 뉴스 크롤링은 배치가 아니라 worker(`cd MarketpulseBatch && python -m index_analyzer.server.worker`, Redis 필요)가 돌린다
+
+### 5) 테스트
 
 ```bash
 pytest                    # 전체
