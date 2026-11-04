@@ -21,6 +21,11 @@ datas = [
         str(data_fetcher / "providers" / "imf" / "assets" / "imf_cache.pkl.gz"),
         "data_fetcher/providers/imf/assets",
     ),
+    # 선언형 provider 스펙 (providers_init 이 import 시점에 읽음 — 없으면 ECOS 등이 등록되지 않음)
+    (
+        str(data_fetcher / "providers" / "declarative" / "specs"),
+        "data_fetcher/providers/declarative/specs",
+    ),
 ]
 
 # ── 숨겨진 import (런타임에 동적으로 로드되는 모듈) ───────────────────────────

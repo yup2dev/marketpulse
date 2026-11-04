@@ -34,6 +34,25 @@ UniversalWidget의 provider 셀렉터가 shape-safe하게 동작한다.
 - **기존 model에 provider 추가** (예: `income_statement`를 tiingo로도) → standard model **재사용**. §1~2 구조 선택 후 §3부터.
 - **완전히 새 model** → standard model부터 신규 작성(§2). 같은 category에 provider가 2개 이상이면 프론트 provider 셀렉터가 자동 노출된다.
 
+## 0-1. 코드 없이: JSON 스펙 provider (단순 REST API면 이것부터)
+
+URL 하나 → JSON 응답의 행 배열 → 필드 매핑으로 끝나는 API(통계 시계열 등)는 Python 을 쓰지 않는다.
+`MarketpulseFetcher/data_fetcher/providers/declarative/specs/<name>.json` 하나만 추가하면
+ProviderRegistry 등록 · `/api/data/{p}/{m}` · 파라미터 폼 · 사용자 키(BYOK) · 설정 화면 카드 ·
+키 검증(`key_test`)까지 자동이다. 형식은 `providers/declarative/__init__.py` docstring, 실례는
+`specs/ecos.json`. 날짜는 `{start_date|period:cycle}` 로 D/M/Q/A 기간 문자열 변환, 응답 오류는
+`error.path/code/message` + `empty_codes`(데이터 없음은 오류 아님)로 처리한다. exe 번들은 spec 의
+datas 에 `specs/` 가 이미 들어 있다. 페이지네이션·다단계 호출·복잡한 변환이 필요하면 §1 이후 코드 provider.
+
+## 0-2. 매크로 지표면 개념(concept)에 매핑
+
+CPI·실업률·정책금리처럼 **여러 provider가 같은 것을 제공하는 지표**는 `data_fetcher/concepts.py`
+의 `CONCEPTS` 에 `ConceptImpl(provider, model, countries, params, scale, yoy)` 를 추가한다.
+`/api/concepts/{id}` 가 국가와 '내 키' 기준으로 구현을 골라 같은 단위(%)로 정규화해 준다 —
+위젯(`conceptWidget(...)`)은 provider 를 모른다. 구현 순서 = 우선순위(국가 전용 원천 → 국제기구).
+값 단위가 비율이면 `scale=100`, 수준 시계열이면 `yoy=True`. 실제 호출로 국가별 응답을 확인하고
+데이터가 없는 국가(404/관측치 거의 없음)는 `countries` 에서 뺀다.
+
 ---
 
 ## 1. provider 디렉터리 배치 (모든 provider 동일)

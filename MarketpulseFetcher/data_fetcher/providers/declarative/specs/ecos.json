@@ -1,0 +1,34 @@
+{
+  "name": "ecos",
+  "label": "한국은행 ECOS",
+  "description": "한국은행 경제통계시스템 — 기준금리·물가·국고채·GDP 등 국내 거시 지표",
+  "website": "https://ecos.bok.or.kr",
+  "group": "macro",
+  "rate_limit": "인증키당 일 호출 제한 있음",
+  "data_coverage": "KR macro (금리, 물가, 통화, 국민계정, 국제수지)",
+  "credentials": ["api_key"],
+  "models": {
+    "series": {
+      "description": "ECOS 통계표 시계열 (StatisticSearch). 통계표·항목 코드는 ECOS 개발 가이드의 통계코드검색 참고.",
+      "url": "https://ecos.bok.or.kr/api/StatisticSearch/{api_key}/json/kr/1/{limit}/{stat_code}/{cycle}/{start_date|period:cycle}/{end_date|period:cycle}/{item_code}",
+      "params": {
+        "stat_code":  {"type": "str", "required": true, "description": "통계표 코드 (예: 722Y001 기준금리, 901Y009 소비자물가지수)"},
+        "item_code":  {"type": "str", "required": true, "description": "통계항목 코드 (예: 0101000 한국은행 기준금리, 0 총지수)"},
+        "cycle":      {"type": "str", "default": "M", "choices": ["D", "M", "Q", "A"], "description": "주기 (D 일, M 월, Q 분기, A 연)"},
+        "start_date": {"type": "date", "default": "-10y", "description": "시작일"},
+        "end_date":   {"type": "date", "default": "today", "description": "종료일"},
+        "limit":      {"type": "int", "default": 10000, "description": "최대 행 수"}
+      },
+      "records": "StatisticSearch.row",
+      "error": {"path": "RESULT", "code": "CODE", "message": "MESSAGE", "empty_codes": ["INFO-200"]},
+      "fields": {
+        "date":      {"from": "TIME", "parse": "period", "description": "기간 시작일"},
+        "value":     {"from": "DATA_VALUE", "type": "float", "description": "값"},
+        "name":      {"from": "ITEM_NAME1", "description": "항목명"},
+        "unit":      {"from": "UNIT_NAME", "description": "단위"},
+        "stat_name": {"from": "STAT_NAME", "description": "통계표명"}
+      }
+    }
+  },
+  "key_test": {"model": "series", "params": {"stat_code": "722Y001", "item_code": "0101000", "cycle": "M", "start_date": "-6m", "limit": 5}}
+}
