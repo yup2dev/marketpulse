@@ -15,8 +15,15 @@
  *   chart:     { defaultType?, allowedTypes?, referenceLines?, yFormatter?, xFormatter? }
  *              — defaultType ∈ 'line'|'area'|'bar'|'stackedBar'|'pie'|'donut'
  *              — allowedTypes restricts the in-header type selector
+ *   concept:   'cpi_yoy'                                   (provider 무관 지표 — /api/concepts/{concept})
+ *              — 서버가 '내 키' 기준으로 provider 를 고른다. 헤더 셀렉터 = 응답의 candidates,
+ *                고르면 ?provider= 로 고정. 기본 뷰는 차트.
+ *
+ * 키 미등록(424 code=missing_key) 응답은 오류 문구 대신 '키 등록' 안내를 띄운다.
  */
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { Link } from 'react-router-dom';
+import { KeyRound } from 'lucide-react';
 import BaseWidget         from '../widgets/common/BaseWidget';
 import WidgetParamForm    from '../widgets/common/WidgetParamForm';
 import CommonTable        from '../common/CommonTable';
@@ -125,6 +132,24 @@ function ExpandedRowDetail({ row, config }) {
   );
 }
 
+// 키 미등록 안내 — 오류 대신 '어떤 키를 넣으면 보이는지'를 알려준다
+function MissingKeyNotice({ provider, providerName }) {
+  return (
+    <div className="flex flex-col items-center justify-center h-full gap-2 p-4 text-center">
+      <KeyRound size={18} className="text-amber-400" />
+      <p className="text-xs text-gray-300">
+        <span className="font-semibold">{providerName || provider}</span> API 키를 등록하면 볼 수 있습니다
+      </p>
+      <Link
+        to="/settings"
+        className="px-3 py-1 rounded text-[11px] font-medium bg-cyan-600 hover:bg-cyan-500 text-white transition-colors"
+      >
+        키 등록하러 가기
+      </Link>
+    </div>
+  );
+}
+
 // ── Main widget ───────────────────────────────────────────────────────────────
 export default function UniversalWidget({
   widgetId,
@@ -137,7 +162,8 @@ export default function UniversalWidget({
   onRemove,
 }) {
   const reg        = WIDGET_ENDPOINTS[widgetId] || {};
-  const endpoint   = endpointProp || reg.endpoint;
+  const concept    = reg.concept;
+  const endpoint   = endpointProp || reg.endpoint || (concept ? `/concepts/${concept}?period={period}` : undefined);
   const title      = titleProp    || reg.title  || widgetId;
   const expandable = reg.expandable;
   const dataPath   = reg.dataPath;
@@ -188,7 +214,7 @@ export default function UniversalWidget({
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [symbol,    setSymbol]    = useState(symbolProp || initParams.symbol || 'AAPL');
-  const [period,    setPeriod]    = useState('1y');
+  const [period,    setPeriod]    = useState(concept ? '10y' : '1y');
   const [provider,  setProvider]  = useState(reg.provider || null);
   const [providerOptions, setProviderOptions] = useState([]);
   const [params,    setParams]    = useState(initParams);
@@ -198,6 +224,7 @@ export default function UniversalWidget({
   const [response,  setResponse]  = useState(dataProp ?? null);
   const [loading,   setLoading]   = useState(!!endpoint);
   const [error,     setError]     = useState(null);
+  const [errorInfo, setErrorInfo] = useState(null);   // { code, provider } — missing_key 안내용
   const [viewMode,  setViewMode]  = useState(null);
   const [chartType, setChartType] = useState(chartCfg.defaultType || 'line');
 
@@ -285,12 +312,13 @@ export default function UniversalWidget({
     }
     // 전용 라우트(경로에 {provider} 없음) → 선택된 provider를 ?provider= 로 주입.
     // 게이트웨이(/data/{provider}/{model})는 이미 경로에 provider가 들어가므로 생략.
-    if (category && provider && !endpoint.includes('{provider}')) {
+    // 개념 위젯은 provider 가 null 이면 서버 자동 선택, 고르면 고정.
+    if ((category || concept) && provider && !endpoint.includes('{provider}')) {
       qs.push(`provider=${encodeURIComponent(provider)}`);
     }
     if (qs.length) url += (url.includes('?') ? '&' : '?') + qs.join('&');
     return url;
-  }, [endpoint, symbol, period, portfolioId, category, provider, modelAcceptsSymbol]);
+  }, [endpoint, symbol, period, portfolioId, category, concept, provider, modelAcceptsSymbol]);
 
   const fetchData = useCallback(async () => {
     if (!endpoint) return;
@@ -312,6 +340,7 @@ export default function UniversalWidget({
     }
     setLoading(true);
     setError(null);
+    setErrorInfo(null);
     try {
       const url = buildUrl(paramsRef.current);
       const result = await apiClient.get(`${API_BASE}${url}`);
@@ -319,6 +348,7 @@ export default function UniversalWidget({
       setViewMode(null);
     } catch (e) {
       setError(e.detail || e.message || 'HTTP error');
+      setErrorInfo(e.code ? { code: e.code, provider: e.provider } : null);
     } finally {
       setLoading(false);
     }
@@ -341,9 +371,16 @@ export default function UniversalWidget({
     setViewMode('chart');
   }, [response]);
 
+  // 개념 위젯: 셀렉터 옵션 = 응답의 candidates(그 국가를 지원하는 provider + 내 사용 가능 여부)
+  const conceptMeta = concept ? response?.metadata : null;
+  const conceptProviderOptions = useMemo(
+    () => (conceptMeta?.candidates || []).map((c) => ({ id: c.provider, name: c.provider.toUpperCase(), configured: c.available })),
+    [conceptMeta],
+  );
+
   // ── Derived state ────────────────────────────────────────────────────────
   const renderType  = response ? detectRenderType(response) : null;
-  const defaultView = renderType === 'plotly' ? 'chart' : 'table';
+  const defaultView = (renderType === 'plotly' || concept) ? 'chart' : 'table';
   const activeView  = viewMode ?? defaultView;
 
   // (model, provider) 쌍에 등록된 provider 전용 body override. 없으면 null → 기본 렌더.
@@ -417,7 +454,11 @@ export default function UniversalWidget({
     </div>
   ) : null;
 
-  const setParam = (name, value) => setParams((s) => ({ ...s, [name]: value }));
+  const setParam = (name, value) => {
+    setParams((s) => ({ ...s, [name]: value }));
+    // 국가를 바꾸면 고정했던 provider 가 그 국가를 지원하지 않을 수 있다 → 자동 선택으로 되돌림
+    if (concept && name === 'country') setProvider(null);
+  };
 
   // 파라미터 폼 → 헤더 컨트롤(뷰 토글·새로고침·닫기) 옆의 컴팩트 팝오버로 노출.
   const paramMenu = paramsSpec?.length ? (
@@ -432,7 +473,9 @@ export default function UniversalWidget({
 
   // ── Render body ──────────────────────────────────────────────────────────
   let body;
-  if (error) {
+  if (errorInfo?.code === 'missing_key') {
+    body = <MissingKeyNotice provider={errorInfo.provider} />;
+  } else if (error) {
     body = (
       <div className="flex items-center justify-center h-full text-red-400 text-xs p-4">
         {error}
@@ -492,7 +535,7 @@ export default function UniversalWidget({
 
   return (
     <BaseWidget
-      title={title}
+      title={conceptMeta?.country?.label ? `${title} · ${conceptMeta.country.label}` : title}
       loading={loading}
       onRefresh={endpoint ? fetchData : undefined}
       onRemove={onRemove}
@@ -501,9 +544,9 @@ export default function UniversalWidget({
       period={requiresPeriod ? period : undefined}
       onPeriodChange={requiresPeriod ? setPeriod : undefined}
       showPeriodSelector={requiresPeriod}
-      provider={category ? provider : undefined}
-      onProviderChange={category ? setProvider : undefined}
-      providerOptions={category ? providerOptions : undefined}
+      provider={concept ? (provider || response?.provider) : (category ? provider : undefined)}
+      onProviderChange={(category || concept) ? setProvider : undefined}
+      providerOptions={concept ? conceptProviderOptions : (category ? providerOptions : undefined)}
       viewMode={activeView}
       onViewModeChange={setViewMode}
       showViewToggle={showViewToggle}

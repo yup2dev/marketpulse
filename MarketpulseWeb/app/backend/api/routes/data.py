@@ -17,9 +17,9 @@ from typing import Any, Dict
 
 from fastapi import APIRouter, HTTPException, Request
 
-from app.backend.api.deps import route_handler, wrap_result
+from app.backend.api.deps import missing_key_response, route_handler, wrap_result
 from data_fetcher.core.obbject import OBBject
-from data_fetcher.query_executor import QueryExecutor, QueryExecutorError
+from data_fetcher.query_executor import MissingCredentialsError, QueryExecutor, QueryExecutorError
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -149,6 +149,8 @@ async def fetch_data(
 
     try:
         raw = await QueryExecutor.fetch(provider, model, params)
+    except MissingCredentialsError as e:
+        return missing_key_response(e)
     except QueryExecutorError as e:
         msg = str(e)
         if "not found" in msg.lower():

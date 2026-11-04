@@ -20,6 +20,7 @@ from app.backend.api.routes.ws import router as ws_router
 from app.backend.api.routes.data import router as data_router
 from app.backend.api.routes.keys import router as keys_router
 from app.backend.api.routes.ingest import router as ingest_router
+from app.backend.api.routes.concepts import router as concepts_router
 
 
 def register_routers(app: FastAPI) -> None:
@@ -52,6 +53,7 @@ def register_routers(app: FastAPI) -> None:
 
     # ── Universal Data Gateway ───────────────────────────────────────────────
     app.include_router(data_router,       prefix="/api/data", tags=["data"])
+    app.include_router(concepts_router,   prefix="/api",      tags=["concepts"])
 
     # ── AI Copilot ────────────────────────────────────────────────────────────
     app.include_router(copilot.router,    prefix="/api", tags=["copilot"])

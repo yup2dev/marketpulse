@@ -205,6 +205,25 @@ export const URL_WIDGET_MAP = {
         ],
       },
       {
+        // provider 무관 지표 — 국가를 고르면 '내 키' 기준으로 FRED/ECOS/OECD 중 자동 선택
+        id: 'global',
+        label: 'Global Indicators',
+        defaultWidgets: [
+          { id: 'concept-cpi-1',    type: 'concept-cpi',          x: 0, y: 0,  w: 6, h: 7 },
+          { id: 'concept-policy-1', type: 'concept-policy-rate',  x: 6, y: 0,  w: 6, h: 7 },
+          { id: 'concept-unemp-1',  type: 'concept-unemployment', x: 0, y: 7,  w: 6, h: 7 },
+          { id: 'concept-long-1',   type: 'concept-long-rate',    x: 6, y: 7,  w: 6, h: 7 },
+          { id: 'concept-gdp-1',    type: 'concept-gdp-growth',   x: 0, y: 14, w: 6, h: 7 },
+        ],
+        widgets: [
+          { id: 'concept-cpi',          name: '소비자물가 상승률', description: 'CPI 전년비 — 국가 선택, provider 자동', defaultSize: { w: 6, h: 7 } },
+          { id: 'concept-policy-rate',  name: '기준금리',          description: '중앙은행 정책금리 — 국가 선택',      defaultSize: { w: 6, h: 7 } },
+          { id: 'concept-unemployment', name: '실업률',            description: '계절조정 실업률 — 국가 선택',        defaultSize: { w: 6, h: 7 } },
+          { id: 'concept-long-rate',    name: '국채 10년 금리',    description: '10년물 국채 수익률 — 국가 선택',     defaultSize: { w: 6, h: 7 } },
+          { id: 'concept-gdp-growth',   name: '실질 GDP 성장률',   description: '실질 GDP 전년비 — 국가 선택',        defaultSize: { w: 6, h: 7 } },
+        ],
+      },
+      {
         id: 'rates',
         label: 'Rates & Fed',
         defaultWidgets: [

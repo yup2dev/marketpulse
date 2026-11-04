@@ -190,6 +190,14 @@ class QueryExecutorError(Exception):
     pass
 
 
+class MissingCredentialsError(QueryExecutorError):
+    """로그인 사용자가 키 필요 provider의 키를 등록하지 않음 — 프론트가 '키 등록' 안내를 띄운다."""
+
+    def __init__(self, provider: str):
+        self.provider = provider
+        super().__init__(f"'{provider}' API 키가 설정되지 않았습니다. 설정에서 키를 등록하세요.")
+
+
 class RemoteUnavailableError(QueryExecutorError):
     """원격 위임 인프라에 도달할 수 없음(워커 미접속·타임아웃·연결 끊김).
 
@@ -571,9 +579,7 @@ class QueryExecutor:
             creds_in = cls._credential_resolver(provider, user_id)
             if not creds_in:
                 # 사용자 키 미설정 → 운영자 키 폴백 금지, 명확한 오류
-                raise QueryExecutorError(
-                    f"'{provider}' API 키가 설정되지 않았습니다. 설정에서 키를 등록하세요."
-                )
+                raise MissingCredentialsError(provider)
 
         resolved_creds = _load_credentials(provider_obj, creds_in)
         provider_obj.validate_credentials(resolved_creds)
