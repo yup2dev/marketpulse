@@ -37,7 +37,7 @@ DB_PATH = Path(__file__).resolve().parents[2] / "data" / "marketpulse.db"
 DEFAULT_BASE_URL = "https://api.finance.dns-co.kr"
 CHUNK_SIZE = 2000
 
-# 서버 /api/ingest whitelist와 동일해야 한다 (app/backend/api/routes/ingest.py).
+# 서버 /api/ingest whitelist와 동일해야 한다 (MarketpulseWeb/app/backend/api/routes/ingest.py).
 # group_by: 같은 키의 행이 반드시 한 요청에 담겨야 하는 교체(replace) 테이블.
 TABLES: Dict[str, Dict[str, Any]] = {
     "mbs_in_stbd_mst":          {},

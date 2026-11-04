@@ -8,7 +8,7 @@ description: 대시보드 위젯을 추가/수정할 때 사용. widgetEndpoints
 위젯은 **`registry/widgetEndpoints.js` 항목 1개**가 기본이다. React 파일은 대부분 불필요 —
 `UniversalWidget`이 응답을 보고 자동 렌더한다 (Plotly JSON → 차트, 행 배열 → CommonTable, `display:'kv'` → 지표/값 2열).
 
-핵심 파일 (`app/frontend/src/`):
+핵심 파일 (`MarketpulseWeb/app/frontend/src/`):
 - `registry/widgetEndpoints.js` — **모든 위젯 타입의 단일 소스** (id → 정의)
 - `registry/urlWidgetMap.js` — URL별 화면 구성 (탭·위젯 카탈로그·기본 그리드)
 - `registry/providerViews.js` — (model, provider)별 body UI 오버라이드
@@ -137,7 +137,7 @@ defaultWidgets: [   // 저장된 워크스페이스 없을 때 초기 그리드
 ## 4. 검증
 
 ```bash
-cd app/frontend && npm run build        # 빌드 통과
+cd MarketpulseWeb/app/frontend && npm run build        # 빌드 통과
 # 화면에서: WidgetMenu에 노출 → 추가 → 데이터 렌더 → (category 지정 시) provider 전환
 # 라이트/다크 토글 양쪽 확인
 ```

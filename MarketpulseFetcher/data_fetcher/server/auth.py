@@ -4,7 +4,7 @@
 FETCHER_TOKEN 환경변수로 지정하거나, 없으면 최초 실행 시 무작위로 생성해
 로컬 설정 파일(keystore와 동일한 디렉터리)에 저장하고 재사용한다.
 
-백엔드(app/backend)는 동일한 값을 FETCHER_TOKEN에 설정해 Authorization:
+백엔드(MarketpulseWeb/app/backend)는 동일한 값을 FETCHER_TOKEN에 설정해 Authorization:
 Bearer <token> 헤더로 호출한다 (FetcherClient가 이미 지원).
 """
 from __future__ import annotations

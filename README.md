@@ -5,7 +5,7 @@
 
 - **Frontend**: React + Vite (Vercel 배포)
 - **Backend**: FastAPI (AWS Lightsail, Docker)
-- **데이터 수집**: `index_analyzer`(크롤링 데몬) + `data_fetcher`(통합 조회 시스템)
+- **데이터 수집**: `MarketpulseBatch`(적재 배치·크롤러) + `MarketpulseFetcher`(통합 조회 시스템)
 - **저장소**: SQLite (`data/marketpulse.db`) · Redis(캐시)
 
 ---
@@ -15,7 +15,7 @@
 ```
 ┌──────────────┐     HTTPS/WSS      ┌────────────────────────┐
 │  Frontend    │ ─────────────────▶ │  Backend (FastAPI)     │
-│  React+Vite  │  /api, /ws         │  app/backend           │
+│  React+Vite  │  /api, /ws         │  MarketpulseWeb        │
 │  (Vercel)    │ ◀───────────────── │                        │
 └──────┬───────┘                    │  ├─ QueryExecutor      │
        │                            │  │   ├ 서버 직접 조회   │
@@ -41,37 +41,38 @@
 
 ```
 marketpulse/
-├── app/
-│   ├── backend/              # FastAPI 백엔드
-│   │   ├── main.py           # 앱 진입점 · 미들웨어(CORS/auth_gate) · 라우터 등록
-│   │   ├── api/routes/       # auth, keys, stock, macro, portfolio, screener, ws ...
-│   │   ├── services/         # 비즈니스 로직 (user_key_service, auth_service ...)
-│   │   ├── core/             # config, db, auth(dependencies/security)
-│   │   └── constants/        # 상수
-│   └── frontend/             # React + Vite
-│       ├── src/
-│       │   ├── components/   # core(페이지), widgets(위젯), common, backtest
-│       │   ├── config/api.js # API 클라이언트(401 refresh·forceLogout 인터셉터)
-│       │   ├── store/        # Zustand (authStore ...)
-│       │   ├── hooks/        # useFetcherHealth, useQuoteSocket ...
-│       │   └── utils/        # fetcherToken ...
-│       └── vercel.json
-├── index_analyzer/           # 뉴스 크롤링·분석 + universe 수집 데몬
-│   ├── collectors/universe/  # US/KR 종목·ETF·채권 마스터 수집
-│   ├── crawling/ parsing/ pipeline/
-│   └── models/orm/           # SQLAlchemy ORM (User 등)
-├── data_fetcher/             # 통합 데이터 조회 시스템 (OpenBB 패턴)
-│   ├── providers/            # yahoo, fred, fmp, polygon, kis, krx, sec, social ...
-│   ├── query_executor.py     # 조회 실행 · 서버/Fetcher 라우팅 seam
-│   ├── server/  app.py       # 로컬 REST 서버(.exe 패키징)
-│   └── tray.py               # 트레이 상주
-├── migrations/               # alembic 마이그레이션 (baseline + 리비전)
-├── tests/                    # 백엔드 테스트 (인증 게이트·캐시·ORM metadata)
-├── scripts/                  # DB 초기화·시드·백필 스크립트
-├── Dockerfile                # 백엔드 컨테이너
-├── docker-compose.yml        # app + redis
+├── MarketpulseWeb/                # 웹 — 서버(Docker)와 프론트(Vercel)
+│   └── app/
+│       ├── backend/               # FastAPI (패키지 app.backend)
+│       │   ├── main.py            # 조립만: core/lifespan + auth_gate + api/routers
+│       │   ├── api/routes/        # auth, keys, stock, macro, portfolio, screener, ws ...
+│       │   ├── services/          # 비즈니스 로직 (user_key_service, auth_service ...)
+│       │   └── core/              # config, db, lifespan, middleware, 메뉴 시드
+│       └── frontend/              # React + Vite (vercel.json)
+├── MarketpulseFetcher/            # 데이터 조회 라이브러리 + 사용자 PC 용 exe
+│   ├── data_fetcher/              # providers/, query_executor.py, server/(exe REST·WS 워커)
+│   └── build/                     # PyInstaller spec, build.sh/.bat
+├── MarketpulseBatch/              # 스케줄러(외부 C 스케줄러)가 실행하는 프로그램
+│   ├── jobs/                      # 적재 배치: backfill_stk_stbd, collect_fx, collect_13f,
+│   │                              #   collect_sp500, load_all_relations, sync_db_to_cloud ...
+│   ├── index_analyzer/            # 수집기(collectors), 뉴스 크롤러·분석(Redis worker)
+│   └── sites.yaml                 # 크롤링 대상 사이트
+├── MarketpulseCommon/             # 공통 — ORM, DB 세션, 경로(paths.py), 로깅
+│   └── marketpulse_common/
+├── migrations/                    # alembic (baseline + 리비전)
+├── tests/                         # 테스트 (Fetcher 단위 테스트는 data_fetcher/tests)
+├── scripts/                       # 개발 도구: smoke 테스트, 이식 도구, 일회성 설정
+├── Dockerfile  docker-compose.yml
 └── requirements.txt
 ```
+
+**의존 방향**: `Web → Fetcher → Common`, `Batch → Fetcher → Common`. Web 과 Batch 는 서로 import 하지 않고,
+Common 은 다른 패키지를 import 하지 않는다. 패키지 이름(`app`, `data_fetcher`, `index_analyzer`,
+`marketpulse_common`)은 소문자 그대로이고, 최상위 폴더 4개를 import 경로에 넣는다
+(pytest 는 `pyproject.toml` 의 `pythonpath`, Docker 는 `PYTHONPATH`, 직접 실행하는 진입점은
+파일 상단의 `mp-bootstrap` 블록).
+
+데이터 파일(`data/`, `logs/`, `.env`)은 저장소 루트에 있고, 코드는 `marketpulse_common.paths` 로만 찾는다.
 
 ---
 
@@ -99,7 +100,7 @@ pip install -r requirements.txt
 # 최소: SECRET_KEY, CORS_ORIGINS=["http://localhost:5173"]
 
 # 실행 (http://localhost:8000)
-uvicorn app.backend.main:app --reload --host 0.0.0.0 --port 8000
+uvicorn app.backend.main:app --app-dir MarketpulseWeb --reload --host 0.0.0.0 --port 8000
 ```
 
 DB는 `data/marketpulse.db`(SQLite). 최초 기동 시 테이블/메뉴 초기화가 수행된다. Redis는 캐시용(선택) — `docker compose up -d redis`로 띄울 수 있다.
@@ -107,7 +108,7 @@ DB는 `data/marketpulse.db`(SQLite). 최초 기동 시 테이블/메뉴 초기�
 ### 2) 프론트엔드
 
 ```bash
-cd app/frontend
+cd MarketpulseWeb/app/frontend
 npm install
 
 # ⚠️ 로컬 백엔드를 바라보게 .env.local 생성 (없으면 운영 API로 감)
@@ -150,7 +151,7 @@ pytest tests/             # 백엔드만
 
 ### 백엔드 — GitHub Actions → Docker Hub → Lightsail
 
-`main` 브랜치에 `app/backend/**`, `requirements.txt`, `Dockerfile`, `docker-compose.yml` 변경이 push되면 `.github/workflows/deploy-backend.yml`이 동작한다 (수동: `workflow_dispatch`).
+`main` 브랜치에 `MarketpulseWeb/app/backend/**`, `MarketpulseFetcher/data_fetcher/**`, `MarketpulseCommon/**`, `migrations/**`, `requirements.txt`, `Dockerfile`, `docker-compose.yml` 변경이 push되면 `.github/workflows/deploy-backend.yml`이 동작한다 (수동: `workflow_dispatch`).
 
 1. Docker 이미지 빌드 → Docker Hub `:latest` / `:<sha>` push
 2. SSH로 서버 접속 → `docker compose pull app` → `up -d --no-deps --force-recreate app`
@@ -161,7 +162,7 @@ pytest tests/             # 백엔드만
 
 ### 프론트엔드 — Vercel
 
-`main` push 시 Vercel Git 연동으로 자동 배포. `vercel.json`이 SPA 리라이트 + COOP 헤더를 설정한다. 백엔드만 바뀐 경우 프론트 재배포는 불필요하다.
+`main` push 시 Vercel Git 연동으로 자동 배포 (Vercel 프로젝트 Root Directory: `MarketpulseWeb/app/frontend`). `vercel.json`이 SPA 리라이트 + COOP 헤더를 설정한다. 백엔드만 바뀐 경우 프론트 재배포는 불필요하다.
 
 ---
 
@@ -185,5 +186,5 @@ pytest tests/             # 백엔드만
 
 ## 참고
 
-- 하위 모듈 상세: [`index_analyzer/README.md`](index_analyzer/README.md), [`data_fetcher/README.md`](data_fetcher/README.md), [`app/frontend/README.md`](app/frontend/README.md)
+- 하위 모듈 상세: [`MarketpulseBatch/index_analyzer/README.md`](MarketpulseBatch/index_analyzer/README.md), [`MarketpulseFetcher/data_fetcher/README.md`](MarketpulseFetcher/data_fetcher/README.md), [`MarketpulseWeb/app/frontend/README.md`](MarketpulseWeb/app/frontend/README.md)
 - 데이터 소스(무료·무로그인): nasdaqtrader·KRX(universe), FRED/FMP/Polygon/AlphaVantage/KIS(키 기반), Yahoo/WhaleWisdom(로컬 실행형)
