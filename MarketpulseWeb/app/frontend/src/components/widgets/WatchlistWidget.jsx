@@ -16,7 +16,8 @@ function Spinner() {
   );
 }
 
-function EmptyState({ icon: Icon = Star, message, sub, action }) {
+function EmptyState({ icon, message, sub, action }) {
+  const Icon = icon || Star;
   return (
     <div className="flex flex-col items-center justify-center h-full gap-3 px-4">
       <Icon size={24} className="text-gray-700" />
