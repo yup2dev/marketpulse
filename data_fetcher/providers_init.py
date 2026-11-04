@@ -87,6 +87,7 @@ from data_fetcher.providers.polygon.models.sentiment import PolygonStockSentimen
 from data_fetcher.providers.polygon.models.options import PolygonOptionsFetcher
 from data_fetcher.providers.polygon.models.short_interest import PolygonShortInterestFetcher
 from data_fetcher.providers.polygon.models.technical_indicators import PolygonTechnicalIndicatorsFetcher
+from data_fetcher.providers.polygon.models.orderbook import PolygonOrderBookFetcher
 
 # Tiingo (OpenBB openbb_tiingo 이식)
 from data_fetcher.providers.tiingo.models.equity_historical import TiingoEquityHistoricalFetcher
@@ -361,6 +362,7 @@ polygon_provider = Provider(
         "options": PolygonOptionsFetcher,
         "short_interest": PolygonShortInterestFetcher,
         "technical_indicators": PolygonTechnicalIndicatorsFetcher,
+        "orderbook": PolygonOrderBookFetcher,
     },
     metadata={
         "rate_limit": "5 requests/minute (free tier)",

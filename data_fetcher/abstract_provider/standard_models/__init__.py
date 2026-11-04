@@ -80,6 +80,9 @@ from data_fetcher.abstract_provider.standard_models.fund_performance import (
 from data_fetcher.abstract_provider.standard_models.company_peers import (
     CompanyPeersQueryParams, CompanyPeersData,
 )
+from data_fetcher.abstract_provider.standard_models.orderbook import (
+    OrderBookQueryParams, OrderBookData, OrderBookLevel,
+)
 
 __all__ = [
     "EquityQuoteQueryParams", "EquityQuoteData",
@@ -105,4 +108,5 @@ __all__ = [
     "StockListQueryParams", "StockListData",
     "FundPerformanceQueryParams", "FundPerformanceData",
     "CompanyPeersQueryParams", "CompanyPeersData",
+    "OrderBookQueryParams", "OrderBookData", "OrderBookLevel",
 ]
