@@ -98,7 +98,6 @@ export default function BtEventStudyWidget({ onRemove }) {
       onRemove={onRemove}
       loading={loading}
       onRefresh={eventItem ? run : undefined}
-      showViewToggle={false}
       showPeriodSelector={false}
     >
       <div className="flex flex-col h-full min-h-0 p-2 gap-2 overflow-auto">

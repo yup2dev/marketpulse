@@ -69,7 +69,6 @@ export default function NoteWidget({ onRemove }) {
       loading={loading}
       onRefresh={fetchNotes}
       onRemove={onRemove}
-      showViewToggle={false}
       showPeriodSelector={false}
     >
       <div className="flex flex-col h-full min-h-0">

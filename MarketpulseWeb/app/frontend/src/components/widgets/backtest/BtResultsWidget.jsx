@@ -138,7 +138,6 @@ export default function BtResultsWidget({ onRemove }) {
       onRemove={onRemove}
       loading={runsLoading && view === 'runs'}
       onRefresh={loadRuns}
-      showViewToggle={false}
       showPeriodSelector={false}
       headerExtra={result && !lastRun.savedRunId ? (
         <button onClick={saveRun} disabled={saving} className={btnGhost}><Save size={11} /> {saving ? '저장 중…' : '결과 저장'}</button>

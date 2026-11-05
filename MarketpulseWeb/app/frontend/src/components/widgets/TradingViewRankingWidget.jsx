@@ -30,7 +30,6 @@ export default function TradingViewRankingWidget({ onRemove }) {
       title="Market Ranking (TV)"
       icon={TrendingUp}
       onRemove={onRemove}
-      showViewToggle={false}
       showPeriodSelector={false}
     >
       <div style={{ height: '100%', width: '100%' }}>

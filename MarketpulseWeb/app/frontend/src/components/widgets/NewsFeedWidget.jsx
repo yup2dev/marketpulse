@@ -66,7 +66,6 @@ export default function NewsFeedWidget({ symbol: symbolProp, onRemove }) {
       onRefresh={fetchNews}
       symbol={symbol || undefined}
       onSymbolChange={setSymbol}
-      showViewToggle={false}
       showPeriodSelector={false}
     >
       <div className="flex flex-col h-full min-h-0">

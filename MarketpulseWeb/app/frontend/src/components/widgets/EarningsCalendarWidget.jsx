@@ -20,7 +20,6 @@ export default function EarningsCalendarWidget({ onRemove }) {
       title="Earnings Calendar"
       icon={BarChart3}
       onRemove={onRemove}
-      showViewToggle={false}
       showPeriodSelector={false}
     >
       <div className="flex flex-col h-full min-h-0">

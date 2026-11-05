@@ -123,7 +123,6 @@ export default function BtVariablesWidget({ onRemove }) {
       onRemove={onRemove}
       loading={loading}
       onRefresh={() => load(true)}
-      showViewToggle={false}
       showPeriodSelector={false}
       headerExtra={(
         <button onClick={() => { setDraft(blank()); setSaveError(null); }} className={btnGhost}>

@@ -41,7 +41,6 @@ export default function TradingViewIndexChartsWidget({ onRemove }) {
       title="Index Charts (TV)"
       icon={LineChart}
       onRemove={onRemove}
-      showViewToggle={false}
       showPeriodSelector={false}
     >
       <div style={{ height: '100%', width: '100%' }}>
