@@ -1,15 +1,20 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { TrendingUp, Heart, RefreshCw } from 'lucide-react';
+import { TrendingUp, Heart } from 'lucide-react';
 import BaseWidget from './common/BaseWidget';
+import { SegmentedControl, Select, FilterDivider, WidgetState, periodOptions } from './ui';
 import { rankingAPI, watchlistAPI } from '../../config/api';
 import useQuoteSocket from '../../hooks/useQuoteSocket';
 import toast from 'react-hot-toast';
 
 // ── 상수 ──────────────────────────────────────────────────────────────────────
 
-const MARKET_OPTS  = [{ id:'all',label:'전체' },{ id:'domestic',label:'국내' },{ id:'overseas',label:'해외' }];
-const SORT_OPTS    = [{ id:'gainers',label:'급상승' },{ id:'losers',label:'급하락' },{ id:'trade_value',label:'거래대금' },{ id:'volume',label:'거래량' }];
-const PERIOD_OPTS  = [{ id:'realtime',label:'실시간' },{ id:'1d',label:'1일' },{ id:'1w',label:'1주일' },{ id:'1mo',label:'1개월' },{ id:'3mo',label:'3개월' },{ id:'6mo',label:'6개월' },{ id:'1y',label:'1년' }];
+const MARKET_OPTS  = [{ value:'all',label:'All' },{ value:'domestic',label:'Korea' },{ value:'overseas',label:'Global' }];
+const SORT_OPTS    = [{ value:'gainers',label:'Gainers' },{ value:'losers',label:'Losers' },{ value:'trade_value',label:'Trade value' },{ value:'volume',label:'Volume' }];
+// 기간 표기는 periods.js 기준 (1D 1W 1M …) + 실시간
+const PERIOD_OPTS  = [
+  { value:'realtime', label:'Live' },
+  ...periodOptions(['1d','1w','1mo','3mo','6mo','1y']).map((o) => ({ value:o.id, label:o.label })),
+];
 // realtime만 WebSocket 실시간. 1일~1년은 DB 정적 데이터(기간 등락률).
 const LIVE_PERIODS = new Set(['realtime']);
 
@@ -17,7 +22,7 @@ const LIVE_PERIODS = new Set(['realtime']);
 
 function fmtPrice(v, curr) {
   if (v == null) return '—';
-  if (curr === 'KRW') return `${Math.round(v).toLocaleString('ko-KR')}원`;
+  if (curr === 'KRW') return `₩${Math.round(v).toLocaleString('ko-KR')}`;
   return `$${Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
@@ -30,9 +35,9 @@ function fmtChange(v) {
 function fmtTradeValue(v, curr) {
   if (v == null || v === 0) return '—';
   if (curr === 'KRW') {
-    if (v >= 1e12) return `${(v/1e12).toFixed(1)}조`;
-    if (v >= 1e8)  return `${(v/1e8).toFixed(0)}억`;
-    return `${Math.round(v/1e4)}만`;
+    if (v >= 1e12) return `₩${(v/1e12).toFixed(1)}T`;
+    if (v >= 1e9)  return `₩${(v/1e9).toFixed(1)}B`;
+    return `₩${Math.round(v/1e6)}M`;
   }
   if (v >= 1e9) return `$${(v/1e9).toFixed(1)}B`;
   if (v >= 1e6) return `$${(v/1e6).toFixed(1)}M`;
@@ -49,7 +54,7 @@ function fmtVolume(v) {
 
 function fmtTime(date) {
   if (!date) return '';
-  return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+  return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
 // ── 로고 서클 ─────────────────────────────────────────────────────────────────
@@ -88,28 +93,6 @@ function ChangePill({ value }) {
       ${c.up ? 'bg-red-500/15 text-red-400' : 'bg-blue-500/15 text-blue-400'}`}>
       {c.text}
     </span>
-  );
-}
-
-// ── 필터 Pill ─────────────────────────────────────────────────────────────────
-
-function FilterPill({ options, value, onChange }) {
-  return (
-    <div className="flex items-center gap-1 flex-wrap">
-      {options.map(o => (
-        <button
-          key={o.id}
-          onClick={() => onChange(o.id)}
-          className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium whitespace-nowrap transition-all ${
-            value === o.id
-              ? 'bg-[var(--color-accent)]/20 text-[var(--color-accent)] border border-[var(--color-accent)]/40'
-              : 'text-gray-500 hover:text-gray-300 border border-transparent hover:border-gray-700'
-          }`}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
   );
 }
 
@@ -179,11 +162,11 @@ export default function MarketRankingWidget({ onRemove }) {
     const isAdding = !favorites.includes(sym);
     setFavorites(prev => isAdding ? [...prev,sym] : prev.filter(s=>s!==sym));
     try {
-      if (isAdding) { await watchlistAPI.quickAdd(sym); toast.success(`${sym} 관심종목 추가`); }
-      else          { await watchlistAPI.quickRemove(sym); toast.success(`${sym} 관심종목 제거`); }
+      if (isAdding) { await watchlistAPI.quickAdd(sym); toast.success(`Added ${sym} to watchlist`); }
+      else          { await watchlistAPI.quickRemove(sym); toast.success(`Removed ${sym} from watchlist`); }
     } catch {
       setFavorites(prev => isAdding ? prev.filter(s=>s!==sym) : [...prev,sym]);
-      toast.error('관심종목 업데이트 실패');
+      toast.error('Could not update watchlist');
     }
   }, [favorites]);
 
@@ -204,60 +187,51 @@ export default function MarketRankingWidget({ onRemove }) {
   }, [baseRows, quotes, sortBy, isLive]);
 
   // 현재 sort 기준에 맞는 우측 숫자 컬럼
-  const metricLabel = sortBy === 'volume' ? '거래량' : '거래대금';
+  const metricLabel = sortBy === 'volume' ? 'Volume' : 'Trade value';
   const metricFmt   = (row) => sortBy === 'volume'
     ? fmtVolume(row.volume)
     : fmtTradeValue(row.trade_value, row.curr);
 
   return (
-    <BaseWidget title="Market Ranking" icon={TrendingUp} onRemove={onRemove} showPeriodSelector={false}>
+    <BaseWidget
+      title="Market Ranking"
+      icon={TrendingUp}
+      onRemove={onRemove}
+      onRefresh={fetchRanking}
+      filters={{
+        left: (
+          <>
+            <SegmentedControl value={market} options={MARKET_OPTS} onChange={setMarket} ariaLabel="Market" />
+            <FilterDivider />
+            <SegmentedControl value={sortBy} options={SORT_OPTS} onChange={setSortBy} ariaLabel="Sort" />
+            <FilterDivider />
+            <Select value={period} options={PERIOD_OPTS} onChange={setPeriod} title="Period" align="left" menuWidth="min-w-[80px]" />
+          </>
+        ),
+        right: lastUpdate ? `As of ${fmtTime(lastUpdate)}` : null,
+      }}
+    >
       <div className="flex flex-col h-full min-h-0 text-[var(--color-text-primary)]">
-
-        {/* ── 필터 바 ─────────────────────────────────────────────────────── */}
-        <div className="flex-shrink-0 px-3 pt-2 pb-2 space-y-1.5 border-b" style={{ borderColor:'var(--color-border)' }}>
-          {/* 1행: 시장 | 정렬 */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <FilterPill options={MARKET_OPTS} value={market} onChange={setMarket} />
-            <div className="h-3 w-px bg-gray-700/60" />
-            <FilterPill options={SORT_OPTS}   value={sortBy} onChange={setSortBy} />
-          </div>
-          {/* 2행: 기간 + 새로고침 */}
-          <div className="flex items-center justify-between">
-            <FilterPill options={PERIOD_OPTS} value={period} onChange={setPeriod} />
-            <button onClick={fetchRanking} disabled={loading}
-              className="p-1 rounded text-gray-600 hover:text-gray-300 disabled:opacity-40 transition-colors">
-              <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
-            </button>
-          </div>
-        </div>
 
         {/* ── 컬럼 헤더 ───────────────────────────────────────────────────── */}
         <div className="flex-shrink-0 flex items-center px-3 py-2 border-b text-[10px] font-medium"
           style={{ borderColor:'var(--color-border)', color:'var(--color-text-muted)',
                    backgroundColor:'var(--color-bg-widget)' }}>
           <div className="w-4" />
-          <div className="w-6 text-center">순위</div>
+          <div className="w-6 text-center">#</div>
           <div className="w-2" />
-          {/* 오늘 HH:MM 기준 */}
-          <div className="flex-1 text-[10px]">
-            {lastUpdate ? `오늘 ${fmtTime(lastUpdate)} 기준` : '종목'}
-          </div>
-          <div className="w-[80px] text-right">현재가</div>
-          <div className="w-[66px] text-right">등락률</div>
+          <div className="flex-1 text-[10px]">Name</div>
+          <div className="w-[80px] text-right">Price</div>
+          <div className="w-[66px] text-right">Change</div>
           <div className="w-[64px] text-right">{metricLabel}</div>
         </div>
 
         {/* ── 목록 ────────────────────────────────────────────────────────── */}
         <div className="flex-1 overflow-y-auto min-h-0">
           {loading ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="w-5 h-5 border-2 border-[var(--color-accent)] border-t-transparent rounded-full animate-spin" />
-            </div>
+            <WidgetState kind="loading" />
           ) : liveRows.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full gap-2 text-gray-600">
-              <TrendingUp size={28} />
-              <span className="text-xs">데이터 없음</span>
-            </div>
+            <WidgetState kind="empty" message="No stocks match this market and period." />
           ) : liveRows.map((row, i) => {
             const sym   = row.stk_cd || '';
             const name  = row.stk_nm || sym;

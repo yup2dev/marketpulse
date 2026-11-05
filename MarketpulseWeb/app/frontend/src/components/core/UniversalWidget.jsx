@@ -12,6 +12,12 @@
  *              — renders an inline form; values feed both `{name}` placeholders and querystring.
  *              — initial fetch runs with defaults; Run button (in header) manually re-fetches.
  *   expandable: { keyField, endpoint, dataPath }             (sub-row drilldown)
+ *   params[].pin / params[].showIf                          (paramSpec.js 참고 — 헤더 칩 / 조건부 입력칸)
+ *              — params 에 symbol 이 있으면 폼이 아니라 헤더 심볼 칩으로 올린다
+ *   titleFrom: 'institution_key'                            (그 param 의 현재 값 라벨을 제목 뒤에)
+ *   kv:        { primary: ['npv', …], hide: [...], labels: { npv: 'NPV' } }
+ *              — primary 는 큰 타일로, 나머지는 표로. 키는 자동으로 사람이 읽는 라벨로 바꾼다
+ *   columns:   { hide: [...], order: [...], labels: {...} }  (자동 컬럼 손질)
  *   chart:     { defaultType?, allowedTypes?, referenceLines?, yFormatter?, xFormatter? }
  *              — defaultType ∈ 'line'|'area'|'bar'|'stackedBar'|'pie'|'donut'
  *              — allowedTypes restricts the in-header type selector
@@ -30,7 +36,10 @@ import WidgetParamForm    from '../widgets/common/WidgetParamForm';
 import CommonTable        from '../common/CommonTable';
 import CommonChart        from '../common/CommonChart';
 import PlotlyRawChart     from './PlotlyRawChart';
-import { WidgetState, stateFromError, buildViewOptions } from '../widgets/ui';
+import { WidgetState, MetricTiles, stateFromError, buildViewOptions } from '../widgets/ui';
+import {
+  isParamVisible, visibleParams, paramDisplayValue, humanizeKey, applyColumnConfig,
+} from '../widgets/common/paramSpec';
 import { apiClient, API_BASE, providersAPI } from '../../config/api';
 import { FETCHER_WORKER_CONNECTED } from '../../hooks/useFetcherHealth';
 import { WIDGET_ENDPOINTS } from '../../registry/widgetEndpoints';
@@ -77,14 +86,14 @@ function pickDefaultProvider(opts) {
 
 function fmtKv(v) {
   if (v == null) return '—';
-  if (typeof v === 'boolean') return v ? 'true' : 'false';
+  if (typeof v === 'boolean') return v ? 'Yes' : 'No';
   if (typeof v === 'number') {
     if (!Number.isFinite(v)) return String(v);
     const a = Math.abs(v);
     if (a === 0)       return '0';
+    if (Number.isInteger(v)) return v.toLocaleString();
     if (a >= 1000)     return v.toLocaleString(undefined, { maximumFractionDigits: 2 });
-    if (a >= 1)        return v.toFixed(4);
-    if (a >= 0.0001)   return v.toFixed(6);
+    if (a >= 0.0001)   return v.toLocaleString(undefined, { maximumFractionDigits: 4 });
     return v.toExponential(3);
   }
   if (Array.isArray(v)) return `[${v.length} items]`;
@@ -152,6 +161,8 @@ export default function UniversalWidget({
   const dataPath   = reg.dataPath;
   const display    = reg.display;
   const chartCfg   = reg.chart || {};
+  const kvCfg      = reg.kv;          // 객체를 새로 만들지 않는다 (useMemo 의존성)
+  const columnCfg  = reg.columns;
   // category = model 키 (provider 셀렉터 활성화 조건). 모델 단위 동적 위젯은 prop으로 주입.
   const category   = categoryProp ?? reg.category;
 
@@ -287,10 +298,13 @@ export default function UniversalWidget({
     });
     const placeholders = new Set();
     ep.replace(/\{([\w_]+)\}/g, (_, k) => { placeholders.add(k); return ''; });
+    // showIf 로 숨겨진 파라미터는 요청에 싣지 않는다 (서버 기본값을 쓰게)
+    const hidden = new Set((paramsSpec || []).filter((ps) => !isParamVisible(ps, current)).map((ps) => ps.name));
     const qs = [];
     for (const [k, v] of Object.entries(current)) {
       if (v == null || v === '') continue;
       if (placeholders.has(k)) continue;
+      if (hidden.has(k)) continue;
       qs.push(`${encodeURIComponent(k)}=${encodeURIComponent(v)}`);
     }
     // 전용 라우트(경로에 {provider} 없음) → 선택된 provider를 ?provider= 로 주입.
@@ -301,7 +315,7 @@ export default function UniversalWidget({
     }
     if (qs.length) url += (url.includes('?') ? '&' : '?') + qs.join('&');
     return url;
-  }, [endpoint, symbol, period, portfolioId, category, concept, provider, modelAcceptsSymbol]);
+  }, [endpoint, symbol, period, portfolioId, category, concept, provider, modelAcceptsSymbol, paramsSpec]);
 
   const fetchData = useCallback(async () => {
     if (!endpoint) return;
@@ -335,6 +349,12 @@ export default function UniversalWidget({
   }, [endpoint, buildUrl, provider, category, dynamicParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // 파라미터 적용은 '다음 렌더에서' 조회한다 — setParams 직후 바로 fetch 하면
+  // paramsRef 가 아직 이전 값이라 바뀌기 전 조건으로 요청된다.
+  const [applySeq, setApplySeq] = useState(0);
+  const requestApply = useCallback(() => setApplySeq((n) => n + 1), []);
+  useEffect(() => { if (applySeq) fetchData(); }, [applySeq]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetcher 워커가 풀에 합류하면 실패 상태였던 위젯을 재조회 — 합류 전 요청의 503이 남지 않게.
   useEffect(() => {
@@ -377,7 +397,25 @@ export default function UniversalWidget({
     return normalizeTableRows(response);
   }, [response, dataPath, display]);
 
-  const columns   = useMemo(() => (display === 'kv' ? KV_COLUMNS : autoColumns(rows)), [rows, display]);
+  const columns   = useMemo(
+    () => (display === 'kv' ? KV_COLUMNS : applyColumnConfig(autoColumns(rows), columnCfg)),
+    [rows, display, columnCfg],
+  );
+
+  // kv: primary 필드는 타일, 나머지는 표 (hide 는 둘 다에서 뺀다). 키는 사람이 읽는 라벨로.
+  const { kvTiles, kvRows } = useMemo(() => {
+    if (display !== 'kv') return { kvTiles: [], kvRows: [] };
+    const cfg = kvCfg || {};
+    const primary = cfg.primary || [];
+    const hide = new Set(cfg.hide || []);
+    const label = (k) => cfg.labels?.[k] || humanizeKey(k);
+    const byKey = new Map(rows.map((r) => [r.metric, r.value]));
+    const tiles = primary.filter((k) => byKey.has(k)).map((k) => ({ key: k, label: label(k), value: typeof byKey.get(k) === 'boolean' ? byKey.get(k) : fmtKv(byKey.get(k)) }));
+    const rest = rows
+      .filter((r) => !hide.has(r.metric) && !primary.includes(r.metric))
+      .map((r) => ({ metric: label(r.metric), value: r.value }));
+    return { kvTiles: tiles, kvRows: rest };
+  }, [rows, display, kvCfg]);
   // chart_hint(x_key/y_keys)가 있으면 자동 감지 대신 지정된 축/시리즈 사용
   const chartSpec = useMemo(() => {
     if (display === 'kv') return null;
@@ -404,6 +442,14 @@ export default function UniversalWidget({
     ? 'plotly'
     : (concept ? (chartCfg.defaultType || 'line') : 'table');
   const view = (viewSel && viewOptions.some((o) => o.value === viewSel)) ? viewSel : defaultView;
+
+  // params 의 symbol 은 폼이 아니라 헤더 심볼 칩으로 (심볼 입력 위치를 한 곳으로)
+  const symbolParam = (paramsSpec || []).find((ps) => ps.name === 'symbol');
+  const formSpec = useMemo(
+    () => visibleParams((paramsSpec || []).filter((ps) => ps.name !== 'symbol'), params),
+    [paramsSpec, params],
+  );
+  const titleParam = reg.titleFrom ? (paramsSpec || []).find((ps) => ps.name === reg.titleFrom) : null;
 
   // Has param? Hide BaseWidget header symbol/period selectors for those params
   const paramNames     = useMemo(() => new Set((paramsSpec || []).map(p => p.name)), [paramsSpec]);
@@ -432,15 +478,23 @@ export default function UniversalWidget({
   };
 
   // 파라미터 폼 → 헤더 컨트롤(뷰 토글·새로고침·닫기) 옆의 컴팩트 팝오버로 노출.
-  const paramMenu = paramsSpec?.length ? (
+  const paramMenu = formSpec.length ? (
     <WidgetParamForm
-      spec={paramsSpec}
+      spec={formSpec}
       values={params}
       onChange={setParam}
-      onApply={fetchData}
+      onApply={requestApply}
       loading={loading}
+      idPrefix={`wp-${widgetId}`}
     />
   ) : null;
+
+  const headerSymbol = symbolParam ? params.symbol : (requiresSymbol ? symbol : undefined);
+  const onHeaderSymbol = symbolParam
+    ? (v) => { setParam('symbol', v); requestApply(); }
+    : (requiresSymbol ? setSymbol : undefined);
+  // (개념 위젯의 국가는 pin 된 헤더 칩이 보여 주므로 제목에 다시 붙이지 않는다)
+  const titleSuffix = titleParam ? paramDisplayValue(titleParam, params[titleParam.name]) : undefined;
 
   // ── Render body ──────────────────────────────────────────────────────────
   // 실패·0건은 BaseWidget state 로 넘긴다 (본문 대신 공통 WidgetState).
@@ -463,15 +517,21 @@ export default function UniversalWidget({
         error={error?.message}
       />
     );
-  } else if (display === 'kv' || view === 'table' || (!chartSpec && renderType !== 'plotly')) {
+  } else if (display === 'kv') {
+    body = (
+      <div className="absolute inset-0 overflow-auto">
+        <MetricTiles items={kvTiles} />
+        {kvRows.length > 0 && (
+          <CommonTable columns={columns} data={kvRows} searchable={false} exportable={false} compact />
+        )}
+      </div>
+    );
+  } else if (view === 'table' || (!chartSpec && renderType !== 'plotly')) {
     body = (
       <CommonTable
         columns={columns}
         data={rows}
         renderExpanded={expandable ? (row) => <ExpandedRowDetail row={row} config={expandable} /> : undefined}
-        searchable={display !== 'kv'}
-        exportable={display !== 'kv'}
-        compact={display === 'kv'}
       />
     );
   } else if (view === 'plotly') {
@@ -501,12 +561,12 @@ export default function UniversalWidget({
   return (
     <BaseWidget
       title={title}
-      titleSuffix={conceptMeta?.country?.label}
+      titleSuffix={titleSuffix}
       loading={loading}
       onRefresh={endpoint ? fetchData : undefined}
       onRemove={onRemove}
-      symbol={requiresSymbol ? symbol : undefined}
-      onSymbolChange={requiresSymbol ? setSymbol : undefined}
+      symbol={headerSymbol}
+      onSymbolChange={onHeaderSymbol}
       period={requiresPeriod ? period : undefined}
       onPeriodChange={requiresPeriod ? setPeriod : undefined}
       showPeriodSelector={requiresPeriod}

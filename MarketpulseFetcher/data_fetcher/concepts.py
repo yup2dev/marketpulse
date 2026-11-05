@@ -12,8 +12,9 @@ from datetime import date, timedelta
 from typing import Any, Callable, Dict, List, Optional
 
 COUNTRY_LABELS: Dict[str, str] = {
-    "USA": "미국", "KOR": "한국", "JPN": "일본", "DEU": "독일", "GBR": "영국",
-    "FRA": "프랑스", "CAN": "캐나다", "CHN": "중국", "EA": "유로존", "AUS": "호주", "IND": "인도",
+    # 위젯 UI 라벨은 영어로 통일 (국가 셀렉터·위젯 제목에 그대로 보인다)
+    "USA": "United States", "KOR": "Korea", "JPN": "Japan", "DEU": "Germany", "GBR": "United Kingdom",
+    "FRA": "France", "CAN": "Canada", "CHN": "China", "EA": "Euro area", "AUS": "Australia", "IND": "India",
 }
 
 # OECD 모델마다 국가 코드 표기가 다르다(유로존: euro_area_20 / euro_area20 / euro_area / euro_area19).

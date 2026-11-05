@@ -5,12 +5,12 @@ export default function Sidebar({ presets, saved, activeId, onSelectPreset, onSe
     <div className="flex flex-col w-52 flex-shrink-0 border-r border-gray-800/60 overflow-y-auto">
       {/* 내가 만든 */}
       <div className="px-2 pt-3 pb-2">
-        <div className="px-1 mb-2 text-[10px] uppercase tracking-widest text-gray-600 font-semibold">내가 만든</div>
+        <div className="px-1 mb-2 text-[10px] uppercase tracking-widest text-gray-600 font-semibold">My screeners</div>
         <button onClick={onNewScreen}
           className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-cyan-400
             border border-dashed border-cyan-800/50 hover:bg-cyan-500/5 hover:border-cyan-600/60 transition-colors">
           <Plus size={12} />
-          직접 만들기
+          Create your own
         </button>
         <div className="mt-1 space-y-0.5">
           {saved.map((s) => (
@@ -26,14 +26,14 @@ export default function Sidebar({ presets, saved, activeId, onSelectPreset, onSe
 
       {/* 프리셋 */}
       <div className="px-2 pb-3">
-        <div className="px-1 mb-2 text-[10px] uppercase tracking-widest text-gray-600 font-semibold">프리셋</div>
+        <div className="px-1 mb-2 text-[10px] uppercase tracking-widest text-gray-600 font-semibold">Presets</div>
         <div className="space-y-0.5">
           {presets.map((p) => (
             <PresetSidebarItem key={p.preset_id} preset={p}
               active={activeId === p.preset_id}
               onClick={() => onSelectPreset(p)} />
           ))}
-          {!presets.length && <p className="text-[10px] text-gray-700 px-2 py-2">프리셋 없음</p>}
+          {!presets.length && <p className="text-[10px] text-gray-700 px-2 py-2">No presets</p>}
         </div>
       </div>
     </div>

@@ -11,6 +11,7 @@ import {
   FileText, Upload, ArrowLeft, ExternalLink, Trash2, FileType2, AlignLeft,
 } from 'lucide-react';
 import BaseWidget from './common/BaseWidget';
+import { Select, INPUT_CLS as inputCls, WidgetState } from './ui';
 import { apiClient, API_BASE, dataAPI } from '../../config/api';
 
 const TYPE_STYLES = {
@@ -180,9 +181,6 @@ export default function ResearchReportsWidget({ symbol, onRemove }) {
 }
 
 // ── Upload form (collapsible) ────────────────────────────────────────────────
-const inputCls =
-  'bg-[#0a0a0f] border border-gray-800 rounded px-2 py-1.5 text-xs text-gray-200 ' +
-  'outline-none focus:border-cyan-700 w-full';
 
 function UploadForm({ defaultSymbol, onDone }) {
   const fileRef = useRef(null);
@@ -243,13 +241,13 @@ function UploadForm({ defaultSymbol, onDone }) {
           className="hidden"
           onChange={(e) => setFileName(e.target.files?.[0]?.name || '')}
         />
-        <select className={inputCls} value={reportType} onChange={(e) => setReportType(e.target.value)}>
-          <option value="analyst">Analyst report</option>
-          <option value="estimates">Estimates</option>
-          <option value="annual">Annual report</option>
-        </select>
+        <Select size="md" align="left" value={reportType} onChange={setReportType} options={[
+          { value: 'analyst', label: 'Analyst report' },
+          { value: 'estimates', label: 'Estimates' },
+          { value: 'annual', label: 'Annual report' },
+        ]} />
         <input
-          type="text" placeholder="Title (기본: 파일명)" className={inputCls}
+          type="text" placeholder="Title (default: file name)" className={inputCls}
           value={title} onChange={(e) => setTitle(e.target.value)}
         />
         <input
@@ -257,7 +255,7 @@ function UploadForm({ defaultSymbol, onDone }) {
           value={sym} onChange={(e) => setSym(e.target.value.toUpperCase())}
         />
         <input
-          type="text" placeholder="Source (증권사/10-K 등)" className={inputCls}
+          type="text" placeholder="Source (broker, 10-K, …)" className={inputCls}
           value={source} onChange={(e) => setSource(e.target.value)}
         />
         <input
@@ -365,9 +363,7 @@ function ReportViewer({ report, onBack }) {
           ) : pdfUrl ? (
             <iframe src={pdfUrl} title={report.title} className="w-full h-full border-0 bg-white" />
           ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <div className="w-6 h-6 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
-            </div>
+            <WidgetState kind="loading" />
           )
         ) : (
           <pre className="w-full h-full overflow-auto px-3 py-2 text-[11px] text-gray-300 whitespace-pre-wrap font-mono">

@@ -129,13 +129,18 @@ API fetch 이외의 상태(portfolioData 등)가 필요할 때만:
 해당 URL 항목의 category 안에 등록:
 
 ```js
-widgets: [   // WidgetMenu 카탈로그 (사용자가 + 로 추가)
-  { id: '<widget-id>', name: '표시명', description: '설명', defaultSize: { w: 6, h: 6 } },
+widgets: [   // WidgetMenu 카탈로그 (사용자가 + 로 추가) — 크기는 적지 않는다
+  { id: '<widget-id>', name: 'Display name', description: 'What it shows' },
 ],
-defaultWidgets: [   // 저장된 워크스페이스 없을 때 초기 그리드
+defaultWidgets: [   // 저장된 워크스페이스 없을 때 초기 그리드 — h 는 widgetSizes 와 같게
   { id: 'w9', type: '<widget-id>', x: 0, y: 0, w: 6, h: 6 },
 ],
 ```
+
+**크기는 `registry/widgetSizes.js` 한 곳** — 새 위젯은 여기에 `{ w, h, minW, minH }` 를 꼭 등록한다
+(그리는 방식별 프리셋 `table / tableWide / chart / chartWide / kv / list / panel / strip` 에서 시작).
+메뉴로 추가할 때의 크기와, 줄일 수 있는 최소 크기(헤더·FilterBar 가 깨지지 않는 한계)가 여기서 나온다.
+12열 그리드, 한 행 = 60px + 간격 8px. 나란히 놓인 기본 위젯은 높이를 맞춰 아래 구멍을 만들지 않는다.
 
 **defaultWidgets 제약**: 랜딩이 키 없이도 채워져야 한다 —
 - API 키 필요 provider(fred/polygon 등) 지양

@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Grid3X3 } from 'lucide-react';
 import BaseWidget from './common/BaseWidget';
+import { PeriodSelect, WidgetState, stateFromError } from './ui';
 import { apiClient, API_BASE } from '../../config/api';
 import SymbolAutocomplete from '../common/SymbolAutocomplete';
 
+// 기간 표기는 periods.js 기준 (3M 6M 1Y 2Y)
 const PERIODS = ['3mo', '6mo', '1y', '2y'];
 
 export default function CorrelationWidget({ onRemove }) {
@@ -42,7 +44,7 @@ export default function CorrelationWidget({ onRemove }) {
     } catch (e) {
       setMatrix(null);
       setLabels([]);
-      setError(e?.detail || e?.message || '상관행렬을 불러오지 못했습니다');
+      setError(stateFromError(e));
     }
     setLoading(false);
   }, [symbols, period]);
@@ -79,44 +81,34 @@ export default function CorrelationWidget({ onRemove }) {
       onRefresh={fetchCorrelation}
       onRemove={onRemove}
       showPeriodSelector={false}
+      filters={{
+        left: (
+          <>
+            <PeriodSelect value={period} onChange={setPeriod} preset={PERIODS} variant="segmented" />
+            {symbols.length < 10 && (
+              <div className="w-[120px]">
+                <SymbolAutocomplete
+                  value={addInput}
+                  onChange={setAddInput}
+                  onSelect={addSymbol}
+                  placeholder="Add symbol"
+                  compact
+                />
+              </div>
+            )}
+          </>
+        ),
+      }}
     >
       {/* absolute inset-0: widget-content is position:relative, so this fills it without h-full */}
       <div className="absolute inset-0 flex flex-col">
       {loading && (
-        <div className="absolute inset-0 flex items-center justify-center z-10 bg-black/20">
-          <div className="w-5 h-5 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+        <div className="absolute inset-0 z-10 bg-black/20">
+          <WidgetState kind="loading" />
         </div>
       )}
-        {/* Toolbar */}
-        <div className="flex items-center gap-2 px-3 pt-2 pb-1 flex-shrink-0 flex-wrap">
-          <div className="flex gap-1">
-            {PERIODS.map((p) => (
-              <button
-                key={p}
-                onClick={() => setPeriod(p)}
-                className={`text-[10px] px-1.5 py-0.5 rounded ${
-                  period === p ? 'bg-cyan-900/50 text-cyan-300' : 'text-gray-500 hover:text-gray-300'
-                }`}
-              >
-                {p.toUpperCase()}
-              </button>
-            ))}
-          </div>
-          {symbols.length < 10 && (
-            <div className="w-[120px]">
-              <SymbolAutocomplete
-                value={addInput}
-                onChange={setAddInput}
-                onSelect={addSymbol}
-                placeholder="Add..."
-                compact
-              />
-            </div>
-          )}
-        </div>
-
         {/* Symbol chips */}
-        <div className="flex flex-wrap gap-1 px-3 pb-1 flex-shrink-0">
+        <div className="flex flex-wrap gap-1 px-3 pt-2 pb-1 flex-shrink-0">
           {symbols.map((sym) => (
             <span key={sym} className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 bg-gray-800 rounded text-gray-300 font-mono">
               {sym}
@@ -212,13 +204,13 @@ export default function CorrelationWidget({ onRemove }) {
               )}
             </div>
           ) : (
-            <div className="absolute inset-0 flex items-center justify-center px-4 text-center text-[11px]">
+            <div className="absolute inset-0">
               {error ? (
-                <span className="text-red-400">{error}</span>
+                <WidgetState {...error} onRetry={fetchCorrelation} />
               ) : symbols.length < 2 ? (
-                <span className="text-gray-500">Add at least 2 symbols</span>
+                <WidgetState kind="idle" title="Add at least 2 symbols" message="Use Add symbol above to build the matrix." />
               ) : (
-                <span className="text-gray-500">{loading ? 'Loading…' : 'No correlation data'}</span>
+                <WidgetState kind={loading ? 'loading' : 'empty'} title="No correlation data" />
               )}
             </div>
           )}

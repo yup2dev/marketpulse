@@ -19,7 +19,7 @@ export default function FilterPickerModal({ open, sectors, activeFilters, onFilt
       : items;
     const groups = {};
     for (const item of filtered) {
-      const g = item.group || '기타';
+      const g = item.group || 'Other';
       if (!groups[g]) groups[g] = [];
       groups[g].push(item);
     }
@@ -171,7 +171,7 @@ export default function FilterPickerModal({ open, sectors, activeFilters, onFilt
         >
           <div className="flex items-center gap-1.5 flex-1 flex-wrap min-w-0 overflow-hidden" style={{ maxHeight: '48px' }}>
             {activeFilters.length === 0 && (
-              <span className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>추가된 필터 없음</span>
+              <span className="text-[11px]" style={{ color: 'var(--color-text-muted)' }}>No filters added</span>
             )}
             {activeFilters.map((f) => (
               <span key={f.key}
@@ -194,13 +194,13 @@ export default function FilterPickerModal({ open, sectors, activeFilters, onFilt
               <button onClick={() => { onFilterChange([]); setSelectedKey(null); }}
                 className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-gray-200 transition-colors px-2">
                 <RefreshCw size={10} />
-                초기화
+                Reset
               </button>
             )}
             <button onClick={() => { onSave(); onClose(); }}
               className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500
                 text-white text-xs font-semibold rounded-lg transition-colors">
-              {loading ? '검색 중…' : resultCount != null ? `결과 보기 (${resultCount}개)` : '결과 보기'}
+              {loading ? 'Searching…' : resultCount != null ? `Show results (${resultCount})` : 'Show results'}
             </button>
           </div>
         </div>

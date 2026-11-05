@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import GridLayout from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
+import { widgetSize } from '../../registry/widgetSizes';
 import 'react-resizable/css/styles.css';
 
 const COLS   = 12;
@@ -55,15 +56,19 @@ export default function DashboardGrid({
   }, []);
 
   const layout = useMemo(() =>
-    widgets.map(w => ({
-      i: w.id,
-      x: w.x ?? 0,
-      y: w.y ?? 0,
-      w: w.w ?? 4,
-      h: w.h ?? 4,
-      minW: 1,
-      minH: 1,
-    })),
+    widgets.map(w => {
+      // 최소 크기는 위젯별 등록값 — 헤더·필터 줄·본문이 깨지기 전까지만 줄어든다
+      const s = widgetSize(w.type);
+      return {
+        i: w.id,
+        x: w.x ?? 0,
+        y: w.y ?? 0,
+        w: Math.max(w.w ?? s.w, s.minW),
+        h: Math.max(w.h ?? s.h, s.minH),
+        minW: s.minW,
+        minH: s.minH,
+      };
+    }),
   [widgets]);
 
   const saveTimerRef = useRef(null);
@@ -94,8 +99,9 @@ export default function DashboardGrid({
       type:   widgetDef.id,
       x:      0,
       y:      Infinity,
-      w:      widgetDef.defaultSize?.w ?? 4,
-      h:      widgetDef.defaultSize?.h ?? 4,
+      // 크기는 registry/widgetSizes 단일 기준 (등록 없는 동적 위젯만 넘겨받은 크기)
+      w:      widgetSize(widgetDef.id, widgetDef.defaultSize).w,
+      h:      widgetSize(widgetDef.id, widgetDef.defaultSize).h,
       config: { ...widgetDef.defaultConfig },
     };
     setWidgets(prev => {

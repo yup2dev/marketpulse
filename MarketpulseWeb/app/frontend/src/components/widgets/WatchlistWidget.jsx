@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Plus, Trash2, X, Star, Briefcase, FolderOpen, ChevronDown } from 'lucide-react';
 import BaseWidget from './common/BaseWidget';
+import { WidgetState } from './ui';
 import StockListTable from './common/StockListTable';
 import SymbolAutocomplete from '../common/SymbolAutocomplete';
 import { watchlistAPI, portfolioAPI } from '../../config/api';
@@ -9,11 +10,7 @@ import useQuoteSocket from '../../hooks/useQuoteSocket';
 // ── 공통 ──────────────────────────────────────────────────────────────────────
 
 function Spinner() {
-  return (
-    <div className="flex items-center justify-center h-full">
-      <div className="w-5 h-5 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
-    </div>
-  );
+  return <WidgetState kind="loading" />;
 }
 
 function EmptyState({ icon, message, sub, action }) {
@@ -215,7 +212,7 @@ function WatchlistTab() {
             }`}
           >
             <FolderOpen size={10} />
-            그룹
+            Group
             <ChevronDown size={9} className={`transition-transform ${showGroups ? 'rotate-180' : ''}`} />
           </button>
           {/* 종목 추가 */}
@@ -263,7 +260,7 @@ function WatchlistTab() {
                 value={newName}
                 onChange={e => setNewName(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') handleCreateGroup(); if (e.key === 'Escape') { setCreatingGroup(false); setNewName(''); } }}
-                placeholder="그룹 이름..."
+                placeholder="Group name…"
                 autoFocus
                 className="flex-1 bg-[#0a0a0f] border border-gray-700 rounded px-2 py-0.5 text-[11px] text-white outline-none focus:border-cyan-700"
               />
@@ -279,7 +276,7 @@ function WatchlistTab() {
               onClick={() => setCreatingGroup(true)}
               className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-cyan-400 transition-colors"
             >
-              <Plus size={10} /> 새 그룹
+              <Plus size={10} /> New group
             </button>
           )}
         </div>
@@ -315,13 +312,13 @@ function WatchlistTab() {
         ) : !activeId ? (
           <EmptyState
             icon={Star}
-            message="관심종목을 추적할 그룹을 만드세요"
+            message="Create a group to track your stocks"
             action={
               <button
                 onClick={() => { setShowGroups(true); setCreatingGroup(true); }}
                 className="flex items-center gap-1.5 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-medium rounded transition-colors"
               >
-                <Plus size={12} /> 그룹 만들기
+                <Plus size={12} /> Create group
               </button>
             }
           />
@@ -330,7 +327,7 @@ function WatchlistTab() {
             items={mergedItems}
             showMarketCap={false}
             showSector={false}
-            emptyMessage="종목을 추가하세요"
+            emptyMessage="Add a stock"
             actions={item => (
               <button
                 onClick={e => { e.stopPropagation(); handleRemoveTicker(item.ticker_cd); }}
@@ -433,11 +430,11 @@ function HoldingsTab() {
         ) : !activeId ? (
           <EmptyState
             icon={Briefcase}
-            message="포트폴리오가 없습니다"
-            sub="포트폴리오를 생성하여 보유 종목을 추적하세요"
+            message="No portfolios"
+            sub="Create a portfolio to track your holdings"
           />
         ) : holdings.length === 0 ? (
-          <EmptyState icon={Briefcase} message="보유 종목이 없습니다" />
+          <EmptyState icon={Briefcase} message="No holdings" />
         ) : (
           <div className="w-full">
             <div className="flex items-center px-3 py-2 border-b border-gray-800 bg-[#0d0d12] sticky top-0 z-10">

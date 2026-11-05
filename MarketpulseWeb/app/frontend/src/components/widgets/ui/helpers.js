@@ -10,8 +10,9 @@ export function normalizeOptions(options) {
     (o !== null && typeof o === 'object') ? { ...o, label: o.label ?? String(o.value) } : { value: o, label: String(o) });
 }
 
+// 높이는 padding + line-height 로 (32px = Select md 와 같은 높이). h-8 로 고정하면 textarea 가 한 줄로 접힌다.
 export const INPUT_CLS =
-  'w-full h-8 bg-[#0a0a0f] border border-gray-800 rounded px-2 text-xs text-gray-200 ' +
+  'w-full bg-[#0a0a0f] border border-gray-800 rounded px-2 py-[7px] text-xs leading-4 text-gray-200 ' +
   'outline-none focus:border-cyan-700 tabular-nums';
 
 export const PANEL_CLS =
