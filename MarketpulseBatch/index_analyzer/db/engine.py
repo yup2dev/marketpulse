@@ -1,13 +1,12 @@
-"""Database utility functions and session management"""
+"""배치 로컬 적재 DB 엔진·세션 (웹은 app/backend/core/database.py 를 따로 갖는다)"""
+import logging
 import uuid
 from typing import Optional
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from .logging import get_logger
-
-log = get_logger(__name__)
+log = logging.getLogger(__name__)
 
 
 class Database:
@@ -36,12 +35,12 @@ class Database:
 
     def create_tables(self):
         """Create all tables defined in the ORM models."""
-        from marketpulse_common.models.orm import Base  # lazy import to avoid circular deps
+        from index_analyzer.db.orm import Base  # lazy import to avoid circular deps
         Base.metadata.create_all(bind=self.engine)
 
     def drop_tables(self):
         """Drop all tables (caution!)."""
-        from marketpulse_common.models.orm import Base
+        from index_analyzer.db.orm import Base
         Base.metadata.drop_all(bind=self.engine)
 
     def get_session(self):
@@ -85,7 +84,7 @@ def generate_batch_id() -> str:
 # =============================================================================
 import os
 
-from marketpulse_common.paths import DB_PATH, REPO_ROOT as PROJECT_ROOT  # noqa: E402,F401
+from index_analyzer.paths import DB_PATH, REPO_ROOT as PROJECT_ROOT  # noqa: E402,F401
 
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 

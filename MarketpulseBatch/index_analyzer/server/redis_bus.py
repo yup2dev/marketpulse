@@ -13,7 +13,7 @@ from typing import Optional, Dict, Any, Callable, List, Tuple
 from datetime import datetime
 import redis
 
-from marketpulse_common.utils.logging import get_logger
+from index_analyzer.utils.logger import get_logger
 
 log = get_logger(__name__)
 

@@ -31,7 +31,7 @@ from pydantic import BaseModel
 from app.backend.core.auth.dependencies import get_current_active_user
 from app.backend.core.config import settings
 from app.backend.services import user_key_service
-from marketpulse_common.models.orm import User
+from app.backend.models.orm import User
 
 log = logging.getLogger(__name__)
 

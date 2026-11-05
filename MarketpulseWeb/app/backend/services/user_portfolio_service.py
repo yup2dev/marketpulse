@@ -8,7 +8,7 @@ from datetime import datetime
 import uuid
 import json
 
-from marketpulse_common.models.orm import (
+from app.backend.models.orm import (
     User, Portfolio, Transaction, Holding, Watchlist
 )
 

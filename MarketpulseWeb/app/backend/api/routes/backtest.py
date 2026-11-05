@@ -25,7 +25,7 @@ from app.backend.api.deps import route_handler
 from app.backend.core.auth.dependencies import get_current_active_user
 from app.backend.core.db import get_db
 from data_fetcher.core.obbject import OBBject
-from marketpulse_common.models.orm import User, UserBacktestItem, UserBacktestRun
+from app.backend.models.orm import User, UserBacktestItem, UserBacktestRun
 
 router = APIRouter(prefix="/backtest", tags=["backtest"])
 

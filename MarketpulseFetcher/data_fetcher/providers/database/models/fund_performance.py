@@ -12,7 +12,7 @@ from data_fetcher.abstract_provider.standard_models.fund_performance import (
     FundPerformanceQueryParams,
     FundPerformanceData,
 )
-from marketpulse_common.models.orm import MBS_IN_INSTI_MST, MBS_IN_INSTI_PERF
+from data_fetcher.providers.database.schema import MBS_IN_INSTI_MST, MBS_IN_INSTI_PERF
 
 log = logging.getLogger(__name__)
 

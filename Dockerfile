@@ -40,7 +40,7 @@ ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     # 패키지는 최상위 폴더 아래에 있다 — uvicorn 이 app.backend.main 을 찾도록 경로 지정
-    PYTHONPATH="/app/MarketpulseWeb:/app/MarketpulseFetcher:/app/MarketpulseCommon"
+    PYTHONPATH="/app/MarketpulseWeb:/app/MarketpulseFetcher"
 
 # Copy application code
 COPY . .

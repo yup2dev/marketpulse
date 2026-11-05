@@ -5,7 +5,7 @@ Database-driven menu system for dynamic navigation
 from datetime import datetime
 from sqlalchemy import Column, String, Text, Integer, DateTime, ForeignKey, Index
 from sqlalchemy.orm import relationship
-from marketpulse_common.models.orm import Base
+from app.backend.models.orm import Base
 
 
 class MenuManagement(Base):

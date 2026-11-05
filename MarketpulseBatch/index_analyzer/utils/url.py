@@ -1,6 +1,6 @@
 """Shared URL helper utilities"""
 from urllib.parse import urlparse
-from marketpulse_common.utils.logging import get_logger
+from index_analyzer.utils.logger import get_logger
 
 log = get_logger(__name__)
 

@@ -18,7 +18,7 @@ from app.backend.core.config import settings
 from app.backend.core.db import get_db
 from app.backend.services.auth_service import AuthService
 from app.backend.core.auth.dependencies import get_current_user, get_current_active_user
-from marketpulse_common.models.orm import User
+from app.backend.models.orm import User
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 security = HTTPBearer()

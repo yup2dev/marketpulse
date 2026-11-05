@@ -4,10 +4,10 @@ Populates the menu_management table with initial navigation structure
 """
 from datetime import datetime
 
-from marketpulse_common.paths import DB_PATH
-from marketpulse_common.utils.db import get_sqlite_db
-from marketpulse_common.models.menu import MenuManagement
-from marketpulse_common.models.orm import Base
+from app.backend.core.paths import DB_PATH
+from app.backend.core.database import get_sqlite_db
+from app.backend.models.menu import MenuManagement
+from app.backend.models.orm import Base
 
 
 def init_menu_data():

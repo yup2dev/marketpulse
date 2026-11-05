@@ -15,9 +15,9 @@ from pathlib import Path
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
-# import 경로: 저장소 루트 + 최상위 폴더 4개 (mp-bootstrap)
+# import 경로: 저장소 루트 + fetcher 만 (mp-bootstrap)
 _ROOT = Path(__file__).resolve().parents[1]
-for _d in ("", *("MarketpulseCommon", "MarketpulseFetcher", "MarketpulseBatch", "MarketpulseWeb")):
+for _d in ("", "MarketpulseFetcher",):
     if str(_ROOT / _d) not in sys.path:
         sys.path.insert(0, str(_ROOT / _d))
 

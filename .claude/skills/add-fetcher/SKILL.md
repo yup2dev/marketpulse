@@ -134,7 +134,7 @@ class DBThingFetcher(DbFetcher[Q, D]):
 ```
 - **주의**: sqlalchemy는 Fetcher(exe) 환경에 없다 → providers_init에서 database provider는 `try/except ImportError`로 fail-soft 등록된다(기존 블록에 추가하면 됨).
 - 테이블은 적재 배치 의존(예: `mbs_in_stk_stbd` ← `MarketpulseBatch/jobs/backfill_stk_stbd.py`). **적재가 없으면 빈 응답**이므로 어느 배치가 채우는지 도큐스트링에 명시. 클라우드 반영은 `MarketpulseBatch/jobs/sync_db_to_cloud.py`(/api/ingest) 경유.
-- 새 테이블이면 `MarketpulseCommon/marketpulse_common/models/orm/ingest.py`에 ORM + `/api/ingest` whitelist(`MarketpulseWeb/app/backend/api/routes/ingest.py` `_TABLES`) + sync 스크립트 `TABLES`에도 추가.
+- 새 테이블이면 ORM 을 **양쪽에 각각** 정의한다: 웹 `MarketpulseWeb/app/backend/models/orm/ingest.py`(스키마 주인, alembic 리비전) + 배치 `MarketpulseBatch/index_analyzer/db/orm/ingest.py`(로컬 적재). database provider 가 읽는다면 `MarketpulseFetcher/data_fetcher/providers/database/schema.py` 에도. 그다음 `/api/ingest` whitelist(`MarketpulseWeb/app/backend/api/routes/ingest.py` `_TABLES`) + sync 스크립트 `TABLES`에 추가. 컬럼이 어긋나면 `tests/test_ingest_contract.py` 가 실패한다.
 
 ### D. ComputeFetcher — 순수 로컬 계산
 
@@ -231,10 +231,10 @@ python -m pytest
 
 # (b) 레지스트리 등록 + category별 provider 확인
 # 패키지가 MarketpulseFetcher/ 아래에 있으므로 import 경로 지정 (Common 은 database provider 용, Mac 은 ; 대신 :)
-PYTHONPATH="MarketpulseFetcher;MarketpulseCommon" python -c "import data_fetcher.providers_init; from data_fetcher.utils.registry import FetcherRegistry; print(FetcherRegistry.list_providers('<category>'))"
+PYTHONPATH="MarketpulseFetcher" python -c "import data_fetcher.providers_init; from data_fetcher.utils.registry import FetcherRegistry; print(FetcherRegistry.list_providers('<category>'))"
 
 # (c) fetcher 단위 TET 검증 (실 호출)
-PYTHONPATH="MarketpulseFetcher;MarketpulseCommon" python -c "import data_fetcher.providers_init; from data_fetcher.providers.<p>.models.<m> import <F> as F; F.test({'symbol':'AAPL'})"
+PYTHONPATH="MarketpulseFetcher" python -c "import data_fetcher.providers_init; from data_fetcher.providers.<p>.models.<m> import <F> as F; F.test({'symbol':'AAPL'})"
 
 # (d) 게이트웨이: GET /api/data/<provider>/<category>?symbol=AAPL / GET /api/providers
 # (e) 프론트 빌드: cd MarketpulseWeb/app/frontend && npm run build

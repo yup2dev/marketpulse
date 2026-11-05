@@ -34,7 +34,7 @@ jobs:
       # 걸린다. 실제 버그가 아니므로 F821/F822/F823 만 명시한다.
       - name: Lint (errors only)
         run: |
-          flake8 MarketpulseWeb/app MarketpulseFetcher MarketpulseBatch MarketpulseCommon scripts migrations \
+          flake8 MarketpulseWeb/app MarketpulseFetcher MarketpulseBatch scripts migrations \
             --count --select=E9,F63,F7,F821,F822,F823 --show-source --statistics
 
       - name: Run tests

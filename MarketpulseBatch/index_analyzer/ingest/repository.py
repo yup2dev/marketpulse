@@ -12,9 +12,9 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional
 
-from marketpulse_common.utils.db import default_db, generate_batch_id
-from marketpulse_common.utils.logging import get_logger
-from marketpulse_common.models.orm import (
+from index_analyzer.db.engine import default_db, generate_batch_id
+from index_analyzer.utils.logger import get_logger
+from index_analyzer.db.orm import (
     MBS_IN_STBD_MST,
     MBS_IN_INDX_STBD,
     MBS_IN_INDX_MEMBER,

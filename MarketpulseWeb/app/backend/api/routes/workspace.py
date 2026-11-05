@@ -14,7 +14,7 @@ from typing import List, Optional
 from app.backend.core.db import get_db
 from app.backend.core.auth.dependencies import get_current_user
 from app.backend.services.workspace_service import WorkspaceService
-from marketpulse_common.models.orm import UserWorkspace, User
+from app.backend.models.orm import UserWorkspace, User
 
 router = APIRouter(prefix="/workspace", tags=["workspace"])
 

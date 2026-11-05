@@ -6,7 +6,7 @@ from data_fetcher.abstract_provider.standard_models.index_constituents import (
     IndexConstituentData,
 )
 from data_fetcher.abstract_provider.abstract.base_fetchers import DbFetcher
-from marketpulse_common.models.orm import (
+from data_fetcher.providers.database.schema import (
     MBS_IN_STBD_MST, MBS_IN_INDX_STBD
 )
 

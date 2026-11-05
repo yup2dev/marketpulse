@@ -10,7 +10,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
 
-from marketpulse_common.utils.logging import get_logger
+from index_analyzer.utils.logger import get_logger
 
 log = get_logger(__name__)
 

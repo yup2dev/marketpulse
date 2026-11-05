@@ -19,8 +19,8 @@ from app.backend.core.auth.security import create_access_token
 from app.backend.core.config import settings
 from app.backend.core.db import get_db
 from app.backend.main import app
-from marketpulse_common.models.all_models import Base
-from marketpulse_common.models.orm import User
+from app.backend.models.all_models import Base
+from app.backend.models.orm import User
 
 
 @pytest.fixture(scope="session")

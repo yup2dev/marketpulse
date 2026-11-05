@@ -13,7 +13,7 @@ from data_fetcher.abstract_provider.standard_models.institutional_holdings impor
     HoldingData,
     InstitutionalHoldingsData,
 )
-from marketpulse_common.models.orm import (
+from data_fetcher.providers.database.schema import (
     MBS_IN_INSTI_MST, MBS_IN_INSTI_PORT, MBS_IN_INSTI_HOLD
 )
 

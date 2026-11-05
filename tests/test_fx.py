@@ -6,7 +6,7 @@ import pytest
 
 from app.backend.services.fx_service import FXRateNotFound, convert_fields, get_rate
 from index_analyzer.collectors.market.fx_rate import FXRateCollector
-from marketpulse_common.models.orm import MBS_IN_FX_STBD, Holding, Portfolio
+from app.backend.models.orm import MBS_IN_FX_STBD, Holding, Portfolio
 
 
 def _add_rate(db, ymd, rate, chg=None, fx_cd="USDKRW"):

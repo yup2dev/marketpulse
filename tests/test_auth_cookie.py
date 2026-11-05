@@ -125,7 +125,7 @@ def test_refresh_accepts_legacy_body_token(user_client, db_session):
     이게 죽으면 배포 순간 기존 로그인 사용자가 전부 로그아웃된다.
     """
     client, email = user_client
-    from marketpulse_common.models.orm import User
+    from app.backend.models.orm import User
     user = db_session.query(User).filter(User.email == email).first()
     legacy = AuthService.generate_tokens(user)["refresh_token"]
 

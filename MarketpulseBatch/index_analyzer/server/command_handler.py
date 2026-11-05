@@ -1,7 +1,7 @@
 """
 Command Handler - Redis Queue에서 Spring 명령 수신 및 처리
 """
-from marketpulse_common.utils.logging import get_logger
+from index_analyzer.utils.logger import get_logger
 
 log = get_logger(__name__)
 

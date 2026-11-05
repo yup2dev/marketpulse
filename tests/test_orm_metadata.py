@@ -22,12 +22,12 @@ def test_all_model_modules_are_registered():
     import importlib
     import pkgutil
 
-    from marketpulse_common.models.all_models import Base
+    from app.backend.models.all_models import Base
 
     registered = set(Base.metadata.tables)
 
     # models 패키지 전체를 훑어 import (등록 부작용 유발)
-    import marketpulse_common.models as models_pkg
+    import app.backend.models as models_pkg
 
     for mod_info in pkgutil.walk_packages(models_pkg.__path__, f"{models_pkg.__name__}."):
         try:
@@ -47,7 +47,7 @@ def test_all_model_modules_are_registered():
 
 def test_known_out_of_package_models_are_present():
     """orm/ 바깥 모델이 실제로 등록되는지 명시적으로 확인한다."""
-    from marketpulse_common.models.all_models import Base
+    from app.backend.models.all_models import Base
 
     for table in ("menu_management", "quant_factors", "quant_factor_catalog"):
         assert table in Base.metadata.tables, (
@@ -57,7 +57,7 @@ def test_known_out_of_package_models_are_present():
 
 def test_backtest_tables_registered():
     """백테스트 랩 테이블이 등록돼 있어야 한다 (최근 추가분)."""
-    from marketpulse_common.models.all_models import Base
+    from app.backend.models.all_models import Base
 
     assert "user_backtest_items" in Base.metadata.tables
     assert "user_backtest_runs" in Base.metadata.tables
@@ -75,7 +75,7 @@ def test_alembic_baseline_matches_models(tmp_path):
     from alembic.migration import MigrationContext
     from sqlalchemy import create_engine
 
-    from marketpulse_common.models.all_models import Base
+    from app.backend.models.all_models import Base
     from migrations.orphan_tables import include_object
 
     db_path = tmp_path / "schema_check.db"

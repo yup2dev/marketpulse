@@ -18,9 +18,9 @@ import argparse
 import logging
 from pathlib import Path
 
-# import 경로: 저장소 루트 + 최상위 폴더 4개 (mp-bootstrap)
+# import 경로: 저장소 루트 + 배치 — 웹 폴더는 넣지 않는다 (mp-bootstrap)
 _ROOT = Path(__file__).resolve().parents[2]
-for _d in ("", *("MarketpulseCommon", "MarketpulseFetcher", "MarketpulseBatch", "MarketpulseWeb")):
+for _d in ("", "MarketpulseFetcher", "MarketpulseBatch"):
     if str(_ROOT / _d) not in sys.path:
         sys.path.insert(0, str(_ROOT / _d))
 
@@ -41,8 +41,8 @@ def main():
 
     # ── DB 테이블 확인 ─────────────────────────────────────────────────────
     print("[1/3] DB 테이블 확인 중...")
-    from marketpulse_common.models.orm import Base
-    from marketpulse_common.utils.db import default_db
+    from index_analyzer.db.orm import Base
+    from index_analyzer.db.engine import default_db
     Base.metadata.create_all(bind=default_db.engine)
     print("      완료")
 

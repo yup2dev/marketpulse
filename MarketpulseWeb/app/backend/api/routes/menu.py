@@ -16,7 +16,7 @@ from app.backend.core.db import get_db
 from app.backend.core.auth.dependencies import require_admin
 from app.backend.services.menu_service import MenuService
 from data_fetcher.core import OBBject
-from marketpulse_common.models.orm import User
+from app.backend.models.orm import User
 
 router = APIRouter(prefix="/menu", tags=["menu"])
 

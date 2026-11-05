@@ -11,7 +11,7 @@ try:
     from dotenv import load_dotenv
 
     # 저장소 루트의 .env — MarketpulseFetcher/data_fetcher/utils/api_keys.py → parents[3]
-    # (exe 에는 marketpulse_common 이 번들되지 않으므로 paths 모듈 대신 직접 센다)
+    # (fetcher 는 웹·배치 코드를 import 하지 않으므로 경로를 직접 센다)
     env_file = Path(__file__).resolve().parents[3] / ".env"
 
     if env_file.exists():
