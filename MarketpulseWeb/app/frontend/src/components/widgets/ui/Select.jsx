@@ -2,7 +2,8 @@
  * Select — 위젯 안의 모든 드롭다운 (provider·기간·보기·파라미터 select).
  * 브라우저 기본 <select> 는 테마를 따르지 않으므로 위젯 안에서는 이걸 쓴다.
  *
- * options: [{ value, label, icon?, note?, disabled? }] 또는 문자열 배열
+ * options: [{ value, label, icon?, note?, disabled?, group? }] 또는 문자열 배열
+ *   group — 같은 group 끼리 묶어 소제목을 단다 (<optgroup> 대체)
  *   note — 항목 오른쪽 보조 문구 (예: provider 의 'Key needed')
  * size: 'sm'(헤더, 기본) | 'md'(폼 안, 전체 폭)
  */
@@ -55,11 +56,18 @@ export default function Select({
   return (
     <Popover popover={pop} trigger={trigger} align={align} className={`py-1 ${size === 'md' ? 'w-full' : menuWidth} max-h-72 overflow-y-auto`}>
       <ul role="listbox">
-        {opts.map((o) => {
+        {opts.map((o, i) => {
           const active = String(o.value) === String(value);
           const OIcon = o.icon;
+          // group 이 바뀌는 자리에 소제목 (<optgroup> 대체)
+          const groupHead = o.group && o.group !== opts[i - 1]?.group ? (
+            <div className={`px-3 pt-1.5 pb-0.5 text-[10px] font-medium text-gray-500 ${i ? 'border-t border-gray-800 mt-0.5' : ''}`}>
+              {o.group}
+            </div>
+          ) : null;
           return (
             <li key={String(o.value)}>
+              {groupHead}
               <button
                 type="button"
                 role="option"

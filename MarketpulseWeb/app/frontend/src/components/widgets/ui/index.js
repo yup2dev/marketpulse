@@ -15,6 +15,7 @@ export { default as ParamField } from './ParamField';
 export { default as WidgetState } from './WidgetState';
 export { default as Popover } from './Popover';
 export { default as MetricTiles } from './MetricTiles';
+export { default as DateStepper } from './DateStepper';
 export { normalizeOptions, usePopover, stateFromError, INPUT_CLS, PANEL_CLS } from './helpers';
 export { PERIODS, PERIOD_PRESETS, periodLabel, periodOptions, canonicalPeriod } from './periods';
 export { CHART_TYPES, TABLE_VIEW, PLOTLY_VIEW, buildViewOptions } from './views';

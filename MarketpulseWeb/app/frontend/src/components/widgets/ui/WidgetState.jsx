@@ -29,9 +29,10 @@ const SECONDARY_CLS =
   'inline-flex items-center h-7 px-3 rounded text-[11px] font-medium bg-gray-800 hover:bg-gray-700 text-gray-300 transition-colors';
 
 // 내부 주소(127.0.0.1:8765, http://…)가 사용자에게 보이지 않게 지운다
+// (문자열만 손본다 — JSX 노드는 그대로 그린다)
 function scrub(message) {
-  if (!message) return message;
-  return String(message).replace(/\s*\(?https?:\/\/[^\s)]+\)?/g, '').trim();
+  if (!message || typeof message !== 'string') return message;
+  return message.replace(/\s*\(?https?:\/\/[^\s)]+\)?/g, '').trim();
 }
 
 export default function WidgetState({
@@ -67,7 +68,7 @@ export default function WidgetState({
     <div className={`w-full h-full flex flex-col items-center justify-center text-center gap-2 ${compact ? 'p-3' : 'p-6'}`}>
       <Icon size={compact ? 16 : 20} className={meta.tone} aria-hidden="true" />
       <p className="text-xs font-medium text-gray-300">{heading}</p>
-      {body && <p className="text-[11px] text-gray-500 max-w-[320px] break-words">{body}</p>}
+      {body && <div className="text-[11px] text-gray-500 max-w-[320px] break-words">{body}</div>}
       <div className="flex items-center gap-2 mt-1">
         {kind === 'missing-key' && <Link to="/settings" className={ACTION_CLS}>Open Settings</Link>}
         {action && <button type="button" onClick={action.onClick} className={ACTION_CLS}>{action.label}</button>}

@@ -9,13 +9,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Bell, BellOff, Plus, Trash2, X, Zap, AlertTriangle } from 'lucide-react';
 import BaseWidget from './common/BaseWidget';
+import { Select, INPUT_CLS as inputCls, WidgetState } from './ui';
 import TimelineList, { Badge, formatTimeAgo } from './common/TimelineList';
 import { alertAPI } from '../../config/api';
 
-const inputCls =
-  'w-full bg-[#0a0a0f] border border-gray-800 rounded px-2 py-1.5 text-[11px] text-gray-200 outline-none focus:border-cyan-700 tabular-nums';
-const selectCls =
-  'w-full bg-[#0a0a0f] border border-gray-800 rounded px-2 py-1.5 text-[11px] text-gray-200 outline-none focus:border-cyan-700';
 
 const ALERT_TYPES = [
   { value: 'price',     label: 'Price' },
@@ -60,13 +57,11 @@ function CreateAlertForm({ onSubmit, onCancel }) {
 
       <div className="grid grid-cols-2 gap-2">
         <div className="flex flex-col gap-1">
-          <label className="text-[10px] uppercase tracking-wide text-gray-500">Type</label>
-          <select value={form.alert_type} onChange={e => set('alert_type', e.target.value)} className={selectCls}>
-            {ALERT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-          </select>
+          <label className="text-[11px] font-medium text-gray-400">Type</label>
+          <Select size="md" align="left" value={form.alert_type} onChange={(v) => set('alert_type', v)} options={ALERT_TYPES} />
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-[10px] uppercase tracking-wide text-gray-500">Ticker</label>
+          <label className="text-[11px] font-medium text-gray-400">Ticker</label>
           <input
             value={form.ticker_cd}
             onChange={e => set('ticker_cd', e.target.value)}
@@ -75,13 +70,11 @@ function CreateAlertForm({ onSubmit, onCancel }) {
           />
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-[10px] uppercase tracking-wide text-gray-500">Condition</label>
-          <select value={form.condition_type} onChange={e => set('condition_type', e.target.value)} className={selectCls}>
-            {CONDITION_TYPES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-          </select>
+          <label className="text-[11px] font-medium text-gray-400">Condition</label>
+          <Select size="md" align="left" value={form.condition_type} onChange={(v) => set('condition_type', v)} options={CONDITION_TYPES} />
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-[10px] uppercase tracking-wide text-gray-500">Threshold</label>
+          <label className="text-[11px] font-medium text-gray-400">Threshold</label>
           <input
             type="number"
             value={form.threshold_value}
@@ -93,7 +86,7 @@ function CreateAlertForm({ onSubmit, onCancel }) {
         </div>
       </div>
       <div className="flex flex-col gap-1">
-        <label className="text-[10px] uppercase tracking-wide text-gray-500">Note</label>
+        <label className="text-[11px] font-medium text-gray-400">Note</label>
         <input
           value={form.message}
           onChange={e => set('message', e.target.value)}
@@ -272,9 +265,7 @@ export default function AlertsWidget({ onRemove }) {
         {/* Content */}
         <div className="flex-1 overflow-auto min-h-0">
           {loading ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="w-5 h-5 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
-            </div>
+            <WidgetState kind="loading" />
           ) : tab === 'active' ? (
             alerts.length > 0 ? (
               alerts.map(a => (

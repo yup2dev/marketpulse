@@ -8,18 +8,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Flag, Plus, Pencil, Trash2, X, Crosshair } from 'lucide-react';
 import BaseWidget from '../common/BaseWidget';
+import { INPUT_CLS as inputCls, SegmentedControl } from '../ui';
 import useBacktestStore from '../../../store/backtestStore';
 import { parseManualDates, formatManualDates } from '../../backtest/engine/events';
-import { inputCls, btnPrimary, btnGhost, Field, ErrorText, Empty, ExprInput, validateExpr, nameError } from '../../backtest/ui';
+import { btnPrimary, btnGhost, Field, ErrorText, Empty, ExprInput, validateExpr, nameError } from '../../backtest/ui';
 
 const COLORS = ['#f59e0b', '#ef4444', '#22c55e', '#3b82f6', '#a855f7', '#ec4899', '#14b8a6'];
 
 const CONDITION_PRESETS = [
-  { label: 'VIX 30 돌파', expr: 'vix > 30', needs: ['vix'] },
-  { label: '골든크로스 50/200', expr: 'cross_above(sma(spy_close, 50), sma(spy_close, 200))', needs: ['spy_close'] },
-  { label: '데드크로스 50/200', expr: 'cross_below(sma(spy_close, 50), sma(spy_close, 200))', needs: ['spy_close'] },
-  { label: 'SPY 고점 대비 -10%', expr: 'drawdown(spy_close) < -10', needs: ['spy_close'] },
-  { label: 'RSI 30 이하', expr: 'rsi(spy_close, 14) < 30', needs: ['spy_close'] },
+  { label: 'VIX crosses 30', expr: 'vix > 30', needs: ['vix'] },
+  { label: 'Golden cross 50/200', expr: 'cross_above(sma(spy_close, 50), sma(spy_close, 200))', needs: ['spy_close'] },
+  { label: 'Death cross 50/200', expr: 'cross_below(sma(spy_close, 50), sma(spy_close, 200))', needs: ['spy_close'] },
+  { label: 'SPY -10% from peak', expr: 'drawdown(spy_close) < -10', needs: ['spy_close'] },
+  { label: 'RSI below 30', expr: 'rsi(spy_close, 14) < 30', needs: ['spy_close'] },
 ];
 
 const blank = () => ({ item_id: null, name: '', description: '', spec: { type: 'manual', dates: [], color: COLORS[0] }, datesText: '' });
@@ -40,12 +41,12 @@ export default function BtEventsWidget({ onRemove }) {
     if (!draft) return null;
     const ne = nameError(draft.name);
     if (ne) return ne;
-    if (events.some((e) => e.name === draft.name && e.item_id !== draft.item_id)) return '같은 이름의 이벤트가 있습니다';
+    if (events.some((e) => e.name === draft.name && e.item_id !== draft.item_id)) return 'An event with this name already exists';
     if (draft.spec.type === 'manual') {
       if (parsedDates.errors.length) return parsedDates.errors[0];
-      if (!parsedDates.dates.length) return '날짜를 한 줄에 하나씩 입력하세요';
+      if (!parsedDates.dates.length) return 'Enter one date per line';
     } else {
-      if (!draft.spec.expr?.trim()) return '조건식을 입력하세요';
+      if (!draft.spec.expr?.trim()) return 'Enter a condition';
       const v = validateExpr(draft.spec.expr, { knownVariables: variableNames, allowEvents: false });
       if (v.error) return v.error;
     }
@@ -77,14 +78,14 @@ export default function BtEventsWidget({ onRemove }) {
   };
 
   const remove = async (ev) => {
-    if (!window.confirm(`이벤트 '${ev.name}' 을(를) 삭제할까요?`)) return;
+    if (!window.confirm(`Delete event '${ev.name}'?`)) return;
     try { await deleteItem(ev); } catch (e) { setSaveError(e.detail || e.message); }
   };
 
   return (
     <BaseWidget
       title="Events"
-      subtitle="이벤트 정의 · 매핑"
+      subtitle="Event definitions · mapping"
       icon={Flag}
       onRemove={onRemove}
       loading={loading}
@@ -92,7 +93,7 @@ export default function BtEventsWidget({ onRemove }) {
       showPeriodSelector={false}
       headerExtra={(
         <button onClick={() => { setDraft(blank()); setSaveError(null); }} className={btnGhost}>
-          <Plus size={11} /> 이벤트
+          <Plus size={11} /> Event
         </button>
       )}
     >
@@ -102,29 +103,20 @@ export default function BtEventsWidget({ onRemove }) {
         {draft && (
           <div className="m-2 p-2.5 bg-[#0a0a0f] border border-cyan-800/50 rounded space-y-2 flex-shrink-0">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold text-white">{draft.item_id ? '이벤트 수정' : '새 이벤트'}</span>
+              <span className="text-[11px] font-semibold text-white">{draft.item_id ? 'Edit event' : 'New event'}</span>
               <button onClick={() => setDraft(null)} className="text-gray-500 hover:text-white"><X size={12} /></button>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <Field label="이름 (event('이름') 으로 참조)">
+              <Field label="Name (referenced as event('name'))">
                 <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value.trim() })} placeholder="fomc" className={`${inputCls} font-mono`} />
               </Field>
-              <Field label="설명">
+              <Field label="Description">
                 <input value={draft.description || ''} onChange={(e) => setDraft({ ...draft, description: e.target.value })} className={inputCls} />
               </Field>
             </div>
             <div className="flex items-center gap-2">
-              <div className="flex gap-1">
-                {[['manual', '날짜 지정'], ['condition', '조건식']].map(([t, label]) => (
-                  <button
-                    key={t}
-                    onClick={() => setSpec({ type: t })}
-                    className={`px-2 py-0.5 rounded text-[11px] ${draft.spec.type === t ? 'bg-cyan-900/60 text-cyan-300' : 'text-gray-500 hover:text-gray-200'}`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
+              <SegmentedControl value={draft.spec.type} onChange={(t) => setSpec({ type: t })} ariaLabel="Event type"
+                options={[{ value: 'manual', label: 'Dates' }, { value: 'condition', label: 'Condition' }]} />
               <div className="flex gap-1 ml-auto">
                 {COLORS.map((c) => (
                   <button
@@ -138,30 +130,30 @@ export default function BtEventsWidget({ onRemove }) {
             </div>
 
             {draft.spec.type === 'manual' ? (
-              <Field label="날짜 목록" hint={`${parsedDates.dates.length}개 인식 · 휴장일은 다음 거래일에 매핑`}>
+              <Field label="Date list" hint={`${parsedDates.dates.length} parsed · holidays map to the next trading day`}>
                 <textarea
                   value={draft.datesText}
                   onChange={(e) => setDraft({ ...draft, datesText: e.target.value })}
                   rows={5}
                   spellCheck={false}
-                  placeholder={'2026-01-28 FOMC 동결\n2026-03-18 FOMC 인하'}
+                  placeholder={'2026-01-28 FOMC hold\n2026-03-18 FOMC cut'}
                   className={`${inputCls} font-mono resize-y`}
                 />
               </Field>
             ) : (
               <div className="space-y-1.5">
-                <Field label="조건식 (거짓→참으로 바뀌는 봉에서 발생)">
+                <Field label="Condition (fires on the bar where it turns false → true)">
                   <ExprInput value={draft.spec.expr || ''} onChange={(expr) => setSpec({ expr })} knownVariables={variableNames} allowEvents={false} placeholder="vix > 30" />
                 </Field>
                 <div className="flex items-center gap-1 flex-wrap">
-                  <span className="text-[10px] text-gray-600">프리셋:</span>
+                  <span className="text-[10px] text-gray-600">Presets:</span>
                   {CONDITION_PRESETS.filter((p) => p.needs.every((n) => variableNames.includes(n))).map((p) => (
                     <button key={p.label} onClick={() => setSpec({ expr: p.expr })} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800/60 text-gray-400 hover:text-cyan-300" title={p.expr}>
                       {p.label}
                     </button>
                   ))}
                 </div>
-                <Field label="재발생 대기 (봉)" hint="발생 후 이 봉 수 안의 재발생은 무시 — 같은 국면의 중복 신호 제거">
+                <Field label="Cooldown (bars)" hint="Ignore repeats within this many bars — removes duplicate signals">
                   <input type="number" min={0} value={draft.spec.cooldown ?? 0} onChange={(e) => setSpec({ cooldown: e.target.value })} className={`${inputCls} !w-24`} />
                 </Field>
               </div>
@@ -170,14 +162,14 @@ export default function BtEventsWidget({ onRemove }) {
             <ErrorText>{saveError}</ErrorText>
             <div className="flex items-center justify-between">
               <span className="text-[10px] text-amber-400/80">{draftProblem}</span>
-              <button onClick={save} disabled={!!draftProblem || saving} className={btnPrimary}>{saving ? '저장 중…' : '저장'}</button>
+              <button onClick={save} disabled={!!draftProblem || saving} className={btnPrimary}>{saving ? 'Saving…' : 'Save'}</button>
             </div>
           </div>
         )}
 
         <div className="flex-1 overflow-auto px-2 pb-2 space-y-1">
           {loaded && !events.length && (
-            <Empty>이벤트가 없습니다. 발표일 같은 날짜 목록이나 변수 조건식으로 이벤트를 정의하세요.</Empty>
+            <Empty>No events yet. Define one from a date list (e.g. release dates) or a condition on variables.</Empty>
           )}
           {events.map((ev) => (
             <div key={ev.item_id} className={`group bg-[#0a0a0f] border rounded px-2.5 py-1.5 ${study.event === ev.name ? 'border-cyan-800' : 'border-gray-800/80 hover:border-gray-700'}`}>
@@ -185,19 +177,19 @@ export default function BtEventsWidget({ onRemove }) {
                 <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: ev.spec?.color || COLORS[0] }} />
                 <span className="font-mono text-[11px] text-white">{ev.name}</span>
                 <span className={`text-[9px] px-1 rounded ${ev.spec?.type === 'condition' ? 'bg-purple-900/40 text-purple-300' : 'bg-amber-900/40 text-amber-300'}`}>
-                  {ev.spec?.type === 'condition' ? '조건' : `날짜 ${ev.spec?.dates?.length || 0}`}
+                  {ev.spec?.type === 'condition' ? 'Condition' : `${ev.spec?.dates?.length || 0} dates`}
                 </span>
                 <div className="ml-auto flex items-center gap-1.5">
-                  <button onClick={() => setStudy({ event: ev.name })} className={study.event === ev.name ? 'text-cyan-400' : 'text-gray-600 hover:text-cyan-400'} title="이벤트 스터디로 보기">
+                  <button onClick={() => setStudy({ event: ev.name })} className={study.event === ev.name ? 'text-cyan-400' : 'text-gray-600 hover:text-cyan-400'} title="Open in event study">
                     <Crosshair size={11} />
                   </button>
-                  <button onClick={() => edit(ev)} className="text-gray-600 hover:text-white opacity-0 group-hover:opacity-100" title="수정"><Pencil size={11} /></button>
-                  <button onClick={() => remove(ev)} className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100" title="삭제"><Trash2 size={11} /></button>
+                  <button onClick={() => edit(ev)} className="text-gray-600 hover:text-white opacity-0 group-hover:opacity-100" title="Edit"><Pencil size={11} /></button>
+                  <button onClick={() => remove(ev)} className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100" title="Delete"><Trash2 size={11} /></button>
                 </div>
               </div>
               <div className="text-[10px] text-gray-500 font-mono truncate">
                 {ev.spec?.type === 'condition'
-                  ? `${ev.spec.expr}${ev.spec.cooldown ? ` · 대기 ${ev.spec.cooldown}봉` : ''}`
+                  ? `${ev.spec.expr}${ev.spec.cooldown ? ` · cooldown ${ev.spec.cooldown} bars` : ''}`
                   : (ev.spec?.dates || []).slice(-3).map((d) => d.date).join(', ') + ((ev.spec?.dates?.length || 0) > 3 ? ' …' : '')}
               </div>
               {ev.description && <div className="text-[10px] text-gray-600 truncate">{ev.description}</div>}

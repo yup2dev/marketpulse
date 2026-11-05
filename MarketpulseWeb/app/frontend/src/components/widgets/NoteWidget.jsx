@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Plus, Pin, Trash2, Save, X, StickyNote } from 'lucide-react';
 import BaseWidget from './common/BaseWidget';
+import { INPUT_CLS as inputCls } from './ui';
 import { notesAPI } from '../../config/api';
 
 const COLOR_MAP = {
@@ -166,7 +167,6 @@ function NoteEditor({ note, onSave, onCancel, onDelete }) {
 
   const handleSave = () => onSave({ title: title.trim(), content, ticker_cd: ticker.trim() || null, color });
 
-  const inputCls = 'w-full bg-[#0a0a0f] border border-gray-800 rounded px-2 py-1 text-[11px] text-gray-200 outline-none focus:border-cyan-700';
 
   return (
     <div className="bg-[#0a0a0f] border border-cyan-800/50 rounded p-2.5 space-y-1.5">

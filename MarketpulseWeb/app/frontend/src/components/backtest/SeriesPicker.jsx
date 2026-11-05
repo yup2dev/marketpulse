@@ -7,6 +7,7 @@
 import { useState, useMemo } from 'react';
 import { Plus, X, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { SERIES_CATALOG, GROUP_LABELS } from './seriesCatalog';
+import { Select } from '../widgets/ui';
 
 const RANGE_PRESETS = [
   { label: '1M', months: 1 },
@@ -108,20 +109,10 @@ export default function SeriesPicker({
 
       {/* Catalog selector + Add */}
       <div className="p-3 border-b border-gray-800 space-y-2">
-        <label className="block text-[10px] uppercase tracking-wide text-gray-500 mb-1">Series</label>
-        <select
-          value={selectedId}
-          onChange={(e) => setSelectedId(e.target.value)}
-          className="w-full bg-[#0a0a0f] border border-gray-800 rounded px-2 py-1.5 text-gray-200 outline-none focus:border-cyan-700"
-        >
-          {[...grouped.entries()].map(([group, entries]) => (
-            <optgroup key={group} label={GROUP_LABELS[group] || group}>
-              {entries.map(e => (
-                <option key={e.id} value={e.id}>{e.label}</option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
+        <label className="block text-[11px] font-medium text-gray-400 mb-1">Series</label>
+        <Select size="md" align="left" value={selectedId} onChange={setSelectedId}
+          options={[...grouped.entries()].flatMap(([group, entries]) =>
+            entries.map((e) => ({ value: e.id, label: e.label, group: GROUP_LABELS[group] || group })))} />
         <button
           onClick={() => selectedEntry && onAddSeries(selectedEntry)}
           disabled={!canAdd}

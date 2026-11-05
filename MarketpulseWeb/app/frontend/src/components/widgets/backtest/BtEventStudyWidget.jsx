@@ -7,13 +7,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Crosshair, Play } from 'lucide-react';
 import BaseWidget from '../common/BaseWidget';
+import { Select, INPUT_CLS as inputCls, SegmentedControl } from '../ui';
 import PlotlyChart from '../../core/PlotlyChart';
 import CommonTable from '../../common/CommonTable';
 import useBacktestStore from '../../../store/backtestStore';
 import { buildFrame } from '../../backtest/engine/data';
 import { eventMask, eventVariableRefs, occurrences } from '../../backtest/engine/events';
 import { eventStudy, parseWindows } from '../../backtest/engine/study';
-import { inputCls, btnPrimary, Field, ErrorText, Empty, RangeBar, fmt, fmtPct, signCls } from '../../backtest/ui';
+import { btnPrimary, Field, ErrorText, Empty, RangeBar, fmt, fmtPct, signCls } from '../../backtest/ui';
 
 const MAX_MARKERS = 150;
 
@@ -72,28 +73,28 @@ export default function BtEventStudyWidget({ onRemove }) {
 
   const unit = study.mode === 'diff' ? '' : '%';
   const cell = (v) => <span className={signCls(v)}>{study.mode === 'diff' ? fmt(v, 3) : fmtPct(v)}</span>;
-  const wLabel = (w) => (w > 0 ? `+${w}봉` : `${w}봉`);
+  const wLabel = (w) => (w > 0 ? `+${w} bars` : `${w} bars`);
 
   const summaryColumns = [
-    { key: 'window', header: '구간', renderFn: (w) => wLabel(w) },
-    { key: 'count', header: '표본', align: 'right' },
-    { key: 'mean', header: `평균${unit && ' %'}`, align: 'right', renderFn: cell },
-    { key: 'median', header: '중앙값', align: 'right', renderFn: cell },
-    { key: 'hit', header: '상승 비율', align: 'right', renderFn: (v) => (v === null ? '—' : `${v.toFixed(0)}%`) },
-    { key: 'min', header: '최저', align: 'right', renderFn: cell },
-    { key: 'max', header: '최고', align: 'right', renderFn: cell },
+    { key: 'window', header: 'Window', renderFn: (w) => wLabel(w) },
+    { key: 'count', header: 'Samples', align: 'right' },
+    { key: 'mean', header: `Mean${unit && ' %'}`, align: 'right', renderFn: cell },
+    { key: 'median', header: 'Median', align: 'right', renderFn: cell },
+    { key: 'hit', header: 'Up ratio', align: 'right', renderFn: (v) => (v === null ? '—' : `${v.toFixed(0)}%`) },
+    { key: 'min', header: 'Min', align: 'right', renderFn: cell },
+    { key: 'max', header: 'Max', align: 'right', renderFn: cell },
   ];
   const rowColumns = [
-    { key: 'date', header: '발생일' },
-    { key: 'label', header: '라벨', renderFn: (v) => v || '—' },
-    { key: 'base', header: '당일 값', align: 'right', renderFn: (v) => fmt(v) },
+    { key: 'date', header: 'Date' },
+    { key: 'label', header: 'Label', renderFn: (v) => v || '—' },
+    { key: 'base', header: 'Value on day', align: 'right', renderFn: (v) => fmt(v) },
     ...(result?.windows || []).map((w) => ({ key: `w${w}`, header: wLabel(w), align: 'right', renderFn: cell })),
   ];
 
   return (
     <BaseWidget
       title="Event Study"
-      subtitle="이벤트 매핑 · 전후 흐름"
+      subtitle="Event mapping · before/after"
       icon={Crosshair}
       onRemove={onRemove}
       loading={loading}
@@ -104,27 +105,22 @@ export default function BtEventStudyWidget({ onRemove }) {
         <div className="flex-shrink-0 space-y-1.5">
           <RangeBar />
           <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end">
-            <Field label="이벤트">
-              <select value={study.event} onChange={(e) => setStudy({ event: e.target.value })} className={inputCls}>
-                {!events.length && <option value="">(이벤트 없음)</option>}
-                {events.map((e) => <option key={e.item_id} value={e.name}>{e.name}</option>)}
-              </select>
+            <Field label="Event">
+              <Select size="md" align="left" value={study.event} onChange={(v) => setStudy({ event: v })}
+                placeholder="No events" options={events.map((e) => ({ value: e.name, label: e.name }))} />
             </Field>
-            <Field label="대상 변수">
-              <select value={study.target} onChange={(e) => setStudy({ target: e.target.value })} className={inputCls}>
-                {!variables.length && <option value="">(변수 없음)</option>}
-                {variables.map((v) => <option key={v.item_id} value={v.name}>{v.name}</option>)}
-              </select>
+            <Field label="Target variable">
+              <Select size="md" align="left" value={study.target} onChange={(v) => setStudy({ target: v })}
+                placeholder="No variables" options={variables.map((v) => ({ value: v.name, label: v.name }))} />
             </Field>
-            <Field label="구간 (봉, 음수=이전)">
+            <Field label="Windows (bars, negative = before)">
               <input value={study.windows} onChange={(e) => setStudy({ windows: e.target.value })} className={`${inputCls} font-mono`} />
             </Field>
-            <div className="flex gap-1 pb-0.5">
-              {[['pct', '변화율'], ['diff', '차이']].map(([m, label]) => (
-                <button key={m} onClick={() => setStudy({ mode: m })} className={`px-1.5 py-0.5 rounded text-[10px] ${study.mode === m ? 'bg-cyan-900/60 text-cyan-300' : 'text-gray-500 hover:text-gray-200'}`} title={m === 'diff' ? '금리·스프레드처럼 수준 차이로 볼 변수' : '가격·지수처럼 변화율로 볼 변수'}>
-                  {label}
-                </button>
-              ))}
+            <div className="pb-1">
+              <SegmentedControl value={study.mode} onChange={(m) => setStudy({ mode: m })} ariaLabel="Mode" options={[
+                { value: 'pct', label: 'Change %', title: 'For prices and indices (percent change)' },
+                { value: 'diff', label: 'Difference', title: 'For rates and spreads (level difference)' },
+              ]} />
             </div>
           </div>
         </div>
@@ -132,12 +128,12 @@ export default function BtEventStudyWidget({ onRemove }) {
         <ErrorText>{error}</ErrorText>
 
         {!events.length || !variables.length ? (
-          <Empty>Events 위젯에서 이벤트를, Variables 탭에서 변수를 먼저 만드세요.</Empty>
+          <Empty>Create events in the Events widget and variables in the Variables tab first.</Empty>
         ) : result && (
           <>
             <div className="text-[10px] text-gray-500 flex-shrink-0">
-              {result.frame.dates[0]} ~ {result.frame.dates[result.frame.dates.length - 1]} · 이벤트 {result.occ.length}회 발생
-              {result.occ.length > MAX_MARKERS && ` (차트에는 최근 ${MAX_MARKERS}개 표시)`}
+              {result.frame.dates[0]} ~ {result.frame.dates[result.frame.dates.length - 1]} · {result.occ.length} occurrences
+              {result.occ.length > MAX_MARKERS && ` (chart shows the latest ${MAX_MARKERS})`}
             </div>
             <div className="h-[220px] flex-shrink-0">
               <PlotlyChart data={chartData} series={[{ key: 'value', name: result.target }]} xKey="date" type="line" height={220} showTypeSelector={false} annotations={annotations} />
@@ -148,12 +144,12 @@ export default function BtEventStudyWidget({ onRemove }) {
                 <CommonTable data={[...result.rows].reverse()} columns={rowColumns} compact searchable exportable pageSize={10} />
               </>
             ) : (
-              <Empty>선택한 기간에 이벤트가 발생하지 않았습니다.</Empty>
+              <Empty>The event did not occur in the selected range.</Empty>
             )}
           </>
         )}
         {!result && !loading && !error && eventItem && (
-          <button onClick={run} className={`${btnPrimary} self-start`}><Play size={11} /> 분석</button>
+          <button onClick={run} className={`${btnPrimary} self-start`}><Play size={11} /> Analyze</button>
         )}
       </div>
     </BaseWidget>

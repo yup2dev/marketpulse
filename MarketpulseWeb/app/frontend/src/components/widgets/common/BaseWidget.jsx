@@ -129,7 +129,7 @@ function SymbolSelector({ symbol, onSymbolChange }) {
                     className="w-full px-3 py-2 text-left hover:bg-gray-800 transition-colors flex items-center justify-between border-t border-gray-800"
                   >
                     <span className="text-xs text-cyan-400 font-medium">Use “{freeText}”</span>
-                    <span className="text-[10px] text-gray-500 ml-2">직접 입력</span>
+                    <span className="text-[10px] text-gray-500 ml-2">Custom</span>
                   </button>
                 )}
                 {!search && results.length === 0 && (

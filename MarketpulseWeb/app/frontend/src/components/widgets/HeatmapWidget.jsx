@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { LayoutGrid } from 'lucide-react';
 import BaseWidget from './common/BaseWidget';
+import { SegmentedControl, WidgetState } from './ui';
 import { apiClient, API_BASE } from '../../config/api';
 import useQuoteSocket from '../../hooks/useQuoteSocket';
 
@@ -150,42 +151,34 @@ export default function HeatmapWidget({ onRemove }) {
       onRefresh={fetchSectors}
       onRemove={onRemove}
       showPeriodSelector={false}
+      filters={{
+        left: (
+          <>
+            <SegmentedControl
+              value={view}
+              options={[{ value: 'treemap', label: 'Treemap' }, { value: 'list', label: 'List' }]}
+              onChange={(v) => { setView(v); setSelected(null); }}
+              ariaLabel="View"
+            />
+            {selected && (
+              <button type="button" onClick={() => setSelected(null)} className="text-[11px] text-cyan-400 hover:text-cyan-300">
+                ← All sectors
+              </button>
+            )}
+            {selected && (
+              <span className="text-[11px] text-gray-500">
+                {sectors.find(s => s.sector === selected)?.count ?? 0} stocks
+              </span>
+            )}
+          </>
+        ),
+        right: <span className="flex items-center">{wsIndicator}{connected ? 'Live' : 'Connecting…'}</span>,
+      }}
+      state={!loading && !sectors.length ? { kind: 'empty', title: 'No sector data', message: 'Sector performance is not available right now.' } : null}
     >
       <div className="flex flex-col h-full min-h-0">
-        {/* Toolbar */}
-        <div className="flex items-center gap-2 px-3 pt-2 pb-1 flex-shrink-0">
-          {['treemap', 'list'].map((v) => (
-            <button
-              key={v}
-              onClick={() => { setView(v); setSelected(null); }}
-              className={`text-[10px] font-medium pb-0.5 ${
-                view === v ? 'text-white border-b border-cyan-400' : 'text-gray-500 hover:text-gray-300'
-              }`}
-            >
-              {v === 'treemap' ? 'Treemap' : 'List'}
-            </button>
-          ))}
-          {selected && (
-            <button onClick={() => setSelected(null)} className="text-[10px] text-cyan-400 ml-2">
-              ← All Sectors
-            </button>
-          )}
-          {selected && (
-            <span className="text-[10px] text-gray-500">
-              {sectors.find(s => s.sector === selected)?.count ?? 0} stocks
-            </span>
-          )}
-          <span className="ml-auto flex items-center text-[9px] text-gray-600">
-            {wsIndicator}{connected ? 'Live' : 'Connecting…'}
-          </span>
-        </div>
-
         <div className={`flex-1 min-h-0 p-2 ${view === 'list' ? 'overflow-auto' : 'overflow-hidden'}`}>
-          {!loading && !sectors.length ? (
-            <div className="flex items-center justify-center h-full text-gray-500 text-[11px]">
-              No sector data available
-            </div>
-          ) : view === 'treemap' ? (
+          {view === 'treemap' ? (
             <NestedTreemap
               sectors={sectors}
               quotes={quotes}

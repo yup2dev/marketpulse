@@ -7,7 +7,7 @@ export default function FilterConfigPanel({ item, value, onChange, sectors }) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-2" style={{ color: 'var(--color-text-muted)' }}>
         <SlidersHorizontal size={20} />
-        <span className="text-xs">좌측에서 필터를 선택하세요</span>
+        <span className="text-xs">Pick a filter on the left</span>
       </div>
     );
   }
@@ -33,7 +33,7 @@ export default function FilterConfigPanel({ item, value, onChange, sectors }) {
           }`}
           style={!val.enabled ? { borderColor: 'var(--color-border)' } : {}}
         >
-          {val.enabled ? '✓ 적용됨' : '적용하기'}
+          {val.enabled ? '✓ Applied' : 'Apply'}
         </button>
       </div>
     );
@@ -46,7 +46,7 @@ export default function FilterConfigPanel({ item, value, onChange, sectors }) {
       {/* 기간 선택 */}
       {type === 'percent_range' && periods && (
         <div>
-          <div className="text-[11px] mb-2" style={{ color: 'var(--color-text-muted)' }}>기간 선택</div>
+          <div className="text-[11px] mb-2" style={{ color: 'var(--color-text-muted)' }}>Period</div>
           <div className="flex gap-1.5">
             {periods.map((p) => (
               <button key={p.id} onClick={() => setPeriod(p.id)}
@@ -94,7 +94,7 @@ export default function FilterConfigPanel({ item, value, onChange, sectors }) {
               }`}
               style={val.min != null || val.max != null ? { borderColor: 'var(--color-border)' } : {}}
             >
-              직접설정
+              Custom
             </button>
           </div>
         </div>
@@ -103,7 +103,7 @@ export default function FilterConfigPanel({ item, value, onChange, sectors }) {
       {/* 멀티셀렉트 */}
       {type === 'multiselect' ? (
         <div>
-          <div className="text-[11px] mb-2" style={{ color: 'var(--color-text-muted)' }}>섹터 선택</div>
+          <div className="text-[11px] mb-2" style={{ color: 'var(--color-text-muted)' }}>Sectors</div>
           <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto">
             {sectors.map((s) => {
               const active = (val.values || []).includes(s);
@@ -127,7 +127,7 @@ export default function FilterConfigPanel({ item, value, onChange, sectors }) {
       ) : (
         <div>
           <div className="flex items-center gap-2">
-            <input type="number" value={numFmt(val.min)} placeholder={`최소${unit ? ` (${unit})` : ''}`}
+            <input type="number" value={numFmt(val.min)} placeholder={`Min${unit ? ` (${unit})` : ''}`}
               onChange={(e) => setMin(e.target.value === '' ? undefined : Number(e.target.value))}
               className="flex-1 rounded-lg px-3 py-2 text-xs outline-none tabular-nums"
               style={{
@@ -137,7 +137,7 @@ export default function FilterConfigPanel({ item, value, onChange, sectors }) {
               }}
             />
             <span className="text-gray-500 text-sm flex-shrink-0">~</span>
-            <input type="number" value={numFmt(val.max)} placeholder="최대"
+            <input type="number" value={numFmt(val.max)} placeholder="Max"
               onChange={(e) => setMax(e.target.value === '' ? undefined : Number(e.target.value))}
               className="flex-1 rounded-lg px-3 py-2 text-xs outline-none tabular-nums"
               style={{

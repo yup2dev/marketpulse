@@ -14,16 +14,6 @@ export const addDays = (base, n) => {
   return d;
 };
 
-/** 날짜 스트립 라벨: 어제/오늘/내일, 그 외는 요일 */
-export const dayLabel = (date, todayIso) => {
-  const iso = isoDate(date);
-  const diff = Math.round((new Date(iso) - new Date(todayIso)) / 86400000);
-  if (diff === -1) return '어제';
-  if (diff === 0) return '오늘';
-  if (diff === 1) return '내일';
-  return ['일', '월', '화', '수', '목', '금', '토'][date.getDay()];
-};
-
 /** $3,120,000,000 → "$3.12B" */
 export const fmtMarketCap = (v) => {
   if (v == null) return '—';
@@ -41,6 +31,18 @@ export const fmtEps = (v) => {
 export const IMPACT_STARS = { high: '★★★', medium: '★★', low: '★' };
 
 export const TIME_LABELS = {
-  'pre-market': '개장 전',
-  'after-hours': '폐장 후',
+  'pre-market': 'Pre-market',
+  'after-hours': 'After hours',
 };
+
+// 위젯 FilterBar 옵션 (라벨은 영어)
+export const IMPACT_FILTERS = [
+  { value: 'all',    label: 'All' },
+  { value: 'high',   label: '★★★' },
+  { value: 'medium', label: '★★+' },
+];
+
+export const EARNINGS_SORTS = [
+  { value: 'mcap', label: 'Market cap' },
+  { value: 'eps',  label: 'EPS forecast' },
+];

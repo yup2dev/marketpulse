@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import BaseWidget from './common/BaseWidget';
+import { WidgetState } from './ui';
 import CommonTable from '../common/CommonTable';
 import { screenerAPI, watchlistAPI } from '../../config/api';
 import LogoCircle from './screener/LogoCircle';
@@ -162,7 +163,7 @@ export default function ScreenerWidget({ onRemove }) {
 
   const handleNewScreen = useCallback(() => {
     setActiveId('__new__');
-    setScreenTitle('새 스크리너');
+    setScreenTitle('New screener');
     setScreenDesc('');
     setIsCustomMode(true);
     setCurrentSaved(null);
@@ -203,14 +204,14 @@ export default function ScreenerWidget({ onRemove }) {
     try {
       if (isAdding) {
         await watchlistAPI.quickAdd(sym);
-        toast.success(`${sym}을(를) 관심종목에 추가했습니다.`);
+        toast.success(`Added ${sym} to watchlist.`);
       } else {
         await watchlistAPI.quickRemove(sym);
-        toast.success(`${sym}을(를) 관심종목에서 제거했습니다.`);
+        toast.success(`Removed ${sym} from watchlist.`);
       }
     } catch {
       setFavorites((prev) => isAdding ? prev.filter((s) => s !== sym) : [...prev, sym]);
-      toast.error('관심종목 업데이트에 실패했습니다.');
+      toast.error('Could not update watchlist.');
     }
   }, [favorites]);
 
@@ -250,7 +251,7 @@ export default function ScreenerWidget({ onRemove }) {
     },
     {
       key: '_name',
-      header: '종목명',
+      header: 'Name',
       accessorFn: (row) => row.stk_nm || row.name || row.stk_cd || row.symbol || '',
       renderFn: (name, row) => {
         const sym = row.stk_cd || row.symbol || '';
@@ -269,7 +270,7 @@ export default function ScreenerWidget({ onRemove }) {
     },
     {
       key: '_price',
-      header: '현재가',
+      header: 'Price',
       accessorFn: (row) => row.close_price ?? row.price,
       renderFn: (price, row) => (
         <span className="text-[12px] font-medium tabular-nums" style={{ color: 'var(--color-text-primary)' }}>
@@ -281,7 +282,7 @@ export default function ScreenerWidget({ onRemove }) {
     },
     {
       key: '_change',
-      header: '등락률',
+      header: 'Change',
       accessorFn: (row) => row.change_rate ?? row.change_pct,
       renderFn: (v) => {
         if (v == null) return <span style={{ color: 'var(--color-text-muted)' }}>—</span>;
@@ -297,13 +298,13 @@ export default function ScreenerWidget({ onRemove }) {
     },
     {
       key: 'sector',
-      header: '업종',
+      header: 'Sector',
       sortable: true,
       formatter: 'none',
     },
     {
       key: 'market_cap',
-      header: '시총',
+      header: 'Market cap',
       renderFn: (v, row) => (
         <span className="text-[11px] tabular-nums" style={{ color: 'var(--color-text-secondary)' }}>
           {fmtMcap(v, row.curr || 'USD')}
@@ -341,7 +342,7 @@ export default function ScreenerWidget({ onRemove }) {
       accessorFn: () => null,
       renderFn: () => (
         <button className="px-2 py-0.5 text-[11px] font-semibold text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 rounded transition-colors whitespace-nowrap">
-          구매
+          Buy
         </button>
       ),
       sortable: false,
@@ -360,7 +361,7 @@ export default function ScreenerWidget({ onRemove }) {
       return arr.length ? `${def.label}: ${arr.slice(0, 1).join(', ')}${arr.length > 1 ? ` +${arr.length - 1}` : ''}` : def.label;
     }
     const u = def.unit || '';
-    const pStr = v.period ? ` (${PERIODS.find((p) => p.id === v.period)?.label.replace(' 전 보다', '')})` : '';
+    const pStr = v.period ? ` (${PERIODS.find((p) => p.id === v.period)?.label.replace(' ago', '')})` : '';
     const minStr = v.min != null ? `${v.min}${u}` : '';
     const maxStr = v.max != null ? `${v.max}${u}` : '';
     if (minStr && maxStr) return `${def.label}${pStr}: ${minStr}~${maxStr}`;
@@ -430,7 +431,7 @@ export default function ScreenerWidget({ onRemove }) {
               {isCustomMode && (
                 <div className="flex-shrink-0 px-4 pt-1 pb-1 flex items-center gap-1.5 overflow-x-auto"
                      style={{ scrollbarWidth: 'none' }}>
-                  <span className="text-[10px] text-gray-600 flex-shrink-0 mr-0.5">빠른조건</span>
+                  <span className="text-[10px] text-gray-600 flex-shrink-0 mr-0.5">Quick filters</span>
                   {QUICK_TAGS.map((tag) => {
                     const isOn = activeFilters.some((f) => f.key === tag.filterKey);
                     return (
@@ -458,7 +459,7 @@ export default function ScreenerWidget({ onRemove }) {
                     bg-gray-800/60 border-gray-700 text-gray-300 hover:border-gray-500 hover:text-white
                     transition-colors flex-shrink-0">
                   <SlidersHorizontal size={11} />
-                  필터추가
+                  Add filter
                 </button>
 
                 {/* 활성 필터 칩 */}
@@ -489,16 +490,14 @@ export default function ScreenerWidget({ onRemove }) {
               {/* 결과 */}
               <div className="flex-1 min-h-0 overflow-auto">
                 {loading ? (
-                  <div className="flex items-center justify-center h-full">
-                    <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                  </div>
+                  <WidgetState kind="loading" />
                 ) : results.length > 0 ? (
                   <>
                     {/* 결과 카운트 */}
                     <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-2 border-b border-gray-800/60 bg-[#0a0e14]">
                       <span className="text-xs text-gray-500">
-                        검색된 주식 ·{' '}
-                        <span className="text-white font-semibold">{resultCount ?? results.length}</span>개
+                        Matches ·{' '}
+                        <span className="text-white font-semibold">{resultCount ?? results.length}</span> stocks
                       </span>
                       <button onClick={handleRun} className="text-gray-600 hover:text-gray-400 transition-colors">
                         <RefreshCw size={11} />
@@ -514,14 +513,14 @@ export default function ScreenerWidget({ onRemove }) {
                   <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-600">
                     <Filter size={24} className="text-gray-700" />
                     <p className="text-sm text-gray-500">
-                      {isCustomMode ? '필터를 추가하고 주식을 검색하세요' : '결과가 없습니다'}
+                      {isCustomMode ? 'Add filters to search stocks' : 'No results'}
                     </p>
                     {isCustomMode && (
                       <button onClick={() => setPickerOpen(true)}
                         className="flex items-center gap-2 px-4 py-2 rounded-full border border-dashed
                           border-gray-700 text-gray-400 text-xs hover:border-gray-500 hover:text-gray-300 transition-colors">
                         <Plus size={12} />
-                        필터 추가
+                        Add filter
                       </button>
                     )}
                   </div>
@@ -531,12 +530,12 @@ export default function ScreenerWidget({ onRemove }) {
           ) : (
             <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-600">
               <SlidersHorizontal size={28} className="text-gray-700" />
-              <p className="text-sm text-gray-500">좌측에서 스크리너를 선택하거나 직접 만드세요</p>
+              <p className="text-sm text-gray-500">Pick a screener on the left or create your own</p>
               <button onClick={handleNewScreen}
                 className="flex items-center gap-2 px-4 py-2 rounded-full border border-dashed
                   border-gray-700 text-gray-400 text-xs hover:border-gray-500 hover:text-gray-300 transition-colors">
                 <Plus size={13} />
-                직접 만들기
+                Create your own
               </button>
             </div>
           )}

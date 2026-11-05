@@ -1,6 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react';
 import { Activity, ChevronLeft, ChevronRight, Plus, X } from 'lucide-react';
 import BaseWidget from './common/BaseWidget';
+import { SegmentedControl } from './ui';
 import SymbolAutocomplete from '../common/SymbolAutocomplete';
 import { apiClient, API_BASE } from '../../config/api';
 import useQuoteSocket from '../../hooks/useQuoteSocket';
@@ -8,19 +9,18 @@ import useQuoteSocket from '../../hooks/useQuoteSocket';
 const DEFAULT_ITEMS = [
   { sym: '^KS11',     label: 'KOSPI',     market: 'domestic' },
   { sym: '^KQ11',     label: 'KOSDAQ',    market: 'domestic' },
-  { sym: '148070.KS', label: '국채10년',  market: 'domestic' },
-  { sym: 'QQQ',       label: '나스닥',    market: 'foreign' },
+  { sym: '148070.KS', label: 'KR 10Y',   market: 'domestic' },
+  { sym: 'QQQ',       label: 'Nasdaq',    market: 'foreign' },
   { sym: 'SPY',       label: 'S&P 500',   market: 'foreign' },
-  { sym: 'KRW=X',     label: '달러 환율', market: 'foreign' },
+  { sym: 'KRW=X',     label: 'USD/KRW',   market: 'foreign' },
   { sym: '^VIX',      label: 'VIX',       market: 'foreign' },
-  { sym: '^TNX',      label: '미국 10Y',  market: 'foreign' },
+  { sym: '^TNX',      label: 'US 10Y',    market: 'foreign' },
 ];
 
 const PERIOD    = '2d';
 const INTERVAL  = '5m';
 const CARD_GAP = 8;
 const CARD_MIN = 160;
-const TABS_W   = 116;
 const ARROW_W  = 24;
 
 // ── 시장 개장 여부 계산 ──────────────────────────────────────────────────────
@@ -130,7 +130,6 @@ export default function SparklineWidget({ onRemove }) {
   // ── 컨테이너 크기 감지 ────────────────────────────────────────────────────
   const containerRef = useRef(null);
   const [containerW, setContainerW] = useState(800);
-  const [containerH, setContainerH] = useState(120);
 
   useLayoutEffect(() => {
     const el = containerRef.current;
@@ -138,21 +137,18 @@ export default function SparklineWidget({ onRemove }) {
     const measure = () => {
       const r = el.getBoundingClientRect();
       if (r.width  > 0) setContainerW(Math.floor(r.width));
-      if (r.height > 0) setContainerH(Math.floor(r.height));
     };
     measure();
     const ro = new ResizeObserver(([e]) => {
-      const { width, height } = e.contentRect;
+      const { width } = e.contentRect;
       if (width  > 0) setContainerW(Math.floor(width));
-      if (height > 0) setContainerH(Math.floor(height));
     });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
 
-  const showTabs   = containerW >= 280 && containerH >= 36;
   const showArrows = filteredItems.length > 1 && containerW >= 200;
-  const tabsW      = showTabs ? TABS_W + 1 : 0; // +1 = 구분선
+  const tabsW      = 0;   // 시장 필터는 헤더의 SegmentedControl (본문 폭은 카드에)
   const arrowW     = showArrows ? ARROW_W : 0;
 
   const available  = Math.max(0, containerW - tabsW - arrowW * 2 - CARD_GAP);
@@ -189,12 +185,23 @@ export default function SparklineWidget({ onRemove }) {
     return () => clearInterval(autoRef.current);
   }, [cardW, visibleN, filteredItems.length]);
 
-  // ── 헤더 Extra (+ 추가 버튼) ─────────────────────────────────────────────
+  const { isKROpen, isUSOpen } = useMarketStatus();
+  // 시장 필터 — 장 열림 여부를 점으로 함께 보여 준다
+  const marketOptions = [
+    { value: 'all', label: 'All' },
+    { value: 'domestic', label: <MarketLabel open={isKROpen}>Korea</MarketLabel>, title: isKROpen ? 'Korea market open' : 'Korea market closed' },
+    { value: 'foreign',  label: <MarketLabel open={isUSOpen}>US</MarketLabel>,    title: isUSOpen ? 'US market open' : 'US market closed' },
+  ];
+
+  // ── 헤더 Extra (시장 필터 + 추가 버튼) ───────────────────────────────────
   const headerExtra = (
     <div ref={addRef} className="relative flex items-center gap-2">
+      {containerW >= 280 && (
+        <SegmentedControl value={activeMarket} options={marketOptions} onChange={setActiveMarket} ariaLabel="Market" />
+      )}
       <span
         className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${connected ? 'bg-green-400' : 'bg-yellow-400 animate-pulse'}`}
-        title={connected ? '실시간 연결됨' : '연결 대기 중'}
+        title={connected ? 'Live' : 'Connecting…'}
       />
       <button
         onMouseDown={(e) => e.stopPropagation()}
@@ -214,7 +221,7 @@ export default function SparklineWidget({ onRemove }) {
             value={addInput}
             onChange={setAddInput}
             onSelect={addSymbol}
-            placeholder="심볼 검색…"
+            placeholder="Search symbol"
             compact
           />
           {addInput && (
@@ -222,15 +229,13 @@ export default function SparklineWidget({ onRemove }) {
               onClick={() => addSymbol(null)}
               className="mt-1.5 w-full text-[11px] text-cyan-400 hover:bg-cyan-900/30 rounded py-1 transition-colors"
             >
-              "{addInput}" 직접 추가
+              Add "{addInput}"
             </button>
           )}
         </div>
       )}
     </div>
   );
-
-  const { isKROpen, isUSOpen } = useMarketStatus();
 
   return (
     <BaseWidget
@@ -244,19 +249,6 @@ export default function SparklineWidget({ onRemove }) {
     >
       <div ref={containerRef} className="w-full h-full flex items-stretch overflow-hidden">
 
-        {/* ── 국내/해외 필터 탭 ──────────────────────────────────────── */}
-        {showTabs && (
-          <>
-            <MarketFilterTabs
-              active={activeMarket}
-              onChange={setActiveMarket}
-              isKROpen={isKROpen}
-              isUSOpen={isUSOpen}
-              width={TABS_W}
-            />
-            <div className="w-px bg-gray-800 flex-shrink-0 my-2" />
-          </>
-        )}
 
         {/* ── 좌 화살표 ─────────────────────────────────────────────── */}
         {showArrows && (
@@ -333,37 +325,13 @@ export default function SparklineWidget({ onRemove }) {
   );
 }
 
-// ── 국내/해외 필터 탭 ────────────────────────────────────────────────────────
-function MarketFilterTabs({ active, onChange, isKROpen, isUSOpen, width }) {
-  const tabs = [
-    { key: 'domestic', label: '국내 장', isOpen: isKROpen },
-    { key: 'foreign',  label: '해외 장', isOpen: isUSOpen },
-  ];
-
+// 시장 라벨 + 장 열림 점
+function MarketLabel({ open, children }) {
   return (
-    <div className="flex flex-col justify-center gap-1 px-2 flex-shrink-0" style={{ width }}>
-      {tabs.map(({ key, label, isOpen }) => {
-        const isActive = active === key;
-        return (
-          <button
-            key={key}
-            onClick={() => onChange(isActive ? 'all' : key)}
-            className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded text-left transition-colors ${
-              isActive
-                ? 'bg-white/5 text-gray-200'
-                : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
-            }`}
-          >
-            <span
-              className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isOpen ? 'bg-green-400' : 'bg-gray-600'}`}
-            />
-            <span className="text-[10px] font-medium leading-tight">
-              {label} {isOpen ? '열림' : '닫힘'}
-            </span>
-          </button>
-        );
-      })}
-    </div>
+    <span className="inline-flex items-center gap-1">
+      <span className={`w-1.5 h-1.5 rounded-full ${open ? 'bg-green-400' : 'bg-gray-600'}`} />
+      {children}
+    </span>
   );
 }
 

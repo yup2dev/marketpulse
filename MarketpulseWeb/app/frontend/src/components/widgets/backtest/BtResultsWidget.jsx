@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BarChart3, Save, Trash2 } from 'lucide-react';
 import BaseWidget from '../common/BaseWidget';
+import { SegmentedControl } from '../ui';
 import PlotlyChart from '../../core/PlotlyChart';
 import CommonTable from '../../common/CommonTable';
 import useBacktestStore from '../../../store/backtestStore';
@@ -14,7 +15,7 @@ import { backtestAPI } from '../../../config/api';
 import { compactResult } from '../../backtest/engine/backtest';
 import { btnPrimary, btnGhost, ErrorText, Empty, fmt, fmtPct, signCls } from '../../backtest/ui';
 
-const VIEWS = [['summary', '요약'], ['trades', '거래'], ['runs', '저장된 실행']];
+const VIEWS = [['summary', 'Summary'], ['trades', 'Trades'], ['runs', 'Saved runs']];
 
 function Metric({ label, value, bench, pct = true, digits = 2 }) {
   const show = (v) => (pct ? fmtPct(v, digits) : fmt(v, digits));
@@ -22,7 +23,7 @@ function Metric({ label, value, bench, pct = true, digits = 2 }) {
     <div className="bg-[#0a0a0f] border border-gray-800 rounded px-2 py-1.5">
       <div className="text-[9px] uppercase tracking-wide text-gray-500">{label}</div>
       <div className={`text-[13px] font-semibold tabular-nums ${pct ? signCls(value) : 'text-gray-100'}`}>{show(value)}</div>
-      {bench !== undefined && <div className="text-[9px] text-gray-600 tabular-nums">보유 {show(bench)}</div>}
+      {bench !== undefined && <div className="text-[9px] text-gray-600 tabular-nums">Hold {show(bench)}</div>}
     </div>
   );
 }
@@ -84,7 +85,7 @@ export default function BtResultsWidget({ onRemove }) {
     try {
       const res = await backtestAPI.getRun(row.run_id);
       const data = res.results?.[0];
-      if (!data) throw new Error('실행 결과를 찾을 수 없습니다');
+      if (!data) throw new Error('Run not found');
       setLastRun({ name: data.name, strategyId: data.strategy_id, config: data.config, result: { equity: data.equity, trades: data.trades, metrics: data.metrics }, savedRunId: data.run_id });
       setView('summary');
     } catch (e) {
@@ -93,7 +94,7 @@ export default function BtResultsWidget({ onRemove }) {
   };
 
   const deleteRun = async (row) => {
-    if (!window.confirm(`저장된 실행 '${row.name}' 을(를) 삭제할까요?`)) return;
+    if (!window.confirm(`Delete saved run '${row.name}'?`)) return;
     try {
       await backtestAPI.deleteRun(row.run_id);
       if (lastRun?.savedRunId === row.run_id) setLastRun({ ...lastRun, savedRunId: null });
@@ -105,17 +106,17 @@ export default function BtResultsWidget({ onRemove }) {
 
   const pctCell = (v) => <span className={signCls(v)}>{fmtPct(v)}</span>;
   const tradeColumns = [
-    { key: 'entryDate', header: '진입일' },
-    { key: 'entryPrice', header: '진입가', align: 'right', renderFn: (v) => fmt(v) },
-    { key: 'exitDate', header: '청산일', renderFn: (v, row) => (row.open ? <span className="text-amber-400">{v} (보유 중)</span> : v) },
-    { key: 'exitPrice', header: '청산가', align: 'right', renderFn: (v) => fmt(v) },
-    { key: 'bars', header: '보유 봉', align: 'right' },
-    { key: 'returnPct', header: '수익률', align: 'right', renderFn: pctCell },
+    { key: 'entryDate', header: 'Entry date' },
+    { key: 'entryPrice', header: 'Entry price', align: 'right', renderFn: (v) => fmt(v) },
+    { key: 'exitDate', header: 'Exit date', renderFn: (v, row) => (row.open ? <span className="text-amber-400">{v} (open)</span> : v) },
+    { key: 'exitPrice', header: 'Exit price', align: 'right', renderFn: (v) => fmt(v) },
+    { key: 'bars', header: 'Bars held', align: 'right' },
+    { key: 'returnPct', header: 'Return', align: 'right', renderFn: pctCell },
   ];
   const runColumns = [
-    { key: 'name', header: '이름' },
-    { key: 'created_at', header: '저장', renderFn: (v) => (v ? v.slice(0, 16).replace('T', ' ') : '—') },
-    { key: 'total', header: '총수익', align: 'right', accessorFn: (r) => r.metrics?.totalReturn, renderFn: pctCell },
+    { key: 'name', header: 'Name' },
+    { key: 'created_at', header: 'Save', renderFn: (v) => (v ? v.slice(0, 16).replace('T', ' ') : '—') },
+    { key: 'total', header: 'Total return', align: 'right', accessorFn: (r) => r.metrics?.totalReturn, renderFn: pctCell },
     { key: 'cagr', header: 'CAGR', align: 'right', accessorFn: (r) => r.metrics?.cagr, renderFn: pctCell },
     { key: 'sharpe', header: 'Sharpe', align: 'right', accessorFn: (r) => r.metrics?.sharpe, renderFn: (v) => fmt(v) },
     { key: 'mdd', header: 'MDD', align: 'right', accessorFn: (r) => r.metrics?.maxDrawdown, renderFn: pctCell },
@@ -123,7 +124,7 @@ export default function BtResultsWidget({ onRemove }) {
       key: 'actions', header: '', sortable: false, accessorFn: () => null,
       renderFn: (_, row) => (
         <span className="flex gap-2 justify-end">
-          <button onClick={(e) => { e.stopPropagation(); openRun(row); }} className="text-cyan-400 hover:text-cyan-300 text-[10px]">열기</button>
+          <button onClick={(e) => { e.stopPropagation(); openRun(row); }} className="text-cyan-400 hover:text-cyan-300 text-[10px]">Open</button>
           <button onClick={(e) => { e.stopPropagation(); deleteRun(row); }} className="text-gray-500 hover:text-red-400"><Trash2 size={11} /></button>
         </span>
       ),
@@ -133,23 +134,22 @@ export default function BtResultsWidget({ onRemove }) {
   return (
     <BaseWidget
       title="Backtest Results"
-      subtitle={lastRun ? `${lastRun.name}${lastRun.savedRunId ? ' · 저장됨' : ''}` : '실행 결과'}
+      subtitle={lastRun ? `${lastRun.name}${lastRun.savedRunId ? ' · saved' : ''}` : 'Run results'}
       icon={BarChart3}
       onRemove={onRemove}
       loading={runsLoading && view === 'runs'}
       onRefresh={loadRuns}
       showPeriodSelector={false}
       headerExtra={result && !lastRun.savedRunId ? (
-        <button onClick={saveRun} disabled={saving} className={btnGhost}><Save size={11} /> {saving ? '저장 중…' : '결과 저장'}</button>
+        <button onClick={saveRun} disabled={saving} className={btnGhost}><Save size={11} /> {saving ? 'Saving…' : 'Save results'}</button>
       ) : null}
     >
       <div className="flex flex-col h-full min-h-0 p-2 gap-2 overflow-auto">
-        <div className="flex items-center gap-1 flex-shrink-0">
-          {VIEWS.map(([v, label]) => (
-            <button key={v} onClick={() => setView(v)} className={`px-2 py-0.5 rounded text-[11px] ${view === v ? 'bg-cyan-900/60 text-cyan-300' : 'text-gray-500 hover:text-gray-200'}`}>
-              {label}{v === 'trades' && result ? ` ${result.trades.length}` : ''}{v === 'runs' ? ` ${runs.length}` : ''}
-            </button>
-          ))}
+        <div className="flex-shrink-0">
+          <SegmentedControl value={view} onChange={setView} ariaLabel="View" options={VIEWS.map(([v, label]) => ({
+            value: v,
+            label: `${label}${v === 'trades' && result ? ` ${result.trades.length}` : ''}${v === 'runs' ? ` ${runs.length}` : ''}`,
+          }))} />
         </div>
 
         <ErrorText>{error}</ErrorText>
@@ -157,36 +157,36 @@ export default function BtResultsWidget({ onRemove }) {
         {view === 'runs' && (
           runs.length
             ? <CommonTable data={runs} columns={runColumns} compact searchable exportable={false} pageSize={10} onRowClick={openRun} />
-            : <Empty>저장된 실행이 없습니다. 실행 후 '결과 저장' 을 누르면 여기에 쌓입니다.</Empty>
+            : <Empty>No saved runs. Run a backtest and press Save results to keep it here.</Empty>
         )}
 
         {view !== 'runs' && !result && (
-          <Empty>Strategy 위젯에서 전략을 설정하고 '백테스트 실행' 을 누르세요.</Empty>
+          <Empty>Set up a strategy in the Strategy widget and press Run backtest.</Empty>
         )}
 
         {view === 'summary' && result && (
           <>
             <div className="text-[10px] text-gray-500 flex-shrink-0 font-mono truncate" title={`${lastRun.config.entry} / ${lastRun.config.exit}`}>
-              {lastRun.config.asset} · {lastRun.config.direction === 'short' ? '숏' : '롱'} · 진입 {lastRun.config.entry}
-              {lastRun.config.exit ? ` · 청산 ${lastRun.config.exit}` : ''}{Number(lastRun.config.holdBars) > 0 ? ` · 최대 ${lastRun.config.holdBars}봉` : ''} · 비용 {lastRun.config.costBps}bp
+              {lastRun.config.asset} · {lastRun.config.direction === 'short' ? 'Short' : 'Long'} · entry {lastRun.config.entry}
+              {lastRun.config.exit ? ` · exit ${lastRun.config.exit}` : ''}{Number(lastRun.config.holdBars) > 0 ? ` · max ${lastRun.config.holdBars} bars` : ''} · cost {lastRun.config.costBps}bp
             </div>
             <div className="grid grid-cols-4 gap-1.5 flex-shrink-0">
-              <Metric label="총수익" value={m.totalReturn} bench={m.benchmark?.totalReturn} />
+              <Metric label="Total return" value={m.totalReturn} bench={m.benchmark?.totalReturn} />
               <Metric label="CAGR" value={m.cagr} bench={m.benchmark?.cagr} />
-              <Metric label="최대낙폭" value={m.maxDrawdown} bench={m.benchmark?.maxDrawdown} />
+              <Metric label="Max drawdown" value={m.maxDrawdown} bench={m.benchmark?.maxDrawdown} />
               <Metric label="Sharpe" value={m.sharpe} bench={m.benchmark?.sharpe} pct={false} />
-              <Metric label="변동성(연) %" value={m.volatility} bench={m.benchmark?.volatility} pct={false} />
-              <Metric label="승률 %" value={m.winRate} pct={false} digits={0} />
-              <Metric label="평균 거래" value={m.avgTrade} />
-              <Metric label="노출도 %" value={m.exposure} pct={false} digits={0} />
+              <Metric label="Volatility (ann.) %" value={m.volatility} bench={m.benchmark?.volatility} pct={false} />
+              <Metric label="Win rate %" value={m.winRate} pct={false} digits={0} />
+              <Metric label="Avg trade" value={m.avgTrade} />
+              <Metric label="Exposure %" value={m.exposure} pct={false} digits={0} />
             </div>
             <div className="text-[10px] text-gray-600 flex-shrink-0">
-              {m.start} ~ {m.end} · {m.bars}봉 · 거래 {m.trades}회 · Sortino {fmt(m.sortino)} · Calmar {fmt(m.calmar)} · 최고/최저 거래 {fmtPct(m.bestTrade)} / {fmtPct(m.worstTrade)}
+              {m.start} – {m.end} · {m.bars} bars · {m.trades} trades · Sortino {fmt(m.sortino)} · Calmar {fmt(m.calmar)} · best/worst trade {fmtPct(m.bestTrade)} / {fmtPct(m.worstTrade)}
             </div>
             <div className="h-[220px] flex-shrink-0">
               <PlotlyChart
                 data={equityData}
-                series={[{ key: 'strategy', name: '전략 누적수익 %', color: '#06b6d4' }, { key: 'benchmark', name: '단순 보유 %', color: '#6b7280' }]}
+                series={[{ key: 'strategy', name: 'Strategy cumulative %', color: '#06b6d4' }, { key: 'benchmark', name: 'Buy & hold %', color: '#6b7280' }]}
                 xKey="date"
                 type="line"
                 height={220}
@@ -195,10 +195,10 @@ export default function BtResultsWidget({ onRemove }) {
               />
             </div>
             <div className="h-[120px] flex-shrink-0">
-              <PlotlyChart data={ddData} series={[{ key: 'drawdown', name: '낙폭 %', color: '#ef4444' }]} xKey="date" type="area" height={120} showTypeSelector={false} compact />
+              <PlotlyChart data={ddData} series={[{ key: 'drawdown', name: 'Drawdown %', color: '#ef4444' }]} xKey="date" type="area" height={120} showTypeSelector={false} compact />
             </div>
             {!lastRun.savedRunId && (
-              <button onClick={saveRun} disabled={saving} className={`${btnPrimary} self-start`}><Save size={11} /> {saving ? '저장 중…' : '결과 저장'}</button>
+              <button onClick={saveRun} disabled={saving} className={`${btnPrimary} self-start`}><Save size={11} /> {saving ? 'Saving…' : 'Save results'}</button>
             )}
           </>
         )}
@@ -206,7 +206,7 @@ export default function BtResultsWidget({ onRemove }) {
         {view === 'trades' && result && (
           result.trades.length
             ? <CommonTable data={[...result.trades].reverse()} columns={tradeColumns} compact searchable={false} exportable pageSize={15} />
-            : <Empty>거래가 발생하지 않았습니다 — 진입 조건이 기간 내 한 번도 참이 되지 않았습니다.</Empty>
+            : <Empty>No trades — the entry condition was never true in this range.</Empty>
         )}
       </div>
     </BaseWidget>

@@ -8,27 +8,28 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Variable, Plus, Pencil, Trash2, LineChart, Sparkles, X } from 'lucide-react';
 import BaseWidget from '../common/BaseWidget';
+import { Select, INPUT_CLS as inputCls, SegmentedControl } from '../ui';
 import useBacktestStore from '../../../store/backtestStore';
 import { SERIES_CATALOG, GROUP_LABELS, resolveTemplate } from '../../backtest/seriesCatalog';
 import { describeVariable, resolveOrder } from '../../backtest/engine/data';
 import { ExprError } from '../../backtest/engine/expr';
-import { inputCls, btnPrimary, btnGhost, Field, ErrorText, Empty, ExprInput, validateExpr, nameError } from '../../backtest/ui';
+import { btnPrimary, btnGhost, Field, ErrorText, Empty, ExprInput, validateExpr, nameError } from '../../backtest/ui';
 
 const STARTER = [
-  { name: 'spy_close', description: 'S&P 500 ETF 종가', spec: { type: 'source', series: 'price-close', symbol: 'SPY' } },
-  { name: 'vix', description: 'VIX 변동성 지수', spec: { type: 'source', series: 'vix' } },
-  { name: 'us10y', description: '미 국채 10년 금리', spec: { type: 'source', series: 'treasury-10y' } },
+  { name: 'spy_close', description: 'S&P 500 ETF close', spec: { type: 'source', series: 'price-close', symbol: 'SPY' } },
+  { name: 'vix', description: 'VIX volatility index', spec: { type: 'source', series: 'vix' } },
+  { name: 'us10y', description: 'US 10Y Treasury yield', spec: { type: 'source', series: 'treasury-10y' } },
   { name: 'spy_rsi14', description: 'SPY RSI(14)', spec: { type: 'formula', expr: 'rsi(spy_close, 14)' } },
-  { name: 'spy_trend', description: 'SPY 50/200일 이동평균 괴리(%)', spec: { type: 'formula', expr: '(sma(spy_close, 50) / sma(spy_close, 200) - 1) * 100' } },
+  { name: 'spy_trend', description: 'SPY 50/200-day MA spread (%)', spec: { type: 'formula', expr: '(sma(spy_close, 50) / sma(spy_close, 200) - 1) * 100' } },
 ];
 
 const FORMULA_PRESETS = [
   { label: 'RSI(14)', expr: 'rsi({x}, 14)' },
-  { label: '이동평균 괴리 50/200 (%)', expr: '(sma({x}, 50) / sma({x}, 200) - 1) * 100' },
-  { label: '1개월 변화율 (%)', expr: 'pct({x}, 21)' },
-  { label: '1년 z-score', expr: 'zscore({x}, 252)' },
-  { label: '고점 대비 낙폭 (%)', expr: 'drawdown({x})' },
-  { label: '20일 변동성 (연율 %)', expr: 'std(pct({x}, 1), 20) * sqrt(252)' },
+  { label: 'MA spread 50/200 (%)', expr: '(sma({x}, 50) / sma({x}, 200) - 1) * 100' },
+  { label: '1M change (%)', expr: 'pct({x}, 21)' },
+  { label: '1Y z-score', expr: 'zscore({x}, 252)' },
+  { label: 'Drawdown from peak (%)', expr: 'drawdown({x})' },
+  { label: '20-day volatility (ann. %)', expr: 'std(pct({x}, 1), 20) * sqrt(252)' },
 ];
 
 const blank = () => ({ item_id: null, name: '', description: '', spec: { type: 'source', series: 'price-close', symbol: '' } });
@@ -57,10 +58,10 @@ export default function BtVariablesWidget({ onRemove }) {
     if (!draft) return null;
     const ne = nameError(draft.name);
     if (ne) return ne;
-    if (otherNames.includes(draft.name)) return '같은 이름의 변수가 있습니다';
+    if (otherNames.includes(draft.name)) return 'A variable with this name already exists';
     if (draft.spec.type === 'formula') {
       const v = validateExpr(draft.spec.expr, { knownVariables: otherNames, allowEvents: false });
-      if (!draft.spec.expr?.trim()) return '수식을 입력하세요';
+      if (!draft.spec.expr?.trim()) return 'Enter an expression';
       if (v.error) return v.error;
       try {
         // 저장하면 생길 의존 관계로 순환 참조를 미리 확인
@@ -70,8 +71,8 @@ export default function BtVariablesWidget({ onRemove }) {
       }
     } else {
       const entry = SERIES_CATALOG.find((e) => e.id === draft.spec.series);
-      if (!entry) return '데이터 소스를 선택하세요';
-      if (entry.needsSymbol && !draft.spec.symbol?.trim()) return '종목 심볼을 입력하세요';
+      if (!entry) return 'Pick a data source';
+      if (entry.needsSymbol && !draft.spec.symbol?.trim()) return 'Enter a symbol';
     }
     return null;
   }, [draft, otherNames, variables]);
@@ -96,8 +97,8 @@ export default function BtVariablesWidget({ onRemove }) {
 
   const remove = async (item) => {
     const dependents = variables.filter((v) => v.spec?.type === 'formula' && validateExpr(v.spec.expr, { allowEvents: false }).variables.includes(item.name));
-    const warn = dependents.length ? `\n\n이 변수를 참조하는 수식 변수: ${dependents.map((d) => d.name).join(', ')}` : '';
-    if (!window.confirm(`변수 '${item.name}' 을(를) 삭제할까요?${warn}`)) return;
+    const warn = dependents.length ? `\n\nExpression variables that use it: ${dependents.map((d) => d.name).join(', ')}` : '';
+    if (!window.confirm(`Delete variable '${item.name}'?${warn}`)) return;
     try { await deleteItem(item); } catch (e) { setSaveError(e.detail || e.message); }
   };
 
@@ -118,7 +119,7 @@ export default function BtVariablesWidget({ onRemove }) {
   return (
     <BaseWidget
       title="Variables"
-      subtitle="사용자 변수 · 지표 수식"
+      subtitle="Your variables · indicator expressions"
       icon={Variable}
       onRemove={onRemove}
       loading={loading}
@@ -126,7 +127,7 @@ export default function BtVariablesWidget({ onRemove }) {
       showPeriodSelector={false}
       headerExtra={(
         <button onClick={() => { setDraft(blank()); setSaveError(null); }} className={btnGhost}>
-          <Plus size={11} /> 변수
+          <Plus size={11} /> Variable
         </button>
       )}
     >
@@ -136,51 +137,38 @@ export default function BtVariablesWidget({ onRemove }) {
         {draft && (
           <div className="m-2 p-2.5 bg-[#0a0a0f] border border-cyan-800/50 rounded space-y-2 flex-shrink-0">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold text-white">{draft.item_id ? '변수 수정' : '새 변수'}</span>
+              <span className="text-[11px] font-semibold text-white">{draft.item_id ? 'Edit variable' : 'New variable'}</span>
               <button onClick={() => setDraft(null)} className="text-gray-500 hover:text-white"><X size={12} /></button>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <Field label="이름 (수식에서 참조)">
+              <Field label="Name (used in expressions)">
                 <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value.trim() })} placeholder="spy_close" className={`${inputCls} font-mono`} />
               </Field>
-              <Field label="설명">
+              <Field label="Description">
                 <input value={draft.description || ''} onChange={(e) => setDraft({ ...draft, description: e.target.value })} className={inputCls} />
               </Field>
             </div>
-            <div className="flex gap-1">
-              {[['source', '데이터 소스'], ['formula', '수식 / 지표']].map(([t, label]) => (
-                <button
-                  key={t}
-                  onClick={() => setSpec(t === 'formula' ? { type: 'formula', expr: draft.spec.expr || '' } : { type: 'source', series: draft.spec.series || 'price-close' })}
-                  className={`px-2 py-0.5 rounded text-[11px] ${draft.spec.type === t ? 'bg-cyan-900/60 text-cyan-300' : 'text-gray-500 hover:text-gray-200'}`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+            <SegmentedControl value={draft.spec.type} ariaLabel="Variable type"
+              onChange={(t) => setSpec(t === 'formula' ? { type: 'formula', expr: draft.spec.expr || '' } : { type: 'source', series: draft.spec.series || 'price-close' })}
+              options={[{ value: 'source', label: 'Data source' }, { value: 'formula', label: 'Expression / indicator' }]} />
 
             {draft.spec.type === 'source' ? (
               <div className="grid grid-cols-[1fr_110px] gap-2">
-                <Field label="시리즈">
-                  <select value={draft.spec.series} onChange={(e) => setSpec({ series: e.target.value })} className={inputCls}>
-                    {Object.entries(catalogGroups).map(([group, entries]) => (
-                      <optgroup key={group} label={GROUP_LABELS[group] || group}>
-                        {entries.map((e) => (
-                          <option key={e.id} value={e.id}>{resolveTemplate(e.label, { symbol: '종목' })}</option>
-                        ))}
-                      </optgroup>
-                    ))}
-                  </select>
+                <Field label="Series">
+                  <Select size="md" align="left" value={draft.spec.series} onChange={(v) => setSpec({ series: v })}
+                    options={Object.entries(catalogGroups).flatMap(([group, entries]) => entries.map((e) => ({
+                      value: e.id, label: resolveTemplate(e.label, { symbol: 'Symbol' }), group: GROUP_LABELS[group] || group,
+                    })))} />
                 </Field>
                 {SERIES_CATALOG.find((e) => e.id === draft.spec.series)?.needsSymbol && (
-                  <Field label="심볼">
+                  <Field label="Symbol">
                     <input value={draft.spec.symbol || ''} onChange={(e) => setSpec({ symbol: e.target.value.toUpperCase() })} placeholder="SPY" className={`${inputCls} font-mono`} />
                   </Field>
                 )}
               </div>
             ) : (
               <div className="space-y-1">
-                <Field label="수식">
+                <Field label="Expression">
                   <ExprInput
                     value={draft.spec.expr || ''}
                     onChange={(expr) => setSpec({ expr })}
@@ -191,7 +179,7 @@ export default function BtVariablesWidget({ onRemove }) {
                 </Field>
                 {otherNames.length > 0 && (
                   <div className="flex items-center gap-1 flex-wrap">
-                    <span className="text-[10px] text-gray-600">프리셋:</span>
+                    <span className="text-[10px] text-gray-600">Presets:</span>
                     {FORMULA_PRESETS.map((p) => (
                       <button
                         key={p.label}
@@ -211,7 +199,7 @@ export default function BtVariablesWidget({ onRemove }) {
             <div className="flex items-center justify-between">
               <span className="text-[10px] text-amber-400/80">{draftProblem}</span>
               <button onClick={save} disabled={!!draftProblem || saving} className={btnPrimary}>
-                {saving ? '저장 중…' : '저장'}
+                {saving ? 'Saving…' : 'Save'}
               </button>
             </div>
           </div>
@@ -220,9 +208,9 @@ export default function BtVariablesWidget({ onRemove }) {
         <div className="flex-1 overflow-auto px-2 pb-2 space-y-1">
           {loaded && !variables.length && (
             <Empty>
-              <div className="mb-2">아직 변수가 없습니다. 가격·매크로 시리즈를 변수로 등록하고 수식으로 지표를 만드세요.</div>
+              <div className="mb-2">No variables yet. Register price or macro series as variables, then build indicators with expressions.</div>
               <button onClick={addStarter} disabled={saving} className={`${btnPrimary} mx-auto`}>
-                <Sparkles size={11} /> 기본 변수 세트 추가 (SPY·VIX·10Y·RSI·추세)
+                <Sparkles size={11} /> Add starter set (SPY·VIX·10Y·RSI·trend)
               </button>
             </Empty>
           )}
@@ -233,20 +221,20 @@ export default function BtVariablesWidget({ onRemove }) {
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-[11px] text-white">{v.name}</span>
                   <span className={`text-[9px] px-1 rounded ${v.spec?.type === 'formula' ? 'bg-purple-900/40 text-purple-300' : 'bg-cyan-900/40 text-cyan-300'}`}>
-                    {v.spec?.type === 'formula' ? '수식' : '소스'}
+                    {v.spec?.type === 'formula' ? 'Expression' : 'Source'}
                   </span>
                   <div className="ml-auto flex items-center gap-1.5">
                     <button
                       onClick={() => toggleExplorer(v.name)}
                       className={inExplorer ? 'text-cyan-400' : 'text-gray-600 hover:text-cyan-400'}
-                      title={inExplorer ? '탐색기에서 빼기' : '탐색기에 추가'}
+                      title={inExplorer ? 'Remove from explorer' : 'Add to explorer'}
                     >
                       <LineChart size={11} />
                     </button>
-                    <button onClick={() => { setDraft(structuredClone(v)); setSaveError(null); }} className="text-gray-600 hover:text-white opacity-0 group-hover:opacity-100" title="수정">
+                    <button onClick={() => { setDraft(structuredClone(v)); setSaveError(null); }} className="text-gray-600 hover:text-white opacity-0 group-hover:opacity-100" title="Edit">
                       <Pencil size={11} />
                     </button>
-                    <button onClick={() => remove(v)} className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100" title="삭제">
+                    <button onClick={() => remove(v)} className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100" title="Delete">
                       <Trash2 size={11} />
                     </button>
                   </div>

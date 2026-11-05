@@ -17,6 +17,7 @@ import {
 import { apiClient, API_BASE } from '../../config/api';
 import CommonTable from '../common/CommonTable';
 import BaseWidget from './common/BaseWidget';
+import { SegmentedControl, WidgetState } from './ui';
 
 // ── Overview 컬럼 (CommonTable 포맷) ─────────────────────────────────────────
 const OVERVIEW_COLUMNS = [
@@ -359,25 +360,14 @@ const CATEGORIES = [
 ];
 
 const CategoryTabs = ({ active, onChange, loading }) => (
-  <div className="flex items-center gap-0.5">
-    {CATEGORIES.map(cat => (
-      <button
-        key={cat.id}
-        onClick={() => onChange(cat.id)}
-        className={`px-2.5 py-1 text-xs font-medium whitespace-nowrap rounded transition-colors ${
-          active === cat.id
-            ? 'text-cyan-400 bg-cyan-400/10'
-            : 'text-gray-400 hover:text-white hover:bg-gray-800'
-        }`}
-      >
-        {cat.name}
-      </button>
-    ))}
-    {loading && (
-      <div className="flex items-center gap-1 ml-1 text-xs text-cyan-400">
-        <RefreshCw size={11} className="animate-spin" />
-      </div>
-    )}
+  <div className="flex items-center gap-1">
+    <SegmentedControl
+      value={active}
+      options={CATEGORIES.map((c) => ({ value: c.id, label: c.name }))}
+      onChange={onChange}
+      ariaLabel="Section"
+    />
+    {loading && <RefreshCw size={11} className="animate-spin text-cyan-400" />}
   </div>
 );
 
@@ -615,99 +605,96 @@ const InstitutionalPortfolios = ({ onRemove }) => {
   // tabs 옆 스피너: summary 또는 expand 중 하나라도 진행 중
   const isTabLoading = loadingKeys.size > 0 || expandLoadingKeys.size > 0;
 
+  // 기관 선택 칩 + 추가 — 헤더 아래 FilterBar 로 그린다
+  const institutionPicker = (
+    <>
+          {/* Institution chips */}
+          {selectedInstitutions.length === 0 ? (
+            <div className="flex items-center gap-1 text-xs text-gray-500">
+              <Building2 size={13} /><span>No institution selected</span>
+            </div>
+          ) : selectedInstitutions.map((inst, idx) => (
+            <div key={inst.key} className="flex items-center gap-1 px-2 py-1 bg-gray-800 rounded text-xs">
+              <span className="text-cyan-400 font-medium">{idx + 1}</span>
+              <span className="text-white truncate max-w-[100px]" title={inst.manager}>{inst.manager}</span>
+              {loadingKeys.has(inst.key) && <RefreshCw size={10} className="animate-spin text-cyan-400" />}
+              <button onClick={(e) => { e.stopPropagation(); removeInstitution(inst.key); }} className="text-gray-500 hover:text-red-400">
+                <X size={11} />
+              </button>
+            </div>
+          ))}
+
+          {/* Add institution */}
+          <div className="relative" ref={addInstRef}>
+            <button onClick={() => setShowAddInst(!showAddInst)} className="flex items-center gap-1 px-2 py-1 text-xs text-cyan-400 hover:bg-gray-800 rounded">
+              <Plus size={13} />Add
+            </button>
+            {showAddInst && (
+              <div className="absolute top-full left-0 mt-1 w-72 bg-[#1a1a1f] border border-gray-700 rounded-lg shadow-xl z-50">
+                <div className="p-2 border-b border-gray-700 relative">
+                  <Search className="absolute left-4 top-3.5 text-gray-500" size={13} />
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Search institutions..."
+                    className="w-full pl-7 pr-3 py-1.5 bg-gray-800 border border-gray-700 rounded text-xs text-white placeholder-gray-500 focus:outline-none focus:border-cyan-400"
+                    autoFocus
+                  />
+                </div>
+                <div className="max-h-56 overflow-y-auto">
+                  {filteredInstitutions.map(inst => {
+                    const isSel = !!selectedInstitutions.find(s => s.key === inst.key);
+                    return (
+                      <button key={inst.key} onClick={() => !isSel && addInstitution(inst)} disabled={isSel}
+                        className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-800 ${isSel ? 'opacity-40 cursor-not-allowed' : ''}`}>
+                        <div className="text-white font-medium truncate">{inst.manager}</div>
+                        <div className="text-gray-500 text-[11px] truncate">{inst.name}</div>
+                      </button>
+                    );
+                  })}
+                  {!filteredInstitutions.length && <div className="px-3 py-4 text-xs text-gray-500 text-center">No institutions found</div>}
+                </div>
+                {selectedInstitutions.length >= 10 && (
+                  <div className="p-2 border-t border-gray-700 text-xs text-yellow-500 text-center">Maximum 10 institutions</div>
+                )}
+              </div>
+            )}
+          </div>
+    </>
+  );
+
   return (
     <BaseWidget
       title="Institutional Portfolios"
       loading={isAnyLoading}
       onRefresh={fetchInstitutions}
       onRemove={onRemove}
+      filters={{
+        left: institutionPicker,
+        right: (
+          <SegmentedControl
+            value={sortBy}
+            options={SORT_OPTIONS.map((o) => ({ value: o.id, label: o.label }))}
+            onChange={setSortBy}
+            ariaLabel="Sort"
+          />
+        ),
+      }}
+      state={error ? { kind: 'error', message: error, onRetry: fetchInstitutions } : null}
     >
     <div className="flex flex-col h-full min-h-0">
-      {/* Sub-header: institution chips + controls */}
-      <div className="flex items-center flex-wrap gap-2 px-3 py-2 border-b border-gray-800">
-        {/* Institution chips */}
-        {selectedInstitutions.length === 0 ? (
-          <div className="flex items-center gap-1 text-xs text-gray-500">
-            <Building2 size={13} /><span>No institution selected</span>
-          </div>
-        ) : selectedInstitutions.map((inst, idx) => (
-          <div key={inst.key} className="flex items-center gap-1 px-2 py-1 bg-gray-800 rounded text-xs">
-            <span className="text-cyan-400 font-medium">{idx + 1}</span>
-            <span className="text-white truncate max-w-[100px]" title={inst.manager}>{inst.manager}</span>
-            {loadingKeys.has(inst.key) && <RefreshCw size={10} className="animate-spin text-cyan-400" />}
-            <button onClick={(e) => { e.stopPropagation(); removeInstitution(inst.key); }} className="text-gray-500 hover:text-red-400">
-              <X size={11} />
-            </button>
-          </div>
-        ))}
-
-        {/* Add institution */}
-        <div className="relative" ref={addInstRef}>
-          <button onClick={() => setShowAddInst(!showAddInst)} className="flex items-center gap-1 px-2 py-1 text-xs text-cyan-400 hover:bg-gray-800 rounded">
-            <Plus size={13} />Add
-          </button>
-          {showAddInst && (
-            <div className="absolute top-full left-0 mt-1 w-72 bg-[#1a1a1f] border border-gray-700 rounded-lg shadow-xl z-50">
-              <div className="p-2 border-b border-gray-700 relative">
-                <Search className="absolute left-4 top-3.5 text-gray-500" size={13} />
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search institutions..."
-                  className="w-full pl-7 pr-3 py-1.5 bg-gray-800 border border-gray-700 rounded text-xs text-white placeholder-gray-500 focus:outline-none focus:border-cyan-400"
-                  autoFocus
-                />
-              </div>
-              <div className="max-h-56 overflow-y-auto">
-                {filteredInstitutions.map(inst => {
-                  const isSel = !!selectedInstitutions.find(s => s.key === inst.key);
-                  return (
-                    <button key={inst.key} onClick={() => !isSel && addInstitution(inst)} disabled={isSel}
-                      className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-800 ${isSel ? 'opacity-40 cursor-not-allowed' : ''}`}>
-                      <div className="text-white font-medium truncate">{inst.manager}</div>
-                      <div className="text-gray-500 text-[11px] truncate">{inst.name}</div>
-                    </button>
-                  );
-                })}
-                {!filteredInstitutions.length && <div className="px-3 py-4 text-xs text-gray-500 text-center">No institutions found</div>}
-              </div>
-              {selectedInstitutions.length >= 10 && (
-                <div className="p-2 border-t border-gray-700 text-xs text-yellow-500 text-center">Maximum 10 institutions</div>
-              )}
-            </div>
-          )}
-        </div>
-
-
-        {/* Sort selector */}
-        <div className="flex items-center gap-0.5 bg-gray-800 rounded p-0.5 ml-auto">
-          {SORT_OPTIONS.map(opt => (
-            <button key={opt.id} onClick={() => setSortBy(opt.id)}
-              className={`px-2 py-1 text-xs rounded transition-colors ${sortBy === opt.id ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'}`}>
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
       {/* Content */}
       <div className="flex-1 overflow-auto">
-        {error ? (
-          <div className="flex items-center justify-center h-full text-red-400 text-xs p-4 text-center">
-            {error}
-          </div>
-        ) : activeCategory !== 'overview' && selectedPortfolios.length === 0 ? (
-          <>
+        {activeCategory !== 'overview' && selectedPortfolios.length === 0 ? (
+          <div className="flex flex-col h-full">
             <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-800">
               <CategoryTabs active={activeCategory} onChange={setActiveCategory} loading={isTabLoading} />
             </div>
-            <div className="flex flex-col items-center justify-center py-20 text-gray-500">
-              <Building2 size={32} className="mb-3 opacity-50" />
-              <p className="text-sm">No institutions selected</p>
-              <p className="text-xs mt-1 text-gray-600">Select institutions from the Overview tab</p>
+            <div className="flex-1 min-h-0">
+              <WidgetState kind="idle" title="No institutions selected" message="Pick institutions from the Overview tab or Add above." />
             </div>
-          </>
+          </div>
         ) : activeCategory === 'overview' ? (
           <CommonTable
             columns={OVERVIEW_COLUMNS}

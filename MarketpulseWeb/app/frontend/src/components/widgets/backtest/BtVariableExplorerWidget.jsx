@@ -7,13 +7,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Activity, Play } from 'lucide-react';
 import BaseWidget from '../common/BaseWidget';
+import { SegmentedControl } from '../ui';
 import PlotlyChart from '../../core/PlotlyChart';
 import CommonTable from '../../common/CommonTable';
 import useBacktestStore from '../../../store/backtestStore';
 import { buildFrame } from '../../backtest/engine/data';
 import { btnPrimary, ErrorText, Empty, RangeBar, fmt, fmtPct, signCls } from '../../backtest/ui';
 
-const MODES = [['raw', '원값'], ['rebase', '100 기준'], ['zscore', 'z-score']];
+const MODES = [['raw', 'Raw'], ['rebase', 'Rebased 100'], ['zscore', 'z-score']];
 
 function transform(values, mode) {
   if (mode === 'raw') return values;
@@ -120,21 +121,21 @@ export default function BtVariableExplorerWidget({ onRemove }) {
 
   const pctCell = (v) => <span className={signCls(v)}>{fmtPct(v)}</span>;
   const columns = [
-    { key: 'name', header: '변수', renderFn: (v) => <span className="font-mono">{v}</span> },
-    { key: 'last', header: '최근', align: 'right', renderFn: (v) => fmt(v) },
+    { key: 'name', header: 'Variable', renderFn: (v) => <span className="font-mono">{v}</span> },
+    { key: 'last', header: 'Last', align: 'right', renderFn: (v) => fmt(v) },
     { key: 'chg1m', header: '1M', align: 'right', renderFn: pctCell },
     { key: 'chg3m', header: '3M', align: 'right', renderFn: pctCell },
-    { key: 'chgAll', header: '기간', align: 'right', renderFn: pctCell },
-    { key: 'min', header: '최저', align: 'right', renderFn: (v) => fmt(v) },
-    { key: 'max', header: '최고', align: 'right', renderFn: (v) => fmt(v) },
-    { key: 'z', header: 'z(기간)', align: 'right', renderFn: (v) => fmt(v) },
-    { key: 'corr', header: `상관(${shown[0] || '-'})`, align: 'right', renderFn: (v) => fmt(v) },
+    { key: 'chgAll', header: 'Range', align: 'right', renderFn: pctCell },
+    { key: 'min', header: 'Min', align: 'right', renderFn: (v) => fmt(v) },
+    { key: 'max', header: 'Max', align: 'right', renderFn: (v) => fmt(v) },
+    { key: 'z', header: 'z (range)', align: 'right', renderFn: (v) => fmt(v) },
+    { key: 'corr', header: `Corr (${shown[0] || '-'})`, align: 'right', renderFn: (v) => fmt(v) },
   ];
 
   return (
     <BaseWidget
       title="Variable Explorer"
-      subtitle="변수 흐름 · 통계 · 상관"
+      subtitle="Variable trends · stats · correlation"
       icon={Activity}
       onRemove={onRemove}
       loading={loading}
@@ -144,13 +145,8 @@ export default function BtVariableExplorerWidget({ onRemove }) {
       <div className="flex flex-col h-full min-h-0 p-2 gap-2">
         <div className="flex items-center justify-between gap-2 flex-wrap flex-shrink-0">
           <RangeBar />
-          <div className="flex items-center gap-1">
-            {MODES.map(([m, label]) => (
-              <button key={m} onClick={() => setMode(m)} className={`px-1.5 py-0.5 rounded text-[10px] ${mode === m ? 'bg-cyan-900/60 text-cyan-300' : 'text-gray-500 hover:text-gray-200'}`}>
-                {label}
-              </button>
-            ))}
-          </div>
+          <SegmentedControl value={mode} onChange={setMode} ariaLabel="Scale"
+            options={MODES.map(([m, label]) => ({ value: m, label }))} />
         </div>
 
         <div className="flex items-center gap-1 flex-wrap flex-shrink-0">
@@ -163,13 +159,13 @@ export default function BtVariableExplorerWidget({ onRemove }) {
               {v.name}
             </button>
           ))}
-          {!variables.length && <span className="text-[10px] text-gray-600">Variables 위젯에서 변수를 먼저 만드세요</span>}
+          {!variables.length && <span className="text-[10px] text-gray-600">Create variables in the Variables widget first</span>}
         </div>
 
         <ErrorText>{error}</ErrorText>
 
         {!names.length ? (
-          <Empty>위의 변수 칩을 눌러 비교할 변수를 고르세요 (최대 8개)</Empty>
+          <Empty>Click variable chips above to compare (up to 8)</Empty>
         ) : (
           <>
             <div className="flex-1 min-h-[180px]">
@@ -188,7 +184,7 @@ export default function BtVariableExplorerWidget({ onRemove }) {
           </>
         )}
         {names.length > 0 && !frame && !loading && !error && (
-          <button onClick={run} className={`${btnPrimary} self-start`}><Play size={11} /> 불러오기</button>
+          <button onClick={run} className={`${btnPrimary} self-start`}><Play size={11} /> Load</button>
         )}
       </div>
     </BaseWidget>
