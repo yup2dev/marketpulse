@@ -139,6 +139,12 @@ export default function HeatmapWidget({ onRemove }) {
     return () => { if (prevSymbolsRef.current.length) unsubscribe(prevSymbolsRef.current); };
   }, [allSymbols, subscribe, unsubscribe]);
 
+  // 등락률이 하나도 없으면(시세 미수신) 전부 같은 색이라 깨진 화면처럼 보인다 → 이유를 알린다
+  const hasChange = useMemo(
+    () => sectors.some((s) => s.stocks.some((st) => (quotes[st.symbol]?.change_percent ?? st.change_pct) != null)),
+    [sectors, quotes],
+  );
+
   const wsIndicator = (
     <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1 ${connected ? 'bg-green-400' : 'bg-yellow-400 animate-pulse'}`} />
   );
@@ -172,7 +178,12 @@ export default function HeatmapWidget({ onRemove }) {
             )}
           </>
         ),
-        right: <span className="flex items-center">{wsIndicator}{connected ? 'Live' : 'Connecting…'}</span>,
+        right: (
+          <span className="flex items-center gap-2">
+            {sectors.length > 0 && !hasChange && <span className="text-amber-400">No price changes yet · sized by market cap</span>}
+            <span className="flex items-center">{wsIndicator}{connected ? 'Live' : 'Connecting…'}</span>
+          </span>
+        ),
       }}
       state={!loading && !sectors.length ? { kind: 'empty', title: 'No sector data', message: 'Sector performance is not available right now.' } : null}
     >
