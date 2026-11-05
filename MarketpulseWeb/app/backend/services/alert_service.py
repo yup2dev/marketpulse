@@ -7,7 +7,7 @@ from decimal import Decimal
 from datetime import datetime
 import uuid
 
-from marketpulse_common.models.orm import Alert, AlertHistory, User, MBS_IN_STK_STBD
+from app.backend.models.orm import Alert, AlertHistory, User, MBS_IN_STK_STBD
 
 
 class AlertService:

@@ -22,9 +22,9 @@ import sys
 from datetime import date
 from pathlib import Path
 
-# import 경로: 저장소 루트 + 최상위 폴더 4개 (mp-bootstrap)
+# import 경로: 저장소 루트 + 배치 — 웹 폴더는 넣지 않는다 (mp-bootstrap)
 _ROOT = Path(__file__).resolve().parents[2]
-for _d in ("", *("MarketpulseCommon", "MarketpulseFetcher", "MarketpulseBatch", "MarketpulseWeb")):
+for _d in ("", "MarketpulseFetcher", "MarketpulseBatch"):
     if str(_ROOT / _d) not in sys.path:
         sys.path.insert(0, str(_ROOT / _d))
 
@@ -44,7 +44,7 @@ def main() -> int:
         log.info("오늘(%s)은 수집 요일(%s)이 아니라 건너뜀", today, args.only_on)
         return 0
 
-    from marketpulse_common.utils.db import default_db
+    from index_analyzer.db.engine import default_db
     from index_analyzer.collectors import Institutional13FCollector
 
     default_db.create_tables()  # 신규 적재 테이블(mbs_in_insti_perf 등) 보장

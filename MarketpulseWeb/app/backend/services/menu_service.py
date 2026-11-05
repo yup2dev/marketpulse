@@ -7,7 +7,7 @@ from typing import List, Optional, Dict
 
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
-from marketpulse_common.models.menu import MenuManagement
+from app.backend.models.menu import MenuManagement
 
 
 class MenuService:

@@ -12,7 +12,7 @@ from data_fetcher.core import OBBject
 from app.backend.core.db import get_db
 from app.backend.core.auth.dependencies import get_current_active_user
 from app.backend.services.alert_service import AlertService
-from marketpulse_common.models.orm import User
+from app.backend.models.orm import User
 
 router = APIRouter(prefix="/alerts", tags=["Alerts"])
 

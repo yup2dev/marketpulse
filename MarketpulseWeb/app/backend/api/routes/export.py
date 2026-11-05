@@ -11,7 +11,7 @@ from app.backend.core.db import get_db
 from app.backend.core.auth.dependencies import get_current_active_user
 from app.backend.services.export_service import ExportService
 from app.backend.services.user_portfolio_service import UserPortfolioService
-from marketpulse_common.models.orm import User
+from app.backend.models.orm import User
 
 router = APIRouter(prefix="/export", tags=["Export"])
 

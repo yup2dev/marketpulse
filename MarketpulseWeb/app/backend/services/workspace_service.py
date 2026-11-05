@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import List, Optional
 from sqlalchemy.orm import Session
 
-from marketpulse_common.models.orm import UserWorkspace
+from app.backend.models.orm import UserWorkspace
 
 
 class WorkspaceService:

@@ -6,7 +6,7 @@ from typing import List, Dict, Optional, Tuple
 from collections import Counter
 
 from ..models.chart import ChartMetadata
-from marketpulse_common.utils.logging import get_logger
+from index_analyzer.utils.logger import get_logger
 
 log = get_logger(__name__)
 

@@ -10,9 +10,9 @@ import sys
 import threading
 from pathlib import Path
 
-# import 경로: 저장소 루트 + 최상위 폴더 4개 (mp-bootstrap)
+# import 경로: 저장소 루트 + 배치 — 웹 폴더는 넣지 않는다 (mp-bootstrap)
 _ROOT = Path(__file__).resolve().parents[3]
-for _d in ("", *("MarketpulseCommon", "MarketpulseFetcher", "MarketpulseBatch", "MarketpulseWeb")):
+for _d in ("", "MarketpulseFetcher", "MarketpulseBatch"):
     if str(_ROOT / _d) not in sys.path:
         sys.path.insert(0, str(_ROOT / _d))
 
@@ -22,7 +22,7 @@ from .command_handler import CommandHandler
 from .consumer import start_analyzer_consumer
 from ..services.crawl_service import crawl_with_stream
 from ..config.settings import settings
-from marketpulse_common.utils.logging import configure_logging, get_logger
+from index_analyzer.utils.logger import configure_logging, get_logger
 
 configure_logging(log_file=settings.LOG_FILE)
 log = get_logger(__name__)

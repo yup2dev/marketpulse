@@ -17,6 +17,8 @@ Fetcher(TET 파이프라인)와 구체 fetcher 사이에서 유형별 보일러�
 """
 import os
 from contextlib import contextmanager
+from functools import lru_cache
+from pathlib import Path
 from typing import Any, Callable, ClassVar, Dict, Optional
 
 from data_fetcher.abstract_provider.abstract.fetcher import Fetcher, Q, R
@@ -102,6 +104,28 @@ class ApiFetcher(Fetcher[Q, R]):
 
 # ── DbFetcher ─────────────────────────────────────────────────────────────────
 
+def _default_db_path() -> Path:
+    """로컬 적재 DB 기본 경로 — 저장소 루트의 data/marketpulse.db.
+
+    웹·배치 코드를 import 하지 않도록 fetcher 가 직접 센다.
+    MARKETPULSE_ROOT 로 루트를 덮어쓸 수 있다 (Docker 등).
+    """
+    # MarketpulseFetcher/data_fetcher/abstract_provider/abstract/base_fetchers.py → parents[4]
+    root = os.environ.get("MARKETPULSE_ROOT") or Path(__file__).resolve().parents[4]
+    return Path(root) / "data" / "marketpulse.db"
+
+
+@lru_cache(maxsize=8)
+def _session_factory(db_path: str):
+    """DB 경로별 엔진을 한 번만 만든다 (요청마다 새 엔진을 만들지 않도록)."""
+    # sqlalchemy 는 DB provider 를 쓸 때만 필요하다 — 모듈 로드 시점에 끌어오지 않는다
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
+    return sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
 class DbFetcher(Fetcher[Q, R]):
     """로컬 SQLite 조회 fetcher.
 
@@ -120,17 +144,13 @@ class DbFetcher(Fetcher[Q, R]):
             return str(kwargs["db_path"])
         if cls.db_path:
             return str(cls.db_path)
-        from marketpulse_common.utils.db import DB_PATH
-
-        return str(DB_PATH)
+        return str(_default_db_path())
 
     @classmethod
     @contextmanager
     def db_session(cls, **kwargs: Any):
         """SQLAlchemy 세션 컨텍스트 매니저 (자동 close)."""
-        from marketpulse_common.utils.db import get_sqlite_db
-
-        session = get_sqlite_db(cls._resolve_db_path(**kwargs)).get_session()
+        session = _session_factory(cls._resolve_db_path(**kwargs))()
         try:
             yield session
         finally:

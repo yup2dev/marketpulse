@@ -3,8 +3,8 @@ import logging
 from typing import Generator
 
 from sqlalchemy.orm import Session
-from marketpulse_common.paths import DB_PATH
-from marketpulse_common.utils.db import get_sqlite_db
+from app.backend.core.paths import DB_PATH
+from app.backend.core.database import get_sqlite_db
 
 log = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ def init_db() -> None:
     #
     # 여기서 예외를 삼키지 않는다. 예전에는 log.error 만 찍고 넘어가서, 스키마 초기화가
     # 실패해도 앱이 '정상 기동한 것처럼' 떴다 — 장애를 첫 요청 때 500 으로 발견했다.
-    from marketpulse_common.models.all_models import Base  # noqa: F401
+    from app.backend.models.all_models import Base  # noqa: F401
 
     Base.metadata.create_all(bind=_db.engine)
     log.info("[DB] Tables initialized")

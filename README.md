@@ -47,7 +47,8 @@ marketpulse/
 │       │   ├── main.py            # 조립만: core/lifespan + auth_gate + api/routers
 │       │   ├── api/routes/        # auth, keys, stock, macro, portfolio, screener, ws ...
 │       │   ├── services/          # 비즈니스 로직 (user_key_service, auth_service ...)
-│       │   └── core/              # config, db, lifespan, middleware, 메뉴 시드
+│       │   ├── models/            # 웹 ORM — 스키마 주인 (alembic 이 이 metadata 를 본다)
+│       │   └── core/              # config, db, database(엔진), logger, paths, lifespan, middleware
 │       └── frontend/              # React + Vite (vercel.json)
 ├── MarketpulseFetcher/            # 데이터 조회 라이브러리 + 사용자 PC 용 exe
 │   ├── data_fetcher/              # providers/, query_executor.py, server/(exe REST·WS 워커)
@@ -56,9 +57,8 @@ marketpulse/
 │   ├── jobs/                      # 적재 배치: backfill_stk_stbd, collect_fx, collect_13f,
 │   │                              #   collect_sp500, load_all_relations, sync_db_to_cloud ...
 │   ├── index_analyzer/            # 수집기(collectors), 뉴스 크롤러·분석(Redis worker)
+│   │   └── db/                    # 배치 ORM·엔진 (로컬 적재 DB, 웹과 공유하지 않음)
 │   └── sites.yaml                 # 크롤링 대상 사이트
-├── MarketpulseCommon/             # 공통 — ORM, DB 세션, 경로(paths.py), 로깅
-│   └── marketpulse_common/
 ├── migrations/                    # alembic (baseline + 리비전)
 ├── tests/                         # 테스트 (Fetcher 단위 테스트는 data_fetcher/tests)
 ├── scripts/                       # 개발 도구: smoke 테스트, 이식 도구, 일회성 설정
@@ -66,13 +66,20 @@ marketpulse/
 └── requirements.txt
 ```
 
-**의존 방향**: `Web → Fetcher → Common`, `Batch → Fetcher → Common`. Web 과 Batch 는 서로 import 하지 않고,
-Common 은 다른 패키지를 import 하지 않는다. 패키지 이름(`app`, `data_fetcher`, `index_analyzer`,
-`marketpulse_common`)은 소문자 그대로이고, 최상위 폴더 4개를 import 경로에 넣는다
-(pytest 는 `pyproject.toml` 의 `pythonpath`, Docker 는 `PYTHONPATH`, 직접 실행하는 진입점은
-파일 상단의 `mp-bootstrap` 블록).
+**의존 방향**: `Web → Fetcher`, `Batch → Fetcher`. 공통 모듈은 없다 — Web 과 Batch 는 서로 import
+하지 않고, 각자 ORM·DB 엔진·로거·경로를 따로 갖는다. Fetcher 는 Web·Batch 를 import 하지 않는다
+(`tests/test_module_boundaries.py` 가 검사).
 
-데이터 파일(`data/`, `logs/`, `.env`)은 저장소 루트에 있고, 코드는 `marketpulse_common.paths` 로만 찾는다.
+Web 과 Batch 가 맞춰야 하는 건 코드가 아니라 **`/api/ingest` 요청 형식**이다. 배치는 로컬 DB 에 적재하고
+`jobs/sync_db_to_cloud.py` 가 HTTP 로 웹에 보낸다. 같은 테이블을 양쪽이 따로 정의하므로, 컬럼이
+어긋나면 `tests/test_ingest_contract.py` 가 실패한다. 스키마의 주인은 웹이다 (alembic).
+
+패키지 이름(`app`, `data_fetcher`, `index_analyzer`)은 소문자 그대로이고, 진입점마다 필요한 폴더만
+import 경로에 넣는다 (Docker 는 `PYTHONPATH`, 직접 실행하는 진입점은 파일 상단의 `mp-bootstrap` 블록,
+pytest 는 `pyproject.toml` 의 `pythonpath` 로 전부).
+
+데이터 파일(`data/`, `logs/`, `.env`)은 저장소 루트에 있다. 웹은 `app.backend.core.paths`, 배치는
+`index_analyzer.paths` 로 찾는다.
 
 ---
 
@@ -151,7 +158,7 @@ pytest tests/             # 백엔드만
 
 ### 백엔드 — GitHub Actions → Docker Hub → Lightsail
 
-`main` 브랜치에 `MarketpulseWeb/app/backend/**`, `MarketpulseFetcher/data_fetcher/**`, `MarketpulseCommon/**`, `migrations/**`, `requirements.txt`, `Dockerfile`, `docker-compose.yml` 변경이 push되면 `.github/workflows/deploy-backend.yml`이 동작한다 (수동: `workflow_dispatch`).
+`main` 브랜치에 `MarketpulseWeb/app/backend/**`, `MarketpulseFetcher/data_fetcher/**`, `migrations/**`, `requirements.txt`, `Dockerfile`, `docker-compose.yml` 변경이 push되면 `.github/workflows/deploy-backend.yml`이 동작한다 (수동: `workflow_dispatch`).
 
 1. Docker 이미지 빌드 → Docker Hub `:latest` / `:<sha>` push
 2. SSH로 서버 접속 → `docker compose pull app` → `up -d --no-deps --force-recreate app`

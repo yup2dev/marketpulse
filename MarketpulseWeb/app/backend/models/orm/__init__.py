@@ -4,7 +4,7 @@ ORM Models — MBS Schema (역할별 분할 패키지)
 기존 단일 파일 `models/orm.py` 를 데이터 흐름 단계별로 분할한 패키지.
 공개 표면(import 경로)은 그대로 유지된다:
 
-    from marketpulse_common.models.orm import Base, User, MBS_IN_STK_PROFILE, ...
+    from app.backend.models.orm import Base, User, MBS_IN_STK_PROFILE, ...
 
 데이터 흐름: IN(ingest) → PROC(process) → CALC(calc) → RCMD(recommend)
 앱 도메인(User/Portfolio/...)은 user 모듈에 분리. 상세는 docs/ARCHITECTURE.md 참고.
@@ -51,19 +51,6 @@ from .user import (
     UserBacktestRun,
 )
 
-# ── Backward-compatible re-exports from utils.db ──────────────────────────────
-# (기존 orm.py 말미에서 노출하던 심볼들 — 임포트 표면 유지)
-from ...utils.db import (
-    Database,
-    get_sqlite_db,
-    get_postgresql_db,
-    generate_id,
-    generate_batch_id,
-    default_db,
-    engine,
-    SessionLocal,
-)
-
 __all__ = [
     "Base",
     # IN
@@ -104,13 +91,4 @@ __all__ = [
     "UserWorkspace",
     "UserBacktestItem",
     "UserBacktestRun",
-    # utils.db re-exports
-    "Database",
-    "get_sqlite_db",
-    "get_postgresql_db",
-    "generate_id",
-    "generate_batch_id",
-    "default_db",
-    "engine",
-    "SessionLocal",
 ]

@@ -4,7 +4,7 @@ Configuration Management — merged from config/constants.py + core/config.py
 """
 from pathlib import Path
 
-from marketpulse_common.paths import REPO_ROOT
+from index_analyzer.paths import REPO_ROOT
 from typing import Optional
 from pydantic_settings import BaseSettings
 from pydantic import Field

@@ -13,8 +13,8 @@ from typing import Any, Dict, List
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from ..base import Collector, Target
-from marketpulse_common.utils.db import default_db, generate_batch_id
-from marketpulse_common.utils.logging import get_logger
+from index_analyzer.db.engine import default_db, generate_batch_id
+from index_analyzer.utils.logger import get_logger
 
 log = get_logger(__name__)
 
@@ -90,7 +90,7 @@ class FXRateCollector(Collector):
         return rows
 
     def store(self, target: Target, rows: List[Dict[str, Any]]) -> Dict[str, Any]:  # type: ignore[override]
-        from marketpulse_common.models.orm import MBS_IN_FX_STBD
+        from index_analyzer.db.orm import MBS_IN_FX_STBD
 
         if not rows:
             return {"fx_cd": target.indx_cd, "upserted": 0}

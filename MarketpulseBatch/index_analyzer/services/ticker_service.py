@@ -6,7 +6,7 @@ import re
 from typing import List, Dict, Set, Optional
 from sqlalchemy.orm import Session
 
-from marketpulse_common.utils.logging import get_logger
+from index_analyzer.utils.logger import get_logger
 
 log = get_logger(__name__)
 
@@ -51,8 +51,8 @@ class TickerExtractor:
         """데이터베이스에서 티커 정보 로드"""
         try:
             if db_session is None:
-                from marketpulse_common.utils.db import get_sqlite_db
-                from marketpulse_common.paths import DB_PATH
+                from index_analyzer.db.engine import get_sqlite_db
+                from index_analyzer.paths import DB_PATH
                 db = get_sqlite_db(str(DB_PATH))
                 session = db.get_session()
                 close_session = True
@@ -60,7 +60,7 @@ class TickerExtractor:
                 session = db_session
                 close_session = False
 
-            from marketpulse_common.models.orm import MBS_IN_STBD_MST
+            from index_analyzer.db.orm import MBS_IN_STBD_MST
             tickers = session.query(MBS_IN_STBD_MST).filter_by(is_active=True).all()
 
             log.info(f"Loading {len(tickers)} tickers from database...")

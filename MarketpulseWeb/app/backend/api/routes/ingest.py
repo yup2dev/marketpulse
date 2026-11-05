@@ -30,7 +30,7 @@ from sqlalchemy.orm import Session
 
 from app.backend.core.auth.dependencies import require_admin
 from app.backend.core.db import get_db
-from marketpulse_common.models.orm.ingest import (
+from app.backend.models.orm.ingest import (
     MBS_IN_ARTICLE,
     MBS_IN_FINANCIAL_METRICS,
     MBS_IN_FX_STBD,

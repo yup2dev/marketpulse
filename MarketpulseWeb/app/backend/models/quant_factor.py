@@ -4,7 +4,7 @@ User-saved custom factor definitions
 """
 from datetime import datetime
 from sqlalchemy import Column, String, Integer, Text, DateTime, ForeignKey, Index
-from marketpulse_common.models.orm import Base
+from app.backend.models.orm import Base
 
 
 class QuantFactor(Base):

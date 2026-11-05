@@ -12,7 +12,7 @@ from data_fetcher.abstract_provider.standard_models.research_reports import (
     ResearchReportsQueryParams,
     ResearchReportData,
 )
-from marketpulse_common.models.orm import MBS_IN_RESEARCH_RPT
+from data_fetcher.providers.database.schema import MBS_IN_RESEARCH_RPT
 
 log = logging.getLogger(__name__)
 

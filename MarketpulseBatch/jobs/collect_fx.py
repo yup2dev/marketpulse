@@ -14,9 +14,9 @@ import logging
 import sys
 from pathlib import Path
 
-# import 경로: 저장소 루트 + 최상위 폴더 4개 (mp-bootstrap)
+# import 경로: 저장소 루트 + 배치 — 웹 폴더는 넣지 않는다 (mp-bootstrap)
 _ROOT = Path(__file__).resolve().parents[2]
-for _d in ("", *("MarketpulseCommon", "MarketpulseFetcher", "MarketpulseBatch", "MarketpulseWeb")):
+for _d in ("", "MarketpulseFetcher", "MarketpulseBatch"):
     if str(_ROOT / _d) not in sys.path:
         sys.path.insert(0, str(_ROOT / _d))
 

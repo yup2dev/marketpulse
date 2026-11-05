@@ -11,7 +11,7 @@ from data_fetcher.abstract_provider.standard_models.institutions_list import (
     InstitutionsListQueryParams,
     InstitutionInfo,
 )
-from marketpulse_common.models.orm import MBS_IN_INSTI_MST, MBS_IN_INSTI_PERF, MBS_IN_INSTI_PORT
+from data_fetcher.providers.database.schema import MBS_IN_INSTI_MST, MBS_IN_INSTI_PERF, MBS_IN_INSTI_PORT
 
 log = logging.getLogger(__name__)
 

@@ -14,7 +14,7 @@ from app.backend.core.db import get_db
 from app.backend.core.auth.dependencies import get_current_active_user, get_optional_user
 from app.backend.services.screener_service import ScreenerService
 from data_fetcher.core import OBBject
-from marketpulse_common.models.orm import User
+from app.backend.models.orm import User
 
 router = APIRouter(prefix="/screener", tags=["Screener"])
 

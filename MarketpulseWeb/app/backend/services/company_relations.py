@@ -10,8 +10,8 @@ from typing import Any, List, Optional
 
 from data_fetcher.abstract_provider.abstract.annotated_result import AnnotatedResult
 from data_fetcher.query_executor import QueryExecutor, RemoteUnavailableError
-from marketpulse_common.models.orm import MBS_IN_STK_PROFILE, MBS_IN_STK_RELATIONS
-from marketpulse_common.utils.db import default_db
+from app.backend.models.orm import MBS_IN_STK_PROFILE, MBS_IN_STK_RELATIONS
+from app.backend.core.database import default_db
 
 log = logging.getLogger(__name__)
 

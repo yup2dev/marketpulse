@@ -9,7 +9,7 @@ import uuid
 
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
-from marketpulse_common.models.orm import Watchlist, WatchlistItem, MBS_IN_STBD_MST
+from app.backend.models.orm import Watchlist, WatchlistItem, MBS_IN_STBD_MST
 
 
 class WatchlistService:

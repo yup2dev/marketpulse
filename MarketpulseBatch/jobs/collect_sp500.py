@@ -15,9 +15,9 @@ import logging
 from pathlib import Path
 
 # 프로젝트 루트를 Python 경로에 추가
-# import 경로: 저장소 루트 + 최상위 폴더 4개 (mp-bootstrap)
+# import 경로: 저장소 루트 + 배치 — 웹 폴더는 넣지 않는다 (mp-bootstrap)
 _ROOT = Path(__file__).resolve().parents[2]
-for _d in ("", *("MarketpulseCommon", "MarketpulseFetcher", "MarketpulseBatch", "MarketpulseWeb")):
+for _d in ("", "MarketpulseFetcher", "MarketpulseBatch"):
     if str(_ROOT / _d) not in sys.path:
         sys.path.insert(0, str(_ROOT / _d))
 
@@ -27,8 +27,8 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 
-from marketpulse_common.models.orm import Base
-from marketpulse_common.utils.db import default_db
+from index_analyzer.db.orm import Base
+from index_analyzer.db.engine import default_db
 
 def main():
     # 1. 테이블 생성 (신규 테이블 포함)

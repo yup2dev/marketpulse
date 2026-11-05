@@ -22,9 +22,9 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.backend.core.db import get_db
-from marketpulse_common.models.orm import MBS_IN_RESEARCH_RPT
-from marketpulse_common.paths import REPO_ROOT
-from marketpulse_common.utils.db import generate_id
+from app.backend.models.orm import MBS_IN_RESEARCH_RPT
+from app.backend.core.paths import REPO_ROOT
+from app.backend.core.database import generate_id
 
 log = logging.getLogger(__name__)
 router = APIRouter()

@@ -280,7 +280,7 @@ async def get_company_relations_route(symbol: str, provider: str = "db") -> OBBj
 @route_handler
 def get_sector_performance(provider: str = "db") -> OBBject:
     from app.backend.core.db import get_db_sync
-    from marketpulse_common.models.orm import MBS_IN_STK_PROFILE
+    from app.backend.models.orm import MBS_IN_STK_PROFILE
 
     db = get_db_sync()
     try:

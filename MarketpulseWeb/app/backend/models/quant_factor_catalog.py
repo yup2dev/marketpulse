@@ -6,7 +6,7 @@ Separate from QuantFactor (which is user-scoped custom formulas).
 """
 from datetime import datetime
 from sqlalchemy import Column, String, Integer, Text, DateTime
-from marketpulse_common.models.orm import Base
+from app.backend.models.orm import Base
 
 
 class QuantFactorCatalog(Base):

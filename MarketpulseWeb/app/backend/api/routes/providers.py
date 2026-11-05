@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.backend.core.auth.dependencies import get_current_active_user
 from app.backend.services import user_key_service
-from marketpulse_common.models.orm import User
+from app.backend.models.orm import User
 
 router = APIRouter()
 

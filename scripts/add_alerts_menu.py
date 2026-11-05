@@ -10,7 +10,7 @@ project_root = str(Path(__file__).parent.parent)
 sys.path.insert(0, project_root)
 
 from index_analyzer.models.database import get_sqlite_db
-from marketpulse_common.models.menu import MenuManagement
+from app.backend.models.menu import MenuManagement
 
 
 def add_alerts_menu():
