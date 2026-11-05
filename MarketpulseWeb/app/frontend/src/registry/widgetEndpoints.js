@@ -14,8 +14,15 @@
  *     provider?:   'yahoo'                  // 초기 provider(전용 라우트 기본값과 동일하게 유지)
  *     params?:     [{                       // inline form; values feed {placeholder} + querystring
  *       name, label?, kind: 'text'|'number'|'date'|'select',
- *       default, options?, step?, hint?, upper?
- *     }]
+ *       default, options?, step?, hint?, upper?,
+ *       pin?, chip?,                         //   헤더 버튼에 현재 값을 칩으로 — chip(v) 로 표기를 바꿀 수 있다 (예: v => `${v}D`)
+ *       showIf?,                             //   { metric: 'quantile' } — 조건이 맞을 때만 입력칸·요청에 포함
+ *     }]                                     //   name 'symbol' 은 폼이 아니라 헤더 심볼 칩으로 올라간다
+ *     titleFrom?:  'institution_key'         // 그 param 의 현재 값 라벨을 제목 뒤에 붙인다
+ *     kv?:         { primary, hide, labels } // display:'kv' — primary 는 큰 타일, hide 는 숨김
+ *     columns?:    { hide, order, labels }   // 자동 컬럼 손질 (내부 키 숨기기 등)
+ *
+ * UI 라벨(title·label·hint)은 영어로 쓴다.
  *     expandable?: { keyField, endpoint, dataPath? }
  *     component?:  Component                // escape hatch — only for portfolio widgets that need
  *                                           //   non-API state (e.g. portfolioData)
@@ -64,9 +71,9 @@ const conceptWidget = (concept, title, country = 'USA') => ({
   title,
   concept,
   params: [
-    { name: 'country', label: 'Country', kind: 'select', default: country,
+    { name: 'country', label: 'Country', kind: 'select', default: country, pin: true,
       optionsFrom: { endpoint: `/concepts/${concept}/countries`, value: 'code', label: 'label' },
-      options: [{ value: 'USA', label: '미국' }, { value: 'KOR', label: '한국' }] },
+      options: [{ value: 'USA', label: 'United States' }, { value: 'KOR', label: 'Korea' }] },
   ],
 });
 
@@ -84,10 +91,13 @@ export const WIDGET_ENDPOINTS = {
   // 테이블로 노출한다 — 수익률만 그리면 커버리지 경고가 사라져 오독된다.
   // 13F 파싱은 로컬 배치가 하고 서버는 적재 DB만 읽으므로 provider 셀렉터를 두지 않는다.
   'fund-performance': {
-    title:    'Fund Performance (13F 추정)',
+    title:    'Fund Performance (13F est.)',
     endpoint: '/portfolio/13f/{institution_key}/performance?quarters={quarters}',
+    titleFrom: 'institution_key',
+    // 모든 행이 같은 펀드라 키·이름 열은 제목으로 대신한다
+    columns:  { hide: ['institution_key', 'name'] },
     params: [
-      { name: 'institution_key', label: 'Fund', kind: 'select', default: 'situational-awareness',
+      { name: 'institution_key', label: 'Fund', kind: 'select', default: 'situational-awareness', pin: true,
         // 수익률이 적재된 기관으로 채우고, 실패 시 아래 정적 목록 사용
         optionsFrom: { endpoint: '/portfolio/13f/institutions?with_performance=true', value: 'key', label: 'name' },
         options: [
@@ -95,9 +105,9 @@ export const WIDGET_ENDPOINTS = {
           'citadel', 'bridgewater', 'appaloosa', 'greenlight', 'thirdpoint',
           'baupost', 'viking', 'millennium', 'soros', 'renaissance',
         ],
-        hint: 'situational-awareness = 레오폴드 아셴브레너' },
-      { name: 'quarters', label: 'Quarters', kind: 'number', default: 8, step: 1,
-        hint: '조회 분기 수(행 수는 1 적음 — 분기쌍 비교)' },
+        hint: 'situational-awareness = Leopold Aschenbrenner' },
+      { name: 'quarters', label: 'Quarters', kind: 'number', default: 8, step: 1, pin: true, chip: (v) => `${v}Q`,
+        hint: 'Rows = quarters − 1 (each row compares two quarters)' },
     ],
   },
 
@@ -129,11 +139,11 @@ export const WIDGET_ENDPOINTS = {
   'financials':            { title: 'Financial Statements',   endpoint: '/stock/financials/{symbol}', category: 'financials' },
 
   // ── Macro 지표 개념 (provider 무관 — 국가 + '내 키'로 FRED/ECOS/OECD 중 자동 선택) ──
-  'concept-cpi':          conceptWidget('cpi_yoy',           '소비자물가 상승률 (%)'),
-  'concept-unemployment': conceptWidget('unemployment_rate', '실업률 (%)'),
-  'concept-policy-rate':  conceptWidget('policy_rate',       '기준금리 (%)', 'KOR'),
-  'concept-long-rate':    conceptWidget('long_rate_10y',     '국채 10년 금리 (%)'),
-  'concept-gdp-growth':   conceptWidget('real_gdp_growth',   '실질 GDP 성장률 (%)'),
+  'concept-cpi':          conceptWidget('cpi_yoy',           'CPI Inflation (%)'),
+  'concept-unemployment': conceptWidget('unemployment_rate', 'Unemployment Rate (%)'),
+  'concept-policy-rate':  conceptWidget('policy_rate',       'Policy Rate (%)', 'KOR'),
+  'concept-long-rate':    conceptWidget('long_rate_10y',     '10Y Government Bond Yield (%)'),
+  'concept-gdp-growth':   conceptWidget('real_gdp_growth',   'Real GDP Growth (%)'),
 
   // ── Macro (Universal Data Gateway 경유) ───────────────────────────────────
   'gdp-forecast':           { title: 'GDP Forecast',           endpoint: '/data/fred/gdp?period={period}' },
@@ -158,19 +168,26 @@ export const WIDGET_ENDPOINTS = {
     endpoint: '/quantlib/pricing/option',
     dataPath: 'results.0',
     display:  'kv',
+    // 결과에 입력값이 그대로 되돌아온다 — 입력 echo 는 숨기고 그릭스를 타일로
+    kv: {
+      primary: ['npv', 'delta', 'gamma', 'theta', 'vega', 'rho'],
+      hide:    ['option_type', 'exercise_style', 'engine', 'spot', 'strike', 'evaluation_date', 'expiry',
+                'volatility', 'risk_free_rate', 'dividend_yield'],
+      labels:  { npv: 'NPV', intrinsic_value: 'Intrinsic value', time_value: 'Time value' },
+    },
     params: [
-      { name: 'option_type',     label: 'Type',     kind: 'select', default: 'call',
-        options: ['call', 'put'] },
+      { name: 'option_type',     label: 'Type',     kind: 'select', default: 'call', pin: true,
+        options: [{ value: 'call', label: 'Call' }, { value: 'put', label: 'Put' }] },
       { name: 'exercise_style',  label: 'Exercise', kind: 'select', default: 'european',
-        options: ['european', 'american'] },
-      { name: 'engine',          label: 'Engine',   kind: 'select', default: 'analytic',
+        options: [{ value: 'european', label: 'European' }, { value: 'american', label: 'American' }] },
+      { name: 'engine',          label: 'Engine',   kind: 'select', default: 'analytic', pin: true,
         options: [
-          { value: 'analytic', label: 'Analytic (Black-Scholes)' },
+          { value: 'analytic', label: 'Black-Scholes' },
           { value: 'binomial', label: 'Binomial (CRR)' },
           { value: 'mc',       label: 'Monte Carlo' },
         ] },
       { name: 'spot',            label: 'Spot (S)',          kind: 'number', default: 100,    step: 0.01 },
-      { name: 'strike',          label: 'Strike (K)',        kind: 'number', default: 100,    step: 0.01 },
+      { name: 'strike',          label: 'Strike (K)',        kind: 'number', default: 100,    step: 0.01, pin: true, chip: (v) => `K ${v}` },
       { name: 'evaluation_date', label: 'Eval Date',         kind: 'date',   default: today },
       { name: 'expiry',          label: 'Expiry',            kind: 'date',   default: () => monthsAhead(3) },
       { name: 'volatility',      label: 'Volatility (σ)',    kind: 'number', default: 0.20,   step: 0.01,  hint: '0.20 = 20%' },
@@ -185,9 +202,14 @@ export const WIDGET_ENDPOINTS = {
     endpoint: '/quantitative/summary',
     dataPath: 'results.0',
     display:  'kv',
+    kv: {
+      primary: ['mean', 'std', 'skew', 'kurtosis'],
+      hide:    ['symbol', 'target'],
+      labels:  { std: 'Std dev', kurtosis: 'Excess kurtosis', p_50: 'Median' },
+    },
     params: [
       { name: 'symbol',     label: 'Symbol', kind: 'text',   default: 'AAPL', upper: true },
-      { name: 'target',     label: 'Target', kind: 'select', default: 'close', options: TARGET_OPTIONS },
+      { name: 'target',     label: 'Target', kind: 'select', default: 'close', options: TARGET_OPTIONS, pin: true },
       { name: 'start_date', label: 'Start',  kind: 'date',   default: () => yearsAgo(2) },
       { name: 'end_date',   label: 'End',    kind: 'date',   default: today },
     ],
@@ -198,7 +220,7 @@ export const WIDGET_ENDPOINTS = {
     dataPath: 'results.0.tests',
     params: [
       { name: 'symbol',     label: 'Symbol', kind: 'text',   default: 'AAPL', upper: true },
-      { name: 'target',     label: 'Target', kind: 'select', default: 'return', options: TARGET_OPTIONS },
+      { name: 'target',     label: 'Target', kind: 'select', default: 'return', options: TARGET_OPTIONS, pin: true },
       { name: 'start_date', label: 'Start',  kind: 'date',   default: () => yearsAgo(2) },
       { name: 'end_date',   label: 'End',    kind: 'date',   default: today },
     ],
@@ -208,9 +230,14 @@ export const WIDGET_ENDPOINTS = {
     endpoint: '/quantitative/capm',
     dataPath: 'results.0',
     display:  'kv',
+    kv: {
+      primary: ['beta', 'alpha', 'r_squared', 'sharpe_ratio'],
+      hide:    ['symbol', 'benchmark'],
+      labels:  { r_squared: 'R²', alpha: 'Alpha (ann.)', n: 'Observations' },
+    },
     params: [
       { name: 'symbol',         label: 'Symbol',    kind: 'text',   default: 'AAPL', upper: true },
-      { name: 'benchmark',      label: 'Benchmark', kind: 'text',   default: '^GSPC', upper: true },
+      { name: 'benchmark',      label: 'Benchmark', kind: 'text',   default: '^GSPC', upper: true, pin: true },
       { name: 'risk_free_rate', label: 'Risk-Free', kind: 'number', default: 0.04, step: 0.001, hint: '0.04 = 4%' },
       { name: 'target',         label: 'Target',    kind: 'select', default: 'return', options: TARGET_OPTIONS },
       { name: 'start_date',     label: 'Start',     kind: 'date',   default: () => yearsAgo(2) },
@@ -227,12 +254,19 @@ export const WIDGET_ENDPOINTS = {
     },
     params: [
       { name: 'symbol',         label: 'Symbol', kind: 'text',   default: 'AAPL', upper: true },
-      { name: 'metric',         label: 'Metric', kind: 'select', default: 'sharpe',
-        options: ['sharpe', 'sortino', 'stdev', 'mean', 'skew', 'kurtosis', 'quantile'] },
-      { name: 'window',         label: 'Window', kind: 'number', default: 21, step: 1 },
+      { name: 'metric',         label: 'Metric', kind: 'select', default: 'sharpe', pin: true,
+        options: [
+          { value: 'sharpe', label: 'Sharpe' }, { value: 'sortino', label: 'Sortino' },
+          { value: 'stdev', label: 'Std dev' }, { value: 'mean', label: 'Mean' },
+          { value: 'skew', label: 'Skew' }, { value: 'kurtosis', label: 'Kurtosis' },
+          { value: 'quantile', label: 'Quantile' },
+        ] },
+      { name: 'window',         label: 'Window (days)', kind: 'number', default: 21, step: 1, pin: true, chip: (v) => `${v}D` },
       { name: 'target',         label: 'Target', kind: 'select', default: 'return', options: TARGET_OPTIONS },
-      { name: 'risk_free_rate', label: 'Risk-Free', kind: 'number', default: 0.04, step: 0.001 },
-      { name: 'quantile_pct',   label: 'Quantile (0-1)', kind: 'number', default: 0.5, step: 0.05, min: 0, max: 1 },
+      { name: 'risk_free_rate', label: 'Risk-Free', kind: 'number', default: 0.04, step: 0.001,
+        showIf: { metric: ['sharpe', 'sortino'] } },
+      { name: 'quantile_pct',   label: 'Quantile (0-1)', kind: 'number', default: 0.5, step: 0.05, min: 0, max: 1,
+        showIf: { metric: 'quantile' } },
       { name: 'start_date',     label: 'Start',  kind: 'date',   default: () => yearsAgo(2) },
       { name: 'end_date',       label: 'End',    kind: 'date',   default: today },
     ],
@@ -242,10 +276,15 @@ export const WIDGET_ENDPOINTS = {
     endpoint: '/quantitative/unitroot',
     dataPath: 'results.0',
     display:  'kv',
+    kv: {
+      primary: ['stationary', 'statistic', 'p_value', 'critical_5pct'],
+      hide:    ['symbol', 'target', 'test'],
+      labels:  { p_value: 'p-value', critical_1pct: 'Critical 1%', critical_5pct: 'Critical 5%', critical_10pct: 'Critical 10%', n_obs: 'Observations' },
+    },
     params: [
       { name: 'symbol',     label: 'Symbol', kind: 'text',   default: 'AAPL', upper: true },
       { name: 'target',     label: 'Target', kind: 'select', default: 'close', options: TARGET_OPTIONS },
-      { name: 'regression', label: 'Regression', kind: 'select', default: 'c',
+      { name: 'regression', label: 'Regression', kind: 'select', default: 'c', pin: true,
         options: [
           { value: 'c',   label: 'c (constant)' },
           { value: 'ct',  label: 'ct (const + trend)' },

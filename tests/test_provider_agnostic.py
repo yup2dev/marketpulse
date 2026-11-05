@@ -218,7 +218,7 @@ def test_concept_endpoint_picks_provider_by_my_keys(auth_client, keys, monkeypat
     assert "oecd" in listing["cpi_yoy"]["available_providers"]
 
     countries = {c["code"]: c for c in client.get("/api/concepts/policy_rate/countries").json()["results"]}
-    assert countries["KOR"]["label"] == "한국"
+    assert countries["KOR"]["label"] == "Korea"
     # KOR 기준금리는 ECOS 뿐 — 키가 없으면 사용 불가로 표시
     assert countries["KOR"]["available"] is False and countries["JPN"]["available"] is True
     assert client.get("/api/concepts/nope/countries").status_code == 404
