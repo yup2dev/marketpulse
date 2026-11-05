@@ -39,7 +39,6 @@ export default function WatchlistWidget({ onRemove }) {
       icon={mode === 'watchlist' ? Star : Briefcase}
       loading={false}
       onRemove={onRemove}
-      showViewToggle={false}
       showPeriodSelector={false}
     >
       <div className="flex flex-col h-full min-h-0">

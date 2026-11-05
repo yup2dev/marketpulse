@@ -1,22 +1,26 @@
 /**
- * BaseWidget - Common widget wrapper with shared functionality
- * Features:
- * - Drag handle for GridLayout
- * - Symbol selector with search
- * - View mode toggle (chart/table)
- * - Period selector
- * - Refresh button
- * - Remove button
- * - Loading state
- * - Source footer
+ * BaseWidget — 모든 위젯의 껍데기 (헤더 + 필터 줄 + 본문 + 출처).
+ *
+ * 헤더 순서는 고정이다. 위젯이 순서를 바꾸지 않는다.
+ *
+ *   [⠿][아이콘] 제목 · titleSuffix  [심볼]  ……  [기간][headerExtra][보기][provider][Run] ⟳ ⋯ ✕
+ *
+ * - 보기(view): 표/선/막대… 를 하나의 드롭다운으로 고른다 (viewOptions). 예전의
+ *   차트/표 토글 + 차트형 아이콘 6개를 대신한다.
+ * - ⋯ 메뉴: 내보내기·위젯 연동처럼 자주 안 쓰는 동작.
+ * - filters: 위젯 필터는 본문에 그리지 말고 여기로 넘긴다 → 헤더 아래 FilterBar.
+ * - state: 데이터를 못 보여 줄 때 { kind, … } 를 넘기면 본문 대신 WidgetState 를 그린다.
+ * - 위젯 폭이 좁으면(COMPACT_WIDTH) 보기·provider 선택을 ⋯ 메뉴 안으로 접는다.
  */
 import { useState, useRef, useEffect } from 'react';
-import { GripVertical, X, RefreshCw, BarChart2, Table, Calendar, ChevronDown, Search, Download, FileDown, FileSpreadsheet, Image, Link2, Link2Off, Play, Database } from 'lucide-react';
+import { GripVertical, X, RefreshCw, ChevronDown, Search, Database, FileDown, FileSpreadsheet, Image, Link2, Link2Off, Play, Check } from 'lucide-react';
 import { apiClient, API_BASE } from '../../../config/api';
 import { downloadCSV, downloadExcel, downloadChartPNG, makeFilename } from '../../../utils/exportUtils';
 import { useWidgetSync } from '../../../contexts/WidgetSyncContext';
-import useClickOutside from '../../../hooks/useClickOutside';
-// import { PERIOD_OPTIONS } from '../constants';
+import { Select, PeriodSelect, OverflowMenu, FilterBar, WidgetState } from '../ui';
+
+// 이 폭보다 좁으면 보기·provider 선택을 ⋯ 메뉴로 접는다 (헤더가 제목을 밀어내지 않게)
+const COMPACT_WIDTH = 460;
 
 // Symbol Selector Component
 function SymbolSelector({ symbol, onSymbolChange }) {
@@ -140,87 +144,31 @@ function SymbolSelector({ symbol, onSymbolChange }) {
   );
 }
 
-// Provider Selector — data-source(provider) 전환 드롭다운.
-// options: [{ id, name, configured }]. 키 미설정(provider requires_key && !configured)이면
-// 항목에 점 표시로 안내하되 선택은 허용한다(요청 시 백엔드가 에러를 반환).
-function ProviderSelector({ provider, options, onProviderChange }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const current = options.find((o) => o.id === provider);
-  const label = current?.name || provider;
-
-  return (
-    <div className="relative" onMouseDown={(e) => e.stopPropagation()}>
-      <button
-        onClick={() => setIsOpen((v) => !v)}
-        className="flex items-center gap-1 px-2 py-1 bg-gray-800 hover:bg-gray-700 rounded text-xs text-gray-300 transition-colors"
-        title="Data provider"
-      >
-        <Database size={10} className="text-gray-500" />
-        <span className="max-w-[90px] truncate">{label}</span>
-        <ChevronDown size={10} />
-      </button>
-      {isOpen && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-          <div className="absolute right-0 top-full mt-1 bg-[#1a1a1f] border border-gray-700 rounded shadow-lg z-50 py-1 min-w-[140px]">
-            {options.map((opt) => (
-              <button
-                key={opt.id}
-                onClick={() => {
-                  onProviderChange?.(opt.id);
-                  setIsOpen(false);
-                }}
-                className={`w-full px-3 py-1.5 text-xs text-left hover:bg-gray-800 transition-colors flex items-center justify-between gap-2 ${
-                  provider === opt.id ? 'text-cyan-400' : 'text-gray-300'
-                }`}
-              >
-                <span className="truncate">{opt.name}</span>
-                {opt.configured === false && (
-                  <span
-                    className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0"
-                    title="API key not configured"
-                  />
-                )}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  );
+// provider 옵션 → Select 옵션. 키가 없으면 'Key needed' 를 붙인다 (선택은 허용 — 서버가 안내를 돌려준다).
+function providerSelectOptions(options) {
+  return (options || []).map((o) => ({
+    value: o.id,
+    label: o.name || o.id,
+    note: o.configured === false ? 'Key needed' : undefined,
+  }));
 }
 
-// Period options for different data types
-export const PERIOD_OPTIONS = {
-  short: [
-    { id: '1mo', label: '1M' },
-    { id: '3mo', label: '3M' },
-    { id: '6mo', label: '6M' },
-    { id: '1y', label: '1Y' },
-  ],
-  medium: [
-    { id: '6mo', label: '6M' },
-    { id: '1y', label: '1Y' },
-    { id: '2y', label: '2Y' },
-    { id: '3y', label: '3Y' },
-  ],
-  long: [
-    { id: '1y', label: '1Y' },
-    { id: '3y', label: '3Y' },
-    { id: '5y', label: '5Y' },
-    { id: '10y', label: '10Y' },
-  ],
-  macro: [
-    { id: '1y', label: '1Y' },
-    { id: '2y', label: '2Y' },
-    { id: '3y', label: '3Y' },
-    { id: '5y', label: '5Y' },
-  ],
-};
+function useElementWidth(ref) {
+  const [width, setWidth] = useState(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref]);
+  return width;
+}
 
 export default function BaseWidget({
   title,
   subtitle,
+  titleSuffix,                // 제목 뒤에 붙는 맥락 (예: 'United States', 펀드 이름)
   icon: Icon,
   iconColor = 'text-cyan-400',
   children,
@@ -232,14 +180,15 @@ export default function BaseWidget({
   // Symbol selector
   symbol,
   onSymbolChange,
-  // View mode
-  viewMode = 'chart',
-  onViewModeChange,
-  showViewToggle = true,
+  // View (표/선/막대 …) — [{ value, label, icon }]
+  view,
+  viewOptions,
+  onViewChange,
   // Period selector
   period,
   onPeriodChange,
-  periodType = 'macro',
+  periodPreset,               // periods.js 프리셋 이름 또는 id 배열
+  periodType = 'macro',       // 예전 이름 — periodPreset 이 없을 때 쓴다
   showPeriodSelector = true,
   // Provider selector (data source)
   provider,
@@ -247,20 +196,23 @@ export default function BaseWidget({
   providerOptions,            // [{ id, name, configured }]
   // Source
   source,
-  // Custom header content
+  // Custom header content (파라미터 버튼 등)
   headerExtra,
+  // 헤더 아래 필터 줄 — node 또는 { left, right }
+  filters,
+  // 본문 대신 그릴 상태 화면 — { kind, message, provider, onRetry, action }
+  state,
   // Export
   exportData,    // () => { columns: [{key,header,exportValue?}], rows: [] }
   chartRef,      // ref to chart container element for PNG export
-  // Sync (Phase 3)
+  // Sync
   syncable = false,  // opt-in: show sync chain icon
 }) {
-  const [showPeriodDropdown, setShowPeriodDropdown] = useState(false);
-  const [showExportMenu,     setShowExportMenu]     = useState(false);
-  const exportMenuRef = useRef(null);
-  const periodOptions = PERIOD_OPTIONS[periodType] || PERIOD_OPTIONS.macro;
+  const rootRef = useRef(null);
+  const width = useElementWidth(rootRef);
+  const compact = width != null && width < COMPACT_WIDTH;
 
-  // ── Widget Sync (Phase 3) ────────────────────────────────────────────────
+  // ── Widget Sync ──────────────────────────────────────────────────────────
   const syncCtx = useWidgetSync();
   const [isSynced, setIsSynced] = useState(false);
   // 괄호 주의: `?:` 가 `||` 보다 결합력이 낮아, 괄호가 없으면
@@ -319,11 +271,7 @@ export default function BaseWidget({
     }
   };
 
-  // Close export menu on outside click
-  useClickOutside(exportMenuRef, showExportMenu ? () => setShowExportMenu(false) : null);
-
   const handleExport = (format) => {
-    setShowExportMenu(false);
     const fname = makeFilename(title || 'export', symbol);
     if (format === 'png') {
       const el = chartRef?.current;
@@ -337,8 +285,56 @@ export default function BaseWidget({
     if (format === 'excel') downloadExcel(rows, columns, fname);
   };
 
+  const hasView     = !!(onViewChange && viewOptions?.length > 1);
+  const hasProvider = !!(onProviderChange && providerOptions?.length > 1);
+  const hasPeriod   = !!(showPeriodSelector && onPeriodChange);
+  const provOpts    = hasProvider ? providerSelectOptions(providerOptions) : [];
+
+  // ⋯ 메뉴 — 좁으면 보기·provider 선택도 여기로 접는다
+  const menuItems = [];
+  if (compact && hasView) {
+    menuItems.push({ section: 'View' });
+    viewOptions.forEach((o) => menuItems.push({
+      label: o.label,
+      icon: o.value === view ? Check : o.icon,
+      active: o.value === view,
+      onClick: () => onViewChange(o.value),
+    }));
+  }
+  if (compact && hasProvider) {
+    menuItems.push({ section: 'Data source' });
+    provOpts.forEach((o) => menuItems.push({
+      label: o.note ? `${o.label} · ${o.note}` : o.label,
+      icon: o.value === provider ? Check : undefined,
+      active: o.value === provider,
+      onClick: () => onProviderChange(o.value),
+    }));
+  }
+  if (exportData || chartRef) {
+    if (menuItems.length) menuItems.push({ section: 'Export' });
+    if (exportData) {
+      menuItems.push({ label: 'Export CSV', icon: FileDown, onClick: () => handleExport('csv') });
+      menuItems.push({ label: 'Export Excel (.xlsx)', icon: FileSpreadsheet, onClick: () => handleExport('excel') });
+    }
+    if (chartRef) menuItems.push({ label: 'Export chart (PNG)', icon: Image, onClick: () => handleExport('png') });
+  }
+  if (canSync) {
+    menuItems.push({
+      label: isSynced ? 'Unlink from global sync' : 'Link to global sync',
+      icon: isSynced ? Link2 : Link2Off,
+      active: isSynced,
+      divider: menuItems.length > 0,
+      onClick: toggleSync,
+    });
+  }
+
+  let body;
+  if (loading) body = <WidgetState kind="loading" />;
+  else if (state) body = <WidgetState {...state} onRetry={state.onRetry ?? onRefresh} />;
+  else body = children;
+
   return (
-    <div className="widget-surface rounded-lg border widget-border h-full flex flex-col overflow-hidden">
+    <div ref={rootRef} className="widget-surface rounded-lg border widget-border h-full flex flex-col overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b widget-border widget-surface gap-2">
         {/* Left: Drag handle + Title + Symbol */}
@@ -346,157 +342,38 @@ export default function BaseWidget({
           <GripVertical size={14} className="text-gray-600 flex-shrink-0" />
           {Icon && <Icon size={14} className={`${iconColor} flex-shrink-0`} />}
           <div className="min-w-0">
-            <span className="text-sm font-medium text-white truncate block">{title}</span>
+            <span className="text-sm font-medium text-white truncate block">
+              {title}
+              {titleSuffix && <span className="font-normal text-gray-400"> · {titleSuffix}</span>}
+            </span>
             {subtitle && <span className="text-xs text-gray-500 truncate block">{subtitle}</span>}
           </div>
-          {/* Symbol Selector */}
           {symbol && onSymbolChange && (
             <SymbolSelector symbol={symbol} onSymbolChange={handleSymbolChange} />
           )}
         </div>
 
-        {/* Center: Controls */}
-        <div className="flex items-center gap-1 flex-shrink-0">
-          {/* View Toggle */}
-          {showViewToggle && onViewModeChange && (
-            <div className="flex items-center bg-gray-800 rounded p-0.5">
-              <button
-                onClick={() => onViewModeChange('chart')}
-                className={`p-1 rounded transition-colors ${
-                  viewMode === 'chart' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'
-                }`}
-                title="Chart View"
-              >
-                <BarChart2 size={12} />
-              </button>
-              <button
-                onClick={() => onViewModeChange('table')}
-                className={`p-1 rounded transition-colors ${
-                  viewMode === 'table' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'
-                }`}
-                title="Table View"
-              >
-                <Table size={12} />
-              </button>
-            </div>
+        {/* Right: Controls (순서 고정) */}
+        <div className="flex items-center gap-1 flex-shrink-0" onMouseDown={(e) => e.stopPropagation()}>
+          {hasPeriod && (
+            <PeriodSelect value={period} onChange={handlePeriodChange} preset={periodPreset || periodType} />
           )}
 
-          {/* Period Selector */}
-          {showPeriodSelector && onPeriodChange && (
-            <div className="relative">
-              <button
-                onClick={() => setShowPeriodDropdown(!showPeriodDropdown)}
-                className="flex items-center gap-1 px-2 py-1 bg-gray-800 hover:bg-gray-700 rounded text-xs text-gray-300 transition-colors"
-              >
-                <Calendar size={10} />
-                <span>{periodOptions.find(p => p.id === period)?.label || period}</span>
-                <ChevronDown size={10} />
-              </button>
-              {showPeriodDropdown && (
-                <>
-                  <div
-                    className="fixed inset-0 z-40"
-                    onClick={() => setShowPeriodDropdown(false)}
-                  />
-                  <div className="absolute right-0 top-full mt-1 bg-[#1a1a1f] border border-gray-700 rounded shadow-lg z-50 py-1 min-w-[60px]">
-                    {periodOptions.map(opt => (
-                      <button
-                        key={opt.id}
-                        onClick={() => {
-                          handlePeriodChange(opt.id);
-                          setShowPeriodDropdown(false);
-                        }}
-                        className={`w-full px-3 py-1.5 text-xs text-left hover:bg-gray-800 transition-colors ${
-                          period === opt.id ? 'text-cyan-400' : 'text-gray-300'
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-
-          {/* Provider selector (only when 2+ providers support this widget's model) */}
-          {onProviderChange && providerOptions?.length > 1 && (
-            <ProviderSelector
-              provider={provider}
-              options={providerOptions}
-              onProviderChange={onProviderChange}
-            />
-          )}
-
-          {/* Custom header content */}
           {headerExtra}
 
-          {/* Sync toggle (Phase 3) */}
-          {canSync && (
-            <button
-              onMouseDown={e => e.stopPropagation()}
-              onClick={toggleSync}
-              className={`p-1.5 rounded transition-colors ${
-                isSynced
-                  ? 'text-cyan-400 bg-cyan-500/15 hover:bg-cyan-500/25'
-                  : 'text-gray-600 hover:text-gray-300 hover:bg-gray-800'
-              }`}
-              title={isSynced ? 'Unlink from global sync' : 'Link to global sync'}
-            >
-              {isSynced ? <Link2 size={12} /> : <Link2Off size={12} />}
-            </button>
+          {hasView && !compact && (
+            <Select value={view} options={viewOptions} onChange={onViewChange} title="View" menuWidth="min-w-[120px]" />
           )}
 
-          {/* Export dropdown */}
-          {(exportData || chartRef) && (
-            <div ref={exportMenuRef} className="relative">
-              <button
-                onMouseDown={e => e.stopPropagation()}
-                onClick={() => setShowExportMenu(v => !v)}
-                className="p-1.5 text-gray-500 hover:text-cyan-400 hover:bg-gray-800 rounded transition-colors"
-                title="Export data"
-              >
-                <Download size={12} />
-              </button>
-
-              {showExportMenu && (
-                <div className="absolute right-0 top-full mt-1 bg-[#0d0d12] border border-gray-700 rounded shadow-xl z-[60] py-1 min-w-[140px]">
-                  {exportData && (
-                    <>
-                      <button
-                        onClick={() => handleExport('csv')}
-                        className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-gray-300 hover:text-white hover:bg-gray-800/50 transition-colors"
-                      >
-                        <FileDown size={11} className="text-cyan-400" /> CSV
-                      </button>
-                      <button
-                        onClick={() => handleExport('excel')}
-                        className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-gray-300 hover:text-white hover:bg-gray-800/50 transition-colors"
-                      >
-                        <FileSpreadsheet size={11} className="text-green-400" /> Excel (.xlsx)
-                      </button>
-                    </>
-                  )}
-                  {chartRef && (
-                    <button
-                      onClick={() => handleExport('png')}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-gray-300 hover:text-white hover:bg-gray-800/50 transition-colors border-t border-gray-800 mt-0.5 pt-1.5"
-                    >
-                      <Image size={11} className="text-purple-400" /> PNG (Chart)
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
+          {hasProvider && !compact && (
+            <Select value={provider} options={provOpts} onChange={onProviderChange} icon={Database} title="Data source" />
           )}
 
-          {/* Run (param-driven widgets) */}
           {onRun && (
             <button
-              onMouseDown={e => e.stopPropagation()}
               onClick={onRun}
               disabled={loading}
-              className="flex items-center gap-1 px-2 py-1 bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-700 disabled:text-gray-500 text-white text-[11px] font-semibold rounded transition-colors"
+              className="flex items-center gap-1 h-6 px-2 bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-700 disabled:text-gray-500 text-white text-[11px] font-semibold rounded transition-colors"
               title={runLabel}
             >
               <Play size={11} />
@@ -504,7 +381,6 @@ export default function BaseWidget({
             </button>
           )}
 
-          {/* Refresh */}
           {onRefresh && (
             <button
               onClick={onRefresh}
@@ -516,10 +392,10 @@ export default function BaseWidget({
             </button>
           )}
 
-          {/* Remove */}
+          <OverflowMenu items={menuItems} />
+
           {onRemove && (
             <button
-              onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => { e.stopPropagation(); onRemove(); }}
               className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-500/10 rounded transition-colors"
               title="Remove"
@@ -530,15 +406,11 @@ export default function BaseWidget({
         </div>
       </div>
 
+      <FilterBar filters={filters} />
+
       {/* Content */}
       <div className="flex-1 overflow-hidden min-h-0 relative widget-content">
-        {loading ? (
-          <div className="w-full h-full flex items-center justify-center">
-            <div className="w-6 h-6 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : (
-          children
-        )}
+        {body}
       </div>
 
       {/* Footer with source */}
@@ -550,4 +422,3 @@ export default function BaseWidget({
     </div>
   );
 }
-

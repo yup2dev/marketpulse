@@ -1,17 +1,9 @@
 /**
- * ChartTypeSelector — compact icon-button pill group for switching chart types.
- * Can be embedded in any widget header or used standalone.
+ * ChartTypeSelector — 차트형 아이콘 버튼 묶음 (차트 본문 안 툴바용).
+ * 위젯 헤더에서는 쓰지 않는다 — 헤더는 BaseWidget 의 View 드롭다운 하나로 고른다.
+ * 차트형 목록은 widgets/ui/views.js 가 단일 기준이다.
  */
-import { TrendingUp, Activity, BarChart2, Layers, PieChart, Circle } from 'lucide-react';
-
-const ALL_TYPES = [
-  { id: 'line',       label: 'Line',    Icon: TrendingUp },
-  { id: 'area',       label: 'Area',    Icon: Activity   },
-  { id: 'bar',        label: 'Bar',     Icon: BarChart2  },
-  { id: 'stackedBar', label: 'Stacked', Icon: Layers     },
-  { id: 'pie',        label: 'Pie',     Icon: PieChart   },
-  { id: 'donut',      label: 'Donut',   Icon: Circle     },
-];
+import { CHART_TYPES } from '../widgets/ui/views';
 
 /**
  * @param {string}   value     – currently active type id
@@ -19,13 +11,11 @@ const ALL_TYPES = [
  * @param {string[]} [types]   – allowed type ids (default: all 6)
  */
 export default function ChartTypeSelector({ value, onChange, types }) {
-  const options = types
-    ? ALL_TYPES.filter(t => types.includes(t.id))
-    : ALL_TYPES;
+  const options = types ? CHART_TYPES.filter((t) => types.includes(t.value)) : CHART_TYPES;
 
   return (
     <div className="flex items-center gap-0.5 bg-gray-800/60 rounded p-0.5">
-      {options.map(({ id, label, Icon }) => (
+      {options.map(({ value: id, label, icon: Icon }) => (
         <button
           key={id}
           onClick={() => onChange(id)}

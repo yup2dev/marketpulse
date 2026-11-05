@@ -50,7 +50,6 @@ export default function TradingViewMiniChartWidget({ symbol: seedSymbol, onRemov
       onRemove={onRemove}
       symbol={symbol}
       onSymbolChange={setSymbol}
-      showViewToggle={false}
       showPeriodSelector={false}
       syncable
       headerExtra={

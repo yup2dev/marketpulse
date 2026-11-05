@@ -137,7 +137,6 @@ export default function BtStrategyWidget({ onRemove }) {
       icon={Workflow}
       onRemove={onRemove}
       loading={running}
-      showViewToggle={false}
       showPeriodSelector={false}
     >
       <div className="flex flex-col h-full min-h-0 p-2 gap-2 overflow-auto">

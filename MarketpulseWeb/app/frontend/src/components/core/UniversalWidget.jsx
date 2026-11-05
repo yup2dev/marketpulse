@@ -19,17 +19,18 @@
  *              — 서버가 '내 키' 기준으로 provider 를 고른다. 헤더 셀렉터 = 응답의 candidates,
  *                고르면 ?provider= 로 고정. 기본 뷰는 차트.
  *
- * 키 미등록(424 code=missing_key) 응답은 오류 문구 대신 '키 등록' 안내를 띄운다.
+ * 보기(view)는 하나의 값이다: 'table' | 'plotly' | 차트형('line'|'area'|…).
+ * BaseWidget 헤더의 View 드롭다운이 이 값을 고른다 (차트/표 토글 + 차트형 아이콘을 합침).
+ *
+ * 오류·키 미등록·Fetcher 꺼짐·0건은 전부 공통 WidgetState 로 그린다 (BaseWidget state prop).
  */
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Link } from 'react-router-dom';
-import { KeyRound } from 'lucide-react';
 import BaseWidget         from '../widgets/common/BaseWidget';
 import WidgetParamForm    from '../widgets/common/WidgetParamForm';
 import CommonTable        from '../common/CommonTable';
 import CommonChart        from '../common/CommonChart';
-import ChartTypeSelector  from '../common/ChartTypeSelector';
 import PlotlyRawChart     from './PlotlyRawChart';
+import { WidgetState, stateFromError, buildViewOptions } from '../widgets/ui';
 import { apiClient, API_BASE, providersAPI } from '../../config/api';
 import { FETCHER_WORKER_CONNECTED } from '../../hooks/useFetcherHealth';
 import { WIDGET_ENDPOINTS } from '../../registry/widgetEndpoints';
@@ -113,13 +114,13 @@ function ExpandedRowDetail({ row, config }) {
           : normalizeTableRows(res);
         setData(arr);
       })
-      .catch(e => setError(e.message))
+      .catch(e => setError(stateFromError(e)))
       .finally(() => setLoading(false));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (loading) return <div className="px-4 py-3 text-xs text-gray-500">Loading…</div>;
-  if (error)   return <div className="px-4 py-3 text-xs text-red-400">{error}</div>;
-  if (!data?.length) return <div className="px-4 py-3 text-xs text-gray-500">No data</div>;
+  if (loading) return <WidgetState kind="loading" compact />;
+  if (error)   return <WidgetState {...error} compact />;
+  if (!data?.length) return <WidgetState kind="empty" compact />;
 
   return (
     <CommonTable
@@ -129,24 +130,6 @@ function ExpandedRowDetail({ row, config }) {
       searchable={false}
       exportable={false}
     />
-  );
-}
-
-// 키 미등록 안내 — 오류 대신 '어떤 키를 넣으면 보이는지'를 알려준다
-function MissingKeyNotice({ provider, providerName }) {
-  return (
-    <div className="flex flex-col items-center justify-center h-full gap-2 p-4 text-center">
-      <KeyRound size={18} className="text-amber-400" />
-      <p className="text-xs text-gray-300">
-        <span className="font-semibold">{providerName || provider}</span> API 키를 등록하면 볼 수 있습니다
-      </p>
-      <Link
-        to="/settings"
-        className="px-3 py-1 rounded text-[11px] font-medium bg-cyan-600 hover:bg-cyan-500 text-white transition-colors"
-      >
-        키 등록하러 가기
-      </Link>
-    </div>
   );
 }
 
@@ -223,10 +206,10 @@ export default function UniversalWidget({
 
   const [response,  setResponse]  = useState(dataProp ?? null);
   const [loading,   setLoading]   = useState(!!endpoint);
+  // 실패 상태 — WidgetState props ({ kind, message, provider }). null 이면 정상.
   const [error,     setError]     = useState(null);
-  const [errorInfo, setErrorInfo] = useState(null);   // { code, provider } — missing_key 안내용
-  const [viewMode,  setViewMode]  = useState(null);
-  const [chartType, setChartType] = useState(chartCfg.defaultType || 'line');
+  // 사용자가 고른 보기. null 이면 응답 모양에 맞는 기본 보기(defaultView)를 쓴다.
+  const [viewSel,   setViewSel]   = useState(null);
 
   useEffect(() => { if (symbolProp) setSymbol(symbolProp); }, [symbolProp]);
 
@@ -340,15 +323,12 @@ export default function UniversalWidget({
     }
     setLoading(true);
     setError(null);
-    setErrorInfo(null);
     try {
       const url = buildUrl(paramsRef.current);
       const result = await apiClient.get(`${API_BASE}${url}`);
       setResponse(result);
-      setViewMode(null);
     } catch (e) {
-      setError(e.detail || e.message || 'HTTP error');
-      setErrorInfo(e.code ? { code: e.code, provider: e.provider } : null);
+      setError(stateFromError(e));
     } finally {
       setLoading(false);
     }
@@ -363,12 +343,10 @@ export default function UniversalWidget({
     return () => window.removeEventListener(FETCHER_WORKER_CONNECTED, fetchData);
   }, [error, fetchData]);
 
-  // 응답에 chart_hint가 실려 오면(copilot 데이터셋 등) 기본 차트형/뷰 적용
+  // 응답에 chart_hint가 실려 오면(copilot 데이터셋 등) 그 차트형을 보기로 쓴다
   useEffect(() => {
     const hint = response?.chart_hint;
-    if (!hint?.type) return;
-    setChartType(hint.type);
-    setViewMode('chart');
+    if (hint?.type) setViewSel(hint.type);
   }, [response]);
 
   // 개념 위젯: 셀렉터 옵션 = 응답의 candidates(그 국가를 지원하는 provider + 내 사용 가능 여부)
@@ -380,8 +358,6 @@ export default function UniversalWidget({
 
   // ── Derived state ────────────────────────────────────────────────────────
   const renderType  = response ? detectRenderType(response) : null;
-  const defaultView = (renderType === 'plotly' || concept) ? 'chart' : 'table';
-  const activeView  = viewMode ?? defaultView;
 
   // (model, provider) 쌍에 등록된 provider 전용 body override. 없으면 null → 기본 렌더.
   const OverrideView = resolveProviderView(category, provider);
@@ -415,6 +391,20 @@ export default function UniversalWidget({
     return buildChartFromRows(rows);
   }, [rows, display, response]);
 
+  // ── 보기 옵션 ─────────────────────────────────────────────────────────────
+  // plotly 응답: [Chart, Table] / 행 응답: [차트형…, Table] / kv·override·펼침 표: 보기 선택 없음
+  const viewOptions = useMemo(() => {
+    if (!renderType || OverrideView || display === 'kv' || expandable) return [];
+    if (renderType === 'plotly') return buildViewOptions({ plotly: true, chart: false, table: true });
+    if (!chartSpec) return [];
+    return buildViewOptions({ chart: chartCfg.allowedTypes || true, table: true });
+  }, [renderType, OverrideView, display, expandable, chartSpec, chartCfg.allowedTypes]);
+
+  const defaultView = renderType === 'plotly'
+    ? 'plotly'
+    : (concept ? (chartCfg.defaultType || 'line') : 'table');
+  const view = (viewSel && viewOptions.some((o) => o.value === viewSel)) ? viewSel : defaultView;
+
   // Has param? Hide BaseWidget header symbol/period selectors for those params
   const paramNames     = useMemo(() => new Set((paramsSpec || []).map(p => p.name)), [paramsSpec]);
   // 모델이 symbol을 받지 않으면(modelAcceptsSymbol===false) 심볼 셀렉터 숨김.
@@ -428,31 +418,12 @@ export default function UniversalWidget({
   // previous render" 로 터진다 — 포트폴리오 위젯에서 portfolioId 를 고르는 순간
   // 실제로 발생하는 경로였다.
   if (!endpoint && !dataProp) {
-    return (
-      <div className="flex items-center justify-center h-full text-gray-500 text-xs p-4">
-        No endpoint for: <code className="ml-1 font-mono text-red-400">{widgetId}</code>
-      </div>
-    );
+    return <WidgetState kind="error" title="Widget is not configured" message={`No endpoint for ${widgetId}`} />;
   }
 
   if (endpoint?.includes('{portfolioId}') && !portfolioId) {
-    return (
-      <div className="flex items-center justify-center h-full text-gray-600 text-xs p-4">
-        Select a portfolio to view this widget
-      </div>
-    );
+    return <WidgetState kind="idle" title="Select a portfolio" message="Pick a portfolio in the page header to see this widget." />;
   }
-
-  const showChartTypeSelector = !OverrideView && activeView === 'chart' && renderType !== 'plotly' && display !== 'kv';
-  const chartTypeSelector = showChartTypeSelector ? (
-    <div onMouseDown={e => e.stopPropagation()}>
-      <ChartTypeSelector
-        value={chartType}
-        onChange={setChartType}
-        types={chartCfg.allowedTypes}
-      />
-    </div>
-  ) : null;
 
   const setParam = (name, value) => {
     setParams((s) => ({ ...s, [name]: value }));
@@ -472,16 +443,14 @@ export default function UniversalWidget({
   ) : null;
 
   // ── Render body ──────────────────────────────────────────────────────────
-  let body;
-  if (errorInfo?.code === 'missing_key') {
-    body = <MissingKeyNotice provider={errorInfo.provider} />;
-  } else if (error) {
-    body = (
-      <div className="flex items-center justify-center h-full text-red-400 text-xs p-4">
-        {error}
-      </div>
-    );
-  } else if (OverrideView) {
+  // 실패·0건은 BaseWidget state 로 넘긴다 (본문 대신 공통 WidgetState).
+  const isEmpty = !!response && !OverrideView && renderType !== 'plotly' && rows.length === 0;
+  let widgetState = null;
+  if (error) widgetState = { ...error, onRetry: fetchData };
+  else if (isEmpty) widgetState = { kind: 'empty', message: paramsSpec?.length ? 'Try different parameters.' : undefined };
+
+  let body = null;
+  if (OverrideView) {
     // provider 전용 뷰: 기본 table/chart 대신 등록된 컴포넌트로 body 교체.
     body = (
       <OverrideView
@@ -491,10 +460,10 @@ export default function UniversalWidget({
         symbol={symbol}
         period={period}
         loading={loading}
-        error={error}
+        error={error?.message}
       />
     );
-  } else if (display === 'kv' || activeView === 'table') {
+  } else if (display === 'kv' || view === 'table' || (!chartSpec && renderType !== 'plotly')) {
     body = (
       <CommonTable
         columns={columns}
@@ -505,20 +474,20 @@ export default function UniversalWidget({
         compact={display === 'kv'}
       />
     );
-  } else if (renderType === 'plotly') {
+  } else if (view === 'plotly') {
     body = (
       <div className="absolute inset-0">
         <PlotlyRawChart plotlyJson={normalizePlotlyJson(response)} />
       </div>
     );
-  } else if (chartSpec) {
+  } else {
     body = (
       <div className="absolute inset-0">
         <CommonChart
           data={rows}
           series={chartSpec.series}
           xKey={chartSpec.xKey}
-          type={chartType}
+          type={view}
           fillContainer
           referenceLines={chartCfg.referenceLines}
           annotations={response?.chart_hint?.annotations}
@@ -527,15 +496,12 @@ export default function UniversalWidget({
         />
       </div>
     );
-  } else {
-    body = <CommonTable columns={columns} data={rows} emptyMessage="No data available" />;
   }
-
-  const showViewToggle = !OverrideView && !!renderType && !expandable && display !== 'kv';
 
   return (
     <BaseWidget
-      title={conceptMeta?.country?.label ? `${title} · ${conceptMeta.country.label}` : title}
+      title={title}
+      titleSuffix={conceptMeta?.country?.label}
       loading={loading}
       onRefresh={endpoint ? fetchData : undefined}
       onRemove={onRemove}
@@ -544,13 +510,15 @@ export default function UniversalWidget({
       period={requiresPeriod ? period : undefined}
       onPeriodChange={requiresPeriod ? setPeriod : undefined}
       showPeriodSelector={requiresPeriod}
+      periodPreset={concept ? 'concept' : 'macro'}
       provider={concept ? (provider || response?.provider) : (category ? provider : undefined)}
       onProviderChange={(category || concept) ? setProvider : undefined}
       providerOptions={concept ? conceptProviderOptions : (category ? providerOptions : undefined)}
-      viewMode={activeView}
-      onViewModeChange={setViewMode}
-      showViewToggle={showViewToggle}
-      headerExtra={<>{paramMenu}{chartTypeSelector}</>}
+      view={view}
+      viewOptions={viewOptions}
+      onViewChange={setViewSel}
+      headerExtra={paramMenu}
+      state={widgetState}
     >
       <div className="relative h-full min-h-0">
         {body}

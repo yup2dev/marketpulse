@@ -139,7 +139,6 @@ export default function BtVariableExplorerWidget({ onRemove }) {
       onRemove={onRemove}
       loading={loading}
       onRefresh={names.length ? run : undefined}
-      showViewToggle={false}
       showPeriodSelector={false}
     >
       <div className="flex flex-col h-full min-h-0 p-2 gap-2">

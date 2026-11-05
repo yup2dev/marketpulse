@@ -89,6 +89,22 @@ API fetch 이외의 상태(portfolioData 등)가 필요할 때만:
 ```
 컴포넌트는 `components/widgets/`에. 차트는 `PlotlyChart`/`CommonChart`, 표는 `CommonTable` 재사용 (recharts 신규 사용 금지).
 
+**껍데기는 반드시 `BaseWidget`, 필터·드롭다운·상태 화면은 반드시 `components/widgets/ui/`** —
+위젯 파일 안에 pill·select·'데이터 없음' 화면을 새로 그리지 않는다 (디자인이 제각각이 된 원인):
+
+| 필요한 것 | 쓸 것 |
+|---|---|
+| 필터 줄 | `BaseWidget filters={{ left, right }}` → 헤더 아래 FilterBar (본문 안에 필터 행을 그리지 않는다) |
+| 하나만 고르는 필터 (2~7개) | `SegmentedControl` |
+| 켜고 끄는 필터 | `ChipToggle` |
+| 드롭다운 | `Select` (브라우저 기본 `<select>` 금지) |
+| 기간 | `PeriodSelect` + `periods.js` 프리셋 — 기간 목록을 위젯에 직접 적지 않는다. 표기 `1D 1W 1M … 10Y` |
+| 로딩·0건·오류·키 없음·Fetcher 꺼짐 | `BaseWidget state={stateFromError(err)}` 또는 `<WidgetState kind=… />` |
+| 폼 입력칸 | `ParamField` |
+| 보기 전환(표/차트형) | `BaseWidget view/viewOptions/onViewChange` + `buildViewOptions()` |
+
+라벨은 영어. 색은 `index.css` 의 `html.light` 오버라이드 목록에 있는 클래스만 — ui/ 부품을 쓰면 자동으로 지켜진다.
+
 **차트 위젯을 만든다면 `components/widgets/chart/` 를 먼저 본다** — ChartWidget에서 분해해
 둔 조각들이라 그대로 가져다 쓸 수 있다. 차트 코드를 복사해 오지 말 것:
 

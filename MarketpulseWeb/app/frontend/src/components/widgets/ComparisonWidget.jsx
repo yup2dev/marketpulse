@@ -69,7 +69,6 @@ export default function ComparisonWidget({ onRemove }) {
       loading={loading}
       onRefresh={fetchComparison}
       onRemove={onRemove}
-      showViewToggle={false}
       showPeriodSelector={false}
     >
       <div className="flex flex-col h-full min-h-0">

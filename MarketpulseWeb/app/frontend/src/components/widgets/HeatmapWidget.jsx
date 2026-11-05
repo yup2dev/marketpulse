@@ -149,7 +149,6 @@ export default function HeatmapWidget({ onRemove }) {
       loading={loading}
       onRefresh={fetchSectors}
       onRemove={onRemove}
-      showViewToggle={false}
       showPeriodSelector={false}
     >
       <div className="flex flex-col h-full min-h-0">

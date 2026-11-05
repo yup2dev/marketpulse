@@ -210,7 +210,7 @@ export default function MarketRankingWidget({ onRemove }) {
     : fmtTradeValue(row.trade_value, row.curr);
 
   return (
-    <BaseWidget title="Market Ranking" icon={TrendingUp} onRemove={onRemove} showViewToggle={false} showPeriodSelector={false}>
+    <BaseWidget title="Market Ranking" icon={TrendingUp} onRemove={onRemove} showPeriodSelector={false}>
       <div className="flex flex-col h-full min-h-0 text-[var(--color-text-primary)]">
 
         {/* ── 필터 바 ─────────────────────────────────────────────────────── */}

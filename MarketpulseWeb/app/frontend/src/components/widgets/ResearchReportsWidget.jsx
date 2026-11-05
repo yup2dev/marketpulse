@@ -70,7 +70,6 @@ export default function ResearchReportsWidget({ symbol, onRemove }) {
       loading={loading && !viewing}
       onRefresh={fetchReports}
       onRemove={onRemove}
-      showViewToggle={false}
       showPeriodSelector={false}
       source="Imported PDF (local DB)"
       headerExtra={

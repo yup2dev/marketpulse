@@ -239,7 +239,6 @@ export default function SparklineWidget({ onRemove }) {
       loading={loading && Object.keys(history).length === 0}
       onRefresh={() => { setHistory({}); fetchHistory(); }}
       onRemove={onRemove}
-      showViewToggle={false}
       showPeriodSelector={false}
       headerExtra={headerExtra}
     >

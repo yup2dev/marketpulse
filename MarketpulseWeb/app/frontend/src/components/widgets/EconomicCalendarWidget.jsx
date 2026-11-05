@@ -20,7 +20,6 @@ export default function EconomicCalendarWidget({ onRemove }) {
       title="Economic Calendar"
       icon={Calendar}
       onRemove={onRemove}
-      showViewToggle={false}
       showPeriodSelector={false}
     >
       <div className="flex flex-col h-full min-h-0">

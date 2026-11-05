@@ -228,7 +228,6 @@ export default function AlertsWidget({ onRemove }) {
       icon={Bell}
       onRemove={onRemove}
       onRefresh={() => { fetchAlerts(); fetchHistory(); }}
-      showViewToggle={false}
       showPeriodSelector={false}
     >
       <div className="flex flex-col h-full min-h-0">

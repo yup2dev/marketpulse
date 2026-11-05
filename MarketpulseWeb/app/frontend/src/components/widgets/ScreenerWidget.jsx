@@ -374,7 +374,6 @@ export default function ScreenerWidget({ onRemove }) {
       title="Stock Screener"
       icon={SlidersHorizontal}
       onRemove={onRemove}
-      showViewToggle={false}
       showPeriodSelector={false}
     >
       <div className="absolute inset-0 flex min-h-0 overflow-hidden">

@@ -78,7 +78,6 @@ export default function CorrelationWidget({ onRemove }) {
       icon={Grid3X3}
       onRefresh={fetchCorrelation}
       onRemove={onRemove}
-      showViewToggle={false}
       showPeriodSelector={false}
     >
       {/* absolute inset-0: widget-content is position:relative, so this fills it without h-full */}
