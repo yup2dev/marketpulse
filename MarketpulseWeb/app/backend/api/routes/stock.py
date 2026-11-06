@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Query as FQuery
 from data_fetcher.core.obbject import OBBject
 from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
 from data_fetcher.query_executor import QueryExecutor
-from app.backend.api.deps import route_handler, wrap_result
+from app.backend.api.deps import filter_dated_rows, resolve_date_range, route_handler, wrap_result
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -32,6 +32,31 @@ _wrap = wrap_result
 def _wrap_one(data: Any, provider: str) -> OBBject:
     """단일 객체(스냅샷)를 1행 OBBject로 감싼다."""
     return wrap_result(data, provider)
+
+
+def _dated_events(
+    raw: Any, provider: str, start: Optional[str], end: Optional[str],
+    limit: Optional[int], default_limit: int, key: Optional[str] = None,
+) -> OBBject:
+    """이벤트 목록(배당·분할·공시·내부자 거래) 공통 마무리: 기간 필터 → 최신순 → 건수 제한.
+
+    기간을 주면 기간이 범위를 정하므로 limit 은 명시했을 때만 자른다
+    (10Y 배당 40건이 기본 20건에 잘리지 않게). 기간이 없으면 예전처럼 default_limit.
+    """
+    obb = wrap_result(raw, provider)
+    rows = filter_dated_rows(obb.results, start, end, key=key)
+    cap = limit if limit is not None else (None if (start or end) else default_limit)
+    obb.results = rows[:cap] if cap else rows
+    return obb
+
+
+def _range_params(params: Dict[str, Any], start: Optional[str], end: Optional[str]) -> Dict[str, Any]:
+    """fetcher QP 가 start_date/end_date 를 선언한 모델(dividends·insider_trading)에 범위를 넘긴다."""
+    if start:
+        params["start_date"] = start
+    if end:
+        params["end_date"] = end
+    return params
 
 
 # ── Direct QueryExecutor → OBBject ────────────────────────────────────────────
@@ -72,14 +97,24 @@ async def get_earnings(symbol: str, provider: str = "polygon", limit: int = 8) -
 
 @router.get("/insider-trading/{symbol}")
 @route_handler
-async def get_insider_trading(symbol: str, provider: str = "yahoo", limit: int = 50) -> OBBject:
+async def get_insider_trading(
+    symbol: str,
+    provider: str = "yahoo",
+    limit: Optional[int] = None,
+    period: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+) -> OBBject:
     # insider_trading: yahoo·polygon·sec 멀티프로바이더(표준 InsiderTradingData 공유).
     # 과거 yahoo 전용 insider_trading_summary 대신 공용 키로 디스패치해 provider 셀렉터를 지원.
     # 프론트는 셀렉터로 ?provider= 를 주입(기본값은 db>설정키>저부하 규칙). 라우트 기본값은 형제 라우트와 동일하게 yahoo.
-    raw = await QueryExecutor.fetch(
-        provider, "insider_trading", {"symbol": symbol.upper(), "limit": limit}
-    )
-    return _wrap(raw, provider)
+    # 기간은 거래일 기준(공시일은 거래 후 며칠 뒤라 기간 경계에서 어긋난다).
+    start, end = resolve_date_range(period, start_date, end_date)
+    # 기간 조회면 fetcher 쪽 건수를 넉넉히 받아 기간으로 자른다
+    fetch_limit = limit or (200 if (start or end) else 50)
+    params = _range_params({"symbol": symbol.upper(), "limit": fetch_limit}, start, end)
+    raw = await QueryExecutor.fetch(provider, "insider_trading", params)
+    return _dated_events(raw, provider, start, end, limit, 50, key="transaction_date")
 
 
 @router.get("/insider-holders/{symbol}")
@@ -122,26 +157,47 @@ async def get_calendar(
 
 @router.get("/dividends/{symbol}")
 @route_handler
-async def get_dividends(symbol: str, provider: str = "yahoo", limit: int = 20) -> OBBject:
-    raw = await QueryExecutor.fetch(provider, "dividends", {"symbol": symbol.upper()})
-    items = _unwrap(raw)[:limit]
-    return OBBject(results=_serialize(items), provider=provider)
+async def get_dividends(
+    symbol: str,
+    provider: str = "yahoo",
+    limit: Optional[int] = None,
+    period: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+) -> OBBject:
+    start, end = resolve_date_range(period, start_date, end_date)
+    raw = await QueryExecutor.fetch(provider, "dividends", _range_params({"symbol": symbol.upper()}, start, end))
+    return _dated_events(raw, provider, start, end, limit, 20)
 
 
 @router.get("/splits/{symbol}")
 @route_handler
-async def get_splits(symbol: str, provider: str = "yahoo", limit: int = 20) -> OBBject:
+async def get_splits(
+    symbol: str,
+    provider: str = "yahoo",
+    limit: Optional[int] = None,
+    period: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+) -> OBBject:
+    start, end = resolve_date_range(period, start_date, end_date)
     raw = await QueryExecutor.fetch(provider, "splits", {"symbol": symbol.upper()})
-    items = _unwrap(raw)[:limit]
-    return OBBject(results=_serialize(items), provider=provider)
+    return _dated_events(raw, provider, start, end, limit, 20)
 
 
 @router.get("/filings/{symbol}")
 @route_handler
-async def get_filings(symbol: str, provider: str = "yahoo", limit: int = 20) -> OBBject:
+async def get_filings(
+    symbol: str,
+    provider: str = "yahoo",
+    limit: Optional[int] = None,
+    period: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+) -> OBBject:
+    start, end = resolve_date_range(period, start_date, end_date)
     raw = await QueryExecutor.fetch(provider, "filings", {"symbol": symbol.upper()})
-    items = _unwrap(raw)[:limit]
-    return OBBject(results=_serialize(items), provider=provider)
+    return _dated_events(raw, provider, start, end, limit, 20)
 
 
 @router.get("/quarterly-pnl/{symbol}")

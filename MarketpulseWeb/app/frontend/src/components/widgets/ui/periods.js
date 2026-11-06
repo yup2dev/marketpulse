@@ -49,6 +49,8 @@ export const PERIOD_PRESETS = {
   macro:    ['1y', '2y', '3y', '5y'],
   concept:  ['1y', '3y', '5y', '10y'],
   backtest: ['3mo', '6mo', '1y', '2y', '5y', '10y'],
+  // 이벤트 목록(배당·분할·공시·내부자 거래) — 최근 몇 달부터 전체 이력까지
+  events:   ['6mo', '1y', '3y', '5y', '10y', 'max'],
 };
 
 /**

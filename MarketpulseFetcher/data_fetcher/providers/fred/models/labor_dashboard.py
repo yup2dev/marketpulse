@@ -2,6 +2,8 @@
 import logging
 from typing import Any, Dict, List, Optional
 
+from datetime import date as dateType
+
 from pydantic import Field
 
 from data_fetcher.abstract_provider.standard_models.indicator_dashboard import (
@@ -16,7 +18,10 @@ from data_fetcher.utils.api_keys import get_api_key
 # ── QueryParams / Data (standard IndicatorDashboard 경유) ──────────────────────
 
 class DashboardQueryParams(IndicatorDashboardQueryParams):
-    pass
+    date: Optional[dateType] = Field(
+        default=None,
+        description="기준일 — 이 날짜 이전 마지막 관측값으로 스냅샷을 만든다 (비우면 최신)",
+    )
 
 
 class DashboardRowData(IndicatorDashboardData):
@@ -70,6 +75,7 @@ class FREDLaborDashboardFetcher(ApiFetcher[DashboardQueryParams, DashboardRowDat
             try:
                 raw[key] = await FredSeriesFetcher.fetch_series(
                     series_id=series_id, api_key=api_key,
+                    end_date=query.date,
                     limit=limit, sort_order=sort,
                 )
             except Exception as e:

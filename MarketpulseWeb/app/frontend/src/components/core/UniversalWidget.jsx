@@ -163,6 +163,9 @@ export default function UniversalWidget({
   const chartCfg   = reg.chart || {};
   const kvCfg      = reg.kv;          // 객체를 새로 만들지 않는다 (useMemo 의존성)
   const columnCfg  = reg.columns;
+  // 헤더 기간 셀렉터({period} 엔드포인트): 위젯마다 기본값·선택지를 정한다.
+  // 개념 위젯은 장기 추세라 10Y, 그 외 기본은 macro 프리셋 1Y.
+  const periodCfg  = reg.period || (concept ? { default: '10y', preset: 'concept' } : { default: '1y', preset: 'macro' });
   // category = model 키 (provider 셀렉터 활성화 조건). 모델 단위 동적 위젯은 prop으로 주입.
   const category   = categoryProp ?? reg.category;
 
@@ -208,7 +211,7 @@ export default function UniversalWidget({
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [symbol,    setSymbol]    = useState(symbolProp || initParams.symbol || 'AAPL');
-  const [period,    setPeriod]    = useState(concept ? '10y' : '1y');
+  const [period,    setPeriod]    = useState(periodCfg.default);
   const [provider,  setProvider]  = useState(reg.provider || null);
   const [providerOptions, setProviderOptions] = useState([]);
   const [params,    setParams]    = useState(initParams);
@@ -570,7 +573,7 @@ export default function UniversalWidget({
       period={requiresPeriod ? period : undefined}
       onPeriodChange={requiresPeriod ? setPeriod : undefined}
       showPeriodSelector={requiresPeriod}
-      periodPreset={concept ? 'concept' : 'macro'}
+      periodPreset={periodCfg.preset}
       provider={concept ? (provider || response?.provider) : (category ? provider : undefined)}
       onProviderChange={(category || concept) ? setProvider : undefined}
       providerOptions={concept ? conceptProviderOptions : (category ? providerOptions : undefined)}

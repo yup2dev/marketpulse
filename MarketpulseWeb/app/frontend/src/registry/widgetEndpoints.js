@@ -21,6 +21,13 @@
  *     titleFrom?:  'institution_key'         // 그 param 의 현재 값 라벨을 제목 뒤에 붙인다
  *     kv?:         { primary, hide, labels } // display:'kv' — primary 는 큰 타일, hide 는 숨김
  *     columns?:    { hide, order, labels }   // 자동 컬럼 손질 (내부 키 숨기기 등)
+ *     period?:     { default, preset }       // endpoint 에 {period} 가 있으면 헤더 기간 셀렉터의
+ *                                           //   기본값·선택지(periods.js 프리셋). 없으면 1Y·macro
+ *
+ * 기간·기준일 고르는 기준 (OpenBB 표준 파라미터를 따른다):
+ *   - 시계열·이벤트 목록 → 기간(start_date~end_date). 헤더 기간 셀렉터({period}) 또는 Start/End date param
+ *   - 한 시점 스냅샷(수익률 곡선·지표 대시보드) → 기준일 date param (asOfParam, 비우면 최신)
+ *   - 실시간 시세·프로필·정성 분석(SWOT 등)·분기 수 기준 목록 → 둘 다 두지 않는다
  *
  * UI 라벨(title·label·hint)은 영어로 쓴다.
  *     expandable?: { keyField, endpoint, dataPath? }
@@ -59,12 +66,23 @@ import EarningsCalendarWidget  from '../components/widgets/EarningsCalendarWidge
 import ResearchReportsWidget   from '../components/widgets/ResearchReportsWidget';
 
 // ── date helpers (used by quant param defaults) ─────────────────────────────
-const isoDate = (d) => d.toISOString().slice(0, 10);
+// 로컬 날짜 기준 (toISOString 은 UTC 라 KST 오전엔 하루 전 날짜가 된다)
+const isoDate = (d) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 const today      = () => isoDate(new Date());
 const yearsAgo   = (n) => { const d = new Date(); d.setFullYear(d.getFullYear() - n); return isoDate(d); };
 const monthsAhead = (n) => { const d = new Date(); d.setMonth(d.getMonth() + n); return isoDate(d); };
 
 const TARGET_OPTIONS = ['close', 'open', 'high', 'low', 'adj_close', 'return'];
+
+// 스냅샷 기준일 — OpenBB fixedincome.government.yield_curve(date=…) 와 같은 뜻.
+// 비우면 최신 관측값. 고르는 즉시 적용(date 만 있는 폼)되고 칩에 'Latest' / 날짜가 보인다.
+const asOfParam = (hint = 'Uses the last observation on or before this date') => ({
+  name: 'date', label: 'As of', kind: 'date', default: '', pin: true,
+  emptyLabel: 'Latest', max: today, hint,
+});
+
+// 이벤트 목록의 헤더 기간 셀렉터
+const eventsPeriod = (def) => ({ default: def, preset: 'events' });
 
 // 지표 개념 위젯 — 국가 셀렉터는 그 개념이 지원하는 국가로 채운다(실패 시 정적 목록).
 const conceptWidget = (concept, title, country = 'USA') => ({
@@ -120,16 +138,17 @@ export const WIDGET_ENDPOINTS = {
 
   // ── Stock ──────────────────────────────────────────────────────────────────
   // category/provider: 헤더 provider 셀렉터 노출 + ?provider= 주입 (전용 라우트 기본값 유지).
-  'dividend':              { title: 'Dividends',              endpoint: '/stock/dividends/{symbol}', category: 'dividends', provider: 'yahoo' },
-  'stock-splits':          { title: 'Stock Splits',           endpoint: '/stock/splits/{symbol}',    category: 'splits',    provider: 'yahoo' },
-  'company-filings':       { title: 'SEC Filings',            endpoint: '/stock/filings/{symbol}',   category: 'filings' },
+  // 이벤트 목록 — 헤더 기간 셀렉터로 범위를 정한다 (OpenBB dividends/filings/insider_trading 의 start_date)
+  'dividend':              { title: 'Dividends',              endpoint: '/stock/dividends/{symbol}?period={period}', category: 'dividends', provider: 'yahoo', period: eventsPeriod('5y') },
+  'stock-splits':          { title: 'Stock Splits',           endpoint: '/stock/splits/{symbol}?period={period}',    category: 'splits',    provider: 'yahoo', period: eventsPeriod('max') },
+  'company-filings':       { title: 'SEC Filings',            endpoint: '/stock/filings/{symbol}?period={period}',   category: 'filings', period: eventsPeriod('1y') },
   'earnings':              { title: 'Earnings',               endpoint: '/stock/earnings/{symbol}',  category: 'earnings',  provider: 'polygon' },
   'earnings-history':      { title: 'Earnings History',       endpoint: '/stock/earnings/{symbol}',  category: 'earnings',  provider: 'polygon' },
-  'insider':               { title: 'Insider Trading',        endpoint: '/stock/insider-trading/{symbol}', category: 'insider_trading' },
+  'insider':               { title: 'Insider Trading',        endpoint: '/stock/insider-trading/{symbol}?period={period}', category: 'insider_trading', period: eventsPeriod('1y') },
   'ownership-overview':    { title: 'Ownership Overview',     endpoint: '/stock/holders/{symbol}',   category: 'holders',   provider: 'yahoo' },
   'ownership-institutional': { title: 'Institutional Holders', endpoint: '/stock/holders/{symbol}',  category: 'holders',   provider: 'yahoo' },
   'holder-breakdown':      { title: 'Holder Breakdown',        endpoint: '/stock/holders/{symbol}',  category: 'holders',   provider: 'yahoo' },
-  'ownership-insider':     { title: 'Insider Activity',       endpoint: '/stock/insider-trading/{symbol}', category: 'insider_trading' },
+  'ownership-insider':     { title: 'Insider Activity',       endpoint: '/stock/insider-trading/{symbol}?period={period}', category: 'insider_trading', period: eventsPeriod('1y') },
   'management':            { title: 'Management',             endpoint: '/stock/management/{symbol}', category: 'management', provider: 'yahoo' },
   'swot':                  { title: 'SWOT Analysis',          endpoint: '/stock/swot/{symbol}',      category: 'swot',      provider: 'yahoo' },
   'economic-moat':         { title: 'Economic Moat',          endpoint: '/stock/moat/{symbol}',      category: 'moat',      provider: 'yahoo' },
@@ -150,16 +169,18 @@ export const WIDGET_ENDPOINTS = {
   'inflation-momentum':     { title: 'Inflation Momentum',     endpoint: '/data/fred/inflation_momentum?period={period}' },
   'initial-claims':         { title: 'Initial Claims',         endpoint: '/data/fred/initial_claims?period={period}' },
   'jobs-breakdown':         { title: 'Jobs Breakdown',         endpoint: '/data/fred/jobs_breakdown?period={period}' },
-  'yield-curve-snapshot':   { title: 'Yield Curve',            endpoint: '/data/fred/yield_curve' },
+  // 스냅샷 — 기준일(As of)로 과거 시점을 본다
+  'yield-curve-snapshot':   { title: 'Yield Curve',            endpoint: '/data/fred/yield_curve', params: [asOfParam()] },
   'yield-trends':           { title: 'Yield Trends',           endpoint: '/data/fred/yield_curve_history?period={period}' },
   'real-rates':             { title: 'Real Rates (TIPS)',       endpoint: '/data/fred/real_rates?period={period}' },
   'fed-balance-sheet':      { title: 'Fed Balance Sheet',      endpoint: '/data/fred/fed_balance_sheet?period={period}' },
-  'inflation-decomp':       { title: 'Inflation Decomposition', endpoint: '/macro/inflation/decomposition' },
+  'inflation-decomp':       { title: 'Inflation Decomposition', endpoint: '/data/fred/inflation_decomposition',
+                              params: [asOfParam('Uses the last CPI release on or before this date')] },
   'inflation-trends':       { title: 'Inflation Trends',       endpoint: '/data/fred/inflation_sector?period={period}' },
-  'labor-market-dashboard': { title: 'Labor Market',           endpoint: '/data/fred/labor_dashboard' },
+  'labor-market-dashboard': { title: 'Labor Market',           endpoint: '/data/fred/labor_dashboard', params: [asOfParam()] },
   'pmi':                    { title: 'ISM PMI / LEI',           endpoint: '/data/fred/pmi?period={period}' },
-  'fin-conditions-tab':     { title: 'Financial Conditions',   endpoint: '/data/fred/financial_conditions' },
-  'sentiment-tab':          { title: 'Market Sentiment',       endpoint: '/data/fred/sentiment_composite' },
+  'fin-conditions-tab':     { title: 'Financial Conditions',   endpoint: '/data/fred/financial_conditions', params: [asOfParam()] },
+  'sentiment-tab':          { title: 'Market Sentiment',       endpoint: '/data/fred/sentiment_composite', params: [asOfParam()] },
   'commodities-tab':        { title: 'Commodities',            endpoint: '/macro/fred/series' },
 
   // ── QuantLib option pricing (form-driven, common-widget) ──────────────────

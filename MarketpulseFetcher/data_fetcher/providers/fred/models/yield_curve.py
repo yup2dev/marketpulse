@@ -1,7 +1,9 @@
 """Yield Curve Models"""
 import logging
+from datetime import date as dateType
 from typing import Optional, Any, Dict, List
 
+from pydantic import Field
 
 from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.standard_models.yield_curve import (
@@ -29,19 +31,28 @@ _MATURITIES = [
 ]
 
 
-class FREDYieldCurveFetcher(ApiFetcher[YieldCurveQueryParams, YieldCurveData]):
-    """미국채 수익률 곡선 현재 스냅샷 — 7개 만기별 최신 수익률."""
+class FREDYieldCurveQueryParams(YieldCurveQueryParams):
+    """스냅샷 기준일 — OpenBB fixedincome.government.yield_curve 의 date 와 같은 뜻."""
+
+    date: Optional[dateType] = Field(
+        default=None,
+        description="기준일 — 이 날짜 이전 마지막 관측값으로 곡선을 그린다 (비우면 최신)",
+    )
+
+
+class FREDYieldCurveFetcher(ApiFetcher[FREDYieldCurveQueryParams, YieldCurveData]):
+    """미국채 수익률 곡선 스냅샷 — 7개 만기별 기준일(기본 최신) 수익률."""
 
     api_name = "FRED"
     api_key_env = "FRED_API_KEY"
 
     @staticmethod
-    def transform_query(params: Dict[str, Any]) -> YieldCurveQueryParams:
-        return YieldCurveQueryParams(**params)
+    def transform_query(params: Dict[str, Any]) -> FREDYieldCurveQueryParams:
+        return FREDYieldCurveQueryParams(**params)
 
     @staticmethod
     async def aextract_data(
-        query: YieldCurveQueryParams,
+        query: FREDYieldCurveQueryParams,
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any,
     ) -> List[Dict]:
@@ -54,6 +65,7 @@ class FREDYieldCurveFetcher(ApiFetcher[YieldCurveQueryParams, YieldCurveData]):
                     api_key=api_key,
                     limit=1,
                     sort_order="desc",
+                    end_date=query.date,
                 )
                 if obs and obs[0].get("value") not in (None, ".", ""):
                     rows.append({
@@ -67,7 +79,7 @@ class FREDYieldCurveFetcher(ApiFetcher[YieldCurveQueryParams, YieldCurveData]):
 
     @staticmethod
     def transform_data(
-        query: YieldCurveQueryParams,
+        query: FREDYieldCurveQueryParams,
         data: List[Dict],
         **kwargs: Any,
     ) -> List[YieldCurveData]:
