@@ -686,6 +686,65 @@ class MBS_IN_INSTI_PERF(Base):
     )
 
 
+class MBS_IN_INSTI_PORT_HIST(Base):
+    """기관 13F 포트폴리오 요약 — 분기 이력. 한 행 = 기관 × 보고 분기(period).
+
+    MBS_IN_INSTI_PORT 는 최신 1건만 두고, 지난 분기 조회(위젯 기준 분기 선택)는 이 테이블을 읽는다.
+    13F-HR 원본은 분기가 지나면 바뀌지 않으므로 배치는 없는 분기만 추가한다.
+    base_ymd 는 적재일 — 클라우드 동기화 증분 기준.
+    """
+
+    __tablename__ = 'mbs_in_insti_port_hist'
+
+    institution_key = Column(String(100), primary_key=True)
+    period = Column(String(20), primary_key=True)          # 보고 분기말 (YYYY-MM-DD, SEC reportDate)
+    id = Column(String(120))
+    manager = Column(String(300))
+    name = Column(String(300))
+    description = Column(Text)
+    total_value = Column(Float)
+    num_holdings = Column(Integer)
+    filing_date = Column(String(20))
+    category = Column(String(50))
+    previous_filing_date = Column(String(20))
+    previous_value = Column(Float)
+    value_change = Column(Float)
+    value_change_pct = Column(Float)
+    num_new_positions = Column(Integer)
+    num_sold_out = Column(Integer)
+    num_increased = Column(Integer)
+    num_decreased = Column(Integer)
+    turnover = Column(Float)
+    top_sectors = Column(JSON)
+    base_ymd = Column(Date, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class MBS_IN_INSTI_HOLD_HIST(Base):
+    """기관 13F 보유 종목 — 분기 이력 (MBS_IN_INSTI_HOLD 와 같은 필드 + period)."""
+
+    __tablename__ = 'mbs_in_insti_hold_hist'
+
+    institution_key = Column(String(100), primary_key=True)
+    period = Column(String(20), primary_key=True)
+    is_sold = Column(Boolean, primary_key=True, default=False)
+    seq = Column(Integer, primary_key=True)
+    symbol = Column(String(20), index=True)
+    name = Column(String(300))
+    cusip = Column(String(20))
+    value = Column(Float)
+    shares = Column(BigInteger)
+    weight = Column(Float)
+    prev_shares = Column(BigInteger)
+    prev_value = Column(Float)
+    share_change = Column(BigInteger)
+    share_change_pct = Column(Float)
+    value_change = Column(Float)
+    value_change_pct = Column(Float)
+    status = Column(String(20))
+    base_ymd = Column(Date, index=True)
+
+
 class MBS_IN_RESEARCH_RPT(Base):
     """입수 - 리서치 보고서 (PDF 임포트: 애널리스트 보고서/추정치/연간보고서).
 
@@ -746,5 +805,7 @@ __all__ = [
     "MBS_IN_INSTI_MST",
     "MBS_IN_INSTI_PORT",
     "MBS_IN_INSTI_HOLD",
+    "MBS_IN_INSTI_PORT_HIST",
+    "MBS_IN_INSTI_HOLD_HIST",
     "MBS_IN_RESEARCH_RPT",
 ]

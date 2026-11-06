@@ -3,6 +3,9 @@
 MBS_IN_INSTI_PORT(요약) + MBS_IN_INSTI_HOLD(보유종목)에서 읽어 whalewisdom과 동일한
 객체 형태로 복원한다(portfolio_service 직렬화 무수정). 미적재 기관이면 빈 리스트
 (서버 온디맨드 폴백 없음 — 13F 파싱은 로컬 배치에서만).
+
+period(보고 분기말)를 주면 분기 이력(MBS_IN_INSTI_PORT_HIST/HOLD_HIST)에서 읽는다.
+응답에는 항상 available_periods(적재된 분기, 최신순)를 실어 위젯이 분기 선택지를 만든다.
 """
 import logging
 from typing import Any, Dict, List, Optional
@@ -14,7 +17,8 @@ from data_fetcher.abstract_provider.standard_models.institutional_holdings impor
     InstitutionalHoldingsData,
 )
 from data_fetcher.providers.database.schema import (
-    MBS_IN_INSTI_MST, MBS_IN_INSTI_PORT, MBS_IN_INSTI_HOLD
+    MBS_IN_INSTI_MST, MBS_IN_INSTI_PORT, MBS_IN_INSTI_HOLD,
+    MBS_IN_INSTI_PORT_HIST, MBS_IN_INSTI_HOLD_HIST,
 )
 
 log = logging.getLogger(__name__)
@@ -71,16 +75,31 @@ class DBInstitutionalHoldingsFetcher(
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any,
     ) -> Dict[str, Any]:
+        key = query.institution_key
         with cls.db_session(**kwargs) as session:
-            port = session.get(MBS_IN_INSTI_PORT, query.institution_key)
+            periods = [
+                r[0] for r in session.query(MBS_IN_INSTI_PORT_HIST.period)
+                .filter(MBS_IN_INSTI_PORT_HIST.institution_key == key)
+                .order_by(MBS_IN_INSTI_PORT_HIST.period.desc())
+                .all()
+            ]
+            if query.period:
+                port = session.get(MBS_IN_INSTI_PORT_HIST, (key, query.period))
+                hold, filt = MBS_IN_INSTI_HOLD_HIST, [MBS_IN_INSTI_HOLD_HIST.period == query.period]
+            else:
+                port = session.get(MBS_IN_INSTI_PORT, key)
+                hold, filt = MBS_IN_INSTI_HOLD, []
             if port is None:
-                return {}  # 미적재
+                return {}  # 미적재 (기관 또는 그 분기)
             summary = {f: getattr(port, f, None) for f in _PORT_FIELDS}
+            if query.period:
+                summary["period_end"] = query.period
+            summary["available_periods"] = periods
 
             rows = (
-                session.query(MBS_IN_INSTI_HOLD)
-                .filter(MBS_IN_INSTI_HOLD.institution_key == query.institution_key)
-                .order_by(MBS_IN_INSTI_HOLD.is_sold, MBS_IN_INSTI_HOLD.seq)
+                session.query(hold)
+                .filter(hold.institution_key == key, *filt)
+                .order_by(hold.is_sold, hold.seq)
                 .all()
             )
             stocks, sold = [], []

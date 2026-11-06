@@ -101,11 +101,13 @@ async def get_13f_portfolio(
     institution_key: str,
     limit: int = 50,
     summary_only: bool = False,
+    period: Optional[str] = None,
     provider: str = "sec",
 ) -> OBBject:
+    """period: 보고 분기말(YYYY-MM-DD) — 비우면 최신. 선택지는 응답의 available_periods."""
     try:
         data = await portfolio_service.get_institution_portfolio(
-            institution_key=institution_key, limit=limit, summary_only=summary_only
+            institution_key=institution_key, limit=limit, summary_only=summary_only, period=period,
         )
         return OBBject(results=[data], provider=provider)
     except ValueError as e:

@@ -17,6 +17,23 @@ from data_fetcher.providers.sec.models.institutional_13f import (
 log = logging.getLogger(__name__)
 
 
+def filings_for_period(cik: str, period: str) -> List[tuple]:
+    """보고 분기말(period) 의 13F-HR 과 그 직전 분기 — `_get_filing_urls` 와 같은 (url, 제출일) 형식.
+
+    browse-edgar 는 최신 N건만 주므로 지난 분기는 submissions API(reportDate 포함)에서 찾는다.
+    """
+    from data_fetcher.providers.sec.models.fund_performance import SECFundPerformanceFetcher as _Perf
+
+    filings = _Perf._list_13f_filings(cik, 80)
+    for i, f in enumerate(filings):
+        if f['period'] == period:
+            return [
+                (_Perf._filing_index_url(cik, g['accession']), g['filing_date'])
+                for g in filings[i:i + 2]
+            ]
+    return []
+
+
 class WhaleWisdomFetcher(ApiFetcher[InstitutionalHoldingsQueryParams, InstitutionalHoldingsData]):
     """WhaleWisdom-style institutional holdings fetcher using SEC EDGAR 13F filings"""
 
@@ -59,12 +76,18 @@ class WhaleWisdomFetcher(ApiFetcher[InstitutionalHoldingsQueryParams, Institutio
 
         try:
             import time
-            filing_results = SEC13FFetcher._get_filing_urls(cik, headers, count=2)
+            if query.period:
+                filing_results = filings_for_period(cik, query.period)
+                if not filing_results:
+                    raise ValueError(f"{institution_key}: no 13F-HR for period {query.period}")
+            else:
+                filing_results = SEC13FFetcher._get_filing_urls(cik, headers, count=2)
 
             if not filing_results:
                 log.error(f"No 13F filings found for {inst_info['name']}")
                 return {
                     'institution': inst_info,
+                'report_period': query.period,
                     'summary_only': query.summary_only,
                     'holdings': [],
                     'filing_date': None,
@@ -92,6 +115,7 @@ class WhaleWisdomFetcher(ApiFetcher[InstitutionalHoldingsQueryParams, Institutio
 
                 return {
                     'institution': inst_info,
+                'report_period': query.period,
                     'summary_only': True,
                     'filing_date': current_filing_date,
                     'previous_filing_date': previous_filing_date,
@@ -120,6 +144,7 @@ class WhaleWisdomFetcher(ApiFetcher[InstitutionalHoldingsQueryParams, Institutio
 
             return {
                 'institution': inst_info,
+                'report_period': query.period,
                 'summary_only': False,
                 'holdings': current_holdings,
                 'filing_date': current_filing_date,
@@ -169,7 +194,7 @@ class WhaleWisdomFetcher(ApiFetcher[InstitutionalHoldingsQueryParams, Institutio
                     category='13f',
                     source='SEC EDGAR',
                     filing_date=filing_date or '2024-12-31',
-                    period_end=filing_date or '2024-12-31',
+                    period_end=data.get('report_period') or filing_date or '2024-12-31',
                     total_value=total_value,
                     num_holdings=cur.get('num_holdings', 0),
                     stocks=[],
@@ -350,7 +375,7 @@ class WhaleWisdomFetcher(ApiFetcher[InstitutionalHoldingsQueryParams, Institutio
                 category='13f',
                 source='SEC EDGAR',
                 filing_date=filing_date or '2024-12-31',
-                period_end=filing_date or '2024-12-31',
+                period_end=data.get('report_period') or filing_date or '2024-12-31',
                 total_value=total_value,
                 num_holdings=all_current_sh,
                 stocks=stock_holdings,

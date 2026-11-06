@@ -18,6 +18,10 @@ class InstitutionalHoldingsQueryParams(BaseQueryParams):
     institution_key: str = Field(description="기관 식별자 (예: 'berkshire', 'bridgewater')")
     limit: Optional[int] = Field(default=50, description="최대 보유 종목 수")
     summary_only: bool = Field(default=False, description="True이면 종목 목록 없이 요약만 반환")
+    period: Optional[str] = Field(
+        default=None,
+        description="보고 분기말 (YYYY-MM-DD, SEC reportDate). 비우면 최신 분기",
+    )
 
 
 class HoldingData(BaseData):

@@ -5,14 +5,15 @@ SEC EDGAR 13F 원본을 **로컬에서** 파싱해 로컬 DB(data/marketpulse.db
 MarketpulseBatch/jobs/sync_db_to_cloud.py 가 /api/ingest 로 전송한다.
 
 적재 테이블: mbs_in_insti_mst(기관 목록) / mbs_in_insti_port·hold(포트폴리오)
-            / mbs_in_insti_perf(분기 추정 수익률)
+            / mbs_in_insti_perf(분기 추정 수익률) / mbs_in_insti_port_hist·hold_hist(분기 이력)
 
 사용:
     python MarketpulseBatch/jobs/collect_13f.py                  # 즉시 실행
     python MarketpulseBatch/jobs/collect_13f.py --only-on sun    # 오늘이 일요일일 때만 실행(daily_ingest.bat용)
 
 조정(환경변수): FETCHER_13F_TOP_N(기본 300), FETCHER_13F_SCAN_WORKERS(4),
-               FETCHER_13F_SCAN_LIMIT(0=전체), FETCHER_13F_PERF_QUARTERS(8)
+               FETCHER_13F_SCAN_LIMIT(0=전체), FETCHER_13F_PERF_QUARTERS(8),
+               FETCHER_13F_HIST_TOP_N(50), FETCHER_13F_HIST_QUARTERS(8)
 """
 from __future__ import annotations
 
@@ -50,9 +51,9 @@ def main() -> int:
     default_db.create_tables()  # 신규 적재 테이블(mbs_in_insti_perf 등) 보장
     summary = Institutional13FCollector().run()
     log.info(
-        "13F 수집 완료 — 기관 %s, 포트폴리오 %d, 수익률 %d, 오류 %d",
+        "13F 수집 완료 — 기관 %s, 포트폴리오 %d, 수익률 %d, 이력 분기 %d, 오류 %d",
         summary["institutions"], len(summary["portfolios"]),
-        summary["performance"], len(summary["errors"]),
+        summary["performance"], summary["history"], len(summary["errors"]),
     )
     # 포트폴리오를 하나도 못 적재했으면 실패로 보고(동기화 로그에서 식별 가능하게)
     return 0 if summary["portfolios"] else 1

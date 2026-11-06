@@ -17,7 +17,7 @@ import {
 import { apiClient, API_BASE } from '../../config/api';
 import CommonTable from '../common/CommonTable';
 import BaseWidget from './common/BaseWidget';
-import { SegmentedControl, WidgetState } from './ui';
+import { FilterDivider, Select, SegmentedControl, WidgetState } from './ui';
 
 // ── Overview 컬럼 (CommonTable 포맷) ─────────────────────────────────────────
 const OVERVIEW_COLUMNS = [
@@ -378,6 +378,12 @@ const SORT_OPTIONS = [
   { id: 'value_change_pct', label: 'Change %' },
 ];
 
+/** 보고 분기말 '2025-09-30' → 'Q3 2025' */
+const quarterLabel = (period) => {
+  const m = /^(\d{4})-(\d{2})/.exec(period || '');
+  return m ? `Q${Math.ceil(Number(m[2]) / 3)} ${m[1]}` : period;
+};
+
 // Colors for institution indicators
 const INST_COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
 
@@ -394,6 +400,10 @@ const InstitutionalPortfolios = ({ onRemove }) => {
   const [sortBy, setSortBy] = useState('total_value');
   const [showAddInst, setShowAddInst] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  // 기준 분기 — '' = 최신 공시. 선택지는 최신 응답의 available_periods(배치가 이력 적재한 분기)
+  const [quarter, setQuarter] = useState('');
+  const [periodsByKey, setPeriodsByKey] = useState({});
+  const quarterRef = useRef('');
   const addInstRef = useRef(null);
 
   // Close dropdown when clicking outside
@@ -433,10 +443,15 @@ const InstitutionalPortfolios = ({ onRemove }) => {
 
   // 요약 데이터만 조회 (total_value, holdings, QoQ — 종목 목록 없음)
   const fetchPortfolioSummary = useCallback(async (instKey) => {
+    const q = quarterRef.current;
     setLoadingKeys(prev => new Set([...prev, instKey]));
     try {
-      const data = await apiClient.get(`${API_BASE}/portfolio/13f/${instKey}?summary_only=true`);
+      const data = await apiClient.get(`${API_BASE}/portfolio/13f/${instKey}?summary_only=true${q ? `&period=${q}` : ''}`);
       const portfolio = data.results?.[0];
+      if (quarterRef.current !== q) return;
+      if (portfolio && !q) {
+        setPeriodsByKey(prev => ({ ...prev, [instKey]: portfolio.available_periods || [] }));
+      }
       if (portfolio) {
         setErrorKeys(prev => { if (!(instKey in prev)) return prev; const n = { ...prev }; delete n[instKey]; return n; });
         setPortfolios(prev => {
@@ -449,6 +464,7 @@ const InstitutionalPortfolios = ({ onRemove }) => {
       }
     } catch (err) {
       console.error('Error fetching portfolio summary:', err);
+      if (quarterRef.current !== q) return;
       setErrorKeys(prev => ({ ...prev, [instKey]: err.detail || err.message || 'Failed to load' }));
     } finally {
       setLoadingKeys(prev => { const n = new Set(prev); n.delete(instKey); return n; });
@@ -457,10 +473,12 @@ const InstitutionalPortfolios = ({ onRemove }) => {
 
   // 전체 데이터 조회 (expand 시 호출) — expandLoadingKeys 사용으로 위젯 전체 로딩 표시 안 함
   const fetchPortfolio = useCallback(async (instKey) => {
+    const q = quarterRef.current;
     setExpandLoadingKeys(prev => new Set([...prev, instKey]));
     try {
-      const data = await apiClient.get(`${API_BASE}/portfolio/13f/${instKey}`);
+      const data = await apiClient.get(`${API_BASE}/portfolio/13f/${instKey}${q ? `?period=${q}` : ''}`);
       const portfolio = data.results?.[0];
+      if (quarterRef.current !== q) return;
       if (portfolio) {
         setErrorKeys(prev => { if (!(instKey in prev)) return prev; const n = { ...prev }; delete n[instKey]; return n; });
         setPortfolios(prev => {
@@ -472,11 +490,34 @@ const InstitutionalPortfolios = ({ onRemove }) => {
       }
     } catch (err) {
       console.error('Error fetching portfolio:', err);
+      if (quarterRef.current !== q) return;
       setErrorKeys(prev => ({ ...prev, [instKey]: err.detail || err.message || 'Failed to load holdings' }));
     } finally {
       setExpandLoadingKeys(prev => { const n = new Set(prev); n.delete(instKey); return n; });
     }
   }, []);
+
+  // 분기 바꾸면 전 기관을 그 분기로 다시 조회 — 이력이 없는 기관은 요청하지 않고 표시만
+  const changeQuarter = (q) => {
+    quarterRef.current = q;
+    setQuarter(q);
+    setPortfolios([]);
+    const missing = {};
+    institutions.forEach((inst) => {
+      if (q && !(periodsByKey[inst.key] || []).includes(q)) {
+        missing[inst.key] = `No ${quarterLabel(q)} filing loaded`;
+        return;
+      }
+      if (selectedInstitutions.some(s => s.key === inst.key)) fetchPortfolio(inst.key);
+      else fetchPortfolioSummary(inst.key);
+    });
+    setErrorKeys(missing);
+  };
+
+  const quarterOptions = useMemo(() => {
+    const all = [...new Set(Object.values(periodsByKey).flat())].sort().reverse();
+    return [{ value: '', label: 'Latest' }, ...all.map(p => ({ value: p, label: quarterLabel(p), note: p }))];
+  }, [periodsByKey]);
 
   const addInstitution = (inst) => {
     if (!selectedInstitutions.find(s => s.key === inst.key) && selectedInstitutions.length < 10) {
@@ -675,12 +716,20 @@ const InstitutionalPortfolios = ({ onRemove }) => {
       filters={{
         left: institutionPicker,
         right: (
-          <SegmentedControl
-            value={sortBy}
-            options={SORT_OPTIONS.map((o) => ({ value: o.id, label: o.label }))}
-            onChange={setSortBy}
-            ariaLabel="Sort"
-          />
+          <>
+            {quarterOptions.length > 1 && (
+              <>
+                <Select value={quarter} options={quarterOptions} onChange={changeQuarter} title="Report quarter" />
+                <FilterDivider />
+              </>
+            )}
+            <SegmentedControl
+              value={sortBy}
+              options={SORT_OPTIONS.map((o) => ({ value: o.id, label: o.label }))}
+              onChange={setSortBy}
+              ariaLabel="Sort"
+            />
+          </>
         ),
       }}
       state={error ? { kind: 'error', message: error, onRetry: fetchInstitutions } : null}
