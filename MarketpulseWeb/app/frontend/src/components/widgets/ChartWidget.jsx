@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, useContext } from 'react';
 import { Plus, TrendingUp, Activity, X, TrendingDown, Settings, BarChart2 } from 'lucide-react';
 import StockSelectorModal from '../common/StockSelectorModal';
 import useTheme from '../../hooks/useTheme';
@@ -29,7 +29,7 @@ import {
   mergeSeriesIndicatorData,
 } from './chart/chartData';
 import ChartControls from './chart/ChartControls';
-import { SourceFooter } from './ui';
+import { SourceFooter, WidgetInstanceContext } from './ui';
 import TickerShiftPopover from './chart/TickerShiftPopover';
 import ChartTypeDropdown from './chart/ChartTypeDropdown';
 import MacroIndicatorDropdown from './chart/MacroIndicatorDropdown';
@@ -75,7 +75,10 @@ const ChartWidget = ({
   // Detect series mode: when series prop is provided and has data
   const isSeriesMode = series && series.length > 0;
   const { chartTheme, tokens } = useTheme();
-  const storageKey = widgetId ? `chart-widget-${widgetId}` : null;
+  // 그리드 위젯은 인스턴스 id 로 저장 — 티커를 추가한 뒤 탭·화면을 옮겨도 유지된다.
+  // (시리즈 모드는 상위 위젯이 데이터를 들고 있어 저장하지 않는다)
+  const instanceId = useContext(WidgetInstanceContext);
+  const storageKey = widgetId ? `chart-widget-${widgetId}` : (instanceId && !series ? `chart-widget-${instanceId}` : null);
 
   // Load saved state or use initial values
   const loadSavedState = () => {

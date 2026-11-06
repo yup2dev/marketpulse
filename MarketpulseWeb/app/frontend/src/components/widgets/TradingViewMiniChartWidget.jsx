@@ -8,7 +8,7 @@
  * 심볼은 'AAPL'처럼 티커만 넣으면 TradingView가 거래소를 자동 해석하고,
  * 'KRX:005930'처럼 거래소 접두사도 그대로 통과한다.
  */
-import { useState } from 'react';
+import { useWidgetState, useWidgetSymbol } from './ui';
 import { CandlestickChart } from 'lucide-react';
 import BaseWidget from './common/BaseWidget';
 import TradingViewEmbed from './common/TradingViewEmbed';
@@ -28,8 +28,8 @@ const RANGE_OPTIONS = [
 ];
 
 export default function TradingViewMiniChartWidget({ symbol: seedSymbol, onRemove }) {
-  const [symbol, setSymbol]       = useState(seedSymbol || 'AAPL');
-  const [dateRange, setDateRange] = useState('1M');
+  const [symbol, setSymbol]       = useWidgetSymbol(seedSymbol);
+  const [dateRange, setDateRange] = useWidgetState('dateRange', '1M');
   const theme = useThemeStore(state => state.theme);
 
   const config = {

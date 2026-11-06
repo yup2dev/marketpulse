@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Grid3X3 } from 'lucide-react';
 import BaseWidget from './common/BaseWidget';
-import { PeriodSelect, WidgetState, stateFromError } from './ui';
+import { PeriodSelect, WidgetState, stateFromError, useWidgetState } from './ui';
 import { apiClient, API_BASE } from '../../config/api';
 import SymbolAutocomplete from '../common/SymbolAutocomplete';
 
@@ -9,7 +9,7 @@ import SymbolAutocomplete from '../common/SymbolAutocomplete';
 const PERIODS = ['3mo', '6mo', '1y', '2y'];
 
 export default function CorrelationWidget({ onRemove }) {
-  const [symbols, setSymbols] = useState(['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META']);
+  const [symbols, setSymbols] = useWidgetState('symbols', ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META']);
   const [period, setPeriod] = useState('1y');
   const [matrix, setMatrix] = useState(null);
   const [labels, setLabels] = useState([]);

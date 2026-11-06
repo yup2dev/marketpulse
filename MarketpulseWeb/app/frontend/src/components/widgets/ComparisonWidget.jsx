@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import { useWidgetState } from './ui';
 import { GitCompare } from 'lucide-react';
 import BaseWidget from './common/BaseWidget';
 import { apiClient, API_BASE } from '../../config/api';
@@ -29,7 +30,7 @@ function fmtLarge(v) {
 }
 
 export default function ComparisonWidget({ onRemove }) {
-  const [symbols, setSymbols] = useState(['AAPL', 'MSFT']);
+  const [symbols, setSymbols] = useWidgetState('symbols', ['AAPL', 'MSFT']);
   const [stocks, setStocks] = useState([]);
   const [loading, setLoading] = useState(false);
   const [addInput, setAddInput] = useState('');
