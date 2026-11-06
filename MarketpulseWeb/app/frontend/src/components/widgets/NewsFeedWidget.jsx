@@ -8,7 +8,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Newspaper, ExternalLink } from 'lucide-react';
 import BaseWidget from './common/BaseWidget';
 import TimelineList, { Badge } from './common/TimelineList';
-import { PeriodSelect } from './ui';
+import { PeriodSelect, useWidgetState, useWidgetSymbol } from './ui';
 import { newsAPI } from '../../config/api';
 
 // 서버 상한(routes/news.py le=50) — Load more 가 이 이상 요청하면 422
@@ -40,13 +40,9 @@ function tickerBadges(tickers) {
 export default function NewsFeedWidget({ symbol: symbolProp, onRemove }) {
   const [articles, setArticles] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [symbol, setSymbol] = useState(symbolProp || '');
+  const [symbol, setSymbol] = useWidgetSymbol(symbolProp, '');
   const [limit, setLimit] = useState(20);
-  const [period, setPeriod] = useState('1w');
-
-  useEffect(() => {
-    if (symbolProp) setSymbol(symbolProp);
-  }, [symbolProp]);
+  const [period, setPeriod] = useWidgetState('period', '1w');
 
   const fetchNews = useCallback(async () => {
     setLoading(true);

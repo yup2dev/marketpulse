@@ -5,7 +5,8 @@
  * /backtest 탭 템플릿(urlWidgetMap)의 'backtest-lab' 위젯. 헤더의 심볼 선택을 seed 로 받는다.
  * v1: chart-only (no strategy backtest engine yet — see roadmap).
  */
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
+import { useWidgetSymbol } from './ui';
 import toast from 'react-hot-toast';
 
 import SeriesPicker  from '../backtest/SeriesPicker';
@@ -25,14 +26,13 @@ function defaultRange() {
 }
 
 export default function BacktestLabWidget({ symbol: symbolProp, onRemove }) {
-  const [symbol, setSymbol]             = useState(symbolProp || 'AAPL');
+  // 헤더 심볼 선택이 바뀌면 다음에 추가할 시리즈의 심볼도 따라간다(이미 그린 시리즈는 유지).
+  const [symbol, setSymbol]             = useWidgetSymbol(symbolProp);
   const [startDate, setStartDate]       = useState(() => defaultRange().start);
   const [endDate, setEndDate]           = useState(() => defaultRange().end);
   const [loadedSeries, setLoadedSeries] = useState([]);
   const [isAdding, setIsAdding]         = useState(false);
 
-  // 헤더 심볼 선택이 바뀌면 다음에 추가할 시리즈의 심볼도 따라간다(이미 그린 시리즈는 유지).
-  useEffect(() => { if (symbolProp) setSymbol(symbolProp); }, [symbolProp]);
 
   const handleAddSeries = useCallback(async (entry) => {
     if (!startDate || !endDate || startDate > endDate) {

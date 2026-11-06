@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import GridLayout from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import { widgetSize } from '../../registry/widgetSizes';
+import { WidgetInstanceContext, clearWidgetState } from '../widgets/ui/widgetPersistence';
 import 'react-resizable/css/styles.css';
 
 const COLS   = 12;
@@ -89,6 +90,7 @@ export default function DashboardGrid({
     setWidgets(prev => {
       const next = prev.filter(w => w.id !== id);
       save(screen, next);
+      clearWidgetState(`${screen}:${id}`);
       return next;
     });
   }, [screen]);
@@ -138,9 +140,12 @@ export default function DashboardGrid({
         >
           {widgets.map(w => (
             <div key={w.id} className="h-full">
-              {renderWidget
-                ? renderWidget(w, () => removeWidget(w.id), addWidget)
-                : children}
+              {/* 위젯이 고른 티커·기간 등을 인스턴스별로 기억 — 탭·화면을 옮겨 다시 mount 돼도 유지 */}
+              <WidgetInstanceContext.Provider value={`${screen}:${w.id}`}>
+                {renderWidget
+                  ? renderWidget(w, () => removeWidget(w.id), addWidget)
+                  : children}
+              </WidgetInstanceContext.Provider>
             </div>
           ))}
         </GridLayout>

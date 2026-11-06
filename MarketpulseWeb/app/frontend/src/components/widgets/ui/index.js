@@ -17,6 +17,7 @@ export { default as Popover } from './Popover';
 export { default as MetricTiles } from './MetricTiles';
 export { default as DateStepper } from './DateStepper';
 export { default as SourceFooter } from './SourceFooter';
+export { WidgetInstanceContext, useWidgetState, useWidgetSymbol, clearWidgetState } from './widgetPersistence';
 export { SOURCE_LABELS, sourceLabel, sourceLabels, providerFromEndpoint } from './sources';
 export { normalizeOptions, usePopover, stateFromError, INPUT_CLS, PANEL_CLS } from './helpers';
 export { PERIODS, PERIOD_PRESETS, periodLabel, periodOptions, canonicalPeriod, periodStartDate } from './periods';

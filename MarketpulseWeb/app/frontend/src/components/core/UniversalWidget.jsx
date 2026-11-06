@@ -36,7 +36,7 @@ import WidgetParamForm    from '../widgets/common/WidgetParamForm';
 import CommonTable        from '../common/CommonTable';
 import CommonChart        from '../common/CommonChart';
 import PlotlyRawChart     from './PlotlyRawChart';
-import { WidgetState, MetricTiles, stateFromError, buildViewOptions, providerFromEndpoint } from '../widgets/ui';
+import { WidgetState, MetricTiles, stateFromError, buildViewOptions, providerFromEndpoint, useWidgetState, useWidgetSymbol } from '../widgets/ui';
 import {
   isParamVisible, visibleParams, paramDisplayValue, humanizeKey, applyColumnConfig,
 } from '../widgets/common/paramSpec';
@@ -210,12 +210,13 @@ export default function UniversalWidget({
     return obj;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const [symbol,    setSymbol]    = useState(symbolProp || initParams.symbol || 'AAPL');
-  const [period,    setPeriod]    = useState(periodCfg.default);
-  const [provider,  setProvider]  = useState(reg.provider || null);
+  // 사용자가 위젯에서 고른 값은 인스턴스별로 기억한다 (탭·화면 이동 후 돌아와도 유지)
+  const [symbol,    setSymbol]    = useWidgetSymbol(symbolProp, initParams.symbol || 'AAPL');
+  const [period,    setPeriod]    = useWidgetState('period', periodCfg.default);
+  const [provider,  setProvider]  = useWidgetState('provider', reg.provider || null);
   const [providerOptions, setProviderOptions] = useState([]);
-  const [params,    setParams]    = useState(initParams);
-  const paramsRef = useRef(initParams);
+  const [params,    setParams]    = useWidgetState('params', initParams);
+  const paramsRef = useRef(params);
   useEffect(() => { paramsRef.current = params; }, [params]);
 
   const [response,  setResponse]  = useState(dataProp ?? null);
@@ -223,9 +224,7 @@ export default function UniversalWidget({
   // 실패 상태 — WidgetState props ({ kind, message, provider }). null 이면 정상.
   const [error,     setError]     = useState(null);
   // 사용자가 고른 보기. null 이면 응답 모양에 맞는 기본 보기(defaultView)를 쓴다.
-  const [viewSel,   setViewSel]   = useState(null);
-
-  useEffect(() => { if (symbolProp) setSymbol(symbolProp); }, [symbolProp]);
+  const [viewSel,   setViewSel]   = useWidgetState('view', null);
 
   // category가 있으면 해당 model을 지원하는 provider만 추려 셀렉터 옵션 구성.
   useEffect(() => {
@@ -246,7 +245,7 @@ export default function UniversalWidget({
       })
       .catch(() => { if (alive) setProviderOptions([]); });
     return () => { alive = false; };
-  }, [category, reg.provider]);
+  }, [category, reg.provider, setProvider]);
 
   // 모델 게이트웨이 위젯: 선택된 provider의 QueryParams 스키마로 파라미터 폼 자동 생성.
   // provider가 바뀌면 그 provider의 옵션(표준모델 + provider 전용 필드)으로 폼을 재구성한다.
@@ -281,7 +280,7 @@ export default function UniversalWidget({
       })
       .catch(() => { if (alive) { setDynamicParams([]); setModelAcceptsSymbol(true); } });
     return () => { alive = false; };
-  }, [category, endpoint, reg.params, provider]);
+  }, [category, endpoint, reg.params, provider, setParams]);
 
   const buildUrl = useCallback((current) => {
     if (!endpoint) return null;
@@ -370,7 +369,7 @@ export default function UniversalWidget({
   useEffect(() => {
     const hint = response?.chart_hint;
     if (hint?.type) setViewSel(hint.type);
-  }, [response]);
+  }, [response, setViewSel]);
 
   // 개념 위젯: 셀렉터 옵션 = 응답의 candidates(그 국가를 지원하는 provider + 내 사용 가능 여부)
   const conceptMeta = concept ? response?.metadata : null;
