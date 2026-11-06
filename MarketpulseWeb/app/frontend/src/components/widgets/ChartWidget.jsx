@@ -29,6 +29,7 @@ import {
   mergeSeriesIndicatorData,
 } from './chart/chartData';
 import ChartControls from './chart/ChartControls';
+import { SourceFooter } from './ui';
 import TickerShiftPopover from './chart/TickerShiftPopover';
 import ChartTypeDropdown from './chart/ChartTypeDropdown';
 import MacroIndicatorDropdown from './chart/MacroIndicatorDropdown';
@@ -51,6 +52,7 @@ const ChartWidget = ({
   onRemove,
   // Series mode props (for external data charts)
   series,                          // Array<{id, name, data, color, visible}>
+  source: sourceProp,              // 출처 (series mode) — 시리즈를 받아 온 provider 들
   title,                           // Chart title (series mode)
   subtitle,                        // Subtitle (series mode)
   // Feature toggles
@@ -874,6 +876,13 @@ const ChartWidget = ({
           </div>
         )}
       </div>
+
+      {/* 출처 — 종목 시세는 /stock/history(Yahoo), 거시 지표는 /stock/indicator(FRED) */}
+      <SourceFooter
+        source={isSeriesMode
+          ? sourceProp
+          : ['yahoo', ...(tickers.some((t) => t.type && t.type !== 'stock') ? ['fred'] : [])]}
+      />
 
       {/* Stock Selector Modal (symbol mode only) */}
       {!isSeriesMode && (

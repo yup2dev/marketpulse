@@ -133,6 +133,8 @@ export default function BtStrategyWidget({ onRemove }) {
 
   return (
     <BaseWidget
+      source="user"
+      sourceNote="your strategy rules"
       title="Strategy"
       subtitle="Entry/exit rules · run backtest"
       icon={Workflow}

@@ -11,7 +11,7 @@ import {
   FileText, Upload, ArrowLeft, ExternalLink, Trash2, FileType2, AlignLeft,
 } from 'lucide-react';
 import BaseWidget from './common/BaseWidget';
-import { Select, INPUT_CLS as inputCls, WidgetState } from './ui';
+import { Select, INPUT_CLS as inputCls, WidgetState, PeriodSelect, periodStartDate } from './ui';
 import { apiClient, API_BASE, dataAPI } from '../../config/api';
 
 const TYPE_STYLES = {
@@ -36,6 +36,8 @@ export default function ResearchReportsWidget({ symbol, onRemove }) {
   const [loading, setLoading] = useState(true);
   const [typeFilter, setTypeFilter] = useState('all');
   const [symbolOnly, setSymbolOnly] = useState(false);
+  // 발행일 기준 기간 — 기본 전체(발행일 없는 보고서가 숨지 않게)
+  const [period, setPeriod] = useState('max');
   const [showUpload, setShowUpload] = useState(false);
   const [viewing, setViewing] = useState(null); // report row being viewed
 
@@ -45,13 +47,15 @@ export default function ResearchReportsWidget({ symbol, onRemove }) {
       const params = { limit: 200 };
       if (typeFilter !== 'all') params.report_type = typeFilter;
       if (symbolOnly && symbol) params.symbol = symbol;
+      const start = periodStartDate(period);
+      if (start) params.start_date = start;
       const res = await dataAPI.fetch('db', 'research_reports', params);
       setReports(res.results || []);
     } catch {
       setReports([]);
     }
     setLoading(false);
-  }, [typeFilter, symbolOnly, symbol]);
+  }, [typeFilter, symbolOnly, symbol, period]);
 
   useEffect(() => { fetchReports(); }, [fetchReports]);
 
@@ -72,7 +76,11 @@ export default function ResearchReportsWidget({ symbol, onRemove }) {
       onRefresh={fetchReports}
       onRemove={onRemove}
       showPeriodSelector={false}
-      source="Imported PDF (local DB)"
+      source="user"
+      sourceNote="imported PDFs"
+      filters={viewing ? undefined : {
+        left: <PeriodSelect value={period} onChange={setPeriod} preset={['1y', '3y', '5y', 'max']} variant="segmented" />,
+      }}
       headerExtra={
         <button
           onMouseDown={(e) => e.stopPropagation()}

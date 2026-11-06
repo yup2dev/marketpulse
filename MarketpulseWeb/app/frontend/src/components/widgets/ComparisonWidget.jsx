@@ -64,6 +64,7 @@ export default function ComparisonWidget({ onRemove }) {
 
   return (
     <BaseWidget
+      source="yahoo"
       title="Stock Comparison"
       icon={GitCompare}
       loading={loading}

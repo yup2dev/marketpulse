@@ -326,8 +326,11 @@ class MacroService:
             raise
 
     @cached(ttl=3600)
-    async def get_all_fred_series_overview(self) -> List[Dict[str, Any]]:
-        """Get latest values for all additional FRED series"""
+    async def get_all_fred_series_overview(self, as_of: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Get latest values for all additional FRED series.
+
+        as_of(YYYY-MM-DD)를 주면 그 날짜 이전 마지막 관측값과 직전값으로 계산한다.
+        """
         results = []
 
         for key, info in self.FRED_SERIES.items():
@@ -338,6 +341,7 @@ class MacroService:
                     info['id'],
                     limit=2,
                     sort_order='desc',
+                    end_date=as_of,
                 )
 
                 if observations:

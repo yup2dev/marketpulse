@@ -84,6 +84,8 @@ export default function BtEventsWidget({ onRemove }) {
 
   return (
     <BaseWidget
+      source="user"
+      sourceNote="your event rules"
       title="Events"
       subtitle="Event definitions · mapping"
       icon={Flag}

@@ -299,7 +299,12 @@ export const backtestAPI = {
 
 // ─── News API ────────────────────────────────────────────────────────────────
 export const newsAPI = {
-  get: (symbol, limit = 20) => apiClient.get(`${API_BASE}/news${symbol ? `?symbol=${encodeURIComponent(symbol)}&` : '?'}limit=${limit}`),
+  get: (symbol, limit = 20, period) => {
+    const qs = new URLSearchParams({ limit: String(limit) });
+    if (symbol) qs.set('symbol', symbol);
+    if (period && period !== 'max') qs.set('period', period);
+    return apiClient.get(`${API_BASE}/news?${qs}`);
+  },
 };
 
 // ─── Universal Data Gateway ──────────────────────────────────────────────────

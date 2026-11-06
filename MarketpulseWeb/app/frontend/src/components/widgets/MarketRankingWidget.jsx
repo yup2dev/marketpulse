@@ -111,6 +111,8 @@ export default function MarketRankingWidget({ onRemove }) {
   const [sortBy,    setSortBy]    = useState('gainers');
   const [period,    setPeriod]    = useState('realtime');
   const [baseRows,  setBaseRows]  = useState([]);
+  // 실제로 답한 provider (국내 KIS / 실시간 Yahoo 시세 / 기간 랭킹 DB) — 출처 표기
+  const [provider,  setProvider]  = useState(null);
   const [loading,   setLoading]   = useState(true);
   const [favorites, setFavorites] = useState([]);
   const [lastUpdate,setLastUpdate]= useState(null);
@@ -130,6 +132,7 @@ export default function MarketRankingWidget({ onRemove }) {
         ? await rankingAPI.getLive({ market, sortBy, limit: 50 })
         : await rankingAPI.get({ market, sortBy, period, limit: 50 });
       setBaseRows(res.results || []);
+      setProvider(res.provider || null);
       setLastUpdate(new Date());
     } catch {
       setBaseRows([]);
@@ -194,6 +197,7 @@ export default function MarketRankingWidget({ onRemove }) {
 
   return (
     <BaseWidget
+      source={[provider, ...(period === 'realtime' ? ['live'] : [])].filter(Boolean)}
       title="Market Ranking"
       icon={TrendingUp}
       onRemove={onRemove}

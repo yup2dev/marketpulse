@@ -17,6 +17,7 @@ export default function EconomicCalendarWidget({ onRemove }) {
 
   return (
     <BaseWidget
+      source="nasdaq"
       title="Economic Calendar"
       icon={Calendar}
       onRemove={onRemove}

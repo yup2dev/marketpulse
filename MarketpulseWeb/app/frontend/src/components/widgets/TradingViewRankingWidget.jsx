@@ -27,6 +27,8 @@ const CONFIG = {
 export default function TradingViewRankingWidget({ onRemove }) {
   return (
     <BaseWidget
+      source="tradingview"
+      sourceNote="embedded widget"
       title="Market Ranking (TV)"
       icon={TrendingUp}
       onRemove={onRemove}

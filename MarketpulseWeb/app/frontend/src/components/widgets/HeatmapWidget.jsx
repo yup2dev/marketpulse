@@ -151,6 +151,8 @@ export default function HeatmapWidget({ onRemove }) {
 
   return (
     <BaseWidget
+      source={['db', 'live']}
+      sourceNote="sector & market cap from stock profiles"
       title="Sector Heatmap"
       icon={LayoutGrid}
       loading={loading}

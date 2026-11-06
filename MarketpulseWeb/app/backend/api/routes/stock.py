@@ -81,18 +81,32 @@ async def get_financials(
     symbol: str,
     provider: str = "yahoo",
     freq: str = "quarterly",
-    limit: int = 4,
+    limit: Optional[int] = None,
+    period: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
 ) -> OBBject:
+    # period = 조회 기간(1y·5y…). 보고 주기(annual/quarterly)는 freq — 이름이 겹쳐 헷갈리지 않게 분리.
+    start, end = resolve_date_range(period, start_date, end_date)
     raw = await QueryExecutor.fetch(provider, "financials", {"symbol": symbol.upper(), "freq": freq})
-    items = _unwrap(raw)[:limit]
-    return OBBject(results=_serialize(items), provider=provider)
+    return _dated_events(raw, provider, start, end, limit, 4)
 
 
 @router.get("/earnings/{symbol}")
 @route_handler
-async def get_earnings(symbol: str, provider: str = "polygon", limit: int = 8) -> OBBject:
-    raw = await QueryExecutor.fetch(provider, "earnings", {"symbol": symbol.upper(), "limit": limit})
-    return _wrap(raw, provider)
+async def get_earnings(
+    symbol: str,
+    provider: str = "polygon",
+    limit: Optional[int] = None,
+    period: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+) -> OBBject:
+    start, end = resolve_date_range(period, start_date, end_date)
+    # 기간 조회면 분기 실적을 넉넉히(최대 40분기 = 10년) 받아 기간으로 자른다
+    fetch_limit = limit or (40 if (start or end) else 8)
+    raw = await QueryExecutor.fetch(provider, "earnings", {"symbol": symbol.upper(), "limit": fetch_limit})
+    return _dated_events(raw, provider, start, end, limit, 8)
 
 
 @router.get("/insider-trading/{symbol}")
@@ -489,11 +503,11 @@ async def get_live_stock_ranking(
     market: str = FQuery("all", description="all | domestic | overseas"),
     sort_by: str = FQuery("gainers", description="gainers | losers | volume | trade_value"),
     limit: int = FQuery(50, ge=1, le=200),
-    provider: str = "yahoo",
 ) -> OBBject:
     from app.backend.services.ranking_service import RankingService
-    results = await RankingService.get_live_ranking(market=market, sort_by=sort_by, limit=limit)
-    return OBBject(results=results, provider=provider)
+    # provider = 실제로 답한 소스(kis/yahoo) — 위젯 출처 표기에 쓰인다
+    results, source = await RankingService.get_live_ranking(market=market, sort_by=sort_by, limit=limit)
+    return OBBject(results=results, provider=source)
 
 
 @router.get("/ranking")
@@ -502,10 +516,9 @@ async def get_stock_ranking(
     sort_by: str = FQuery("gainers", description="gainers | losers | volume | trade_value"),
     period: str = FQuery("1d", description="realtime | 1d | 1w | 1mo | 3mo | 6mo | 1y"),
     limit: int = FQuery(50, ge=1, le=200),
-    provider: str = "yahoo",
 ) -> OBBject:
     from app.backend.services.ranking_service import RankingService
-    results = await RankingService.get_ranking(
+    results, source = await RankingService.get_ranking(
         market=market, sort_by=sort_by, period=period, limit=limit
     )
-    return OBBject(results=results, provider=provider)
+    return OBBject(results=results, provider=source)

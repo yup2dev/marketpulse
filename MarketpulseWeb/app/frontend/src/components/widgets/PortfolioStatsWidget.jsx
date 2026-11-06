@@ -8,6 +8,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { TrendingUp, TrendingDown, RefreshCw, X } from 'lucide-react';
 import { apiClient, API_BASE } from '../../config/api';
+import { SourceFooter } from './ui';
 
 // ── Stat Card ──────────────────────────────────────────────────────────────────
 function StatCard({ label, value, sub, positive, negative }) {
@@ -180,6 +181,9 @@ export default function PortfolioStatsWidget({ portfolioId, onRemove }) {
           </div>
         )}
       </div>
+
+      {/* 출처 — 보유 내역은 사용자 입력, 평가금액은 Yahoo 현재가 */}
+      <SourceFooter source={['user', 'yahoo']} />
     </div>
   );
 }

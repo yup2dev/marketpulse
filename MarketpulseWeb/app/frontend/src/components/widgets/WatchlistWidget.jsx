@@ -32,6 +32,7 @@ export default function WatchlistWidget({ onRemove }) {
 
   return (
     <BaseWidget
+      source={['user', 'live']}
       title={mode === 'watchlist' ? 'Watchlist' : 'Holdings'}
       icon={mode === 'watchlist' ? Star : Briefcase}
       loading={false}

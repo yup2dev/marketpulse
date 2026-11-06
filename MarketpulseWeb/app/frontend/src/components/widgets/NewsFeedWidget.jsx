@@ -8,7 +8,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { Newspaper, ExternalLink } from 'lucide-react';
 import BaseWidget from './common/BaseWidget';
 import TimelineList, { Badge } from './common/TimelineList';
+import { PeriodSelect } from './ui';
 import { newsAPI } from '../../config/api';
+
+// 서버 상한(routes/news.py le=50) — Load more 가 이 이상 요청하면 422
+const MAX_LIMIT = 50;
 
 function sentimentBadge(sentiment) {
   if (!sentiment) return null;
@@ -38,6 +42,7 @@ export default function NewsFeedWidget({ symbol: symbolProp, onRemove }) {
   const [loading, setLoading] = useState(true);
   const [symbol, setSymbol] = useState(symbolProp || '');
   const [limit, setLimit] = useState(20);
+  const [period, setPeriod] = useState('1w');
 
   useEffect(() => {
     if (symbolProp) setSymbol(symbolProp);
@@ -46,19 +51,20 @@ export default function NewsFeedWidget({ symbol: symbolProp, onRemove }) {
   const fetchNews = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await newsAPI.get(symbol || null, limit);
-      setArticles(res.articles || []);
+      const res = await newsAPI.get(symbol || null, limit, period);
+      setArticles(res?.results || []);
     } catch {
       setArticles([]);
     } finally {
       setLoading(false);
     }
-  }, [symbol, limit]);
+  }, [symbol, limit, period]);
 
   useEffect(() => { fetchNews(); }, [fetchNews]);
 
   return (
     <BaseWidget
+      source="polygon"
       title="News Feed"
       icon={Newspaper}
       loading={loading}
@@ -67,6 +73,9 @@ export default function NewsFeedWidget({ symbol: symbolProp, onRemove }) {
       symbol={symbol || undefined}
       onSymbolChange={setSymbol}
       showPeriodSelector={false}
+      filters={{
+        left: <PeriodSelect value={period} onChange={setPeriod} preset={['1d', '1w', '1mo', '3mo', 'max']} variant="segmented" />,
+      }}
     >
       <div className="flex flex-col h-full min-h-0">
         <div className="flex-1 overflow-auto min-h-0">
@@ -90,10 +99,10 @@ export default function NewsFeedWidget({ symbol: symbolProp, onRemove }) {
           />
         </div>
 
-        {articles.length > 0 && articles.length >= limit && (
+        {articles.length > 0 && articles.length >= limit && limit < MAX_LIMIT && (
           <div className="px-3 py-1.5 border-t border-gray-800 flex-shrink-0 text-center">
             <button
-              onClick={() => setLimit(prev => prev + 20)}
+              onClick={() => setLimit(prev => Math.min(MAX_LIMIT, prev + 20))}
               className="text-[10px] text-cyan-400 hover:text-cyan-300 transition-colors"
             >
               Load more
