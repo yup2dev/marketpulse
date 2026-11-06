@@ -12,6 +12,7 @@ macro_service.get_inflation_decomposition 에서 이전. 이전 구현은 FRED�
 헤드라인·근원·sticky/flexible·기대인플레이션은 metadata 로 함께 돌려준다.
 """
 import asyncio
+from datetime import date as dateType
 import logging
 from typing import Any, Dict, List, Optional
 
@@ -49,7 +50,12 @@ _RATE_SERIES = {
 
 
 class InflationDecompositionQueryParams(BaseQueryParams):
-    """CPI 구성요소 스냅샷 — 파라미터 없음."""
+    """CPI 구성요소 스냅샷 — 기준일(비우면 최신 발표월)."""
+
+    date: Optional[dateType] = Field(
+        default=None,
+        description="기준일 — 이 날짜 이전 마지막 발표월로 분해한다 (비우면 최신)",
+    )
 
 
 class InflationDecompositionData(BaseData):
@@ -133,7 +139,9 @@ class FREDInflationDecompositionFetcher(
 
         async def _fetch(sid: str, limit: int):
             try:
-                return sid, await FredSeriesHelper.fetch_series(sid, api_key, limit=limit, sort_order="desc")
+                return sid, await FredSeriesHelper.fetch_series(
+                    sid, api_key, limit=limit, sort_order="desc", end_date=query.date,
+                )
             except Exception as e:
                 log.warning("[InflationDecomposition] %s 조회 실패: %s", sid, e)
                 return sid, []

@@ -4,6 +4,7 @@
  * param 확장 필드:
  *   pin: true            헤더 버튼 자리에 현재 값을 칩으로 보여 준다 (팝오버를 안 열어도 보이게)
  *   chip: (v) => '21D'   칩에 보일 표기 (숫자 값에 단위를 붙일 때)
+ *   emptyLabel: 'Latest' 빈 값의 뜻 — 칩에 그 표기를, 입력칸 옆에 되돌리기 버튼을 둔다
  *   showIf: { metric: 'quantile' } | { metric: ['a','b'] } | (values) => bool
  *                        조건이 맞을 때만 입력칸을 보이고 요청에 싣는다
  *
@@ -29,7 +30,7 @@ export function isInstantForm(spec) {
 
 /** 칩·제목에 보일 값 — select 는 옵션 라벨, 나머지는 값 그대로 */
 export function paramDisplayValue(p, value) {
-  if (value == null || value === '') return '—';
+  if (value == null || value === '') return p.emptyLabel ?? '—';
   if (p.kind === 'select') {
     const opt = (p.options || []).find((o) => String(typeof o === 'object' ? o.value : o) === String(value));
     if (opt && typeof opt === 'object') return opt.label ?? String(opt.value);

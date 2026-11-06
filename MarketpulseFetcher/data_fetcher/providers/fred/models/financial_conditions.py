@@ -5,6 +5,8 @@ Uses DashboardQueryParams/DashboardRowData (shared with labor_dashboard, sentime
 import logging
 from typing import Any, Dict, List, Optional
 
+from datetime import date as dateType
+
 from pydantic import Field
 
 from data_fetcher.abstract_provider.standard_models.indicator_dashboard import (
@@ -21,7 +23,10 @@ log = logging.getLogger(__name__)
 # ── QueryParams / Data (standard IndicatorDashboard 경유) ──────────────────────
 
 class DashboardQueryParams(IndicatorDashboardQueryParams):
-    pass
+    date: Optional[dateType] = Field(
+        default=None,
+        description="기준일 — 이 날짜 이전 마지막 관측값으로 스냅샷을 만든다 (비우면 최신)",
+    )
 
 
 class DashboardRowData(IndicatorDashboardData):
@@ -76,6 +81,7 @@ class FREDFinancialConditionsFetcher(ApiFetcher[DashboardQueryParams, DashboardR
             try:
                 raw[key] = await FredSeriesFetcher.fetch_series(
                     series_id=series_id, api_key=api_key,
+                    end_date=query.date,
                     limit=limit, sort_order=sort,
                 )
             except Exception as e:

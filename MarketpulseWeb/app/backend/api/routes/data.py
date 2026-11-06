@@ -17,7 +17,10 @@ from typing import Any, Dict
 
 from fastapi import APIRouter, HTTPException, Request
 
-from app.backend.api.deps import missing_key_response, route_handler, wrap_result
+from app.backend.api.deps import (
+    DATE_KEYS as _DATE_KEYS, filter_dated_rows as _postprocess_dated_rows,
+    missing_key_response, route_handler, wrap_result,
+)
 from data_fetcher.core.obbject import OBBject
 from data_fetcher.query_executor import MissingCredentialsError, QueryExecutor, QueryExecutorError
 
@@ -62,49 +65,6 @@ def _qp_fields(fetcher_cls) -> dict:
     except Exception:  # noqa: BLE001
         pass
     return {}
-
-
-# 행 dict에서 날짜 필드로 인정하는 키 (우선순위 순)
-_DATE_KEYS = ("date", "period_ending", "filing_date", "report_date", "datetime", "timestamp")
-
-
-def _row_date_key(rows: list) -> str | None:
-    """행 목록의 날짜 필드 키. 첫 행 기준 우선순위 매칭, 없으면 *_date 아무거나."""
-    if not rows or not isinstance(rows[0], dict):
-        return None
-    first = rows[0]
-    for k in _DATE_KEYS:
-        if k in first:
-            return k
-    return next((k for k in first if k.endswith("_date")), None)
-
-
-def _postprocess_dated_rows(rows: list, start_date: Any, end_date: Any) -> list:
-    """날짜 필드가 있는 행 목록의 공통 후처리.
-
-    - start_date/end_date 가 주어지면 범위 밖 행 제거 (fetcher가 자체 지원하지 않는
-      모델도 위젯의 날짜 선택이 동작하도록 하는 범용 필터 — 이중 적용은 무해)
-    - 날짜 desc 정렬 (최신이 위로)
-
-    wrap_result 이후의 JSON 직렬화 행(dict, 날짜는 ISO 문자열)을 전제로
-    문자열 prefix(YYYY-MM-DD) 비교를 쓴다.
-    """
-    key = _row_date_key(rows)
-    if key is None:
-        return rows
-
-    def day(row: dict) -> str | None:
-        v = row.get(key)
-        return str(v)[:10] if v not in (None, "") else None
-
-    if start_date or end_date:
-        lo = str(start_date)[:10] if start_date else None
-        hi = str(end_date)[:10] if end_date else None
-        rows = [
-            r for r in rows
-            if (d := day(r)) is not None and (lo is None or d >= lo) and (hi is None or d <= hi)
-        ]
-    return sorted(rows, key=lambda r: day(r) or "", reverse=True)
 
 
 @router.get("/{provider}/{model}")
