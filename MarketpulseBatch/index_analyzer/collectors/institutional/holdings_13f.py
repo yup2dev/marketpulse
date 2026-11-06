@@ -6,6 +6,8 @@
 - 기관 목록(이름/CIK)은 **전체** 적재(MBS_IN_INSTI_MST) — 검색/리스트용.
 - 포트폴리오는 featured + AUM 상위 TOP_N 기관만 수집(MBS_IN_INSTI_PORT/HOLD).
 - 같은 대상의 13F 기반 분기 추정 수익률도 산출해 적재(MBS_IN_INSTI_PERF).
+- featured + AUM 상위 HIST_TOP_N 기관은 최근 HIST_QUARTERS 분기 포트폴리오 이력도 적재
+  (MBS_IN_INSTI_PORT_HIST/HOLD_HIST — 위젯 기준 분기 선택). 이미 적재된 분기는 건너뛴다.
   미적재 기관은 서버 온디맨드 폴백 없이 '미적재'로 표시된다.
 
 실행: MarketpulseBatch/jobs/collect_13f.py (daily_ingest.bat 가 주 1회 호출 — 13F는 분기 공시).
@@ -22,7 +24,9 @@ from index_analyzer.utils.logger import get_logger
 from ...ingest.repository import (
     store_fund_performance,
     store_institution_portfolio,
+    store_institution_history,
     store_institutions_list,
+    stored_institution_periods,
 )
 
 log = get_logger(__name__)
@@ -34,6 +38,10 @@ SCAN_WORKERS = int(os.getenv("FETCHER_13F_SCAN_WORKERS", "4"))
 SCAN_LIMIT = int(os.getenv("FETCHER_13F_SCAN_LIMIT", "0"))
 # 추정 수익률 산출 분기 수(스냅샷 수 — 행은 1 적음). 위젯 기본 조회(8)를 덮는 값.
 PERF_QUARTERS = int(os.getenv("FETCHER_13F_PERF_QUARTERS", "8"))
+# 포트폴리오 분기 이력 — 대상 기관 수(featured 외 AUM 상위)와 분기 수. 지난 분기 공시는 바뀌지 않아
+# 없는 분기만 파싱하므로 첫 실행 이후엔 기관당 분기마다 1건만 늘어난다.
+HIST_TOP_N = int(os.getenv("FETCHER_13F_HIST_TOP_N", "50"))
+HIST_QUARTERS = int(os.getenv("FETCHER_13F_HIST_QUARTERS", "8"))
 
 # featured 기관 — AUM 순위와 무관하게 웜캐시에 항상 포함(친숙한 slug 키 유지).
 FEATURED_KEYS = [
@@ -118,6 +126,33 @@ class Institutional13FCollector(Collector):
         )
         return store_fund_performance(key, [_to_dict(r) for r in (rows or [])])
 
+    def _store_history(self, key: str) -> int:
+        """최근 HIST_QUARTERS 분기 중 이력 테이블에 없는 분기만 파싱해 적재. 반환: 새로 적재한 분기 수."""
+        from data_fetcher.providers.sec.models.fund_performance import SECFundPerformanceFetcher
+        from data_fetcher.providers.sec.models.institutional_13f import SEC13FFetcher
+
+        cik = SEC13FFetcher._resolve_institution(key)["cik"]
+        _rate_gate()
+        filings = SECFundPerformanceFetcher._list_13f_filings(cik, HIST_QUARTERS)
+        have = stored_institution_periods(key)
+        added = 0
+        for f in filings:
+            period = f.get("period")
+            if not period or period in have:
+                continue
+            _rate_gate()
+            rows = self._fetch_sync(
+                "institutional_holdings",
+                {"institution_key": key, "limit": 1000, "summary_only": False, "period": period},
+            )
+            obj = (rows or [None])[0]
+            if obj is None or not (getattr(obj, "stocks", None) or []):
+                log.warning("[13F] %s %s: 보유내역 없음 — 이력 건너뜀", key, period)
+                continue
+            store_institution_history(key, period, _serialize_portfolio(obj))
+            added += 1
+        return added
+
     def _summary_aum(self, key: str) -> float:
         """summary_only 조회로 기관의 13F 총가치(AUM 근사)만 싸게 가져온다."""
         _rate_gate()
@@ -134,7 +169,8 @@ class Institutional13FCollector(Collector):
     def run(self) -> Dict[str, Any]:
         summary: Dict[str, Any] = {
             "collector": type(self).__name__,
-            "institutions": 0, "scanned": 0, "portfolios": [], "performance": 0, "errors": [],
+            "institutions": 0, "scanned": 0, "portfolios": [], "performance": 0, "history": 0,
+            "errors": [],
         }
 
         # 1) 전체 기관 목록(동적) 적재 → 실패 시 featured 폴백
@@ -169,6 +205,7 @@ class Institutional13FCollector(Collector):
         # featured 는 순위와 무관하게 항상 포함(중복 제거, 순서 유지)
         target_keys = list(dict.fromkeys(list(FEATURED_KEYS) + top_keys))
         log.info("[13F] 웜캐시 대상: %d개 (AUM 상위 %d + featured)", len(target_keys), TOP_N)
+        hist_keys = set(FEATURED_KEYS) | set(top_keys[:HIST_TOP_N])
 
         # 3) 대상 포트폴리오 전체 파싱 + 적재 (플레이스홀더/빈 공시는 스킵)
         for key in target_keys:
@@ -199,9 +236,17 @@ class Institutional13FCollector(Collector):
                 log.error("[13F] %s 수익률 산출 실패: %s", key, exc, exc_info=True)
                 summary["errors"].append(f"{key} performance: {exc}")
 
+            # 5) 분기 이력 (기준 분기 선택용) — 실패해도 최신 포트폴리오는 유지
+            if key in hist_keys and HIST_QUARTERS > 0:
+                try:
+                    summary["history"] += self._store_history(key)
+                except Exception as exc:  # noqa: BLE001
+                    log.error("[13F] %s 분기 이력 실패: %s", key, exc, exc_info=True)
+                    summary["errors"].append(f"{key} history: {exc}")
+
         log.info(
-            "[13F] 완료 — 기관 %d, 스캔 %d, 포트폴리오 %d, 수익률 %d, 오류 %d",
-            summary["institutions"], summary["scanned"],
-            len(summary["portfolios"]), summary["performance"], len(summary["errors"]),
+            "[13F] 완료 — 기관 %d, 스캔 %d, 포트폴리오 %d, 수익률 %d, 이력 분기 %d, 오류 %d",
+            summary["institutions"], summary["scanned"], len(summary["portfolios"]),
+            summary["performance"], summary["history"], len(summary["errors"]),
         )
         return summary

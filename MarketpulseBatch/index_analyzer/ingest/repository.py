@@ -24,6 +24,8 @@ from index_analyzer.db.orm import (
     MBS_IN_INSTI_PORT,
     MBS_IN_INSTI_HOLD,
     MBS_IN_INSTI_PERF,
+    MBS_IN_INSTI_PORT_HIST,
+    MBS_IN_INSTI_HOLD_HIST,
 )
 
 log = get_logger(__name__)
@@ -396,6 +398,63 @@ def store_institution_portfolio(institution_key: str, port: Dict[str, Any]) -> N
     finally:
         session.close()
 
+
+_HIST_PORT_FIELDS = tuple(f for f in _PORT_FIELDS if f not in ("period_end", "performance"))
+
+
+def stored_institution_periods(institution_key: str) -> set:
+    """이력 테이블에 이미 적재된 보고 분기(period) 집합 — 배치는 없는 분기만 파싱한다."""
+    session = default_db.get_session()
+    try:
+        rows = session.query(MBS_IN_INSTI_PORT_HIST.period).filter(
+            MBS_IN_INSTI_PORT_HIST.institution_key == str(institution_key)
+        ).all()
+        return {r[0] for r in rows}
+    finally:
+        session.close()
+
+
+def store_institution_history(institution_key: str, period: str, port: Dict[str, Any]) -> None:
+    """한 기관의 한 보고 분기 13F 포트폴리오를 이력 테이블에 교체 적재.
+
+    port 는 store_institution_portfolio 와 같은 dict. period 는 SEC reportDate(분기말).
+    base_ymd(적재일)는 클라우드 동기화 증분 기준이다.
+    """
+    if not institution_key or not period:
+        return
+    institution_key, period = str(institution_key), str(period)
+    today = date.today()
+    session = default_db.get_session()
+    try:
+        obj = session.get(MBS_IN_INSTI_PORT_HIST, (institution_key, period))
+        if obj is None:
+            obj = MBS_IN_INSTI_PORT_HIST(institution_key=institution_key, period=period)
+            session.add(obj)
+        for f in _HIST_PORT_FIELDS:
+            setattr(obj, f, port.get(f))
+        obj.base_ymd = today
+
+        session.query(MBS_IN_INSTI_HOLD_HIST).filter(
+            MBS_IN_INSTI_HOLD_HIST.institution_key == institution_key,
+            MBS_IN_INSTI_HOLD_HIST.period == period,
+        ).delete(synchronize_session=False)
+        for is_sold, listkey in ((False, "stocks"), (True, "sold_positions")):
+            for seq, h in enumerate(port.get(listkey) or []):
+                row = MBS_IN_INSTI_HOLD_HIST(
+                    institution_key=institution_key, period=period,
+                    is_sold=is_sold, seq=seq, base_ymd=today,
+                )
+                for f in _HOLD_FIELDS:
+                    setattr(row, f, h.get(f))
+                session.add(row)
+        session.commit()
+        log.info("[ingest] 13F %s %s 이력 적재: stocks=%d", institution_key, period, len(port.get("stocks") or []))
+    except Exception as exc:
+        session.rollback()
+        log.error("[ingest] 13F %s %s 이력 저장 실패: %s", institution_key, period, exc, exc_info=True)
+        raise
+    finally:
+        session.close()
 
 _PERF_FIELDS = (
     "period", "filing_date", "name", "manager", "return_pct", "cumulative_return_pct",

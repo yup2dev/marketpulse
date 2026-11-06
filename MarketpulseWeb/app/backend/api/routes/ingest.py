@@ -37,9 +37,11 @@ from app.backend.models.orm.ingest import (
     MBS_IN_INDX_MEMBER,
     MBS_IN_INDX_STBD,
     MBS_IN_INSTI_HOLD,
+    MBS_IN_INSTI_HOLD_HIST,
     MBS_IN_INSTI_MST,
     MBS_IN_INSTI_PERF,
     MBS_IN_INSTI_PORT,
+    MBS_IN_INSTI_PORT_HIST,
     MBS_IN_RESEARCH_RPT,
     MBS_IN_STBD_MST,
     MBS_IN_STK_PROFILE,
@@ -66,6 +68,9 @@ _TABLES: Dict[str, Dict[str, Any]] = {
     "mbs_in_insti_port":        {"model": MBS_IN_INSTI_PORT,        "conflict": ["institution_key"]},
     "mbs_in_insti_hold":        {"model": MBS_IN_INSTI_HOLD,        "replace_by": "institution_key"},
     "mbs_in_insti_perf":        {"model": MBS_IN_INSTI_PERF,        "replace_by": "institution_key"},
+    # 13F 분기 이력 — 지난 분기 공시는 바뀌지 않아 자연키 upsert + base_ymd(적재일) 증분
+    "mbs_in_insti_port_hist":   {"model": MBS_IN_INSTI_PORT_HIST,   "conflict": ["institution_key", "period"]},
+    "mbs_in_insti_hold_hist":   {"model": MBS_IN_INSTI_HOLD_HIST,   "conflict": ["institution_key", "period", "is_sold", "seq"]},
     "mbs_in_research_rpt":      {"model": MBS_IN_RESEARCH_RPT,      "conflict": ["report_id"]},
 }
 
@@ -117,7 +122,8 @@ def _upsert(session: Session, model, conflict: List[str], rows: List[Dict[str, A
             raise HTTPException(status_code=400, detail=f"rows missing conflict key(s): {missing}")
         stmt = sqlite_insert(model.__table__)
         update_cols = {c: stmt.excluded[c] for c in shape if c not in conflict}
-        update_cols["updated_at"] = datetime.utcnow()
+        if "updated_at" in model.__table__.columns:
+            update_cols["updated_at"] = datetime.utcnow()
         stmt = stmt.on_conflict_do_update(index_elements=conflict, set_=update_cols)
         session.execute(stmt, group)
         total += len(group)

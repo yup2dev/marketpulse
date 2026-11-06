@@ -1,6 +1,6 @@
 """Portfolio Service — 기관 13F 보유 데이터 조회."""
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 from data_fetcher.query_executor import QueryExecutor
 
@@ -51,14 +51,17 @@ class PortfolioService:
         institution_key: str,
         limit: int = 50,
         summary_only: bool = False,
+        period: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
-            results = await self._fetch_cached(
-                'institutional_holdings',
-                {'institution_key': institution_key, 'limit': limit, 'summary_only': summary_only},
-            )
+            params = {'institution_key': institution_key, 'limit': limit, 'summary_only': summary_only}
+            if period:
+                params['period'] = period
+            results = await self._fetch_cached('institutional_holdings', params)
 
             if not results:
+                if period:
+                    raise ValueError(f"No 13F filing for {period} loaded for '{institution_key}'")
                 raise ValueError(
                     f"'{institution_key}' 13F 데이터가 캐시에 없습니다(배치 미적재). "
                     f"서버 온디맨드 폴백은 비활성화돼 있습니다."
@@ -110,6 +113,7 @@ class PortfolioService:
                 holding['performance'] = portfolio.performance
             if getattr(portfolio, 'top_sectors', None):
                 holding['top_sectors'] = portfolio.top_sectors
+            holding['available_periods'] = list(getattr(portfolio, 'available_periods', None) or [])
 
             return holding
 
