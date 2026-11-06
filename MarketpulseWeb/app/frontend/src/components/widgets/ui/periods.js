@@ -40,6 +40,19 @@ export function periodLabel(id) {
   return BY_ID[canonicalPeriod(id)]?.label ?? String(id).toUpperCase();
 }
 
+/**
+ * 기간 id → 시작일 'YYYY-MM-DD' (로컬 날짜). 'max' 나 모르는 값은 null(제한 없음).
+ * 서버 deps.period_start 와 같은 일수 환산 — 끝은 오늘(최근 항목이 빠지지 않게).
+ */
+export function periodStartDate(id) {
+  const m = /^(\d+)(d|w|mo|y)$/.exec(canonicalPeriod(id) || '');
+  if (!m) return null;
+  const days = Number(m[1]) * { d: 1, w: 7, mo: 30, y: 365 }[m[2]];
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+
 /** 프리셋 이름 → 기간 id 목록. 위젯은 이 이름이나 id 배열을 넘긴다. */
 export const PERIOD_PRESETS = {
   intraday: ['1d', '1w', '1mo', '3mo', '6mo', '1y'],

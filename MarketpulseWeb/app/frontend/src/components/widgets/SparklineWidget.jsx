@@ -239,6 +239,8 @@ export default function SparklineWidget({ onRemove }) {
 
   return (
     <BaseWidget
+      source={['yahoo', 'live']}
+      sourceNote="intraday 5m bars"
       title="Index Charts"
       icon={Activity}
       loading={loading && Object.keys(history).length === 0}

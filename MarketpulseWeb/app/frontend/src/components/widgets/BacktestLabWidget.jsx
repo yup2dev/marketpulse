@@ -69,6 +69,7 @@ export default function BacktestLabWidget({ symbol: symbolProp, onRemove }) {
           color:   CHART_COLORS[prev.length % CHART_COLORS.length],
           visible: true,
           data:    points,
+          provider: response?.provider,   // 출처 표기용 — 실제로 답한 provider
         },
       ]);
       toast.success(`Added ${label} (${points.length} pts)`);
@@ -114,6 +115,7 @@ export default function BacktestLabWidget({ symbol: symbolProp, onRemove }) {
           subtitle={`${symbol} · ${startDate} ~ ${endDate}`}
           loading={isAdding}
           onRemove={onRemove}
+          source={loadedSeries.map((s) => s.provider).filter(Boolean)}
         />
       </div>
     </div>

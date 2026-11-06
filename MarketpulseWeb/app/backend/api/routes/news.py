@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from data_fetcher.core.obbject import OBBject
 from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
 from data_fetcher.query_executor import QueryExecutor
-from app.backend.api.deps import route_handler
+from app.backend.api.deps import filter_dated_rows, resolve_date_range, route_handler
 from app.backend.core.db import get_db
 
 router = APIRouter()
@@ -19,17 +19,27 @@ async def get_news(
     symbol: Optional[str] = None,
     provider: str = "polygon",
     limit: int = FQuery(10, ge=1, le=50),
+    period: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
 ) -> OBBject:
     params = {"limit": limit}
     if symbol:
         params["ticker"] = symbol.upper()
+    start, end = resolve_date_range(period, start_date, end_date)
+    if start:
+        params["start_date"] = start
+    if end:
+        params["end_date"] = end
     raw = await QueryExecutor.fetch(provider, "news", params)
     items = raw.result if isinstance(raw, AnnotatedResult) else (raw or [])
     serialized = [
         item.model_dump(mode="json") if hasattr(item, "model_dump") else item
-        for item in items[:limit]
+        for item in items
     ]
-    return OBBject(results=serialized, provider=provider)
+    if start or end:
+        serialized = filter_dated_rows(serialized, start, end, key="published_utc")
+    return OBBject(results=serialized[:limit], provider=provider)
 
 
 @router.get("/events")

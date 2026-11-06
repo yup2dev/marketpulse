@@ -1,8 +1,11 @@
 """Portfolio API Routes — OBBject pattern"""
 import logging
-from typing import Any, Dict, List
+from datetime import date
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
+
+from app.backend.api.deps import filter_dated_rows, period_start
 
 from data_fetcher.core.obbject import OBBject
 from app.backend.services.portfolio_service import portfolio_service
@@ -45,7 +48,8 @@ async def get_13f_institutions(
 @router.get("/13f/{institution_key}/performance")
 async def get_fund_performance(
     institution_key: str,
-    quarters: int = 8,
+    quarters: Optional[int] = None,
+    period: Optional[str] = None,
     provider: str = "sec",
 ) -> OBBject:
     """13F 보유종목 기반 분기별 추정 수익률.
@@ -57,10 +61,23 @@ async def get_fund_performance(
 
     로컬 배치가 산출·적재한 값(db)만 읽는다 — provider 는 출처 표기용(원본은 SEC 13F).
     """
+    # period(1y·3y·max…)를 주면 그 기간을 덮는 분기 수로 바꿔 읽고 분기말 날짜로 자른다.
+    # 각 행은 두 분기를 비교하므로 기간 시작 분기까지 포함하도록 +1.
+    start = period_start(period) if period else None
+    if quarters is None:
+        if period and start is None:          # max
+            quarters = 200
+        elif start:
+            days = (date.today() - date.fromisoformat(start)).days
+            quarters = max(2, round(days / 91.25) + 1)
+        else:
+            quarters = 8
     try:
         rows = await portfolio_service.get_fund_performance(
             institution_key=institution_key, quarters=quarters
         )
+        if start:
+            rows = filter_dated_rows(rows, start, None, key="period")
         return OBBject(
             results=rows,
             provider=provider,

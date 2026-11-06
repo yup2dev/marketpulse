@@ -65,6 +65,7 @@ export default function NoteWidget({ onRemove }) {
 
   return (
     <BaseWidget
+      source="user"
       title="Notes"
       icon={StickyNote}
       loading={loading}

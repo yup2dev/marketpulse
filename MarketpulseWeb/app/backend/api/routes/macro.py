@@ -42,8 +42,9 @@ async def get_indicator_history(
 
 @router.get("/fred/series")
 @route_handler
-async def list_fred_series(provider: str = "fred") -> OBBject:
-    data = await macro_service.get_all_fred_series_overview()
+async def list_fred_series(provider: str = "fred", date: Optional[str] = None) -> OBBject:
+    # date = 기준일(As of). 비우면 최신 관측값.
+    data = await macro_service.get_all_fred_series_overview(as_of=date)
     return _wrap(data, provider)
 
 

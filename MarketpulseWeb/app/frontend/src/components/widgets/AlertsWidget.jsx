@@ -216,6 +216,8 @@ export default function AlertsWidget({ onRemove }) {
 
   return (
     <BaseWidget
+      source="user"
+      sourceNote="your alert rules"
       title="Alerts"
       subtitle={`${activeCount} active`}
       icon={Bell}

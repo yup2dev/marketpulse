@@ -36,7 +36,7 @@ import WidgetParamForm    from '../widgets/common/WidgetParamForm';
 import CommonTable        from '../common/CommonTable';
 import CommonChart        from '../common/CommonChart';
 import PlotlyRawChart     from './PlotlyRawChart';
-import { WidgetState, MetricTiles, stateFromError, buildViewOptions } from '../widgets/ui';
+import { WidgetState, MetricTiles, stateFromError, buildViewOptions, providerFromEndpoint } from '../widgets/ui';
 import {
   isParamVisible, visibleParams, paramDisplayValue, humanizeKey, applyColumnConfig,
 } from '../widgets/common/paramSpec';
@@ -499,6 +499,11 @@ export default function UniversalWidget({
   // (개념 위젯의 국가는 pin 된 헤더 칩이 보여 주므로 제목에 다시 붙이지 않는다)
   const titleSuffix = titleParam ? paramDisplayValue(titleParam, params[titleParam.name]) : undefined;
 
+  // 출처: 응답이 밝힌 provider(실제로 답한 소스) > 고른 provider > 엔드포인트에 박힌 provider.
+  // 응답에 provider 가 없는 사용자 데이터 라우트 등은 레지스트리 source 로 정한다.
+  const source = reg.source
+    ?? (response?.provider || provider || reg.provider || providerFromEndpoint(endpoint) || undefined);
+
   // ── Render body ──────────────────────────────────────────────────────────
   // 실패·0건은 BaseWidget state 로 넘긴다 (본문 대신 공통 WidgetState).
   const isEmpty = !!response && !OverrideView && renderType !== 'plotly' && rows.length === 0;
@@ -582,6 +587,8 @@ export default function UniversalWidget({
       onViewChange={setViewSel}
       headerExtra={paramMenu}
       state={widgetState}
+      source={source}
+      sourceNote={reg.sourceNote}
     >
       <div className="relative h-full min-h-0">
         {body}

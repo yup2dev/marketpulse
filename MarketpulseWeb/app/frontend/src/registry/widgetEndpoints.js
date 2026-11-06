@@ -21,13 +21,17 @@
  *     titleFrom?:  'institution_key'         // 그 param 의 현재 값 라벨을 제목 뒤에 붙인다
  *     kv?:         { primary, hide, labels } // display:'kv' — primary 는 큰 타일, hide 는 숨김
  *     columns?:    { hide, order, labels }   // 자동 컬럼 손질 (내부 키 숨기기 등)
+ *     source?:     'user' | ['user','yahoo'] // 출처 고정값 — 응답에 provider 가 없을 때만 (기본은 응답 provider)
+ *     sourceNote?: 'from SEC 13F filings'    // 원천·가공 설명. 출처는 모든 위젯 하단에 붙는다
  *     period?:     { default, preset }       // endpoint 에 {period} 가 있으면 헤더 기간 셀렉터의
  *                                           //   기본값·선택지(periods.js 프리셋). 없으면 1Y·macro
  *
  * 기간·기준일 고르는 기준 (OpenBB 표준 파라미터를 따른다):
- *   - 시계열·이벤트 목록 → 기간(start_date~end_date). 헤더 기간 셀렉터({period}) 또는 Start/End date param
- *   - 한 시점 스냅샷(수익률 곡선·지표 대시보드) → 기준일 date param (asOfParam, 비우면 최신)
- *   - 실시간 시세·프로필·정성 분석(SWOT 등)·분기 수 기준 목록 → 둘 다 두지 않는다
+ *   - 결과 행에 날짜가 있으면(재무제표·실적·배당·공시·거래 내역·뉴스·분기 수익률 …) 반드시 기간을 둔다
+ *     → 기간(start_date~end_date). 헤더 기간 셀렉터({period}) 또는 Start/End date param.
+ *       '최근 N건·N분기' 같은 개수 파라미터로 대신하지 않는다
+ *   - 한 시점 스냅샷(수익률 곡선·지표 대시보드·최신값 목록) → 기준일 date param (asOfParam, 비우면 최신)
+ *   - 날짜가 없는 결과(실시간 시세·프로필·정성 분석 SWOT 등) → 둘 다 두지 않는다
  *
  * UI 라벨(title·label·hint)은 영어로 쓴다.
  *     expandable?: { keyField, endpoint, dataPath? }
@@ -110,8 +114,10 @@ export const WIDGET_ENDPOINTS = {
   // 13F 파싱은 로컬 배치가 하고 서버는 적재 DB만 읽으므로 provider 셀렉터를 두지 않는다.
   'fund-performance': {
     title:    'Fund Performance (13F est.)',
-    endpoint: '/portfolio/13f/{institution_key}/performance?quarters={quarters}',
+    endpoint: '/portfolio/13f/{institution_key}/performance?period={period}',
+    period:   { default: '3y', preset: 'long' },
     titleFrom: 'institution_key',
+    sourceNote: 'estimated from 13F holdings (not actual NAV)',
     // 모든 행이 같은 펀드라 키·이름 열은 제목으로 대신한다
     columns:  { hide: ['institution_key', 'name'] },
     params: [
@@ -124,8 +130,6 @@ export const WIDGET_ENDPOINTS = {
           'baupost', 'viking', 'millennium', 'soros', 'renaissance',
         ],
         hint: 'situational-awareness = Leopold Aschenbrenner' },
-      { name: 'quarters', label: 'Quarters', kind: 'number', default: 8, step: 1, pin: true, chip: (v) => `${v}Q`,
-        hint: 'Rows = quarters − 1 (each row compares two quarters)' },
     ],
   },
 
@@ -142,8 +146,8 @@ export const WIDGET_ENDPOINTS = {
   'dividend':              { title: 'Dividends',              endpoint: '/stock/dividends/{symbol}?period={period}', category: 'dividends', provider: 'yahoo', period: eventsPeriod('5y') },
   'stock-splits':          { title: 'Stock Splits',           endpoint: '/stock/splits/{symbol}?period={period}',    category: 'splits',    provider: 'yahoo', period: eventsPeriod('max') },
   'company-filings':       { title: 'SEC Filings',            endpoint: '/stock/filings/{symbol}?period={period}',   category: 'filings', period: eventsPeriod('1y') },
-  'earnings':              { title: 'Earnings',               endpoint: '/stock/earnings/{symbol}',  category: 'earnings',  provider: 'polygon' },
-  'earnings-history':      { title: 'Earnings History',       endpoint: '/stock/earnings/{symbol}',  category: 'earnings',  provider: 'polygon' },
+  'earnings':              { title: 'Earnings',               endpoint: '/stock/earnings/{symbol}?period={period}',  category: 'earnings',  provider: 'polygon', period: eventsPeriod('3y') },
+  'earnings-history':      { title: 'Earnings History',       endpoint: '/stock/earnings/{symbol}?period={period}',  category: 'earnings',  provider: 'polygon', period: eventsPeriod('5y') },
   'insider':               { title: 'Insider Trading',        endpoint: '/stock/insider-trading/{symbol}?period={period}', category: 'insider_trading', period: eventsPeriod('1y') },
   'ownership-overview':    { title: 'Ownership Overview',     endpoint: '/stock/holders/{symbol}',   category: 'holders',   provider: 'yahoo' },
   'ownership-institutional': { title: 'Institutional Holders', endpoint: '/stock/holders/{symbol}',  category: 'holders',   provider: 'yahoo' },
@@ -155,7 +159,15 @@ export const WIDGET_ENDPOINTS = {
   'investment-scorecard':  { title: 'Investment Scorecard',   endpoint: '/stock/scorecard/{symbol}', category: 'scorecard', provider: 'yahoo' },
   'stock-sentiment':       { title: 'News Sentiment',         endpoint: '/stock/sentiment/{symbol}' },
   'social-sentiment':      { title: 'Social Sentiment',       endpoint: '/stock/reddit/{symbol}' },
-  'financials':            { title: 'Financial Statements',   endpoint: '/stock/financials/{symbol}', category: 'financials' },
+  // 재무제표 — 기간(헤더) + 보고 주기(Annual/Quarterly). period 는 조회 기간, 주기는 freq
+  'financials': {
+    title: 'Financial Statements', endpoint: '/stock/financials/{symbol}?period={period}', category: 'financials',
+    period: eventsPeriod('5y'),
+    params: [
+      { name: 'freq', label: 'Frequency', kind: 'select', default: 'quarterly', pin: true,
+        options: [{ value: 'annual', label: 'Annual' }, { value: 'quarterly', label: 'Quarterly' }] },
+    ],
+  },
 
   // ── Macro 지표 개념 (provider 무관 — 국가 + '내 키'로 FRED/ECOS/OECD 중 자동 선택) ──
   'concept-cpi':          conceptWidget('cpi_yoy',           'CPI Inflation (%)'),
@@ -181,7 +193,7 @@ export const WIDGET_ENDPOINTS = {
   'pmi':                    { title: 'ISM PMI / LEI',           endpoint: '/data/fred/pmi?period={period}' },
   'fin-conditions-tab':     { title: 'Financial Conditions',   endpoint: '/data/fred/financial_conditions', params: [asOfParam()] },
   'sentiment-tab':          { title: 'Market Sentiment',       endpoint: '/data/fred/sentiment_composite', params: [asOfParam()] },
-  'commodities-tab':        { title: 'Commodities',            endpoint: '/macro/fred/series' },
+  'commodities-tab':        { title: 'Commodities',            endpoint: '/macro/fred/series', params: [asOfParam()] },
 
   // ── QuantLib option pricing (form-driven, common-widget) ──────────────────
   'option-pricing': {
@@ -413,9 +425,10 @@ export const WIDGET_ENDPOINTS = {
     component: PortfolioStatsWidget,
     propsFrom: ['portfolioId'],
   },
-  'portfolio-chart':         { title: 'Portfolio Chart',    endpoint: '/user-portfolio/portfolios/{portfolioId}/chart' },
-  'portfolio-holdings':      { title: 'Holdings',           endpoint: '/user-portfolio/portfolios/{portfolioId}/holdings' },
-  'portfolio-balances':      { title: 'Balances',           endpoint: '/user-portfolio/portfolios/{portfolioId}/holdings' },
-  'portfolio-positions':     { title: 'Positions',          endpoint: '/user-portfolio/portfolios/{portfolioId}/holdings' },
-  'portfolio-trade-history': { title: 'Trade History',      endpoint: '/user-portfolio/portfolios/{portfolioId}/transactions' },
+  // 사용자 포트폴리오 — 응답에 provider 가 없다. 보유 내역은 사용자 입력, 현재가는 Yahoo 시세
+  'portfolio-chart':         { title: 'Portfolio Chart',    endpoint: '/user-portfolio/portfolios/{portfolioId}/chart',    source: ['user', 'yahoo'] },
+  'portfolio-holdings':      { title: 'Holdings',           endpoint: '/user-portfolio/portfolios/{portfolioId}/holdings', source: ['user', 'yahoo'] },
+  'portfolio-balances':      { title: 'Balances',           endpoint: '/user-portfolio/portfolios/{portfolioId}/holdings', source: ['user', 'yahoo'] },
+  'portfolio-positions':     { title: 'Positions',          endpoint: '/user-portfolio/portfolios/{portfolioId}/holdings', source: ['user', 'yahoo'] },
+  'portfolio-trade-history': { title: 'Trade History',      endpoint: '/user-portfolio/portfolios/{portfolioId}/transactions?period={period}', period: eventsPeriod('1y'), source: 'user' },
 };

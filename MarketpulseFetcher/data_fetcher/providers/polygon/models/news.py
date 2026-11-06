@@ -122,10 +122,13 @@ class PolygonNewsFetcher(
 
             if query.ticker:
                 params["ticker"] = query.ticker
-            if query.published_utc_gte:
-                params["published_utc.gte"] = query.published_utc_gte
-            if query.published_utc_lte:
-                params["published_utc.lte"] = query.published_utc_lte
+            # 표준 start_date/end_date(OpenBB news 와 같은 이름)도 발행일 범위로 쓴다
+            gte = query.published_utc_gte or (str(query.start_date) if getattr(query, "start_date", None) else None)
+            lte = query.published_utc_lte or (str(query.end_date) if getattr(query, "end_date", None) else None)
+            if gte:
+                params["published_utc.gte"] = gte
+            if lte:
+                params["published_utc.lte"] = lte
 
             # API 호출
             data = await amake_request(url, params=params, timeout=30)

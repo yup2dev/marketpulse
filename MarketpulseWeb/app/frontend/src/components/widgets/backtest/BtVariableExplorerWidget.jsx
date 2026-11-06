@@ -134,6 +134,8 @@ export default function BtVariableExplorerWidget({ onRemove }) {
 
   return (
     <BaseWidget
+      source="backtest"
+      sourceNote="from your variables"
       title="Variable Explorer"
       subtitle="Variable trends · stats · correlation"
       icon={Activity}

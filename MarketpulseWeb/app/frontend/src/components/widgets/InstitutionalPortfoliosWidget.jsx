@@ -666,6 +666,8 @@ const InstitutionalPortfolios = ({ onRemove }) => {
 
   return (
     <BaseWidget
+      source="sec"
+      sourceNote="Form 13F filings"
       title="Institutional Portfolios"
       loading={isAnyLoading}
       onRefresh={fetchInstitutions}

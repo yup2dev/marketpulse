@@ -118,6 +118,8 @@ export default function BtVariablesWidget({ onRemove }) {
 
   return (
     <BaseWidget
+      source="user"
+      sourceNote="your variable definitions"
       title="Variables"
       subtitle="Your variables · indicator expressions"
       icon={Variable}

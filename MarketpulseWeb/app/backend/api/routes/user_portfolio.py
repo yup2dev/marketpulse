@@ -11,7 +11,7 @@ import asyncio
 
 from app.backend.core.db import get_db
 from app.backend.core.auth.dependencies import get_current_active_user
-from app.backend.api.deps import route_handler
+from app.backend.api.deps import filter_dated_rows, resolve_date_range, route_handler
 from app.backend.services.user_portfolio_service import UserPortfolioService
 from app.backend.services.fx_service import FXRateNotFound, convert_fields, get_rate
 from data_fetcher.query_executor import QueryExecutor
@@ -209,6 +209,9 @@ def add_transaction(
 @router.get("/portfolios/{portfolio_id}/transactions")
 def get_transactions(
     portfolio_id: str,
+    period: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
@@ -224,7 +227,11 @@ def get_transactions(
         )
 
     transactions = UserPortfolioService.get_portfolio_transactions(db, portfolio_id)
-    return [t.to_dict() for t in transactions]
+    rows = [t.to_dict() for t in transactions]
+    start, end = resolve_date_range(period, start_date, end_date)
+    if start or end:
+        rows = filter_dated_rows(rows, start, end, key="transaction_date")
+    return rows
 
 
 @router.put("/portfolios/{portfolio_id}/transactions/{transaction_id}")

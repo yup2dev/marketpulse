@@ -372,6 +372,7 @@ export default function ScreenerWidget({ onRemove }) {
 
   return (
     <BaseWidget
+      source="screener"
       title="Stock Screener"
       icon={SlidersHorizontal}
       onRemove={onRemove}

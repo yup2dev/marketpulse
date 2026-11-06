@@ -133,6 +133,8 @@ export default function BtResultsWidget({ onRemove }) {
 
   return (
     <BaseWidget
+      source="backtest"
+      sourceNote="saved runs"
       title="Backtest Results"
       subtitle={lastRun ? `${lastRun.name}${lastRun.savedRunId ? ' · saved' : ''}` : 'Run results'}
       icon={BarChart3}

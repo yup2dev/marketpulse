@@ -17,7 +17,7 @@ import { GripVertical, X, RefreshCw, ChevronDown, Search, Database, FileDown, Fi
 import { apiClient, API_BASE } from '../../../config/api';
 import { downloadCSV, downloadExcel, downloadChartPNG, makeFilename } from '../../../utils/exportUtils';
 import { useWidgetSync } from '../../../contexts/WidgetSyncContext';
-import { Select, PeriodSelect, OverflowMenu, FilterBar, WidgetState } from '../ui';
+import { Select, PeriodSelect, OverflowMenu, FilterBar, WidgetState, SourceFooter } from '../ui';
 
 // 이 폭보다 좁으면 보기·provider 선택을 ⋯ 메뉴로 접는다 (헤더가 제목을 밀어내지 않게)
 const COMPACT_WIDTH = 460;
@@ -195,7 +195,8 @@ export default function BaseWidget({
   onProviderChange,
   providerOptions,            // [{ id, name, configured }]
   // Source
-  source,
+  source,                     // 데이터 출처 (필수) — provider id | 라벨 | 배열. ui/sources.js
+  sourceNote,                 // 원천·가공 설명 (예: 'from SEC 13F filings')
   // Custom header content (파라미터 버튼 등)
   headerExtra,
   // 헤더 아래 필터 줄 — node 또는 { left, right }
@@ -413,12 +414,8 @@ export default function BaseWidget({
         {body}
       </div>
 
-      {/* Footer with source */}
-      {source && (
-        <div className="px-3 py-1.5 border-t border-gray-800 flex-shrink-0">
-          <p className="text-[10px] text-gray-600">Source: {source}</p>
-        </div>
-      )}
+      {/* 출처 — 모든 위젯에 붙는다 (tests/test_widget_sources.py) */}
+      <SourceFooter source={source} note={sourceNote} />
     </div>
   );
 }

@@ -45,6 +45,8 @@ export default function TradingViewMiniChartWidget({ symbol: seedSymbol, onRemov
 
   return (
     <BaseWidget
+      source="tradingview"
+      sourceNote="embedded widget"
       title="Mini Chart (TV)"
       icon={CandlestickChart}
       onRemove={onRemove}

@@ -87,3 +87,74 @@ def test_as_of_date_caps_every_fred_request(monkeypatch, fetcher_cls, qp_cls):
     ends.clear()
     asyncio.run(fetcher_cls.aextract_data(qp_cls(), credentials={"fred_api_key": "test"}))
     assert ends and all(e is None for e in ends)
+
+
+# ── 결과에 날짜가 있는 위젯 — 재무제표·실적·13F 수익률·뉴스 ─────────────────────
+
+def _quarterly_rows(key, n):
+    today = date.today()
+    return [{key: (today - timedelta(days=91 * i)).isoformat(), "v": i} for i in range(n)]
+
+
+def test_financials_period_replaces_fixed_four_rows(monkeypatch):
+    from app.backend.api.routes import stock
+
+    seen = {}
+
+    async def fake_fetch(provider, model, params):
+        seen.update(params)
+        return _quarterly_rows("date", 30)
+
+    monkeypatch.setattr(stock.QueryExecutor, "fetch", fake_fetch)
+    obb = asyncio.run(stock.get_financials.__wrapped__("aapl", freq="annual", period="3y"))
+    assert seen["freq"] == "annual"                      # 보고 주기는 그대로 freq
+    assert 12 <= len(obb.results) <= 13                  # 3년 ≈ 12분기, 4건 제한 없음
+    assert obb.results[0]["date"] >= obb.results[-1]["date"]
+    assert len(asyncio.run(stock.get_financials.__wrapped__("aapl")).results) == 4
+
+
+def test_earnings_period_widens_fetch_limit(monkeypatch):
+    from app.backend.api.routes import stock
+
+    seen = {}
+
+    async def fake_fetch(provider, model, params):
+        seen.update(params)
+        return _quarterly_rows("date", params["limit"])
+
+    monkeypatch.setattr(stock.QueryExecutor, "fetch", fake_fetch)
+    obb = asyncio.run(stock.get_earnings.__wrapped__("aapl", period="5y"))
+    assert seen["limit"] == 40 and 20 <= len(obb.results) <= 21
+
+
+def test_fund_performance_period_maps_to_quarters(monkeypatch):
+    from app.backend.api.routes import portfolio
+
+    seen = {}
+
+    async def fake_perf(institution_key, quarters):
+        seen["quarters"] = quarters
+        return _quarterly_rows("period", quarters)
+
+    monkeypatch.setattr(portfolio.portfolio_service, "get_fund_performance", fake_perf)
+    obb = asyncio.run(portfolio.get_fund_performance("berkshire", period="3y"))
+    assert seen["quarters"] == 13
+    assert all(r["period"] >= period_start("3y") for r in obb.results)
+    asyncio.run(portfolio.get_fund_performance("berkshire"))
+    assert seen["quarters"] == 8                         # 기간 없으면 예전 기본값
+
+
+def test_news_period_is_sent_and_filtered_by_published_utc(monkeypatch):
+    from app.backend.api.routes import news
+
+    seen = {}
+    now = date.today()
+
+    async def fake_fetch(provider, model, params):
+        seen.update(params)
+        return [{"published_utc": f"{(now - timedelta(days=d)).isoformat()}T12:00:00Z"} for d in (0, 3, 20)]
+
+    monkeypatch.setattr(news.QueryExecutor, "fetch", fake_fetch)
+    obb = asyncio.run(news.get_news.__wrapped__(symbol="aapl", limit=10, period="1w"))
+    assert seen["start_date"] == period_start("1w")
+    assert len(obb.results) == 2

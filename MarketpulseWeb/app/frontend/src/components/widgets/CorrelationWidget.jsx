@@ -76,6 +76,8 @@ export default function CorrelationWidget({ onRemove }) {
 
   return (
     <BaseWidget
+      source="quantitative"
+      sourceNote="daily returns correlation"
       title="Correlation Matrix"
       icon={Grid3X3}
       onRefresh={fetchCorrelation}

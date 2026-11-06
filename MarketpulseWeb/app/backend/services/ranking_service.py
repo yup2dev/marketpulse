@@ -5,7 +5,7 @@ YFinanceBatchQuotesFetcher → QueryExecutor 기반 실시간 랭킹.
 """
 import asyncio
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 
 from app.backend.core.cache import cached
 from app.backend.services._base import cached_quotes, to_quote_symbol, unwrap
@@ -192,16 +192,17 @@ class RankingService:
         market:  str = 'all',
         sort_by: str = 'gainers',
         limit:   int = 50,
-    ) -> List[Dict[str, Any]]:
+    ) -> Tuple[List[Dict[str, Any]], str]:
+        """(행, 실제 응답한 provider). 위젯 출처 표기에 provider 를 그대로 쓴다."""
         # 국내(KRW) 실시간 순위는 KIS 서버 정렬을 사용 (실패 시 아래 yfinance로 폴백).
         if market == 'domestic':
             kis = await _kis_domestic_ranking(sort_by, limit)
             if kis is not None:
-                return RankingService._sort_rows(kis, sort_by)[:limit]
+                return RankingService._sort_rows(kis, sort_by)[:limit], 'kis'
 
         meta, _, full_key = await _live_universe_keys(market)
         if not meta:
-            return []
+            return [], 'yahoo'
 
         live = await _live_quotes_swr(full_key)
 
@@ -219,7 +220,7 @@ class RankingService:
                 'trade_value': q['volume'] * q['price'],
             })
 
-        return RankingService._sort_rows(rows, sort_by)[:limit]
+        return RankingService._sort_rows(rows, sort_by)[:limit], 'yahoo'
 
     @staticmethod
     async def get_ranking(
@@ -227,8 +228,8 @@ class RankingService:
         sort_by: str = 'gainers',
         period:  str = '1d',
         limit:   int = 50,
-    ) -> List[Dict[str, Any]]:
-        """기간별 랭킹.
+    ) -> Tuple[List[Dict[str, Any]], str]:
+        """기간별 랭킹 → (행, 실제 응답한 provider: kis | yahoo | db).
 
         realtime → 라이브(Redis SWR + WebSocket) 경로.
         국내(domestic) realtime·1d → KIS 서버 정렬(실패 시 아래 경로로 폴백).
@@ -238,14 +239,14 @@ class RankingService:
         if market == 'domestic' and period in ('realtime', '1d'):
             kis = await _kis_domestic_ranking(sort_by, limit)
             if kis is not None:
-                return RankingService._sort_rows(kis, sort_by)[:limit]
+                return RankingService._sort_rows(kis, sort_by)[:limit], 'kis'
 
         if period == 'realtime':
             return await RankingService.get_live_ranking(market, sort_by, limit)
 
         rows = await _fetch_db_ranking(period)
         rows = _filter_rows_by_market(rows, market)
-        return RankingService._sort_rows(rows, sort_by)[:limit]
+        return RankingService._sort_rows(rows, sort_by)[:limit], 'db'
 
     @staticmethod
     def _sort_rows(rows: List[Dict], sort_by: str) -> List[Dict]:

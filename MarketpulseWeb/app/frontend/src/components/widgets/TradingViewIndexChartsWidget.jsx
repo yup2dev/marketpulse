@@ -38,6 +38,8 @@ const CONFIG = {
 export default function TradingViewIndexChartsWidget({ onRemove }) {
   return (
     <BaseWidget
+      source="tradingview"
+      sourceNote="embedded widget"
       title="Index Charts (TV)"
       icon={LineChart}
       onRemove={onRemove}

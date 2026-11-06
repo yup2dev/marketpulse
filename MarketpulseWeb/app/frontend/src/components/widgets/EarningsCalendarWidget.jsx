@@ -17,6 +17,7 @@ export default function EarningsCalendarWidget({ onRemove }) {
 
   return (
     <BaseWidget
+      source="nasdaq"
       title="Earnings Calendar"
       icon={BarChart3}
       onRemove={onRemove}

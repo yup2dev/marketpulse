@@ -93,6 +93,8 @@ export default function BtEventStudyWidget({ onRemove }) {
 
   return (
     <BaseWidget
+      source="backtest"
+      sourceNote="from your events & variables"
       title="Event Study"
       subtitle="Event mapping · before/after"
       icon={Crosshair}
