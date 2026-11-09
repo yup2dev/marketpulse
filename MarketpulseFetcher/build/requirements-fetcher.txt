@@ -1,0 +1,41 @@
+# 배포용 Fetcher 실행파일에 들어가는 Python 의존성 (build.py 가 내장 런타임에 설치).
+#
+# 저장소 루트 requirements.txt 는 웹 백엔드·배치까지 포함하므로 쓰지 않는다.
+# 버전은 개발 venv 에서 검증된 값으로 고정 — 빌드할 때마다 결과가 달라지지 않게.
+#
+# 일부러 뺀 것 (providers_init 이 try/except 로 건너뛰므로 해당 provider 만 비활성):
+#   sqlalchemy        — database provider 는 WebServer(DB) 전용
+#   scipy/statsmodels — quantitative provider (용량 ~100MB)
+#   pykrx             — KR 국고채(선택, matplotlib 을 끌고 온다)
+#   pystray/Pillow    — 트레이는 Rust 런처가 그린다
+
+# 서버
+fastapi==0.120.0
+starlette==0.48.0
+uvicorn[standard]==0.38.0
+websockets==15.0.1
+pydantic==2.12.3
+python-dotenv==1.2.1
+
+# HTTP
+requests==2.32.5
+urllib3==2.5.0
+certifi==2025.10.5
+httpx==0.28.1
+aiohttp==3.13.1
+aiohttp-client-cache==0.14.3
+aiosqlite==0.22.1
+async-lru==2.3.0
+
+# 데이터
+pandas==2.3.3
+numpy==2.3.4
+python-dateutil==2.9.0.post0
+yfinance==0.2.66
+QuantLib==1.42.1
+
+# 파싱
+beautifulsoup4==4.14.2
+lxml==6.0.2
+xmltodict==1.0.4
+defusedxml==0.7.1

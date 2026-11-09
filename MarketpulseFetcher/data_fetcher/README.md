@@ -69,4 +69,4 @@ python -m pytest                       # tests/ + MarketpulseFetcher/data_fetche
 python -c "import data_fetcher.providers_init; from data_fetcher.providers.fred.models.gdp import FREDGDPFetcher as F; F.test({})"
 ```
 
-exe 빌드는 `bash MarketpulseFetcher/build/build.sh` (spec: `MarketpulseFetcher/build/MarketPulseFetcher.spec`).
+exe 빌드는 `python MarketpulseFetcher/build/build.py` (uv·cargo 필요). Rust 런처(`MarketpulseFetcher/launcher`)가 내장 Python 런타임 + data_fetcher 페이로드를 품은 단일 실행파일이며, 첫 실행 때 `%LOCALAPPDATA%/MarketPulseFetcher/runtime/<id>`에 풀고 `python -I -m data_fetcher.app`(헤드리스)를 띄운다. 번들 의존성은 `MarketpulseFetcher/build/requirements-fetcher.txt`.

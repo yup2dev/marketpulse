@@ -1,5 +1,7 @@
 """
-MarketPulse Fetcher — 시스템 트레이 데스크탑 앱.
+MarketPulse Fetcher — 시스템 트레이 (소스 실행 `python -m data_fetcher.app` 전용).
+
+배포 실행파일은 Rust 런처가 트레이를 그리고 이 모듈은 번들되지 않는다.
 
 트레이 아이콘을 클릭하면 메뉴가 뜨고, 백그라운드에서 REST 서버가 상주한다.
 Windows / Mac 둘 다 동작 (pystray 크로스플랫폼).
@@ -27,18 +29,12 @@ log = logging.getLogger(__name__)
 
 
 def _load_icon():
-    """번들 또는 소스에서 아이콘 이미지 로드."""
+    """소스의 아이콘 이미지 로드."""
     from PIL import Image
 
-    # PyInstaller 번들 경로
-    base = getattr(sys, "_MEIPASS", None) or Path(__file__).parent
-    candidates = [
-        Path(base) / "assets" / "icon.png",
-        Path(__file__).parent / "assets" / "icon.png",
-    ]
-    for p in candidates:
-        if p.exists():
-            return Image.open(p).convert("RGBA")
+    p = Path(__file__).parent / "assets" / "icon.png"
+    if p.exists():
+        return Image.open(p).convert("RGBA")
 
     # fallback: 코드로 생성
     from PIL import ImageDraw
@@ -73,7 +69,7 @@ class TrayApp:
                 app, host=host, port=self.port,
                 log_level=os.getenv("FETCHER_LOG_LEVEL", "info"),
                 loop="asyncio",
-                # console=False 로 패키징된 exe 는 sys.stdout 이 None 이라
+                # pythonw 등 콘솔 없는 실행은 sys.stdout 이 None 이라
                 # uvicorn 기본 컬러 포매터(isatty 접근)가 죽는다. 자체 로깅을
                 # app.py._setup_logging 에서 구성하므로 uvicorn 로그설정은 끈다.
                 log_config=None,

@@ -1,6 +1,6 @@
 ---
 name: add-fetcher
-description: data_fetcher에 새 데이터 소스(provider/model fetcher)를 추가할 때 사용. provider 디렉터리 배치 표준(model fetcher는 예외 없이 providers/<p>/models/) + 베이스 클래스 선택(ApiFetcher 선언형 / LibraryFetcher·yfinance / DbFetcher / ComputeFetcher / KIS형 다중자격증명) + TET 파이프라인 + standard model 상속 + providers_init 등록 + 라우트 등록(api/routers.py)·인증 게이트 + 위젯 연결 + exe(PyInstaller) 번들 주의사항까지 안내한다. "fetcher 추가", "새 provider 붙이기", "새 지표/모델 추가", "yahoo/fmp/polygon 등에 모델 추가" 같은 요청에 사용.
+description: data_fetcher에 새 데이터 소스(provider/model fetcher)를 추가할 때 사용. provider 디렉터리 배치 표준(model fetcher는 예외 없이 providers/<p>/models/) + 베이스 클래스 선택(ApiFetcher 선언형 / LibraryFetcher·yfinance / DbFetcher / ComputeFetcher / KIS형 다중자격증명) + TET 파이프라인 + standard model 상속 + providers_init 등록 + 라우트 등록(api/routers.py)·인증 게이트 + 위젯 연결 + exe(Rust 런처 + 내장 Python) 번들 주의사항까지 안내한다. "fetcher 추가", "새 provider 붙이기", "새 지표/모델 추가", "yahoo/fmp/polygon 등에 모델 추가" 같은 요청에 사용.
 ---
 
 # Fetcher 추가 가이드
@@ -25,7 +25,7 @@ UniversalWidget의 provider 셀렉터가 shape-safe하게 동작한다.
 - 등록: `MarketpulseFetcher/data_fetcher/providers_init.py` / 캐시 TTL: `query_executor.py`의 `_DEFAULT_TTL`
 - 라우트: 범용 게이트웨이 `MarketpulseWeb/app/backend/api/routes/data.py`(무코드) 또는 전용 `routes/<area>.py`
 - 프론트: `MarketpulseWeb/app/frontend/src/registry/widgetEndpoints.js` + `urlWidgetMap.js`
-- exe 빌드 spec: `MarketpulseFetcher/build/MarketPulseFetcher.spec`
+- exe 빌드: `MarketpulseFetcher/build/build.py` + 번들 의존성 `MarketpulseFetcher/build/requirements-fetcher.txt` (런처: `MarketpulseFetcher/launcher`)
 
 ---
 
@@ -138,7 +138,7 @@ class DBThingFetcher(DbFetcher[Q, D]):
 
 ### D. ComputeFetcher — 순수 로컬 계산
 
-- 네트워크/credentials 없음. scipy·QuantLib 등 **선택적 의존성이면 providers_init에서 try/except 등록** (quantlib/quantitative 블록 참조) + PyInstaller spec `excludes` 유지 확인.
+- 네트워크/credentials 없음. scipy·QuantLib 등 **선택적 의존성이면 providers_init에서 try/except 등록** (quantlib/quantitative 블록 참조) + `requirements-fetcher.txt`에 넣을지(용량) 판단.
 
 ### E. OpenBB 이식 시 추가로 할 일
 
@@ -211,14 +211,13 @@ model별 TTL(초). 실시간 60 / 반-신선 300~600 / 일일 1800~3600. 같은 
 
 ---
 
-## 7. exe(PyInstaller) 번들 영향 — 배포되는 Fetcher까지 생각하기
+## 7. exe 번들 영향 — 배포되는 Fetcher까지 생각하기
 
-providers_init이 정적 import하므로 **모듈 자체는 자동 번들**된다. 하지만:
+exe 는 Rust 런처(`MarketpulseFetcher/launcher`)가 내장 Python 런타임 + `data_fetcher` 패키지 폴더 통째(자산 파일 포함, tests 제외)를 품고 실행한다. 정적분석이 없으므로 모듈·자산 누락 걱정은 없지만 **서드파티 패키지는 명시한 것만 들어간다**:
 
-1. **함수 내부 지연 import 모듈은 정적분석이 못 잡는다** → `MarketpulseFetcher/build/MarketPulseFetcher.spec` `hiddenimports`에 추가. (사례: SEC의 `xmltodict` 누락 → exe에서 13F 파싱 시 ModuleNotFoundError)
-2. **provider 자산 파일**(예: IMF `imf_cache.pkl.gz`)은 spec `datas`에 추가하고, 없어도 import가 죽지 않게 fail-soft.
-3. 무거운/백엔드 전용 의존성(sqlalchemy, scipy 등)은 spec `excludes` 유지 + providers_init try/except.
-4. 빌드·배포: `bash MarketpulseFetcher/build/build.sh` (Win/Mac 공용, 실제 바탕화면에 복사).
+1. **새 서드파티 의존성은 `MarketpulseFetcher/build/requirements-fetcher.txt`에 버전 고정으로 추가** (지연 import 포함). 누락 시 exe에서만 ModuleNotFoundError. (루트 requirements.txt 는 exe에 쓰이지 않는다)
+2. 무거운/백엔드 전용 의존성(sqlalchemy, scipy 등)은 requirements-fetcher.txt 에서 빼고 providers_init try/except 로 건너뛴다.
+3. 빌드·배포: `python MarketpulseFetcher/build/build.py` (Win/Mac 공용, uv·cargo 필요, 실제 바탕화면에 복사. CI는 `--no-desktop`). 빌드 중 번들 런타임으로 `providers_init` import 를 확인한다.
 5. 배포 환경에서 keyless 스크래핑 provider(yahoo/whalewisdom 등)는 **사용자 로컬 Fetcher 워커로 위임**된다 — default 위젯에는 지양(SEC 게이트웨이 위젯 선호).
 
 ---
@@ -238,7 +237,7 @@ PYTHONPATH="MarketpulseFetcher" python -c "import data_fetcher.providers_init; f
 
 # (d) 게이트웨이: GET /api/data/<provider>/<category>?symbol=AAPL / GET /api/providers
 # (e) 프론트 빌드: cd MarketpulseWeb/app/frontend && npm run build
-# (f) 지연 import를 추가했다면: bash MarketpulseFetcher/build/build.sh 후 exe로 해당 model 1회 호출
+# (f) 서드파티 의존성을 추가했다면: requirements-fetcher.txt 반영 → python MarketpulseFetcher/build/build.py 후 exe로 해당 model 1회 호출
 ```
 
 ## 체크리스트

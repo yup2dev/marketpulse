@@ -24,7 +24,6 @@ import asyncio
 import logging
 import os
 import secrets
-import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -182,10 +181,7 @@ def create_app(
 
     # ── 키 관리 UI (tray "API 키 설정" 클릭 시 열리는 페이지) ────────────────
     def _ui_html() -> str:
-        base = getattr(sys, "_MEIPASS", None) or Path(__file__).parent.parent
-        p = Path(base) / "assets" / "keys_ui.html"
-        if not p.exists():
-            p = Path(__file__).parent.parent / "assets" / "keys_ui.html"
+        p = Path(__file__).parent.parent / "assets" / "keys_ui.html"
         html = p.read_text(encoding="utf-8") if p.exists() else "<h1>UI 파일 없음</h1>"
         return html.replace("__FETCHER_TOKEN__", fetch_token)
 
