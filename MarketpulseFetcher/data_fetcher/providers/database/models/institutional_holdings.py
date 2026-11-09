@@ -96,6 +96,11 @@ class DBInstitutionalHoldingsFetcher(
                 summary["period_end"] = query.period
             summary["available_periods"] = periods
 
+            if query.summary_only:
+                # 요약만 — 보유종목(기관당 수천 행)은 읽지 않는다
+                summary["stocks"], summary["sold_positions"] = [], []
+                return summary
+
             rows = (
                 session.query(hold)
                 .filter(hold.institution_key == key, *filt)
@@ -106,8 +111,6 @@ class DBInstitutionalHoldingsFetcher(
             for r in rows:
                 h = {f: getattr(r, f, None) for f in _HOLD_FIELDS}
                 (sold if r.is_sold else stocks).append(h)
-            if query.summary_only:
-                stocks, sold = [], []
             summary["stocks"] = stocks
             summary["sold_positions"] = sold
             return summary
