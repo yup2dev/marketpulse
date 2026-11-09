@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>MarketPulse — Style guide</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Noto+Sans+KR:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#8FB8FF}a:hover{color:#B9D3FF}
+</style>
+</helmet>
+<div style="width: 1200px; height: 1080px; box-sizing: border-box; padding: 40px; background: #0B0B0C; color: #E8E8EA; font-family: Inter, 'Noto Sans KR', system-ui, sans-serif; font-variant-numeric: tabular-nums; display: flex; flex-direction: column; gap: 28px">
+  <div>
+    <h1 style="margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.4px">Style guide</h1>
+    <p style="margin: 6px 0 0; font-size: 14px; color: #9A9CA5">Dark default · 기본 글자 13px · 숫자는 Inter tabular, 한글은 Noto Sans KR · 패널 radius 14 + 1px 선 · 컨트롤 radius 7–10</p>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px">
+    <section style="display: flex; flex-direction: column; gap: 12px">
+      <h2 style="margin: 0; font-size: 16px; font-weight: 700">Surfaces &amp; text</h2>
+      <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px">
+        <sc-for list="{{ swatches }}" as="s" hint-placeholder-count="8">
+          <div style="display: flex; flex-direction: column; gap: 6px">
+            <span style="height: 52px; border-radius: 10px; background: {{ s.hex }}; border: 1px solid #2A2B31"></span>
+            <span style="font-size: 12px; font-weight: 600">{{ s.name }}</span>
+            <span style="font-size: 11px; color: #9A9CA5">{{ s.hex }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+
+    <section style="display: flex; flex-direction: column; gap: 12px">
+      <h2 style="margin: 0; font-size: 16px; font-weight: 700">Price colors — Settings에서 선택</h2>
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+        <div style="background: #18191E; border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 8px; border: 2px solid #3182F6">
+          <span style="font-size: 13px; font-weight: 700">국내 관례 (기본)</span>
+          <span style="font-size: 20px; font-weight: 700; color: #F04452">+2.33%</span>
+          <span style="font-size: 20px; font-weight: 700; color: #3182F6">−4.07%</span>
+          <span style="font-size: 12px; color: #9A9CA5">상승 #F04452 · 하락 #3182F6</span>
+        </div>
+        <div style="background: #18191E; border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 8px; border: 2px solid transparent">
+          <span style="font-size: 13px; font-weight: 700">US</span>
+          <span style="font-size: 20px; font-weight: 700; color: #1DB37A">+2.33%</span>
+          <span style="font-size: 20px; font-weight: 700; color: #F04452">−4.07%</span>
+          <span style="font-size: 12px; color: #9A9CA5">상승 #1DB37A · 하락 #F04452</span>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px">
+    <section style="display: flex; flex-direction: column; gap: 10px">
+      <h2 style="margin: 0; font-size: 16px; font-weight: 700">Type scale</h2>
+      <div style="display: flex; align-items: baseline; gap: 16px"><span style="width: 96px; font-size: 12px; color: #9A9CA5">Price 34/700</span><span style="font-size: 34px; font-weight: 700; letter-spacing: -0.5px">$350.34</span></div>
+      <div style="display: flex; align-items: baseline; gap: 16px"><span style="width: 96px; font-size: 12px; color: #9A9CA5">Number 24/700</span><span style="font-size: 24px; font-weight: 700">27,736.4</span></div>
+      <div style="display: flex; align-items: baseline; gap: 16px"><span style="width: 96px; font-size: 12px; color: #9A9CA5">Title 16/700</span><span style="font-size: 16px; font-weight: 700">Sector Heatmap</span></div>
+      <div style="display: flex; align-items: baseline; gap: 16px"><span style="width: 96px; font-size: 12px; color: #9A9CA5">Body 14/500</span><span style="font-size: 14px; font-weight: 500">Apple Inc. · 오늘 상승률 상위</span></div>
+      <div style="display: flex; align-items: baseline; gap: 16px"><span style="width: 96px; font-size: 12px; color: #9A9CA5">Caption 12/400</span><span style="font-size: 12px; color: #9A9CA5">Source: FRED (St. Louis Fed)</span></div>
+    </section>
+
+    <section style="display: flex; flex-direction: column; gap: 12px">
+      <h2 style="margin: 0; font-size: 16px; font-weight: 700">Controls</h2>
+      <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center">
+        <button type="button" style="height: 44px; padding: 0 16px; border-radius: 12px; border: 0; background: #3182F6; color: #FFFFFF; font: inherit; font-size: 14px; font-weight: 600">Primary</button>
+        <button type="button" style="height: 44px; padding: 0 16px; border-radius: 12px; border: 0; background: #23242A; color: #ECECEE; font: inherit; font-size: 14px; font-weight: 600">Secondary</button>
+        <button type="button" style="height: 32px; padding: 0 12px; border-radius: 999px; border: 0; background: #ECECEE; color: #111216; font: inherit; font-size: 13px; font-weight: 600">Chip on</button>
+        <button type="button" style="height: 32px; padding: 0 12px; border-radius: 999px; border: 0; background: #23242A; color: #B4B6BE; font: inherit; font-size: 13px">Chip off</button>
+      </div>
+      <div role="group" aria-label="Range example" style="display: flex; align-self: flex-start; padding: 3px; border-radius: 10px; background: #23242A">
+        <button type="button" style="height: 30px; padding: 0 12px; border-radius: 8px; border: 0; background: transparent; color: #9A9CA5; font: inherit; font-size: 13px">1D</button>
+        <button type="button" style="height: 30px; padding: 0 12px; border-radius: 8px; border: 0; background: #3A3B43; color: #FFFFFF; font: inherit; font-size: 13px; font-weight: 600">1M</button>
+        <button type="button" style="height: 30px; padding: 0 12px; border-radius: 8px; border: 0; background: transparent; color: #9A9CA5; font: inherit; font-size: 13px">1Y</button>
+        <button type="button" style="height: 30px; padding: 0 12px; border-radius: 8px; border: 0; background: transparent; color: #9A9CA5; font: inherit; font-size: 13px">5Y</button>
+      </div>
+      <label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #9A9CA5; max-width: 320px">Symbol
+        <input type="text" value="AAPL" style="height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid #2E2F36; background: #18191E; color: #ECECEE; font: inherit; font-size: 14px">
+      </label>
+    </section>
+  </div>
+
+  <section style="display: flex; flex-direction: column; gap: 12px">
+    <h2 style="margin: 0; font-size: 16px; font-weight: 700">Widget card &amp; states</h2>
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px">
+      <div style="background: #18191E; border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 10px; height: 200px; box-sizing: border-box">
+        <div style="display: flex; justify-content: space-between; align-items: center"><span style="font-size: 15px; font-weight: 700">Loading</span><span style="font-size: 12px; color: #9A9CA5">1M</span></div>
+        <span style="height: 24px; width: 60%; border-radius: 6px; background: #23242A"></span>
+        <span style="height: 14px; width: 40%; border-radius: 6px; background: #23242A"></span>
+        <span style="flex: 1; border-radius: 10px; background: #1E1F25"></span>
+      </div>
+      <div style="background: #18191E; border-radius: 16px; padding: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; height: 200px; box-sizing: border-box; text-align: center">
+        <span style="font-size: 15px; font-weight: 700">아직 관심 종목이 없어요</span>
+        <span style="font-size: 13px; color: #9A9CA5">종목을 추가하면 여기서 바로 볼 수 있어요</span>
+        <button type="button" style="margin-top: 4px; height: 36px; padding: 0 14px; border-radius: 10px; border: 0; background: #3182F6; color: #FFFFFF; font: inherit; font-size: 13px; font-weight: 600">종목 추가</button>
+      </div>
+      <div style="background: #18191E; border-radius: 16px; padding: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; height: 200px; box-sizing: border-box; text-align: center">
+        <span style="font-size: 15px; font-weight: 700">데이터를 불러오지 못했어요</span>
+        <span style="font-size: 13px; color: #9A9CA5">Polygon 응답 404 · 잠시 후 다시 시도해 주세요</span>
+        <button type="button" style="margin-top: 4px; height: 36px; padding: 0 14px; border-radius: 10px; border: 0; background: #23242A; color: #ECECEE; font: inherit; font-size: 13px; font-weight: 600">다시 시도</button>
+      </div>
+      <div style="background: #18191E; border-radius: 16px; padding: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; height: 200px; box-sizing: border-box; text-align: center">
+        <span style="font-size: 15px; font-weight: 700">ECOS 키가 필요해요</span>
+        <span style="font-size: 13px; color: #9A9CA5">설정에서 키를 등록하면 한국 지표가 보여요</span>
+        <button type="button" style="margin-top: 4px; height: 36px; padding: 0 14px; border-radius: 10px; border: 0; background: #3182F6; color: #FFFFFF; font: inherit; font-size: 13px; font-weight: 600">설정 열기</button>
+      </div>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":1080}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const swatches = [
+      ['Background', '#0B0B0C'], ['Panel', '#121214'], ['Raised', '#1E1E22'], ['Line', '#1C1C1F'],
+      ['Text', '#E8E8EA'], ['Text muted', '#8E8E96'], ['Accent', '#3182F6'], ['Live', '#3FC27A'],
+    ].map(([name, hex]) => ({ name, hex }));
+    return { swatches };
+  }
+}
+</script>
+</body>
+</html>
