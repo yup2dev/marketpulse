@@ -4,7 +4,7 @@
 # build.py 가 페이로드(zip)를 만든 뒤 MP_PAYLOAD / MP_PAYLOAD_ID 환경변수로 넘겨준다.
 [package]
 name = "marketpulse-fetcher"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 publish = false
 
