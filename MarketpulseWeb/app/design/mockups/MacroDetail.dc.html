@@ -13,145 +13,281 @@
 <style>
 body{margin:0;background:#0B0B0C}
 a{color:#8FB8FF}a:hover{color:#B9D3FF}
+.g12{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:8px}
+@media (max-width:900px){.g12>*{grid-column:1/-1 !important}.g12{grid-template-rows:none !important}.g12>section{min-height:280px}}
+.wx{width:28px;height:28px;border:0;border-radius:6px;background:transparent;color:#8E8E96;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer}
+.wx:hover{background:#1E1E22;color:#E8E8EA}
+.mi{display:flex;align-items:center;gap:10px;width:100%;height:36px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:#E8E8EA;font:inherit;font-size:13px;text-align:left;cursor:pointer}
+.mi:hover{background:#1E1E22}
+*{scrollbar-width:thin;scrollbar-color:#2A2A2F transparent}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track,::-webkit-scrollbar-corner{background:transparent}
+::-webkit-scrollbar-thumb{background:#2A2A2F;border-radius:6px;border:2px solid transparent;background-clip:padding-box}
+::-webkit-scrollbar-thumb:hover{background:#3A3A41;border:2px solid transparent;background-clip:padding-box}
 </style>
 </helmet>
-<div style="min-height: 100vh; background: #0B0B0C; color: #E8E8EA; font-family: Inter, 'Noto Sans KR', system-ui, sans-serif; font-size: 13px; font-variant-numeric: tabular-nums; display: flex; flex-direction: column">
+<div style="height: 100vh; min-height: 640px; background: #08080A; color: #E8E8EA; font-family: Inter, 'Noto Sans KR', system-ui, sans-serif; font-size: 13px; font-variant-numeric: tabular-nums; display: flex; flex-direction: column">
 
-  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 8px 16px; border-bottom: 1px solid #1C1C1F">
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; height: 48px; box-sizing: border-box; padding: 0 16px; background: #0B0B0C; border-bottom: 1px solid #1C1C1F">
     <a href="Main.dc.html" style="display: flex; align-items: center; gap: 8px; text-decoration: none; color: #E8E8EA">
-      <span style="width: 26px; height: 26px; border-radius: 6px; background: #3182F6; display: flex; align-items: center; justify-content: center">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 13 8 13 11 6 14 18 17 11 21 11"></polyline></svg>
+      <span style="width: 24px; height: 24px; border-radius: 6px; background: #3182F6; display: flex; align-items: center; justify-content: center">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 13 8 13 11 6 14 18 17 11 21 11"></polyline></svg>
       </span>
       <span style="font-size: 15px; font-weight: 700">MarketPulse</span>
     </a>
-    <label style="flex: 1 1 280px; max-width: 560px; margin: 0 auto; display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px; border-radius: 6px; background: #161618; border: 1px solid #222226; color: #8E8E96">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><line x1="16.5" y1="16.5" x2="21" y2="21"></line></svg>
+    <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #C9C9CF"><span style="width: 6px; height: 6px; border-radius: 50%; background: #3FC27A"></span>US 정규장</span>
+    <label style="flex: 0 1 420px; margin-left: auto; display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px; border-radius: 6px; background: #161618; color: #8E8E96">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><line x1="16.5" y1="16.5" x2="21" y2="21"></line></svg>
       <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search</span>
-      <input type="search" placeholder="종목, 지수, 뉴스, 공시, 경제지표 검색" style="flex: 1; min-width: 0; background: transparent; border: 0; outline: none; color: #E8E8EA; font: inherit">
-      <span style="font-size: 11px; padding: 2px 6px; border-radius: 6px; background: #222226; color: #8E8E96">Ctrl K</span>
+      <input type="search" placeholder="종목 · 지표 검색" style="flex: 1; min-width: 0; background: transparent; border: 0; outline: none; color: #E8E8EA; font: inherit">
+      <span style="font-size: 11px; color: #8E8E96">Ctrl K</span>
     </label>
-    <span style="width: 30px; height: 30px; border-radius: 50%; background: #2B3A55; color: #CFE0FF; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700">김</span>
+    <span style="width: 28px; height: 28px; border-radius: 50%; background: #2B3A55; color: #CFE0FF; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700">김</span>
   </header>
 
-  <div style="flex: 1; display: flex; flex-wrap: wrap; align-items: stretch">
-    <nav aria-label="Main" style="flex: 0 0 68px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 0; border-right: 1px solid #1C1C1F">
+  <div style="flex: 1; min-height: 0; display: flex; flex-wrap: wrap; align-items: stretch">
+
+    <nav aria-label="Main" style="flex: 0 0 64px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 0; background: #0B0B0C; border-right: 1px solid #1C1C1F">
       <sc-for list="{{ rail }}" as="n" hint-placeholder-count="8">
-        <a href="{{ n.href }}" style="width: 58px; min-height: 52px; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; text-decoration: none; color: {{ n.fg }}; background: {{ n.bg }}">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ n.icon }}"></path></svg>
+        <a href="{{ n.href }}" style="width: 54px; height: 50px; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; text-decoration: none; color: {{ n.fg }}; background: {{ n.bg }}">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ n.icon }}"></path></svg>
           <span style="font-size: 10.5px; font-weight: 600">{{ n.label }}</span>
         </a>
       </sc-for>
     </nav>
 
-    <main style="flex: 999 1 560px; min-width: 0; padding: 10px; display: flex; flex-direction: column; gap: 8px; background: #08080A">
-      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 4px 4px 0">
-        <h1 style="margin: 0; font-size: 18px; font-weight: 700">매크로</h1>
-        <label style="display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 6px; border: 1px solid #222226; background: #161618; font-size: 12px; color: #9C9CA3">국가
-          <select style="background: transparent; border: 0; color: #E8E8EA; font: inherit; font-weight: 600"><option>미국</option><option>한국</option></select>
+    <main class="g12" onContextMenu="{{ openMenu }}" onClick="{{ closeMenu }}" style="flex: 999 1 560px; min-width: 0; height: 100%; box-sizing: border-box; overflow: auto; padding: 8px; grid-template-rows: auto auto minmax(220px, 1fr) minmax(220px, 1fr); grid-auto-rows: 300px; position: relative">
+
+      <section aria-label="Key indicators" style="grid-column: span 12; background: #121214; border-radius: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 0; padding: 10px 12px">
+        <label style="display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; margin-right: 6px; border-radius: 6px; background: #1A1A1D; font-size: 12px; color: #9C9CA3">국가
+          <select style="background: transparent; border: 0; color: #E8E8EA; font: inherit; font-weight: 700"><option>미국</option><option>한국</option></select>
         </label>
-        <div style="display: flex; flex-wrap: wrap; gap: 4px">
-          <a href="#" style="height: 30px; padding: 0 12px; border-radius: 6px; background: #1C1C20; color: #FFFFFF; font-weight: 700; display: flex; align-items: center; text-decoration: none">개요</a>
-          <a href="#" style="height: 30px; padding: 0 12px; border-radius: 6px; color: #9C9CA3; display: flex; align-items: center; text-decoration: none">금리</a>
-          <a href="#" style="height: 30px; padding: 0 12px; border-radius: 6px; color: #9C9CA3; display: flex; align-items: center; text-decoration: none">물가</a>
-          <a href="#" style="height: 30px; padding: 0 12px; border-radius: 6px; color: #9C9CA3; display: flex; align-items: center; text-decoration: none">고용</a>
-          <a href="#" style="height: 30px; padding: 0 12px; border-radius: 6px; color: #9C9CA3; display: flex; align-items: center; text-decoration: none">금융여건</a>
-        </div>
-        <span style="margin-left: auto; font-size: 12px; color: #8E8E96">Source: FRED (St. Louis Fed)</span>
-      </div>
-
-      <section aria-label="Key indicators" style="background: #121214; border-radius: 8px; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr))">
-        <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="6">
-          <div style="padding: 12px 16px; display: flex; flex-direction: column; gap: 3px; border-right: 1px solid #1C1C1F">
-            <span style="font-size: 12px; color: #8E8E96">{{ k.label }}</span>
-            <span style="font-size: 20px; font-weight: 700">{{ k.value }}</span>
-            <span style="font-size: 11px; color: {{ k.noteColor }}">{{ k.note }}</span>
-          </div>
-        </sc-for>
-      </section>
-
-      <div style="display: flex; flex-wrap: wrap; gap: 8px">
-        <section aria-label="Yield curve" style="flex: 1 1 460px; min-width: 0; background: #121214; border-radius: 8px; display: flex; flex-direction: column">
-          <div style="display: flex; align-items: center; gap: 6px; height: 38px; padding: 0 8px; border-bottom: 1px solid #1C1C1F">
-            <svg width="12" height="16" viewBox="0 0 12 16" fill="#55555C" aria-hidden="true"><circle cx="3" cy="3" r="1.4"></circle><circle cx="9" cy="3" r="1.4"></circle><circle cx="3" cy="8" r="1.4"></circle><circle cx="9" cy="8" r="1.4"></circle><circle cx="3" cy="13" r="1.4"></circle><circle cx="9" cy="13" r="1.4"></circle></svg>
-            <span style="height: 26px; padding: 0 10px; border-radius: 6px; background: #1E1E22; display: flex; align-items: center; font-size: 12px; font-weight: 700">국채 수익률 곡선</span>
-            <span style="height: 26px; padding: 0 10px; border-radius: 6px; display: flex; align-items: center; color: #9C9CA3; font-size: 12px">추이</span>
-            <span style="margin-left: auto; font-size: 11px; color: #8E8E96">최신</span>
-          </div>
-          <svg viewBox="0 0 560 220" style="width: 100%; height: 240px; display: block" role="img" aria-label="US Treasury yield curve from 3 months 4.17% to 30 years 5.25%">
-            <line x1="40" y1="190" x2="540" y2="190" stroke="#1E1E22"></line>
-            <line x1="40" y1="120" x2="540" y2="120" stroke="#18181B" stroke-dasharray="3 3"></line>
-            <line x1="40" y1="50" x2="540" y2="50" stroke="#18181B" stroke-dasharray="3 3"></line>
-            <text x="8" y="194" fill="#8E8E96" font-size="11">4.0</text>
-            <text x="8" y="124" fill="#8E8E96" font-size="11">4.6</text>
-            <text x="8" y="54" fill="#8E8E96" font-size="11">5.2</text>
-            <polyline points="{{ curve }}" fill="none" stroke="#3182F6" stroke-width="2.4" stroke-linejoin="round"></polyline>
-            <sc-for list="{{ yields }}" as="y" hint-placeholder-count="7">
-              <circle cx="{{ y.x }}" cy="{{ y.y }}" r="4" fill="#0B0B0C" stroke="#3182F6" stroke-width="2"></circle>
-              <text x="{{ y.x }}" y="{{ y.ly }}" fill="#E8E8EA" font-size="12" font-weight="700" text-anchor="middle">{{ y.v }}</text>
-              <text x="{{ y.x }}" y="210" fill="#8E8E96" font-size="11" text-anchor="middle">{{ y.m }}</text>
-            </sc-for>
-          </svg>
-        </section>
-
-        <section aria-label="Inflation decomposition" style="flex: 1 1 400px; min-width: 0; background: #121214; border-radius: 8px; display: flex; flex-direction: column">
-          <div style="display: flex; align-items: center; gap: 6px; height: 38px; padding: 0 8px; border-bottom: 1px solid #1C1C1F">
-            <svg width="12" height="16" viewBox="0 0 12 16" fill="#55555C" aria-hidden="true"><circle cx="3" cy="3" r="1.4"></circle><circle cx="9" cy="3" r="1.4"></circle><circle cx="3" cy="8" r="1.4"></circle><circle cx="9" cy="8" r="1.4"></circle><circle cx="3" cy="13" r="1.4"></circle><circle cx="9" cy="13" r="1.4"></circle></svg>
-            <span style="height: 26px; padding: 0 10px; border-radius: 6px; background: #1E1E22; display: flex; align-items: center; font-size: 12px; font-weight: 700">CPI 구성</span>
-            <span style="margin-left: auto; font-size: 11px; color: #8E8E96">2026-09 · 전년 대비</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; padding: 8px 14px 4px; font-size: 12px; color: #8E8E96"><span>항목 · 가중치</span><span>상승률 · 기여도</span></div>
-          <sc-for list="{{ cpi }}" as="c" hint-placeholder-count="5">
-            <div style="display: flex; align-items: center; gap: 12px; padding: 9px 14px; border-top: 1px solid #161618">
-              <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px">
-                <span style="font-weight: 600">{{ c.name }} <span style="color: #8E8E96; font-weight: 500">{{ c.weight }}</span></span>
-                <span style="height: 4px; border-radius: 2px; background: #1E1E22; overflow: hidden"><span style="display: block; height: 4px; width: {{ c.w }}; background: #8E8E96"></span></span>
-              </span>
-              <span style="width: 70px; text-align: right; font-weight: 700; color: {{ c.color }}">{{ c.yoy }}</span>
-              <span style="width: 48px; text-align: right; color: #A9A9B0">{{ c.contrib }}</span>
+        <dl style="margin: 0; display: flex; flex-wrap: wrap; align-items: center; row-gap: 6px">
+          <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="6">
+            <div style="display: flex; align-items: baseline; gap: 6px; padding: 0 14px; border-left: 1px solid #26262B">
+              <dt style="font-size: 12px; color: #8E8E96">{{ k.label }}</dt>
+              <dd style="margin: 0; font-weight: 700">{{ k.value }}</dd>
+              <sc-if value="{{ k.hasNote }}" hint-placeholder-val="{{ false }}"><span style="font-size: 11px; font-weight: 700; color: #E0A845">{{ k.note }}</span></sc-if>
             </div>
           </sc-for>
-        </section>
-      </div>
+        </dl>
+        <span style="margin-left: auto; font-size: 11px; color: #6E6E76">FRED (St. Louis Fed)</span>
+      </section>
 
-      <div style="display: flex; flex-wrap: wrap; gap: 8px">
-        <section aria-label="Labor market" style="flex: 1 1 460px; min-width: 0; background: #121214; border-radius: 8px; display: flex; flex-direction: column">
-          <div style="display: flex; align-items: center; gap: 6px; height: 38px; padding: 0 8px; border-bottom: 1px solid #1C1C1F">
-            <svg width="12" height="16" viewBox="0 0 12 16" fill="#55555C" aria-hidden="true"><circle cx="3" cy="3" r="1.4"></circle><circle cx="9" cy="3" r="1.4"></circle><circle cx="3" cy="8" r="1.4"></circle><circle cx="9" cy="8" r="1.4"></circle><circle cx="3" cy="13" r="1.4"></circle><circle cx="9" cy="13" r="1.4"></circle></svg>
-            <span style="height: 26px; padding: 0 10px; border-radius: 6px; background: #1E1E22; display: flex; align-items: center; font-size: 12px; font-weight: 700">고용</span>
-            <span style="height: 26px; padding: 0 10px; border-radius: 6px; display: flex; align-items: center; color: #9C9CA3; font-size: 12px">신규 실업수당</span>
+      <nav aria-label="Macro sections" style="grid-column: span 12; display: flex; gap: 4px">
+        <a href="#" style="height: 30px; padding: 0 12px; border-radius: 6px; background: #1C1C20; color: #FFFFFF; font-weight: 700; display: flex; align-items: center; text-decoration: none">개요</a>
+        <a href="#" style="height: 30px; padding: 0 12px; border-radius: 6px; color: #9C9CA3; display: flex; align-items: center; text-decoration: none">금리</a>
+        <a href="#" style="height: 30px; padding: 0 12px; border-radius: 6px; color: #9C9CA3; display: flex; align-items: center; text-decoration: none">물가</a>
+        <a href="#" style="height: 30px; padding: 0 12px; border-radius: 6px; color: #9C9CA3; display: flex; align-items: center; text-decoration: none">고용</a>
+        <a href="#" style="height: 30px; padding: 0 12px; border-radius: 6px; color: #9C9CA3; display: flex; align-items: center; text-decoration: none">금융여건</a>
+      </nav>
+
+      <sc-if value="{{ show.curve }}" hint-placeholder-val="{{ true }}">
+      <section aria-label="Yield curve" style="grid-column: span 7; min-height: 0; background: #121214; border-radius: 8px; display: flex; flex-direction: column; overflow: hidden">
+        <div style="display: flex; align-items: center; gap: 4px; height: 40px; padding: 0 8px; flex-shrink: 0">
+          <span style="width: 20px; color: #55555C; text-align: center" aria-hidden="true">⠿</span>
+          <sc-for list="{{ yTabs }}" as="t" hint-placeholder-count="2">
+            <button type="button" aria-pressed="{{ t.pressed }}" onClick="{{ t.pick }}" style="height: 28px; padding: 0 10px; border-radius: 6px; border: 0; background: {{ t.bg }}; color: {{ t.fg }}; font: inherit; font-size: 12px; font-weight: {{ t.weight }}; cursor: pointer">{{ t.label }}</button>
+          </sc-for>
+          <span style="margin-left: auto; font-size: 11px; color: #6E6E76">FRED · 2026-11-05</span>
+          <button type="button" class="wx" onClick="{{ close.curve }}" aria-label="수익률 곡선 위젯 닫기"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg></button>
+        </div>
+        <sc-if value="{{ yCurve }}" hint-placeholder-val="{{ true }}">
+        <svg viewBox="0 0 560 220" preserveAspectRatio="xMidYMid meet" style="flex: 1; width: 100%; min-height: 0; display: block" role="img" aria-label="US Treasury yield curve from 3 months 4.17% to 30 years 5.25%">
+          <line x1="40" y1="190" x2="540" y2="190" stroke="#1E1E22"></line>
+          <line x1="40" y1="120" x2="540" y2="120" stroke="#18181B" stroke-dasharray="3 3"></line>
+          <line x1="40" y1="50" x2="540" y2="50" stroke="#18181B" stroke-dasharray="3 3"></line>
+          <text x="8" y="194" fill="#8E8E96" font-size="11">4.0</text>
+          <text x="8" y="124" fill="#8E8E96" font-size="11">4.6</text>
+          <text x="8" y="54" fill="#8E8E96" font-size="11">5.2</text>
+          <polyline points="{{ curvePts }}" fill="none" stroke="#3182F6" stroke-width="2.4" stroke-linejoin="round"></polyline>
+          <sc-for list="{{ yields }}" as="y" hint-placeholder-count="7">
+            <circle cx="{{ y.x }}" cy="{{ y.y }}" r="4" fill="#121214" stroke="#3182F6" stroke-width="2"></circle>
+            <text x="{{ y.x }}" y="{{ y.ly }}" fill="#E8E8EA" font-size="12" font-weight="700" text-anchor="middle">{{ y.v }}</text>
+            <text x="{{ y.x }}" y="210" fill="#8E8E96" font-size="11" text-anchor="middle">{{ y.m }}</text>
+          </sc-for>
+        </svg>
+        </sc-if>
+        <sc-if value="{{ yTrend }}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 0 12px 6px; flex-shrink: 0">
+            <sc-for list="{{ yChips }}" as="c" hint-placeholder-count="7">
+              <button type="button" aria-pressed="{{ c.pressed }}" onClick="{{ c.toggle }}" style="height: 28px; padding: 0 9px; border-radius: 6px; border: 1px solid {{ c.border }}; background: {{ c.bg }}; color: {{ c.fg }}; font: inherit; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px; cursor: pointer"><span style="width: 8px; height: 8px; border-radius: 2px; background: {{ c.dot }}"></span>{{ c.m }}<span style="font-weight: 500; color: {{ c.sub }}">{{ c.last }}</span></button>
+            </sc-for>
+            <span style="margin-left: auto; font-size: 11px; color: #6E6E76">최대 4개 비교</span>
           </div>
-          <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr))">
-            <sc-for list="{{ labor }}" as="l" hint-placeholder-count="10">
-              <div style="padding: 10px 14px; border-top: 1px solid #161618; border-right: 1px solid #161618; display: flex; flex-direction: column; gap: 2px">
-                <span style="font-size: 12px; color: #8E8E96">{{ l.label }}</span>
-                <span style="font-size: 16px; font-weight: 700">{{ l.value }}</span>
+          <div style="flex: 1; min-height: 0; display: flex">
+            <div style="display: flex; flex-direction: column; justify-content: space-between; padding: 4px 6px 4px 12px; font-size: 11px; color: #6E6E76; text-align: right"><span>{{ yMax }}</span><span>{{ yMid }}</span><span>{{ yMin }}</span></div>
+            <svg viewBox="0 0 560 200" preserveAspectRatio="none" style="flex: 1; min-width: 0; height: 100%; display: block" role="img" aria-label="Treasury yield trends for selected maturities">
+              <line x1="0" y1="6" x2="560" y2="6" stroke="#18181B" stroke-dasharray="3 3"></line>
+              <line x1="0" y1="100" x2="560" y2="100" stroke="#18181B" stroke-dasharray="3 3"></line>
+              <line x1="0" y1="194" x2="560" y2="194" stroke="#1E1E22"></line>
+              <sc-for list="{{ yLines }}" as="l" hint-placeholder-count="2">
+                <polyline points="{{ l.pts }}" fill="none" stroke="{{ l.color }}" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"></polyline>
+              </sc-for>
+            </svg>
+          </div>
+          <div style="display: flex; justify-content: space-between; padding: 4px 16px 8px 48px; font-size: 11px; color: #6E6E76"><span>10.23</span><span>10.28</span><span>11.02</span><span>11.05</span></div>
+        </sc-if>
+      </section>
+      </sc-if>
+
+      <sc-if value="{{ show.cpi }}" hint-placeholder-val="{{ true }}">
+      <section aria-label="CPI breakdown" style="grid-column: span 5; min-height: 0; background: #121214; border-radius: 8px; display: flex; flex-direction: column; overflow: hidden">
+        <div style="display: flex; align-items: center; gap: 4px; height: 40px; padding: 0 8px; flex-shrink: 0">
+          <span style="width: 20px; color: #55555C; text-align: center" aria-hidden="true">⠿</span>
+          <span style="height: 28px; padding: 0 10px; border-radius: 6px; background: #1E1E22; display: flex; align-items: center; font-size: 12px; font-weight: 700">CPI 구성</span>
+          <span style="margin-left: auto; font-size: 11px; color: #6E6E76">2026-09 · 전년 대비</span>
+          <button type="button" class="wx" onClick="{{ close.cpi }}" aria-label="CPI 구성 위젯 닫기"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg></button>
+        </div>
+        <div style="flex: 1; min-height: 0; display: flex; align-items: center; gap: 16px; padding: 0 16px 12px; overflow: auto">
+          <svg viewBox="0 0 160 160" style="width: 42%; max-width: 200px; min-width: 120px; flex-shrink: 0" role="img" aria-label="CPI weights: Shelter 36.2%, Services ex-shelter 24.5%, Goods 19%, Food 13.6%, Energy 6.7%">
+            <circle cx="80" cy="80" r="60" fill="none" stroke="#1E1E22" stroke-width="22"></circle>
+            <sc-for list="{{ cpi }}" as="c" hint-placeholder-count="5">
+              <circle cx="80" cy="80" r="60" fill="none" stroke="{{ c.fill }}" stroke-width="22" stroke-dasharray="{{ c.dash }}" stroke-dashoffset="{{ c.offset }}" transform="rotate(-90 80 80)"></circle>
+            </sc-for>
+            <text x="80" y="73" text-anchor="middle" dominant-baseline="central" fill="#8E8E96" font-size="12" font-weight="500">CPI</text>
+            <text x="80" y="87" text-anchor="middle" dominant-baseline="central" fill="#E8E8EA" font-size="12" font-weight="500" style="white-space: nowrap">4.02%</text>
+          </svg>
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+            <div style="display: flex; align-items: center; gap: 8px; height: 24px; font-size: 11px; color: #8E8E96"><span style="width: 8px"></span><span style="flex: 1">항목 · 가중치</span><span style="width: 60px; text-align: right">상승률</span><span style="width: 36px; text-align: right">기여</span></div>
+            <sc-for list="{{ cpi }}" as="c" hint-placeholder-count="5">
+              <div style="display: flex; align-items: center; gap: 8px; height: 32px">
+                <span style="width: 8px; height: 8px; border-radius: 2px; background: {{ c.fill }}; flex-shrink: 0"></span>
+                <span style="flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600">{{ c.name }} <span style="color: #8E8E96; font-weight: 500">{{ c.weight }}</span></span>
+                <span style="width: 60px; text-align: right; font-weight: 700; color: {{ c.color }}">{{ c.yoy }}</span>
+                <span style="width: 36px; text-align: right; color: #A9A9B0">{{ c.contrib }}</span>
               </div>
             </sc-for>
           </div>
-        </section>
+        </div>
+      </section>
+      </sc-if>
 
-        <section aria-label="Financial conditions and sentiment" style="flex: 1 1 400px; min-width: 0; background: #121214; border-radius: 8px; display: flex; flex-direction: column">
-          <div style="display: flex; align-items: center; gap: 6px; height: 38px; padding: 0 8px; border-bottom: 1px solid #1C1C1F">
-            <svg width="12" height="16" viewBox="0 0 12 16" fill="#55555C" aria-hidden="true"><circle cx="3" cy="3" r="1.4"></circle><circle cx="9" cy="3" r="1.4"></circle><circle cx="3" cy="8" r="1.4"></circle><circle cx="9" cy="8" r="1.4"></circle><circle cx="3" cy="13" r="1.4"></circle><circle cx="9" cy="13" r="1.4"></circle></svg>
-            <span style="height: 26px; padding: 0 10px; border-radius: 6px; background: #1E1E22; display: flex; align-items: center; font-size: 12px; font-weight: 700">금융여건 · 심리</span>
-          </div>
-          <sc-for list="{{ conditions }}" as="c" hint-placeholder-count="8">
-            <div style="display: flex; align-items: center; gap: 12px; padding: 9px 14px; border-top: 1px solid #161618">
-              <span style="width: 72px; font-size: 12px; color: #8E8E96">{{ c.section }}</span>
-              <span style="flex: 1; min-width: 0; font-weight: 600">{{ c.name }}</span>
-              <span style="font-weight: 700">{{ c.value }}</span>
-              <sc-if value="{{ c.hasStatus }}" hint-placeholder-val="{{ false }}">
-                <span style="padding: 2px 7px; border-radius: 6px; background: {{ c.sBg }}; color: {{ c.sFg }}; font-size: 11px; font-weight: 700">{{ c.status }}</span>
-              </sc-if>
+      <sc-if value="{{ show.labor }}" hint-placeholder-val="{{ true }}">
+      <section aria-label="Labor market" style="grid-column: span 7; min-height: 0; background: #121214; border-radius: 8px; display: flex; flex-direction: column; overflow: hidden">
+        <div style="display: flex; align-items: center; gap: 4px; height: 40px; padding: 0 8px; flex-shrink: 0">
+          <span style="width: 20px; color: #55555C; text-align: center" aria-hidden="true">⠿</span>
+          <span style="height: 28px; padding: 0 10px; border-radius: 6px; background: #1E1E22; display: flex; align-items: center; font-size: 12px; font-weight: 700">고용</span>
+          <span style="height: 28px; padding: 0 10px; border-radius: 6px; display: flex; align-items: center; color: #8E8E96; font-size: 12px">신규 실업수당</span>
+          <button type="button" class="wx" onClick="{{ close.labor }}" aria-label="고용 위젯 닫기" style="margin-left: auto"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg></button>
+        </div>
+        <div style="flex: 1; overflow: auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; align-content: start; padding: 0 16px 8px">
+          <sc-for list="{{ labor }}" as="l" hint-placeholder-count="10">
+            <div style="display: flex; justify-content: space-between; align-items: center; height: 36px; border-bottom: 1px solid #18181B">
+              <span style="color: #9C9CA3">{{ l.label }}</span>
+              <span style="font-weight: 700">{{ l.value }}</span>
             </div>
           </sc-for>
+        </div>
+      </section>
+      </sc-if>
+
+      <sc-if value="{{ show.cond }}" hint-placeholder-val="{{ true }}">
+      <section aria-label="Financial conditions" style="grid-column: span 5; min-height: 0; background: #121214; border-radius: 8px; display: flex; flex-direction: column; overflow: hidden">
+        <div style="display: flex; align-items: center; gap: 4px; height: 40px; padding: 0 8px; flex-shrink: 0">
+          <span style="width: 20px; color: #55555C; text-align: center" aria-hidden="true">⠿</span>
+          <span style="height: 28px; padding: 0 10px; border-radius: 6px; background: #1E1E22; display: flex; align-items: center; font-size: 12px; font-weight: 700">공포 · 탐욕 지수</span>
+          <span style="margin-left: auto; font-size: 11px; color: #6E6E76">CNN Fear &amp; Greed</span>
+          <button type="button" class="wx" onClick="{{ close.cond }}" aria-label="공포 탐욕 지수 위젯 닫기"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg></button>
+        </div>
+        <div style="flex: 1; min-height: 0; display: flex; flex-direction: column">
+          <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4px 16px 14px">
+            <svg viewBox="0 0 200 112" style="width: 100%; max-width: 300px; max-height: 100%; height: auto; display: block" role="img" aria-label="Fear and Greed index 35.4, fear">
+              <sc-for list="{{ fgArcs }}" as="s" hint-placeholder-count="5">
+                <path d="{{ s.d }}" fill="none" stroke="{{ s.color }}" stroke-width="14" opacity="{{ s.op }}"></path>
+              </sc-for>
+              <line x1="100" y1="100" x2="{{ fgX }}" y2="{{ fgY }}" stroke="#E8E8EA" stroke-width="3" stroke-linecap="round"></line>
+              <circle cx="100" cy="100" r="5" fill="#E8E8EA"></circle>
+              <text x="24" y="111" fill="#6E6E76" font-size="10" text-anchor="middle">0</text>
+              <text x="176" y="111" fill="#6E6E76" font-size="10" text-anchor="middle">100</text>
+            </svg>
+            <div style="display: flex; align-items: baseline; gap: 6px; margin-top: 2px">
+              <span style="font-size: 12px; color: #8E8E96">Fear &amp; Greed</span>
+              <span style="font-size: 17px; font-weight: 600">35.4</span>
+              <span style="font-size: 12px; font-weight: 600; color: {{ fgColor }}">공포</span>
+            </div>
+          </div>
+        </div>
+      </section>
+      </sc-if>
+
+      <sc-for list="{{ added }}" as="a" hint-placeholder-count="0">
+        <section aria-label="{{ a.title }}" style="grid-column: span 6; background: #121214; border-radius: 8px; display: flex; flex-direction: column; overflow: hidden">
+          <div style="display: flex; align-items: center; gap: 4px; height: 40px; padding: 0 8px; flex-shrink: 0">
+            <span style="width: 20px; color: #55555C; text-align: center" aria-hidden="true">⠿</span>
+            <span style="height: 28px; padding: 0 10px; border-radius: 6px; background: #1E1E22; display: flex; align-items: center; font-size: 12px; font-weight: 700">{{ a.title }}</span>
+            <button type="button" class="wx" onClick="{{ a.close }}" aria-label="위젯 닫기" style="margin-left: auto"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg></button>
+          </div>
+          <div style="flex: 1; margin: 0 8px 8px; border-radius: 6px; background: #161618; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: #8E8E96">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ a.icon }}"></path></svg>
+            <span style="font-size: 12px">미국 · {{ a.desc }}</span>
+          </div>
         </section>
-      </div>
+      </sc-for>
+
+      <sc-if value="{{ menuOpen }}" hint-placeholder-val="{{ false }}">
+        <div role="menu" aria-label="위젯 추가" style="position: absolute; left: {{ menuX }}; top: {{ menuY }}; z-index: 10; width: 248px; padding: 6px; border-radius: 8px; background: #19191C; border: 1px solid #2A2A2F; box-shadow: 0 12px 32px rgba(0,0,0,0.5)">
+          <div style="padding: 6px 10px 4px; font-size: 11px; font-weight: 700; color: #8E8E96">매크로 위젯 추가</div>
+          <sc-for list="{{ catalog }}" as="c" hint-placeholder-count="8">
+            <button type="button" role="menuitem" class="mi" onClick="{{ c.add }}">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9C9CA3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ c.icon }}"></path></svg>
+              <span style="flex: 1">{{ c.name }}</span>
+            </button>
+          </sc-for>
+          <sc-if value="{{ hasClosed }}" hint-placeholder-val="{{ false }}">
+            <div style="height: 1px; margin: 6px 4px; background: #2A2A2F"></div>
+            <div style="padding: 4px 10px; font-size: 11px; font-weight: 700; color: #8E8E96">닫은 위젯 다시 열기</div>
+            <sc-for list="{{ closedList }}" as="c" hint-placeholder-count="1">
+              <button type="button" role="menuitem" class="mi" onClick="{{ c.reopen }}">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9C9CA3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 12 3 4 11 4"></polyline><path d="M3 4l7 7a7 7 0 1 0 2-5"></path></svg>
+                <span style="flex: 1">{{ c.title }}</span>
+              </button>
+            </sc-for>
+          </sc-if>
+        </div>
+      </sc-if>
     </main>
+
+    <sc-if value="{{ watchOpen }}" hint-placeholder-val="{{ true }}">
+    <aside aria-label="Watchlist" style="flex: 1 1 240px; max-width: 280px; height: 100%; overflow: auto; background: #0B0B0C; border-left: 1px solid #1C1C1F; display: flex; flex-direction: column">
+      <div style="display: flex; align-items: center; gap: 4px; height: 40px; padding: 0 8px 0 16px">
+        <div role="tablist" aria-label="My lists" style="flex: 1; display: flex; gap: 2px; margin-left: -8px">
+          <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="3">
+            <button type="button" role="tab" aria-selected="{{ t.selected }}" onClick="{{ t.pick }}" style="height: 28px; padding: 0 8px; border-radius: 6px; border: 0; background: {{ t.bg }}; color: {{ t.fg }}; font: inherit; font-size: 13px; font-weight: {{ t.weight }}; cursor: pointer">{{ t.label }}</button>
+          </sc-for>
+        </div>
+        <button type="button" onClick="{{ toggleWatch }}" aria-label="관심 접기" aria-expanded="true" class="wx">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"></polyline></svg>
+        </button>
+      </div>
+      <sc-for list="{{ list }}" as="w" hint-placeholder-count="6">
+        <a href="StockDetail.dc.html" style="display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 16px; text-decoration: none; color: #E8E8EA">
+          <span style="width: 24px; height: 24px; border-radius: 6px; background: {{ w.logo }}; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0">{{ w.initial }}</span>
+          <span style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ w.name }}</span><sc-if value="{{ w.hasSub }}" hint-placeholder-val="{{ false }}"><span style="font-size: 11px; color: #8E8E96; white-space: nowrap">{{ w.sub }}</span></sc-if></span>
+          <span style="text-align: right"><span style="display: block; font-weight: 600">{{ w.price }}</span><span style="display: block; font-size: 11px; font-weight: 600; color: {{ w.color }}">{{ w.chg }}</span></span>
+        </a>
+      </sc-for>
+    </aside>
+    </sc-if>
+    <sc-if value="{{ watchClosed }}" hint-placeholder-val="{{ false }}">
+    <aside aria-label="Watchlist (collapsed)" style="flex: 0 0 52px; background: #0B0B0C; border-left: 1px solid #1C1C1F; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 6px 0">
+      <button type="button" onClick="{{ toggleWatch }}" aria-label="관심 열기" aria-expanded="false" style="width: 36px; height: 36px; border-radius: 6px; border: 0; background: #161618; color: #E8E8EA; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 0; cursor: pointer">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 6 9 12 15 18"></polyline></svg>
+        <span style="font-size: 9.5px; font-weight: 700">관심</span>
+      </button>
+      <sc-for list="{{ watch }}" as="w" hint-placeholder-count="6">
+        <a href="StockDetail.dc.html" aria-label="{{ w.name }} {{ w.chg }}" style="width: 36px; height: 40px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; text-decoration: none">
+          <span style="width: 24px; height: 24px; border-radius: 6px; background: {{ w.logo }}; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700">{{ w.initial }}</span>
+          <span style="width: 16px; height: 2px; border-radius: 1px; background: {{ w.color }}"></span>
+        </a>
+      </sc-for>
+    </aside>
+    </sc-if>
   </div>
 
-  <footer style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; padding: 8px 16px; border-top: 1px solid #1C1C1F; font-size: 12px; color: #8E8E96">
+  <footer style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; height: 32px; padding: 0 16px; background: #0B0B0C; border-top: 1px solid #1C1C1F; font-size: 12px; color: #8E8E96">
     <span>투자 유의사항</span>
+    <span style="color: #6E6E76">빈 곳을 우클릭하면 위젯을 추가할 수 있어요</span>
     <span style="margin-left: auto; display: flex; flex-wrap: wrap; gap: 16px">
       <sc-for list="{{ footer }}" as="f" hint-placeholder-count="3">
         <span>{{ f.name }} <span style="color: #E8E8EA; font-weight: 600">{{ f.price }}</span> <span style="color: {{ f.color }}; font-weight: 600">{{ f.chg }}</span></span>
@@ -163,57 +299,176 @@ a{color:#8FB8FF}a:hover{color:#B9D3FF}
 <script type="text/x-dc" data-dc-script data-props='{"updown":{"editor":"enum","options":["kr","us"],"default":"kr","section":"Price colors"},"$preview":{"width":1440,"height":1080}}'>
 class Component extends DCLogic {
   renderVals() {
+    const st = this.state || {};
     const kr = (this.props.updown ?? 'kr') !== 'us';
     const UP = kr ? '#F04452' : '#1DB37A';
     const DOWN = kr ? '#3182F6' : '#F04452';
     const tone = (v) => (v > 0 ? UP : v < 0 ? DOWN : '#9C9CA3');
     const pct = (v) => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(2) + '%';
-    const kpis = [
-      { label: '미국 10년물', value: '4.84%', note: '2026-11-05', noteColor: '#8E8E96' },
-      { label: '미국 2년물', value: '4.46%', note: '10Y−2Y +0.38%p', noteColor: '#8E8E96' },
-      { label: 'CPI 헤드라인', value: '4.02%', note: '근원 2.79% · 9월', noteColor: '#8E8E96' },
-      { label: '실업률 (U3)', value: '4.1%', note: 'stable', noteColor: '#8E8E96' },
-      { label: 'VIX', value: '28.18', note: 'elevated', noteColor: '#E0A845' },
-      { label: 'Fear & Greed', value: '35.4', note: 'fear', noteColor: '#E0A845' },
+
+    // ── 위젯 닫기 / 우클릭 추가 ──
+    const PANELS = { curve: '국채 수익률 곡선', cpi: 'CPI 구성', labor: '고용', cond: '공포 · 탐욕 지수' };
+    const closed = st.closed || [];
+    const added = st.added || [];
+    const show = Object.fromEntries(Object.keys(PANELS).map((k) => [k, !closed.includes(k)]));
+    const close = Object.fromEntries(Object.keys(PANELS).map((k) => [k, () => this.setState({ closed: [...closed, k] })]));
+    const closedList = closed.map((k) => ({ title: PANELS[k], reopen: () => this.setState({ closed: closed.filter((x) => x !== k), menu: null }) }));
+    const I = {
+      line: 'M4 19V5M4 19h16M7 14l4-4 3 3 5-6', bars: 'M5 20V10M10 20V4M15 20v-8M20 20v-5',
+      bank: 'M3 10l9-6 9 6M5 10v8M9 10v8M15 10v8M19 10v8M3 20h18', cal: 'M4 6h16v14H4zM4 10h16M9 3v4M15 3v4',
+      globe: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18',
+    };
+    const CATALOG = [
+      ['bank', 'Fed Balance Sheet', '연준 총자산 (QE/QT)'], ['line', 'Real Rates (TIPS)', '명목 vs 실질 금리'],
+      ['bars', 'Initial Claims', '주간 실업수당 + 4주 평균'], ['line', 'Inflation Trends', 'CPI 항목별 추이'],
+      ['bars', 'ISM PMI / LEI', '제조업 PMI · 경기선행지수'], ['globe', 'Policy Rate', '국가별 기준금리'],
+      ['globe', 'Real GDP Growth', '국가별 실질 GDP'], ['cal', 'Economic Calendar', '실제 · 예상 · 이전값'],
     ];
+    const catalog = CATALOG.map(([k, name, desc]) => ({
+      icon: I[k], name,
+      add: (e) => { if (e && e.stopPropagation) e.stopPropagation(); this.setState({ added: [...added, { id: Date.now(), title: name, desc, icon: I[k] }], menu: null }); },
+    }));
+    const addedPanels = added.map((a) => ({ ...a, close: () => this.setState({ added: added.filter((x) => x.id !== a.id) }) }));
+    const openMenu = (e) => {
+      e.preventDefault();
+      const r = e.currentTarget.getBoundingClientRect();
+      const x = Math.min(e.clientX - r.left + e.currentTarget.scrollLeft, r.width - 256);
+      const y = Math.min(e.clientY - r.top + e.currentTarget.scrollTop, e.currentTarget.scrollHeight - 40);
+      this.setState({ menu: { x: Math.max(8, x), y: Math.max(8, y) } });
+    };
+    const closeMenu = () => { if (st.menu) this.setState({ menu: null }); };
+
+    // ── 데이터 (FRED 위젯 캡처 값) ──
+    const kpis = [
+      ['미국 10년물', '4.84%', ''], ['2년물', '4.46%', ''], ['CPI', '4.02%', ''], ['근원 CPI', '2.79%', ''],
+      ['실업률', '4.1%', ''], ['VIX', '28.18', 'elevated'], ['Fear & Greed', '35.4', 'fear'],
+    ].map(([label, value, note]) => ({ label, value, note, hasNote: !!note }));
     const ys = [['3M', 4.17], ['6M', 4.19], ['1Y', 4.28], ['2Y', 4.46], ['5Y', 4.59], ['10Y', 4.84], ['30Y', 5.25]];
     const yAt = (v) => 190 - ((v - 4.0) / 1.2) * 140;
     const yields = ys.map(([m, v], i) => {
       const x = 60 + i * 78;
       return { m, v: v.toFixed(2), x, y: yAt(v).toFixed(1), ly: (yAt(v) - 12).toFixed(1) };
     });
-    const curve = yields.map((p) => p.x + ',' + p.y).join(' ');
+    const curvePts = yields.map((p) => p.x + ',' + p.y).join(' ');
+    // 수익률 추이 — FRED yield_curve_history 캡처 (최근 10거래일, 오래된 것부터)
+    const MATS = ['3M', '6M', '1Y', '2Y', '5Y', '10Y', '30Y'];
+    const HIST = [
+      [4.04, 4.17, 4.44, 4.69, 4.82, 5.00, 5.33], [4.05, 4.21, 4.47, 4.68, 4.84, 5.00, 5.31], [4.05, 4.21, 4.50, 4.70, 4.82, 4.99, 5.30],
+      [4.01, 4.18, 4.47, 4.67, 4.85, 5.05, 5.37], [4.00, 4.15, 4.42, 4.61, 4.78, 4.98, 5.32], [3.99, 4.11, 4.36, 4.56, 4.71, 4.94, 5.31],
+      [4.03, 4.14, 4.38, 4.59, 4.70, 4.91, 5.28], [4.03, 4.15, 4.40, 4.61, 4.74, 4.95, 5.32], [4.03, 4.14, 4.39, 4.58, 4.69, 4.90, 5.28],
+      [4.00, 4.08, 4.28, 4.46, 4.59, 4.84, 5.25],
+    ];
+    const YCOL = { '3M': '#8E8E96', '6M': '#B4A27A', '1Y': '#2BB3A3', '2Y': '#3182F6', '5Y': '#8B7CF6', '10Y': '#E0A845', '30Y': '#E06C8C' };
+    const ySel = st.ySel || ['2Y', '10Y'];
+    const yTabKey = st.yTab || 'curve';
+    const yTabs = [['curve', '국채 수익률 곡선'], ['trend', '추이']].map(([k, label]) => {
+      const on = k === yTabKey;
+      return { label, pressed: on ? 'true' : 'false', bg: on ? '#1E1E22' : 'transparent', fg: on ? '#FFFFFF' : '#8E8E96', weight: on ? 700 : 500, pick: () => this.setState({ yTab: k }) };
+    });
+    const yChips = MATS.map((m, j) => {
+      const on = ySel.includes(m);
+      return {
+        m, last: HIST[HIST.length - 1][j].toFixed(2) + '%', pressed: on ? 'true' : 'false',
+        dot: on ? YCOL[m] : '#3A3A41', border: on ? YCOL[m] : '#26262B', bg: on ? '#18181B' : 'transparent',
+        fg: on ? '#E8E8EA' : '#8E8E96', sub: on ? '#C9C9CF' : '#6E6E76',
+        toggle: () => {
+          if (on) { if (ySel.length > 1) this.setState({ ySel: ySel.filter((x) => x !== m) }); }
+          else if (ySel.length < 4) this.setState({ ySel: [...ySel, m] });
+        },
+      };
+    });
+    const selIdx = ySel.map((m) => MATS.indexOf(m));
+    const vals = HIST.flatMap((r) => selIdx.map((j) => r[j]));
+    const lo = Math.min(...vals) - 0.04, hi = Math.max(...vals) + 0.04;
+    const yLines = ySel.map((m) => {
+      const j = MATS.indexOf(m);
+      const pts = HIST.map((r, i) => (i * (560 / (HIST.length - 1))).toFixed(1) + ',' + (194 - ((r[j] - lo) / (hi - lo)) * 188).toFixed(1)).join(' ');
+      return { pts, color: YCOL[m] };
+    });
     const cpi = [
       ['Shelter', 36.2, 3.22, 1.17], ['Services ex-shelter', 24.5, 3.22, 0.79], ['Goods ex food·energy', 19, 0.71, 0.13],
       ['Food', 13.6, 2.45, 0.33], ['Energy', 6.7, 20.35, 1.36],
-    ].map(([name, w, y, c]) => ({ name, weight: w + '%', w: Math.round((w / 36.2) * 100) + '%', yoy: pct(y), color: tone(y), contrib: c.toFixed(2) }));
+    ].map(([name, w, y, c], i, arr) => {
+      const C = 2 * Math.PI * 60;
+      const FILL = ['#3182F6', '#8B7CF6', '#2BB3A3', '#E0A845', '#E06C8C'];
+      const before = arr.slice(0, i).reduce((s, r) => s + r[1], 0);
+      const len = (w / 100) * C;
+      return {
+        name, weight: w + '%', yoy: pct(y), color: tone(y), contrib: c.toFixed(2), fill: FILL[i],
+        dash: Math.max(0, len - 2).toFixed(2) + ' ' + (C - Math.max(0, len - 2)).toFixed(2),
+        offset: (-(before / 100) * C).toFixed(2),
+      };
+    });
     const labor = [
       ['실업률 U3', '4.1%'], ['실업률 U6', '7.9%'], ['경제활동참가율', '61.9%'], ['비농업 고용', '159.29M'],
       ['고용 증감 (MoM)', '+165K'], ['JOLTS 구인', '7.52M'], ['자발적 이직률', '2.1%'], ['신규 실업수당', '189.0K'],
       ['연속 실업수당', '1.72M'], ['시간당 임금', '$38 · +3.12%'],
     ].map(([label, value]) => ({ label, value }));
-    const ST = { neutral: ['neutral', '#1C1C20', '#B4B4BB'], fear: ['fear', '#2A2213', '#E0A845'], elevated: ['elevated', '#2A2213', '#E0A845'] };
     const conditions = [
-      ['심리', 'Fear & Greed', '35.4 / 100', 'fear'], ['심리', 'VIX', '28.18', 'elevated'],
-      ['금융여건', 'Chicago Fed NFCI', '−0.46', 'neutral'], ['신용', '투자등급 (AAA) 스프레드', '48 bps', ''],
+      ['심리', 'VIX', '28.18', 'elevated'],
+      ['금융여건', 'Chicago Fed NFCI', '−0.46', ''], ['신용', '투자등급 (AAA) 스프레드', '48 bps', ''],
       ['신용', 'BBB 스프레드', '116 bps', ''], ['가계', '신용 증가율 (YoY)', '3.01%', ''],
       ['가계', '카드 연체율', '2.85%', ''], ['가계', '모기지 연체율', '1.86%', ''],
-    ].map(([section, name, value, s]) => ({
-      section, name, value, hasStatus: !!s, status: s ? ST[s][0] : '', sBg: s ? ST[s][1] : 'transparent', sFg: s ? ST[s][2] : '#8E8E96',
-    }));
+    ].map(([section, name, value, s]) => ({ section, name, value, status: s, hasStatus: !!s }));
+    // Fear & Greed 반원 게이지 (0=극단적 공포, 100=극단적 탐욕)
+    const FG = 35.4;
+    const R = 76, CX = 100, CY = 100;
+    const pt = (v, r) => {
+      const a = Math.PI * (1 - v / 100);
+      return [CX + r * Math.cos(a), CY - r * Math.sin(a)];
+    };
+    const ZONES = [[0, 25, '#E0605A'], [25, 45, '#E09A45'], [45, 55, '#8E8E96'], [55, 75, '#7CC48A'], [75, 100, '#3FC27A']];
+    const fgArcs = ZONES.map(([a, b, color]) => {
+      const [x1, y1] = pt(a + 0.8, R), [x2, y2] = pt(b - 0.8, R);
+      const on = FG >= a && FG < b;
+      return { d: 'M ' + x1.toFixed(1) + ' ' + y1.toFixed(1) + ' A ' + R + ' ' + R + ' 0 0 1 ' + x2.toFixed(1) + ' ' + y2.toFixed(1), color, op: on ? 1 : 0.3 };
+    });
+    const [fgXn, fgYn] = pt(FG, R - 18);
+    const fgColor = ZONES.find(([a, b]) => FG >= a && FG < b)[2];
+
+    // ── 틀 (홈과 동일) ──
     const ICON = {
       home: 'M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z', stock: 'M4 19V5M4 19h16M8 15l3-4 3 2 5-6',
-      macro: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18',
-      cal: 'M4 6h16v14H4zM4 10h16M9 3v4M15 3v4', port: 'M4 7h16v12H4zM9 7V5h6v2M4 12h16', screen: 'M4 6h16M7 12h10M10 18h4',
+      macro: I.globe, cal: I.cal, port: 'M4 7h16v12H4zM9 7V5h6v2M4 12h16', screen: 'M4 6h16M7 12h10M10 18h4',
       quant: 'M5 19L19 5M7 7h.01M17 17h.01M4 12h3M17 12h3', bt: 'M4 18l5-6 4 3 7-9M4 4v16h16',
     };
     const rail = [
       ['home', '홈', 'Main.dc.html'], ['stock', '종목', 'StockDetail.dc.html'], ['macro', '매크로', '#'], ['cal', '캘린더', '#'],
       ['port', '내 자산', '#'], ['screen', '스크리너', '#'], ['quant', '퀀트', '#'], ['bt', '백테스트', '#'],
     ].map(([k, label, href], i) => ({ icon: ICON[k], label, href, fg: i === 2 ? '#FFFFFF' : '#8E8E96', bg: i === 2 ? '#1C1C20' : 'transparent' }));
+    const LOGO = { AAPL: '#3A3B43', NVDA: '#3F7D20', INTC: '#1F6FB2', SPCX: '#2B2F3A', IREN: '#2E7D6B', EDSA: '#6B4FA8' };
+    const watch = [
+      ['AAPL', 'Apple', '350.34', 2.33], ['NVDA', 'NVIDIA', '179.05', -4.07], ['INTC', 'Intel', '58.73', 4.35],
+      ['SPCX', 'Space Exploration Tech', '141.64', 5.49], ['IREN', 'IREN', '21.44', -0.92], ['EDSA', 'Edesa Biotech', '2.86', 33.64],
+    ].map(([sym, name, price, c]) => ({ sym, name, price, chg: pct(c), color: tone(c), logo: LOGO[sym], initial: sym[0] }));
+    const bySym = Object.fromEntries(watch.map((s) => [s.sym, s]));
+    const tabKey = st.watchTab || 'watch';
+    const lists = {
+      watch: watch.map((s) => ({ ...s, hasSub: false, sub: '' })),
+      hold: [['AAPL', 80, 175.5], ['NVDA', 50, 485]].map(([k, qty, avg]) => {
+        const s = bySym[k];
+        const r = (parseFloat(s.price) / avg - 1) * 100;
+        return { ...s, chg: pct(r), color: tone(r), hasSub: true, sub: qty + '주 · 평단 ' + avg.toFixed(2) };
+      }),
+      recent: ['AAPL', 'EDSA', 'NVDA'].map((k) => ({ ...bySym[k], hasSub: false, sub: '' })),
+    };
+    const tabs = [['watch', '관심'], ['hold', '보유'], ['recent', '최근 조회']].map(([key, label]) => {
+      const on = key === tabKey;
+      return { label, selected: on ? 'true' : 'false', bg: on ? '#1E1E22' : 'transparent', fg: on ? '#FFFFFF' : '#8E8E96', weight: on ? 700 : 500, pick: () => this.setState({ watchTab: key }) };
+    });
+    const watchOpen = st.watchOpen !== false;
+    const toggleWatch = () => this.setState({ watchOpen: !watchOpen });
     const footer = [['KOSPI', '5,018.85', -0.80], ['KOSDAQ', '638.97', -0.82], ['S&P 500', '7,520.4', 1.89]]
       .map(([name, price, c]) => ({ name, price, chg: pct(c), color: tone(c) }));
-    return { kpis, yields, curve, cpi, labor, conditions, rail, footer };
+    return {
+      kpis, yields, curvePts, cpi, labor, conditions, rail, footer, watch,
+      fgArcs, fgX: fgXn.toFixed(1), fgY: fgYn.toFixed(1), fgColor,
+      yTabs, yChips, yLines, yCurve: yTabKey === 'curve', yTrend: yTabKey === 'trend',
+      yMax: hi.toFixed(2) + '%', yMid: ((hi + lo) / 2).toFixed(2) + '%', yMin: lo.toFixed(2) + '%',
+      show, close, added: addedPanels, catalog, closedList, hasClosed: closed.length > 0,
+      menuOpen: !!st.menu, menuX: (st.menu ? st.menu.x : 0) + 'px', menuY: (st.menu ? st.menu.y : 0) + 'px', openMenu, closeMenu,
+      tabs, list: lists[tabKey], watchOpen, watchClosed: !watchOpen, toggleWatch,
+    };
   }
 }
 </script>
