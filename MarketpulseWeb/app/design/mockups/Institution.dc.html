@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>MarketPulse — 기관 포트폴리오</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Noto+Sans+KR:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B0B0C}
+a{color:#8FB8FF}a:hover{color:#B9D3FF}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0B0B0C; color: #E8E8EA; font-family: Inter, 'Noto Sans KR', system-ui, sans-serif; font-size: 13px; font-variant-numeric: tabular-nums; display: flex; flex-direction: column">
+
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 8px 16px; border-bottom: 1px solid #1C1C1F">
+    <a href="Main.dc.html" style="display: flex; align-items: center; gap: 8px; text-decoration: none; color: #E8E8EA">
+      <span style="width: 26px; height: 26px; border-radius: 6px; background: #3182F6; display: flex; align-items: center; justify-content: center">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 13 8 13 11 6 14 18 17 11 21 11"></polyline></svg>
+      </span>
+      <span style="font-size: 15px; font-weight: 700">MarketPulse</span>
+    </a>
+    <label style="flex: 1 1 280px; max-width: 560px; margin: 0 auto; display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px; border-radius: 6px; background: #161618; border: 1px solid #222226; color: #8E8E96">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><line x1="16.5" y1="16.5" x2="21" y2="21"></line></svg>
+      <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search</span>
+      <input type="search" placeholder="종목, 지수, 뉴스, 공시, 경제지표 검색" style="flex: 1; min-width: 0; background: transparent; border: 0; outline: none; color: #E8E8EA; font: inherit">
+      <span style="font-size: 11px; padding: 2px 6px; border-radius: 6px; background: #222226; color: #8E8E96">Ctrl K</span>
+    </label>
+    <span style="width: 30px; height: 30px; border-radius: 50%; background: #2B3A55; color: #CFE0FF; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700">김</span>
+  </header>
+
+  <div style="flex: 1; display: flex; flex-wrap: wrap; align-items: stretch">
+    <nav aria-label="Main" style="flex: 0 0 68px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 0; border-right: 1px solid #1C1C1F">
+      <sc-for list="{{ rail }}" as="n" hint-placeholder-count="8">
+        <a href="{{ n.href }}" style="width: 58px; min-height: 52px; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; text-decoration: none; color: {{ n.fg }}; background: {{ n.bg }}">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ n.icon }}"></path></svg>
+          <span style="font-size: 10.5px; font-weight: 600">{{ n.label }}</span>
+        </a>
+      </sc-for>
+    </nav>
+
+    <main style="flex: 999 1 560px; min-width: 0; padding: 10px; display: flex; flex-direction: column; gap: 8px; background: #08080A">
+      <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 4px 0">
+        <div style="display: flex; align-items: baseline; gap: 10px">
+          <h1 style="margin: 0; font-size: 18px; font-weight: 700">기관 포트폴리오</h1>
+          <span style="font-size: 12px; color: #8E8E96">SEC 13F · 적재된 기관 194곳</span>
+        </div>
+        <div style="display: flex; gap: 6px">
+          <label style="display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 6px; border: 1px solid #222226; background: #161618; font-size: 12px; color: #9C9CA3">기준 분기
+            <select style="background: transparent; border: 0; color: #E8E8EA; font: inherit; font-weight: 600"><option>최신 (2026 Q2)</option><option>2026 Q1</option></select>
+          </label>
+          <button type="button" style="height: 30px; padding: 0 12px; border-radius: 6px; border: 1px solid #222226; background: #161618; color: #E8E8EA; font: inherit; font-size: 12px; font-weight: 600">패널 편집</button>
+        </div>
+      </div>
+
+      <section aria-label="Selected institution" style="background: #121214; border-radius: 8px; display: flex; flex-wrap: wrap; align-items: stretch">
+        <div style="flex: 1 1 240px; padding: 14px 16px; display: flex; align-items: center; gap: 12px; border-right: 1px solid #1C1C1F">
+          <span style="width: 40px; height: 40px; border-radius: 6px; background: #22324D; color: #CFE0FF; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700">B</span>
+          <span style="display: flex; flex-direction: column">
+            <span style="font-size: 15px; font-weight: 700">BlackRock, Inc.</span>
+            <span style="font-size: 12px; color: #8E8E96">13F 제출 2026-08-07</span>
+          </span>
+        </div>
+        <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="4">
+          <div style="flex: 1 1 150px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; border-right: 1px solid #1C1C1F">
+            <span style="font-size: 12px; color: #8E8E96">{{ k.label }}</span>
+            <span style="font-size: 20px; font-weight: 700; color: {{ k.color }}">{{ k.value }}</span>
+          </div>
+        </sc-for>
+      </section>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start">
+        <section aria-label="Institutions" style="flex: 999 1 560px; min-width: 0; background: #121214; border-radius: 8px; display: flex; flex-direction: column">
+          <div style="display: flex; align-items: center; gap: 6px; height: 38px; padding: 0 8px; border-bottom: 1px solid #1C1C1F">
+            <svg width="12" height="16" viewBox="0 0 12 16" fill="#55555C" aria-hidden="true"><circle cx="3" cy="3" r="1.4"></circle><circle cx="9" cy="3" r="1.4"></circle><circle cx="3" cy="8" r="1.4"></circle><circle cx="9" cy="8" r="1.4"></circle><circle cx="3" cy="13" r="1.4"></circle><circle cx="9" cy="13" r="1.4"></circle></svg>
+            <span style="height: 26px; padding: 0 10px; border-radius: 6px; background: #1E1E22; display: flex; align-items: center; font-size: 12px; font-weight: 700">기관 순위</span>
+            <span style="height: 26px; padding: 0 10px; border-radius: 6px; display: flex; align-items: center; color: #9C9CA3; font-size: 12px">상위 보유 종목</span>
+            <span style="height: 26px; padding: 0 10px; border-radius: 6px; display: flex; align-items: center; color: #9C9CA3; font-size: 12px">매매 동향</span>
+            <button type="button" aria-label="Add panel tab" style="width: 26px; height: 26px; border: 0; border-radius: 6px; background: transparent; color: #8E8E96; font-size: 16px">+</button>
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 10px">
+            <button type="button" style="height: 26px; padding: 0 8px; border-radius: 6px; border: 0; background: #E8E8EA; color: #111113; font: inherit; font-size: 12px; font-weight: 700">보유가치</button>
+            <button type="button" style="height: 26px; padding: 0 8px; border-radius: 6px; border: 0; background: #1A1A1D; color: #A9A9B0; font: inherit; font-size: 12px">보유 종목 수</button>
+            <button type="button" style="height: 26px; padding: 0 8px; border-radius: 6px; border: 0; background: #1A1A1D; color: #A9A9B0; font: inherit; font-size: 12px">전분기 대비</button>
+          </div>
+          <div style="overflow-x: auto">
+            <table style="width: 100%; min-width: 620px; border-collapse: collapse">
+              <thead>
+                <tr style="color: #8E8E96; font-size: 12px; text-align: right">
+                  <th scope="col" style="text-align: left; font-weight: 500; padding: 6px 12px; width: 32px">순위</th>
+                  <th scope="col" style="text-align: left; font-weight: 500; padding: 6px 8px">기관</th>
+                  <th scope="col" style="font-weight: 500; padding: 6px 8px">보유가치</th>
+                  <th scope="col" style="font-weight: 500; padding: 6px 8px">종목 수</th>
+                  <th scope="col" style="font-weight: 500; padding: 6px 8px">전분기 대비</th>
+                  <th scope="col" style="font-weight: 500; padding: 6px 8px; width: 120px">회전율</th>
+                  <th scope="col" style="font-weight: 500; padding: 6px 12px">제출일</th>
+                </tr>
+              </thead>
+              <tbody>
+                <sc-for list="{{ insts }}" as="r" hint-placeholder-count="7">
+                  <tr style="border-top: 1px solid #161618; background: {{ r.rowBg }}">
+                    <td style="padding: 10px 12px; font-weight: 700; color: #C9C9CF">{{ r.rank }}</td>
+                    <td style="padding: 8px">
+                      <a href="#" style="display: flex; align-items: center; gap: 10px; text-decoration: none; color: #E8E8EA">
+                        <span style="width: 26px; height: 26px; border-radius: 6px; background: #22324D; color: #CFE0FF; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0">{{ r.initial }}</span>
+                        <span style="font-weight: 600">{{ r.name }}</span>
+                      </a>
+                    </td>
+                    <td style="padding: 8px; text-align: right; font-weight: 600">{{ r.value }}</td>
+                    <td style="padding: 8px; text-align: right; color: #C9C9CF">{{ r.count }}</td>
+                    <td style="padding: 8px; text-align: right"><span style="display: inline-block; min-width: 58px; padding: 3px 6px; border-radius: 6px; background: {{ r.pillBg }}; color: {{ r.color }}; font-weight: 700">{{ r.qoq }}</span></td>
+                    <td style="padding: 8px">
+                      <span style="display: flex; align-items: center; gap: 6px; justify-content: flex-end">
+                        <span style="width: 56px; height: 4px; border-radius: 2px; background: #1E1E22; overflow: hidden"><span style="display: block; height: 4px; width: {{ r.turnW }}; background: #8E8E96"></span></span>
+                        <span style="width: 40px; text-align: right; color: #C9C9CF">{{ r.turn }}</span>
+                      </span>
+                    </td>
+                    <td style="padding: 8px 12px; text-align: right; color: #8E8E96">{{ r.filed }}</td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+          <p style="margin: 0; padding: 8px 12px 10px; font-size: 11px; color: #8E8E96; border-top: 1px solid #161618">Source: SEC EDGAR — Form 13F (일 배치 적재)</p>
+        </section>
+
+        <section aria-label="Fund performance" style="flex: 1 1 340px; max-width: 460px; background: #121214; border-radius: 8px; display: flex; flex-direction: column">
+          <div style="display: flex; align-items: center; gap: 6px; height: 38px; padding: 0 8px; border-bottom: 1px solid #1C1C1F">
+            <svg width="12" height="16" viewBox="0 0 12 16" fill="#55555C" aria-hidden="true"><circle cx="3" cy="3" r="1.4"></circle><circle cx="9" cy="3" r="1.4"></circle><circle cx="3" cy="8" r="1.4"></circle><circle cx="9" cy="8" r="1.4"></circle><circle cx="3" cy="13" r="1.4"></circle><circle cx="9" cy="13" r="1.4"></circle></svg>
+            <span style="height: 26px; padding: 0 10px; border-radius: 6px; background: #1E1E22; display: flex; align-items: center; font-size: 12px; font-weight: 700">펀드 성과 (추정)</span>
+          </div>
+          <div style="padding: 12px 14px 4px; display: flex; flex-direction: column; gap: 2px">
+            <span style="font-size: 12px; color: #8E8E96">Situational Awareness LP · Leopold Aschenbrenner</span>
+            <span style="display: flex; align-items: baseline; gap: 8px">
+              <span style="font-size: 22px; font-weight: 700; color: {{ up }}">+172.97%</span>
+              <span style="font-size: 12px; color: #8E8E96">누적 · 6분기</span>
+            </span>
+          </div>
+          <div style="display: flex; align-items: flex-end; gap: 8px; height: 150px; padding: 8px 14px 0; border-bottom: 1px solid #1E1E22; position: relative">
+            <sc-for list="{{ perf }}" as="p" hint-placeholder-count="6">
+              <div style="flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px">
+                <span style="font-size: 11px; font-weight: 700; color: {{ p.color }}">{{ p.ret }}</span>
+                <span style="width: 100%; height: {{ p.h }}; border-radius: 3px 3px 0 0; background: {{ p.color }}"></span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display: flex; gap: 8px; padding: 4px 14px 0">
+            <sc-for list="{{ perf }}" as="p" hint-placeholder-count="6">
+              <span style="flex: 1; text-align: center; font-size: 11px; color: #8E8E96">{{ p.q }}</span>
+            </sc-for>
+          </div>
+          <table style="width: 100%; border-collapse: collapse; margin-top: 10px">
+            <thead>
+              <tr style="color: #8E8E96; font-size: 12px; text-align: right">
+                <th scope="col" style="text-align: left; font-weight: 500; padding: 6px 14px">분기</th>
+                <th scope="col" style="font-weight: 500; padding: 6px 8px">수익률</th>
+                <th scope="col" style="font-weight: 500; padding: 6px 14px">보유가치</th>
+              </tr>
+            </thead>
+            <tbody>
+              <sc-for list="{{ perfRows }}" as="p" hint-placeholder-count="6">
+                <tr style="border-top: 1px solid #161618">
+                  <td style="padding: 7px 14px; color: #C9C9CF">{{ p.period }}</td>
+                  <td style="padding: 7px 8px; text-align: right; font-weight: 700; color: {{ p.color }}">{{ p.ret }}</td>
+                  <td style="padding: 7px 14px; text-align: right">{{ p.total }}</td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+          <p style="margin: 0; padding: 8px 14px 10px; font-size: 11px; color: #8E8E96">13F 보유 종목으로 추정한 값 · 실제 NAV 아님</p>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <footer style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; padding: 8px 16px; border-top: 1px solid #1C1C1F; font-size: 12px; color: #8E8E96">
+    <span>투자 유의사항</span>
+    <span style="margin-left: auto; display: flex; flex-wrap: wrap; gap: 16px">
+      <sc-for list="{{ footer }}" as="f" hint-placeholder-count="3">
+        <span>{{ f.name }} <span style="color: #E8E8EA; font-weight: 600">{{ f.price }}</span> <span style="color: {{ f.color }}; font-weight: 600">{{ f.chg }}</span></span>
+      </sc-for>
+    </span>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"updown":{"editor":"enum","options":["kr","us"],"default":"kr","section":"Price colors"},"$preview":{"width":1440,"height":1080}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const kr = (this.props.updown ?? 'kr') !== 'us';
+    const UPC = kr ? [240, 68, 82] : [29, 179, 122];
+    const DOWNC = kr ? [49, 130, 246] : [240, 68, 82];
+    const hex = (c) => '#' + c.map((v) => v.toString(16).padStart(2, '0')).join('');
+    const tone = (v) => (v > 0 ? hex(UPC) : v < 0 ? hex(DOWNC) : '#9C9CA3');
+    const pill = (v) => 'rgba(' + (v >= 0 ? UPC : DOWNC).join(',') + ',0.14)';
+    const pct = (v, d = 2) => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(d) + '%';
+    const insts = [
+      ['BlackRock, Inc.', '$6.72T', '49,625', 17.6, 67.5, '2026-08-07'],
+      ['Vanguard Capital Management', '$4.68T', '4,092', 17.1, 1.9, '2026-08-13'],
+      ['State Street Corporation', '$3.37T', '4,031', 16.4, 3.6, '2026-08-07'],
+      ['Fidelity (FMR LLC)', '$2.30T', '13,506', 21.4, 81.0, '2026-08-13'],
+      ['Vanguard Portfolio Management', '$2.22T', '3,141', 17.6, 3.9, '2026-08-13'],
+      ['Morgan Stanley', '$1.89T', '45,528', 13.9, 64.5, '2026-08-13'],
+      ['Geode Capital Management', '$1.88T', '8,468', 16.6, 69.9, '2026-08-12'],
+    ].map(([name, value, count, q, t, filed], i) => ({
+      rank: i + 1, name, initial: name[0], value, count, qoq: pct(q, 1), color: tone(q), pillBg: pill(q),
+      turn: t.toFixed(1) + '%', turnW: Math.round(t) + '%', filed, rowBg: i === 0 ? '#16171C' : 'transparent',
+    }));
+    const kpis = [
+      { label: '총 보유가치', value: '$6.72T', color: '#E8E8EA' },
+      { label: '보유 종목', value: '49,625', color: '#E8E8EA' },
+      { label: '전분기 대비', value: '+17.6%', color: tone(17.6) },
+      { label: '회전율', value: '67.5%', color: '#E8E8EA' },
+    ];
+    const raw = [
+      ['25 Q1', '2025-03-31', -11.81, '$545.98M'], ['25 Q2', '2025-06-30', 67.86, '$1.11B'],
+      ['25 Q3', '2025-09-30', 14.98, '$2.25B'], ['25 Q4', '2025-12-31', -21.47, '$3.92B'],
+      ['26 Q1', '2026-03-31', 19.67, '$3.87B'], ['26 Q2', '2026-06-30', 70.65, '$20.18B'],
+    ];
+    const max = Math.max(...raw.map((r) => Math.abs(r[2])));
+    const perf = raw.map(([q, , r]) => ({ q, ret: pct(r, 1), color: tone(r), h: Math.max(6, Math.round((Math.abs(r) / max) * 100)) + 'px' }));
+    const perfRows = raw.slice().reverse().map(([, period, r, total]) => ({ period, ret: pct(r), color: tone(r), total }));
+    const ICON = {
+      home: 'M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z', stock: 'M4 19V5M4 19h16M8 15l3-4 3 2 5-6',
+      macro: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18',
+      cal: 'M4 6h16v14H4zM4 10h16M9 3v4M15 3v4', port: 'M4 7h16v12H4zM9 7V5h6v2M4 12h16', screen: 'M4 6h16M7 12h10M10 18h4',
+      quant: 'M5 19L19 5M7 7h.01M17 17h.01M4 12h3M17 12h3', bt: 'M4 18l5-6 4 3 7-9M4 4v16h16',
+    };
+    const rail = [
+      ['home', '홈', 'Main.dc.html'], ['stock', '종목', 'StockDetail.dc.html'], ['macro', '매크로', 'MacroDetail.dc.html'], ['cal', '캘린더', '#'],
+      ['port', '내 자산', '#'], ['screen', '스크리너', '#'], ['quant', '퀀트', '#'], ['bt', '백테스트', '#'],
+    ].map(([k, label, href], i) => ({ icon: ICON[k], label, href, fg: i === 1 ? '#FFFFFF' : '#8E8E96', bg: i === 1 ? '#1C1C20' : 'transparent' }));
+    const footer = [['KOSPI', '5,018.85', -0.80], ['KOSDAQ', '638.97', -0.82], ['S&P 500', '7,520.4', 1.89]]
+      .map(([name, price, c]) => ({ name, price, chg: pct(c), color: tone(c) }));
+    return { up: hex(UPC), insts, kpis, perf, perfRows, rail, footer };
+  }
+}
+</script>
+</body>
+</html>
