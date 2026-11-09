@@ -28,10 +28,11 @@ htmlcov/
 venv/
 env/
 
-# ── Python 빌드 결과물 (PyInstaller) ──────────────────────────────────────────
+# ── Fetcher 실행파일 빌드 결과물 (build.py + Rust 런처) ────────────────────────
 dist/
 MarketpulseFetcher/build/dist/
 MarketpulseFetcher/build/work/
+MarketpulseFetcher/launcher/target/
 
 # ── MarketpulseWeb/app/frontend ───────────────────────────────────────────────────────────────
 node_modules/

@@ -4,7 +4,8 @@
 'marketpulse://start' 같은 커스텀 스킴을 OS에 등록해두면, 웹의 '실행' 버튼이 그 링크로
 딥링크해 OS가 Fetcher를 띄울 수 있다(Zoom/Slack '앱에서 열기'와 동일 방식).
 
-Fetcher는 기동 시 자기 자신을 이 스킴의 핸들러로 등록한다(멱등). 스킴 호출의 유일한
+소스 실행(`python -m data_fetcher.app`)일 때 기동 시 자기 자신을 이 스킴의 핸들러로 등록한다(멱등).
+배포 실행파일은 Rust 런처(MarketpulseFetcher/launcher)가 등록하므로 이 모듈을 쓰지 않는다. 스킴 호출의 유일한
 목적은 "Fetcher 프로세스를 띄우는 것"이라, 전달된 URL 인자는 무시하고 평소처럼 기동한다.
 
 - Windows: HKCU\\Software\\Classes\\marketpulse (관리자 불필요)
@@ -27,9 +28,7 @@ SCHEME = "marketpulse"
 
 
 def _fetcher_argv() -> List[str]:
-    """Fetcher를 기동하는 실행 인자 목록. 동결 빌드면 실행파일, 소스면 python -m."""
-    if getattr(sys, "frozen", False):
-        return [sys.executable]
+    """Fetcher를 기동하는 실행 인자 목록 (소스 실행: python -m)."""
     return [sys.executable, "-m", "data_fetcher.app"]
 
 

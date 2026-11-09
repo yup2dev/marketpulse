@@ -5,15 +5,18 @@ Windows / Mac 실행파일(.exe / .app)로 배포된다.
 GUI 환경이면 시스템 트레이 아이콘으로, 없으면 헤드리스 REST 서버로 동작한다.
 
 빌드:
-    ./build/build.sh        (Mac → .app)
-    ./build/build.bat       (Windows → .exe)
+    python MarketpulseFetcher/build/build.py   (Windows → .exe / Mac → .app)
+    배포 실행파일은 Rust 런처(MarketpulseFetcher/launcher)가 내장 Python 으로 이 모듈을
+    헤드리스로 띄운다. 트레이·marketpulse:// 스킴 등록은 런처가 맡는다.
 
 환경변수 (.env 또는 OS 환경):
     FETCHER_HOST             기본 127.0.0.1
     FETCHER_PORT             기본 8765
     FETCHER_ALLOWED_ORIGINS  CORS 허용 origin(쉼표구분).  예) https://app.example.com
     FETCHER_LOG_LEVEL        기본 info
-    FETCHER_HEADLESS         1이면 트레이 없이 REST만 기동 (서버·CI 환경용)
+    FETCHER_HEADLESS         1이면 트레이 없이 REST만 기동 (서버·CI 환경, Rust 런처)
+    FETCHER_LAUNCHER         1이면 Rust 런처가 띄운 것 — 스킴 자가등록을 런처에 맡긴다
+    FETCHER_EXE_DIR          런처 exe 폴더 — 그 옆의 .env 를 먼저 읽는다
     FETCHER_BACKEND_WS_URL   백엔드 /ws/fetcher 워커 풀 주소. 미설정이면 클라우드 기본값
                              (wss://api.finance.dns-co.kr/ws/fetcher)으로 합류한다.
                              빈 문자열("")로 설정하면 합류 비활성(로컬 전용).
@@ -26,15 +29,14 @@ from __future__ import annotations
 
 import logging
 import os
-import sys
 
 
 def _load_dotenv() -> None:
     try:
         from dotenv import load_dotenv
-        # exe 옆 .env 우선, 없으면 홈 디렉토리
+        # 런처 exe 옆 .env 우선, 없으면 홈 디렉토리
         from pathlib import Path
-        exe_dir = Path(sys.executable).parent if getattr(sys, "frozen", False) else Path(__file__).parent
+        exe_dir = Path(os.getenv("FETCHER_EXE_DIR") or Path(__file__).parent)
         candidates = [exe_dir / ".env", Path.home() / ".marketpulse_fetcher" / ".env"]
         for p in candidates:
             if p.exists():
@@ -82,7 +84,7 @@ def _run_headless(port: int) -> None:
     )
     uvicorn.run(app, host=host, port=port,
                 log_level=os.getenv("FETCHER_LOG_LEVEL", "info"),
-                # console=False exe 는 sys.stdout=None → uvicorn 컬러 포매터가
+                # 콘솔 없는 실행(sys.stdout=None) 에서는 uvicorn 컬러 포매터가
                 # isatty 접근에서 죽는다. 자체 로깅을 쓰므로 uvicorn 로그설정 비활성.
                 log_config=None)
 
@@ -93,11 +95,13 @@ def main() -> None:
     _setup_logging(port)
 
     # marketpulse:// 스킴 자가등록 — 웹의 'Fetcher 실행' 딥링크가 동작하도록(best-effort).
-    try:
-        from data_fetcher.server.protocol import register_url_scheme
-        register_url_scheme()
-    except Exception as exc:  # 등록 실패는 무시 (웹 실행 버튼만 비활성)
-        logging.getLogger(__name__).debug("[fetcher] URL 스킴 등록 건너뜀: %s", exc)
+    # Rust 런처로 실행된 경우엔 런처가 자기 exe 로 등록하므로 여기서 덮어쓰지 않는다.
+    if os.getenv("FETCHER_LAUNCHER") != "1":
+        try:
+            from data_fetcher.server.protocol import register_url_scheme
+            register_url_scheme()
+        except Exception as exc:  # 등록 실패는 무시 (웹 실행 버튼만 비활성)
+            logging.getLogger(__name__).debug("[fetcher] URL 스킴 등록 건너뜀: %s", exc)
 
     headless = os.getenv("FETCHER_HEADLESS", "0") == "1"
 

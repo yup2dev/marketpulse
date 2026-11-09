@@ -3,6 +3,7 @@ name: Release Fetcher
 # git tag v1.0.0 && git push origin v1.0.0 으로 트리거
 #
 # 2026-09-21: Tauri 데스크톱 앱을 제거하고 독립 실행 Fetcher만 릴리스한다.
+# 2026-11-09: PyInstaller 를 걷어내고 Rust 런처(MarketpulseFetcher/launcher) 단일 exe 로 교체.
 # 프론트엔드는 Vercel, 백엔드는 Docker로 배포되므로 여기서 만드는 산출물은
 # 사용자가 자기 PC에서 실행하는 Fetcher 하나뿐이다.
 #
@@ -34,28 +35,42 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Python 3.11
+      # 빌드 도구만 준비한다. 번들되는 Python 런타임은 build.py 가 uv 로 받고,
+      # 의존성은 MarketpulseFetcher/build/requirements-fetcher.txt 로 그 안에 설치한다.
+      - name: Setup Python (build.py 실행용)
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-          cache: pip
-          cache-dependency-path: requirements.txt
+          python-version: '3.13'
 
-      - name: Install Python dependencies
-        run: pip install -r requirements.txt pyinstaller pystray pillow
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            MarketpulseFetcher/launcher/target
+          key: cargo-${{ matrix.target_triple }}-${{ hashFiles('MarketpulseFetcher/launcher/Cargo.lock') }}
 
       # ── 독립 실행 Fetcher 빌드 ────────────────────────────────────────────
       # 사용자가 자기 PC에서 실행해 /ws/fetcher 워커 풀에 합류시키는 실행파일.
-      - name: Build standalone Fetcher (PyInstaller)
+      # Rust 런처가 내장 Python 런타임 + data_fetcher 를 품은 단일 exe(.app).
+      - name: Build standalone Fetcher (Rust launcher)
         shell: bash
         run: |
-          pyinstaller MarketpulseFetcher/build/MarketPulseFetcher.spec --noconfirm
+          python MarketpulseFetcher/build/build.py --no-desktop
+          DIST=MarketpulseFetcher/build/dist
           mkdir -p release-assets
           if [ "${{ matrix.platform }}" = "windows-latest" ]; then
-            cp "dist/MarketPulseFetcher.exe" "release-assets/MarketPulseFetcher-${{ matrix.target_triple }}.exe"
+            cp "$DIST/MarketPulseFetcher.exe" "release-assets/MarketPulseFetcher-${{ matrix.target_triple }}.exe"
           else
             # .app 번들 → zip (ditto가 번들 메타데이터를 보존)
-            ditto -c -k --keepParent "dist/MarketPulseFetcher.app" "release-assets/MarketPulseFetcher-${{ matrix.target_triple }}.zip"
+            ditto -c -k --keepParent "$DIST/MarketPulseFetcher.app" "release-assets/MarketPulseFetcher-${{ matrix.target_triple }}.zip"
           fi
 
       - name: Publish release

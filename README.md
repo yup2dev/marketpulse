@@ -52,7 +52,8 @@ marketpulse/
 │       └── frontend/              # React + Vite (vercel.json)
 ├── MarketpulseFetcher/            # 데이터 조회 라이브러리 + 사용자 PC 용 exe
 │   ├── data_fetcher/              # providers/, query_executor.py, server/(exe REST·WS 워커)
-│   └── build/                     # PyInstaller spec, build.sh/.bat
+│   ├── launcher/                  # Rust 런처 (트레이·스킴 등록·내장 Python 실행)
+│   └── build/                     # build.py (Python 런타임+data_fetcher 페이로드 → Rust 단일 exe)
 ├── MarketpulseBatch/              # 스케줄러(외부 C 스케줄러)가 실행하는 프로그램
 │   ├── jobs/                      # 적재 배치: backfill_stk_stbd, collect_fx, collect_13f,
 │   │                              #   collect_sp500, load_all_relations, sync_db_to_cloud ...
