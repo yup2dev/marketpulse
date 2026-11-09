@@ -160,6 +160,7 @@ _DEFAULT_TTL: Dict[str, int] = {
     "listing":               21600,  # universe (nasdaqtrader/krx) — 일 갱신, 6h 캐시
     "bond":                  21600,  # KR 국고채 벤치마크 (krx) — 일 갱신
     "institutional_holdings": 3600,
+    "institutions_summary":   3600,  # 배치 적재 요약 — 일 1회 sync 로만 바뀐다
     "institutions_list":      7200,
     "institutional_13f":      7200,
     # 분기 공시 기반 + 다중 분기 파싱(요청당 N개 필링) — 길게 잡는다

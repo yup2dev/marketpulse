@@ -428,11 +428,12 @@ const InstitutionalPortfolios = ({ onRemove }) => {
     setError(null);
     setErrorKeys({});
     try {
-      const data = await apiClient.get(`${API_BASE}/portfolio/13f/institutions?use_dynamic=true`);
-      const list = data.results || [];
-      setInstitutions(list);
-      // 목록 로드 후 전체 기관 summary 병렬 조회
-      list.forEach(inst => fetchPortfolioSummary(inst.key));
+      // 목록 + 전 기관 요약을 한 번에 (요약은 일 배치가 적재한 값 — 기관별 N회 요청 대신 1회)
+      const [data] = await Promise.all([
+        apiClient.get(`${API_BASE}/portfolio/13f/institutions?use_dynamic=true`),
+        fetchAllSummaries(quarterRef.current),
+      ]);
+      setInstitutions(data.results || []);
     } catch (err) {
       console.error('Error fetching institutions:', err);
       setError(err.detail || err.message || 'Failed to load institutions');
@@ -441,34 +442,22 @@ const InstitutionalPortfolios = ({ onRemove }) => {
     }
   };
 
-  // 요약 데이터만 조회 (total_value, holdings, QoQ — 종목 목록 없음)
-  const fetchPortfolioSummary = useCallback(async (instKey) => {
-    const q = quarterRef.current;
-    setLoadingKeys(prev => new Set([...prev, instKey]));
-    try {
-      const data = await apiClient.get(`${API_BASE}/portfolio/13f/${instKey}?summary_only=true${q ? `&period=${q}` : ''}`);
-      const portfolio = data.results?.[0];
-      if (quarterRef.current !== q) return;
-      if (portfolio && !q) {
-        setPeriodsByKey(prev => ({ ...prev, [instKey]: portfolio.available_periods || [] }));
-      }
-      if (portfolio) {
-        setErrorKeys(prev => { if (!(instKey in prev)) return prev; const n = { ...prev }; delete n[instKey]; return n; });
-        setPortfolios(prev => {
-          const existing = prev.find(p => p.institution_key === portfolio.institution_key);
-          if (existing?._full) return prev;
-          const filtered = prev.filter(p => p.institution_key !== portfolio.institution_key);
-          // _summarySnapshot: 정렬 기준값 고정용 (full 로드 후에도 sort 불변)
-          return [...filtered, { ...portfolio, _full: false, _summarySnapshot: portfolio }];
-        });
-      }
-    } catch (err) {
-      console.error('Error fetching portfolio summary:', err);
-      if (quarterRef.current !== q) return;
-      setErrorKeys(prev => ({ ...prev, [instKey]: err.detail || err.message || 'Failed to load' }));
-    } finally {
-      setLoadingKeys(prev => { const n = new Set(prev); n.delete(instKey); return n; });
+  // 전 기관 요약 일괄 조회 (/13f/summaries — 종목 목록 없음). 펼친 기관(_full)은 유지.
+  const fetchAllSummaries = useCallback(async (q) => {
+    const data = await apiClient.get(`${API_BASE}/portfolio/13f/summaries${q ? `?period=${q}` : ''}`);
+    if (quarterRef.current !== q) return;
+    const rows = data.results || [];
+    if (!q) {
+      setPeriodsByKey(Object.fromEntries(rows.map(r => [r.institution_key, r.available_periods || []])));
     }
+    setPortfolios(prev => {
+      const full = new Map(prev.filter(p => p._full).map(p => [p.institution_key, p]));
+      const merged = rows.map(r => full.get(r.institution_key)
+        ? { ...full.get(r.institution_key), _summarySnapshot: r }
+        : { ...r, _full: false, _summarySnapshot: r });
+      const summarized = new Set(rows.map(r => r.institution_key));
+      return [...merged, ...[...full.values()].filter(p => !summarized.has(p.institution_key))];
+    });
   }, []);
 
   // 전체 데이터 조회 (expand 시 호출) — expandLoadingKeys 사용으로 위젯 전체 로딩 표시 안 함
@@ -509,9 +498,16 @@ const InstitutionalPortfolios = ({ onRemove }) => {
         return;
       }
       if (selectedInstitutions.some(s => s.key === inst.key)) fetchPortfolio(inst.key);
-      else fetchPortfolioSummary(inst.key);
     });
     setErrorKeys(missing);
+    const pending = institutions.map(i => i.key).filter(k => !(k in missing));
+    setLoadingKeys(new Set(pending));
+    fetchAllSummaries(q)
+      .catch((err) => {
+        console.error('Error fetching portfolio summaries:', err);
+        if (quarterRef.current === q) setError(err.detail || err.message || 'Failed to load summaries');
+      })
+      .finally(() => { if (quarterRef.current === q) setLoadingKeys(new Set()); });
   };
 
   const quarterOptions = useMemo(() => {

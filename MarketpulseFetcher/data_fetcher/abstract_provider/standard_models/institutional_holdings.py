@@ -24,6 +24,15 @@ class InstitutionalHoldingsQueryParams(BaseQueryParams):
     )
 
 
+class InstitutionsSummaryQueryParams(BaseQueryParams):
+    """전 기관 13F 요약 일괄 조회 파라미터 (보유 종목 목록 없음)"""
+
+    period: Optional[str] = Field(
+        default=None,
+        description="보고 분기말 (YYYY-MM-DD, SEC reportDate). 비우면 최신 분기",
+    )
+
+
 class HoldingData(BaseData):
     """개별 보유 종목 데이터"""
 

@@ -7,6 +7,57 @@ from data_fetcher.query_executor import QueryExecutor
 log = logging.getLogger(__name__)
 
 
+def _serialize_portfolio(portfolio) -> Dict[str, Any]:
+    """InstitutionalHoldingsData → 위젯 응답 dict (상세·요약 공용)."""
+    def _serialize(stock):
+        d = {
+            'symbol': stock.symbol,
+            'name':   stock.name,
+            'cusip':  stock.cusip,
+            'value':  stock.value,
+            'shares': stock.shares,
+            'weight': stock.weight,
+        }
+        for field in ('prev_shares', 'prev_value', 'share_change',
+                      'share_change_pct', 'value_change', 'value_change_pct', 'status'):
+            val = getattr(stock, field, None)
+            if val is not None:
+                d[field] = val
+        return d
+
+    holding = {
+        'id':                    portfolio.id,
+        'institution_key':       portfolio.institution_key,
+        'manager':               portfolio.manager,
+        'name':                  portfolio.name,
+        'description':           portfolio.description,
+        'total_value':           portfolio.total_value,
+        'num_holdings':          portfolio.num_holdings,
+        'filing_date':           portfolio.filing_date,
+        'period_end':            portfolio.period_end,
+        'category':              portfolio.category,
+        'previous_filing_date':  portfolio.previous_filing_date,
+        'previous_value':        portfolio.previous_value,
+        'value_change':          portfolio.value_change,
+        'value_change_pct':      portfolio.value_change_pct,
+        'num_new_positions':     portfolio.num_new_positions,
+        'num_sold_out':          portfolio.num_sold_out,
+        'num_increased':         portfolio.num_increased,
+        'num_decreased':         portfolio.num_decreased,
+        'turnover':              portfolio.turnover,
+        'stocks':                [_serialize(s) for s in portfolio.stocks],
+        'sold_positions':        [_serialize(s) for s in portfolio.sold_positions],
+    }
+
+    if getattr(portfolio, 'performance', None):
+        holding['performance'] = portfolio.performance
+    if getattr(portfolio, 'top_sectors', None):
+        holding['top_sectors'] = portfolio.top_sectors
+    holding['available_periods'] = list(getattr(portfolio, 'available_periods', None) or [])
+
+    return holding
+
+
 class PortfolioService:
 
     async def _fetch_cached(self, model: str, params: Dict[str, Any]):
@@ -67,61 +118,24 @@ class PortfolioService:
                     f"서버 온디맨드 폴백은 비활성화돼 있습니다."
                 )
 
-            portfolio = results[0]
-
-            def _serialize(stock):
-                d = {
-                    'symbol': stock.symbol,
-                    'name':   stock.name,
-                    'cusip':  stock.cusip,
-                    'value':  stock.value,
-                    'shares': stock.shares,
-                    'weight': stock.weight,
-                }
-                for field in ('prev_shares', 'prev_value', 'share_change',
-                              'share_change_pct', 'value_change', 'value_change_pct', 'status'):
-                    val = getattr(stock, field, None)
-                    if val is not None:
-                        d[field] = val
-                return d
-
-            holding = {
-                'id':                    portfolio.id,
-                'institution_key':       portfolio.institution_key,
-                'manager':               portfolio.manager,
-                'name':                  portfolio.name,
-                'description':           portfolio.description,
-                'total_value':           portfolio.total_value,
-                'num_holdings':          portfolio.num_holdings,
-                'filing_date':           portfolio.filing_date,
-                'period_end':            portfolio.period_end,
-                'category':              portfolio.category,
-                'previous_filing_date':  portfolio.previous_filing_date,
-                'previous_value':        portfolio.previous_value,
-                'value_change':          portfolio.value_change,
-                'value_change_pct':      portfolio.value_change_pct,
-                'num_new_positions':     portfolio.num_new_positions,
-                'num_sold_out':          portfolio.num_sold_out,
-                'num_increased':         portfolio.num_increased,
-                'num_decreased':         portfolio.num_decreased,
-                'turnover':              portfolio.turnover,
-                'stocks':                [_serialize(s) for s in portfolio.stocks],
-                'sold_positions':        [_serialize(s) for s in portfolio.sold_positions],
-            }
-
-            if getattr(portfolio, 'performance', None):
-                holding['performance'] = portfolio.performance
-            if getattr(portfolio, 'top_sectors', None):
-                holding['top_sectors'] = portfolio.top_sectors
-            holding['available_periods'] = list(getattr(portfolio, 'available_periods', None) or [])
-
-            return holding
+            return _serialize_portfolio(results[0])
 
         except ValueError:
             raise
         except Exception as e:
             log.error(f"Error fetching portfolio for {institution_key}: {e}")
             raise
+
+    async def get_portfolio_summaries(self, period: Optional[str] = None) -> List[Dict[str, Any]]:
+        """전 기관 13F 요약을 한 번에 — 배치가 적재한 PORT(기관당 1행)만 읽는다.
+
+        위젯 첫 화면이 기관마다 요청하던 N+1(+ 매 요청 보유종목 전량 로드)을 대체한다.
+        """
+        params: Dict[str, Any] = {}
+        if period:
+            params['period'] = period
+        results = await self._fetch_cached('institutions_summary', params)
+        return [_serialize_portfolio(p) for p in (results or [])]
 
     async def get_fund_performance(
         self,

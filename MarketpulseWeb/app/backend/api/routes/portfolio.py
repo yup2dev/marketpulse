@@ -45,6 +45,24 @@ async def get_13f_institutions(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/13f/summaries")
+async def get_13f_summaries(
+    period: Optional[str] = None,
+    provider: str = "db",
+) -> OBBject:
+    """전 기관 13F 요약 일괄 조회 (보유 종목 목록 없음).
+
+    요약은 일 배치가 계산·적재한 값 그대로다. period: 보고 분기말(YYYY-MM-DD) — 비우면 최신.
+    `/13f/{institution_key}` 보다 먼저 선언해야 'summaries' 가 기관 키로 잡히지 않는다.
+    """
+    try:
+        rows = await portfolio_service.get_portfolio_summaries(period=period)
+        return OBBject(results=rows, provider=provider)
+    except Exception as e:
+        log.error(f"Error fetching 13F summaries: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/13f/{institution_key}/performance")
 async def get_fund_performance(
     institution_key: str,
