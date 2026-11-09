@@ -14,6 +14,7 @@ on:
   push:
     tags:
       - 'v*'
+      - 'fetcher-v*'   # 실제 Fetcher 릴리스 태그 규칙 (fetcher-v0.2.0 등)
   workflow_dispatch:
 
 permissions:
@@ -34,6 +35,19 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      # 태그 fetcher-v0.2.0 / v0.2.0 → 0.2.0 (릴리스 제목용). 태그와 __version__ 이 다르면 실패.
+      - name: Resolve version
+        id: ver
+        shell: bash
+        run: |
+          TAG="${{ github.ref_name }}"
+          VER="${TAG#fetcher-}"; VER="${VER#v}"
+          PKG=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' MarketpulseFetcher/data_fetcher/__init__.py)
+          if [ "${{ github.ref_type }}" = "tag" ] && [ "$VER" != "$PKG" ]; then
+            echo "::error::태그($TAG)와 data_fetcher.__version__($PKG) 불일치"; exit 1
+          fi
+          echo "version=$PKG" >> "$GITHUB_OUTPUT"
 
       # 빌드 도구만 준비한다. 번들되는 Python 런타임은 build.py 가 uv 로 받고,
       # 의존성은 MarketpulseFetcher/build/requirements-fetcher.txt 로 그 안에 설치한다.
@@ -77,9 +91,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: 'MarketPulse Fetcher ${{ github.ref_name }}'
+          name: 'MarketPulse Fetcher ${{ steps.ver.outputs.version }}'
           body: |
-            ## MarketPulse Fetcher ${{ github.ref_name }}
+            ## MarketPulse Fetcher ${{ steps.ver.outputs.version }}
 
             웹앱에서 Yahoo 등 로컬 실행이 필요한 데이터를 쓰려면 이 Fetcher를
             내 PC에서 실행하세요.

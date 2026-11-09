@@ -33,7 +33,6 @@ from pathlib import Path
 
 PYTHON_VERSION = "3.13"
 APP_NAME = "MarketPulseFetcher"
-VERSION = "0.1.0"
 
 BUILD_DIR = Path(__file__).resolve().parent          # MarketpulseFetcher/build
 FETCHER_ROOT = BUILD_DIR.parent                      # MarketpulseFetcher
@@ -43,6 +42,19 @@ WORK_DIR = BUILD_DIR / "work"
 DIST_DIR = BUILD_DIR / "dist"
 PAYLOAD_DIR = WORK_DIR / "payload"
 PAYLOAD_ZIP = WORK_DIR / "payload.zip"
+
+
+def _read_version() -> str:
+    """버전 단일 소스: data_fetcher/__init__.py 의 __version__ (Fetcher /health 와 동일)."""
+    import re
+    text = (PACKAGE_DIR / "__init__.py").read_text(encoding="utf-8")
+    m = re.search(r"^__version__\s*=\s*['\"]([^'\"]+)['\"]", text, re.M)
+    if not m:
+        sys.exit("❌ data_fetcher/__init__.py 에서 __version__ 을 찾지 못했습니다.")
+    return m.group(1)
+
+
+VERSION = _read_version()
 
 WINDOWS = sys.platform == "win32"
 MACOS = sys.platform == "darwin"
@@ -100,7 +112,7 @@ def standalone_python(uv: str) -> Path:
     run([uv, "python", "install", PYTHON_VERSION], env=env)
     candidates = sorted(
         d for d in install_dir.glob(f"cpython-{PYTHON_VERSION}.*")
-        if d.is_dir() and not d.is_symlink() and not d.is_junction()
+        if d.is_dir() and not d.is_symlink() and not getattr(d, "is_junction", lambda: False)()
         and "freethreaded" not in d.name and python_exe(d).exists()
     )
     if not candidates:
