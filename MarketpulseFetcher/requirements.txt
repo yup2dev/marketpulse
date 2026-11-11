@@ -1,0 +1,55 @@
+# data_fetcher 라이브러리의 런타임 의존성.
+#
+# data_fetcher 를 import 하는 쪽(Web 서버, Batch)이 `-r` 로 끌어다 쓴다.
+# 여기 적힌 패키지는 Web/Batch 의 requirements 에 다시 적지 않는다 — 한 곳에서만 관리.
+#
+# 배포용 exe 는 이 파일을 쓰지 않는다 — build/requirements-fetcher.txt (버전 고정 lock).
+# 새 서드파티 의존성을 추가하면 두 파일 모두에 넣을 것.
+
+# ==============================================================================
+# 서버 프레임 (data_fetcher.core / server 가 fastapi 를 import 한다)
+# ==============================================================================
+fastapi>=0.104.0
+# starlette 은 fastapi 가 끌어오지만 상한을 여기서 못 박는다.
+# starlette 1.x 는 현재 쓰는 fastapi 0.116 과 충돌해 앱이 기동하지 않는다.
+# 이 줄이 없으면 새 환경/Docker 재빌드에서 1.x 가 들어와 그대로 깨진다.
+starlette<0.48
+pydantic>=2.0.0
+websockets>=12.0               # KIS/Polygon 실시간 스트림, /ws/fetcher 워커
+python-dotenv>=1.0.0
+
+# ==============================================================================
+# HTTP
+# ==============================================================================
+requests>=2.31.0
+urllib3>=2.0.0
+httpx>=0.25.0
+aiohttp>=3.9.0
+aiohttp-client-cache>=0.14.0   # OpenBB 이식 SEC fetcher의 HTTP 응답 캐시(CachedSession)
+aiosqlite>=0.22.0              # aiohttp-client-cache 의 SQLite 백엔드 의존성
+async-lru>=2.0.0               # OpenBB 이식 fetcher(IMF port_volume, EIA helpers)의 alru_cache 의존성
+
+# ==============================================================================
+# 데이터
+# ==============================================================================
+pandas>=2.0.0
+numpy>=1.26.0
+python-dateutil~=2.9.0.post0
+yfinance>=0.2.0
+
+# ==============================================================================
+# 파싱
+# ==============================================================================
+beautifulsoup4>=4.12.0
+lxml>=5.0.0
+xmltodict>=0.13.0              # SEC 13F/form4/nport/litigation XML 파싱(지연 import) 의존성
+defusedxml~=0.7.1
+
+# ==============================================================================
+# 선택 provider — 없으면 providers_init 이 try/except 로 해당 provider 만 건너뛴다.
+# (exe 는 용량 때문에 sqlalchemy/scipy/statsmodels 를 뺀다. 여기서는 아직 전부 설치)
+# ==============================================================================
+sqlalchemy>=2.0.0              # database provider (적재 DB 조회)
+QuantLib>=1.42                 # quantlib provider
+scipy~=1.16.1                  # quantitative provider
+statsmodels>=0.14              # quantitative provider

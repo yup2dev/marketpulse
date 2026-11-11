@@ -15,7 +15,10 @@ from data_fetcher.abstract_provider.abstract.provider import Provider
 from data_fetcher.concepts import CONCEPTS, ConceptError, ConceptImpl, choose_impl, normalize
 from data_fetcher.providers.declarative import build_provider
 from data_fetcher.providers.declarative.loader import parse_period, period_str
-from data_fetcher.query_executor import MissingCredentialsError, QueryExecutor
+from data_fetcher.query_executor import (
+    MissingCredentialsError, QueryExecutor, QueryExecutorError, RemoteUnavailableError,
+)
+from data_fetcher.utils.circuit_breaker import CircuitBreakerOpen
 
 
 # ── 선언형 provider ───────────────────────────────────────────────────────────
@@ -236,3 +239,38 @@ def test_missing_key_is_424_not_401(auth_client, keys, monkeypatch):
         r = client.get(path)
         assert r.status_code == 424, (path, r.text)
         assert r.json()["code"] == "missing_key" and r.json()["provider"] == "fred"
+
+
+def test_gateway_fetcher_off_is_503_not_400(auth_client, monkeypatch):
+    """프론트 stateFromError 는 503 일 때만 'Fetcher 실행' 안내를 띄운다.
+
+    RemoteUnavailableError 는 QueryExecutorError 의 하위 클래스라, 게이트웨이가
+    QueryExecutorError 를 통째로 400 으로 바꾸면 안내 대신 일반 오류가 뜬다.
+    """
+    client, _ = auth_client
+
+    async def worker_off(provider, model, params, credentials=None, ttl=None, **kw):
+        raise RemoteUnavailableError("Fetcher 워커 미접속")
+    monkeypatch.setattr(QueryExecutor, "fetch", worker_off)
+    r = client.get("/api/data/yahoo/stock_price?symbol=AAPL")
+    assert r.status_code == 503, r.text
+
+    async def circuit_open(provider, model, params, credentials=None, ttl=None, **kw):
+        try:
+            raise CircuitBreakerOpen(provider, 12.0)
+        except CircuitBreakerOpen as e:
+            raise QueryExecutorError(str(e)) from e     # QueryExecutor.fetch 와 같은 포장
+    monkeypatch.setattr(QueryExecutor, "fetch", circuit_open)
+    r = client.get("/api/data/fred/series?series_id=DGS10")
+    assert r.status_code == 503 and r.headers.get("retry-after") == "13", r.text
+
+    # 그 밖의 조회 오류는 그대로 — 없는 모델 404, 나머지 400
+    async def not_found(provider, model, params, credentials=None, ttl=None, **kw):
+        raise QueryExecutorError("Model 'nope' not found")
+    monkeypatch.setattr(QueryExecutor, "fetch", not_found)
+    assert client.get("/api/data/fred/nope").status_code == 404
+
+    async def bad(provider, model, params, credentials=None, ttl=None, **kw):
+        raise QueryExecutorError("invalid params")
+    monkeypatch.setattr(QueryExecutor, "fetch", bad)
+    assert client.get("/api/data/fred/series").status_code == 400

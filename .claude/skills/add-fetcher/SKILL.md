@@ -215,7 +215,7 @@ model별 TTL(초). 실시간 60 / 반-신선 300~600 / 일일 1800~3600. 같은 
 
 exe 는 Rust 런처(`MarketpulseFetcher/launcher`)가 내장 Python 런타임 + `data_fetcher` 패키지 폴더 통째(자산 파일 포함, tests 제외)를 품고 실행한다. 정적분석이 없으므로 모듈·자산 누락 걱정은 없지만 **서드파티 패키지는 명시한 것만 들어간다**:
 
-1. **새 서드파티 의존성은 `MarketpulseFetcher/build/requirements-fetcher.txt`에 버전 고정으로 추가** (지연 import 포함). 누락 시 exe에서만 ModuleNotFoundError. (루트 requirements.txt 는 exe에 쓰이지 않는다)
+1. **새 서드파티 의존성은 `MarketpulseFetcher/build/requirements-fetcher.txt`에 버전 고정으로 추가** (지연 import 포함). 누락 시 exe에서만 ModuleNotFoundError. (루트 requirements.txt 는 exe에 쓰이지 않는다) 서버·배치용으로는 `MarketpulseFetcher/requirements.txt`에도 추가 — Docker 이미지는 `MarketpulseWeb/requirements.txt`(→ 이 파일을 `-r`)만 설치하므로 누락 시 운영 서버에서만 ModuleNotFoundError.
 2. 무거운/백엔드 전용 의존성(sqlalchemy, scipy 등)은 requirements-fetcher.txt 에서 빼고 providers_init try/except 로 건너뛴다.
 3. 빌드·배포: `python MarketpulseFetcher/build/build.py` (Win/Mac 공용, uv·cargo 필요, 실제 바탕화면에 복사. CI는 `--no-desktop`). 빌드 중 번들 런타임으로 `providers_init` import 를 확인한다.
 5. 배포 환경에서 keyless 스크래핑 provider(yahoo/whalewisdom 등)는 **사용자 로컬 Fetcher 워커로 위임**된다 — default 위젯에는 지양(SEC 게이트웨이 위젯 선호).

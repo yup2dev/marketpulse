@@ -22,7 +22,10 @@ from app.backend.api.deps import (
     missing_key_response, route_handler, wrap_result,
 )
 from data_fetcher.core.obbject import OBBject
-from data_fetcher.query_executor import MissingCredentialsError, QueryExecutor, QueryExecutorError
+from data_fetcher.query_executor import (
+    MissingCredentialsError, QueryExecutor, QueryExecutorError, RemoteUnavailableError,
+)
+from data_fetcher.utils.circuit_breaker import CircuitBreakerOpen
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -111,7 +114,13 @@ async def fetch_data(
         raw = await QueryExecutor.fetch(provider, model, params)
     except MissingCredentialsError as e:
         return missing_key_response(e)
+    except RemoteUnavailableError:
+        # Fetcher 워커 미접속 등 → route_handler 가 503 으로 바꾼다.
+        # 여기서 400 으로 뭉개면 위젯이 'Fetcher 실행' 안내 대신 일반 오류를 띄운다.
+        raise
     except QueryExecutorError as e:
+        if isinstance(e.__cause__, CircuitBreakerOpen):
+            raise   # 서킷 OPEN → route_handler 가 503 + Retry-After
         msg = str(e)
         if "not found" in msg.lower():
             raise HTTPException(status_code=404, detail=msg)

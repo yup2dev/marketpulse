@@ -9,7 +9,9 @@ on:
       - 'MarketpulseWeb/app/backend/**'
       - 'MarketpulseFetcher/data_fetcher/**'
       - 'migrations/**'
-      - 'requirements.txt'
+      # 이미지가 설치하는 의존성 파일 (Dockerfile 참고) — 배치·dev 파일은 재배포 사유가 아니다
+      - 'MarketpulseWeb/requirements.txt'
+      - 'MarketpulseFetcher/requirements.txt'
       - 'Dockerfile'
       - 'docker-compose.yml'
   workflow_dispatch:

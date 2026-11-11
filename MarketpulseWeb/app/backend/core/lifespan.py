@@ -19,9 +19,10 @@ log = logging.getLogger(__name__)
 def _build_fetcher_client():
     """FETCHER_REMOTE_ENABLED 설정에 맞는 Fetcher 위임 클라이언트(없으면 None).
 
-    FETCHER_REMOTE_ENABLED=True 면 모든 데이터 조회를 로컬 Fetcher(exe) REST로 위임한다.
-    (배포 WebServer는 provider 키를 갖지 않음 — 키와 외부 호출은 Fetcher에 집중)
-    False(기본)에서는 기존처럼 백엔드가 provider를 직접 호출한다.
+    FETCHER_REMOTE_ENABLED=True 면 서버에서 돌리면 안 되는 조회(yahoo, 13F 원본 파싱 모델)를
+    Fetcher 로 위임한다 — WORKER_MODE 면 /ws/fetcher 워커 풀, 아니면 FETCHER_URL REST.
+    나머지 provider 는 이 설정과 무관하게 백엔드가 직접 호출한다(키 기반은 요청 사용자의 키).
+    False 면 위임 없이 백엔드가 yahoo 까지 직접 호출한다.
     """
     if not settings.FETCHER_REMOTE_ENABLED:
         return None

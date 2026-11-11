@@ -1,0 +1,34 @@
+# Batch(index_analyzer 크롤러·수집기 + jobs/) 런타임 의존성.
+#
+# 수집기는 data_fetcher 를 import 하므로 그쪽 의존성을 먼저 끌어온다.
+# 거기 이미 있는 패키지(sqlalchemy, requests, beautifulsoup4, pandas, yfinance …)는 다시 적지 않는다.
+-r ../MarketpulseFetcher/requirements.txt
+
+# ==============================================================================
+# 설정 · 스케줄 · DB
+# ==============================================================================
+pydantic-settings>=2.0.0
+pyyaml>=6.0.0
+apscheduler>=3.10.0
+psycopg2-binary>=2.9.9
+redis>=5.0.0
+
+# ==============================================================================
+# 수집
+# ==============================================================================
+pykrx>=1.2.8           # KR 국고채 수집(선택) — KRX_ID/KRX_PW 로그인 필요. 주식·ETF는 KIND/Naver(무로그인) 사용
+Pillow>=10.0.0         # 미디어 분석
+
+# ==============================================================================
+# NLP (선택)
+# ==============================================================================
+# Basic sentiment analysis works without transformers
+spacy>=3.7.0
+# After install, download model: python -m spacy download en_core_web_sm
+
+# 아래는 코드가 지연 import 하지만 기본 설치에는 넣지 않는다 (필요할 때만):
+# transformers>=4.30.0
+# torch>=2.0.0
+# For CPU only torch (lighter):
+# torch==2.0.0+cpu -f https://download.pytorch.org/whl/torch_stable.html
+# opencv-python / pytesseract   # media/analyzer.py 의 OCR 경로
