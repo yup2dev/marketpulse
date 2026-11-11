@@ -206,6 +206,40 @@ export const providersAPI = {
 };
 
 // ─── Export API ───────────────────────────────────────────────────────────────
+// 사용자 정의 위젯 (API → 매핑 → 위젯 → 화면 등록). 정의 목록은 store/userWidgetStore 가 들고 있다.
+export const userWidgetsAPI = {
+  codes:  ()         => apiClient.get(`${API_BASE}/user-widgets/codes`),
+  list:   ()         => apiClient.get(`${API_BASE}/user-widgets`),
+  create: (data)     => apiClient.post(`${API_BASE}/user-widgets`, data),
+  update: (id, data) => apiClient.put(`${API_BASE}/user-widgets/${id}`, data),
+  delete: (id)       => apiClient.del(`${API_BASE}/user-widgets/${id}`),
+  // 기본 제공 위젯의 내 설정 (사용 여부·내놓을 화면) — 기본값과 다른 것만 온다
+  prefs:   ()           => apiClient.get(`${API_BASE}/user-widgets/prefs`),
+  setPref: (type, data) => apiClient.put(`${API_BASE}/user-widgets/prefs/${encodeURIComponent(type)}`, data),
+};
+
+// 위젯 종류 목록 관리 (관리자 전용). 목록 읽기는 userWidgetsAPI.codes() 의 VIEW_TYPE.
+export const widgetTypesAPI = {
+  create: (data)       => apiClient.post(`${API_BASE}/admin/widget-types`, data),
+  update: (code, data) => apiClient.put(`${API_BASE}/admin/widget-types/${encodeURIComponent(code)}`, data),
+  delete: (code)       => apiClient.del(`${API_BASE}/admin/widget-types/${encodeURIComponent(code)}`),
+};
+
+// (provider, model) 의 파라미터 폼 스펙 + 응답 필드. 스키마는 코드에 박혀 있어 세션 동안 안 바뀐다.
+const _schemaPromises = new Map();
+export const schemaAPI = {
+  get: (provider, model) => {
+    const key = `${provider}/${model}`;
+    if (!_schemaPromises.has(key)) {
+      _schemaPromises.set(key, apiClient.get(`${API_BASE}/data/${provider}/${model}/schema`).catch((e) => {
+        _schemaPromises.delete(key);
+        throw e;
+      }));
+    }
+    return _schemaPromises.get(key);
+  },
+};
+
 export const exportAPI = {
   portfolioCSV:   (id) => apiClient.get(`${API_BASE}/export/portfolio/${id}/csv`),
   portfolioExcel: (id) => apiClient.get(`${API_BASE}/export/portfolio/${id}/excel`),

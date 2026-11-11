@@ -52,13 +52,30 @@ export function humanizeKey(key) {
 
 /**
  * 레지스트리 columns 설정을 자동 컬럼에 적용한다.
- *   columns: { hide: ['institution_key'], order: ['name', …], labels: { aum_change_pct: 'AUM change' } }
+ *   columns: { hide: ['institution_key'], order: ['name', …], labels: { aum_change_pct: 'AUM change' },
+ *              formats: { weight: 'percent' } }   // CommonTable formatter — 자동 추론을 덮어쓴다
  */
+const NUMERIC_FORMATS = new Set(['number', 'percent', 'currency', 'magnitude']);
+
 export function applyColumnConfig(cols, cfg) {
   if (!cfg) return cols;
   const hide = new Set(cfg.hide || []);
   let out = cols.filter((c) => !hide.has(c.key));
   if (cfg.labels) out = out.map((c) => (cfg.labels[c.key] ? { ...c, header: cfg.labels[c.key] } : c));
+  if (cfg.formats) {
+    out = out.map((c) => {
+      const f = cfg.formats[c.key];
+      if (!f || f === 'auto') return c;
+      // 형식을 직접 고르면 자동 추론이 붙인 색칠(greenRed)은 뗀다 — 퍼센트로 고른 것만 유지
+      const { renderFn, ...rest } = c;
+      return {
+        ...rest,
+        formatter: f,
+        align: NUMERIC_FORMATS.has(f) ? 'right' : undefined,
+        ...(f === 'percent' && renderFn ? { renderFn } : {}),
+      };
+    });
+  }
   if (cfg.order?.length) {
     const rank = new Map(cfg.order.map((k, i) => [k, i]));
     out = [...out].sort((a, b) => (rank.get(a.key) ?? 1e9) - (rank.get(b.key) ?? 1e9));

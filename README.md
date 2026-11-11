@@ -320,6 +320,8 @@ pytest tests/             # 백엔드만
 | `/api/screener/*` | 스크리너 |
 | `/api/quantlib/*`, `/api/quantitative/*` | 가격 결정·통계 분석 |
 | `/api/watchlist`, `/api/alerts`, `/api/notes`, `/api/workspace` | 관심종목·알림·노트·워크스페이스 |
+| `/api/user-widgets/*` | 사용자 정의 위젯(API → 매핑 → 위젯 → 화면 등록) · 기본 위젯의 사용자별 설정 · 설정 코드값 |
+| `/api/admin/widget-types` | 위젯 종류 목록 관리 (admin 전용) |
 | `/api/ingest/*` | 배치 적재 데이터 수신 (admin 전용) |
 | `/ws/quotes` | 실시간 시세 WebSocket |
 | `/ws/fetcher` | 사용자 PC Fetcher 워커풀 (JWT 토큰 쿼리 인증) |

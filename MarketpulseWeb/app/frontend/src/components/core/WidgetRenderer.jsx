@@ -4,12 +4,14 @@
  * Looks up `widget.type` in WIDGET_ENDPOINTS:
  *   - entry has `component`  → render `<Component {...resolvedProps} />`
  *   - entry has `endpoint`   → render UniversalWidget (auto table/chart)
+ * Types that are not in the registry: copilot/{id}, user/{id}, model/{model}, data/{provider}/{model}.
  *
  * Custom-component entries declare which props to inject via `propsFrom`,
  * e.g. `propsFrom: ['symbol', 'portfolioId']` resolves at render time.
  */
 import { useMemo } from 'react';
 import UniversalWidget from './UniversalWidget';
+import UserWidget from './UserWidget';
 import { WIDGET_ENDPOINTS } from '../../registry/widgetEndpoints';
 
 // 제거된(deprecated) 위젯 타입 → 대체 위젯 매핑. 저장된 워크스페이스 레이아웃이
@@ -42,6 +44,18 @@ export default function WidgetRenderer({ widget, symbol, portfolioData, onRemove
         widgetId={type}
         title={copilotDs?.title || 'Copilot Dataset'}
         data={copilotDs || { rows: [] }}
+        onRemove={onRemove}
+      />
+    );
+  }
+
+  // user/{widget_id} — 설정 화면에서 만든 사용자 정의 위젯 (정의는 서버 DB)
+  if (!reg && type?.startsWith('user/')) {
+    return (
+      <UserWidget
+        widgetId={type}
+        symbol={symbol}
+        portfolioId={portfolioId}
         onRemove={onRemove}
       />
     );

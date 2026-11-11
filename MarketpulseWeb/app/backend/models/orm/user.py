@@ -8,6 +8,8 @@ USER & PORTFOLIO Layer: 앱 도메인 (파이프라인 단계와 무관한 사�
 - SavedScreener                              : 저장된 스크리너
 - UserNote / UserWorkspace                   : 메모·워크스페이스 레이아웃
 - UserBacktestItem / UserBacktestRun         : 백테스트 변수·이벤트·전략 정의 / 실행 결과
+- UserWidget (+Param / Field / Screen)       : 사용자 정의 위젯 (API → 매핑 → 위젯 → 화면 등록)
+- WidgetType / UserWidgetPref(+Screen)       : 위젯 종류 목록(관리자) / 기본 제공 위젯의 사용자별 설정
 """
 import uuid
 from datetime import datetime
@@ -543,6 +545,164 @@ class UserBacktestRun(Base):
         return d
 
 
+# ── 사용자 정의 위젯 (API → 매핑 → 위젯) ──────────────────────────────────────
+#
+# 설정을 JSON 한 덩어리로 두지 않고 관심사별 행으로 쪼갠다 (스케줄러 설정 DB 방식):
+#
+#   user_widgets         마스터 — 어떤 API 를 어떤 위젯으로 볼 것인가        (≈ 작업 기본)
+#   user_widget_params   API 파라미터 — 고정값 / 화면 변수 / 사용자 입력      (≈ 작업 파라미터·변수)
+#   user_widget_fields   매핑 — 응답 필드를 위젯의 어느 자리에 쓸 것인가
+#   user_widget_screens  화면 등록 — 어느 화면의 위젯 메뉴에 내놓을 것인가
+#
+# 위젯 목록 쪽 설정도 같은 방식이다:
+#
+#   widget_types              위젯 종류 목록 — 관리자가 이름·사용 여부·순서를 관리   (≈ 공통 코드)
+#   user_widget_prefs         기본 제공 위젯의 사용자별 사용 여부
+#   user_widget_pref_screens  기본 제공 위젯을 내놓을 화면 (행이 없으면 코드의 기본 배치)
+#
+# 나머지 선택지(바인딩·필드 역할·표시 형식·그리는 방식)는 고정 코드값이고, 목록은
+# services/user_widget_service.CODES 한 곳에 있다.
+
+class WidgetType(Base):
+    """위젯 종류 — 설정 화면 ③단계 '보여 줄 위젯' 의 목록. 모든 사용자가 같이 쓴다.
+
+    renderer 는 실제로 그리는 방식(코드 RENDERER: table·line·bar·kv …)이다. 그리는 코드는
+    프론트에 있으므로 종류를 새로 만들 때도 renderer 는 이미 있는 것 중에서 고른다.
+    """
+    __tablename__ = 'widget_types'
+
+    type_code = Column(String(30), primary_key=True)
+    name = Column(String(100), nullable=False)
+    renderer = Column(String(20), nullable=False)
+    use_yn = Column(String(1), nullable=False, default='Y')     # N 이면 새 위젯에서 고를 수 없다
+    sort_seq = Column(Integer, nullable=False, default=0)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class UserWidgetPref(Base):
+    """기본 제공 위젯(코드에 정의된 위젯)의 사용자별 설정. 기본값과 같으면 행을 두지 않는다."""
+    __tablename__ = 'user_widget_prefs'
+
+    user_id = Column(String(50), ForeignKey('users.user_id'), primary_key=True)
+    widget_type = Column(String(100), primary_key=True)        # 프론트 레지스트리의 위젯 id
+    use_yn = Column(String(1), nullable=False, default='Y')    # N 이면 위젯 메뉴에서 숨김
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class UserWidgetPrefScreen(Base):
+    """기본 제공 위젯을 내놓을 화면. 한 위젯에 행이 하나라도 있으면 그 화면들에서만 메뉴에 나온다."""
+    __tablename__ = 'user_widget_pref_screens'
+
+    user_id = Column(String(50), ForeignKey('users.user_id'), primary_key=True)
+    widget_type = Column(String(100), primary_key=True)
+    screen = Column(String(50), primary_key=True)
+
+
+class UserWidget(Base):
+    """사용자 정의 위젯 마스터."""
+    __tablename__ = 'user_widgets'
+
+    widget_id = Column(String(50), primary_key=True)
+    user_id = Column(String(50), ForeignKey('users.user_id'), nullable=False, index=True)
+    name = Column(String(200), nullable=False)
+    description = Column(String(500))
+    group_name = Column(String(100))                 # 위젯 메뉴 안에서의 분류
+    provider = Column(String(50), nullable=False)    # API = /api/data/{provider}/{model}
+    model = Column(String(100), nullable=False)
+    view_type = Column(String(30), nullable=False, default='table')   # widget_types.type_code
+    use_yn = Column(String(1), nullable=False, default='Y')           # N 이면 메뉴에서 숨김
+    sort_seq = Column(Integer, nullable=False, default=0)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    params = relationship(
+        "UserWidgetParam", cascade="all, delete-orphan", order_by="UserWidgetParam.param_seq",
+    )
+    fields = relationship(
+        "UserWidgetField", cascade="all, delete-orphan", order_by="UserWidgetField.field_seq",
+    )
+    screens = relationship("UserWidgetScreen", cascade="all, delete-orphan")
+
+    def to_dict(self) -> dict:
+        return {
+            'widget_id': self.widget_id,
+            'name': self.name,
+            'description': self.description,
+            'group_name': self.group_name,
+            'provider': self.provider,
+            'model': self.model,
+            'view_type': self.view_type,
+            'use_yn': self.use_yn,
+            'sort_seq': self.sort_seq,
+            'params': [p.to_dict() for p in self.params],
+            'fields': [f.to_dict() for f in self.fields],
+            'screens': sorted(s.screen for s in self.screens),
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class UserWidgetParam(Base):
+    """위젯이 API 를 부를 때 넘길 파라미터 한 개.
+
+    bind_type (코드 BIND_TYPE):
+        FIXED  param_value 를 그대로 보낸다
+        VAR    화면 변수(var_name: symbol·period)의 현재 값을 보낸다. param_value 는 기본값
+        INPUT  위젯 헤더에서 사용자가 바꿀 수 있다. param_value 는 기본값
+    """
+    __tablename__ = 'user_widget_params'
+
+    widget_id = Column(String(50), ForeignKey('user_widgets.widget_id'), primary_key=True)
+    param_seq = Column(Integer, primary_key=True)
+    param_name = Column(String(100), nullable=False)
+    bind_type = Column(String(10), nullable=False, default='FIXED')
+    param_value = Column(String(500))
+    var_name = Column(String(50))
+
+    def to_dict(self) -> dict:
+        return {
+            'param_name': self.param_name,
+            'bind_type': self.bind_type,
+            'param_value': self.param_value,
+            'var_name': self.var_name,
+        }
+
+
+class UserWidgetField(Base):
+    """응답 필드 한 개의 매핑. field_seq 가 표시 순서다.
+
+    field_role (코드 FIELD_ROLE): X(차트 가로축) · Y(차트 값) · PRIMARY(요약 타일) ·
+    COLUMN(표 컬럼) · HIDDEN(숨김).  format 은 코드 FIELD_FORMAT.
+    """
+    __tablename__ = 'user_widget_fields'
+
+    widget_id = Column(String(50), ForeignKey('user_widgets.widget_id'), primary_key=True)
+    field_seq = Column(Integer, primary_key=True)
+    field_name = Column(String(100), nullable=False)
+    field_role = Column(String(10), nullable=False, default='COLUMN')
+    label = Column(String(200))
+    format = Column(String(20), nullable=False, default='auto')
+
+    def to_dict(self) -> dict:
+        return {
+            'field_name': self.field_name,
+            'field_role': self.field_role,
+            'label': self.label,
+            'format': self.format,
+        }
+
+
+class UserWidgetScreen(Base):
+    """위젯을 내놓을 화면. screen 은 화면 경로('/', '/stock' …) 또는 '*'(모든 화면)."""
+    __tablename__ = 'user_widget_screens'
+
+    widget_id = Column(String(50), ForeignKey('user_widgets.widget_id'), primary_key=True)
+    screen = Column(String(50), primary_key=True)
+
+
 __all__ = [
     "User",
     "Portfolio",
@@ -557,4 +717,11 @@ __all__ = [
     "UserWorkspace",
     "UserBacktestItem",
     "UserBacktestRun",
+    "UserWidget",
+    "UserWidgetParam",
+    "UserWidgetField",
+    "UserWidgetScreen",
+    "WidgetType",
+    "UserWidgetPref",
+    "UserWidgetPrefScreen",
 ]
