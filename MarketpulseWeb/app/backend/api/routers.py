@@ -21,6 +21,7 @@ from app.backend.api.routes.data import router as data_router
 from app.backend.api.routes.keys import router as keys_router
 from app.backend.api.routes.ingest import router as ingest_router
 from app.backend.api.routes.concepts import router as concepts_router
+from app.backend.api.routes.user_widgets import router as user_widgets_router
 
 
 def register_routers(app: FastAPI) -> None:
@@ -45,6 +46,7 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(notes.router,     prefix="/api", tags=["notes"])
     app.include_router(backtest.router,  prefix="/api", tags=["backtest"])
     app.include_router(workspace_router, prefix="/api", tags=["workspace"])
+    app.include_router(user_widgets_router, prefix="/api", tags=["user-widgets"])
 
     # ── Analysis ──────────────────────────────────────────────────────────────
     app.include_router(fundamental_command_router.router, prefix="/api/v1",           tags=["equity-fundamental"])

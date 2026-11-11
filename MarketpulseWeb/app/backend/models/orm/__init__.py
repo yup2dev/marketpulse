@@ -51,6 +51,13 @@ from .user import (
     UserWorkspace,
     UserBacktestItem,
     UserBacktestRun,
+    UserWidget,
+    UserWidgetParam,
+    UserWidgetField,
+    UserWidgetScreen,
+    WidgetType,
+    UserWidgetPref,
+    UserWidgetPrefScreen,
 )
 
 __all__ = [
@@ -95,4 +102,11 @@ __all__ = [
     "UserWorkspace",
     "UserBacktestItem",
     "UserBacktestRun",
+    "UserWidget",
+    "UserWidgetParam",
+    "UserWidgetField",
+    "UserWidgetScreen",
+    "WidgetType",
+    "UserWidgetPref",
+    "UserWidgetPrefScreen",
 ]

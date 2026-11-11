@@ -1,5 +1,7 @@
 /**
- * SettingsPage — API 키 관리 (/settings)
+ * SettingsPage — 설정 (/settings). 탭: API 키(기본) · 위젯(?tab=widgets → settings/WidgetSettings)
+ *
+ * 아래는 API 키 탭 설명.
  *
  * 키는 백엔드 DB에 암호화 저장되며 내 계정에서만 사용된다(웹에서 관리). FRED·FMP·Polygon
  * 등 key-only 데이터는 서버에서 내 키로 조회한다 → Fetcher 없이도 키 관리/조회 가능.
@@ -14,13 +16,15 @@
  * - 다중 필드 provider(kis: appkey+appsecret) → { provider, fields }
  */
 import { useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   KeyRound, Trash2, Save, ExternalLink, RefreshCw, ShieldCheck, Download, Sparkles,
-  CheckCircle2, XCircle, FlaskConical,
+  CheckCircle2, XCircle, FlaskConical, LayoutGrid,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { keysAPI, providersAPI, conceptsAPI } from '../../config/api';
 import useFetcherHealth from '../../hooks/useFetcherHealth';
+import WidgetSettings from '../settings/WidgetSettings';
 
 const FETCHER_DOWNLOAD_URL = 'https://github.com/yup2dev/marketpulse/releases/latest';
 
@@ -61,7 +65,43 @@ const AI_PROVIDERS = [
   },
 ];
 
+const TABS = [
+  { id: 'keys',    label: 'API 키',  icon: KeyRound },
+  { id: 'widgets', label: '위젯',   icon: LayoutGrid },
+];
+
 export default function SettingsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = TABS.some((t) => t.id === searchParams.get('tab')) ? searchParams.get('tab') : 'keys';
+
+  return (
+    // 위젯 편집은 표 두 개와 미리보기를 나란히 놓으므로 키 탭보다 넓게 쓴다
+    <div className={`px-6 py-6 mx-auto ${tab === 'widgets' ? 'max-w-7xl' : 'max-w-3xl'}`}>
+      <div role="tablist" aria-label="설정" className="flex gap-1 mb-6 border-b border-gray-800">
+        {TABS.map((t) => {
+          const active = t.id === tab;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => setSearchParams(t.id === 'keys' ? {} : { tab: t.id }, { replace: true })}
+              className={`flex items-center gap-1.5 px-3 py-2 text-sm -mb-px border-b-2 transition-colors ${
+                active ? 'border-cyan-500 text-white' : 'border-transparent text-gray-500 hover:text-gray-300'
+              }`}
+            >
+              <t.icon size={14} /> {t.label}
+            </button>
+          );
+        })}
+      </div>
+      {tab === 'widgets' ? <WidgetSettings /> : <ApiKeySettings />}
+    </div>
+  );
+}
+
+function ApiKeySettings() {
   // 키 관리는 백엔드 DB 기반(online=백엔드 도달). Fetcher 상태는 별개(일부 데이터용).
   const { status: fetcherStatus, recheck } = useFetcherHealth();
   const fetcherOnline = fetcherStatus === 'online' || fetcherStatus === 'joining';  // 프로세스 실행 여부
@@ -173,7 +213,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="px-6 py-6 max-w-3xl mx-auto">
+    <div>
       <div className="flex items-center gap-2 mb-1">
         <KeyRound className="text-cyan-400" size={20} />
         <h1 className="text-xl font-semibold text-white">API 키 관리</h1>

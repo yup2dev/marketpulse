@@ -15,6 +15,8 @@ import usePortfolioState from '../../hooks/usePortfolioState';
 import useNavigationStore from '../../store/navigationStore';
 
 import { URL_WIDGET_MAP, getGlobalWidgetCategories } from '../../registry/urlWidgetMap';
+import { userWidgetCategory, applyWidgetPrefs } from '../../registry/userWidgets';
+import useUserWidgetStore from '../../store/userWidgetStore';
 import SplitPaneLayout, {
   splitPaneNode,
   removePaneNode,
@@ -261,18 +263,29 @@ export default function DashboardPage() {
       : categories[0];
   })();
 
-  // 메뉴 카탈로그 = 현재 pane 카테고리 + 전 페이지의 완성 위젯(중복 제외).
+  // 설정 화면에서 만든 위젯 — 이 화면에 내놓은 것만 메뉴의 "My Widgets" 로 나온다
+  const userWidgets = useUserWidgetStore((s) => s.widgets);
+  const widgetPrefs = useUserWidgetStore((s) => s.prefs);
+  const loadUserWidgets = useUserWidgetStore((s) => s.load);
+  useEffect(() => { if (isAuthenticated) loadUserWidgets(); }, [isAuthenticated, loadUserWidgets]);
+  const myWidgets = userWidgetCategory(userWidgets, pathname);
+
+  // 메뉴 카탈로그 = 현재 pane 카테고리 + 내가 만든 위젯 + 전 페이지의 완성 위젯(중복 제외).
   // WidgetMenu가 여기에 "All Models"(standard_model 단위)를 덧붙인다.
   const menuCategories = (() => {
     const base = menuPaneCategory ? [menuPaneCategory] : categories;
     const baseIds = base.flatMap((c) => c.widgets.map((w) => w.id));
-    return [
+    // 기본 위젯에는 내 설정(사용 안 함·내놓을 화면)을 적용한다 — 설정의 '기본 위젯' 목록
+    const builtin = applyWidgetPrefs([
       ...base,
       ...getGlobalWidgetCategories({
         excludeIds: baseIds,
         includePortfolio: !!config?.needsPortfolio,
       }),
-    ];
+    ], widgetPrefs, pathname);
+    const head = builtin.filter((c) => base.some((b) => b.id === c.id));
+    const rest = builtin.filter((c) => !base.some((b) => b.id === c.id));
+    return [...head, ...(myWidgets ? [myWidgets] : []), ...rest];
   })();
 
   const totalPanes = countPanes(splitTree);

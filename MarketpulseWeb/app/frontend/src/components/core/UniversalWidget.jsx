@@ -25,6 +25,12 @@
  *              — 서버가 '내 키' 기준으로 provider 를 고른다. 헤더 셀렉터 = 응답의 candidates,
  *                고르면 ?provider= 로 고정. 기본 뷰는 차트.
  *
+ * 레지스트리에 없는 위젯(사용자 정의 위젯)은 같은 모양의 객체를 `config` prop 으로 넘긴다.
+ * 그때만 쓰는 확장:
+ *   view:      'table' | 'line' | …                         (처음 보여 줄 보기)
+ *   chart:     { xKey, yKeys }                              (자동 감지 대신 지정한 축·시리즈)
+ *   columns:   { formats: { field: 'percent' } }            (컬럼 표시 형식)
+ *
  * 보기(view)는 하나의 값이다: 'table' | 'plotly' | 차트형('line'|'area'|…).
  * BaseWidget 헤더의 View 드롭다운이 이 값을 고른다 (차트/표 토글 + 차트형 아이콘을 합침).
  *
@@ -150,10 +156,11 @@ export default function UniversalWidget({
   symbol:   symbolProp,
   category: categoryProp,
   data:     dataProp,        // 정적 응답 객체 — 주어지면 fetch 없이 그대로 렌더 (copilot 데이터셋)
+  config:   configProp,      // 레지스트리 항목과 같은 모양 — 주어지면 WIDGET_ENDPOINTS 대신 쓴다 (사용자 정의 위젯)
   portfolioId,
   onRemove,
 }) {
-  const reg        = WIDGET_ENDPOINTS[widgetId] || {};
+  const reg        = configProp || WIDGET_ENDPOINTS[widgetId] || {};
   const concept    = reg.concept;
   const endpoint   = endpointProp || reg.endpoint || (concept ? `/concepts/${concept}?period={period}` : undefined);
   const title      = titleProp    || reg.title  || widgetId;
@@ -388,7 +395,9 @@ export default function UniversalWidget({
     if (!response) return [];
     const target = dataPath ? getByPath(response, dataPath) : null;
     if (display === 'kv') {
-      const obj = (target ?? response);
+      // 행 목록이 오면 첫 행을 요약한다 (게이트웨이는 한 건짜리도 배열로 준다)
+      const src = (target ?? response);
+      const obj = Array.isArray(src) ? src[0] : src;
       if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return [];
       return Object.entries(obj).map(([metric, value]) => ({ metric, value }));
     }
@@ -428,8 +437,15 @@ export default function UniversalWidget({
         series: hint.y_keys.map((k) => ({ key: k, name: k.replace(/_/g, ' ') })),
       };
     }
+    // 설정에서 축·시리즈를 지정했으면(사용자 정의 위젯의 매핑) 그걸 쓴다
+    if (chartCfg.xKey && chartCfg.yKeys?.length) {
+      return {
+        xKey: chartCfg.xKey,
+        series: chartCfg.yKeys.map((k) => ({ key: k, name: columnCfg?.labels?.[k] || humanizeKey(k) })),
+      };
+    }
     return buildChartFromRows(rows);
-  }, [rows, display, response]);
+  }, [rows, display, response, chartCfg.xKey, chartCfg.yKeys, columnCfg]);
 
   // ── 보기 옵션 ─────────────────────────────────────────────────────────────
   // plotly 응답: [Chart, Table] / 행 응답: [차트형…, Table] / kv·override·펼침 표: 보기 선택 없음
@@ -440,9 +456,11 @@ export default function UniversalWidget({
     return buildViewOptions({ chart: chartCfg.allowedTypes || true, table: true });
   }, [renderType, OverrideView, display, expandable, chartSpec, chartCfg.allowedTypes]);
 
-  const defaultView = renderType === 'plotly'
+  const preferredView = renderType === 'plotly'
     ? 'plotly'
     : (concept ? (chartCfg.defaultType || 'line') : 'table');
+  // 설정이 고른 보기(reg.view)는 그 보기가 실제로 가능할 때만 따른다 (숫자 필드가 없으면 차트 불가)
+  const defaultView = (reg.view && viewOptions.some((o) => o.value === reg.view)) ? reg.view : preferredView;
   const view = (viewSel && viewOptions.some((o) => o.value === viewSel)) ? viewSel : defaultView;
 
   // params 의 symbol 은 폼이 아니라 헤더 심볼 칩으로 (심볼 입력 위치를 한 곳으로)

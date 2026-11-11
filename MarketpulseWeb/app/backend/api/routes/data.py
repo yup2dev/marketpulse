@@ -242,6 +242,43 @@ def _data_has_date(fetcher_cls) -> bool:
         return False
 
 
+def _data_fields(fetcher_cls) -> list[dict]:
+    """반환 Data 모델(pydantic)의 필드 목록 — 사용자 위젯의 매핑 화면이 쓴다.
+
+    kind: number | date | bool | text.  Data 모델이 extra 를 허용하면 실제 응답에는
+    여기 없는 필드가 더 올 수 있다 (매핑 화면은 샘플 조회로 보충한다).
+    """
+    import datetime as _dt
+    from typing import Union, get_args, get_origin
+    try:
+        from pydantic import BaseModel
+        dt = fetcher_cls.data_type
+        if not (isinstance(dt, type) and issubclass(dt, BaseModel)):
+            return []
+    except Exception:  # noqa: BLE001
+        return []
+
+    def unwrap(ann):
+        if get_origin(ann) is Union:
+            args = [a for a in get_args(ann) if a is not type(None)]
+            return args[0] if args else ann
+        return ann
+
+    out = []
+    for name, field in dt.model_fields.items():
+        base = unwrap(field.annotation)
+        if base is bool:
+            kind = "bool"
+        elif base in (int, float):
+            kind = "number"
+        elif base in (_dt.date, _dt.datetime) or name.endswith("_date") or name in _DATE_KEYS:
+            kind = "date"
+        else:
+            kind = "text"
+        out.append({"name": name, "kind": kind, "description": field.description or None})
+    return out
+
+
 _VIRTUAL_DATE_SPECS = [
     {"name": "start_date", "label": "start_date", "kind": "date", "required": False,
      "default": None, "hint": "표시 시작일 (미지정 시 전체)"},
@@ -277,6 +314,7 @@ async def get_model_schema(provider: str, model: str) -> Dict[str, Any]:
         "model":          model,
         "accepts_symbol": any(p["name"] in ("symbol", "ticker") for p in params),
         "params":         params,
+        "fields":         _data_fields(fetcher_cls),
     }
 
 

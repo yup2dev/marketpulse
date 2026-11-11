@@ -15,10 +15,18 @@
     GET    /api/admin/circuit-breakers                  provider별 서킷브레이커 상태
     POST   /api/admin/circuit-breakers/{provider}/reset 서킷브레이커 수동 리셋(OPEN → CLOSED)
     GET    /api/admin/fetcher-workers                   /ws/fetcher 접속 워커 풀 상태
+    POST   /api/admin/widget-types                      위젯 종류 추가 (설정 화면 '보여 줄 위젯' 목록)
+    PUT    /api/admin/widget-types/{type_code}          이름·그리는 방식·사용 여부·순서
+    DELETE /api/admin/widget-types/{type_code}          쓰는 위젯이 있으면 409
 """
-from fastapi import APIRouter, Depends
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
 from app.backend.core.auth.dependencies import require_admin
+from app.backend.core.db import get_db
 
 router = APIRouter(prefix="/admin", dependencies=[Depends(require_admin)])
 
@@ -66,3 +74,53 @@ async def circuit_breaker_reset(provider: str):
 async def fetcher_workers():
     from app.backend.core.fetcher_pool import fetcher_pool
     return {"connected": fetcher_pool.count(), "workers": fetcher_pool.status()}
+
+
+# ── 위젯 종류 목록 ────────────────────────────────────────────────────────────
+# 읽기는 모든 사용자(/api/user-widgets/codes 의 VIEW_TYPE), 쓰기만 여기.
+
+class WidgetTypeCreate(BaseModel):
+    type_code: str = Field(..., max_length=30)
+    name: str = Field(..., max_length=100)
+    renderer: str
+    use_yn: str = "Y"
+    sort_seq: Optional[int] = None
+
+
+class WidgetTypeUpdate(BaseModel):
+    name: Optional[str] = Field(None, max_length=100)
+    renderer: Optional[str] = None
+    use_yn: Optional[str] = None
+    sort_seq: Optional[int] = None
+
+
+@router.post("/widget-types", status_code=201, summary="위젯 종류 추가")
+def create_widget_type(body: WidgetTypeCreate, db: Session = Depends(get_db)):
+    from app.backend.services.user_widget_service import UserWidgetError, WidgetTypeService
+    try:
+        return WidgetTypeService.to_code(WidgetTypeService.create(db, body.model_dump()))
+    except UserWidgetError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.put("/widget-types/{type_code}", summary="위젯 종류 수정")
+def update_widget_type(type_code: str, body: WidgetTypeUpdate, db: Session = Depends(get_db)):
+    from app.backend.services.user_widget_service import UserWidgetError, WidgetTypeService
+    try:
+        t = WidgetTypeService.update(db, type_code, body.model_dump(exclude_unset=True))
+    except UserWidgetError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if not t:
+        raise HTTPException(status_code=404, detail="Widget type not found")
+    return WidgetTypeService.to_code(t)
+
+
+@router.delete("/widget-types/{type_code}", status_code=204, summary="위젯 종류 삭제")
+def delete_widget_type(type_code: str, db: Session = Depends(get_db)):
+    from app.backend.services.user_widget_service import WidgetTypeInUse, WidgetTypeService
+    try:
+        found = WidgetTypeService.delete(db, type_code)
+    except WidgetTypeInUse as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    if not found:
+        raise HTTPException(status_code=404, detail="Widget type not found")
