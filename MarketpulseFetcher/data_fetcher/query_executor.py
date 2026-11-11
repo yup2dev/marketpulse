@@ -202,16 +202,17 @@ class MissingCredentialsError(QueryExecutorError):
 class RemoteUnavailableError(QueryExecutorError):
     """원격 위임 인프라에 도달할 수 없음(워커 미접속·타임아웃·연결 끊김).
 
-    이 오류일 때만 백엔드 직접 호출로 폴백한다. 워커가 실제로 실행했으나
-    실패한 경우(예: 사용자 키 미설정 → CredentialsError)는 이 오류가 아니라
-    QueryExecutorError로 그대로 전파되어 '기존과 동일한 오류'를 사용자에게 보인다.
+    백엔드 직접 호출로 폴백하지 않고 그대로 전파한다 — 라우트가 503 으로 바꾸고
+    프론트가 'Fetcher 실행' 안내를 띄운다. 워커가 실제로 실행했으나 실패한 경우
+    (예: 사용자 키 미설정 → CredentialsError)는 이 오류가 아니라 QueryExecutorError 다.
     """
     pass
 
 
 # 요청 범위 사용자 컨텍스트 — 백엔드 auth 미들웨어가 현재 요청의 user_id를 set한다.
 # WSFetcherTransport가 이 값을 읽어 '그 사용자의 워커'로 위임한다. 서버 백그라운드
-# 작업처럼 요청 컨텍스트가 없으면 None → 워커 없음 → 백엔드 직접(운영자 키) 폴백.
+# 작업처럼 요청 컨텍스트가 없으면 None → 위임 대상(yahoo 등)은 RemoteUnavailableError,
+# 키 기반 provider 는 운영자 키(env)로 백엔드가 직접 호출한다.
 current_user_id: "ContextVar[Optional[str]]" = ContextVar("current_user_id", default=None)
 
 

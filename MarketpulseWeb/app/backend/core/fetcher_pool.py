@@ -6,7 +6,8 @@
 
 위임 실패 종류 구분:
   - FetcherWorkerUnavailable: 해당 사용자의 워커가 없거나 도달 불가(타임아웃·연결 끊김).
-    → 호출부(QueryExecutor)가 백엔드 직접 호출로 폴백한다.
+    → RemoteUnavailableError 로 올라가 503 이 된다(프론트가 'Fetcher 실행' 안내).
+      백엔드 직접 호출로 폴백하지 않는다 — 위임 대상은 서버에서 돌리면 안 되는 조회뿐이다.
   - FetcherRemoteError: 워커가 실제로 실행했으나 실패(예: 사용자 키 미설정).
     → 폴백하지 않고 원래 오류 메시지를 그대로 전파한다.
 """
@@ -28,7 +29,7 @@ class FetcherPoolError(Exception):
 
 
 class FetcherWorkerUnavailable(FetcherPoolError):
-    """해당 사용자의 워커 없음 / 응답 시간 초과 / 연결 끊김 → 백엔드 폴백 대상."""
+    """해당 사용자의 워커 없음 / 응답 시간 초과 / 연결 끊김 → 503 (폴백 없음)."""
 
 
 class FetcherRemoteError(FetcherPoolError):
@@ -116,7 +117,7 @@ class FetcherWorkerPool:
         """user_id의 워커에 임의 메시지를 보내고 매칭 응답을 기다린다(요청/응답).
 
         payload에 "id"는 자동 부여된다. fetch / keys 관리 등 모든 위임이 이를 공유한다.
-        워커 없음/타임아웃/끊김 → FetcherWorkerUnavailable (폴백 대상)
+        워커 없음/타임아웃/끊김 → FetcherWorkerUnavailable (503, 폴백 없음)
         워커 실행 실패(`*_error`) → FetcherRemoteError (전파)
         """
         if not user_id:

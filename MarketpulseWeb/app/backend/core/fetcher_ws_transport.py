@@ -6,7 +6,7 @@ user_id는 모른다. 이 트랜스포트가 요청 범위 contextvar(current_us
 
 예외 매핑:
   - 워커 없음/타임아웃/끊김(FetcherWorkerUnavailable) → RemoteUnavailableError
-    → QueryExecutor가 백엔드 직접 호출로 폴백.
+    → 그대로 전파되어 503 (백엔드 직접 호출로 폴백하지 않는다).
   - 워커 실행 실패(FetcherRemoteError, 예: 사용자 키 미설정) → QueryExecutorError로 전파
     → 폴백하지 않고 '기존과 동일한 오류'를 사용자에게 보인다.
 """
@@ -51,7 +51,7 @@ class WSFetcherTransport:
                 user_id, provider, model, _json_safe(params), timeout=self.timeout
             )
         except FetcherWorkerUnavailable as exc:
-            # 폴백 대상 — 백엔드 직접 호출로 넘어가게 한다
+            # 워커 미접속 — 폴백 없이 503 으로 올라간다 ('Fetcher 실행' 안내)
             raise RemoteUnavailableError(str(exc)) from exc
         except FetcherRemoteError as exc:
             # 워커가 실행했으나 실패(사용자 키 미설정 등) → 그대로 전파(폴백 금지)
