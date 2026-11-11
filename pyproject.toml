@@ -4,7 +4,9 @@
 # 패키지가 아니며, data_fetcher/ 와 index_analyzer/ 가 각자 poetry pyproject 를 갖고 있다.
 # 여기에 [project] 를 추가하면 pip 가 루트를 패키지로 취급해 배포가 꼬인다.
 #
-# 의존성은 여전히 requirements.txt 가 단일 소스다 (Docker/CI 가 이걸 쓴다).
+# 의존성은 배포 단위별 requirements 파일에 있다 (루트 requirements.txt 는 그것들을 모은 것):
+#   MarketpulseFetcher/requirements.txt · MarketpulseWeb/requirements.txt (Docker)
+#   MarketpulseBatch/requirements.txt · requirements-dev.txt — CI 는 루트 파일로 전부 설치한다.
 
 [tool.pytest.ini_options]
 minversion = "8.0"

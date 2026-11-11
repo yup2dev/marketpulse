@@ -19,7 +19,13 @@ jobs:
         with:
           python-version: '3.11'
           cache: pip
-          cache-dependency-path: requirements.txt
+          # 루트 requirements.txt 는 아래 파일들을 -r 로 모을 뿐이다 — 실제 내용이 바뀌면 캐시를 갈아야 한다.
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+            MarketpulseWeb/requirements.txt
+            MarketpulseBatch/requirements.txt
+            MarketpulseFetcher/requirements.txt
 
       - name: Install dependencies
         run: |

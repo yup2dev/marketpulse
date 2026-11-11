@@ -10,8 +10,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements
-COPY requirements.txt .
+# Copy requirements — 서버 런타임만 (Web 이 -r 로 Fetcher 라이브러리 의존성을 포함한다).
+# 배치·개발 도구는 이미지에 넣지 않는다.
+COPY MarketpulseWeb/requirements.txt MarketpulseWeb/requirements.txt
+COPY MarketpulseFetcher/requirements.txt MarketpulseFetcher/requirements.txt
 
 # Create virtual environment
 RUN python -m venv /opt/venv
@@ -19,7 +21,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 # Install Python dependencies
 RUN pip install --upgrade pip setuptools wheel && \
-    pip install -r requirements.txt
+    pip install -r MarketpulseWeb/requirements.txt
 
 # Final stage
 FROM python:3.11-slim
