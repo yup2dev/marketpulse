@@ -279,11 +279,13 @@ export default function DashboardPage() {
     const baseIds = base.flatMap((c) => c.widgets.map((w) => w.id));
     // 기본 위젯에는 내 설정(사용 안 함·내놓을 화면)을 적용한다 — 설정의 '기본 위젯' 목록
     // 기본 제공 위젯 = 코드 카탈로그 + DB 에 정의된 위젯(홈 위젯 등)
+    // 같은 위젯이 두 번 나오지 않게: 현재 카테고리 → DB 정의 → 다른 페이지 순으로 먼저 나온 쪽만
+    const dbCategories = builtinWidgetCategories(builtinDefs, pathname, baseIds);
     const builtin = applyWidgetPrefs([
       ...base,
-      ...builtinWidgetCategories(builtinDefs, pathname),
+      ...dbCategories,
       ...getGlobalWidgetCategories({
-        excludeIds: baseIds,
+        excludeIds: [...baseIds, ...dbCategories.flatMap((c) => c.widgets.map((w) => w.id))],
         includePortfolio: !!config?.needsPortfolio,
       }),
     ], widgetPrefs, pathname);

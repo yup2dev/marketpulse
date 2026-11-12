@@ -9,9 +9,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { request } from './adapter';
 
-/** '{name}' 자리를 params 값으로 채운다 (URL 인코딩) */
+/**
+ * '{name}' 자리를 params 값으로 채운다 (URL 인코딩).
+ * 값이 빈 쿼리 항목(date= 처럼)은 뺀다 — 안 고른 값은 보내지 않는다 (서버 기본값: 최신 · 자동 선택).
+ */
 export function fill(template, params) {
-  return template.replace(/\{(\w+)\}/g, (_, k) => encodeURIComponent(params[k] ?? ''));
+  const filled = template.replace(/\{(\w+)\}/g, (_, k) => encodeURIComponent(params[k] ?? ''));
+  const at = filled.indexOf('?');
+  if (at < 0) return filled;
+  const kept = filled.slice(at + 1).split('&').filter((pair) => pair && !/^[^=]+=$/.test(pair));
+  return kept.length ? `${filled.slice(0, at)}?${kept.join('&')}` : filled.slice(0, at);
 }
 
 /** 응답에서 행을 꺼낸다 — 'results'(기본) · 'a.b.c' · ''(응답 그대로) */
@@ -54,16 +61,16 @@ export function lastSession(bars) {
  * (갱신이 실패해도 화면의 데이터는 그대로 둔다).
  */
 export function useApi(path, { refresh } = {}) {
-  const [state, setState] = useState({ data: null, error: null, loading: !!path });
+  const [state, setState] = useState({ path, data: null, error: null, loading: !!path });
   const seq = useRef(0);
 
   const load = useCallback((silent = false) => {
-    if (!path) { setState({ data: null, error: null, loading: false }); return; }
+    if (!path) { setState({ path, data: null, error: null, loading: false }); return; }
     const id = ++seq.current;
-    if (!silent) setState({ data: null, error: null, loading: true });
+    if (!silent) setState({ path, data: null, error: null, loading: true });
     request(path).then(
-      (data) => { if (id === seq.current) setState({ data, error: null, loading: false }); },
-      (error) => { if (id === seq.current && !silent) setState({ data: null, error, loading: false }); },
+      (data) => { if (id === seq.current) setState({ path, data, error: null, loading: false }); },
+      (error) => { if (id === seq.current && !silent) setState({ path, data: null, error, loading: false }); },
     );
   }, [path]);
 
@@ -74,7 +81,9 @@ export function useApi(path, { refresh } = {}) {
     return () => clearInterval(timer);
   }, [load, refresh]);
 
-  return { ...state, reload: load };
+  // path 가 막 바뀐 렌더에서는 아직 앞 요청의 응답을 들고 있다 — 다른 요청의 행을 넘기지 않는다
+  if (state.path !== path) return { data: null, error: null, loading: !!path, reload: load };
+  return { data: state.data, error: state.error, loading: state.loading, reload: load };
 }
 
 // ── 심볼별 시계열 (스파크라인) ──────────────────────────────────────────────────
@@ -144,10 +153,12 @@ export function useSeries(symbols, template) {
 
 // ── 보조 요청 ──────────────────────────────────────────────────────────────────
 
-/** { name: path } → { name: rows }. 실패한 항목은 빈 배열 */
-export function useExtra(extra) {
+/** { name: path } → { name: rows }. path 의 {이름} 은 params 로 채운다. 실패한 항목은 빈 배열 */
+export function useExtra(extra, params) {
   const [data, setData] = useState({});
-  const key = extra ? JSON.stringify(extra) : '';
+  const key = extra
+    ? JSON.stringify(Object.fromEntries(Object.entries(extra).map(([name, path]) => [name, fill(String(path), params || {})])))
+    : '';
 
   useEffect(() => {
     if (!key) return undefined;

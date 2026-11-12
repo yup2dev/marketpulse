@@ -12,7 +12,7 @@
  * 새 위젯은 행을 넣는다. 함수가 새로 필요할 때만 여기에 이름을 추가하고,
  * 같은 이름을 서버 코드값(services/user_widget_service.CODES)에도 올린다.
  */
-import { normalizeBars } from '../mp-widgets';
+import { normalizeBars, fmtPct } from '../mp-widgets';
 
 // ── 행을 다듬는 함수 ───────────────────────────────────────────────────────────
 //   prepare(rows, options)       응답 직후 — 실시간 시세를 붙이기 전에 행의 모양을 바꾼다
@@ -80,7 +80,102 @@ export const TRANSFORMS = {
   news_rows: {
     apply: (rows) => rows.map((a) => ({ ...a, _time: newsTime(a), _tag: a.tickers?.[0] })),
   },
+
+  // 만기 이름을 짧게(_label: '3-Month' → '3M') + 만기 순
+  yield_points: {
+    apply: (rows) => rows
+      .filter((r) => r.value != null)
+      .sort((a, b) => (a.years ?? 0) - (b.years ?? 0))
+      .map((r) => ({ ...r, _label: shortMaturity(r.maturity) })),
+  },
+
+  // CPI 구성: 가중치가 있는 항목만 + 가운데 값(헤드라인 YoY)·기준월을 meta 로
+  cpi_breakdown: {
+    apply: (rows, { response }) => {
+      const headline = response?.metadata?.headline;
+      const date = headline?.date || rows.find((r) => r.date)?.date;
+      return {
+        rows: rows.filter((r) => r.weight != null),
+        meta: {
+          center: headline?.yoy != null ? `${Number(headline.yoy).toFixed(2)}%` : null,
+          asOf: date ? String(date).slice(0, 7) : '',
+        },
+      };
+    },
+  },
+
+  // 고용 지표 표(영문 metric·단위) → 이름 · 값 한 줄씩 (시간당 임금은 YoY 를 붙인다)
+  labor_summary: {
+    apply: (rows) => {
+      const by = Object.fromEntries(rows.map((r) => [r.metric, r]));
+      return LABOR_ROWS
+        .filter(([metric]) => by[metric]?.value != null)
+        .map(([metric, label, format]) => ({ id: metric, label, value: format(by[metric].value, by) }));
+    },
+  },
+
+  // 공포·탐욕 합성 지수 행만 남긴다
+  fear_greed: {
+    apply: (rows) => rows.filter((r) => r.section === 'Fear & Greed'),
+  },
+
+  // 매크로 요약 줄: 물가(주 요청의 metadata) + 금리·고용·심리(보조 요청) → 이름 · 값 · 상태
+  macro_kpis: {
+    apply: (_rows, { response, extra }) => {
+      const md = response?.metadata || {};
+      const yieldOf = (years) => (extra.yields || []).find((r) => r.years === years)?.value;
+      const metric = (list, name) => (list || []).find((r) => r.metric === name);
+      const pct = (v, digits = 2) => (v == null ? null : `${Number(v).toFixed(digits)}%`);
+      const vix = metric(extra.sentiment, 'VIX');
+      const fg = (extra.sentiment || []).find((r) => r.section === 'Fear & Greed');
+      return [
+        ['us10y', '미국 10년물', pct(yieldOf(10))],
+        ['us2y', '2년물', pct(yieldOf(2))],
+        ['cpi', 'CPI', pct(md.headline?.yoy)],
+        ['core', '근원 CPI', pct(md.core?.yoy)],
+        ['u3', '실업률', pct(metric(extra.labor, 'U3 Rate')?.value, 1)],
+        ['vix', 'VIX', vix?.value != null ? Number(vix.value).toFixed(2) : null, VIX_NOTE[vix?.status]],
+        ['fg', 'Fear & Greed', fg?.value != null ? Number(fg.value).toFixed(1) : null, FG_NOTE[fg?.status]],
+      ].filter(([, , value]) => value != null).map(([id, label, value, note]) => ({ id, label, value, note }));
+    },
+  },
 };
+
+/** '3-Month' → '3M', '10-Year' → '10Y' */
+function shortMaturity(name) {
+  const m = /^(\d+)[-\s]*(month|year)/i.exec(String(name || ''));
+  return m ? `${m[1]}${m[2][0].toUpperCase()}` : String(name || '');
+}
+
+/** 159290000 → 159.29M · 189000 → 189.0K */
+function compactCount(n, kDigits = 1) {
+  const a = Math.abs(n);
+  if (a >= 1e6) return `${(n / 1e6).toFixed(2)}M`;
+  if (a >= 1e3) return `${(n / 1e3).toFixed(kDigits)}K`;
+  return String(Math.round(n));
+}
+const rate = (v) => `${Number(v).toFixed(1)}%`;
+const thousands = (v) => compactCount(v * 1000);   // 단위가 '천'인 값
+// [응답의 metric, 화면 이름, (값, 전체 행) => 표기]
+const LABOR_ROWS = [
+  ['U3 Rate', '실업률 U3', rate],
+  ['U6 Rate', '실업률 U6', rate],
+  ['Participation Rate', '경제활동참가율', rate],
+  ['Nonfarm Payrolls', '비농업 고용', thousands],
+  ['Payroll Change MoM', '고용 증감 (MoM)', (v) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${compactCount(Math.abs(v) * 1000, 0)}`],
+  ['JOLTS Openings', 'JOLTS 구인', thousands],
+  ['Quits Rate', '자발적 이직률', rate],
+  ['Initial Claims', '신규 실업수당', (v) => compactCount(v)],
+  ['Continuing Claims', '연속 실업수당', (v) => compactCount(v)],
+  ['Hourly Earnings', '시간당 임금', (v, by) => {
+    const yoy = by['Earnings YoY']?.value;
+    return `$${Number(v).toFixed(2)}${yoy != null ? ` · ${fmtPct(yoy)}` : ''}`;
+  }],
+];
+
+// 요약 줄에서 주황으로 덧붙이는 상태 — 평소 범위를 벗어났을 때만
+const VIX_NOTE = { elevated: '높음', high: '매우 높음' };
+const FG_NOTE = { extreme_fear: '극단적 공포', fear: '공포', greed: '탐욕', extreme_greed: '극단적 탐욕' };
 
 // ── 탭에서 행을 거르는 함수 ────────────────────────────────────────────────────
 
@@ -110,6 +205,19 @@ const camel = (role) => role.toLowerCase().replace(/_(\w)/g, (_, c) => c.toUpper
 // 값이 아니라 '참이면 그린다' 인 자리 — 뷰가 (row) => boolean 을 받는다
 const FLAG_ROLES = new Set(['VALUE_MUTED', 'DOT']);
 
+/**
+ * 컨트롤이 머리줄에서 그려지는 모양 — 이름과 선택지로 정한다:
+ *   date    이름이 date · *_date            → 기준일 칩 (비우면 최신)
+ *   seg     선택지 4개 이하                  → 한 줄 버튼
+ *   select  선택지가 더 많거나 요청으로 채움  → 드롭다운
+ *   text    선택지 없음                      → '옵션' 버튼 안의 입력칸
+ */
+function controlKind(name, options, from) {
+  if (name === 'date' || name.endsWith('_date')) return 'date';
+  if (from || options.length > 4) return 'select';
+  return options.length ? 'seg' : 'text';
+}
+
 /** 표 컬럼 한 개 — 셀 종류(format)마다 필드가 맡는 자리가 다르다 */
 function toColumn(f, series) {
   const col = { type: f.format, header: f.label, width: f.width ?? undefined };
@@ -126,8 +234,19 @@ function buildSpec(def) {
   const all = coerceAll(def.options);
   const options = {};
   const extra = {};
+  const byTab = {};   // 'tab.<탭 코드>.<이름>' — 그 탭만의 뷰·요청·옵션
+  const optionsFrom = {};
+  let provider = null;
   for (const [k, v] of Object.entries(all)) {
     if (k.startsWith('extra.')) extra[k.slice('extra.'.length)] = v;
+    else if (k.startsWith('tab.')) {
+      const [, code, ...name] = k.split('.');
+      (byTab[code] ||= {})[name.join('.')] = v;
+    } else if (k.startsWith('optionsFrom.')) {
+      // 'optionsFrom.<컨트롤>' = '경로|값 필드|이름 필드' — 선택지를 요청으로 채운다
+      const [endpoint, value = 'value', label = 'label'] = String(v).split('|');
+      optionsFrom[k.slice('optionsFrom.'.length)] = { endpoint, value, label };
+    } else if (k === 'provider') provider = String(v);
     else options[k] = v;
   }
 
@@ -147,21 +266,42 @@ function buildSpec(def) {
     ? { key: def.quote_key, fields: Object.keys(quoteFields).length ? quoteFields : undefined }
     : undefined;
 
-  const fn = def.transform ? TRANSFORMS[def.transform] : null;
-  if (def.transform && !fn) console.error('[builtinWidgets] unknown transform:', def.transform, def.widget_id);
+  const transformOf = (name) => {
+    if (!name) return null;
+    if (!TRANSFORMS[name]) console.error('[builtinWidgets] unknown transform:', name, def.widget_id);
+    return TRANSFORMS[name] || null;
+  };
+  const fn = transformOf(def.transform);
 
   const tabs = (def.tabs || []).map((t) => {
     if (t.filter && !TAB_FILTERS[t.filter]) console.error('[builtinWidgets] unknown tab filter:', t.filter, def.widget_id);
+    // 탭 옵션 중 view·endpoint·transform·controls 는 탭의 그리는 법, 나머지는 그 탭의 뷰 옵션
+    const { view, endpoint, transform, controls, ...own } = byTab[t.tab_code] || {};
+    const tabOptions = Object.keys(own).length ? { ...options, ...own } : undefined;
+    const tabFn = transformOf(transform);
+    const o = tabOptions || options;
     return {
       id: t.tab_code,
       label: t.label,
       items: t.items?.length ? t.items : undefined,
       filter: t.filter ? TAB_FILTERS[t.filter] : undefined,
       emptyText: t.empty_text,
+      view,
+      options: tabOptions,
+      // 머리줄에 보일 컨트롤 이름 ('none' = 숨김). 안 적으면 전부
+      controls: controls == null
+        ? undefined
+        : String(controls).split(',').map((s) => s.trim()).filter((s) => s && s !== 'none'),
+      // 요청이나 transform 을 따로 적은 탭은 스펙의 prepare·transform 을 물려받지 않는다
+      api: endpoint || transform ? {
+        ...(endpoint ? { endpoint } : {}),
+        prepare: tabFn?.prepare ? (rows) => tabFn.prepare(rows, o) : undefined,
+        transform: tabFn?.apply ? (rows, ctx) => tabFn.apply(rows, ctx, o) : undefined,
+      } : undefined,
     };
   });
 
-  const text = (template) => (ctx) => fillText(template, { ...ctx.params, symbol: ctx.symbol });
+  const text = (template) => (ctx, meta) => fillText(template, { ...ctx.params, symbol: ctx.symbol, ...meta });
 
   return {
     title: def.title || undefined,
@@ -178,12 +318,20 @@ function buildSpec(def) {
       prepare: fn?.prepare ? (rows) => fn.prepare(rows, options) : undefined,
       transform: fn?.apply ? (rows, ctx) => fn.apply(rows, ctx, options) : undefined,
     },
-    controls: (def.params || []).map((p) => ({
-      name: p.param_name,
-      label: p.label,
-      default: p.param_value,
-      options: (p.options || []).map((o) => ({ value: o.value, label: o.label, params: coerceAll(o.params) })),
-    })),
+    // 데이터 소스의 처음 값 (endpoint 에 {provider} 가 있을 때). 비우면 서버가 고른다
+    provider: provider || undefined,
+    controls: (def.params || []).map((p) => {
+      const opts = (p.options || []).map((o) => ({ value: o.value, label: o.label, params: coerceAll(o.params) }));
+      const from = optionsFrom[p.param_name];
+      return {
+        name: p.param_name,
+        label: p.label,
+        default: p.param_value ?? '',
+        options: opts,
+        optionsFrom: from,
+        kind: controlKind(p.param_name, opts, from),
+      };
+    }),
     quotes,
     view: def.view_type,
     options,
@@ -205,11 +353,11 @@ export function toSpec(def) {
 const ALL_SCREENS = '*';
 const onScreen = (def, pathname) => (def.screens || []).some((s) => s.screen === ALL_SCREENS || s.screen === pathname);
 
-/** 이 화면의 위젯 메뉴에 내놓을 기본 제공 위젯 — 분류(group_name)마다 카테고리 하나 */
-export function builtinWidgetCategories(defs, pathname) {
+/** 이 화면의 위젯 메뉴에 내놓을 기본 제공 위젯 — 분류(group_name)마다 카테고리 하나 (excludeIds 는 뺀다) */
+export function builtinWidgetCategories(defs, pathname, excludeIds = []) {
   const byGroup = new Map();
   for (const def of defs || []) {
-    if (!onScreen(def, pathname)) continue;
+    if (!onScreen(def, pathname) || excludeIds.includes(def.widget_id)) continue;
     const group = def.group_name || 'Widgets';
     if (!byGroup.has(group)) byGroup.set(group, { id: `__builtin_${group}`, label: group, widgets: [] });
     byGroup.get(group).widgets.push({ id: def.widget_id, name: def.name, description: def.description });

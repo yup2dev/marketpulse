@@ -85,22 +85,25 @@ def index_stats(obs: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     """월간 지수(desc) → 최신값·YoY·MoM.
 
     비교 시점은 위치가 아니라 날짜로 찾는다 — FRED 결측월('.', 예: 2025-10 셧다운)을
-    빼면 12칸 뒤가 13개월 전이 된다. 전년동월/전월이 결측이면 해당 값은 None.
+    빼면 12칸 뒤가 13개월 전이 된다. 전월이 결측이면 MoM 은 None.
+
+    최신월의 전년동월이 결측이면(2026-10 ↔ 2025-10) YoY 가 나오는 가장 가까운 달로 물러난다
+    (최대 2개월) — 그 달이 date 로 나가므로 화면은 어느 달 값인지 그대로 보여 준다.
     """
     pts = _floats(obs)
-    if not pts:
-        return None
     by_date = dict(pts)
-    d0, cur = pts[0]
-    yoy, mom = yoy_at(by_date, d0), pct_change_at(by_date, d0, 1)
-    if yoy is None:
-        return None
-    return {
-        "date": d0,
-        "current": round(cur, 3),
-        "yoy": round(yoy, 2),
-        "mom": round(mom, 2) if mom is not None else None,
-    }
+    for d0, cur in pts[:3]:
+        yoy = yoy_at(by_date, d0)
+        if yoy is None:
+            continue
+        mom = pct_change_at(by_date, d0, 1)
+        return {
+            "date": d0,
+            "current": round(cur, 3),
+            "yoy": round(yoy, 2),
+            "mom": round(mom, 2) if mom is not None else None,
+        }
+    return None
 
 
 def build_rows(index_obs: Dict[str, List[Dict[str, Any]]]) -> List[Dict[str, Any]]:

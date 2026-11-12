@@ -1,8 +1,9 @@
-"""기본 제공 위젯의 처음 행 — DB 가 비어 있을 때 한 번 넣는 값.
+"""기본 제공 위젯의 처음 행 — DB 에 그 위젯이 없을 때 한 번 넣는 값.
 
-위젯 정의의 주인은 DB(user_widgets 계열, user_id NULL)다. 이 파일은 새 DB 를 채우는
+위젯 정의의 주인은 DB(user_widgets 계열, user_id NULL)다. 이 파일은 없는 위젯을 채우는
 시드일 뿐이고, 화면은 여기를 읽지 않는다 — 넣은 뒤의 변경은 DB 행을 고친다.
-(BuiltinWidgetService.list 가 기본 제공 행이 하나도 없을 때 이 목록을 넣는다.)
+(BuiltinWidgetService.list 가 widget_id 가 DB 에 없는 것만 넣는다. 있는 행은 건드리지 않는다.
+ 그래서 위젯을 빼려면 행을 지우지 말고 use_yn=N 으로 둔다.)
 
 한 위젯의 모양 (키 이름 = 컬럼 이름):
     master   widget_id · name · description · group_name · title · view_type · endpoint · data_path ·
@@ -11,11 +12,19 @@
     params   헤더 선택지 — (param_name, label, 기본값, [(값, 라벨, option_params)])
     fields   (field_role, field_name, format, label, width, sub_field, quote_field)
     tabs     (tab_code, label, filter, empty_text, [(symbol, name)])
-    options  { opt_name: opt_value }
+    options  { opt_name: opt_value } — 뷰 옵션. 'extra.<이름>' 은 보조 요청,
+             'tab.<탭 코드>.<이름>' 은 그 탭만의 값 (view · endpoint · transform · controls · 뷰 옵션),
+             'provider' 는 데이터 소스의 처음 값, 'optionsFrom.<컨트롤>' 은 선택지를 채울 요청 '경로|값|이름'
+
+머리줄 컨트롤(params)은 이름과 선택지로 모양이 정해진다: date·*_date = 기준일 칩 · 선택지 4개 이하 = 한 줄 버튼 ·
+더 많거나 optionsFrom = 드롭다운 · 선택지 없음 = '옵션' 버튼 안의 입력칸. 데이터 소스 선택은 모든 위젯에 항상 있다 —
+endpoint 에 {provider} 가 있으면 바꿀 수 있고, 없으면 실제로 답한 소스를 보여 주기만 한다.
     screens  (screen, tab, x, y, w, h) — 위치가 있으면 그 화면·탭의 기본 배치, '*' 는 모든 화면의 메뉴
 """
 
 HISTORY = "/stock/history/{symbol}"
+FRED = "/data/{provider}"                      # 게이트웨이 — {provider} 는 머리줄의 데이터 소스 선택
+AS_OF = ("date", "기준일", None, [])            # 기준일 칩 (비우면 최신). 요청에는 ?date={date}
 ALL = ("*", None, None, None, None, None)   # 모든 화면의 위젯 메뉴에 내놓는다 (배치는 없음)
 
 
@@ -170,6 +179,188 @@ BUILTIN_WIDGETS = [
         "options": {"tagSymbol": "true", "extra.favorites": "/watchlist/my-tickers"},
         "screens": [("/", "overview", 5, 9, 7, 5), ALL],
     },
+
+    # ══ 매크로 (/macro · Overview) ══════════════════════════════════════════════
+    # ── 요약 줄: 금리 · 물가 · 고용 · 심리 (머리줄 없는 한 줄) ──
+    {
+        "widget_id": "macro-summary",
+        "name": "Macro Summary",
+        "description": "10Y · 2Y · CPI · core CPI · unemployment · VIX · Fear & Greed in one line",
+        "group_name": "Macro",
+        "title": "주요 지표",
+        "view_type": "stats",
+        "endpoint": f"{FRED}/inflation_decomposition?date={{date}}",   # 물가(헤드라인·근원)는 이 응답의 metadata
+        "source": "$provider",
+        "transform": "macro_kpis",
+        "empty_text": "지표를 불러오지 못했어요",
+        "size": (12, 1, 6, 1),
+        "params": [AS_OF],
+        "options": {
+            "provider": "fred",
+            "extra.yields": f"{FRED}/yield_curve?date={{date}}",
+            "extra.labor": f"{FRED}/labor_dashboard?date={{date}}",
+            "extra.sentiment": f"{FRED}/sentiment_composite?date={{date}}",
+        },
+        "screens": [("/macro", "overview", 0, 0, 12, 1), ALL],
+    },
+    # ── 국채 수익률: 곡선(만기별 최신) / 추이(만기 칩 최대 4개 비교) ──
+    {
+        "widget_id": "yield-curve",
+        "name": "Treasury Yields",
+        "description": "Yield curve snapshot · maturity trends (compare up to 4)",
+        "group_name": "Macro",
+        "view_type": "lines",
+        "endpoint": f"{FRED}/yield_curve?date={{date}}",
+        "source": "$provider",
+        "transform": "yield_points",
+        "empty_text": "수익률 데이터가 없어요",
+        "size": (7, 6, 4, 4),
+        "params": [
+            AS_OF,
+            ("period", "기간", "3mo", [
+                ("1mo", "1M", None), ("3mo", "3M", None), ("1y", "1Y", None), ("5y", "5Y", None),
+            ]),
+        ],
+        "tabs": [
+            ("curve", "국채 수익률 곡선", None, None, []),
+            ("trend", "추이", None, None, []),
+        ],
+        "options": {
+            "provider": "fred",
+            "x": "_label", "series": "value:수익률", "labels": "true", "unit": "%",
+            "tab.curve.controls": "date",                       # 곡선은 한 시점 — 기준일
+            "tab.trend.controls": "period",                     # 추이는 기간
+            "tab.trend.endpoint": f"{FRED}/yield_curve_history?period={{period}}",
+            "tab.trend.x": "date",
+            "tab.trend.series": "m3:3M,m6:6M,y1:1Y,y2:2Y,y5:5Y,y10:10Y,y30:30Y",
+            "tab.trend.pick": "y2,y10",
+            "tab.trend.labels": "false",
+        },
+        "screens": [("/macro", "overview", 0, 1, 7, 6), ALL],
+    },
+    # ── CPI 구성: 가중치 도넛 + 항목별 상승률 · 기여도 ──
+    {
+        "widget_id": "cpi-breakdown",
+        "name": "CPI Breakdown",
+        "description": "CPI weights donut with YoY and contribution by component",
+        "group_name": "Macro",
+        "title": "CPI 구성",
+        "view_type": "donut",
+        "endpoint": f"{FRED}/inflation_decomposition?date={{date}}",
+        "source": "$provider",
+        "source_note": "{asOf} · 전년 대비",
+        "transform": "cpi_breakdown",
+        "empty_text": "CPI 데이터가 없어요",
+        "size": (5, 6, 4, 4),
+        "fields": [
+            _field("VALUE", "weight"), _field("LABEL", "category"), _field("CHANGE", "yoy_change"),
+        ],
+        "params": [AS_OF],
+        "options": {
+            "provider": "fred",
+            "centerLabel": "CPI", "labelHeader": "항목 · 가중치", "changeHeader": "상승률",
+            "detail": "contribution", "detailHeader": "기여",
+        },
+        "screens": [("/macro", "overview", 7, 1, 5, 6), ALL],
+    },
+    # ── 고용: 주요 지표 목록 / 신규 실업수당 추이 ──
+    {
+        "widget_id": "labor-overview",
+        "name": "Labor Overview",
+        "description": "Key labor metrics · weekly initial claims with 4-week average",
+        "group_name": "Macro",
+        "view_type": "kv",
+        "endpoint": f"{FRED}/labor_dashboard?date={{date}}",
+        "source": "$provider",
+        "transform": "labor_summary",
+        "empty_text": "고용 데이터가 없어요",
+        "size": (7, 6, 4, 4),
+        "tabs": [
+            ("summary", "고용", None, None, []),
+            ("claims", "신규 실업수당", None, None, []),
+        ],
+        "params": [
+            AS_OF,
+            ("period", "기간", "1y", [
+                ("3mo", "3M", None), ("6mo", "6M", None), ("1y", "1Y", None), ("5y", "5Y", None),
+            ]),
+        ],
+        "options": {
+            "provider": "fred",
+            "tab.summary.controls": "date",
+            "tab.claims.controls": "period",
+            "tab.claims.view": "lines",
+            "tab.claims.endpoint": f"{FRED}/initial_claims?period={{period}}",
+            "tab.claims.x": "date",
+            "tab.claims.series": "claims:신규 청구,ma_4w:4주 평균",
+            "tab.claims.unit": "K",
+            "tab.claims.digits": "0",
+        },
+        "screens": [("/macro", "overview", 0, 7, 7, 6), ALL],
+    },
+    # ── 공포 · 탐욕: 반원 게이지 하나 (VIX · HY 스프레드 · 10Y 로 계산한 합성 지수) ──
+    {
+        "widget_id": "fear-greed",
+        "name": "Fear & Greed",
+        "description": "Composite sentiment gauge (VIX · HY spread · 10Y)",
+        "group_name": "Macro",
+        "title": "공포 · 탐욕 지수",
+        "view_type": "gauge",
+        "endpoint": f"{FRED}/sentiment_composite?date={{date}}",
+        "source": "$provider",
+        "source_note": "VIX · HY 스프레드 · 10Y 합성",
+        "transform": "fear_greed",
+        "empty_text": "심리 지표가 없어요",
+        "size": (5, 6, 3, 4),
+        "fields": [_field("VALUE", "value")],
+        "params": [AS_OF],
+        "options": {"provider": "fred", "label": "Fear & Greed"},
+        "screens": [("/macro", "overview", 7, 7, 5, 6), ALL],
+    },
+]
+
+
+# ══ 지표 개념 (/macro · Global Indicators) ═══════════════════════════════════════
+# provider 무관 지표 — 국가를 고르면 내 키로 쓸 수 있는 provider 를 서버가 고르고(/api/concepts),
+# 머리줄의 데이터 소스 선택에서 다른 후보로 바꿀 수 있다. 코드 레지스트리의 같은 id 위젯을 대신한다.
+def _concept(widget_id, concept, name, title, description, pos, country="USA"):
+    return {
+        "widget_id": widget_id,
+        "name": name,
+        "description": description,
+        "group_name": "Macro",
+        "title": title,
+        "view_type": "lines",
+        "endpoint": f"/concepts/{concept}?country={{country}}&period={{period}}&provider={{provider}}",
+        "source": "$provider",
+        "empty_text": "이 국가의 데이터가 없어요",
+        "size": (6, 7, 4, 4),
+        "params": [
+            # 선택지는 그 개념이 지원하는 국가로 채운다 (optionsFrom) — 아래 둘은 못 불러왔을 때의 목록
+            ("country", "국가", country, [("USA", "United States", None), ("KOR", "Korea", None)]),
+            ("period", "기간", "10y", [
+                ("1y", "1Y", None), ("3y", "3Y", None), ("5y", "5Y", None), ("10y", "10Y", None),
+            ]),
+        ],
+        "options": {
+            "x": "date", "series": f"value:{title}", "unit": "%",
+            "optionsFrom.country": f"/concepts/{concept}/countries|code|label",
+        },
+        "screens": [("/macro", "global", *pos)],
+    }
+
+
+BUILTIN_WIDGETS += [
+    _concept("concept-cpi", "cpi_yoy", "CPI Inflation", "CPI 상승률",
+             "CPI YoY — pick a country and a data source", (0, 0, 6, 7)),
+    _concept("concept-policy-rate", "policy_rate", "Policy Rate", "기준금리",
+             "Central bank policy rate — pick a country and a data source", (6, 0, 6, 7), country="KOR"),
+    _concept("concept-unemployment", "unemployment_rate", "Unemployment Rate", "실업률",
+             "Seasonally adjusted unemployment — pick a country and a data source", (0, 7, 6, 7)),
+    _concept("concept-long-rate", "long_rate_10y", "10Y Government Bond Yield", "10년 국채 금리",
+             "10Y government bond yield — pick a country and a data source", (6, 7, 6, 7)),
+    _concept("concept-gdp-growth", "real_gdp_growth", "Real GDP Growth", "실질 GDP 성장률",
+             "Real GDP YoY — pick a country and a data source", (0, 14, 12, 7)),
 ]
 
 # 모든 기본 제공 위젯의 메뉴 분류 (group_name 을 따로 적지 않은 것)

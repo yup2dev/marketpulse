@@ -271,22 +271,28 @@ def test_builtin_widgets_are_rows_seeded_on_first_read(auth_client, db_session, 
     client, _ = auth_client
     assert db_session.query(UserWidget).count() == 0
     widgets = {w["widget_id"]: w for w in client.get("/api/user-widgets/builtin").json()["widgets"]}
-    assert set(widgets) == {
-        "index-tiles", "key-events", "live-ranking", "mini-chart", "sector-heatmap", "breaking-news",
-    }
+    home = {"index-tiles", "key-events", "live-ranking", "mini-chart", "sector-heatmap", "breaking-news"}
+    macro = {"macro-summary", "yield-curve", "cpi-breakdown", "labor-overview", "fear-greed"}
+    concepts = {"concept-cpi", "concept-policy-rate", "concept-unemployment", "concept-long-rate", "concept-gdp-growth"}
+    assert set(widgets) == home | macro | concepts
 
     # 정의는 행이다 — 마스터(user_id NULL) + 자식 테이블
     rows = db_session.query(UserWidget).all()
-    assert len(rows) == 6 and all(w.user_id is None for w in rows)
+    assert len(rows) == 16 and all(w.user_id is None for w in rows)
     assert db_session.query(UserWidgetTabItem).filter_by(widget_id="index-tiles").count() == 16
 
     # 모든 위젯에 출처·크기·기본 배치가 있다
     for w in widgets.values():
         assert w["source"] and all(w["size"].values()), w["widget_id"]
-        # 모든 화면의 메뉴('*') + 홈 Overview 탭의 기본 배치
-        assert [s["screen"] for s in w["screens"]] == ["*", "/"]
-        home = w["screens"][1]
-        assert home["tab"] == "overview" and None not in (home["x"], home["y"], home["w"], home["h"])
+        placed = w["screens"][-1]
+        assert None not in (placed["x"], placed["y"], placed["w"], placed["h"])
+        if w["widget_id"] in concepts:
+            # 지표 개념 위젯은 매크로 Global Indicators 탭에만 (코드 레지스트리의 같은 id 를 대신한다)
+            assert [(s["screen"], s["tab"]) for s in w["screens"]] == [("/macro", "global")]
+            continue
+        # 모든 화면의 메뉴('*') + 자기 화면(홈 / 매크로) Overview 탭의 기본 배치
+        screen = "/macro" if w["widget_id"] in macro else "/"
+        assert [s["screen"] for s in w["screens"]] == ["*", screen] and placed["tab"] == "overview"
 
     ranking = widgets["live-ranking"]
     assert ranking["source"] == ["$provider", "live"] and ranking["transform"] == "rank_sort"
@@ -304,9 +310,40 @@ def test_builtin_widgets_are_rows_seeded_on_first_read(auth_client, db_session, 
     assert tiles["tabs"][0]["items"][0] == {"symbol": "^GSPC", "name": "S&P 500"}
     assert widgets["breaking-news"]["options"]["extra.favorites"] == "/watchlist/my-tickers"
 
+    # 탭마다 뷰·요청을 따로 가질 수 있다 — 'tab.<탭>.<이름>' 옵션
+    yields = widgets["yield-curve"]
+    assert yields["view_type"] == "lines" and [t["tab_code"] for t in yields["tabs"]] == ["curve", "trend"]
+    assert yields["options"]["tab.trend.endpoint"] == "/data/{provider}/yield_curve_history?period={period}"
+    # 데이터 소스를 고를 수 있는 위젯: endpoint 에 {provider} + 처음 값, 기준일은 date 컨트롤
+    assert yields["endpoint"] == "/data/{provider}/yield_curve?date={date}" and yields["options"]["provider"] == "fred"
+    assert [p["param_name"] for p in yields["params"]] == ["date", "period"]
+    cpi = widgets["concept-cpi"]
+    assert cpi["endpoint"] == "/concepts/cpi_yoy?country={country}&period={period}&provider={provider}"
+    assert cpi["options"]["optionsFrom.country"] == "/concepts/cpi_yoy/countries|code|label"
+    assert widgets["concept-policy-rate"]["params"][0]["param_value"] == "KOR"
+    assert widgets["labor-overview"]["options"]["tab.claims.view"] == "lines"
+    assert widgets["macro-summary"]["options"]["extra.yields"] == "/data/{provider}/yield_curve?date={date}"
+
     # 두 번째 읽기는 다시 넣지 않는다. 모든 사용자가 같은 정의를 본다
-    assert len(client.get("/api/user-widgets/builtin", headers=admin).json()["widgets"]) == 6
-    assert db_session.query(UserWidget).count() == 6
+    assert len(client.get("/api/user-widgets/builtin", headers=admin).json()["widgets"]) == 16
+    assert db_session.query(UserWidget).count() == 16
+
+
+def test_builtin_widgets_added_to_the_seed_reach_an_existing_db(auth_client, db_session):
+    """이미 기본 제공 행이 있는 DB 에도 시드에 새로 생긴 위젯은 들어간다 — 있는 행은 그대로."""
+    from app.backend.models.orm import UserWidget
+
+    client, _ = auth_client
+    client.get("/api/user-widgets/builtin")
+    # 새 위젯이 추가되기 전의 DB: 매크로 위젯 하나가 없고, 홈 위젯 하나는 고쳐져 있다
+    db_session.delete(db_session.query(UserWidget).filter_by(widget_id="fear-greed").one())
+    db_session.query(UserWidget).filter_by(widget_id="mini-chart").update({"default_symbol": "AAPL"})
+    db_session.commit()
+
+    widgets = {w["widget_id"]: w for w in client.get("/api/user-widgets/builtin").json()["widgets"]}
+    assert widgets["fear-greed"]["view_type"] == "gauge"
+    assert widgets["mini-chart"]["default_symbol"] == "AAPL"
+    assert db_session.query(UserWidget).count() == 16
 
 
 def test_builtin_widgets_follow_the_db_not_the_seed(auth_client, db_session):
