@@ -12,24 +12,16 @@
 
 ## 아키텍처
 
-```
-┌──────────────┐     HTTPS/WSS      ┌────────────────────────┐
-│  Frontend    │ ─────────────────▶ │  Backend (FastAPI)     │
-│  React+Vite  │  /api, /ws         │  MarketpulseWeb        │
-│  (Vercel)    │ ◀───────────────── │                        │
-└──────┬───────┘                    │  ├─ QueryExecutor      │ ← data_fetcher 라이브러리
-       │ 로그인 토큰 전달             │  │   ├ 서버 직접 조회   │
-       │ (127.0.0.1:8765)           │  │   └ Fetcher 위임     │
-       ▼                            │  ├─ user_key_service   │ ← 사용자 API 키(Fernet 암호화 DB)
-┌──────────────┐                    │  └─ /api/ingest        │ ← 배치 적재 데이터 수신
-│ 로컬 Fetcher  │  /ws/fetcher       └───────┬────────▲───────┘
-│ (사용자 PC)   │ ◀── 워커풀 합류 ──────────┘        │ HTTP bulk upsert
-│ data_fetcher │                            │        │
-└──────────────┘                    ┌───────▼─────┐  │   ┌──────────────────┐
-                                    │ SQLite      │  └── │ Batch (로컬 PC)   │
-                                    │ Redis 캐시   │      │ 적재 → 로컬 DB    │
-                                    └─────────────┘      └──────────────────┘
-```
+![MarketPulse 시스템 구성도](docs/architecture.svg)
+
+| 구성 요소 | 실행 위치 | 역할 |
+|-----------|-----------|------|
+| **Web Frontend** | Vercel | React 위젯 대시보드. `apiClient` 가 모든 요청에 JWT 를 싣고, 로그인 토큰을 로컬 Fetcher 에 넘긴다 |
+| **Backend** | Lightsail (Docker) | `auth_gate` → 라우트 → `QueryExecutor`. 캐시(Redis)·서킷브레이커·실행 위치 분기를 맡고, 키 기반·무키 외부 API 를 직접 부른다 |
+| **Local Fetcher** | 사용자 PC (exe) | 서버 IP 에서 막히는 조회(Yahoo)와 13F 원본 파싱. `/ws/fetcher` 로 먼저 접속해 워커풀에 합류한다 |
+| **Batch** | 로컬 PC (작업 스케줄러) | 랭킹·환율·13F·뉴스를 수집해 로컬 DB 에 적재하고, `/api/ingest` 로 서버 DB 에 증분 업서트한다 |
+
+> 구성도 원본은 [`docs/architecture.svg`](docs/architecture.svg) — 텍스트 편집기로 직접 고친다.
 
 코드는 최상위 폴더 3개로 나뉜다 — **Web**(서버+프론트), **Fetcher**(데이터 조회 라이브러리 + 사용자 PC용 exe),
 **Batch**(적재 배치). `data_fetcher` 는 한 벌의 코드가 세 곳에서 돈다: 서버 프로세스 안, 배치 프로세스 안,

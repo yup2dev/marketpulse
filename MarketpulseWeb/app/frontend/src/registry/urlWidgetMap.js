@@ -23,7 +23,8 @@ export const URL_WIDGET_MAP = {
       {
         id: 'overview',
         label: 'Overview',
-        // 무키 기본 그리드(랜딩이 키 없이도 채워지도록). 키 필요 위젯(fred/polygon)은 메뉴에서 추가.
+        // 홈의 기본 배치·홈 위젯은 DB 에 있다 (기본 제공 위젯 — registry/builtinWidgets.js).
+        // 아래는 그 정의를 못 불러왔을 때만 쓰는 대체 배치다 (키·Fetcher 없이 채워지는 위젯).
         defaultWidgets: [
           { id: 'w0', type: 'tv-index-charts',   x: 0, y: 0, w: 12, h: 2 },
           { id: 'w1', type: 'heatmap',           x: 0, y: 2, w: 6, h: 10 },
@@ -50,7 +51,7 @@ export const URL_WIDGET_MAP = {
           { id: 'tv-mini-chart',      name: 'Mini Chart (TV)',     description: 'TradingView mini chart for one symbol' },
           { id: 'advanced-chart',     name: 'Advanced Chart',      description: 'Multi-symbol, candles, indicators, pair analysis' },
           { id: 'comparison',         name: 'Stock Comparison',    description: 'Compare 2-4 stocks' },
-          { id: 'heatmap',            name: 'Sector Heatmap',      description: 'S&P 500 sector treemap' },
+          { id: 'heatmap',            name: 'Sector Heatmap (drill-down)', description: 'Sector treemap with drill-down and list view' },
           { id: 'correlation',        name: 'Correlation Matrix',  description: 'Multi-stock correlations' },
           { id: 'economic-calendar',  name: 'Economic Calendar',   description: 'Economic events (actual / forecast / previous)' },
           { id: 'earnings-calendar',  name: 'Earnings Calendar',   description: 'Earnings schedule (EPS forecast, market cap)' },

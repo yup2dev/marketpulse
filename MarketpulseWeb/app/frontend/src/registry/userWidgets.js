@@ -151,14 +151,25 @@ export function screenLabels(screens, allLabel = '모든 화면') {
   return screens.map((s) => URL_WIDGET_MAP[s]?.label || s).join(', ');
 }
 
-// ── 기본 제공 위젯 (코드에 정의된 카탈로그) ───────────────────────────────────
+// ── 기본 제공 위젯 (코드 카탈로그 + DB 에 정의된 위젯) ────────────────────────
 
 /**
- * 화면별 카탈로그(urlWidgetMap)에 있는 모든 기본 위젯 — 설정 화면의 '기본 위젯' 목록.
- * [{ id, name, description, pages: [{ path, label }] }]  (pages = 코드가 정한 기본 배치)
+ * 모든 기본 위젯 — 설정 화면의 '기본 위젯' 목록. 화면별 카탈로그(urlWidgetMap)와
+ * DB 에 정의된 기본 제공 위젯(dbDefs — store 의 builtin)을 합친다.
+ * [{ id, name, description, pages: [{ path, label }] }]  (pages = 기본으로 내놓는 화면)
  */
-export function builtinWidgetCatalog() {
+export function builtinWidgetCatalog(dbDefs = []) {
   const byId = new Map();
+  for (const def of dbDefs) {
+    byId.set(def.widget_id, {
+      id: def.widget_id,
+      name: def.name,
+      description: def.description,
+      pages: (def.screens || [])
+        .filter((s) => s.screen !== ALL_SCREENS && URL_WIDGET_MAP[s.screen])
+        .map((s) => ({ path: s.screen, label: URL_WIDGET_MAP[s.screen].label })),
+    });
+  }
   for (const [path, page] of Object.entries(URL_WIDGET_MAP)) {
     for (const cat of page.categories || []) {
       for (const w of cat.widgets || []) {

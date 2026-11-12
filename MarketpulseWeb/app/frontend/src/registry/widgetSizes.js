@@ -124,9 +124,15 @@ export const WIDGET_SIZES = {
 // 등록되지 않은 위젯(model/*, copilot/* 동적 위젯)
 const FALLBACK = S('table', { h: 6 });
 
+// DB 에 정의된 기본 제공 위젯의 크기 — 정의를 불러온 뒤 store 가 등록한다
+const DB_SIZES = {};
+export function registerWidgetSizes(sizes) {
+  Object.assign(DB_SIZES, sizes);
+}
+
 /** 위젯 크기. 등록이 없으면 fallback(예: copilot 이 넘긴 크기) → 기본 표 크기 */
 export function widgetSize(type, fallback) {
-  const s = WIDGET_SIZES[type];
+  const s = WIDGET_SIZES[type] || DB_SIZES[type];
   if (s) return s;
   return { ...FALLBACK, ...(fallback || {}) };
 }

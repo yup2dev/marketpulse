@@ -1,7 +1,10 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Plus, X, Columns2, Rows2 } from 'lucide-react';
 import DashboardGrid from './DashboardGrid';
 import WidgetRenderer from './WidgetRenderer';
+import useAuthStore from '../../store/authStore';
+import useUserWidgetStore from '../../store/userWidgetStore';
+import { builtinDefaultWidgets } from '../../registry/builtinWidgets';
 
 export default function DashboardPane({
   paneId,
@@ -31,6 +34,18 @@ export default function DashboardPane({
     : paneId === 'root'
       ? `${pathname}-${sectionId}`
       : `${pathname}-${paneId}-${sectionId}`;
+
+  // 기본 배치 — DB(기본 제공 위젯의 화면 등록)에 이 화면·탭의 배치가 있으면 그것, 없으면 코드의 배치.
+  // 그리드는 처음 그릴 때의 배치를 저장하므로, 정의를 불러온 뒤에 그린다.
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const defsLoaded = useUserWidgetStore((s) => s.loaded);
+  const builtin = useUserWidgetStore((s) => s.builtin);
+  const dbDefaults = useMemo(
+    () => builtinDefaultWidgets(builtin, pathname, activeCategory?.id),
+    [builtin, pathname, activeCategory?.id],
+  );
+  const defaultWidgets = dbDefaults.length ? dbDefaults : activeCategory?.defaultWidgets || [];
+  const gridReady = defsLoaded || !isAuthenticated;
 
   const [tabMenu, setTabMenu] = useState(null);
   const [bgMenu, setBgMenu] = useState(null);
@@ -113,10 +128,10 @@ export default function DashboardPane({
 
       {/* ── Grid ────────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-auto min-h-0">
-        <DashboardGrid
+        {gridReady && <DashboardGrid
           key={screenKey}
           screen={screenKey}
-          defaultWidgets={isEmpty ? [] : activeCategory?.defaultWidgets || []}
+          defaultWidgets={isEmpty ? [] : defaultWidgets}
           onAddWidgetReady={(fn) => registerAddWidget?.(paneId, fn)}
           renderWidget={(widgetCfg, onRemoveWidget) => (
             <WidgetRenderer
@@ -126,7 +141,7 @@ export default function DashboardPane({
               onRemove={onRemoveWidget}
             />
           )}
-        />
+        />}
       </div>
 
       {/* ── Tab context menu (right-click on tab) ───────────────────── */}
