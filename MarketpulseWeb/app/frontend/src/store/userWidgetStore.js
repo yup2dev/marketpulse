@@ -1,6 +1,7 @@
 /**
- * userWidgetStore — 내 위젯 설정 (서버 DB: /api/user-widgets).
+ * userWidgetStore — 위젯 정의·설정 (서버 DB: /api/user-widgets).
  *
+ *   builtin  기본 제공 위젯의 정의 목록 (모든 사용자 공통 — 홈 위젯 등). 그리는 법은 registry/builtinWidgets
  *   widgets  내가 만든 위젯 정의 목록
  *   prefs    기본 제공 위젯의 내 설정 { [위젯 id]: { use_yn, screens } } — 기본값과 다른 것만 들어 있다
  *
@@ -9,10 +10,13 @@
  */
 import { create } from 'zustand';
 import { userWidgetsAPI } from '../config/api';
+import { builtinWidgetSizes } from '../registry/builtinWidgets';
+import { registerWidgetSizes } from '../registry/widgetSizes';
 
 let _loading = null;
 
 const useUserWidgetStore = create((set, get) => ({
+  builtin: [],
   widgets: [],
   prefs: {},
   loaded: false,
@@ -21,11 +25,17 @@ const useUserWidgetStore = create((set, get) => ({
   load: (force = false) => {
     if (get().loaded && !force) return Promise.resolve(get().widgets);
     if (!_loading) {
-      _loading = Promise.all([userWidgetsAPI.list(), userWidgetsAPI.prefs().catch(() => null)])
-        .then(([res, prefRes]) => {
+      _loading = Promise.all([
+        userWidgetsAPI.list(),
+        userWidgetsAPI.prefs().catch(() => null),
+        userWidgetsAPI.builtin().catch(() => null),
+      ])
+        .then(([res, prefRes, builtinRes]) => {
           const widgets = res?.widgets || [];
           const prefs = Object.fromEntries((prefRes?.prefs || []).map((p) => [p.widget_type, p]));
-          set({ widgets, prefs, loaded: true });
+          const builtin = builtinRes?.widgets || [];
+          registerWidgetSizes(builtinWidgetSizes(builtin));   // 그리드가 크기를 여기서 찾는다
+          set({ builtin, widgets, prefs, loaded: true });
           return widgets;
         })
         .catch(() => {

@@ -2,10 +2,11 @@
  * WidgetRenderer — generic dispatcher.
  *
  * Looks up `widget.type` in WIDGET_ENDPOINTS:
- *   - entry has `spec`       → render DataWidget (mp-widgets: API + view spec)
  *   - entry has `component`  → render `<Component {...resolvedProps} />`
  *   - entry has `endpoint`   → render UniversalWidget (auto table/chart)
- * Types that are not in the registry: copilot/{id}, user/{id}, model/{model}, data/{provider}/{model}.
+ * Types that are not in the registry:
+ *   - built-in widgets defined in the DB (home widgets …) → DataWidget (mp-widgets), spec built from the rows
+ *   - copilot/{id}, user/{id}, model/{model}, data/{provider}/{model}
  *
  * Custom-component entries declare which props to inject via `propsFrom`,
  * e.g. `propsFrom: ['symbol', 'portfolioId']` resolves at render time.
@@ -15,6 +16,8 @@ import UniversalWidget from './UniversalWidget';
 import UserWidget from './UserWidget';
 import { DataWidget } from '../../mp-widgets';
 import { WIDGET_ENDPOINTS } from '../../registry/widgetEndpoints';
+import { toSpec } from '../../registry/builtinWidgets';
+import useUserWidgetStore from '../../store/userWidgetStore';
 
 // 제거된(deprecated) 위젯 타입 → 대체 위젯 매핑. 저장된 워크스페이스 레이아웃이
 // 옛 타입을 참조해도 "No endpoint for…"로 깨지지 않게 한다.
@@ -29,6 +32,8 @@ export default function WidgetRenderer({ widget, symbol, portfolioData, onRemove
   const portfolioId = portfolioData?.selectedPortfolio?.portfolio_id;
   const type = DEPRECATED_TYPE_ALIASES[widget.type] ?? widget.type;
   const reg = WIDGET_ENDPOINTS[type];
+  // 기본 제공 위젯 — 정의는 서버 DB 행 (store 가 불러온다)
+  const builtinDef = useUserWidgetStore((s) => s.builtin.find((w) => w.widget_id === type));
 
   // copilot/{id} — Copilot이 합성한 데이터셋. rows는 localStorage(copilot-ds:{id})에 있다.
   const copilotDs = useMemo(() => {
@@ -63,9 +68,9 @@ export default function WidgetRenderer({ widget, symbol, portfolioData, onRemove
     );
   }
 
-  // mp-widgets 스펙 — API + 뷰 선언만으로 그리는 위젯
-  if (reg?.spec) {
-    return <DataWidget spec={reg.spec} symbol={symbol} onRemove={onRemove} />;
+  // 기본 제공 위젯 — DB 정의를 mp-widgets 스펙으로 바꿔 그린다 (위젯마다 컴포넌트 없음)
+  if (!reg && builtinDef) {
+    return <DataWidget spec={toSpec(builtinDef)} symbol={symbol} onRemove={onRemove} />;
   }
 
   if (reg?.component) {

@@ -1,7 +1,7 @@
 /**
  * BuiltinWidgetList — 기본 제공 위젯 목록의 내 설정.
  *
- * 위젯 정의는 코드(urlWidgetMap)에 있고, 여기서는 사용자별로
+ * 위젯 정의는 코드(urlWidgetMap) 또는 DB(홈 위젯 등 기본 제공 위젯)에 있고, 여기서는 사용자별로
  *   - 사용 여부: 끄면 위젯 메뉴에 나오지 않는다
  *   - 내놓을 화면: 고르면 그 화면의 위젯 메뉴에만 나온다 (기본은 코드가 정한 배치)
  * 만 정한다. 기본값과 다른 것만 서버에 행으로 저장된다.
@@ -20,7 +20,8 @@ const TH = 'text-left text-[10px] font-semibold uppercase tracking-wider text-gr
 export default function BuiltinWidgetList() {
   const prefs = useUserWidgetStore((s) => s.prefs);
   const setPref = useUserWidgetStore((s) => s.setPref);
-  const catalog = useMemo(() => builtinWidgetCatalog(), []);
+  const builtin = useUserWidgetStore((s) => s.builtin);
+  const catalog = useMemo(() => builtinWidgetCatalog(builtin), [builtin]);
 
   const [query, setQuery] = useState('');
   const [changedOnly, setChangedOnly] = useState(false);

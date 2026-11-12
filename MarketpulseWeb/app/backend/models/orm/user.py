@@ -8,14 +8,14 @@ USER & PORTFOLIO Layer: 앱 도메인 (파이프라인 단계와 무관한 사�
 - SavedScreener                              : 저장된 스크리너
 - UserNote / UserWorkspace                   : 메모·워크스페이스 레이아웃
 - UserBacktestItem / UserBacktestRun         : 백테스트 변수·이벤트·전략 정의 / 실행 결과
-- UserWidget (+Param / Field / Screen)       : 사용자 정의 위젯 (API → 매핑 → 위젯 → 화면 등록)
+- UserWidget (+Param / Field / Screen …)     : 위젯 정의 — 사용자 정의(user_id 있음) + 기본 제공(user_id NULL)
 - WidgetType / UserWidgetPref(+Screen)       : 위젯 종류 목록(관리자) / 기본 제공 위젯의 사용자별 설정
 """
 import uuid
 from datetime import datetime
 from sqlalchemy import (
     Column, String, Text, Integer, DateTime, Boolean,
-    ForeignKey, Index, UniqueConstraint, DECIMAL
+    ForeignKey, ForeignKeyConstraint, Index, UniqueConstraint, DECIMAL
 )
 from sqlalchemy.orm import relationship
 
@@ -552,7 +552,18 @@ class UserBacktestRun(Base):
 #   user_widgets         마스터 — 어떤 API 를 어떤 위젯으로 볼 것인가        (≈ 작업 기본)
 #   user_widget_params   API 파라미터 — 고정값 / 화면 변수 / 사용자 입력      (≈ 작업 파라미터·변수)
 #   user_widget_fields   매핑 — 응답 필드를 위젯의 어느 자리에 쓸 것인가
-#   user_widget_screens  화면 등록 — 어느 화면의 위젯 메뉴에 내놓을 것인가
+#   user_widget_screens  화면 등록 — 어느 화면의 위젯 메뉴에 내놓을 것인가 (+ 기본 배치 위치)
+#
+# 기본 제공 위젯(홈 위젯 등)도 같은 테이블의 행이다 — user_id 가 NULL 이면 기본 제공이다.
+# 기본 제공 위젯은 provider·model 대신 endpoint 를 쓰고, 다음 자식 테이블을 더 쓴다:
+#
+#   user_widget_param_options  헤더 선택지 (INPUT 파라미터의 고를 수 있는 값)
+#   user_widget_tabs           헤더 탭
+#   user_widget_tab_items      탭의 고정 행 (지수·환율 심볼 목록)
+#   user_widget_options        뷰 옵션 (이름 = 값)
+#
+# 함수(정렬·펼치기·필터)는 행에 담을 수 없다 — 코드값(TRANSFORM·TAB_FILTER)으로 이름만 적고
+# 구현은 프론트(registry/builtinWidgets.js)에 있다.
 #
 # 위젯 목록 쪽 설정도 같은 방식이다:
 #
@@ -601,19 +612,37 @@ class UserWidgetPrefScreen(Base):
 
 
 class UserWidget(Base):
-    """사용자 정의 위젯 마스터."""
+    """위젯 마스터. user_id 가 있으면 사용자 정의 위젯, NULL 이면 기본 제공 위젯."""
     __tablename__ = 'user_widgets'
 
     widget_id = Column(String(50), primary_key=True)
-    user_id = Column(String(50), ForeignKey('users.user_id'), nullable=False, index=True)
-    name = Column(String(200), nullable=False)
+    user_id = Column(String(50), ForeignKey('users.user_id'), nullable=True, index=True)   # NULL = 기본 제공
+    name = Column(String(200), nullable=False)       # 위젯 메뉴에 나오는 이름
     description = Column(String(500))
     group_name = Column(String(100))                 # 위젯 메뉴 안에서의 분류
-    provider = Column(String(50), nullable=False)    # API = /api/data/{provider}/{model}
-    model = Column(String(100), nullable=False)
-    view_type = Column(String(30), nullable=False, default='table')   # widget_types.type_code
+    provider = Column(String(50))                    # 사용자 정의: API = /api/data/{provider}/{model}
+    model = Column(String(100))
+    # 사용자 정의: widget_types.type_code  /  기본 제공: 코드 SPEC_VIEW (tiles·table·candles·treemap·list)
+    view_type = Column(String(30), nullable=False, default='table')
     use_yn = Column(String(1), nullable=False, default='Y')           # N 이면 메뉴에서 숨김
     sort_seq = Column(Integer, nullable=False, default=0)
+
+    # ── 기본 제공 위젯만 쓰는 칸 ──
+    title = Column(String(100))            # 위젯 헤더 제목 (탭이 있으면 비운다)
+    endpoint = Column(String(300))         # /api 뒤 경로. {이름} 자리는 파라미터 값으로 채운다
+    data_path = Column(String(100))        # 응답에서 행을 꺼낼 경로 (비우면 results)
+    source = Column(String(100))           # 출처 — 쉼표로 여러 개. '$provider' = 응답의 provider
+    source_note = Column(String(200))      # 출처 옆 설명. {이름} 자리 가능
+    transform = Column(String(50))         # 코드 TRANSFORM — 행을 다듬는 함수 이름
+    quote_key = Column(String(50))         # 실시간 시세를 붙일 심볼 필드. '$symbol' = 위젯의 종목
+    refresh_sec = Column(Integer)          # 자동 새로고침 간격(초)
+    live_yn = Column(String(1), nullable=False, default='N')   # 헤더에 LIVE 표시
+    default_symbol = Column(String(20))    # 종목을 고르는 위젯의 기본 종목
+    empty_text = Column(String(200))       # 행이 없을 때 문구. {이름} 자리 가능
+    size_w = Column(Integer)               # 기본 크기·최소 크기 (12열 그리드)
+    size_h = Column(Integer)
+    min_w = Column(Integer)
+    min_h = Column(Integer)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -625,6 +654,12 @@ class UserWidget(Base):
         "UserWidgetField", cascade="all, delete-orphan", order_by="UserWidgetField.field_seq",
     )
     screens = relationship("UserWidgetScreen", cascade="all, delete-orphan")
+    tabs = relationship(
+        "UserWidgetTab", cascade="all, delete-orphan", order_by="UserWidgetTab.tab_seq",
+    )
+    options = relationship(
+        "UserWidgetOption", cascade="all, delete-orphan", order_by="UserWidgetOption.opt_name",
+    )
 
     def to_dict(self) -> dict:
         return {
@@ -652,6 +687,7 @@ class UserWidgetParam(Base):
         FIXED  param_value 를 그대로 보낸다
         VAR    화면 변수(var_name: symbol·period)의 현재 값을 보낸다. param_value 는 기본값
         INPUT  위젯 헤더에서 사용자가 바꿀 수 있다. param_value 는 기본값
+               (기본 제공 위젯은 options 의 선택지 중에서 고른다)
     """
     __tablename__ = 'user_widget_params'
 
@@ -661,6 +697,11 @@ class UserWidgetParam(Base):
     bind_type = Column(String(10), nullable=False, default='FIXED')
     param_value = Column(String(500))
     var_name = Column(String(50))
+    label = Column(String(100))            # 헤더 선택 버튼의 이름 (기본 제공 위젯)
+
+    options = relationship(
+        "UserWidgetParamOption", cascade="all, delete-orphan", order_by="UserWidgetParamOption.option_seq",
+    )
 
     def to_dict(self) -> dict:
         return {
@@ -676,6 +717,9 @@ class UserWidgetField(Base):
 
     field_role (코드 FIELD_ROLE): X(차트 가로축) · Y(차트 값) · PRIMARY(요약 타일) ·
     COLUMN(표 컬럼) · HIDDEN(숨김).  format 은 코드 FIELD_FORMAT.
+
+    기본 제공 위젯은 field_role 이 코드 SPEC_FIELD_ROLE(COLUMN + 뷰의 자리: SYMBOL·TITLE·VALUE …),
+    format 이 코드 CELL_TYPE(표 셀 종류: rank·stock·price …)이다.
     """
     __tablename__ = 'user_widget_fields'
 
@@ -685,6 +729,9 @@ class UserWidgetField(Base):
     field_role = Column(String(10), nullable=False, default='COLUMN')
     label = Column(String(200))
     format = Column(String(20), nullable=False, default='auto')
+    width = Column(Integer)                # 표 컬럼 폭(px)
+    sub_field = Column(String(100))        # 셀이 함께 쓰는 둘째 필드 (종목명·통화·추세선 색 기준)
+    quote_field = Column(String(50))       # 실시간 시세의 이 값으로 덮어쓴다 (price·change_percent·volume)
 
     def to_dict(self) -> dict:
         return {
@@ -696,11 +743,84 @@ class UserWidgetField(Base):
 
 
 class UserWidgetScreen(Base):
-    """위젯을 내놓을 화면. screen 은 화면 경로('/', '/stock' …) 또는 '*'(모든 화면)."""
+    """위젯을 내놓을 화면. screen 은 화면 경로('/', '/stock' …) 또는 '*'(모든 화면).
+
+    기본 제공 위젯은 여기에 기본 배치도 적는다 — tab(화면 안의 탭)과 위치가 있으면
+    저장된 배치가 없는 사용자의 그 화면·탭에 처음부터 놓인다.
+    """
     __tablename__ = 'user_widget_screens'
 
     widget_id = Column(String(50), ForeignKey('user_widgets.widget_id'), primary_key=True)
     screen = Column(String(50), primary_key=True)
+    tab = Column(String(50))
+    pos_x = Column(Integer)
+    pos_y = Column(Integer)
+    pos_w = Column(Integer)
+    pos_h = Column(Integer)
+
+
+class UserWidgetParamOption(Base):
+    """헤더 선택지 한 개 — INPUT 파라미터가 고를 수 있는 값.
+
+    option_params 는 이 선택지를 골랐을 때 함께 정해지는 값들이다 ('period=5d&interval=5m' 형식).
+    endpoint·source_note 의 {이름} 자리와 transform 이 이 값을 쓴다.
+    """
+    __tablename__ = 'user_widget_param_options'
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ['widget_id', 'param_seq'],
+            ['user_widget_params.widget_id', 'user_widget_params.param_seq'],
+        ),
+    )
+
+    widget_id = Column(String(50), primary_key=True)
+    param_seq = Column(Integer, primary_key=True)
+    option_seq = Column(Integer, primary_key=True)
+    option_value = Column(String(100), nullable=False)
+    label = Column(String(100), nullable=False)
+    option_params = Column(String(300))
+
+
+class UserWidgetTab(Base):
+    """헤더 탭 한 개. items 가 있으면 그 행들이 탭의 데이터다 (API 를 부르지 않는 타일)."""
+    __tablename__ = 'user_widget_tabs'
+
+    widget_id = Column(String(50), ForeignKey('user_widgets.widget_id'), primary_key=True)
+    tab_seq = Column(Integer, primary_key=True)
+    tab_code = Column(String(30), nullable=False)
+    label = Column(String(100), nullable=False)
+    filter = Column(String(50))            # 코드 TAB_FILTER — 이 탭에서 행을 거르는 함수 이름
+    empty_text = Column(String(200))       # 이 탭에 행이 없을 때 문구 (없으면 위젯의 empty_text)
+
+    items = relationship(
+        "UserWidgetTabItem", cascade="all, delete-orphan", order_by="UserWidgetTabItem.item_seq",
+    )
+
+
+class UserWidgetTabItem(Base):
+    """탭의 고정 행 한 개 — 심볼과 표시 이름 (지수·환율 타일)."""
+    __tablename__ = 'user_widget_tab_items'
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ['widget_id', 'tab_seq'],
+            ['user_widget_tabs.widget_id', 'user_widget_tabs.tab_seq'],
+        ),
+    )
+
+    widget_id = Column(String(50), primary_key=True)
+    tab_seq = Column(Integer, primary_key=True)
+    item_seq = Column(Integer, primary_key=True)
+    symbol = Column(String(30), nullable=False)
+    name = Column(String(100), nullable=False)
+
+
+class UserWidgetOption(Base):
+    """뷰 옵션 한 개 (이름 = 값). 예: series(추세선 요청 경로) · rowHeight · extra.favorites."""
+    __tablename__ = 'user_widget_options'
+
+    widget_id = Column(String(50), ForeignKey('user_widgets.widget_id'), primary_key=True)
+    opt_name = Column(String(50), primary_key=True)
+    opt_value = Column(String(300), nullable=False)
 
 
 __all__ = [
@@ -721,6 +841,10 @@ __all__ = [
     "UserWidgetParam",
     "UserWidgetField",
     "UserWidgetScreen",
+    "UserWidgetParamOption",
+    "UserWidgetTab",
+    "UserWidgetTabItem",
+    "UserWidgetOption",
     "WidgetType",
     "UserWidgetPref",
     "UserWidgetPrefScreen",

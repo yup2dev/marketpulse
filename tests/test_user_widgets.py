@@ -38,7 +38,11 @@ def _widget(**over):
 def test_codes_drive_the_settings_screen(auth_client):
     client, _ = auth_client
     body = client.get("/api/user-widgets/codes").json()
-    assert set(body["codes"]) == {"VIEW_TYPE", "RENDERER", "BIND_TYPE", "FIELD_ROLE", "FIELD_FORMAT"}
+    assert set(body["codes"]) == {
+        "VIEW_TYPE", "RENDERER", "BIND_TYPE", "FIELD_ROLE", "FIELD_FORMAT",
+        # 기본 제공 위젯(user_id NULL)의 코드값
+        "SPEC_VIEW", "SPEC_FIELD_ROLE", "CELL_TYPE", "TRANSFORM", "TAB_FILTER",
+    }
     # 위젯 종류는 DB 목록이다 — 처음 읽을 때 그리는 방식마다 하나씩 생긴다
     assert [t["value"] for t in body["codes"]["VIEW_TYPE"]] == [r["value"] for r in body["codes"]["RENDERER"]]
     assert all(t["use_yn"] == "Y" and t["kind"] in ("table", "chart", "kv") for t in body["codes"]["VIEW_TYPE"])
@@ -257,3 +261,72 @@ def test_builtin_widget_prefs_are_sparse_and_per_user(auth_client, db_session, a
 
     assert client.put("/api/user-widgets/prefs/bad id!", json={"use_yn": "N"}).status_code == 400
     assert client.put("/api/user-widgets/prefs/insider", json={"use_yn": "X"}).status_code == 400
+
+
+# ── 기본 제공 위젯의 정의 (user_id NULL 인 행) ───────────────────────────────
+
+def test_builtin_widgets_are_rows_seeded_on_first_read(auth_client, db_session, admin):
+    from app.backend.models.orm import UserWidget, UserWidgetTabItem
+
+    client, _ = auth_client
+    assert db_session.query(UserWidget).count() == 0
+    widgets = {w["widget_id"]: w for w in client.get("/api/user-widgets/builtin").json()["widgets"]}
+    assert set(widgets) == {
+        "index-tiles", "key-events", "live-ranking", "mini-chart", "sector-heatmap", "breaking-news",
+    }
+
+    # 정의는 행이다 — 마스터(user_id NULL) + 자식 테이블
+    rows = db_session.query(UserWidget).all()
+    assert len(rows) == 6 and all(w.user_id is None for w in rows)
+    assert db_session.query(UserWidgetTabItem).filter_by(widget_id="index-tiles").count() == 16
+
+    # 모든 위젯에 출처·크기·기본 배치가 있다
+    for w in widgets.values():
+        assert w["source"] and all(w["size"].values()), w["widget_id"]
+        # 모든 화면의 메뉴('*') + 홈 Overview 탭의 기본 배치
+        assert [s["screen"] for s in w["screens"]] == ["*", "/"]
+        home = w["screens"][1]
+        assert home["tab"] == "overview" and None not in (home["x"], home["y"], home["w"], home["h"])
+
+    ranking = widgets["live-ranking"]
+    assert ranking["source"] == ["$provider", "live"] and ranking["transform"] == "rank_sort"
+    assert [o["value"] for o in ranking["params"][0]["options"]] == ["trade_value", "gainers", "losers"]
+    assert [f["format"] for f in ranking["fields"]] == ["rank", "stock", "price", "change", "compact", "trend", "tag"]
+    assert ranking["fields"][2]["quote_field"] == "price"
+
+    chart = widgets["mini-chart"]
+    assert chart["endpoint"] == "/stock/history/{symbol}?period={period}&interval={interval}"
+    five = next(o for o in chart["params"][0]["options"] if o["value"] == "5m")
+    assert five["params"] == {"period": "5d", "interval": "5m", "session": "true", "note": "5분봉"}
+
+    tiles = widgets["index-tiles"]
+    assert [t["tab_code"] for t in tiles["tabs"]] == ["index", "fxcmd"]
+    assert tiles["tabs"][0]["items"][0] == {"symbol": "^GSPC", "name": "S&P 500"}
+    assert widgets["breaking-news"]["options"]["extra.favorites"] == "/watchlist/my-tickers"
+
+    # 두 번째 읽기는 다시 넣지 않는다. 모든 사용자가 같은 정의를 본다
+    assert len(client.get("/api/user-widgets/builtin", headers=admin).json()["widgets"]) == 6
+    assert db_session.query(UserWidget).count() == 6
+
+
+def test_builtin_widgets_follow_the_db_not_the_seed(auth_client, db_session):
+    """화면은 DB 행을 그린다 — 행을 고치면 정의가 바뀌고, 사용 안 함이면 빠진다."""
+    from app.backend.models.orm import UserWidget
+
+    client, _ = auth_client
+    client.get("/api/user-widgets/builtin")
+    db_session.query(UserWidget).filter_by(widget_id="mini-chart").update({"default_symbol": "AAPL"})
+    db_session.query(UserWidget).filter_by(widget_id="key-events").update({"use_yn": "N"})
+    db_session.commit()
+
+    widgets = {w["widget_id"]: w for w in client.get("/api/user-widgets/builtin").json()["widgets"]}
+    assert widgets["mini-chart"]["default_symbol"] == "AAPL"
+    assert "key-events" not in widgets
+
+
+def test_builtin_widgets_are_not_in_my_widgets_and_cannot_be_edited(auth_client):
+    client, _ = auth_client
+    client.get("/api/user-widgets/builtin")
+    assert client.get("/api/user-widgets").json()["widgets"] == []
+    assert client.put("/api/user-widgets/mini-chart", json={"name": "x"}).status_code == 404
+    assert client.delete("/api/user-widgets/mini-chart").status_code == 404

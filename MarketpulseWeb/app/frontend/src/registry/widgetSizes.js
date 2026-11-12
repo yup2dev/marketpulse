@@ -88,14 +88,6 @@ export const WIDGET_SIZES = {
   'heatmap':                  S('chart', { w: 8, h: 8, minW: 5, minH: 6 }),
 
   // ── TradingView 임베드 ──
-  // ── 홈 위젯 (리디자인 시안) — 헤더 40px, 필터 줄·출처 줄 없음 ──
-  'index-tiles':              S('strip', { w: 9, h: 3, minW: 4, minH: 2 }),   // 타일 4×2
-  'key-events':               S('list',  { w: 3, h: 3, minW: 3, minH: 2 }),   // 30px 행
-  'live-ranking':             S('list',  { w: 8, h: 6, minW: 5, minH: 4 }),   // 7컬럼 표 (좁으면 가로 스크롤)
-  'mini-chart':               S('chart', { w: 4, h: 6, minW: 3, minH: 4 }),
-  'sector-heatmap':           S('chart', { w: 5, h: 5, minW: 3, minH: 4 }),
-  'breaking-news':            S('list',  { w: 7, h: 5, minW: 4, minH: 3 }),   // 44px 행
-
   'tv-index-charts':          S('strip'),
   'tv-market-ranking':        S('list', { w: 5, h: 10, minW: 4, minH: 7 }),
   'tv-mini-chart':            S('chart', { w: 4, h: 5, minW: 3, minH: 4 }),
@@ -132,9 +124,15 @@ export const WIDGET_SIZES = {
 // 등록되지 않은 위젯(model/*, copilot/* 동적 위젯)
 const FALLBACK = S('table', { h: 6 });
 
+// DB 에 정의된 기본 제공 위젯의 크기 — 정의를 불러온 뒤 store 가 등록한다
+const DB_SIZES = {};
+export function registerWidgetSizes(sizes) {
+  Object.assign(DB_SIZES, sizes);
+}
+
 /** 위젯 크기. 등록이 없으면 fallback(예: copilot 이 넘긴 크기) → 기본 표 크기 */
 export function widgetSize(type, fallback) {
-  const s = WIDGET_SIZES[type];
+  const s = WIDGET_SIZES[type] || DB_SIZES[type];
   if (s) return s;
   return { ...FALLBACK, ...(fallback || {}) };
 }
