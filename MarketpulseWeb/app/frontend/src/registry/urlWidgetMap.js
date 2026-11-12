@@ -23,14 +23,23 @@ export const URL_WIDGET_MAP = {
       {
         id: 'overview',
         label: 'Overview',
-        // 무키 기본 그리드(랜딩이 키 없이도 채워지도록). 키 필요 위젯(fred/polygon)은 메뉴에서 추가.
+        // 리디자인 시안의 홈 배치 — 지수 9 + 일정 3 / 랭킹 8 + 미니 차트 4 / 히트맵 5 + 속보 7.
+        // 시세는 Yahoo(운영에서는 사용자 PC Fetcher)로 받는다. Fetcher 없이 채우려면 메뉴의 (TV) 위젯을 쓴다.
         defaultWidgets: [
-          { id: 'w0', type: 'tv-index-charts',   x: 0, y: 0, w: 12, h: 2 },
-          { id: 'w1', type: 'heatmap',           x: 0, y: 2, w: 6, h: 10 },
-          { id: 'w2', type: 'tv-market-ranking', x: 6, y: 2, w: 6, h: 10 },
-          { id: 'w3', type: 'sparkline',         x: 0, y: 12, w: 12, h: 3 },
+          { id: 'w0', type: 'index-tiles',    x: 0, y: 0, w: 9, h: 3 },
+          { id: 'w1', type: 'key-events',     x: 9, y: 0, w: 3, h: 3 },
+          { id: 'w2', type: 'live-ranking',   x: 0, y: 3, w: 8, h: 6 },
+          { id: 'w3', type: 'mini-chart',     x: 8, y: 3, w: 4, h: 6 },
+          { id: 'w4', type: 'sector-heatmap', x: 0, y: 9, w: 5, h: 5 },
+          { id: 'w5', type: 'breaking-news',  x: 5, y: 9, w: 7, h: 5 },
         ],
         widgets: [
+          { id: 'index-tiles',        name: 'Indices',            description: 'Index / FX · commodity tiles with sparklines' },
+          { id: 'key-events',         name: 'Key Events',         description: "Today's economic events at a glance" },
+          { id: 'live-ranking',       name: 'Live Ranking',       description: 'Trade value · gainers · losers with 1D trend' },
+          { id: 'mini-chart',         name: 'Mini Chart',         description: 'Candles + volume for one symbol (1m · 5m · 15m · 1D)' },
+          { id: 'sector-heatmap',     name: 'Sector Heatmap',     description: 'Market-cap treemap colored by change' },
+          { id: 'breaking-news',      name: 'Breaking News',      description: 'One-line headlines · watchlist news' },
           { id: 'gdp-forecast',       name: 'GDP Forecast',       description: 'Evolution of GDP forecast' },
           { id: 'inflation-momentum', name: 'Inflation Momentum', description: '12M, 6M, 3M momentum' },
           { id: 'earnings',           name: 'Earnings',           description: 'EPS history & surprises' },
@@ -50,7 +59,7 @@ export const URL_WIDGET_MAP = {
           { id: 'tv-mini-chart',      name: 'Mini Chart (TV)',     description: 'TradingView mini chart for one symbol' },
           { id: 'advanced-chart',     name: 'Advanced Chart',      description: 'Multi-symbol, candles, indicators, pair analysis' },
           { id: 'comparison',         name: 'Stock Comparison',    description: 'Compare 2-4 stocks' },
-          { id: 'heatmap',            name: 'Sector Heatmap',      description: 'S&P 500 sector treemap' },
+          { id: 'heatmap',            name: 'Sector Heatmap (drill-down)', description: 'Sector treemap with drill-down and list view' },
           { id: 'correlation',        name: 'Correlation Matrix',  description: 'Multi-stock correlations' },
           { id: 'economic-calendar',  name: 'Economic Calendar',   description: 'Economic events (actual / forecast / previous)' },
           { id: 'earnings-calendar',  name: 'Earnings Calendar',   description: 'Earnings schedule (EPS forecast, market cap)' },

@@ -35,6 +35,8 @@
  *
  * UI 라벨(title·label·hint)은 영어로 쓴다.
  *     expandable?: { keyField, endpoint, dataPath? }
+ *     spec?:       defineWidget({...})      // mp-widgets 스펙 — API + 뷰(tiles·table·candles·treemap·list).
+ *                                           //   시안 스타일 위젯은 이걸로 만든다 (mp-widgets/README.md)
  *     component?:  Component                // escape hatch — only for portfolio widgets that need
  *                                           //   non-API state (e.g. portfolioData)
  *     propsFrom?:  ['symbol'|'portfolioId']  // which extra props to inject into custom component
@@ -45,6 +47,7 @@
 import PortfolioStatsWidget          from '../components/widgets/PortfolioStatsWidget';
 import InstitutionalPortfoliosWidget from '../components/widgets/InstitutionalPortfoliosWidget';
 import WatchlistWidget         from '../components/widgets/WatchlistWidget';
+import * as home               from './homeWidgets';
 import ScreenerWidget          from '../components/widgets/ScreenerWidget';
 import MarketRankingWidget     from '../components/widgets/MarketRankingWidget';
 import AlertsWidget            from '../components/widgets/AlertsWidget';
@@ -329,6 +332,15 @@ export const WIDGET_ENDPOINTS = {
       { name: 'end_date',   label: 'End',    kind: 'date',   default: today },
     ],
   },
+
+  // ── 홈 위젯 (리디자인 시안) — mp-widgets 스펙 (API + 뷰). 스펙은 homeWidgets.js ──
+  //   spec 항목은 WidgetRenderer 가 DataWidget 으로 그린다 (컴포넌트 없음)
+  'index-tiles':    { title: 'Indices',        spec: home.indexTiles },      // 지수 / 환율·원자재 타일
+  'key-events':     { title: 'Key Events',     spec: home.keyEvents },       // 오늘의 경제 일정
+  'live-ranking':   { title: 'Live Ranking',   spec: home.liveRanking },     // 거래대금·급상승·급하락 표
+  'mini-chart':     { title: 'Mini Chart',     spec: home.miniChart },       // 한 종목 캔들 + 거래량
+  'sector-heatmap': { title: 'Sector Heatmap', spec: home.sectorHeatmap },   // 시가총액 트리맵
+  'breaking-news':  { title: 'Breaking News',  spec: home.breakingNews },    // 속보 / 관심종목 뉴스
 
   // ── Market Ranking ──────────────────────────────────────────────────────────
   'market-ranking': {
