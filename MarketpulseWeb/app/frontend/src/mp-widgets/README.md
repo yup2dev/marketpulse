@@ -3,33 +3,31 @@
 위젯 = **API + 뷰**. 컴포넌트를 새로 만들지 않고 스펙만 적으면 `DataWidget` 이 그린다.
 
 ```
-endpoint → 행 꺼내기(dataPath) → 실시간 시세 병합(quotes) → transform → 탭 filter → 뷰
+endpoint → 행 꺼내기(dataPath) → prepare → 실시간 시세 병합(quotes) → transform → 탭 filter → 뷰
 ```
 
 ## 위젯 하나 추가하기
 
-1. 스펙을 적는다 — `registry/homeWidgets.js` (화면별로 파일을 나눠도 된다)
+위젯 정의는 **DB 행**이다 — 코드에 스펙을 적지 않는다. 기본 제공 위젯(홈 위젯 등)은
+`user_widgets` 계열 테이블의 `user_id` 가 NULL 인 행이고, `GET /api/user-widgets/builtin` 이 돌려준다.
+`registry/builtinWidgets.js` 의 `toSpec()` 이 그 행을 아래 **스펙**으로 바꿔 `DataWidget` 에 넘긴다.
 
-```js
-import { defineWidget } from '../mp-widgets';
+| 넣는 곳 (테이블) | 내용 | 스펙에서의 자리 |
+|---|---|---|
+| `user_widgets` | 이름·제목·뷰 종류·endpoint·출처·transform 이름·시세 키·새로고침·빈 문구·크기 | `title` `view` `api` `source` `quotes.key` `empty` |
+| `user_widget_params` + `_param_options` | 헤더 선택지와 그 선택지가 정하는 값 | `controls` |
+| `user_widget_fields` | 표 컬럼(셀 종류) 또는 뷰의 자리(SYMBOL·TITLE·VALUE …), 시세로 덮어쓸 필드 | `options.columns` / `options.*` / `quotes.fields` |
+| `user_widget_tabs` + `_tab_items` | 탭, 탭의 고정 행(심볼 목록), 탭 필터 이름 | `tabs` |
+| `user_widget_options` | 뷰 옵션 (이름 = 값). `extra.이름` 은 보조 요청 | `options` / `api.extra` |
+| `user_widget_screens` | 내놓을 화면(`*` = 전부) + 화면·탭의 기본 배치 위치 | 메뉴 · 기본 그리드 |
 
-export const topGainers = defineWidget({
-  title: '급상승',
-  source: 'yahoo',                                   // 필수 — 헤더 오른쪽에 출처로 표시
-  api: { endpoint: '/stock/ranking/live?sort_by=gainers&limit=10' },
-  view: 'table',
-  options: {
-    columns: [
-      { type: 'rank',   header: '순위', width: 56 },
-      { type: 'stock',  header: '종목', symbol: 'stk_cd', name: 'stk_nm' },
-      { type: 'change', header: '등락률', field: 'change_rate' },
-    ],
-  },
-});
-```
-
-2. 등록한다 — `registry/widgetEndpoints.js` 에 `'top-gainers': { title: 'Top Gainers', spec: home.topGainers }`
-3. 크기는 `registry/widgetSizes.js`, 화면 배치·카탈로그는 `registry/urlWidgetMap.js`
+1. 행을 넣는다. 새 DB 에 처음 들어갈 값은 `backend/services/builtin_widget_seed.py` 에 추가한다
+   (기본 제공 행이 하나도 없을 때만 들어간다 — 이미 행이 있는 DB 는 행을 직접 넣거나 고친다).
+2. 코드값은 `backend/services/user_widget_service.CODES` 가 기준이다
+   (`SPEC_VIEW` · `SPEC_FIELD_ROLE` · `CELL_TYPE` · `TRANSFORM` · `TAB_FILTER`).
+3. 함수(정렬·펼치기·필터)는 행에 담을 수 없다. 새 함수가 필요할 때만 `registry/builtinWidgets.js` 의
+   `TRANSFORMS` / `TAB_FILTERS` 에 구현을 추가하고 같은 이름을 코드값에 올린다
+   (`tests/test_widget_sources.py` 가 이름이 맞는지 본다).
 
 ## 스펙
 
@@ -42,6 +40,7 @@ export const topGainers = defineWidget({
 | `api.endpoint` | `/api` 뒤 경로. `{이름}` 자리는 params 로 채운다 (아래) |
 | `api.dataPath` | 응답에서 행이 있는 곳. 기본 `'results'`, `'a.b'`, `''`(응답 그대로) |
 | `api.refresh` | 자동 갱신 간격(ms) |
+| `api.prepare` | `(rows) => rows` — 시세를 붙이기 전에 행의 모양을 바꾼다 (예: 섹터 → 종목 행) |
 | `api.transform` | `(rows, ctx) => rows` 또는 `{ rows, meta }` |
 | `api.extra` | 보조 요청 `{ 이름: 경로 }` → `ctx.extra.이름` |
 | `controls` | 헤더 버튼 `[{ name, label, default, options: [{ value, label, params? }] }]` |

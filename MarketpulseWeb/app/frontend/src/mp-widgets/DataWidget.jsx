@@ -68,11 +68,13 @@ export default function DataWidget({ spec, symbol: pageSymbol, onRemove }) {
   const { data: res, error, loading, reload } = useApi(path, { refresh: api.refresh });
   const extra = useExtra(api.extra);
 
-  // endpoint 가 없으면 탭(또는 스펙)의 고정 items 가 행이다 (예: 지수 타일)
-  const baseRows = useMemo(
-    () => (path ? pick(res, api.dataPath) || EMPTY : tab?.items || spec.items || EMPTY),
-    [path, res, api.dataPath, tab, spec.items],
-  );
+  // endpoint 가 없으면 탭(또는 스펙)의 고정 items 가 행이다 (예: 지수 타일).
+  // api.prepare 는 시세를 붙이기 전에 행의 모양을 바꾼다 (예: 섹터 → 종목 행)
+  const baseRows = useMemo(() => {
+    if (!path) return tab?.items || spec.items || EMPTY;
+    const picked = pick(res, api.dataPath) || EMPTY;
+    return api.prepare && picked.length ? api.prepare(picked) : picked;
+  }, [path, res, api, tab, spec.items]);
 
   // ── 실시간 시세 ──
   const quoteSymbols = useMemo(() => {
@@ -83,7 +85,7 @@ export default function DataWidget({ spec, symbol: pageSymbol, onRemove }) {
   }, [quoteSpec, baseRows, symbol]);
   const quotes = useQuotes(quoteSymbols);
 
-  // ── 병합 → transform → 탭 필터 ──
+  // ── (prepare) → 병합 → transform → 탭 필터 ──
   const ctx = useMemo(() => ({ params, tab, symbol, extra, quotes }), [params, tab, symbol, extra, quotes]);
   const { rows, meta } = useMemo(() => {
     let out = baseRows;

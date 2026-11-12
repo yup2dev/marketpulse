@@ -209,6 +209,7 @@ export const providersAPI = {
 // 사용자 정의 위젯 (API → 매핑 → 위젯 → 화면 등록). 정의 목록은 store/userWidgetStore 가 들고 있다.
 export const userWidgetsAPI = {
   codes:  ()         => apiClient.get(`${API_BASE}/user-widgets/codes`),
+  builtin: ()        => apiClient.get(`${API_BASE}/user-widgets/builtin`),
   list:   ()         => apiClient.get(`${API_BASE}/user-widgets`),
   create: (data)     => apiClient.post(`${API_BASE}/user-widgets`, data),
   update: (id, data) => apiClient.put(`${API_BASE}/user-widgets/${id}`, data),

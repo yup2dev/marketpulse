@@ -5,17 +5,20 @@
   - 위젯 종류 목록(widget_types) — 관리자가 고치는 목록. 처음 읽을 때 기본 행을 넣는다
   - 사용자 정의 위젯의 검증·CRUD (자식 행은 저장할 때 통째로 바꾼다)
   - 기본 제공 위젯의 사용자별 설정(사용 여부·내놓을 화면)
+  - 기본 제공 위젯의 정의(user_id NULL 인 행) — 처음 읽을 때 시드를 넣고, 화면이 그릴 모양으로 돌려준다
 을 맡는다.
 """
 import re
 import uuid
 from typing import Any, Dict, List, Optional
+from urllib.parse import parse_qsl
 
 from sqlalchemy.orm import Session
 
 from app.backend.models.orm import (
-    UserWidget, UserWidgetField, UserWidgetParam, UserWidgetPref, UserWidgetPrefScreen,
-    UserWidgetScreen, WidgetType,
+    UserWidget, UserWidgetField, UserWidgetOption, UserWidgetParam, UserWidgetParamOption,
+    UserWidgetPref, UserWidgetPrefScreen, UserWidgetScreen, UserWidgetTab, UserWidgetTabItem,
+    WidgetType,
 )
 
 # ── 고정 코드값 — 설정 화면의 선택지 ──────────────────────────────────────────
@@ -57,6 +60,57 @@ CODES: Dict[str, List[Dict[str, Any]]] = {
         {"value": "magnitude", "name": "큰 수 (K·M·B)"},
         {"value": "date",      "name": "날짜"},
         {"value": "none",      "name": "원문 그대로"},
+    ],
+
+    # ── 기본 제공 위젯(user_id NULL)의 코드값 — 그리는 코드는 프론트 mp-widgets 에 있다 ──
+    # 뷰 종류 (user_widgets.view_type)
+    "SPEC_VIEW": [
+        {"value": "tiles",   "name": "시세 타일"},
+        {"value": "table",   "name": "셀 종류를 고르는 표"},
+        {"value": "candles", "name": "캔들 차트"},
+        {"value": "treemap", "name": "트리맵"},
+        {"value": "list",    "name": "한 줄 목록"},
+    ],
+    # 필드가 뷰에서 맡는 자리 (user_widget_fields.field_role)
+    "SPEC_FIELD_ROLE": [
+        {"value": "COLUMN",      "name": "표 컬럼"},
+        {"value": "SYMBOL",      "name": "심볼"},
+        {"value": "LABEL",       "name": "이름"},
+        {"value": "TIME",        "name": "시각"},
+        {"value": "TITLE",       "name": "제목"},
+        {"value": "SUB",         "name": "제목 뒤 설명"},
+        {"value": "HREF",        "name": "링크 주소"},
+        {"value": "TAG",         "name": "꼬리표"},
+        {"value": "VALUE",       "name": "값"},
+        {"value": "VALUE_MUTED", "name": "값을 흐리게 (참이면)"},
+        {"value": "DOT",         "name": "강조 점 (참이면)"},
+        {"value": "CHANGE",      "name": "등락률"},
+        {"value": "GROUP",       "name": "묶음"},
+        {"value": "LINK",        "name": "누르면 갈 종목"},
+    ],
+    # 표 셀 종류 (user_widget_fields.format) — COLUMN 이 아닌 자리는 text
+    "CELL_TYPE": [
+        {"value": "text",    "name": "그대로"},
+        {"value": "rank",    "name": "순위"},
+        {"value": "stock",   "name": "종목 (로고 + 이름)"},
+        {"value": "price",   "name": "가격"},
+        {"value": "change",  "name": "등락률"},
+        {"value": "compact", "name": "큰 수 (K·M·B)"},
+        {"value": "number",  "name": "숫자"},
+        {"value": "trend",   "name": "추세선"},
+        {"value": "tag",     "name": "꼬리표"},
+    ],
+    # 행을 다듬는 함수 (user_widgets.transform) — 구현은 프론트 registry/builtinWidgets.js
+    "TRANSFORM": [
+        {"value": "events_by_time",  "name": "일정을 시각 순으로 + 실제/예상 값"},
+        {"value": "rank_sort",       "name": "거래대금 다시 계산 + 정렬 기준대로 정렬"},
+        {"value": "bars_window",     "name": "보여 줄 봉만 남기기 + 전일 종가"},
+        {"value": "flatten_sectors", "name": "섹터 → 시가총액 상위 종목으로 펴기"},
+        {"value": "news_rows",       "name": "기사 시각 표기 + 첫 티커"},
+    ],
+    # 탭에서 행을 거르는 함수 (user_widget_tabs.filter)
+    "TAB_FILTER": [
+        {"value": "watchlist_tickers", "name": "내 관심 종목이 들어 있는 행만"},
     ],
 }
 
@@ -441,3 +495,138 @@ class WidgetPrefService:
         db.commit()
         current = next((p for p in WidgetPrefService.list(db, user_id) if p["widget_type"] == widget_type), None)
         return current or {"widget_type": widget_type, "use_yn": "Y", "screens": []}
+
+
+# ── 기본 제공 위젯의 정의 (user_id NULL) ─────────────────────────────────────
+
+def _seed_builtin(db: Session) -> None:
+    """시드(services/builtin_widget_seed.py)를 행으로 넣는다. 코드값이 틀리면 넣지 않고 알린다."""
+    from app.backend.services.builtin_widget_seed import BUILTIN_WIDGETS, DEFAULT_GROUP
+
+    for seq, d in enumerate(BUILTIN_WIDGETS):
+        wid = d["widget_id"]
+        _check("SPEC_VIEW", d["view_type"], f"기본 위젯 '{wid}'")
+        if d.get("transform"):
+            _check("TRANSFORM", d["transform"], f"기본 위젯 '{wid}'")
+        if not d.get("source"):
+            raise UserWidgetError(f"기본 위젯 '{wid}': 출처(source)가 비어 있습니다")
+        w, h, min_w, min_h = d["size"]
+        widget = UserWidget(
+            widget_id=wid, user_id=None, name=d["name"], description=d.get("description"),
+            group_name=d.get("group_name", DEFAULT_GROUP), view_type=d["view_type"],
+            use_yn="Y", sort_seq=seq * 10,
+            title=d.get("title"), endpoint=d.get("endpoint"), data_path=d.get("data_path"),
+            source=d["source"], source_note=d.get("source_note"), transform=d.get("transform"),
+            quote_key=d.get("quote_key"), refresh_sec=d.get("refresh_sec"),
+            live_yn=d.get("live_yn", "N"), default_symbol=d.get("default_symbol"),
+            empty_text=d.get("empty_text"), size_w=w, size_h=h, min_w=min_w, min_h=min_h,
+        )
+        widget.params = [
+            UserWidgetParam(
+                param_seq=i, param_name=name, bind_type="INPUT", param_value=default, label=label,
+                options=[
+                    UserWidgetParamOption(widget_id=wid, option_seq=j, option_value=v, label=lb, option_params=extra)
+                    for j, (v, lb, extra) in enumerate(options)
+                ],
+            )
+            for i, (name, label, default, options) in enumerate(d.get("params", []))
+        ]
+        for i, f in enumerate(d.get("fields", [])):
+            _check("SPEC_FIELD_ROLE", f["field_role"], f"기본 위젯 '{wid}' 필드 '{f['field_name']}'")
+            _check("CELL_TYPE", f["format"], f"기본 위젯 '{wid}' 필드 '{f['field_name']}'")
+            widget.fields.append(UserWidgetField(field_seq=i, **f))
+        for i, (code, label, flt, empty, items) in enumerate(d.get("tabs", [])):
+            if flt:
+                _check("TAB_FILTER", flt, f"기본 위젯 '{wid}' 탭 '{code}'")
+            widget.tabs.append(UserWidgetTab(
+                tab_seq=i, tab_code=code, label=label, filter=flt, empty_text=empty,
+                items=[
+                    UserWidgetTabItem(widget_id=wid, item_seq=j, symbol=sym, name=nm)
+                    for j, (sym, nm) in enumerate(items)
+                ],
+            ))
+        widget.options = [
+            UserWidgetOption(opt_name=k, opt_value=str(v)) for k, v in d.get("options", {}).items()
+        ]
+        widget.screens = [
+            UserWidgetScreen(screen=screen, tab=tab, pos_x=x, pos_y=y, pos_w=pw, pos_h=ph)
+            for screen, tab, x, y, pw, ph in d.get("screens", [])
+        ]
+        db.add(widget)
+    db.commit()
+
+
+def _builtin_dict(w: UserWidget) -> dict:
+    """화면(프론트 registry/builtinWidgets.js)이 받는 모양."""
+    return {
+        "widget_id": w.widget_id,
+        "name": w.name,
+        "description": w.description,
+        "group_name": w.group_name,
+        "title": w.title,
+        "view_type": w.view_type,
+        "endpoint": w.endpoint,
+        "data_path": w.data_path,
+        "source": [s.strip() for s in (w.source or "").split(",") if s.strip()],
+        "source_note": w.source_note,
+        "transform": w.transform,
+        "quote_key": w.quote_key,
+        "refresh_sec": w.refresh_sec,
+        "live_yn": w.live_yn,
+        "default_symbol": w.default_symbol,
+        "empty_text": w.empty_text,
+        "sort_seq": w.sort_seq,
+        "size": {"w": w.size_w, "h": w.size_h, "minW": w.min_w, "minH": w.min_h},
+        "params": [
+            {
+                "param_name": p.param_name,
+                "label": p.label,
+                "param_value": p.param_value,
+                "options": [
+                    {"value": o.option_value, "label": o.label,
+                     "params": dict(parse_qsl(o.option_params or "", keep_blank_values=True))}
+                    for o in p.options
+                ],
+            }
+            for p in w.params
+        ],
+        "fields": [
+            {"field_name": f.field_name, "field_role": f.field_role, "label": f.label, "format": f.format,
+             "width": f.width, "sub_field": f.sub_field, "quote_field": f.quote_field}
+            for f in w.fields
+        ],
+        "tabs": [
+            {"tab_code": t.tab_code, "label": t.label, "filter": t.filter, "empty_text": t.empty_text,
+             "items": [{"symbol": i.symbol, "name": i.name} for i in t.items]}
+            for t in w.tabs
+        ],
+        "options": {o.opt_name: o.opt_value for o in w.options},
+        "screens": sorted(
+            ({"screen": s.screen, "tab": s.tab, "x": s.pos_x, "y": s.pos_y, "w": s.pos_w, "h": s.pos_h}
+             for s in w.screens),
+            key=lambda s: s["screen"],
+        ),
+        "updated_at": w.updated_at.isoformat() if w.updated_at else None,
+    }
+
+
+class BuiltinWidgetService:
+    """기본 제공 위젯 — 모든 사용자가 같이 보는 정의. 행은 user_widgets 계열 테이블에 있다."""
+
+    @staticmethod
+    def _rows(db: Session) -> List[UserWidget]:
+        return (
+            db.query(UserWidget)
+            .filter(UserWidget.user_id.is_(None))
+            .order_by(UserWidget.sort_seq.asc(), UserWidget.widget_id.asc())
+            .all()
+        )
+
+    @staticmethod
+    def list(db: Session) -> List[dict]:
+        """사용 중(use_yn=Y)인 기본 제공 위젯. 하나도 없으면(새 DB) 시드를 먼저 넣는다."""
+        rows = BuiltinWidgetService._rows(db)
+        if not rows:
+            _seed_builtin(db)
+            rows = BuiltinWidgetService._rows(db)
+        return [_builtin_dict(w) for w in rows if w.use_yn == "Y"]

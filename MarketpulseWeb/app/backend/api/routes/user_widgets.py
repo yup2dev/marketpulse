@@ -1,6 +1,7 @@
 """위젯 설정 API — 설정 화면(/settings?tab=widgets)과 위젯 메뉴가 쓴다.
 
     GET    /api/user-widgets/codes      코드값·위젯 종류·화면 변수 (설정 화면의 선택지)
+    GET    /api/user-widgets/builtin    기본 제공 위젯의 정의 (모든 사용자 공통 — 홈 위젯 등)
     GET    /api/user-widgets/prefs      기본 제공 위젯의 내 설정 (기본값과 다른 것만)
     PUT    /api/user-widgets/prefs/{widget_type}   사용 여부·내놓을 화면
     GET    /api/user-widgets[?screen=]  내 위젯. screen 을 주면 그 화면에 내놓은 것만
@@ -24,7 +25,7 @@ from app.backend.core.auth.dependencies import get_current_user
 from app.backend.core.db import get_db
 from app.backend.models.orm import User
 from app.backend.services.user_widget_service import (
-    UserWidgetError, UserWidgetService, WidgetPrefService, get_codes, serialize,
+    BuiltinWidgetService, UserWidgetError, UserWidgetService, WidgetPrefService, get_codes, serialize,
 )
 
 router = APIRouter(prefix="/user-widgets", tags=["user-widgets"])
@@ -80,6 +81,11 @@ class PrefIn(BaseModel):
 @router.get("/codes")
 def codes(_: User = Depends(get_current_user), db: Session = Depends(get_db)):
     return get_codes(db)
+
+
+@router.get("/builtin")
+def list_builtin(_: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return {"widgets": BuiltinWidgetService.list(db)}
 
 
 @router.get("/prefs")

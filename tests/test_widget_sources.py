@@ -57,17 +57,29 @@ def test_every_registry_component_renders_a_source():
     assert not missing, f"widgets without a source footer: {missing}"
 
 
-def test_every_widget_spec_declares_a_source():
-    """mp-widgets 스펙(defineWidget) 은 컴포넌트가 없으므로 스펙 안의 source: 를 본다."""
-    missing = []
-    for path in (SRC / "registry").glob("*.js"):
-        text = path.read_text(encoding="utf-8")
-        starts = [m.start() for m in re.finditer(r"=\s*defineWidget\(\{", text)]
-        for i, start in enumerate(starts):
-            block = text[start:starts[i + 1] if i + 1 < len(starts) else len(text)]
-            if not re.search(r"^\s{2}source:", block, re.M):
-                missing.append(f"{path.name}:{text[:start].count(chr(10)) + 1}")
-    assert not missing, f"widget specs without source: {missing}"
+def test_every_builtin_widget_seed_declares_a_source():
+    """DB 에 정의되는 기본 제공 위젯은 컴포넌트가 없으므로 시드 행의 source 를 본다.
+
+    (넣을 때도 서비스가 확인한다 — source 가 빈 위젯은 시드되지 않는다)
+    """
+    from app.backend.services.builtin_widget_seed import BUILTIN_WIDGETS
+
+    missing = [w["widget_id"] for w in BUILTIN_WIDGETS if not w.get("source")]
+    assert not missing, f"builtin widgets without source: {missing}"
+
+
+def test_every_function_code_is_implemented_in_the_frontend():
+    """DB 는 함수의 이름만 가진다 (코드 TRANSFORM·TAB_FILTER) — 구현은 registry/builtinWidgets.js."""
+    from app.backend.services.user_widget_service import CODES
+
+    text = (SRC / "registry" / "builtinWidgets.js").read_text(encoding="utf-8")
+    missing = [
+        f"{group}.{c['value']}"
+        for group in ("TRANSFORM", "TAB_FILTER")
+        for c in CODES[group]
+        if not re.search(rf"^\s{{2}}{c['value']}:", text, re.M)
+    ]
+    assert not missing, f"function codes without a frontend implementation: {missing}"
 
 
 def test_every_provider_has_a_source_label():

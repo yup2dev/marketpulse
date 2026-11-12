@@ -16,6 +16,7 @@ import useNavigationStore from '../../store/navigationStore';
 
 import { URL_WIDGET_MAP, getGlobalWidgetCategories } from '../../registry/urlWidgetMap';
 import { userWidgetCategory, applyWidgetPrefs } from '../../registry/userWidgets';
+import { builtinWidgetCategories } from '../../registry/builtinWidgets';
 import useUserWidgetStore from '../../store/userWidgetStore';
 import SplitPaneLayout, {
   splitPaneNode,
@@ -265,6 +266,7 @@ export default function DashboardPage() {
 
   // 설정 화면에서 만든 위젯 — 이 화면에 내놓은 것만 메뉴의 "My Widgets" 로 나온다
   const userWidgets = useUserWidgetStore((s) => s.widgets);
+  const builtinDefs = useUserWidgetStore((s) => s.builtin);
   const widgetPrefs = useUserWidgetStore((s) => s.prefs);
   const loadUserWidgets = useUserWidgetStore((s) => s.load);
   useEffect(() => { if (isAuthenticated) loadUserWidgets(); }, [isAuthenticated, loadUserWidgets]);
@@ -276,8 +278,10 @@ export default function DashboardPage() {
     const base = menuPaneCategory ? [menuPaneCategory] : categories;
     const baseIds = base.flatMap((c) => c.widgets.map((w) => w.id));
     // 기본 위젯에는 내 설정(사용 안 함·내놓을 화면)을 적용한다 — 설정의 '기본 위젯' 목록
+    // 기본 제공 위젯 = 코드 카탈로그 + DB 에 정의된 위젯(홈 위젯 등)
     const builtin = applyWidgetPrefs([
       ...base,
+      ...builtinWidgetCategories(builtinDefs, pathname),
       ...getGlobalWidgetCategories({
         excludeIds: baseIds,
         includePortfolio: !!config?.needsPortfolio,

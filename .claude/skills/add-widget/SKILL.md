@@ -10,6 +10,8 @@ description: 대시보드 위젯을 추가/수정할 때 사용. widgetEndpoints
 
 핵심 파일 (`MarketpulseWeb/app/frontend/src/`):
 - `registry/widgetEndpoints.js` — **모든 위젯 타입의 단일 소스** (id → 정의)
+- 예외 — **리디자인 시안 스타일 위젯(홈 위젯 등)은 코드가 아니라 DB 행**이다 (`user_widgets` 계열, `user_id` NULL).
+  레지스트리에 적지 않는다. 넣는 법은 `src/mp-widgets/README.md`, 행 → 스펙 변환은 `registry/builtinWidgets.js`
 - `registry/urlWidgetMap.js` — URL별 화면 구성 (탭·위젯 카탈로그·기본 그리드)
 - `registry/providerViews.js` — (model, provider)별 body UI 오버라이드
 - `components/core/UniversalWidget.jsx` — 자동 렌더러 (수정할 일 거의 없음)
