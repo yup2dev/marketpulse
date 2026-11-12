@@ -19,6 +19,41 @@ html.dark {
   --color-positive:      #22c55e;
   --color-negative:      #ef4444;
   --color-header-bg:     #0d0d0d;
+
+  /* 리디자인 시안 토큰 — WidgetCard 와 홈 위젯이 쓴다 */
+  --mp-panel:     #121214;
+  --mp-raised:    #1E1E22;
+  --mp-chip-on:   #2A2A2F;
+  --mp-tile:      #151517;
+  --mp-tile-line: #26262B;
+  --mp-row-hover: #17181D;
+  --mp-tag:       #1C1C20;
+  --mp-tag-text:  #B4B4BB;
+  --mp-text:      #E8E8EA;
+  --mp-text-2:    #C9C9CF;
+  --mp-muted:     #8E8E96;
+  --mp-faint:     #6E6E76;
+  --mp-grip:      #55555C;
+  --mp-live:      #3FC27A;
+  --mp-accent:    #3182F6;
+  /* mp-widgets 차트 색 (mp-widgets/Plot.jsx 가 읽는다) — 등락 색은 국내 관례가 기본 */
+  --mpc-up:       #F04452;
+  --mpc-down:     #3182F6;
+  --mpc-flat:     #9C9CA3;
+  --mpc-grid:     #18181B;
+  --mpc-axis:     #1E1E22;
+  --mpc-text:     #E8E8EA;
+  --mpc-muted:    #6E6E76;
+  --mpc-neutral:  #232327;
+  --mpc-on-tile:  #FFFFFF;
+  --mpc-surface:  #19191C;
+  --mpc-line:     #2A2A2F;
+}
+
+/* 등락 색 관례 — US (상승 초록 / 하락 빨강). <html data-updown="us"> */
+html[data-updown="us"] {
+  --mpc-up:   #1DB37A;
+  --mpc-down: #F04452;
 }
 
 /* Light mode overrides */
@@ -36,6 +71,30 @@ html.light {
   --color-positive:      #16a34a;
   --color-negative:      #dc2626;
   --color-header-bg:     #ffffff;
+
+  --mp-panel:     #FFFFFF;
+  --mp-raised:    #F1F3F5;
+  --mp-chip-on:   #E5E8EB;
+  --mp-tile:      #F7F8FA;
+  --mp-tile-line: #E5E8EB;
+  --mp-row-hover: #F4F5F7;
+  --mp-tag:       #F2F4F6;
+  --mp-tag-text:  #4E5968;
+  --mp-text:      #191F28;
+  --mp-text-2:    #333D4B;
+  --mp-muted:     #6B7684;
+  --mp-faint:     #8B95A1;
+  --mp-grip:      #B0B8C1;
+  --mp-live:      #12A150;
+  --mpc-flat:     #6B7684;
+  --mpc-grid:     #EEF0F2;
+  --mpc-axis:     #E5E8EB;
+  --mpc-text:     #191F28;
+  --mpc-muted:    #8B95A1;
+  --mpc-neutral:  #E5E8EB;
+  --mpc-on-tile:  #191F28;   /* 흰 바탕에서는 타일 색이 옅어진다 → 어두운 글자 */
+  --mpc-surface:  #FFFFFF;
+  --mpc-line:     #E5E8EB;
 }
 
 @layer base {

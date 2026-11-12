@@ -2,6 +2,7 @@
  * WidgetRenderer — generic dispatcher.
  *
  * Looks up `widget.type` in WIDGET_ENDPOINTS:
+ *   - entry has `spec`       → render DataWidget (mp-widgets: API + view spec)
  *   - entry has `component`  → render `<Component {...resolvedProps} />`
  *   - entry has `endpoint`   → render UniversalWidget (auto table/chart)
  * Types that are not in the registry: copilot/{id}, user/{id}, model/{model}, data/{provider}/{model}.
@@ -12,6 +13,7 @@
 import { useMemo } from 'react';
 import UniversalWidget from './UniversalWidget';
 import UserWidget from './UserWidget';
+import { DataWidget } from '../../mp-widgets';
 import { WIDGET_ENDPOINTS } from '../../registry/widgetEndpoints';
 
 // 제거된(deprecated) 위젯 타입 → 대체 위젯 매핑. 저장된 워크스페이스 레이아웃이
@@ -59,6 +61,11 @@ export default function WidgetRenderer({ widget, symbol, portfolioData, onRemove
         onRemove={onRemove}
       />
     );
+  }
+
+  // mp-widgets 스펙 — API + 뷰 선언만으로 그리는 위젯
+  if (reg?.spec) {
+    return <DataWidget spec={reg.spec} symbol={symbol} onRemove={onRemove} />;
   }
 
   if (reg?.component) {
