@@ -3,7 +3,7 @@
  * 여기서만 가져온다 (요청·실시간 시세·테마·위젯 껍데기·상태 화면·기억하는 값·종목 검색·라우팅).
  * 라이브러리를 다른 앱으로 옮길 때는 이 파일만 바꾼다.
  */
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiClient, API_BASE } from '../config/api';
 import useQuoteSocket from '../hooks/useQuoteSocket';
@@ -11,7 +11,9 @@ import useThemeStore from '../store/themeStore';
 import WidgetCard, { HeaderSeg } from '../components/widgets/common/WidgetCard';
 import {
   WidgetState, useWidgetState, useWidgetSymbol, usePopover, stateFromError, PANEL_CLS,
+  Select, ParamField, Popover, sourceLabel,
 } from '../components/widgets/ui';
+import { providersAPI } from '../config/api';
 import SymbolAutocomplete from '../components/common/SymbolAutocomplete';
 
 /** '/stock/ranking/live?…' → 응답(JSON). 경로는 /api 뒤부터 */
@@ -48,7 +50,30 @@ export function useQuotes(symbols) {
   return quotes;
 }
 
+/**
+ * 이 모델(게이트웨이 /data/{provider}/{model})을 구현한 provider 목록 → Select 옵션.
+ * 내 키가 없는 provider 는 고를 수는 있되 'Key needed' 가 붙는다. model 이 없으면 빈 목록.
+ */
+export function useProviderOptions(model) {
+  const [options, setOptions] = useState([]);
+  useEffect(() => {
+    if (!model) { setOptions([]); return undefined; }
+    let alive = true;
+    providersAPI.list()
+      .then((res) => {
+        if (!alive) return;
+        setOptions((res?.providers || [])
+          .filter((p) => (p.categories || []).includes(model))
+          .map((p) => ({ value: p.id, label: p.name || sourceLabel(p.id), note: p.configured ? undefined : 'Key needed' })));
+      })
+      .catch(() => { if (alive) setOptions([]); });
+    return () => { alive = false; };
+  }, [model]);
+  return options;
+}
+
 export {
+  Select, ParamField, Popover, sourceLabel,
   Link, useNavigate,
   WidgetCard as Card, HeaderSeg,
   WidgetState as StateView, stateFromError as toState,

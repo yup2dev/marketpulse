@@ -361,6 +361,11 @@ html.light .split-resize-handle::after { background-color: rgba(255, 255, 255, 0
   will-change: width, height;
 }
 
+/* 머리줄의 드롭다운·팝오버가 열린 위젯은 옆·아래 위젯보다 위에 그린다 */
+.react-grid-item:has([aria-expanded="true"]) {
+  z-index: 30;
+}
+
 .react-grid-item.static {
   background: transparent;
 }

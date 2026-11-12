@@ -27,7 +27,19 @@ export function TrendLine({ values = [], baseline, color, width = 80, height = 2
   );
 }
 
-const LOGO_COLORS = ['#3A3B43', '#3F7D20', '#1F6FB2', '#2B2F3A', '#2E7D6B', '#6B4FA8', '#A8562B', '#8A3B5E', '#2F5D8A', '#5B6B2E'];
+/** 범주 색 — 등락 색(빨강·파랑)과 섞이지 않게 계열·조각을 구분한다 (선 비교 · 도넛) */
+export const SERIES_COLORS = ['#8E8E96', '#B4A27A', '#2BB3A3', '#3182F6', '#8B7CF6', '#E0A845', '#E06C8C'];
+export const SLICE_COLORS = ['#3182F6', '#8B7CF6', '#2BB3A3', '#E0A845', '#E06C8C', '#8E8E96', '#B4A27A'];
+
+/** 'y2:2Y,y10:10Y' → [{ field: 'y2', label: '2Y' }, …]. 이름을 안 적으면 필드 이름 */
+export function parseSeries(text) {
+  return String(text || '').split(',').map((part) => part.trim()).filter(Boolean).map((part) => {
+    const at = part.indexOf(':');
+    return at < 0 ? { field: part, label: part } : { field: part.slice(0, at).trim(), label: part.slice(at + 1).trim() };
+  });
+}
+
+const LOGO_COLORS =['#3A3B43', '#3F7D20', '#1F6FB2', '#2B2F3A', '#2E7D6B', '#6B4FA8', '#A8562B', '#8A3B5E', '#2F5D8A', '#5B6B2E'];
 
 /** 종목 로고 자리 — 이름 첫 글자 + 심볼로 정한 색 */
 export function StockLogo({ symbol, name }) {

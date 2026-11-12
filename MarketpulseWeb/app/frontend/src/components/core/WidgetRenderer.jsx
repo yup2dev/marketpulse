@@ -68,8 +68,9 @@ export default function WidgetRenderer({ widget, symbol, portfolioData, onRemove
     );
   }
 
-  // 기본 제공 위젯 — DB 정의를 mp-widgets 스펙으로 바꿔 그린다 (위젯마다 컴포넌트 없음)
-  if (!reg && builtinDef) {
+  // 기본 제공 위젯 — DB 정의를 mp-widgets 스펙으로 바꿔 그린다 (위젯마다 컴포넌트 없음).
+  // 같은 id 가 코드 레지스트리에도 있으면 DB 정의가 이긴다 — 레지스트리 쪽은 정의를 못 불러왔을 때의 대체다.
+  if (builtinDef) {
     return <DataWidget spec={toSpec(builtinDef)} symbol={symbol} onRemove={onRemove} />;
   }
 

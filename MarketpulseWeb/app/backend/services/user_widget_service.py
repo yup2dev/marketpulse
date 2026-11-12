@@ -70,6 +70,11 @@ CODES: Dict[str, List[Dict[str, Any]]] = {
         {"value": "candles", "name": "캔들 차트"},
         {"value": "treemap", "name": "트리맵"},
         {"value": "list",    "name": "한 줄 목록"},
+        {"value": "lines",   "name": "선 차트 (계열 칩 비교)"},
+        {"value": "donut",   "name": "비중 도넛 + 범례"},
+        {"value": "gauge",   "name": "반원 게이지"},
+        {"value": "kv",      "name": "이름 · 값 목록"},
+        {"value": "stats",   "name": "요약 줄 (머리줄 없는 한 줄)"},
     ],
     # 필드가 뷰에서 맡는 자리 (user_widget_fields.field_role)
     "SPEC_FIELD_ROLE": [
@@ -107,6 +112,11 @@ CODES: Dict[str, List[Dict[str, Any]]] = {
         {"value": "bars_window",     "name": "보여 줄 봉만 남기기 + 전일 종가"},
         {"value": "flatten_sectors", "name": "섹터 → 시가총액 상위 종목으로 펴기"},
         {"value": "news_rows",       "name": "기사 시각 표기 + 첫 티커"},
+        {"value": "yield_points",    "name": "만기 이름 짧게 + 만기 순"},
+        {"value": "cpi_breakdown",   "name": "CPI 구성 항목 + 헤드라인 YoY·기준월"},
+        {"value": "labor_summary",   "name": "고용 지표 → 이름 · 값"},
+        {"value": "fear_greed",      "name": "공포·탐욕 합성 지수 행만"},
+        {"value": "macro_kpis",      "name": "매크로 요약 줄 (금리·물가·고용·심리)"},
     ],
     # 탭에서 행을 거르는 함수 (user_widget_tabs.filter)
     "TAB_FILTER": [
@@ -499,11 +509,15 @@ class WidgetPrefService:
 
 # ── 기본 제공 위젯의 정의 (user_id NULL) ─────────────────────────────────────
 
-def _seed_builtin(db: Session) -> None:
-    """시드(services/builtin_widget_seed.py)를 행으로 넣는다. 코드값이 틀리면 넣지 않고 알린다."""
+def _seed_builtin(db: Session, existing: set) -> bool:
+    """시드(services/builtin_widget_seed.py) 중 DB 에 없는 위젯만 행으로 넣는다. 넣은 게 있으면 True.
+
+    이미 있는 행은 건드리지 않는다 — 코드값이 틀리면 넣지 않고 알린다.
+    """
     from app.backend.services.builtin_widget_seed import BUILTIN_WIDGETS, DEFAULT_GROUP
 
-    for seq, d in enumerate(BUILTIN_WIDGETS):
+    missing = [(seq, d) for seq, d in enumerate(BUILTIN_WIDGETS) if d["widget_id"] not in existing]
+    for seq, d in missing:
         wid = d["widget_id"]
         _check("SPEC_VIEW", d["view_type"], f"기본 위젯 '{wid}'")
         if d.get("transform"):
@@ -553,7 +567,9 @@ def _seed_builtin(db: Session) -> None:
             for screen, tab, x, y, pw, ph in d.get("screens", [])
         ]
         db.add(widget)
-    db.commit()
+    if missing:
+        db.commit()
+    return bool(missing)
 
 
 def _builtin_dict(w: UserWidget) -> dict:
@@ -624,9 +640,12 @@ class BuiltinWidgetService:
 
     @staticmethod
     def list(db: Session) -> List[dict]:
-        """사용 중(use_yn=Y)인 기본 제공 위젯. 하나도 없으면(새 DB) 시드를 먼저 넣는다."""
+        """사용 중(use_yn=Y)인 기본 제공 위젯.
+
+        시드에 있는데 DB 에 없는 위젯은 먼저 넣는다 (새 DB · 새로 추가된 위젯).
+        있는 행은 그대로 둔다 — 빼려면 행을 지우지 말고 use_yn=N 으로 둔다 (지우면 다시 들어온다).
+        """
         rows = BuiltinWidgetService._rows(db)
-        if not rows:
-            _seed_builtin(db)
+        if _seed_builtin(db, {w.widget_id for w in rows}):
             rows = BuiltinWidgetService._rows(db)
         return [_builtin_dict(w) for w in rows if w.use_yn == "Y"]
