@@ -18,6 +18,8 @@ import DonutView from './views/DonutView';
 import GaugeView from './views/GaugeView';
 import KvView from './views/KvView';
 import StatsView from './views/StatsView';
+import BarsView from './views/BarsView';
+import ColumnsView from './views/ColumnsView';
 
 const VIEWS = {
   tiles:   TilesView,
@@ -30,6 +32,8 @@ const VIEWS = {
   gauge:   GaugeView,
   kv:      KvView,
   stats:   StatsView,
+  bars:    BarsView,
+  columns: ColumnsView,
 };
 
 /**

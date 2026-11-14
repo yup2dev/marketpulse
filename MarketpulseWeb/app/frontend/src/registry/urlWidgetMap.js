@@ -70,6 +70,8 @@ export const URL_WIDGET_MAP = {
       {
         id: 'overview',
         label: 'Overview',
+        // 기본 배치는 DB 의 종목 위젯(요약 줄 · 차트 · 기관 보유 · 뉴스/공시 · 배당 — registry/builtinWidgets.js).
+        // 아래는 그 정의를 못 불러왔을 때만 쓰는 대체 배치다.
         defaultWidgets: [
           { id: 'financials-ov-1',      type: 'financials',         x: 0, y: 0, w: 8, h: 9 },
           { id: 'insider-1',            type: 'insider',            x: 8, y: 0, w: 4, h: 9 },

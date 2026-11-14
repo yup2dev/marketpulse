@@ -75,6 +75,8 @@ CODES: Dict[str, List[Dict[str, Any]]] = {
         {"value": "gauge",   "name": "반원 게이지"},
         {"value": "kv",      "name": "이름 · 값 목록"},
         {"value": "stats",   "name": "요약 줄 (머리줄 없는 한 줄)"},
+        {"value": "bars",    "name": "이름 · 값 + 가로 막대 목록"},
+        {"value": "columns", "name": "세로 막대 (값 · 이름)"},
     ],
     # 필드가 뷰에서 맡는 자리 (user_widget_fields.field_role)
     "SPEC_FIELD_ROLE": [
@@ -104,6 +106,9 @@ CODES: Dict[str, List[Dict[str, Any]]] = {
         {"value": "number",  "name": "숫자"},
         {"value": "trend",   "name": "추세선"},
         {"value": "tag",     "name": "꼬리표"},
+        {"value": "muted",   "name": "흐린 글자"},
+        {"value": "value",   "name": "오른쪽 굵은 값"},
+        {"value": "value_muted", "name": "오른쪽 흐린 값"},
     ],
     # 행을 다듬는 함수 (user_widgets.transform) — 구현은 프론트 registry/builtinWidgets.js
     "TRANSFORM": [
@@ -117,10 +122,16 @@ CODES: Dict[str, List[Dict[str, Any]]] = {
         {"value": "labor_summary",   "name": "고용 지표 → 이름 · 값"},
         {"value": "fear_greed",      "name": "공포·탐욕 합성 지수 행만"},
         {"value": "macro_kpis",      "name": "매크로 요약 줄 (금리·물가·고용·심리)"},
+        {"value": "stock_kpis",      "name": "종목 요약 줄 (현재가·1년 최고/최저·베타·변동성·배당)"},
+        {"value": "holders_top",     "name": "기관 보유 — 보유 가치 큰 순 + 보고일"},
+        {"value": "dividend_bars",   "name": "배당 — 오래된 것부터 + 막대 이름"},
+        {"value": "feed_rows",       "name": "뉴스 + 공시를 한 목록으로 (최신 순)"},
     ],
     # 탭에서 행을 거르는 함수 (user_widget_tabs.filter)
     "TAB_FILTER": [
         {"value": "watchlist_tickers", "name": "내 관심 종목이 들어 있는 행만"},
+        {"value": "feed_news",         "name": "뉴스 · 공시 목록에서 뉴스만"},
+        {"value": "feed_filings",      "name": "뉴스 · 공시 목록에서 공시만"},
     ],
 }
 

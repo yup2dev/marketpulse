@@ -108,7 +108,12 @@ async def fetch_data(
         from data_fetcher.utils.helpers import parse_period_to_dates
         start_date, end_date = parse_period_to_dates(str(params.pop("period")))
         params["start_date"] = start_date
-        params["end_date"] = end_date
+        params.setdefault("end_date", end_date)   # 끝 날짜를 직접 준 요청은 그 날짜까지
+        # 날짜를 문자열(YYYY-MM-DD)로 선언한 모델(예: dividends)에는 문자열로 넘긴다
+        for key in ("start_date", "end_date"):
+            field = qp_fields.get(key)
+            if field is not None and "date" not in str(field.annotation) and hasattr(params[key], "isoformat"):
+                params[key] = params[key].isoformat()
 
     try:
         raw = await QueryExecutor.fetch(provider, model, params)

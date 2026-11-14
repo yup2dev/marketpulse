@@ -274,11 +274,12 @@ def test_builtin_widgets_are_rows_seeded_on_first_read(auth_client, db_session, 
     home = {"index-tiles", "key-events", "live-ranking", "mini-chart", "sector-heatmap", "breaking-news"}
     macro = {"macro-summary", "yield-curve", "cpi-breakdown", "labor-overview", "fear-greed"}
     concepts = {"concept-cpi", "concept-policy-rate", "concept-unemployment", "concept-long-rate", "concept-gdp-growth"}
-    assert set(widgets) == home | macro | concepts
+    stock = {"stock-summary", "stock-chart", "stock-holders", "stock-feed", "stock-dividends"}
+    assert set(widgets) == home | macro | concepts | stock
 
     # 정의는 행이다 — 마스터(user_id NULL) + 자식 테이블
     rows = db_session.query(UserWidget).all()
-    assert len(rows) == 16 and all(w.user_id is None for w in rows)
+    assert len(rows) == 21 and all(w.user_id is None for w in rows)
     assert db_session.query(UserWidgetTabItem).filter_by(widget_id="index-tiles").count() == 16
 
     # 모든 위젯에 출처·크기·기본 배치가 있다
@@ -291,7 +292,7 @@ def test_builtin_widgets_are_rows_seeded_on_first_read(auth_client, db_session, 
             assert [(s["screen"], s["tab"]) for s in w["screens"]] == [("/macro", "global")]
             continue
         # 모든 화면의 메뉴('*') + 자기 화면(홈 / 매크로) Overview 탭의 기본 배치
-        screen = "/macro" if w["widget_id"] in macro else "/"
+        screen = "/macro" if w["widget_id"] in macro else "/stock" if w["widget_id"] in stock else "/"
         assert [s["screen"] for s in w["screens"]] == ["*", screen] and placed["tab"] == "overview"
 
     ranking = widgets["live-ranking"]
@@ -324,9 +325,32 @@ def test_builtin_widgets_are_rows_seeded_on_first_read(auth_client, db_session, 
     assert widgets["labor-overview"]["options"]["tab.claims.view"] == "lines"
     assert widgets["macro-summary"]["options"]["extra.yields"] == "/data/{provider}/yield_curve?date={date}"
 
+    # 주요 일정은 경제 캘린더 표 — 폭을 안 적은 지표 열이 나머지를 갖는다
+    events = widgets["key-events"]
+    assert events["view_type"] == "table" and events["options"]["fixed"] == "true"
+    assert [(f["label"], f["format"]) for f in events["fields"]] == [
+        ("시간", "muted"), ("국가", "muted"), ("지표", "text"),
+        ("실제", "value"), ("예상", "value_muted"), ("이전", "value_muted"),
+    ]
+    assert [f["width"] for f in events["fields"]].count(None) == 1
+
+    # 종목 위젯: 페이지 종목({symbol})을 따르고, 게이트웨이 요청은 데이터 소스를 고를 수 있다
+    assert widgets["stock-summary"]["endpoint"] == "/data/{provider}/key_metrics?symbol={symbol}"
+    assert widgets["stock-summary"]["view_type"] == "stats" and widgets["stock-summary"]["quote_key"] == "$symbol"
+    assert set(widgets["stock-summary"]["options"]) == {"provider", "extra.quote", "extra.history", "extra.dividends"}
+    candles = widgets["stock-chart"]
+    assert candles["options"] == {"headline": "false", "ma": "5"} and candles["params"][0]["param_value"] == "1d"
+    assert [o["value"] for o in candles["params"][0]["options"]] == ["5m", "1d", "1wk", "1mo"]
+    assert widgets["stock-holders"]["view_type"] == "bars" and widgets["stock-dividends"]["view_type"] == "columns"
+    feed = widgets["stock-feed"]
+    assert feed["source"] == ["sec", "polygon"] and feed["transform"] == "feed_rows"
+    assert [(t["tab_code"], t["filter"]) for t in feed["tabs"]] == [
+        ("all", None), ("news", "feed_news"), ("filings", "feed_filings"),
+    ]
+
     # 두 번째 읽기는 다시 넣지 않는다. 모든 사용자가 같은 정의를 본다
-    assert len(client.get("/api/user-widgets/builtin", headers=admin).json()["widgets"]) == 16
-    assert db_session.query(UserWidget).count() == 16
+    assert len(client.get("/api/user-widgets/builtin", headers=admin).json()["widgets"]) == 21
+    assert db_session.query(UserWidget).count() == 21
 
 
 def test_builtin_widgets_added_to_the_seed_reach_an_existing_db(auth_client, db_session):
@@ -343,7 +367,7 @@ def test_builtin_widgets_added_to_the_seed_reach_an_existing_db(auth_client, db_
     widgets = {w["widget_id"]: w for w in client.get("/api/user-widgets/builtin").json()["widgets"]}
     assert widgets["fear-greed"]["view_type"] == "gauge"
     assert widgets["mini-chart"]["default_symbol"] == "AAPL"
-    assert db_session.query(UserWidget).count() == 16
+    assert db_session.query(UserWidget).count() == 21
 
 
 def test_builtin_widgets_follow_the_db_not_the_seed(auth_client, db_session):

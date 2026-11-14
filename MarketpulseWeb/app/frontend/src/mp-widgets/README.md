@@ -78,15 +78,17 @@ endpoint → 행 꺼내기(dataPath) → prepare → 실시간 시세 병합(quo
 | 뷰 | 용도 | 옵션 (자세한 건 각 파일 머리 주석) |
 |---|---|---|
 | `tiles` | 시세 타일 격자 | `symbol, label, series, columns` |
-| `table` | 표 | `columns[{ type, header, field, width, align, render }]`, `minWidth` — type: `rank stock price change compact number trend tag text` |
-| `candles` | 한 종목 캔들 + 거래량 | `headline` — 등락률 기준은 `meta.prevClose` |
+| `table` | 표 | `columns[{ type, header, field, width, align, render }]`, `minWidth`, `rowHeight`, `fixed`(열 폭 고정 + 넘치면 …) — type: `rank stock price change compact number trend tag text muted value value_muted` |
+| `candles` | 한 종목 캔들 + 거래량 | `headline`, `ma`(이동평균선 봉 수) — 등락률 기준은 `meta.prevClose` |
 | `treemap` | 넓이 = 크기, 색 = 등락률 | `value, label, change, group, link, heatMax` |
 | `list` | 시각 · 제목 · 꼬리표/값 | `time, title, sub, href, tag, tagSymbol, value, valueMuted, dot, rowHeight` |
 | `lines` | 선 차트. 계열이 여럿이면 칩으로 최대 `max` 개 비교 | `x, series('필드:이름,…'), pick, max, labels, unit, digits` |
 | `donut` | 비중 도넛 + 범례 목록 (가운데 둘째 줄 = `meta.center`) | `value, label, change, detail, centerLabel, labelHeader, changeHeader, detailHeader` |
 | `gauge` | 0~100 반원 게이지 하나 | `value, label, zones('끝값:이름,…')` |
 | `kv` | 이름 · 값 목록 (박스 없음) | `label, value, columns` |
-| `stats` | 요약 줄 — 머리줄 없는 한 줄 패널 | `label, value, note` |
+| `stats` | 요약 줄 — 머리줄 없는 한 줄 패널 | `label, value, note, change`(값 뒤 등락 — 색은 행의 `tone` 부호) |
+| `bars` | 이름 · 값 + 얇은 가로 막대 목록 (막대 = 가장 큰 값 대비) | `label, value, sub, format(compact·number·pct), prefix, digits, rowHeight` |
+| `columns` | 세로 막대 + 위에 값 · 아래 이름 (좁으면 건너뛰며 표시) | `label, value, prefix, digits` |
 
 뷰 옵션의 필드 자리에는 필드 이름이나 `(row, ctx) => 값` 을 쓸 수 있다.
 
@@ -113,7 +115,7 @@ registerView('bars', BarsView);
 | `data.js` | `fill` `pick` `useApi` `useSeries` `useExtra` `normalizeBars` `lastSession` |
 | `format.js` | `fmtPct` `fmtPrice` `fmtCompact` `fmtNumber` `toneOf` `read` |
 | `Plot.jsx` | Plotly 래퍼 — `figure(colors)`. 테마가 바뀌면 다시 그린다 |
-| `views/` | 뷰 10종 + 공용 조각(`parts.jsx`) |
+| `views/` | 뷰 12종 + 공용 조각(`parts.jsx`) |
 | `adapter.js` | 앱에 기대는 것 전부 (요청·시세 소켓·테마·카드·상태 화면·라우팅). 다른 파일은 앱 코드를 직접 import 하지 않는다 |
 
 색은 `index.css` 의 `--mp-*`(카드) · `--mpc-*`(차트) 변수만 쓴다. 다크/라이트와 등락 색 관례(`html[data-updown="us"]`)가 변수에서 바뀐다.
