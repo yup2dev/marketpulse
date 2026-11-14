@@ -3,6 +3,7 @@
  *
  * options:
  *   headline  true    차트 위에 종목(누르면 바꾸기) · 현재가 · 등락률을 보여 준다
+ *   ma        0       종가 이동평균선의 봉 수 (예: 5). 0 이면 안 그린다
  *
  * 등락률 기준은 meta.prevClose (스펙의 transform 이 { rows, meta } 로 넘긴다).
  * 현재가·등락률은 실시간 시세가 있으면 그 값으로 덮는다.
@@ -57,7 +58,7 @@ function Headline({ symbol, setSymbol, price, chg }) {
 CandlesView.ownsState = true;   // 로딩·오류·빈 화면도 머리줄 아래에 그린다 (종목은 언제든 바꿀 수 있게)
 
 export default function CandlesView({ rows, meta, quotes, symbol, setSymbol, state, options = {} }) {
-  const { headline = true } = options;
+  const { headline = true, ma = 0 } = options;
 
   const figure = useCallback((c) => {
     const x = rows.map((r) => String(r.date));
@@ -78,6 +79,15 @@ export default function CandlesView({ rows, meta, quotes, symbol, setSymbol, sta
         ...(hasVolume ? [{
           type: 'bar', x, y: rows.map((r) => r.volume), yaxis: 'y2', hoverinfo: 'skip',
           marker: { color: rows.map((r) => (r.close >= r.open ? c.up : c.down)), opacity: 0.4 },
+        }] : []),
+        ...(ma > 1 ? [{
+          type: 'scatter', mode: 'lines', x, name: `MA${ma}`, hoverinfo: 'skip',
+          // 앞쪽 봉은 있는 만큼만 평균한다 (보이는 구간 밖의 봉은 받지 않는다)
+          y: rows.map((_, i) => {
+            const part = rows.slice(Math.max(0, i - ma + 1), i + 1);
+            return part.reduce((sum, r) => sum + r.close, 0) / part.length;
+          }),
+          line: { color: '#E0A845', width: 1.4 },
         }] : []),
       ],
       layout: {
@@ -103,7 +113,7 @@ export default function CandlesView({ rows, meta, quotes, symbol, setSymbol, sta
         yaxis2: { domain: [0, 0.18], showticklabels: false, showgrid: false, zeroline: false, fixedrange: true },
       },
     };
-  }, [rows]);
+  }, [rows, ma]);
 
   const q = quotes[String(symbol).toUpperCase()];
   const price = q?.price ?? rows[rows.length - 1]?.close;

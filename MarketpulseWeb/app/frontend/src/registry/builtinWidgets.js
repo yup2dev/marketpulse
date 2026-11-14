@@ -12,7 +12,7 @@
  * 새 위젯은 행을 넣는다. 함수가 새로 필요할 때만 여기에 이름을 추가하고,
  * 같은 이름을 서버 코드값(services/user_widget_service.CODES)에도 올린다.
  */
-import { normalizeBars, fmtPct } from '../mp-widgets';
+import { normalizeBars, fmtPct, fmtPrice, fmtCompact } from '../mp-widgets';
 
 // ── 행을 다듬는 함수 ───────────────────────────────────────────────────────────
 //   prepare(rows, options)       응답 직후 — 실시간 시세를 붙이기 전에 행의 모양을 바꾼다
@@ -35,7 +35,7 @@ const RANK_SORT = {
 };
 
 export const TRANSFORMS = {
-  // 시각 순 (시각이 없는 종일 일정은 맨 위) + 값 칸: 실제치, 없으면 '예상 …'(흐리게)
+  // 시각 순 (시각이 없는 종일 일정은 맨 위) + 값 칸: 실제치, 없으면 '예상 …'(흐리게) + 국가 두 글자(_cc)
   events_by_time: {
     apply: (rows, _ctx, o) => rows
       .map((ev, i) => ({ ev, i }))
@@ -45,6 +45,7 @@ export const TRANSFORMS = {
         _value: ev.actual || (ev.consensus ? `${o.consensusLabel || ''} ${ev.consensus}`.trim() : null),
         _muted: !ev.actual,
         _dot: ev.impact === 'high',
+        _cc: COUNTRY_CODES[ev.country] || ev.country || '',
       })),
   },
 
@@ -139,6 +140,120 @@ export const TRANSFORMS = {
       ].filter(([, , value]) => value != null).map(([id, label, value, note]) => ({ id, label, value, note }));
     },
   },
+
+  // 종목 요약 줄: 현재가 · 등락(시세 → 없으면 quote) + 1년 최고/최저 · 베타(주 요청) · 연 변동성(일봉) · 최근 배당
+  stock_kpis: {
+    apply: (rows, { symbol, extra, quotes }) => {
+      const m = (Array.isArray(rows) ? rows[0] : rows) || {};
+      const q = (extra.quote || [])[0] || {};
+      const live = quotes?.[String(symbol || '').toUpperCase()] || {};
+      const cur = q.currency;
+      const price = live.price ?? q.last_price;
+      const pct = live.change_percent ?? q.change_percent;
+      // 등락폭은 현재가와 등락률에서 다시 구한다 (실시간 시세에는 등락폭이 없다)
+      const diff = price != null && pct != null ? price - price / (1 + pct / 100) : null;
+      const closes = normalizeBars(extra.history).map((b) => b.close);
+      const high = m.week_52_high ?? q.week_52_high ?? (closes.length ? Math.max(...closes) : null);
+      const low = m.week_52_low ?? q.week_52_low ?? (closes.length ? Math.min(...closes) : null);
+      const vol = annualVolatility(closes);
+      const lastDiv = [...(extra.dividends || [])].sort((a, b) => String(b.date).localeCompare(String(a.date)))[0];
+      const cap = m.market_cap ?? q.market_cap;
+      const money = (v) => (v == null ? null : fmtPrice(v, cur));
+      return [
+        {
+          id: 'price', label: q.name || symbol, value: money(price), tone: pct,
+          change: diff != null ? `${diff > 0 ? '+' : diff < 0 ? '−' : ''}${Math.abs(diff).toFixed(2)} (${fmtPct(pct)})` : null,
+        },
+        { id: 'high', label: '1년 최고', value: money(high) },
+        { id: 'low', label: '1년 최저', value: money(low) },
+        { id: 'beta', label: '베타', value: m.beta != null ? Number(m.beta).toFixed(2) : null },
+        { id: 'vol', label: '연 변동성', value: vol != null ? `${vol.toFixed(1)}%` : null },
+        { id: 'div', label: '최근 배당', value: money(lastDiv?.dividend) },
+        { id: 'cap', label: '시가총액', value: cap != null ? fmtCompact(cap, 2) : null },
+      ].filter((r) => r.value != null);
+    },
+  },
+
+  // 기관 보유: 보유 가치 큰 순 + 보고일(asOf)을 meta 로
+  holders_top: {
+    apply: (rows) => {
+      const list = rows.filter((r) => r.name).sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
+      return { rows: list, meta: { asOf: list.map((r) => r.date_reported).filter(Boolean).sort().pop() || '' } };
+    },
+  },
+
+  // 배당: 오래된 것부터 + 막대 아래 이름(_label: 'YY.MM') + 통화를 meta 로
+  dividend_bars: {
+    apply: (rows) => {
+      const list = rows.filter((r) => r.dividend != null && r.date)
+        .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+      return {
+        rows: list.map((r) => ({ ...r, _label: `${String(r.date).slice(2, 4)}.${String(r.date).slice(5, 7)}` })),
+        meta: { currency: list[list.length - 1]?.currency || 'USD' },
+      };
+    },
+  },
+
+  // 공시(주 요청) + 뉴스(extra.news) 를 한 목록으로 — 최신 순, 꼬리표(_tag) '뉴스' · '공시'. 뉴스 요청이 실패하면 공시만
+  feed_rows: {
+    apply: (rows, { extra }) => {
+      const news = (extra.news || []).map((a) => ({
+        _kind: 'news', _tag: '뉴스', _at: a.published_utc, title: a.title, _href: a.article_url,
+      }));
+      const filings = rows.map((f) => ({
+        _kind: 'filing', _tag: '공시', _at: f.filing_date,
+        title: [f.report_type, filingSubject(f)].filter(Boolean).join(' · '), _href: f.report_url,
+      }));
+      return [...news, ...filings]
+        .filter((r) => r.title && r._at)
+        .sort((a, b) => new Date(b._at) - new Date(a._at))
+        // 날짜만 있는 값(공시일)은 시각 없이 MM/DD
+        .map((r) => ({
+          ...r,
+          _time: String(r._at).length <= 10 ? `${String(r._at).slice(5, 7)}/${String(r._at).slice(8, 10)}` : newsTime({ published_utc: r._at }),
+        }));
+    },
+  },
+};
+
+// 공시 제목 — 정기 보고서는 종류, 수시 보고서(8-K)는 항목 번호(Item)를 말로
+const FILING_FORMS = { '10-K': '연간 보고서', '10-Q': '분기 보고서' };
+const FILING_ITEMS = {
+  '1.01': '주요 계약 체결', '1.02': '주요 계약 해지', '2.01': '자산 인수 · 처분 완료', '2.02': '실적 발표',
+  '2.03': '채무 발생', '2.05': '구조조정', '3.02': '미등록 증권 발행', '4.01': '감사인 변경',
+  '5.02': '임원 · 이사 변경', '5.03': '정관 변경', '5.07': '주주총회 결과', '7.01': '공정공시', '8.01': '기타 주요 사항',
+};
+
+function filingSubject(f) {
+  const form = String(f.report_type || '').replace('/A', '');
+  if (FILING_FORMS[form]) return FILING_FORMS[form];
+  // 9.01(재무제표 · 첨부)은 다른 항목에 딸려 오므로 뺀다
+  const items = String(f.items || '').split(',').map((s) => s.trim()).filter((s) => s && s !== '9.01');
+  const named = items.map((s) => FILING_ITEMS[s] || `Item ${s}`).join(', ');
+  if (named) return named;
+  const text = f.title || f.primary_doc_description;
+  return text && text !== f.report_type ? text : '';
+}
+
+/** 일봉 종가 → 연 변동성(%) — 일간 로그수익률의 표준편차 × √252. 봉이 모자라면 null */
+function annualVolatility(closes) {
+  const rets = [];
+  for (let i = 1; i < closes.length; i += 1) {
+    if (closes[i] > 0 && closes[i - 1] > 0) rets.push(Math.log(closes[i] / closes[i - 1]));
+  }
+  if (rets.length < 20) return null;
+  const mean = rets.reduce((a, b) => a + b, 0) / rets.length;
+  const variance = rets.reduce((a, b) => a + (b - mean) ** 2, 0) / (rets.length - 1);
+  return Math.sqrt(variance) * Math.sqrt(252) * 100;
+}
+
+// 일정 표의 국가 칸 — 응답의 국가 이름을 두 글자로 (없는 이름은 그대로)
+const COUNTRY_CODES = {
+  'United States': 'US', 'Euro Zone': 'EU', 'United Kingdom': 'UK', Germany: 'DE', France: 'FR', Italy: 'IT',
+  Spain: 'ES', Japan: 'JP', China: 'CN', 'South Korea': 'KR', India: 'IN', Canada: 'CA', Australia: 'AU',
+  'New Zealand': 'NZ', Switzerland: 'CH', Brazil: 'BR', Mexico: 'MX', Russia: 'RU', Turkey: 'TR',
+  'South Africa': 'ZA', 'Hong Kong': 'HK', Singapore: 'SG', Indonesia: 'ID', Sweden: 'SE', Norway: 'NO',
+  Netherlands: 'NL', Belgium: 'BE', Austria: 'AT', Portugal: 'PT', Ireland: 'IE', Greece: 'GR', Poland: 'PL',
 };
 
 /** '3-Month' → '3M', '10-Year' → '10Y' */
@@ -185,6 +300,9 @@ export const TAB_FILTERS = {
     const mine = new Set((extra.favorites || []).map((s) => String(s).toUpperCase()));
     return rows.filter((a) => (a.tickers || []).some((t) => mine.has(String(t).toUpperCase())));
   },
+  // 뉴스 · 공시 목록(feed_rows)에서 한 종류만
+  feed_news: (rows) => rows.filter((r) => r._kind === 'news'),
+  feed_filings: (rows) => rows.filter((r) => r._kind === 'filing'),
 };
 
 // ── 정의 → 스펙 ────────────────────────────────────────────────────────────────

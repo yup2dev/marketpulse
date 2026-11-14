@@ -19,6 +19,11 @@ a{color:#8FB8FF}a:hover{color:#B9D3FF}
 .wx:hover{background:#1E1E22;color:#E8E8EA}
 .mi{display:flex;align-items:center;gap:10px;width:100%;height:36px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:#E8E8EA;font:inherit;font-size:13px;text-align:left;cursor:pointer}
 .mi:hover{background:#1E1E22}
+.hc{display:flex;align-items:center;gap:4px;min-width:0;height:24px;padding:0 8px;border:0;border-radius:6px;background:#1E1E22;color:#C9C9CF;font:inherit;font-size:11px;white-space:nowrap;cursor:pointer}
+.hc:hover{background:#2A2A2F;color:#E8E8EA}
+.hc>span{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.hcs{display:flex;align-items:center;gap:6px;min-width:0;margin-right:2px}
+.note{flex:0 1 auto;min-width:0;margin-left:auto;margin-right:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:#6E6E76}
 *{scrollbar-width:thin;scrollbar-color:#2A2A2F transparent}
 ::-webkit-scrollbar{width:8px;height:8px}
 ::-webkit-scrollbar-track,::-webkit-scrollbar-corner{background:transparent}
@@ -93,7 +98,8 @@ a{color:#8FB8FF}a:hover{color:#B9D3FF}
           <span style="width: 20px; color: #55555C; text-align: center" aria-hidden="true">⠿</span>
           <span style="height: 28px; padding: 0 10px; border-radius: 6px; background: #1E1E22; display: flex; align-items: center; font-size: 12px; font-weight: 700">차트</span>
           <span style="margin-left: 8px; font-size: 11px; color: #9C9CA3">이동평균 <span style="color: #E0A845">5</span></span>
-          <span style="margin-left: auto; display: flex; gap: 2px">
+          <div class="hcs" style="margin-left: auto"><button type="button" class="hc" onClick="{{ hc.chart.openProv }}" aria-haspopup="listbox" aria-expanded="{{ hc.chart.provOpen }}" title="데이터 소스"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#8E8E96" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink: 0"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M3 5v14a9 3 0 0 0 18 0V5"></path><path d="M3 12a9 3 0 0 0 18 0"></path></svg><span>{{ hc.chart.label }}</span><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#8E8E96" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink: 0"><polyline points="6 9 12 15 18 9"></polyline></svg></button></div>
+          <span style="display: flex; gap: 2px">
             <button type="button" style="height: 28px; padding: 0 8px; border-radius: 6px; border: 0; background: transparent; color: #9C9CA3; font: inherit; font-size: 12px">5분</button>
             <button type="button" aria-pressed="true" style="height: 28px; padding: 0 8px; border-radius: 6px; border: 0; background: #2A2A2F; color: #FFFFFF; font: inherit; font-size: 12px; font-weight: 700">일</button>
             <button type="button" style="height: 28px; padding: 0 8px; border-radius: 6px; border: 0; background: transparent; color: #9C9CA3; font: inherit; font-size: 12px">주</button>
@@ -121,7 +127,8 @@ a{color:#8FB8FF}a:hover{color:#B9D3FF}
         <div style="display: flex; align-items: center; gap: 4px; height: 40px; padding: 0 8px; flex-shrink: 0">
           <span style="width: 20px; color: #55555C; text-align: center" aria-hidden="true">⠿</span>
           <span style="height: 28px; padding: 0 10px; border-radius: 6px; background: #1E1E22; display: flex; align-items: center; font-size: 12px; font-weight: 700">기관 보유</span>
-          <span style="margin-left: auto; font-size: 11px; color: #6E6E76">2026-06-30 · Yahoo</span>
+          <span class="note">2026-06-30</span>
+          <div class="hcs"><button type="button" class="hc" onClick="{{ hc.holders.openProv }}" aria-haspopup="listbox" aria-expanded="{{ hc.holders.provOpen }}" title="데이터 소스"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#8E8E96" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink: 0"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M3 5v14a9 3 0 0 0 18 0V5"></path><path d="M3 12a9 3 0 0 0 18 0"></path></svg><span>{{ hc.holders.label }}</span><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#8E8E96" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink: 0"><polyline points="6 9 12 15 18 9"></polyline></svg></button></div>
           <button type="button" class="wx" onClick="{{ close.holders }}" aria-label="기관 보유 위젯 닫기"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg></button>
         </div>
         <div style="flex: 1; overflow: auto">
@@ -140,7 +147,7 @@ a{color:#8FB8FF}a:hover{color:#B9D3FF}
         <div style="display: flex; align-items: center; gap: 4px; height: 40px; padding: 0 8px; flex-shrink: 0">
           <span style="width: 20px; color: #55555C; text-align: center" aria-hidden="true">⠿</span>
           <span style="height: 28px; padding: 0 10px; border-radius: 6px; background: #1E1E22; display: flex; align-items: center; font-size: 12px; font-weight: 700">뉴스 · 공시</span>
-          <span style="margin-left: auto; font-size: 11px; color: #6E6E76">Polygon · SEC EDGAR</span>
+          <div class="hcs" style="margin-left: auto"><button type="button" class="hc" onClick="{{ hc.feed.openProv }}" aria-haspopup="listbox" aria-expanded="{{ hc.feed.provOpen }}" title="데이터 소스"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#8E8E96" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink: 0"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M3 5v14a9 3 0 0 0 18 0V5"></path><path d="M3 12a9 3 0 0 0 18 0"></path></svg><span>{{ hc.feed.label }}</span><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#8E8E96" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink: 0"><polyline points="6 9 12 15 18 9"></polyline></svg></button></div>
           <button type="button" class="wx" onClick="{{ close.feed }}" aria-label="뉴스 공시 위젯 닫기"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg></button>
         </div>
         <div style="flex: 1; overflow: auto">
@@ -160,7 +167,8 @@ a{color:#8FB8FF}a:hover{color:#B9D3FF}
         <div style="display: flex; align-items: center; gap: 4px; height: 40px; padding: 0 8px; flex-shrink: 0">
           <span style="width: 20px; color: #55555C; text-align: center" aria-hidden="true">⠿</span>
           <span style="height: 28px; padding: 0 10px; border-radius: 6px; background: #1E1E22; display: flex; align-items: center; font-size: 12px; font-weight: 700">배당</span>
-          <span style="margin-left: auto; font-size: 11px; color: #6E6E76">분기 · USD</span>
+          <span class="note">분기 · USD</span>
+          <div class="hcs"><button type="button" class="hc" onClick="{{ hc.dividends.openProv }}" aria-haspopup="listbox" aria-expanded="{{ hc.dividends.provOpen }}" title="데이터 소스"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#8E8E96" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink: 0"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M3 5v14a9 3 0 0 0 18 0V5"></path><path d="M3 12a9 3 0 0 0 18 0"></path></svg><span>{{ hc.dividends.label }}</span><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#8E8E96" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink: 0"><polyline points="6 9 12 15 18 9"></polyline></svg></button></div>
           <button type="button" class="wx" onClick="{{ close.dividends }}" aria-label="배당 위젯 닫기"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg></button>
         </div>
         <div style="flex: 1; min-height: 0; display: flex; align-items: flex-end; gap: 12px; padding: 8px 16px 12px">
@@ -188,6 +196,15 @@ a{color:#8FB8FF}a:hover{color:#B9D3FF}
           </div>
         </section>
       </sc-for>
+
+      <sc-if value="{{ popProv }}" hint-placeholder-val="{{ false }}">
+        <div data-pop="1" role="listbox" aria-label="데이터 소스" style="position: absolute; left: {{ popX }}; top: {{ popY }}; z-index: 11; width: 240px; box-sizing: border-box; padding: 4px; border-radius: 8px; background: #19191C; border: 1px solid #2A2A2F; box-shadow: 0 12px 32px rgba(0,0,0,0.5)">
+          <button type="button" role="option" aria-selected="true" class="mi" onClick="{{ closePop }}" style="height: 32px; font-size: 12px">
+            <span style="flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ popLabel }}</span>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#3182F6" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink: 0"><polyline points="5 12 10 17 19 7"></polyline></svg>
+          </button>
+        </div>
+      </sc-if>
 
       <sc-if value="{{ menuOpen }}" hint-placeholder-val="{{ false }}">
         <div role="menu" aria-label="위젯 추가" style="position: absolute; left: {{ menuX }}; top: {{ menuY }}; z-index: 10; width: 248px; padding: 6px; border-radius: 8px; background: #19191C; border: 1px solid #2A2A2F; box-shadow: 0 12px 32px rgba(0,0,0,0.5)">
@@ -299,9 +316,31 @@ class Component extends DCLogic {
       const r = e.currentTarget.getBoundingClientRect();
       const x = Math.min(e.clientX - r.left, r.width - 256);
       const y = Math.min(e.clientY - r.top, r.height - 40);
-      this.setState({ menu: { x: Math.max(8, x), y: Math.max(8, y) } });
+      this.setState({ menu: { x: Math.max(8, x), y: Math.max(8, y) }, pop: null });
     };
-    const closeMenu = () => { if (st.menu) this.setState({ menu: null }); };
+    const closeMenu = (e) => {
+      if (e && e.target && e.target.closest && e.target.closest('[data-pop]')) return;
+      if (st.menu || st.pop) this.setState({ menu: null, pop: null });
+    };
+
+    // ── 머리줄 데이터 소스 칩 (모든 위젯) — 소스가 고정이면 어디서 온 값인지 보여 주기만 한다 ──
+    const SOURCES = {
+      chart: ['Yahoo Finance', 'Yahoo Finance'], holders: ['Yahoo Finance', 'Yahoo Finance'],
+      feed: ['Polygon · SEC', 'Polygon.io · SEC EDGAR'], dividends: ['Yahoo Finance', 'Yahoo Finance'],
+    };
+    const pop = st.pop || null;
+    const openPop = (k) => (e) => {
+      e.stopPropagation();
+      if (pop && pop.k === k) { this.setState({ pop: null }); return; }
+      const m = e.currentTarget.closest('main');
+      const r = m.getBoundingClientRect();
+      const b = e.currentTarget.getBoundingClientRect();
+      this.setState({ menu: null, pop: { k, x: Math.max(8, b.right - r.left + m.scrollLeft - 240), y: b.bottom - r.top + m.scrollTop + 4 } });
+    };
+    const hc = Object.fromEntries(Object.keys(SOURCES).map((k) => [k, {
+      label: SOURCES[k][0], openProv: openPop(k), provOpen: pop && pop.k === k ? 'true' : 'false',
+    }]));
+    const closePop = () => this.setState({ pop: null });
 
     // ── 데이터 (AAPL 위젯 캡처 값) ──
     const stats = [
@@ -374,6 +413,8 @@ class Component extends DCLogic {
       .map(([name, price, c]) => ({ name, price, chg: pct(c), color: tone(c) }));
     return {
       up: UP, stats, candles, ma, holders, feed, dividends, rail, footer, watch,
+      hc, popProv: !!pop, popX: (pop ? pop.x : 0) + 'px', popY: (pop ? pop.y : 0) + 'px',
+      popLabel: pop ? SOURCES[pop.k][1] : '', closePop,
       show, close, added: addedPanels, catalog, closedList, hasClosed: closed.length > 0,
       menuOpen: !!st.menu, menuX: (st.menu ? st.menu.x : 0) + 'px', menuY: (st.menu ? st.menu.y : 0) + 'px', openMenu, closeMenu,
       tabs, list: lists[tabKey], watchOpen, watchClosed: !watchOpen, toggleWatch,
