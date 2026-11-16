@@ -38,11 +38,17 @@ export function withAlpha(hex, alpha) {
 
 export const FONT = "Inter, 'Noto Sans KR', system-ui, sans-serif";
 
-export default function Plot({ figure, onClick, ariaLabel }) {
+/**
+ * config      Plotly config 를 덮어쓴다 (예: 그리기 도구를 쓰는 차트의 { editable … })
+ * onRelayout  사용자가 축을 옮기거나 도형을 그렸을 때 (layout) => … — 그린 도형은 layout.shapes 에 있다
+ */
+export default function Plot({ figure, onClick, onRelayout, config, ariaLabel }) {
   const ref = useRef(null);
   const theme = useTheme();
   const clickRef = useRef(onClick);
   clickRef.current = onClick;
+  const relayoutRef = useRef(onRelayout);
+  relayoutRef.current = onRelayout;
 
   useEffect(() => {
     const el = ref.current;
@@ -51,16 +57,17 @@ export default function Plot({ figure, onClick, ariaLabel }) {
       if (cancelled || !el) return;
       const { data, layout } = figure(readColors());
       const first = !el._mpPlot;
-      Plotly.react(el, data, { autosize: true, ...layout }, CONFIG).then(() => {
+      Plotly.react(el, data, { autosize: true, ...layout }, config ? { ...CONFIG, ...config } : CONFIG).then(() => {
         if (!first || cancelled) return;
         el._mpPlot = Plotly;
         el.on('plotly_click', (ev) => clickRef.current?.(ev.points?.[0]));
+        el.on('plotly_relayout', () => relayoutRef.current?.(el.layout));
         el._mpResize = new ResizeObserver(() => Plotly.Plots.resize(el));
         el._mpResize.observe(el);
       });
     });
     return () => { cancelled = true; };
-  }, [figure, theme]);
+  }, [figure, theme, config]);
 
   useEffect(() => () => {
     const el = ref.current;

@@ -33,7 +33,7 @@ export function ProviderSelect({ value, options, onChange }) {
   );
 }
 
-/** control.optionsFrom = { endpoint, value, label } 이면 선택지를 요청으로 채운다 (실패하면 정의의 선택지 그대로) */
+/** control.optionsFrom = { endpoint, value, label, keep } 이면 선택지를 요청으로 채운다 (실패하면 정의의 선택지 그대로) */
 export function ControlSelect({ control, value, onChange }) {
   const from = control.optionsFrom;
   const [loaded, setLoaded] = useState(null);
@@ -44,9 +44,11 @@ export function ControlSelect({ control, value, onChange }) {
       .then((res) => {
         const rows = pick(res) || [];
         if (alive && rows.length) {
-          setLoaded(rows.map((r) => ({
+          const list = rows.map((r) => ({
             value: r[from.value], label: r[from.label] ?? r[from.value], note: r.available === false ? 'Key needed' : undefined,
-          })));
+          }));
+          // keep: 정의의 선택지(예: '최근 실행')를 앞에 남기고 받아 온 목록을 뒤에 붙인다
+          setLoaded(from.keep ? [...control.options, ...list.filter((o) => !control.options.some((c) => c.value === o.value))] : list);
         }
       })
       .catch(() => {});

@@ -33,6 +33,10 @@ REM 2) 13F 기관 보유 + 추정 수익률 — 일요일에만 (13F는 분기 �
 .venv\Scripts\python.exe MarketpulseBatch\jobs\collect_13f.py --only-on sun >> "%LOG%" 2>&1
 if errorlevel 1 echo [%date% %time%] 13F collect FAILED >> "%LOG%"
 
+REM 2-1) 퀀트 산출물 (팩터 성과 · 모델 검증 · 시그널) — 일요일에만. 학습은 로컬에서만 한다
+.venv\Scripts\python.exe MarketpulseBatch\jobs\build_quant.py --only-on sun >> "%LOG%" 2>&1
+if errorlevel 1 echo [%date% %time%] quant build FAILED >> "%LOG%"
+
 REM 3) 클라우드 동기화 — 서버 max_base_ymd 이후 증분만 전송
 .venv\Scripts\python.exe MarketpulseBatch\jobs\sync_db_to_cloud.py >> "%LOG%" 2>&1
 if errorlevel 1 echo [%date% %time%] cloud sync FAILED >> "%LOG%"

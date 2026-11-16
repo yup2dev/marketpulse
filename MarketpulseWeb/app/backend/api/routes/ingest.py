@@ -42,6 +42,7 @@ from app.backend.models.orm.ingest import (
     MBS_IN_INSTI_PERF,
     MBS_IN_INSTI_PORT,
     MBS_IN_INSTI_PORT_HIST,
+    MBS_IN_QUANT_SNAPSHOT,
     MBS_IN_RESEARCH_RPT,
     MBS_IN_STBD_MST,
     MBS_IN_STK_PROFILE,
@@ -72,6 +73,7 @@ _TABLES: Dict[str, Dict[str, Any]] = {
     "mbs_in_insti_port_hist":   {"model": MBS_IN_INSTI_PORT_HIST,   "conflict": ["institution_key", "period"]},
     "mbs_in_insti_hold_hist":   {"model": MBS_IN_INSTI_HOLD_HIST,   "conflict": ["institution_key", "period", "is_sold", "seq"]},
     "mbs_in_research_rpt":      {"model": MBS_IN_RESEARCH_RPT,      "conflict": ["report_id"]},
+    "mbs_in_quant_snapshot":    {"model": MBS_IN_QUANT_SNAPSHOT,    "conflict": ["universe", "dataset"]},
 }
 
 _MAX_ROWS_PER_REQUEST = 5000

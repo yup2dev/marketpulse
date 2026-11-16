@@ -789,6 +789,30 @@ class MBS_IN_RESEARCH_RPT(Base):
         }
 
 
+class MBS_IN_QUANT_SNAPSHOT(Base):
+    """입수 - 퀀트 산출물 스냅샷 (팩터 성과 · 모델 검증 · 시장 국면 · 종목 시그널).
+
+    적재: MarketpulseBatch/jobs/build_quant.py (index_analyzer.quant) → sync_db_to_cloud → /api/ingest.
+    학습·검증은 로컬 배치에서만 한다 — 서버는 이 행을 읽어 그대로 내보낸다 (/api/quant/{dataset}).
+    한 행 = 한 유니버스의 한 산출물. payload 는 화면이 그릴 행 목록(JSON 배열), meta 는 덧붙는 값(JSON 객체).
+    """
+    __tablename__ = 'mbs_in_quant_snapshot'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    universe = Column(String(30), nullable=False, index=True)    # 'sp500'
+    dataset = Column(String(30), nullable=False)                 # factors · factor_returns · quantiles · models · regimes · signals
+    base_ymd = Column(Date, nullable=False)                      # 산출 기준일 (마지막 월말)
+    payload = Column(Text, nullable=False)
+    meta = Column(Text)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint('universe', 'dataset', name='uq_quant_snapshot'),
+    )
+
+
 __all__ = [
     "MBS_IN_STBD_MST",
     "MBS_IN_INDX_STBD",
@@ -808,4 +832,5 @@ __all__ = [
     "MBS_IN_INSTI_PORT_HIST",
     "MBS_IN_INSTI_HOLD_HIST",
     "MBS_IN_RESEARCH_RPT",
+    "MBS_IN_QUANT_SNAPSHOT",
 ]

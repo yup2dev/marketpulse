@@ -97,6 +97,32 @@ export const URL_WIDGET_MAP = {
         ],
       },
       {
+        id: 'chart',
+        label: 'Chart',
+        // 리디자인 차트 화면 (design/mockups/Chart.dc.html) — 한 위젯이 화면을 채운다
+        defaultWidgets: [
+          { id: 'chart-studio-1', type: 'chart-studio', x: 0, y: 0, w: 12, h: 12 },
+        ],
+        widgets: [
+          { id: 'chart-studio',   name: 'Chart',          description: 'Compare, indicators, macro overlay, events, split view, drawing' },
+          { id: 'advanced-chart', name: 'Advanced Chart', description: 'Multi-symbol, candles, indicators, pair analysis' },
+        ],
+      },
+      {
+        id: 'news',
+        label: 'News & Filings',
+        // 기본 배치는 DB 의 뉴스 · SEC 공시 위젯(stock-news · stock-filings). 아래는 정의를 못 불러왔을 때의 대체 배치다.
+        defaultWidgets: [
+          { id: 'news-feed-1',       type: 'news-feed',       x: 0, y: 0, w: 7, h: 11 },
+          { id: 'company-filings-1', type: 'company-filings', x: 7, y: 0, w: 5, h: 11 },
+        ],
+        widgets: [
+          { id: 'news-feed',       name: 'News Feed',       description: 'Latest news for this stock' },
+          { id: 'company-filings', name: 'Company Filings', description: 'SEC filings (pick a provider)' },
+          { id: 'stock-sentiment', name: 'News Sentiment',  description: 'News sentiment & trend' },
+        ],
+      },
+      {
         id: 'financials',
         label: 'Financials',
         defaultWidgets: [
@@ -279,6 +305,20 @@ export const URL_WIDGET_MAP = {
     needsSymbol: true,
     needsPortfolio: false,
     categories: [
+      {
+        id: 'factors',
+        label: 'Factors & ML',
+        // 기본 배치는 DB 의 퀀트 위젯(팩터 · 팩터 성과 · ML 모델/시장 국면 · 시그널 융합 — quant-*).
+        // 값은 로컬 배치가 적재한다. 아래는 정의를 못 불러왔을 때의 대체 배치다.
+        defaultWidgets: [
+          { id: 'quant-summary-f1', type: 'quant-summary', x: 0, y: 0, w: 6, h: 7 },
+          { id: 'quant-capm-f1',    type: 'quant-capm',    x: 6, y: 0, w: 6, h: 7 },
+        ],
+        widgets: [
+          { id: 'quant-summary', name: 'Summary', description: 'Descriptive stats (mean, std, skew, kurtosis, percentiles)' },
+          { id: 'quant-capm',    name: 'CAPM',    description: 'β / α / R² vs benchmark' },
+        ],
+      },
       {
         id: 'pricing',
         label: 'Pricing',
@@ -490,6 +530,19 @@ export const URL_WIDGET_MAP = {
           { id: 'advanced-chart',       name: 'Advanced Chart',     description: 'Multi-symbol, candles, indicators, pair analysis' },
           { id: 'correlation',          name: 'Correlation Matrix', description: 'Multi-stock correlations' },
           { id: 'comparison',           name: 'Stock Comparison',   description: 'Compare 2-4 stocks' },
+        ],
+      },
+      {
+        id: 'results',
+        label: 'Results',
+        // 기본 배치는 DB 의 실행 결과 위젯(성과 요약 · 누적 수익/낙폭 · 월별 수익률 · 거래 · 롤링 샤프 — bt-run-*).
+        // 아래는 그 정의를 못 불러왔을 때의 대체 배치다.
+        defaultWidgets: [
+          { id: 'bt-results-1', type: 'bt-results', x: 0, y: 0, w: 12, h: 12 },
+        ],
+        widgets: [
+          { id: 'bt-results',  name: 'Backtest Results', description: 'Equity curve, metrics, trades, saved runs' },
+          { id: 'bt-strategy', name: 'Strategy',         description: 'Set entry/exit rules and run a backtest' },
         ],
       },
       {

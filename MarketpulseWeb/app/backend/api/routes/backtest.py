@@ -201,6 +201,26 @@ def list_runs(
     return OBBject(results=[r.to_dict(full=False) for r in runs], provider=_PROVIDER)
 
 
+@router.get("/runs/latest")
+@route_handler
+def get_latest_run(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> OBBject:
+    """가장 최근에 저장한 실행 한 건(자산곡선·거래 포함). 저장한 실행이 없으면 빈 결과.
+
+    결과 위젯들이 실행을 고르기 전에 보여 줄 값이다. `/runs/{run_id}` 보다 먼저 선언해야
+    'latest' 가 실행 id 로 잡히지 않는다.
+    """
+    run = (
+        db.query(UserBacktestRun)
+        .filter(UserBacktestRun.user_id == current_user.user_id)
+        .order_by(UserBacktestRun.created_at.desc())
+        .first()
+    )
+    return OBBject(results=[run.to_dict()] if run else [], provider=_PROVIDER)
+
+
 @router.get("/runs/{run_id}")
 @route_handler
 def get_run(

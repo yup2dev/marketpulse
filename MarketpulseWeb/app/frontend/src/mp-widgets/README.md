@@ -39,10 +39,17 @@ endpoint → 행 꺼내기(dataPath) → prepare → 실시간 시세 병합(quo
 | **데이터 소스** | **항상** (모든 위젯 필수) | endpoint 에 `{provider}` 를 넣으면 고를 수 있다. `/data/{provider}/<model>` 은 그 모델을 구현한 provider 목록, 그 밖(`/concepts/…&provider={provider}`)은 응답 `metadata.candidates`. `{provider}` 가 없으면 실제로 답한 소스를 보여 주기만 한다. 처음 값은 옵션 `provider` (비우면 서버가 고른다) |
 | 기준일 칩 | 이름이 `date` · `*_date` 인 컨트롤 | params 행 + endpoint 의 `?date={date}`. 비우면 최신 (빈 값은 요청에서 빠진다) |
 | 한 줄 버튼 | 선택지 4개 이하 | params 행 + 선택지 |
-| 드롭다운 | 선택지 5개 이상, 또는 옵션 `optionsFrom.<컨트롤>` = `경로|값 필드|이름 필드` | 국가처럼 목록을 요청으로 채울 때 |
+| 드롭다운 | 선택지 5개 이상, 또는 옵션 `optionsFrom.<컨트롤>` = `경로|값 필드|이름 필드[|keep]` | 국가처럼 목록을 요청으로 채울 때. `keep` 을 붙이면 정의의 선택지(예: `최근 실행`)를 앞에 남긴다 |
 | 옵션 버튼 | 선택지 없는 컨트롤 (직접 입력) | params 행만 — 버튼 안 입력칸, '적용'으로 반영 |
 
 탭마다 보일 컨트롤은 옵션 `tab.<탭>.controls` 로 고른다 (예: 곡선 탭 = `date`, 추이 탭 = `period`). 데이터 소스는 탭과 무관하게 항상 보인다.
+
+### 화면 변수 — 여러 위젯이 같이 따르는 값
+
+종목(`{symbol}`)은 페이지가 내려 준다. 그 밖에 위젯들이 같이 따라야 하는 값(고른 기관 · 고른 백테스트 실행)은
+옵션 `shared` = `이름[,이름]` 으로 적는다 — 그 이름의 컨트롤 값이 위젯마다 따로가 아니라 한 곳(`shared.js`)에 놓여,
+한 위젯에서 바꾸면 같은 이름을 쓰는 위젯이 모두 따라온다 (새로고침해도 남는다).
+표는 옵션 `select` = `이름:행 필드` 로 행 클릭을 그 값에 연결한다 (예: 기관 순위 → `institution:institution_key`).
 
 같은 `widget_id` 가 코드 레지스트리(`widgetEndpoints`)에도 있으면 DB 정의가 이긴다 — 기존 위젯을 이 방식으로 옮길 때 같은 id 로 행을 넣는다.
 
@@ -78,7 +85,7 @@ endpoint → 행 꺼내기(dataPath) → prepare → 실시간 시세 병합(quo
 | 뷰 | 용도 | 옵션 (자세한 건 각 파일 머리 주석) |
 |---|---|---|
 | `tiles` | 시세 타일 격자 | `symbol, label, series, columns` |
-| `table` | 표 | `columns[{ type, header, field, width, align, render }]`, `minWidth`, `rowHeight`, `fixed`(열 폭 고정 + 넘치면 …) — type: `rank stock price change compact number trend tag text muted value value_muted` |
+| `table` | 표 | `columns[{ type, header, field, width, align, render }]`, `minWidth`, `rowHeight`, `fixed`(열 폭 고정 + 넘치면 …), `select`(행 클릭 → 화면 변수) — type: `rank stock price change compact number trend tag text muted value value_muted money pct pill bar badge entity link` |
 | `candles` | 한 종목 캔들 + 거래량 | `headline`, `ma`(이동평균선 봉 수) — 등락률 기준은 `meta.prevClose` |
 | `treemap` | 넓이 = 크기, 색 = 등락률 | `value, label, change, group, link, heatMax` |
 | `list` | 시각 · 제목 · 꼬리표/값 | `time, title, sub, href, tag, tagSymbol, value, valueMuted, dot, rowHeight` |
@@ -88,7 +95,19 @@ endpoint → 행 꺼내기(dataPath) → prepare → 실시간 시세 병합(quo
 | `kv` | 이름 · 값 목록 (박스 없음) | `label, value, columns` |
 | `stats` | 요약 줄 — 머리줄 없는 한 줄 패널 | `label, value, note, change`(값 뒤 등락 — 색은 행의 `tone` 부호) |
 | `bars` | 이름 · 값 + 얇은 가로 막대 목록 (막대 = 가장 큰 값 대비) | `label, value, sub, format(compact·number·pct), prefix, digits, rowHeight` |
-| `columns` | 세로 막대 + 위에 값 · 아래 이름 (좁으면 건너뛰며 표시) | `label, value, prefix, digits` |
+| `columns` | 세로 막대 + 위에 값 · 아래 이름 (좁으면 건너뛰며 표시) | `label, value, prefix, digits, suffix, tone`(부호로 색 — 분기 수익률) |
+| `kpis` | 성과 요약 줄 — 이름 / 큰 값 / 비교 값, 머리줄 없는 한 줄 패널 (`lead: true` 행 = 로고 + 이름) | `label, value, sub, tone` |
+| `curve` | 주인공 선(강조색 + 옅은 면) + 회색 비교 선, 위에 범례 · 아래 낙폭 창 | `x, series(첫 계열이 주인공), drawdown, excess, refs, unit, digits, signed` |
+| `heatmap` | 줄 × 칸 색 격자 + 줄 합계 (연 × 월 수익률) | `row, col, value, cols, rowSuffix, total(compound·sum·none), totalHeader, max, digits` |
+| `articles` | 기사 목록 — 발행처 · 시각 · 감성 / 제목 / 요약 / 관련 종목 | `source, time, title, summary, href, tags, sentiment, sentiments, tones` |
+| `strip` | 시간 순 상태 띠 + 지금 상태 (달마다의 시장 국면) | `x, state, states('값:이름,…'), value, valueLabel` |
+
+`lines` 는 계열을 골라 가며 비교할 때, `curve` 는 '내 것 대 기준' 한 쌍을 볼 때 쓴다. `stats` 는 한 줄짜리 요약, `kpis` 는 값이 주인공인 요약이다.
+
+표 · 목록 · 카드가 같이 쓰는 작은 표시는 `views/parts.jsx` 에 있다 — 새로 만들지 말고 가져다 쓴다:
+`Pill`(색 꼬리표 — 등락 · 매수/매도 · 감성) · `MiniBar`(값 옆 얇은 막대) · `LineSwatch`(범례 선 조각) · `Switch`(켜고 끄기) · `StockLogo` · `TrendLine`.
+
+스펙 하나로 안 되는 화면(차트 — `components/widgets/chartstudio/`)도 같은 조각과 `Plot`(`config` · `onRelayout` 으로 그리기 도구)을 가져다 쓴다.
 
 뷰 옵션의 필드 자리에는 필드 이름이나 `(row, ctx) => 값` 을 쓸 수 있다.
 
@@ -103,7 +122,7 @@ function BarsView({ rows, options }) {
 registerView('bars', BarsView);
 ```
 
-뷰는 `{ rows, meta, quotes, ctx, symbol, setSymbol, options, state }` 를 받는다.
+뷰는 `{ rows, meta, quotes, ctx, symbol, setSymbol, setParam, options, state }` 를 받는다 (`setParam(이름, 값)` = 컨트롤 · 화면 변수 바꾸기).
 `View.ownsState = true` 로 두면 로딩·오류·빈 화면(`state`)도 뷰가 직접 그린다.
 `View.bare = true` 로 두면 머리줄 없이 `[⠿] 본문 … 출처 ✕` 한 줄 패널이 된다 (`stats`).
 
@@ -115,7 +134,8 @@ registerView('bars', BarsView);
 | `data.js` | `fill` `pick` `useApi` `useSeries` `useExtra` `normalizeBars` `lastSession` |
 | `format.js` | `fmtPct` `fmtPrice` `fmtCompact` `fmtNumber` `toneOf` `read` |
 | `Plot.jsx` | Plotly 래퍼 — `figure(colors)`. 테마가 바뀌면 다시 그린다 |
-| `views/` | 뷰 12종 + 공용 조각(`parts.jsx`) |
+| `views/` | 뷰 17종 + 공용 조각(`parts.jsx`) |
+| `shared.js` | 화면 변수 — 여러 위젯이 같이 따르는 값 (`useShared` · `setShared`) |
 | `adapter.js` | 앱에 기대는 것 전부 (요청·시세 소켓·테마·카드·상태 화면·라우팅). 다른 파일은 앱 코드를 직접 import 하지 않는다 |
 
 색은 `index.css` 의 `--mp-*`(카드) · `--mpc-*`(차트) 변수만 쓴다. 다크/라이트와 등락 색 관례(`html[data-updown="us"]`)가 변수에서 바뀐다.

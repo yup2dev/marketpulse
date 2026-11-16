@@ -26,6 +26,7 @@ from .ingest import (
     MBS_IN_INSTI_PERF,
     MBS_IN_INSTI_PORT_HIST,
     MBS_IN_INSTI_HOLD_HIST,
+    MBS_IN_QUANT_SNAPSHOT,
     MBS_IN_RESEARCH_RPT,
 )
 from .process import MBS_PROC_ARTICLE
@@ -54,6 +55,7 @@ __all__ = [
     "MBS_IN_INSTI_PORT_HIST",
     "MBS_IN_INSTI_HOLD_HIST",
     "MBS_IN_RESEARCH_RPT",
+    "MBS_IN_QUANT_SNAPSHOT",
     "MBS_PROC_ARTICLE",
     "MBS_CALC_METRIC",
     "MBS_RCMD_RESULT",

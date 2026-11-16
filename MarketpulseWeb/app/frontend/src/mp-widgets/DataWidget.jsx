@@ -20,8 +20,19 @@ import KvView from './views/KvView';
 import StatsView from './views/StatsView';
 import BarsView from './views/BarsView';
 import ColumnsView from './views/ColumnsView';
+import KpisView from './views/KpisView';
+import HeatmapView from './views/HeatmapView';
+import ArticlesView from './views/ArticlesView';
+import CurveView from './views/CurveView';
+import StripView from './views/StripView';
+import { useShared, setShared } from './shared';
 
 const VIEWS = {
+  strip:    StripView,
+  kpis:     KpisView,
+  heatmap:  HeatmapView,
+  articles: ArticlesView,
+  curve:    CurveView,
   tiles:   TilesView,
   table:   TableView,
   candles: CandlesView,
@@ -37,7 +48,7 @@ const VIEWS = {
 };
 
 /**
- * 새 뷰 종류를 붙인다 — Component 는 { rows, meta, quotes, ctx, symbol, setSymbol, options } 를 받는다.
+ * 새 뷰 종류를 붙인다 — Component 는 { rows, meta, quotes, ctx, symbol, setSymbol, setParam, options } 를 받는다.
  * Component.ownsState = true 면 로딩·오류 화면도 뷰가 그리고, Component.bare = true 면 머리줄 없는 한 줄 패널이 된다.
  */
 export function registerView(name, Component) {
@@ -72,6 +83,9 @@ export default function DataWidget({ spec, symbol: pageSymbol, onRemove }) {
   const options = tab?.options || spec.options;
   const [picked, setPicked] = useStored('controls', {});
   const [symbol, setSymbol] = useSymbol(pageSymbol, spec.symbol?.default);
+  // 화면 변수 — 이 이름의 값은 위젯마다 따로가 아니라 같은 이름을 쓰는 위젯이 같이 따른다 (고른 기관 · 실행)
+  const sharedNames = spec.shared || EMPTY;
+  const shared = useShared();
 
   // ── 데이터 소스 (모든 위젯에 있다) ──
   //   '/data/{provider}/<model>'  그 모델을 구현한 provider 중에서 고른다
@@ -91,13 +105,14 @@ export default function DataWidget({ spec, symbol: pageSymbol, onRemove }) {
   // endpoint 의 {이름} 자리에 들어갈 값: today · symbol · 컨트롤 값(+ 그 선택지의 params) · 탭 params
   const params = useMemo(() => {
     const out = { today: today(), symbol, provider };
+    for (const name of sharedNames) out[name] = shared[name] ?? '';
     for (const c of controls) {
-      const value = picked[c.name] ?? c.default;
+      const value = (sharedNames.includes(c.name) ? shared[c.name] : picked[c.name]) ?? c.default;
       out[c.name] = value;
       Object.assign(out, c.options.find((o) => o.value === value)?.params);
     }
     return Object.assign(out, tab?.params);
-  }, [controls, picked, symbol, tab, provider]);
+  }, [controls, picked, symbol, tab, provider, sharedNames, shared]);
 
   // ── 요청 ──
   const path = api.endpoint ? fill(api.endpoint, params) : null;
@@ -165,7 +180,8 @@ export default function DataWidget({ spec, symbol: pageSymbol, onRemove }) {
       .map((c) => ({ value: c.provider, label: sourceLabel(c.provider), note: c.available ? undefined : 'Key needed' }));
   }
   const setControl = (name, value) => {
-    setPicked((prev) => ({ ...prev, [name]: value }));
+    if (sharedNames.includes(name)) setShared(name, value);
+    else setPicked((prev) => ({ ...prev, [name]: value }));
     if (switchable && !model) setProvider(null);   // 조건이 바뀌면 후보도 바뀐다 — 다시 자동 선택
   };
   const empty = typeof spec.empty === 'function' ? spec.empty(ctx) : spec.empty;
@@ -207,7 +223,7 @@ export default function DataWidget({ spec, symbol: pageSymbol, onRemove }) {
   const body = state && !View?.ownsState ? state : (
     <View
       rows={rows} meta={meta} quotes={quotes} ctx={ctx} state={state}
-      symbol={symbol} setSymbol={setSymbol} options={options}
+      symbol={symbol} setSymbol={setSymbol} setParam={setControl} options={options}
     />
   );
 
