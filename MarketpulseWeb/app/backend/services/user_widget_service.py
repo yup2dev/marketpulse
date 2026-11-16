@@ -77,6 +77,11 @@ CODES: Dict[str, List[Dict[str, Any]]] = {
         {"value": "stats",   "name": "요약 줄 (머리줄 없는 한 줄)"},
         {"value": "bars",    "name": "이름 · 값 + 가로 막대 목록"},
         {"value": "columns", "name": "세로 막대 (값 · 이름)"},
+        {"value": "kpis",     "name": "성과 요약 줄 (이름 · 큰 값 · 비교 값)"},
+        {"value": "curve",    "name": "주인공 선 + 비교 선 (+ 낙폭 창)"},
+        {"value": "heatmap",  "name": "줄 × 칸 색 격자 (월별 수익률)"},
+        {"value": "articles", "name": "기사 목록 (제목 · 요약 · 관련 종목)"},
+        {"value": "strip",    "name": "상태 띠 (달마다의 국면)"},
     ],
     # 필드가 뷰에서 맡는 자리 (user_widget_fields.field_role)
     "SPEC_FIELD_ROLE": [
@@ -109,6 +114,13 @@ CODES: Dict[str, List[Dict[str, Any]]] = {
         {"value": "muted",   "name": "흐린 글자"},
         {"value": "value",   "name": "오른쪽 굵은 값"},
         {"value": "value_muted", "name": "오른쪽 흐린 값"},
+        {"value": "money",   "name": "$ 붙은 큰 수"},
+        {"value": "pct",     "name": "퍼센트 (부호 없음)"},
+        {"value": "pill",    "name": "등락률 꼬리표 (옅은 바탕)"},
+        {"value": "bar",     "name": "값 + 얇은 막대"},
+        {"value": "badge",   "name": "글자 꼬리표 (색 = 보조 필드)"},
+        {"value": "entity",  "name": "로고 + 이름 (기관 등)"},
+        {"value": "link",    "name": "링크 글자 (주소 = 보조 필드)"},
     ],
     # 행을 다듬는 함수 (user_widgets.transform) — 구현은 프론트 registry/builtinWidgets.js
     "TRANSFORM": [
@@ -126,12 +138,31 @@ CODES: Dict[str, List[Dict[str, Any]]] = {
         {"value": "holders_top",     "name": "기관 보유 — 보유 가치 큰 순 + 보고일"},
         {"value": "dividend_bars",   "name": "배당 — 오래된 것부터 + 막대 이름"},
         {"value": "feed_rows",       "name": "뉴스 + 공시를 한 목록으로 (최신 순)"},
+        {"value": "news_articles",   "name": "기사 — 최신 순 + 'n시간 전'"},
+        {"value": "filing_rows",     "name": "공시 표 — 최신 순 + 내용 · 정기 보고서 강조"},
+        {"value": "inst_kpis",       "name": "기관 요약 줄 (보유가치 · 종목 수 · 전분기 대비 · 회전율)"},
+        {"value": "inst_rank",       "name": "기관 순위 — 고른 기준 큰 순"},
+        {"value": "inst_stocks",     "name": "기관 보유 종목 + 매매 구분"},
+        {"value": "inst_sold",       "name": "기관이 청산한 종목"},
+        {"value": "fund_perf",       "name": "13F 추정 분기 수익률 — 오래된 것부터 + 누적"},
+        {"value": "fund_perf_table", "name": "13F 추정 분기 수익률 — 최신 분기부터 (표)"},
+        {"value": "bt_kpis",         "name": "백테스트 성과 요약 줄 (전략 · 보유)"},
+        {"value": "bt_equity",       "name": "백테스트 누적 수익 · 낙폭 (기간 시작점 = 0)"},
+        {"value": "bt_monthly",      "name": "백테스트 월별 수익률"},
+        {"value": "bt_trades",       "name": "백테스트 거래 내역 — 최근 청산부터"},
+        {"value": "bt_rolling",      "name": "백테스트 롤링 샤프"},
+        {"value": "quant_factors",   "name": "퀀트 팩터 표 — 표기 + 합성은 맨 아래"},
+        {"value": "quant_meta",      "name": "퀀트 — 그대로 + 기준(종목 수 · 기간)"},
+        {"value": "quant_models",    "name": "퀀트 모델 표 — 예측 모델 먼저, 융합은 아래"},
+        {"value": "quant_signals",   "name": "퀀트 종목 시그널 — 고른 융합 방식의 확률 순"},
     ],
     # 탭에서 행을 거르는 함수 (user_widget_tabs.filter)
     "TAB_FILTER": [
         {"value": "watchlist_tickers", "name": "내 관심 종목이 들어 있는 행만"},
         {"value": "feed_news",         "name": "뉴스 · 공시 목록에서 뉴스만"},
         {"value": "feed_filings",      "name": "뉴스 · 공시 목록에서 공시만"},
+        {"value": "filings_periodic",  "name": "공시 표에서 정기 보고서(10-K · 10-Q)만"},
+        {"value": "filings_current",   "name": "공시 표에서 수시 보고서(8-K 등)만"},
     ],
 }
 

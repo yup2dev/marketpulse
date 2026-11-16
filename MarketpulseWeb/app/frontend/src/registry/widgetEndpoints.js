@@ -55,6 +55,7 @@ import TradingViewRankingWidget     from '../components/widgets/TradingViewRanki
 import TradingViewMiniChartWidget   from '../components/widgets/TradingViewMiniChartWidget';
 import ComparisonWidget        from '../components/widgets/ComparisonWidget';
 import ChartWidget             from '../components/widgets/ChartWidget';
+import ChartStudioWidget       from '../components/widgets/chartstudio/ChartStudioWidget';
 import BacktestLabWidget       from '../components/widgets/BacktestLabWidget';
 import BtVariablesWidget        from '../components/widgets/backtest/BtVariablesWidget';
 import BtVariableExplorerWidget from '../components/widgets/backtest/BtVariableExplorerWidget';
@@ -371,6 +372,11 @@ export const WIDGET_ENDPOINTS = {
   },
 
   // ── Visualization widgets ──────────────────────────────────────────────────
+  'chart-studio': {
+    title:     'Chart',
+    component: ChartStudioWidget,  // 리디자인 차트 — 비교 · 지표 · 매크로 겹침 · 이벤트 · 분할 · 그리기
+    propsFrom: ['symbol'],
+  },
   'advanced-chart': {
     title:     'Advanced Chart',
     component: ChartWidget,        // 멀티심볼·캔들·보조지표·페어분석 (symbol prop으로 시드)

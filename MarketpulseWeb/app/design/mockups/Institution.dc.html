@@ -15,9 +15,9 @@ body{margin:0;background:#0B0B0C}
 a{color:#8FB8FF}a:hover{color:#B9D3FF}
 </style>
 </helmet>
-<div style="min-height: 100vh; background: #0B0B0C; color: #E8E8EA; font-family: Inter, 'Noto Sans KR', system-ui, sans-serif; font-size: 13px; font-variant-numeric: tabular-nums; display: flex; flex-direction: column">
+<div style="height: 100vh; min-height: 640px; background: #0B0B0C; color: #E8E8EA; font-family: Inter, 'Noto Sans KR', system-ui, sans-serif; font-size: 13px; font-variant-numeric: tabular-nums; display: flex; flex-direction: column">
 
-  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 8px 16px; border-bottom: 1px solid #1C1C1F">
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; min-height: 48px; box-sizing: border-box; padding: 6px 16px; border-bottom: 1px solid #1C1C1F">
     <a href="Main.dc.html" style="display: flex; align-items: center; gap: 8px; text-decoration: none; color: #E8E8EA">
       <span style="width: 26px; height: 26px; border-radius: 6px; background: #3182F6; display: flex; align-items: center; justify-content: center">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 13 8 13 11 6 14 18 17 11 21 11"></polyline></svg>
@@ -33,7 +33,7 @@ a{color:#8FB8FF}a:hover{color:#B9D3FF}
     <span style="width: 30px; height: 30px; border-radius: 50%; background: #2B3A55; color: #CFE0FF; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700">김</span>
   </header>
 
-  <div style="flex: 1; display: flex; flex-wrap: wrap; align-items: stretch">
+  <div style="flex: 1; min-height: 0; display: flex; flex-wrap: wrap; align-items: stretch">
     <nav aria-label="Main" style="flex: 0 0 68px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 0; border-right: 1px solid #1C1C1F">
       <sc-for list="{{ rail }}" as="n" hint-placeholder-count="8">
         <a href="{{ n.href }}" style="width: 58px; min-height: 52px; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; text-decoration: none; color: {{ n.fg }}; background: {{ n.bg }}">
@@ -43,7 +43,7 @@ a{color:#8FB8FF}a:hover{color:#B9D3FF}
       </sc-for>
     </nav>
 
-    <main style="flex: 999 1 560px; min-width: 0; padding: 10px; display: flex; flex-direction: column; gap: 8px; background: #08080A">
+    <main style="flex: 999 1 560px; min-width: 0; min-height: 0; box-sizing: border-box; overflow: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px; background: #08080A">
       <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 4px 0">
         <div style="display: flex; align-items: baseline; gap: 10px">
           <h1 style="margin: 0; font-size: 18px; font-weight: 700">기관 포트폴리오</h1>
@@ -73,7 +73,7 @@ a{color:#8FB8FF}a:hover{color:#B9D3FF}
         </sc-for>
       </section>
 
-      <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start">
+      <div style="flex: 1 0 auto; display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch">
         <section aria-label="Institutions" style="flex: 999 1 560px; min-width: 0; background: #121214; border-radius: 8px; display: flex; flex-direction: column">
           <div style="display: flex; align-items: center; gap: 6px; height: 38px; padding: 0 8px; border-bottom: 1px solid #1C1C1F">
             <svg width="12" height="16" viewBox="0 0 12 16" fill="#55555C" aria-hidden="true"><circle cx="3" cy="3" r="1.4"></circle><circle cx="9" cy="3" r="1.4"></circle><circle cx="3" cy="8" r="1.4"></circle><circle cx="9" cy="8" r="1.4"></circle><circle cx="3" cy="13" r="1.4"></circle><circle cx="9" cy="13" r="1.4"></circle></svg>
@@ -125,7 +125,7 @@ a{color:#8FB8FF}a:hover{color:#B9D3FF}
               </tbody>
             </table>
           </div>
-          <p style="margin: 0; padding: 8px 12px 10px; font-size: 11px; color: #8E8E96; border-top: 1px solid #161618">Source: SEC EDGAR — Form 13F (일 배치 적재)</p>
+          <p style="margin: auto 0 0; padding: 8px 12px 10px; font-size: 11px; color: #8E8E96; border-top: 1px solid #161618">Source: SEC EDGAR — Form 13F (일 배치 적재)</p>
         </section>
 
         <section aria-label="Fund performance" style="flex: 1 1 340px; max-width: 460px; background: #121214; border-radius: 8px; display: flex; flex-direction: column">
@@ -171,13 +171,13 @@ a{color:#8FB8FF}a:hover{color:#B9D3FF}
               </sc-for>
             </tbody>
           </table>
-          <p style="margin: 0; padding: 8px 14px 10px; font-size: 11px; color: #8E8E96">13F 보유 종목으로 추정한 값 · 실제 NAV 아님</p>
+          <p style="margin: auto 0 0; padding: 8px 14px 10px; font-size: 11px; color: #8E8E96; border-top: 1px solid #161618">13F 보유 종목으로 추정한 값 · 실제 NAV 아님</p>
         </section>
       </div>
     </main>
   </div>
 
-  <footer style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; padding: 8px 16px; border-top: 1px solid #1C1C1F; font-size: 12px; color: #8E8E96">
+  <footer style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; min-height: 32px; padding: 0 16px; border-top: 1px solid #1C1C1F; font-size: 12px; color: #8E8E96">
     <span>투자 유의사항</span>
     <span style="margin-left: auto; display: flex; flex-wrap: wrap; gap: 16px">
       <sc-for list="{{ footer }}" as="f" hint-placeholder-count="3">
@@ -227,11 +227,11 @@ class Component extends DCLogic {
       home: 'M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z', stock: 'M4 19V5M4 19h16M8 15l3-4 3 2 5-6',
       macro: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18',
       cal: 'M4 6h16v14H4zM4 10h16M9 3v4M15 3v4', port: 'M4 7h16v12H4zM9 7V5h6v2M4 12h16', screen: 'M4 6h16M7 12h10M10 18h4',
-      quant: 'M5 19L19 5M7 7h.01M17 17h.01M4 12h3M17 12h3', bt: 'M4 18l5-6 4 3 7-9M4 4v16h16',
+      quant: 'M5 19L19 5M7 7h.01M17 17h.01M4 12h3M17 12h3', bt: 'M4 18l5-6 4 3 7-9M4 4v16h16', chart: 'M7 3v3M7 17v4M5 6h4v11H5zM17 3v6M17 16v5M15 9h4v7h-4z',
     };
     const rail = [
-      ['home', '홈', 'Main.dc.html'], ['stock', '종목', 'StockDetail.dc.html'], ['macro', '매크로', 'MacroDetail.dc.html'], ['cal', '캘린더', '#'],
-      ['port', '내 자산', '#'], ['screen', '스크리너', '#'], ['quant', '퀀트', '#'], ['bt', '백테스트', '#'],
+      ['home', '홈', 'Main.dc.html'], ['stock', '종목', 'StockDetail.dc.html'], ['chart', '차트', 'Chart.dc.html'], ['macro', '매크로', 'MacroDetail.dc.html'], ['cal', '캘린더', '#'],
+      ['port', '내 자산', '#'], ['screen', '스크리너', '#'], ['quant', '퀀트', 'Quant.dc.html'], ['bt', '백테스트', 'Backtest.dc.html'],
     ].map(([k, label, href], i) => ({ icon: ICON[k], label, href, fg: i === 1 ? '#FFFFFF' : '#8E8E96', bg: i === 1 ? '#1C1C20' : 'transparent' }));
     const footer = [['KOSPI', '5,018.85', -0.80], ['KOSDAQ', '638.97', -0.82], ['S&P 500', '7,520.4', 1.89]]
       .map(([name, price, c]) => ({ name, price, chg: pct(c), color: tone(c) }));

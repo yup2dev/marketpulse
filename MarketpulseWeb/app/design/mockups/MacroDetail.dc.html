@@ -572,12 +572,12 @@ class Component extends DCLogic {
     const ICON = {
       home: 'M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z', stock: 'M4 19V5M4 19h16M8 15l3-4 3 2 5-6',
       macro: I.globe, cal: I.cal, port: 'M4 7h16v12H4zM9 7V5h6v2M4 12h16', screen: 'M4 6h16M7 12h10M10 18h4',
-      quant: 'M5 19L19 5M7 7h.01M17 17h.01M4 12h3M17 12h3', bt: 'M4 18l5-6 4 3 7-9M4 4v16h16',
+      quant: 'M5 19L19 5M7 7h.01M17 17h.01M4 12h3M17 12h3', bt: 'M4 18l5-6 4 3 7-9M4 4v16h16', chart: 'M7 3v3M7 17v4M5 6h4v11H5zM17 3v6M17 16v5M15 9h4v7h-4z',
     };
     const rail = [
-      ['home', '홈', 'Main.dc.html'], ['stock', '종목', 'StockDetail.dc.html'], ['macro', '매크로', '#'], ['cal', '캘린더', '#'],
-      ['port', '내 자산', '#'], ['screen', '스크리너', '#'], ['quant', '퀀트', '#'], ['bt', '백테스트', '#'],
-    ].map(([k, label, href], i) => ({ icon: ICON[k], label, href, fg: i === 2 ? '#FFFFFF' : '#8E8E96', bg: i === 2 ? '#1C1C20' : 'transparent' }));
+      ['home', '홈', 'Main.dc.html'], ['stock', '종목', 'StockDetail.dc.html'], ['chart', '차트', 'Chart.dc.html'], ['macro', '매크로', '#'], ['cal', '캘린더', '#'],
+      ['port', '내 자산', '#'], ['screen', '스크리너', '#'], ['quant', '퀀트', 'Quant.dc.html'], ['bt', '백테스트', 'Backtest.dc.html'],
+    ].map(([k, label, href], i) => ({ icon: ICON[k], label, href, fg: i === 3 ? '#FFFFFF' : '#8E8E96', bg: i === 3 ? '#1C1C20' : 'transparent' }));
     const LOGO = { AAPL: '#3A3B43', NVDA: '#3F7D20', INTC: '#1F6FB2', SPCX: '#2B2F3A', IREN: '#2E7D6B', EDSA: '#6B4FA8' };
     const watch = [
       ['AAPL', 'Apple', '350.34', 2.33], ['NVDA', 'NVIDIA', '179.05', -4.07], ['INTC', 'Intel', '58.73', 4.35],

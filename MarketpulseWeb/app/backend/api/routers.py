@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from app.backend.api.routes import (
     stock, news, portfolio, macro,
     auth, user_portfolio, screener, alerts, export, watchlist, menu,
-    quantlib, quantitative, notes, reports, copilot, backtest, fx,
+    quantlib, quantitative, notes, reports, copilot, backtest, fx, quant,
 )
 from app.backend.api.routes.admin import router as admin_router
 from app.backend.api.routes.workspace import router as workspace_router
@@ -52,6 +52,7 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(fundamental_command_router.router, prefix="/api/v1",           tags=["equity-fundamental"])
     app.include_router(quantlib.router,                   prefix="/api/quantlib",     tags=["quantlib"])
     app.include_router(quantitative.router,               prefix="/api/quantitative", tags=["quantitative"])
+    app.include_router(quant.router,                      prefix="/api",              tags=["quant"])
 
     # ── Universal Data Gateway ───────────────────────────────────────────────
     app.include_router(data_router,       prefix="/api/data", tags=["data"])

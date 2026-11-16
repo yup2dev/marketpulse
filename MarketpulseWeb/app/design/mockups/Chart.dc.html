@@ -1,0 +1,748 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>MarketPulse — 차트</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Noto+Sans+KR:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B0B0C}
+a{color:#8FB8FF}a:hover{color:#B9D3FF}
+.seg{height:28px;padding:0 9px;border:0;border-radius:6px;font:inherit;font-size:12px;white-space:nowrap;cursor:pointer}
+.tool{width:34px;height:34px;border:0;border-radius:6px;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer}
+.tool:hover{background:#1E1E22}
+.sw{flex-shrink:0;width:30px;height:18px;border:0;border-radius:9px;padding:2px;display:flex;align-items:center;cursor:pointer}
+.sw>span{width:14px;height:14px;border-radius:50%;background:#FFFFFF}
+.grp{display:flex;align-items:center;gap:2px;height:32px;padding:0 2px;border-radius:6px;background:#1A1A1D}
+.row{display:flex;align-items:center;gap:10px;min-height:44px;padding:4px 16px;box-sizing:border-box;border-top:1px solid #161618}
+.badge{width:16px;height:16px;border-radius:50%;background:#2A2A2F;color:#C9C9CF;font-size:9.5px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.cap{margin:0;padding:10px 16px 6px;font-size:11px;color:#8E8E96}
+.opt:hover{background:#1E1E22 !important}
+*{scrollbar-width:thin;scrollbar-color:#2A2A2F transparent}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track,::-webkit-scrollbar-corner{background:transparent}
+::-webkit-scrollbar-thumb{background:#2A2A2F;border-radius:6px;border:2px solid transparent;background-clip:padding-box}
+@media (max-width:900px){.panes{grid-template-columns:1fr !important;grid-template-rows:none !important;grid-auto-rows:440px}}
+</style>
+</helmet>
+<div style="height: 100vh; min-height: 640px; background: #08080A; color: #E8E8EA; font-family: Inter, 'Noto Sans KR', system-ui, sans-serif; font-size: 13px; font-variant-numeric: tabular-nums; display: flex; flex-direction: column">
+
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; height: 48px; box-sizing: border-box; padding: 0 16px; background: #0B0B0C; border-bottom: 1px solid #1C1C1F">
+    <a href="Main.dc.html" style="display: flex; align-items: center; gap: 8px; text-decoration: none; color: #E8E8EA">
+      <span style="width: 24px; height: 24px; border-radius: 6px; background: #3182F6; display: flex; align-items: center; justify-content: center">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 13 8 13 11 6 14 18 17 11 21 11"></polyline></svg>
+      </span>
+      <span style="font-size: 15px; font-weight: 700">MarketPulse</span>
+    </a>
+    <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #C9C9CF"><span style="width: 6px; height: 6px; border-radius: 50%; background: #3FC27A"></span>US 정규장</span>
+    <label style="flex: 0 1 420px; margin-left: auto; display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px; border-radius: 6px; background: #161618; color: #8E8E96">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><line x1="16.5" y1="16.5" x2="21" y2="21"></line></svg>
+      <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search</span>
+      <input type="search" placeholder="종목 · 지표 검색" style="flex: 1; min-width: 0; background: transparent; border: 0; outline: none; color: #E8E8EA; font: inherit">
+      <span style="font-size: 11px; color: #8E8E96">Ctrl K</span>
+    </label>
+    <span style="width: 28px; height: 28px; border-radius: 50%; background: #2B3A55; color: #CFE0FF; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700">김</span>
+  </header>
+
+  <div style="flex: 1; min-height: 0; display: flex; flex-wrap: wrap; align-items: stretch">
+
+    <nav aria-label="Main" style="flex: 0 0 64px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 0; background: #0B0B0C; border-right: 1px solid #1C1C1F">
+      <sc-for list="{{ rail }}" as="n" hint-placeholder-count="9">
+        <a href="{{ n.href }}" style="width: 54px; height: 50px; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; text-decoration: none; color: {{ n.fg }}; background: {{ n.bg }}">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ n.icon }}"></path></svg>
+          <span style="font-size: 10.5px; font-weight: 600">{{ n.label }}</span>
+        </a>
+      </sc-for>
+    </nav>
+
+    <main style="flex: 1 1 560px; min-width: 0; min-height: 0; box-sizing: border-box; padding: 8px; display: flex; flex-direction: column; gap: 8px">
+
+      <section aria-label="Chart toolbar" style="flex-shrink: 0; background: #121214; border-radius: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 10px">
+        <button type="button" style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px 0 6px; border: 0; border-radius: 6px; background: #1A1A1D; color: #E8E8EA; font: inherit; cursor: pointer">
+          <span style="width: 22px; height: 22px; border-radius: 6px; background: #3A3B43; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700">A</span>
+          <span style="font-weight: 700">{{ mainSym }}</span><span style="font-size: 12px; color: #8E8E96">{{ mainName }}</span>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#8E8E96" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </button>
+        <div style="display: flex; align-items: center; gap: 4px; position: relative">
+          <sc-for list="{{ cmpChips }}" as="c" hint-placeholder-count="1">
+            <span style="display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 2px 0 8px; border-radius: 6px; background: #1A1A1D; font-size: 12px; font-weight: 600; white-space: nowrap">
+              <svg width="16" height="6" viewBox="0 0 16 6" aria-hidden="true"><line x1="0" y1="3" x2="16" y2="3" stroke="#F2F2F4" stroke-width="1.6" stroke-dasharray="{{ c.dash }}"></line></svg>{{ c.sym }}
+              <button type="button" onClick="{{ c.remove }}" aria-label="{{ c.sym }} 비교 해제" style="width: 22px; height: 22px; border: 0; border-radius: 4px; background: transparent; color: #8E8E96; display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg></button>
+            </span>
+          </sc-for>
+          <sc-if value="{{ cmpCanAdd }}" hint-placeholder-val="{{ true }}">
+            <button type="button" onClick="{{ toggleCmp }}" aria-haspopup="listbox" aria-expanded="{{ cmpOpenAttr }}" style="display: flex; align-items: center; gap: 5px; height: 28px; padding: 0 10px; border: 1px dashed #3A3A41; border-radius: 6px; background: transparent; color: #C9C9CF; font: inherit; font-size: 12px; font-weight: 600; white-space: nowrap; cursor: pointer">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>비교 {{ cmpCount }}/3
+            </button>
+          </sc-if>
+          <sc-if value="{{ cmpFull }}" hint-placeholder-val="{{ false }}">
+            <span style="font-size: 11px; color: #6E6E76; white-space: nowrap">비교 3/3 · 최대</span>
+          </sc-if>
+          <sc-if value="{{ cmpOpen }}" hint-placeholder-val="{{ false }}">
+            <div role="listbox" aria-label="비교 종목 추가" style="position: absolute; left: 0; top: 34px; z-index: 10; width: 228px; box-sizing: border-box; padding: 4px; border-radius: 8px; background: #19191C; border: 1px solid #2A2A2F; box-shadow: 0 12px 32px rgba(0,0,0,0.5)">
+              <div style="padding: 6px 10px 4px; font-size: 11px; font-weight: 700; color: #8E8E96">비교 종목 추가 · 최대 3개</div>
+              <sc-for list="{{ cmpCands }}" as="c" hint-placeholder-count="5">
+                <button type="button" role="option" aria-selected="false" class="opt" onClick="{{ c.add }}" style="width: 100%; display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: #E8E8EA; font: inherit; font-size: 13px; text-align: left; cursor: pointer"><span style="font-weight: 700">{{ c.sym }}</span><span style="font-size: 11px; color: #8E8E96">{{ c.name }}</span></button>
+              </sc-for>
+              <p style="margin: 0; padding: 6px 10px; font-size: 11px; color: #6E6E76; border-top: 1px solid #2A2A2F">구간 시작점을 {{ mainSym }} 가격에 맞춰 겹쳐요</p>
+            </div>
+          </sc-if>
+        </div>
+        <div class="grp" role="group" aria-label="주기">
+          <sc-for list="{{ ivSeg }}" as="p" hint-placeholder-count="6">
+            <button type="button" class="seg" aria-pressed="{{ p.pressed }}" onClick="{{ p.pick }}" style="background: {{ p.bg }}; color: {{ p.fg }}; font-weight: {{ p.weight }}">{{ p.label }}</button>
+          </sc-for>
+        </div>
+        <div class="grp" role="group" aria-label="차트 종류">
+          <sc-for list="{{ typeSeg }}" as="p" hint-placeholder-count="3">
+            <button type="button" class="seg" aria-pressed="{{ p.pressed }}" onClick="{{ p.pick }}" aria-label="{{ p.label }}" title="{{ p.label }}" style="width: 32px; padding: 0; display: flex; align-items: center; justify-content: center; background: {{ p.bg }}; color: {{ p.fg }}">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ p.icon }}"></path></svg>
+            </button>
+          </sc-for>
+        </div>
+        <div class="grp" role="group" aria-label="설정 패널">
+          <sc-for list="{{ quick }}" as="q" hint-placeholder-count="3">
+            <button type="button" class="seg" aria-pressed="{{ q.pressed }}" onClick="{{ q.pick }}" style="display: flex; align-items: center; gap: 6px; background: {{ q.bg }}; color: {{ q.fg }}; font-weight: {{ q.weight }}">{{ q.label }}<sc-if value="{{ q.hasN }}" hint-placeholder-val="{{ true }}"><span style="min-width: 16px; height: 16px; padding: 0 4px; box-sizing: border-box; border-radius: 8px; background: #2E2E34; color: #C9C9CF; font-size: 10.5px; display: flex; align-items: center; justify-content: center">{{ q.n }}</span></sc-if></button>
+          </sc-for>
+        </div>
+        <span style="margin-left: auto; font-size: 11px; color: #6E6E76">{{ toolHint }}</span>
+        <div class="grp" role="group" aria-label="화면 분할">
+          <sc-for list="{{ laySeg }}" as="p" hint-placeholder-count="3">
+            <button type="button" class="seg" aria-pressed="{{ p.pressed }}" onClick="{{ p.pick }}" aria-label="{{ p.label }}" title="{{ p.label }}" style="width: 32px; padding: 0; display: flex; align-items: center; justify-content: center; background: {{ p.bg }}; color: {{ p.fg }}">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="{{ p.icon }}"></path></svg>
+            </button>
+          </sc-for>
+        </div>
+      </section>
+
+      <div style="flex: 1; min-height: 0; display: flex; gap: 8px">
+        <section aria-label="Drawing tools" style="flex: 0 0 44px; background: #121214; border-radius: 8px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 5px 0; overflow: auto">
+          <sc-for list="{{ tools }}" as="t" hint-placeholder-count="9">
+            <sc-if value="{{ t.sep }}" hint-placeholder-val="{{ false }}"><span style="width: 22px; height: 1px; margin: 4px 0; background: #26262B"></span></sc-if>
+            <button type="button" class="tool" aria-pressed="{{ t.pressed }}" aria-label="{{ t.label }}" title="{{ t.label }}" onClick="{{ t.pick }}" style="background: {{ t.bg }}; color: {{ t.fg }}">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ t.icon }}"></path></svg>
+            </button>
+          </sc-for>
+        </section>
+
+        <section aria-label="Charts" class="panes" style="flex: 1; min-width: 0; min-height: 0; background: #121214; border-radius: 8px; padding: 6px; display: grid; gap: 6px; grid-template-columns: {{ gridCols }}; grid-template-rows: {{ gridRows }}; overflow: auto">
+          <sc-for list="{{ panes }}" as="p" hint-placeholder-count="1">
+            <div style="min-width: 0; min-height: 0; display: flex; flex-direction: column; border: 1px solid {{ p.border }}; border-radius: 6px; background: #0E0E10; overflow: hidden">
+              <div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; padding: 8px 10px 2px; flex-shrink: 0; font-size: 12px">
+                <span style="font-weight: 700; font-size: 13px">{{ p.sym }}</span>
+                <span style="color: #8E8E96">{{ p.iv }}</span>
+                <span style="color: #8E8E96">시 <span style="color: {{ p.chgFg }}">{{ p.o }}</span></span>
+                <span style="color: #8E8E96">고 <span style="color: {{ p.chgFg }}">{{ p.h }}</span></span>
+                <span style="color: #8E8E96">저 <span style="color: {{ p.chgFg }}">{{ p.l }}</span></span>
+                <span style="color: #8E8E96">종 <span style="color: {{ p.chgFg }}">{{ p.c }}</span></span>
+                <span style="font-weight: 700; color: {{ p.chgFg }}">{{ p.chg }}</span>
+              </div>
+              <div style="display: flex; flex-wrap: wrap; gap: 2px 12px; padding: 0 10px 2px; flex-shrink: 0; font-size: 11px; color: #8E8E96">
+                <sc-for list="{{ p.legend }}" as="g" hint-placeholder-count="2">
+                  <span style="display: flex; align-items: center; gap: 5px"><svg width="14" height="6" viewBox="0 0 14 6" aria-hidden="true"><line x1="0" y1="3" x2="14" y2="3" stroke="{{ g.color }}" stroke-width="1.6" stroke-dasharray="{{ g.dash }}"></line></svg>{{ g.label }} <span style="color: #C9C9CF; font-weight: 600">{{ g.value }}</span></span>
+                </sc-for>
+                <sc-if value="{{ p.hasCmp }}" hint-placeholder-val="{{ false }}">
+                  <span style="display: flex; align-items: center; gap: 5px">{{ p.sym }} 구간 <span style="font-weight: 700; color: {{ p.viewChgFg }}">{{ p.viewChg }}</span></span>
+                </sc-if>
+                <sc-for list="{{ p.cmps }}" as="c" hint-placeholder-count="0">
+                  <span style="display: flex; align-items: center; gap: 5px"><svg width="16" height="6" viewBox="0 0 16 6" aria-hidden="true"><line x1="0" y1="3" x2="16" y2="3" stroke="#F2F2F4" stroke-width="1.6" stroke-dasharray="{{ c.dash }}"></line></svg><span style="color: #E8E8EA; font-weight: 600">{{ c.sym }}</span> <span style="font-weight: 700; color: {{ c.fg }}">{{ c.chg }}</span></span>
+                </sc-for>
+                <sc-if value="{{ p.macroOn }}" hint-placeholder-val="{{ false }}">
+                  <span style="display: flex; align-items: center; gap: 5px; color: #8FB8FF"><svg width="14" height="6" viewBox="0 0 14 6" aria-hidden="true"><line x1="0" y1="3" x2="14" y2="3" stroke="#3182F6" stroke-width="1.8"></line></svg>{{ p.macroName }} <span style="font-weight: 700">{{ p.macroVal }}</span></span>
+                </sc-if>
+              </div>
+              <div style="flex: 1; min-height: 0; display: flex">
+                <div style="flex: 1; min-width: 0; position: relative">
+                  <svg viewBox="0 0 900 300" preserveAspectRatio="none" style="position: absolute; inset: 0; width: 100%; height: 100%; display: block" role="img" aria-label="{{ p.aria }}">
+                    <sc-for list="{{ p.grid }}" as="y" hint-placeholder-count="5">
+                      <line x1="0" y1="{{ y.y }}" x2="900" y2="{{ y.y }}" stroke="#18181B" vector-effect="non-scaling-stroke"></line>
+                    </sc-for>
+                    <sc-for list="{{ p.evLines }}" as="e" hint-placeholder-count="3">
+                      <line x1="{{ e.x }}" y1="0" x2="{{ e.x }}" y2="300" stroke="#3A3A41" stroke-dasharray="2 4" vector-effect="non-scaling-stroke"></line>
+                    </sc-for>
+                    <sc-if value="{{ p.showBB }}" hint-placeholder-val="{{ false }}">
+                      <polygon points="{{ p.bbArea }}" fill="rgba(232,232,234,0.04)"></polygon>
+                      <polyline points="{{ p.bbUp }}" fill="none" stroke="#55555C" stroke-width="1" vector-effect="non-scaling-stroke"></polyline>
+                      <polyline points="{{ p.bbLo }}" fill="none" stroke="#55555C" stroke-width="1" vector-effect="non-scaling-stroke"></polyline>
+                    </sc-if>
+                    <sc-if value="{{ p.showVol }}" hint-placeholder-val="{{ true }}">
+                      <sc-for list="{{ p.vols }}" as="v" hint-placeholder-count="60">
+                        <rect x="{{ v.x }}" y="{{ v.y }}" width="{{ p.bw }}" height="{{ v.h }}" fill="{{ v.color }}" opacity="0.28"></rect>
+                      </sc-for>
+                    </sc-if>
+                    <sc-if value="{{ p.isCandle }}" hint-placeholder-val="{{ true }}">
+                      <sc-for list="{{ p.candles }}" as="k" hint-placeholder-count="60">
+                        <line x1="{{ k.cx }}" y1="{{ k.hi }}" x2="{{ k.cx }}" y2="{{ k.lo }}" stroke="{{ k.color }}" stroke-width="1" vector-effect="non-scaling-stroke"></line>
+                        <rect x="{{ k.x }}" y="{{ k.top }}" width="{{ p.bw }}" height="{{ k.h }}" fill="{{ k.color }}"></rect>
+                      </sc-for>
+                    </sc-if>
+                    <sc-if value="{{ p.isArea }}" hint-placeholder-val="{{ false }}">
+                      <polygon points="{{ p.area }}" fill="rgba(232,232,234,0.06)"></polygon>
+                    </sc-if>
+                    <sc-if value="{{ p.isLineish }}" hint-placeholder-val="{{ false }}">
+                      <polyline points="{{ p.close }}" fill="none" stroke="#E8E8EA" stroke-width="1.8" stroke-linejoin="round" vector-effect="non-scaling-stroke"></polyline>
+                    </sc-if>
+                    <sc-for list="{{ p.mas }}" as="m" hint-placeholder-count="2">
+                      <polyline points="{{ m.pts }}" fill="none" stroke="{{ m.color }}" stroke-width="1.3" stroke-dasharray="{{ m.dash }}" stroke-linejoin="round" vector-effect="non-scaling-stroke"></polyline>
+                    </sc-for>
+                    <sc-for list="{{ p.cmps }}" as="c" hint-placeholder-count="0">
+                      <polyline points="{{ c.pts }}" fill="none" stroke="#F2F2F4" stroke-width="1.5" stroke-dasharray="{{ c.dash }}" opacity="0.9" stroke-linejoin="round" vector-effect="non-scaling-stroke"></polyline>
+                    </sc-for>
+                    <sc-if value="{{ p.macroOverlay }}" hint-placeholder-val="{{ false }}">
+                      <polyline points="{{ p.macroPts }}" fill="none" stroke="#3182F6" stroke-width="1.8" stroke-linejoin="round" vector-effect="non-scaling-stroke"></polyline>
+                    </sc-if>
+                    <sc-if value="{{ p.showDraw }}" hint-placeholder-val="{{ false }}">
+                      <line x1="{{ p.tl.x1 }}" y1="{{ p.tl.y1 }}" x2="{{ p.tl.x2 }}" y2="{{ p.tl.y2 }}" stroke="#E8E8EA" stroke-width="1.3" vector-effect="non-scaling-stroke"></line>
+                      <line x1="0" y1="{{ p.sup }}" x2="900" y2="{{ p.sup }}" stroke="#8E8E96" stroke-width="1.1" stroke-dasharray="6 4" vector-effect="non-scaling-stroke"></line>
+                    </sc-if>
+                    <line x1="0" y1="{{ p.lastY }}" x2="900" y2="{{ p.lastY }}" stroke="{{ p.chgFg }}" stroke-width="1" stroke-dasharray="2 3" opacity="0.7" vector-effect="non-scaling-stroke"></line>
+                  </svg>
+                  <sc-if value="{{ p.showDraw }}" hint-placeholder-val="{{ false }}">
+                    <span style="position: absolute; right: 8px; top: {{ p.supTop }}; transform: translateY(-120%); padding: 1px 6px; border-radius: 4px; background: #1E1E22; color: #C9C9CF; font-size: 10.5px; font-weight: 600; white-space: nowrap">지지 {{ p.supLabel }}</span>
+                  </sc-if>
+                  <sc-if value="{{ p.macroOverlay }}" hint-placeholder-val="{{ false }}">
+                    <span style="position: absolute; left: 6px; top: {{ p.mHiTop }}; transform: translateY(-50%); font-size: 10.5px; font-weight: 600; color: #8FB8FF; background: rgba(14,14,16,0.85); padding: 0 3px">{{ p.mHi }}</span>
+                    <span style="position: absolute; left: 6px; top: {{ p.mLoTop }}; transform: translateY(-50%); font-size: 10.5px; font-weight: 600; color: #8FB8FF; background: rgba(14,14,16,0.85); padding: 0 3px">{{ p.mLo }}</span>
+                  </sc-if>
+                </div>
+                <div style="flex: 0 0 60px; position: relative; border-left: 1px solid #1C1C1F; font-size: 11px; color: #8E8E96">
+                  <sc-for list="{{ p.axis }}" as="a" hint-placeholder-count="5">
+                    <span style="position: absolute; left: 6px; top: {{ a.top }}; transform: translateY(-50%)">{{ a.t }}</span>
+                  </sc-for>
+                  <sc-for list="{{ p.cmps }}" as="c" hint-placeholder-count="0">
+                    <span style="position: absolute; left: 0; right: 0; top: {{ c.top }}; transform: translateY(-50%); padding: 1px 4px; background: #2A2A2F; color: #E8E8EA; font-size: 10.5px; font-weight: 700; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ c.sym }}</span>
+                  </sc-for>
+                  <span style="position: absolute; left: 0; right: 0; top: {{ p.lastTop }}; transform: translateY(-50%); padding: 2px 4px; background: {{ p.chgFg }}; color: #FFFFFF; font-weight: 700; text-align: center">{{ p.c }}</span>
+                </div>
+              </div>
+
+              <sc-if value="{{ p.macroPane }}" hint-placeholder-val="{{ false }}">
+                <div style="height: 78px; flex-shrink: 0; display: flex; border-top: 1px solid #1C1C1F">
+                  <div style="flex: 1; min-width: 0; position: relative">
+                    <span style="position: absolute; left: 10px; top: 4px; font-size: 11px; color: #8FB8FF">{{ p.macroName }} <span style="font-weight: 700">{{ p.macroVal }}</span> <span style="color: #6E6E76">{{ p.macroSrc }}</span></span>
+                    <svg viewBox="0 0 900 78" preserveAspectRatio="none" style="position: absolute; inset: 0; width: 100%; height: 100%; display: block" role="img" aria-label="{{ p.macroName }} {{ p.macroVal }}">
+                      <sc-for list="{{ p.evLines }}" as="e" hint-placeholder-count="3">
+                        <line x1="{{ e.x }}" y1="0" x2="{{ e.x }}" y2="78" stroke="#3A3A41" stroke-dasharray="2 4" vector-effect="non-scaling-stroke"></line>
+                      </sc-for>
+                      <polyline points="{{ p.macroPanePts }}" fill="none" stroke="#3182F6" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke"></polyline>
+                    </svg>
+                  </div>
+                  <div style="flex: 0 0 60px; position: relative; border-left: 1px solid #1C1C1F; font-size: 11px; color: #6E6E76">
+                    <span style="position: absolute; left: 6px; top: 22%; transform: translateY(-50%)">{{ p.mHi }}</span>
+                    <span style="position: absolute; left: 6px; top: 88%; transform: translateY(-50%)">{{ p.mLo }}</span>
+                  </div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ p.showRsi }}" hint-placeholder-val="{{ false }}">
+                <div style="height: 70px; flex-shrink: 0; display: flex; border-top: 1px solid #1C1C1F">
+                  <div style="flex: 1; min-width: 0; position: relative">
+                    <span style="position: absolute; left: 10px; top: 4px; font-size: 11px; color: #8E8E96">RSI 14 <span style="color: #C9C9CF; font-weight: 600">{{ p.rsiLast }}</span></span>
+                    <svg viewBox="0 0 900 70" preserveAspectRatio="none" style="position: absolute; inset: 0; width: 100%; height: 100%; display: block" role="img" aria-label="RSI 14 {{ p.rsiLast }}">
+                      <rect x="0" y="{{ p.r70 }}" width="900" height="{{ p.rBand }}" fill="rgba(232,232,234,0.03)"></rect>
+                      <line x1="0" y1="{{ p.r70 }}" x2="900" y2="{{ p.r70 }}" stroke="#2A2A2F" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"></line>
+                      <line x1="0" y1="{{ p.r30 }}" x2="900" y2="{{ p.r30 }}" stroke="#2A2A2F" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"></line>
+                      <polyline points="{{ p.rsi }}" fill="none" stroke="#C9C9CF" stroke-width="1.3" vector-effect="non-scaling-stroke"></polyline>
+                    </svg>
+                  </div>
+                  <div style="flex: 0 0 60px; position: relative; border-left: 1px solid #1C1C1F; font-size: 11px; color: #6E6E76">
+                    <span style="position: absolute; left: 6px; top: {{ p.r70Top }}; transform: translateY(-50%)">70</span>
+                    <span style="position: absolute; left: 6px; top: {{ p.r30Top }}; transform: translateY(-50%)">30</span>
+                  </div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ p.showMacd }}" hint-placeholder-val="{{ false }}">
+                <div style="height: 70px; flex-shrink: 0; display: flex; border-top: 1px solid #1C1C1F">
+                  <div style="flex: 1; min-width: 0; position: relative">
+                    <span style="position: absolute; left: 10px; top: 4px; font-size: 11px; color: #8E8E96">MACD 12 26 9 <span style="color: #C9C9CF; font-weight: 600">{{ p.macdLast }}</span> · 시그널 <span style="color: #C9C9CF; font-weight: 600">{{ p.sigLast }}</span></span>
+                    <svg viewBox="0 0 900 70" preserveAspectRatio="none" style="position: absolute; inset: 0; width: 100%; height: 100%; display: block" role="img" aria-label="MACD {{ p.macdLast }}, 시그널 {{ p.sigLast }}">
+                      <line x1="0" y1="38" x2="900" y2="38" stroke="#2A2A2F" vector-effect="non-scaling-stroke"></line>
+                      <sc-for list="{{ p.hist }}" as="b" hint-placeholder-count="60">
+                        <rect x="{{ b.x }}" y="{{ b.y }}" width="{{ p.bw }}" height="{{ b.h }}" fill="{{ b.color }}" opacity="0.45"></rect>
+                      </sc-for>
+                      <polyline points="{{ p.macd }}" fill="none" stroke="#C9C9CF" stroke-width="1.3" vector-effect="non-scaling-stroke"></polyline>
+                      <polyline points="{{ p.sig }}" fill="none" stroke="#6E6E76" stroke-width="1.2" stroke-dasharray="4 3" vector-effect="non-scaling-stroke"></polyline>
+                    </svg>
+                  </div>
+                  <div style="flex: 0 0 60px; border-left: 1px solid #1C1C1F"></div>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ p.showEvRow }}" hint-placeholder-val="{{ false }}">
+                <div style="height: 22px; flex-shrink: 0; display: flex; border-top: 1px solid #1C1C1F">
+                  <div style="flex: 1; min-width: 0; position: relative">
+                    <sc-for list="{{ p.evMarks }}" as="e" hint-placeholder-count="3">
+                      <span title="{{ e.title }}" style="position: absolute; top: 3px; left: {{ e.left }}; transform: translateX(-50%); height: 16px; min-width: 16px; padding: 0 4px; box-sizing: border-box; border-radius: 8px; background: {{ e.bg }}; color: {{ e.fg }}; font-size: 9.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; white-space: nowrap">{{ e.letters }}</span>
+                    </sc-for>
+                  </div>
+                  <div style="flex: 0 0 60px; border-left: 1px solid #1C1C1F; font-size: 10.5px; color: #6E6E76; display: flex; align-items: center; padding-left: 6px">이벤트</div>
+                </div>
+              </sc-if>
+              <div style="height: 22px; flex-shrink: 0; display: flex; border-top: 1px solid #1C1C1F; font-size: 11px; color: #6E6E76">
+                <div style="flex: 1; min-width: 0; position: relative">
+                  <sc-for list="{{ p.times }}" as="d" hint-placeholder-count="5"><span style="position: absolute; top: 4px; left: {{ d.left }}; transform: translateX(-50%); white-space: nowrap">{{ d.t }}</span></sc-for>
+                </div>
+                <div style="flex: 0 0 60px"></div>
+              </div>
+            </div>
+          </sc-for>
+        </section>
+      </div>
+    </main>
+
+    <sc-if value="{{ sideOpen }}" hint-placeholder-val="{{ true }}">
+    <aside aria-label="Chart settings" style="flex: 0 0 280px; height: 100%; box-sizing: border-box; overflow: auto; background: #0B0B0C; border-left: 1px solid #1C1C1F; display: flex; flex-direction: column">
+      <div style="display: flex; align-items: center; gap: 2px; height: 44px; padding: 0 8px; flex-shrink: 0">
+        <div role="tablist" aria-label="차트 설정" style="flex: 1; display: flex; gap: 2px">
+          <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="3">
+            <button type="button" role="tab" aria-selected="{{ t.selected }}" onClick="{{ t.pick }}" style="display: flex; align-items: center; gap: 5px; height: 30px; padding: 0 9px; border: 0; border-radius: 6px; background: {{ t.bg }}; color: {{ t.fg }}; font: inherit; font-size: 13px; font-weight: {{ t.weight }}; cursor: pointer">{{ t.label }}<sc-if value="{{ t.hasN }}" hint-placeholder-val="{{ true }}"><span style="min-width: 16px; height: 16px; padding: 0 4px; box-sizing: border-box; border-radius: 8px; background: #2A2A2F; color: #C9C9CF; font-size: 10.5px; display: flex; align-items: center; justify-content: center">{{ t.n }}</span></sc-if></button>
+          </sc-for>
+        </div>
+        <button type="button" onClick="{{ closeSide }}" aria-label="설정 패널 접기" style="width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: #8E8E96; display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"></polyline></svg>
+        </button>
+      </div>
+
+      <sc-if value="{{ tabInd }}" hint-placeholder-val="{{ true }}">
+        <p class="cap">기술 지표 · 가격 위 또는 아래 보조창</p>
+        <sc-for list="{{ inds }}" as="d" hint-placeholder-count="6">
+          <div class="row">
+            <svg width="16" height="8" viewBox="0 0 16 8" aria-hidden="true" style="flex-shrink: 0"><line x1="0" y1="4" x2="16" y2="4" stroke="{{ d.color }}" stroke-width="{{ d.sw }}" stroke-dasharray="{{ d.dash }}"></line></svg>
+            <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px">
+              <span style="font-weight: 600; color: {{ d.nameFg }}">{{ d.name }}</span>
+              <span style="font-size: 11px; color: #8E8E96">{{ d.desc }}</span>
+            </span>
+            <button type="button" class="sw" role="switch" aria-checked="{{ d.checked }}" aria-label="{{ d.name }} 표시" onClick="{{ d.toggle }}" style="background: {{ d.trackBg }}; justify-content: {{ d.justify }}"><span></span></button>
+          </div>
+        </sc-for>
+        <p class="cap" style="color: #6E6E76">RSI · MACD 보조창은 1분할에서만 보여요</p>
+      </sc-if>
+
+      <sc-if value="{{ tabMacro }}" hint-placeholder-val="{{ false }}">
+        <p class="cap">가격 차트에 매크로 지표 하나를 맞춰 봐요</p>
+        <div style="display: flex; align-items: center; gap: 8px; padding: 0 16px 8px">
+          <span style="font-size: 12px; color: #9C9CA3">표시</span>
+          <div class="grp" role="group" aria-label="매크로 표시 방식" style="height: 30px">
+            <sc-for list="{{ modeSeg }}" as="p" hint-placeholder-count="2">
+              <button type="button" class="seg" aria-pressed="{{ p.pressed }}" onClick="{{ p.pick }}" style="height: 26px; background: {{ p.bg }}; color: {{ p.fg }}; font-weight: {{ p.weight }}">{{ p.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+        <div role="radiogroup" aria-label="매크로 지표">
+          <sc-for list="{{ macros }}" as="m" hint-placeholder-count="6">
+            <button type="button" role="radio" aria-checked="{{ m.checked }}" onClick="{{ m.pick }}" style="width: 100%; display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 4px 16px; box-sizing: border-box; border: 0; border-top: 1px solid #161618; background: {{ m.bg }}; color: #E8E8EA; font: inherit; text-align: left; cursor: pointer">
+              <span style="width: 14px; height: 14px; border-radius: 50%; box-sizing: border-box; border: {{ m.ring }}; flex-shrink: 0"></span>
+              <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px">
+                <span style="font-weight: 600">{{ m.name }}</span>
+                <span style="font-size: 11px; color: #8E8E96">{{ m.src }}</span>
+              </span>
+              <span style="font-weight: 600; color: #C9C9CF">{{ m.val }}</span>
+            </button>
+          </sc-for>
+        </div>
+        <sc-if value="{{ macroOn }}" hint-placeholder-val="{{ false }}">
+          <dl style="margin: 8px 16px 12px; padding: 10px 12px; border-radius: 8px; background: #121214; display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; font-size: 12px">
+            <dt style="color: #8E8E96">{{ mainSym }} 가격과 상관계수</dt><dd style="margin: 0; text-align: right; font-weight: 700">{{ mCorr }}</dd>
+            <dt style="color: #8E8E96">표시 구간 변화</dt><dd style="margin: 0; text-align: right; font-weight: 700">{{ mChg }}</dd>
+            <dt style="color: #8E8E96">구간 범위</dt><dd style="margin: 0; text-align: right; font-weight: 600; color: #C9C9CF">{{ mRange }}</dd>
+          </dl>
+          <p class="cap" style="padding-top: 0; color: #6E6E76">{{ mNote }}</p>
+        </sc-if>
+      </sc-if>
+
+      <sc-if value="{{ tabEvent }}" hint-placeholder-val="{{ false }}">
+        <p class="cap">차트 아래 줄과 세로 점선으로 표시해요</p>
+        <sc-for list="{{ evTypes }}" as="e" hint-placeholder-count="5">
+          <div class="row">
+            <span class="badge" style="background: {{ e.badgeBg }}; color: {{ e.badgeFg }}">{{ e.letter }}</span>
+            <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px">
+              <span style="font-weight: 600; color: {{ e.nameFg }}">{{ e.label }}</span>
+              <span style="font-size: 11px; color: #8E8E96">{{ e.desc }}</span>
+            </span>
+            <button type="button" class="sw" role="switch" aria-checked="{{ e.checked }}" aria-label="{{ e.label }} 표시" onClick="{{ e.toggle }}" style="background: {{ e.trackBg }}; justify-content: {{ e.justify }}"><span></span></button>
+          </div>
+        </sc-for>
+        <sc-if value="{{ evIntraday }}" hint-placeholder-val="{{ false }}">
+          <p class="cap" style="color: #6E6E76">이벤트는 일봉 · 주봉에서 날짜에 맞춰 표시돼요</p>
+        </sc-if>
+        <sc-if value="{{ hasEvList }}" hint-placeholder-val="{{ true }}">
+          <p class="cap" style="padding-top: 14px">표시 구간 이벤트 · 다음 봉 반응</p>
+          <sc-for list="{{ evList }}" as="e" hint-placeholder-count="6">
+            <div style="display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 2px 16px; box-sizing: border-box; border-top: 1px solid #161618; font-size: 12px">
+              <span class="badge">{{ e.letter }}</span>
+              <span style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ e.title }}</span>
+                <span style="font-size: 11px; color: #6E6E76">{{ e.date }}</span>
+              </span>
+              <span style="font-weight: 700; color: {{ e.fg }}">{{ e.react }}</span>
+            </div>
+          </sc-for>
+        </sc-if>
+      </sc-if>
+
+      <div style="margin-top: auto; padding: 12px 16px; border-top: 1px solid #1C1C1F; display: flex; gap: 6px">
+        <button type="button" style="flex: 1; height: 32px; border: 0; border-radius: 6px; background: #1A1A1D; color: #E8E8EA; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer">템플릿 저장</button>
+        <button type="button" style="flex: 1; height: 32px; border: 0; border-radius: 6px; background: #3182F6; color: #FFFFFF; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer">가격 알림</button>
+      </div>
+    </aside>
+    </sc-if>
+  </div>
+
+  <footer style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; height: 32px; padding: 0 16px; background: #0B0B0C; border-top: 1px solid #1C1C1F; font-size: 12px; color: #8E8E96">
+    <span>투자 유의사항</span>
+    <span style="color: #6E6E76">가격 Yahoo Finance · 매크로 FRED · 이벤트 일정·값은 시안용 예시</span>
+    <span style="margin-left: auto; display: flex; flex-wrap: wrap; gap: 16px">
+      <sc-for list="{{ footer }}" as="f" hint-placeholder-count="3">
+        <span>{{ f.name }} <span style="color: #E8E8EA; font-weight: 600">{{ f.price }}</span> <span style="color: {{ f.color }}; font-weight: 600">{{ f.chg }}</span></span>
+      </sc-for>
+    </span>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"updown":{"editor":"enum","options":["kr","us"],"default":"kr","section":"Price colors"},"$preview":{"width":1440,"height":1080}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const st = this.state || {};
+    const kr = (this.props.updown ?? 'kr') !== 'us';
+    const UP = kr ? '#F04452' : '#1DB37A';
+    const DOWN = kr ? '#3182F6' : '#F04452';
+    const tone = (v) => (v > 0 ? UP : v < 0 ? DOWN : '#9C9CA3');
+    const pct = (v, d = 2) => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(d) + '%';
+    const num = (v, d = 2) => v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+    const rng = (seed) => { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; };
+    const gauss = (r) => { const u = Math.max(1e-9, r()), v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+    const segOf = (on) => ({ pressed: on ? 'true' : 'false', bg: on ? '#2A2A2F' : 'transparent', fg: on ? '#E8E8EA' : '#8E8E96', weight: on ? 700 : 500 });
+    const swOf = (on) => ({ checked: on ? 'true' : 'false', trackBg: on ? '#3182F6' : '#2A2A2F', justify: on ? 'flex-end' : 'flex-start', nameFg: on ? '#E8E8EA' : '#8E8E96' });
+
+    // ── 툴바 ──
+    const IVS = [['1m', '1분'], ['5m', '5분'], ['15m', '15분'], ['1h', '1시간'], ['1d', '일'], ['1w', '주']];
+    const iv = st.iv || '1d';
+    const ivIdx = IVS.findIndex((x) => x[0] === iv);
+    const ivLabel = IVS[ivIdx][1] + '봉';
+    const ivSeg = IVS.map(([k, label]) => ({ label, ...segOf(k === iv), pick: () => this.setState({ iv: k }) }));
+    const type = st.type || 'candle';
+    const typeSeg = [
+      ['candle', '캔들', 'M7 3v4M7 17v4M5 7h4v10H5zM17 4v4M17 15v5M15 8h4v7h-4z'],
+      ['line', '라인', 'M3 17l5-6 4 3 8-9'],
+      ['area', '영역', 'M3 20V17l5-6 4 3 8-9v15z'],
+    ].map(([k, label, icon]) => ({ label, icon, ...segOf(k === type), pick: () => this.setState({ type: k }) }));
+    const layout = st.layout || 1;
+    const laySeg = [
+      [1, '1분할', 'M4 4h16v16H4z'], [2, '2분할', 'M4 4h16v16H4zM12 4v16'], [4, '4분할', 'M4 4h16v16H4zM12 4v16M4 12h16'],
+    ].map(([k, label, icon]) => ({ label, icon, ...segOf(k === layout), pick: () => this.setState({ layout: k }) }));
+    const sideOpen = st.side !== false;
+    const tab = st.tab || 'ind';
+
+    // ── 그리기 도구 ──
+    const TOOLS = [
+      ['cursor', '커서', 'M5 3l14 8-6 2-2 6z', '차트를 끌어 기간을 옮겨요'],
+      ['cross', '십자선', 'M12 3v18M3 12h18', '십자선으로 값을 읽어요'],
+      ['trend', '추세선', 'M4 19L20 5M4 19h.01M20 5h.01', '추세선: 차트에서 두 점을 클릭하세요'],
+      ['hline', '수평선', 'M3 12h18M7 12h.01M17 12h.01', '수평선: 가격을 한 번 클릭하세요'],
+      ['fib', '피보나치 되돌림', 'M3 5h18M3 10h18M3 14h18M3 19h18', '피보나치: 고점과 저점을 차례로 클릭하세요'],
+      ['rect', '사각형', 'M5 6h14v12H5z', '사각형: 두 모서리를 클릭하세요'],
+      ['text', '텍스트', 'M5 6h14M12 6v13', '텍스트: 메모할 위치를 클릭하세요'],
+      ['measure', '구간 측정', 'M4 20L20 4M8 20l-4-4M20 8l-4-4', '구간 측정: 시작과 끝을 클릭하세요'],
+      ['erase', '그림 모두 지우기', 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13', '그린 선을 모두 지웠어요'],
+    ];
+    const tool = st.tool || 'cursor';
+    const showDraw = st.drawn !== false;
+    const tools = TOOLS.map(([k, label, icon], i) => {
+      const on = k === tool;
+      return {
+        label, icon, sep: i === 2 || i === 8, pressed: on ? 'true' : 'false', bg: on ? '#23262E' : 'transparent', fg: on ? '#E8E8EA' : '#8E8E96',
+        pick: () => this.setState(k === 'erase' ? { tool: k, drawn: false } : { tool: k, drawn: k === 'trend' || k === 'hline' ? true : showDraw }),
+      };
+    });
+    const toolHint = TOOLS.find((t) => t[0] === tool)[3];
+
+    // ── 기술 지표 (회색 단계 + 선 모양으로 구분) ──
+    const IND = [
+      ['ma20', '이동평균 20', '단순 · 종가', '#C9C9CF', '', true],
+      ['ma60', '이동평균 60', '단순 · 종가', '#8E8E96', '4 3', true],
+      ['bb', '볼린저 밴드', '20, 2σ', '#55555C', '', false],
+      ['vol', '거래량', '하단 막대', '#55555C', '', true],
+      ['rsi', 'RSI', '14 · 보조창', '#C9C9CF', '', true],
+      ['macd', 'MACD', '12, 26, 9 · 보조창', '#C9C9CF', '', false],
+    ];
+    const ind = st.ind || Object.fromEntries(IND.map((x) => [x[0], x[5]]));
+    const inds = IND.map(([k, name, desc, color, dash]) => ({ name, desc, color, dash, sw: k === 'vol' ? 4 : 1.6, ...swOf(!!ind[k]), toggle: () => this.setState({ ind: { ...ind, [k]: !ind[k] } }) }));
+    const indCount = IND.filter((x) => ind[x[0]]).length;
+
+    // ── 막대 · 날짜 ──
+    const N = layout === 1 ? 110 : layout === 2 ? 80 : 56;
+    const M = N + 70, S0 = M - N;
+    const DAY = 86400000;
+    const iso = (t) => new Date(t).toISOString().slice(0, 10);
+    let dates = null;
+    if (iv === '1d' || iv === '1w') {
+      dates = []; let t = Date.UTC(2026, 10, 13);
+      while (dates.length < M) { const wd = new Date(t).getUTCDay(); if (iv === '1w' || (wd !== 0 && wd !== 6)) dates.unshift(iso(t)); t -= iv === '1w' ? 7 * DAY : DAY; }
+    }
+    const idxOf = (d) => {
+      if (!dates) return -1;
+      const k = dates.findIndex((x) => x >= d);
+      if (k < 0 || (iv === '1d' && Date.parse(dates[k]) - Date.parse(d) > 4 * DAY)) return -1;
+      return k;
+    };
+
+    // ── 이벤트 정의 (일정·내용은 시안용 예시) ──
+    const EVT = [
+      ['earn', 'E', '실적 발표', '종목 · 분기 실적', 'stock', true, [['2025-07-31', 'FQ3 2025 실적'], ['2025-10-30', 'FQ4 2025 실적'], ['2026-01-29', 'FQ1 2026 실적'], ['2026-04-30', 'FQ2 2026 실적'], ['2026-07-30', 'FQ3 2026 실적 · EPS 예상 상회'], ['2026-10-29', 'FQ4 2026 실적 · 매출 예상 상회']]],
+      ['div', 'D', '배당락', '종목 · 분기 배당', 'stock', false, [['2026-02-09', '배당락 $0.26'], ['2026-05-11', '배당락 $0.26'], ['2026-08-10', '배당락 $0.27'], ['2026-11-10', '배당락 $0.27']]],
+      ['fomc', 'F', 'FOMC', '미국 · 금리 결정', 'macro', true, [['2026-06-17', 'FOMC 동결'], ['2026-07-29', 'FOMC 동결'], ['2026-09-16', 'FOMC 25bp 인하'], ['2026-10-28', 'FOMC 동결']]],
+      ['cpi', 'C', 'CPI 발표', '미국 · 소비자물가', 'macro', true, [['2026-06-10', 'CPI 5월 3.71%'], ['2026-07-14', 'CPI 6월 3.78%'], ['2026-08-12', 'CPI 7월 3.85%'], ['2026-09-11', 'CPI 8월 3.93%'], ['2026-10-14', 'CPI 9월 4.02%']]],
+      ['nfp', 'J', '고용보고서', '미국 · 비농업 고용', 'macro', false, [['2026-07-02', '6월 고용보고서'], ['2026-08-07', '7월 고용보고서'], ['2026-09-04', '8월 고용보고서'], ['2026-10-02', '9월 고용보고서'], ['2026-11-06', '10월 고용보고서']]],
+    ];
+    const evOn = st.ev || Object.fromEntries(EVT.map((e) => [e[0], e[5]]));
+    const evTypesOn = EVT.filter((e) => evOn[e[0]]).length;
+
+    // ── 매크로 지표 (최근 값은 매크로 화면과 같은 값) ──
+    const MACROS = [
+      ['none', '없음', '', null, '', ''],
+      ['us10y', '미국 10년물 금리', 'FRED · DGS10', 4.84, '%', 'walk'],
+      ['ff', '기준금리 (상단)', 'FRED · DFEDTARU', 4.25, '%', 'step'],
+      ['cpi', 'CPI 전년 대비', 'FRED · CPIAUCSL', 4.02, '%', 'release'],
+      ['vix', 'VIX', 'CBOE · FRED VIXCLS', 28.18, '', 'walk'],
+      ['krw', '원/달러 환율', 'FRED · DEXKOUS', 1345.42, '원', 'walk'],
+    ];
+    const macroKey = st.macro ?? 'us10y';
+    const mDef = MACROS.find((m) => m[0] === macroKey);
+    const mFmt = (v) => (mDef[4] === '%' ? v.toFixed(2) + '%' : macroKey === 'krw' ? num(v, 1) : v.toFixed(2));
+    const VOLK = [0.25, 0.4, 0.55, 0.75, 1, 1.9];
+    let mSeries = null;
+    if (macroKey !== 'none') {
+      const r = rng(777 + ivIdx * 5 + macroKey.length);
+      mSeries = [];
+      if (mDef[5] === 'walk') {
+        const rel = macroKey !== 'us10y'; const sd = (macroKey === 'us10y' ? 0.035 : macroKey === 'vix' ? 0.05 : 0.004) * VOLK[ivIdx];
+        let v = rel ? 1 : 0;
+        for (let i = 0; i < M; i++) { mSeries.push(v); v = rel ? v * (1 + sd * gauss(r)) : v + sd * gauss(r); }
+        const last = mSeries[M - 1];
+        mSeries = mSeries.map((x) => (rel ? (x / last) * mDef[3] : x - last + mDef[3]));
+      } else if (mDef[5] === 'step') {
+        const k = idxOf('2026-09-16');
+        for (let i = 0; i < M; i++) mSeries.push(dates && k >= 0 && i < k ? 4.5 : 4.25);
+      } else {
+        const REL = [['2026-06-10', 3.71], ['2026-07-14', 3.78], ['2026-08-12', 3.85], ['2026-09-11', 3.93], ['2026-10-14', 4.02]].map(([d, v]) => [idxOf(d), v]);
+        for (let i = 0; i < M; i++) { let v = dates ? 3.62 : 4.02; REL.forEach(([k, x]) => { if (k >= 0 && i >= k) v = x; }); mSeries.push(v); }
+      }
+    }
+    const mode = st.mode || 'overlay';
+    const macroPaneMode = mode === 'pane' && layout === 1;
+
+    // ── 패널 계산 ──
+    const SYMS = [['AAPL', 'Apple', 350.34, 0.016], ['NVDA', 'NVIDIA', 179.05, 0.026], ['S&P 500', 'S&P 500', 7520.4, 0.009], ['KOSPI', 'KOSPI', 5018.85, 0.011]];
+    const ITIMES = { '1m': ['09:30', '09:45', '10:00', '10:15', '10:30'], '5m': ['11.12 10:00', '11.12 14:00', '11.13 10:00', '11.13 13:00', '11.13 15:30'], '15m': ['11.07', '11.10', '11.11', '11.12', '11.13'], '1h': ['10.20', '10.27', '11.03', '11.07', '11.12'] };
+    const sma = (a, n) => a.map((_, i) => (i < n - 1 ? null : a.slice(i - n + 1, i + 1).reduce((x, y) => x + y, 0) / n));
+    const ema = (a, n) => { const k = 2 / (n + 1); const out = []; a.forEach((v, i) => out.push(i === 0 ? v : v * k + out[i - 1] * (1 - k))); return out; };
+    const corr = (a, b) => {
+      const n = a.length; const ma = a.reduce((x, y) => x + y, 0) / n, mb = b.reduce((x, y) => x + y, 0) / n;
+      let ab = 0, aa = 0, bb = 0; for (let i = 0; i < n; i++) { ab += (a[i] - ma) * (b[i] - mb); aa += (a[i] - ma) ** 2; bb += (b[i] - mb) ** 2; }
+      return aa < 1e-12 || bb < 1e-12 ? null : ab / Math.sqrt(aa * bb);
+    };
+    const W = 900, P0 = 10, P1 = ind.vol ? 232 : 290, V0 = 244, V1 = 296;
+    let evList = [];
+    const gen = (seed, target, vol) => {
+      const r = rng(seed);
+      const s = vol * VOLK[ivIdx];
+      const bars = []; let p = 100;
+      for (let i = 0; i < M; i++) {
+        const o = p; const c = o * (1 + 0.0006 * VOLK[ivIdx] + s * gauss(r) * 0.6);
+        const h = Math.max(o, c) * (1 + Math.abs(gauss(r)) * s * 0.35);
+        const l = Math.min(o, c) * (1 - Math.abs(gauss(r)) * s * 0.35);
+        bars.push({ o, h, l, c, v: 0.5 + r() + (Math.abs(c - o) / o) * 25 }); p = c;
+      }
+      const f = target / bars[M - 1].c;
+      bars.forEach((b) => { b.o *= f; b.h *= f; b.l *= f; b.c *= f; });
+      return bars;
+    };
+    // ── 비교 종목 (최대 3개, 구간 시작점을 기준 종목 가격에 맞춤) ──
+    const CANDS = [['NVDA', 'NVIDIA', 0.026], ['MSFT', 'Microsoft', 0.015], ['GOOGL', 'Alphabet', 0.018], ['S&P 500', '지수', 0.009], ['Nasdaq 100', '지수', 0.012], ['KOSPI', '지수', 0.011]];
+    const DASH = ['6 3', '2 3', '10 3 2 3'];
+    const cmp = (st.cmp || []).filter((s) => CANDS.some((c) => c[0] === s)).slice(0, 3);
+    const cmpOpen = !!st.cmpOpen && cmp.length < 3;
+    const cmpList = cmp.map((sym) => { const k = CANDS.findIndex((c) => c[0] === sym); return { sym, vol: CANDS[k][2], seed: k }; });
+    const makePane = ([sym, name, target, vol], j) => {
+      const bars = gen(31 + j * 97 + ivIdx * 13, target, vol);
+      const closes = bars.map((b) => b.c);
+      const m20 = sma(closes, 20), m60 = sma(closes, 60);
+      const sd20 = closes.map((_, i) => (i < 19 ? null : Math.sqrt(closes.slice(i - 19, i + 1).reduce((a, x) => a + (x - m20[i]) ** 2, 0) / 20)));
+      const view = bars.slice(S0);
+      let lo = Math.min(...view.map((b) => b.l)), hi = Math.max(...view.map((b) => b.h));
+      if (ind.bb) for (let i = S0; i < M; i++) { lo = Math.min(lo, m20[i] - 2 * sd20[i]); hi = Math.max(hi, m20[i] + 2 * sd20[i]); }
+      const cmpRaw = j === 0 ? cmpList.map((c, n) => {
+        const cb = gen(500 + c.seed * 41 + ivIdx * 13, 100, c.vol).map((b) => b.c);
+        const k = closes[S0] / cb[S0];
+        return { sym: c.sym, n, v: cb.slice(S0).map((x) => x * k) };
+      }) : [];
+      cmpRaw.forEach((c) => { lo = Math.min(lo, ...c.v); hi = Math.max(hi, ...c.v); });
+      const padv = (hi - lo) * 0.06; lo -= padv; hi += padv;
+      const y = (v) => P1 - ((v - lo) / (hi - lo)) * (P1 - P0);
+      const step = W / N; const bw = (step * 0.64).toFixed(2);
+      const cx = (i) => (i + 0.5) * step;
+      const leftOf = (i) => ((cx(i) / W) * 100).toFixed(2) + '%';
+      const line = (arr) => arr.slice(S0).map((v, i) => (v === null ? null : cx(i).toFixed(1) + ',' + y(v).toFixed(1))).filter(Boolean).join(' ');
+      const cmps = cmpRaw.map((c) => {
+        const ch = (c.v[N - 1] / c.v[0] - 1) * 100;
+        return { sym: c.sym, dash: DASH[c.n], pts: c.v.map((x, i) => cx(i).toFixed(1) + ',' + y(x).toFixed(1)).join(' '), top: ((y(c.v[N - 1]) / 300) * 100).toFixed(2) + '%', chg: pct(ch), fg: tone(ch) };
+      });
+      const viewChgV = (closes[M - 1] / closes[S0] - 1) * 100;
+      const candles = view.map((b, i) => {
+        const top = y(Math.max(b.o, b.c)), bot = y(Math.min(b.o, b.c));
+        return { cx: cx(i).toFixed(1), x: (cx(i) - step * 0.32).toFixed(1), top: top.toFixed(1), h: Math.max(0.8, bot - top).toFixed(1), hi: y(b.h).toFixed(1), lo: y(b.l).toFixed(1), color: b.c >= b.o ? UP : DOWN };
+      });
+      const vMax = Math.max(...view.map((b) => b.v));
+      const vols = view.map((b, i) => { const h = (b.v / vMax) * (V1 - V0); return { x: (cx(i) - step * 0.32).toFixed(1), y: (V1 - h).toFixed(1), h: h.toFixed(1), color: b.c >= b.o ? UP : DOWN }; });
+      const closePts = line(closes);
+      const area = cx(0).toFixed(1) + ',' + P1 + ' ' + closePts + ' ' + cx(N - 1).toFixed(1) + ',' + P1;
+      const bbUpA = m20.map((m, i) => (m === null ? null : m + 2 * sd20[i])), bbLoA = m20.map((m, i) => (m === null ? null : m - 2 * sd20[i]));
+      const bbUp = line(bbUpA), bbLo = line(bbLoA);
+      const bbArea = bbUp + ' ' + bbLo.split(' ').reverse().join(' ');
+      const mas = [], legend = [];
+      if (ind.ma20) { mas.push({ color: '#C9C9CF', dash: '', pts: line(m20) }); legend.push({ label: 'MA 20', value: num(m20[M - 1]), color: '#C9C9CF', dash: '' }); }
+      if (ind.ma60) { mas.push({ color: '#8E8E96', dash: '4 3', pts: line(m60) }); legend.push({ label: 'MA 60', value: num(m60[M - 1]), color: '#8E8E96', dash: '3 2' }); }
+      if (ind.bb) legend.push({ label: 'BB 20 2', value: num(bbUpA[M - 1]) + ' / ' + num(bbLoA[M - 1]), color: '#55555C', dash: '' });
+      const last = bars[M - 1], prev = bars[M - 2];
+      const chgV = (last.c / prev.c - 1) * 100;
+      const ticks = [0, 1, 2, 3, 4].map((t) => lo + ((hi - lo) * (t + 0.5)) / 5);
+      const axis = ticks.map((v) => ({ top: ((y(v) / 300) * 100).toFixed(2) + '%', t: num(v, v > 1000 ? 0 : 2) }));
+      const grid = ticks.map((v) => ({ y: y(v).toFixed(1) }));
+      // RSI
+      const gains = [], losses = [];
+      closes.forEach((c, i) => { const d = i ? c - closes[i - 1] : 0; gains.push(Math.max(0, d)); losses.push(Math.max(0, -d)); });
+      const ag = ema(gains, 27), al = ema(losses, 27);
+      const rsiA = ag.map((g, i) => (al[i] === 0 ? 100 : 100 - 100 / (1 + g / al[i])));
+      const ry = (v) => 8 + ((100 - v) / 100) * 56;
+      const r70 = ry(70), r30 = ry(30);
+      // MACD
+      const e12 = ema(closes, 12), e26 = ema(closes, 26);
+      const macdA = e12.map((v, i) => v - e26[i]); const sigA = ema(macdA, 9);
+      const mv = macdA.slice(S0), sv = sigA.slice(S0);
+      const mAbs = Math.max(...mv.map(Math.abs), ...sv.map(Math.abs), 1e-9);
+      const my = (v) => 38 - (v / mAbs) * 26;
+      const hist = mv.map((v, i) => { const hv = v - sv[i]; const y1 = my(hv); return { x: (cx(i) - step * 0.32).toFixed(1), y: Math.min(38, y1).toFixed(1), h: Math.max(0.5, Math.abs(y1 - 38)).toFixed(1), color: hv >= 0 ? UP : DOWN }; });
+      // 미리 그려 둔 선
+      const lowI = view.reduce((a, b, i) => (b.l < view[a].l ? i : a), 0);
+      const supV = view[lowI].l;
+      const t1 = Math.round(N * 0.18), t2 = Math.round(N * 0.9);
+      const tl = { x1: cx(t1).toFixed(1), y1: y(view[t1].l).toFixed(1), x2: cx(t2).toFixed(1), y2: y(view[t2].l).toFixed(1) };
+      // 매크로
+      let macro = { macroOn: false, macroOverlay: false, macroPane: false };
+      if (mSeries) {
+        const mvw = mSeries.slice(S0);
+        let mlo = Math.min(...mvw), mhi = Math.max(...mvw);
+        if (mhi - mlo < 1e-6) { mlo -= 0.1; mhi += 0.1; }
+        const mp = (mhi - mlo) * 0.12;
+        const oy = (v) => P1 - ((v - (mlo - mp)) / (mhi + mp - (mlo - mp))) * (P1 - P0);
+        const py = (v) => 72 - ((v - (mlo - mp)) / (mhi + mp - (mlo - mp))) * 54;
+        macro = {
+          macroOn: true, macroOverlay: !macroPaneMode, macroPane: macroPaneMode,
+          macroName: mDef[1], macroVal: mFmt(mSeries[M - 1]), macroSrc: mDef[2],
+          macroPts: mvw.map((v, i) => cx(i).toFixed(1) + ',' + oy(v).toFixed(1)).join(' '),
+          macroPanePts: mvw.map((v, i) => cx(i).toFixed(1) + ',' + py(v).toFixed(1)).join(' '),
+          mHi: mFmt(mhi), mLo: mFmt(mlo), mHiTop: ((oy(mhi) / 300) * 100).toFixed(2) + '%', mLoTop: ((oy(mlo) / 300) * 100).toFixed(2) + '%',
+          corrV: corr(closes.slice(S0), mvw), mFirst: mvw[0], mLast: mvw[N - 1], mMin: mlo, mMax: mhi,
+        };
+      }
+      // 이벤트
+      const groups = {};
+      const mine = [];
+      if (dates) EVT.forEach(([k, letter, label, , scope, , items]) => {
+        if (!evOn[k] || (scope === 'stock' && j !== 0)) return;
+        items.forEach(([d, title]) => {
+          const g = idxOf(d); if (g < S0) return;
+          const i = g - S0;
+          (groups[i] = groups[i] || []).push({ letter, label, title, d });
+          if (j === 0) { const nx = g + 1 < M ? (bars[g + 1].c / bars[g].c - 1) * 100 : null; mine.push({ d, letter, title, nx }); }
+        });
+      });
+      if (j === 0) evList = mine.sort((a, b) => (a.d < b.d ? 1 : -1)).map((e) => ({ letter: e.letter, title: e.title, date: e.d, react: e.nx === null ? '—' : pct(e.nx), fg: e.nx === null ? '#6E6E76' : tone(e.nx) }));
+      const keys = Object.keys(groups).map(Number);
+      const evLines = keys.map((i) => ({ x: cx(i).toFixed(1) }));
+      const evMarks = keys.map((i) => {
+        const g = groups[i]; const hasE = g.some((x) => x.letter === 'E');
+        return { left: leftOf(i), letters: g.map((x) => x.letter).join('·'), title: g.map((x) => x.d + ' ' + x.title).join(' / '), bg: hasE ? '#E8E8EA' : '#2A2A2F', fg: hasE ? '#111113' : '#C9C9CF' };
+      });
+      const tIdx = [0, 1, 2, 3, 4].map((t) => Math.round((N * (t + 0.5)) / 5));
+      const times = tIdx.map((i, t) => ({ left: leftOf(i), t: dates ? (iv === '1w' ? dates[S0 + i].slice(2, 7).replace('-', '.') : dates[S0 + i].slice(5).replace('-', '.')) : ITIMES[iv][t] }));
+      return {
+        sym, name, iv: ivLabel, o: num(last.o), h: num(last.h), l: num(last.l), c: num(last.c), chg: pct(chgV), chgFg: tone(chgV),
+        legend, axis, grid, bw, candles, vols, close: closePts, area, bbUp, bbLo, bbArea, mas,
+        isCandle: type === 'candle', isArea: type === 'area', isLineish: type !== 'candle',
+        showBB: !!ind.bb, showVol: !!ind.vol, showDraw: showDraw && j === 0, showRsi: !!ind.rsi && layout === 1, showMacd: !!ind.macd && layout === 1,
+        lastY: y(last.c).toFixed(1), lastTop: ((y(last.c) / 300) * 100).toFixed(2) + '%',
+        sup: y(supV).toFixed(1), supTop: ((y(supV) / 300) * 100).toFixed(2) + '%', supLabel: num(supV), tl,
+        rsi: rsiA.slice(S0).map((v, i) => cx(i).toFixed(1) + ',' + ry(v).toFixed(1)).join(' '), rsiLast: rsiA[M - 1].toFixed(1),
+        r70: r70.toFixed(1), r30: r30.toFixed(1), rBand: (r30 - r70).toFixed(1), r70Top: ((r70 / 70) * 100).toFixed(1) + '%', r30Top: ((r30 / 70) * 100).toFixed(1) + '%',
+        hist, macd: mv.map((v, i) => cx(i).toFixed(1) + ',' + my(v).toFixed(1)).join(' '), sig: sv.map((v, i) => cx(i).toFixed(1) + ',' + my(v).toFixed(1)).join(' '),
+        macdLast: macdA[M - 1].toFixed(2), sigLast: sigA[M - 1].toFixed(2),
+        ...macro, evLines, evMarks, showEvRow: evMarks.length > 0, times,
+        cmps, hasCmp: cmps.length > 0, viewChg: pct(viewChgV), viewChgFg: tone(viewChgV),
+        border: j === 0 && layout > 1 ? '#3A3A41' : '#1C1C1F',
+        aria: sym + ' ' + ivLabel + ' 차트, 종가 ' + num(last.c) + ' ' + pct(chgV) + (macro.macroOn ? ', ' + mDef[1] + ' 겹침' : ''),
+      };
+    };
+    const panes = SYMS.slice(0, layout).map(makePane);
+    const P = panes[0];
+
+    // ── 설정 패널 ──
+    const evCount = evList.length;
+    const quickDefs = [['ind', '지표', indCount], ['macro', '매크로', macroKey === 'none' ? 0 : 1], ['event', '이벤트', dates ? evCount : 0]];
+    const openTab = (k) => () => this.setState(sideOpen && tab === k ? { side: false } : { side: true, tab: k });
+    const quick = quickDefs.map(([k, label, n]) => ({ label, n: String(n), hasN: n > 0, ...segOf(sideOpen && tab === k), pick: openTab(k) }));
+    const tabs = quickDefs.map(([k, label, n]) => {
+      const on = k === tab;
+      return { label, n: String(n), hasN: n > 0, selected: on ? 'true' : 'false', bg: on ? '#1E1E22' : 'transparent', fg: on ? '#FFFFFF' : '#8E8E96', weight: on ? 700 : 500, pick: () => this.setState({ tab: k }) };
+    });
+    const macros = MACROS.map(([k, name, src, val]) => {
+      const on = k === macroKey;
+      return { name, src: src || '가격만 보기', val: val === null ? '' : (k === 'krw' ? num(val, 1) : val.toFixed(2) + (k === 'vix' ? '' : '%')), checked: on ? 'true' : 'false', bg: on ? '#121214' : 'transparent', ring: on ? '4px solid #3182F6' : '1.5px solid #55555C', pick: () => this.setState({ macro: k }) };
+    });
+    const modeSeg = [['overlay', '겹쳐 보기'], ['pane', '아래 창']].map(([k, label]) => ({ label, ...segOf(k === mode), pick: () => this.setState({ mode: k }) }));
+    const mChgV = P.macroOn ? P.mLast - P.mFirst : 0;
+    const mChg = !P.macroOn ? '' : mDef[4] === '%' ? (mChgV >= 0 ? '+' : '−') + Math.abs(mChgV).toFixed(2) + '%p' : pct((P.mLast / P.mFirst - 1) * 100);
+    const mNote = !P.macroOn ? '' : mode === 'pane' && layout > 1 ? '분할 화면에서는 겹쳐 보기로 표시돼요' : mDef[5] === 'walk' ? '파란 선 = ' + mDef[1] + ' · 왼쪽 값은 지표 축이에요' : '발표·결정일에만 값이 바뀌는 계단형 지표예요';
+    const evTypes = EVT.map(([k, letter, label, desc, scope]) => {
+      const on = !!evOn[k];
+      return { letter, label, desc: desc + (scope === 'stock' ? '' : ' · 모든 분할 화면'), badgeBg: k === 'earn' ? '#E8E8EA' : '#2A2A2F', badgeFg: k === 'earn' ? '#111113' : '#C9C9CF', ...swOf(on), toggle: () => this.setState({ ev: { ...evOn, [k]: !on } }) };
+    });
+
+    // ── 공통 ──
+    const ICON = {
+      home: 'M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z', stock: 'M4 19V5M4 19h16M8 15l3-4 3 2 5-6',
+      chart: 'M7 3v3M7 17v4M5 6h4v11H5zM17 3v6M17 16v5M15 9h4v7h-4z',
+      macro: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18',
+      cal: 'M4 6h16v14H4zM4 10h16M9 3v4M15 3v4', port: 'M4 7h16v12H4zM9 7V5h6v2M4 12h16', screen: 'M4 6h16M7 12h10M10 18h4',
+      quant: 'M5 19L19 5M7 7h.01M17 17h.01M4 12h3M17 12h3', bt: 'M4 18l5-6 4 3 7-9M4 4v16h16',
+    };
+    const rail = [
+      ['home', '홈', 'Main.dc.html'], ['stock', '종목', 'StockDetail.dc.html'], ['chart', '차트', '#'], ['macro', '매크로', 'MacroDetail.dc.html'], ['cal', '캘린더', '#'],
+      ['port', '내 자산', '#'], ['screen', '스크리너', '#'], ['quant', '퀀트', 'Quant.dc.html'], ['bt', '백테스트', 'Backtest.dc.html'],
+    ].map(([k, label, href], i) => ({ icon: ICON[k], label, href, fg: i === 2 ? '#FFFFFF' : '#8E8E96', bg: i === 2 ? '#1C1C20' : 'transparent' }));
+    const footer = [['KOSPI', '5,018.85', -0.80], ['KOSDAQ', '638.97', -0.82], ['S&P 500', '7,520.4', 1.89]]
+      .map(([name, price, c]) => ({ name, price, chg: pct(c), color: tone(c) }));
+
+    return {
+      rail, footer, ivSeg, typeSeg, laySeg, tools, toolHint, quick, tabs, panes,
+      mainSym: SYMS[0][0], mainName: SYMS[0][1],
+      cmpChips: cmpList.map((c, n) => ({ sym: c.sym, dash: DASH[n], remove: () => this.setState({ cmp: cmp.filter((x) => x !== c.sym) }) })),
+      cmpCands: CANDS.filter((c) => !cmp.includes(c[0])).map(([sym, name]) => ({ sym, name, add: () => this.setState({ cmp: [...cmp, sym], cmpOpen: false }) })),
+      cmpCount: String(cmp.length), cmpCanAdd: cmp.length < 3, cmpFull: cmp.length >= 3,
+      cmpOpen, cmpOpenAttr: cmpOpen ? 'true' : 'false', toggleCmp: () => this.setState({ cmpOpen: !cmpOpen }),
+      gridCols: layout === 1 ? '1fr' : 'repeat(2, minmax(0, 1fr))', gridRows: layout === 4 ? 'repeat(2, minmax(0, 1fr))' : 'minmax(0, 1fr)',
+      sideOpen, closeSide: () => this.setState({ side: false }),
+      tabInd: tab === 'ind', tabMacro: tab === 'macro', tabEvent: tab === 'event',
+      inds, macros, modeSeg, macroOn: !!P.macroOn,
+      mCorr: P.macroOn ? (P.corrV === null ? '—' : P.corrV.toFixed(2)) : '', mChg, mRange: P.macroOn ? mFmt(P.mMin) + ' – ' + mFmt(P.mMax) : '', mNote,
+      evTypes, evIntraday: !dates, evList, hasEvList: evList.length > 0,
+    };
+  }
+}
+</script>
+</body>
+</html>

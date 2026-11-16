@@ -14,20 +14,29 @@
  *   muted    field                         흐린 글자 (시각 · 국가)
  *   value    field                         오른쪽 굵은 값 (없으면 —)
  *   value_muted field                      오른쪽 흐린 값 (없으면 —)
+ *   money    field                         $ 붙은 큰 수 ($6.72T)
+ *   pct      field                         12.3% (부호·색 없음 — 비중)
+ *   pill     field                         등락률을 같은 색 옅은 바탕의 꼬리표로 (전분기 대비)
+ *   bar      field, suffix                 값 + 얇은 막대 (막대 = 열에서 가장 큰 값 대비)
+ *   badge    field, toneBy                 글자 꼬리표 — 색은 toneBy 필드('up'·'down'·'accent'·숫자 부호), 없으면 회색
+ *   entity   field                         로고 + 이름 (종목이 아닌 것 — 기관)
+ *   link     field, href                   글자를 누르면 href 필드의 주소를 새 탭으로
  *   공통: header · width(px) · align('left'|'right') · render(row, ctx) 를 주면 그걸 그린다
  * options.minWidth: 이보다 좁으면 가로 스크롤 (기본 600)
  * options.rowHeight: 행 높이 (기본 40). 32 미만이면 글자도 12px 로 줄인다
  * options.fixed: true 면 열 폭을 고정하고(width 없는 열이 나머지를 갖는다) 넘치는 글자는 … 으로 자른다
+ * options.select: '화면 변수:행 필드' — 행을 누르면 그 변수에 행의 값을 넣는다 (예: 'institution:institution_key').
+ *                 지금 값과 같은 행은 강조한다
  */
 import { Link, hrefFor } from '../adapter';
 import { useSeries } from '../data';
 import { fmtCompact, fmtNumber, fmtPct, fmtPrice, toneOf, read } from '../format';
-import { StockLogo, TrendLine } from './parts';
+import { MiniBar, Pill, StockLogo, TrendLine } from './parts';
 
-const RIGHT = new Set(['price', 'change', 'compact', 'number', 'trend', 'value', 'value_muted']);
+const RIGHT = new Set(['price', 'change', 'compact', 'number', 'trend', 'value', 'value_muted', 'money', 'pct', 'pill', 'bar']);
 const blank = (v) => v == null || String(v).trim() === '';
 
-function Cell({ col, row, index, ctx, series }) {
+function Cell({ col, row, index, ctx, series, max }) {
   if (col.render) return col.render(row, ctx);
   const v = read(row, col.field, ctx);
   switch (col.type) {
@@ -66,13 +75,49 @@ function Cell({ col, row, index, ctx, series }) {
       return <span className="font-semibold">{blank(v) ? '—' : v}</span>;
     case 'value_muted':
       return <span className="text-[var(--mp-muted)]">{blank(v) ? '—' : v}</span>;
+    case 'money':
+      return <span className="font-semibold">{v != null ? `$${fmtCompact(v, 2)}` : '—'}</span>;
+    case 'pct':
+      return <span className="text-[var(--mp-text-2)]">{v != null ? `${Number(v).toFixed(2)}%` : '—'}</span>;
+    case 'pill':
+      return v != null
+        ? <Pill tone={Number(v)} className="min-w-[56px] text-center">{fmtPct(v, 1)}</Pill>
+        : <span className="text-[var(--mp-faint)]">—</span>;
+    case 'bar':
+      return (
+        <span className="inline-flex items-center justify-end gap-2">
+          <MiniBar ratio={max ? Math.abs(Number(v) || 0) / max : 0} color={col.color || 'var(--mp-muted)'} />
+          <span className="w-11 text-right text-[var(--mp-text-2)]">{v != null ? `${Number(v).toFixed(1)}${col.suffix ?? '%'}` : '—'}</span>
+        </span>
+      );
+    case 'badge':
+      return blank(v) ? null : <Pill tone={col.toneBy ? row[col.toneBy] : undefined}>{v}</Pill>;
+    case 'entity':
+      return (
+        <span className="flex items-center gap-2.5 min-w-0" title={v}>
+          <StockLogo symbol={v} name={v} />
+          <span className="font-semibold truncate">{v ?? '—'}</span>
+        </span>
+      );
+    case 'link': {
+      const url = row[col.href];
+      return url
+        ? <a href={url} target="_blank" rel="noopener noreferrer" className="truncate hover:underline" onClick={(e) => e.stopPropagation()}>{v ?? '—'}</a>
+        : <span className="truncate">{v ?? '—'}</span>;
+    }
     default:
       return <span className="truncate">{v ?? '—'}</span>;
   }
 }
 
-export default function TableView({ rows, ctx, options = {} }) {
-  const { columns = [], minWidth = 600, rowHeight = 40, fixed = false } = options;
+export default function TableView({ rows, ctx, options = {}, setParam }) {
+  const { columns = [], minWidth = 600, rowHeight = 40, fixed = false, select } = options;
+  const [selectName, selectField] = String(select || '').split(':');
+  const selected = selectField ? ctx?.params?.[selectName] : undefined;
+  // 막대 셀의 기준 — 그 열에서 가장 큰 값
+  const maxes = columns.map((c) => (c.type === 'bar'
+    ? Math.max(...rows.map((r) => Math.abs(Number(read(r, c.field, ctx)) || 0)), 0)
+    : 0));
   const dense = rowHeight < 32;
   const trend = columns.find((c) => c.type === 'trend');
   const symbols = trend ? rows.map((r) => String(r[trend.symbol] || '').toUpperCase()).filter(Boolean) : [];
@@ -100,16 +145,18 @@ export default function TableView({ rows, ctx, options = {} }) {
           {rows.map((row, r) => (
             <tr
               key={(keyCol && row[keyCol]) || r}
-              className={`hover:bg-[var(--mp-row-hover)] transition-colors ${dense ? 'border-t border-[var(--mpc-grid)] first:border-t-0' : ''}`}
+              className={`hover:bg-[var(--mp-row-hover)] transition-colors ${dense ? 'border-t border-[var(--mpc-grid)] first:border-t-0' : ''} ${selectField ? 'cursor-pointer' : ''} ${selectField && row[selectField] === selected ? 'bg-[var(--mp-raised)]' : ''}`}
               style={{ height: rowHeight }}
+              aria-selected={selectField ? row[selectField] === selected : undefined}
+              onClick={selectField ? () => setParam?.(selectName, row[selectField]) : undefined}
             >
               {columns.map((c, i) => (
                 <td
                   key={i}
-                  className={`whitespace-nowrap ${i === 0 ? 'pl-4 pr-2' : i === columns.length - 1 ? 'pl-2 pr-4' : 'px-2'} ${(c.align || (RIGHT.has(c.type) ? 'right' : 'left')) === 'right' ? 'text-right' : 'text-left'} ${c.type === 'stock' ? 'max-w-0 w-[34%]' : ''} ${fixed ? 'overflow-hidden text-ellipsis' : ''}`}
+                  className={`whitespace-nowrap ${i === 0 ? 'pl-4 pr-2' : i === columns.length - 1 ? 'pl-2 pr-4' : 'px-2'} ${(c.align || (RIGHT.has(c.type) ? 'right' : 'left')) === 'right' ? 'text-right' : 'text-left'} ${c.type === 'stock' || c.type === 'entity' ? 'max-w-0 w-[34%]' : ''} ${fixed ? 'overflow-hidden text-ellipsis' : ''}`}
                   title={fixed && !c.width ? String(read(row, c.field, ctx) ?? '') : undefined}
                 >
-                  <Cell col={c} row={row} index={r} ctx={ctx} series={series} />
+                  <Cell col={c} row={row} index={r} ctx={ctx} series={series} max={maxes[i]} />
                 </td>
               ))}
             </tr>

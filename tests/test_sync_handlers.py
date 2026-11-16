@@ -67,6 +67,29 @@ def test_backtest_responses_use_obbject_envelope(auth_client):
         assert "data" not in body, f"{path} 가 아직 구형 envelope 을 쓴다"
 
 
+def test_backtest_latest_run_is_the_most_recent_full_run(auth_client):
+    """결과 위젯은 실행을 고르기 전에 `/runs/latest` 를 본다 — 없으면 빈 결과(오류 아님), 있으면 자산곡선까지."""
+    client, _ = auth_client
+    r = client.get("/api/backtest/runs/latest")
+    assert r.status_code == 200 and r.json()["results"] == []
+
+    for name in ("first", "second"):
+        r = client.post("/api/backtest/runs", json={
+            "name": name,
+            "metrics": {"totalReturn": 12.5},
+            "equity": [{"date": "2026-01-02", "strategy": 1.0, "benchmark": 1.0, "drawdown": 0}],
+            "trades": [],
+        })
+        assert r.status_code == 200, r.text
+
+    body = client.get("/api/backtest/runs/latest").json()
+    assert body["provider"] == "backtest" and len(body["results"]) == 1
+    latest = body["results"][0]
+    newest = client.get("/api/backtest/runs").json()["results"][0]
+    assert latest["run_id"] == newest["run_id"]
+    assert latest["equity"][0]["strategy"] == 1.0 and latest["metrics"]["totalReturn"] == 12.5
+
+
 def test_backtest_validation_errors_still_surface(auth_client):
     """route_handler 를 붙인 뒤에도 의도된 4xx 가 그대로 나와야 한다."""
     client, _ = auth_client

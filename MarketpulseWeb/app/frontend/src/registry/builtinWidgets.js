@@ -214,7 +214,297 @@ export const TRANSFORMS = {
         }));
     },
   },
+
+  // ── 종목 · 뉴스 탭 ──
+  // 기사: 발행처 · '6시간 전' 표기(_time)
+  news_articles: {
+    apply: (rows) => rows
+      .filter((a) => a.title)
+      .sort((a, b) => new Date(b.published_utc) - new Date(a.published_utc))
+      .map((a) => ({ ...a, _time: timeAgo(a.published_utc) })),
+  },
+
+  // 공시 표: 최신 순 + 내용(_subject) + 정기 보고서 강조(_tone)
+  filing_rows: {
+    apply: (rows) => rows
+      .filter((f) => f.filing_date)
+      .sort((a, b) => String(b.filing_date).localeCompare(String(a.filing_date)))
+      .map((f) => ({
+        ...f,
+        _date: String(f.filing_date).slice(0, 10),
+        _subject: filingSubject(f) || f.report_type || '',
+        _periodic: isPeriodic(f),
+        _tone: isPeriodic(f) ? 'accent' : undefined,
+      })),
+  },
+
+  // ── 기관 (13F) ──
+  // 고른 기관의 요약 줄: 누구(로고·이름·제출일) + 보유가치 · 종목 수 · 전분기 대비 · 회전율 · 신규/청산
+  inst_kpis: {
+    apply: (rows) => {
+      const h = rows[0];
+      if (!h) return [];
+      const who = h.name || h.manager || h.institution_key;
+      return [
+        {
+          id: 'who', lead: true, label: who,
+          value: [h.manager && h.manager !== who ? h.manager : null, h.filing_date ? `13F 제출 ${h.filing_date}` : null]
+            .filter(Boolean).join(' · '),
+        },
+        { id: 'value', label: '총 보유가치', value: h.total_value != null ? `$${fmtCompact(h.total_value, 2)}` : null },
+        { id: 'count', label: '보유 종목', value: h.num_holdings != null ? Number(h.num_holdings).toLocaleString('en-US') : null },
+        { id: 'qoq', label: '전분기 대비', value: fmtPct(h.value_change_pct, 1) || null, tone: h.value_change_pct },
+        { id: 'turn', label: '회전율', value: h.turnover != null ? `${Number(h.turnover).toFixed(1)}%` : null },
+        {
+          id: 'moves', label: '신규 · 청산',
+          value: h.num_new_positions != null || h.num_sold_out != null ? `${h.num_new_positions ?? 0} · ${h.num_sold_out ?? 0}` : null,
+          sub: h.num_increased != null || h.num_decreased != null ? `확대 ${h.num_increased ?? 0} · 축소 ${h.num_decreased ?? 0}` : null,
+        },
+      ].filter((r) => r.lead || r.value != null);
+    },
+  },
+
+  // 기관 순위: 고른 기준(sortBy) 큰 순. 기관 이름(_name)
+  inst_rank: {
+    apply: (rows, { params }) => {
+      const by = params.sortBy || 'total_value';
+      return rows
+        .filter((r) => r.total_value != null)
+        .map((r) => ({ ...r, _name: r.name || r.manager || r.institution_key }))
+        .sort((a, b) => (b[by] ?? -Infinity) - (a[by] ?? -Infinity));
+    },
+  },
+
+  // 고른 기관의 보유 종목 / 청산한 종목 (+ 매매 구분 꼬리표)
+  inst_stocks: { apply: (rows) => (rows[0]?.stocks || []).map(holdingMove) },
+  inst_sold: { apply: (rows) => (rows[0]?.sold_positions || []).map((s) => ({ ...holdingMove(s), _move: '청산', _tone: 'down' })) },
+
+  // 13F 로 추정한 분기 수익률: 오래된 것부터 + 막대 이름('25 Q2') + 누적 수익률을 meta 로
+  fund_perf: { apply: (rows) => fundPerf(rows) },
+  // 같은 값을 표로 — 최신 분기부터
+  fund_perf_table: {
+    apply: (rows) => {
+      const out = fundPerf(rows);
+      return { rows: [...out.rows].reverse(), meta: out.meta };
+    },
+  },
+
+  // ── 백테스트 실행 결과 (저장된 실행 한 건: metrics · equity · trades) ──
+  // 성과 요약 줄: 전략 값 + 아래에 보유(buy & hold) 값
+  bt_kpis: {
+    apply: (rows) => {
+      const run = rows[0];
+      const m = run?.metrics;
+      if (!m) return [];
+      const b = m.benchmark || {};
+      const num = (v, d = 2) => (v == null ? null : Number(v).toFixed(d));
+      const hold = (v) => (v == null || v === '' ? null : `보유 ${v}`);
+      return [
+        { id: 'run', lead: true, label: run.name || 'Backtest', value: [m.start, m.end].filter(Boolean).map((d) => String(d).slice(0, 10)).join(' – ') },
+        { id: 'total', label: '누적 수익률', value: fmtPct(m.totalReturn, 1) || null, tone: m.totalReturn, sub: hold(fmtPct(b.totalReturn, 1)) },
+        { id: 'cagr', label: 'CAGR', value: fmtPct(m.cagr, 1) || null, tone: m.cagr, sub: hold(fmtPct(b.cagr, 1)) },
+        { id: 'sharpe', label: '샤프', value: num(m.sharpe), sub: hold(num(b.sharpe)) },
+        { id: 'sortino', label: '소르티노', value: num(m.sortino) },
+        { id: 'mdd', label: '최대 낙폭', value: fmtPct(m.maxDrawdown, 1) || null, tone: m.maxDrawdown, sub: hold(fmtPct(b.maxDrawdown, 1)) },
+        { id: 'vol', label: '변동성 (연)', value: m.volatility != null ? `${num(m.volatility, 1)}%` : null, sub: hold(b.volatility != null ? `${num(b.volatility, 1)}%` : null) },
+        { id: 'win', label: '승률', value: m.winRate != null ? `${Math.round(m.winRate)}%` : null, sub: m.trades != null ? `거래 ${m.trades}회` : null },
+        { id: 'avg', label: '평균 거래', value: fmtPct(m.avgTrade, 2) || null, tone: m.avgTrade, sub: m.exposure != null ? `노출 ${Math.round(m.exposure)}%` : null },
+      ].filter((r) => r.lead || r.value != null);
+    },
+  },
+
+  // 누적 수익(%) · 낙폭(%) — 고른 기간(months)의 시작점을 0 으로 다시 맞춘다
+  bt_equity: {
+    apply: (rows, { params }) => {
+      const pts = windowed(rows[0]?.equity || [], Number(params.months) || 0, 'date');
+      if (pts.length < 2) return [];
+      const s0 = pts[0].strategy || 1;
+      const b0 = pts[0].benchmark || 1;
+      let peak = -Infinity;
+      return pts.map((p) => {
+        const s = p.strategy / s0;
+        peak = Math.max(peak, s);
+        return { date: String(p.date), strategy: (s - 1) * 100, benchmark: (p.benchmark / b0 - 1) * 100, drawdown: (s / peak - 1) * 100 };
+      });
+    },
+  },
+
+  // 월별 수익률(%) — 월말 자산을 앞 달 월말과 비교 (첫 달은 시작점 대비)
+  bt_monthly: {
+    apply: (rows) => {
+      const pts = rows[0]?.equity || [];
+      const ends = [];   // [{ key: 'YYYY-MM', value }] — 달마다 마지막 점
+      for (const p of pts) {
+        const key = String(p.date).slice(0, 7);
+        if (ends.length && ends[ends.length - 1].key === key) ends[ends.length - 1].value = p.strategy;
+        else ends.push({ key, value: p.strategy });
+      }
+      let prev = pts[0]?.strategy;
+      return ends.map(({ key, value }) => {
+        const ret = prev ? (value / prev - 1) * 100 : null;
+        prev = value;
+        return { year: key.slice(0, 4), month: Number(key.slice(5, 7)), value: ret };
+      });
+    },
+  },
+
+  // 거래 내역 — 최근 청산부터, 고른 기간 안의 것만. 아직 들고 있는 거래는 '보유 중'
+  bt_trades: {
+    apply: (rows, { params }) => {
+      const trades = rows[0]?.trades || [];
+      const sorted = [...trades].sort((a, b) => String(b.exitDate).localeCompare(String(a.exitDate)));
+      return windowed(sorted.reverse(), Number(params.months) || 0, 'exitDate', false).reverse().map((t) => ({
+        ...t,
+        _entry: String(t.entryDate).slice(0, 10),
+        _exit: String(t.exitDate).slice(0, 10),
+        _state: t.open ? '보유 중' : '청산',
+        _tone: t.open ? 'accent' : undefined,
+      }));
+    },
+  },
+
+  // 롤링 샤프 — 창은 1년(자료가 짧으면 전체의 1/3), 연환산. 창 길이를 meta 로
+  bt_rolling: {
+    apply: (rows) => {
+      const pts = rows[0]?.equity || [];
+      const n = pts.length;
+      if (n < 30) return [];
+      const years = (new Date(pts[n - 1].date) - new Date(pts[0].date)) / (365.25 * 86400e3);
+      const ppy = years > 0 ? (n - 1) / years : 252;
+      const win = Math.max(10, Math.min(Math.round(ppy), Math.floor(n / 3)));
+      const rets = pts.map((p, i) => (i ? p.strategy / pts[i - 1].strategy - 1 : 0));
+      const out = [];
+      for (let i = win; i < n; i += 1) {
+        const w = rets.slice(i - win + 1, i + 1);
+        const mean = w.reduce((a, b) => a + b, 0) / w.length;
+        const sd = Math.sqrt(w.reduce((a, b) => a + (b - mean) ** 2, 0) / (w.length - 1));
+        out.push({ date: String(pts[i].date), sharpe: sd > 0 ? (mean / sd) * Math.sqrt(ppy) : null });
+      }
+      return { rows: out, meta: { window: `${win}봉` } };
+    },
+  },
+
+  // ── 퀀트 (로컬 배치가 계산해 적재한 값 — /api/quant/*) ──
+  // 팩터 표: 숫자를 표기로 + 기준(종목 수 · 기간)을 meta 로. 합성은 맨 아래
+  quant_factors: {
+    apply: (rows, { response }) => ({
+      rows: [...rows].sort((a, b) => Number(!!a.composite) - Number(!!b.composite)).map((f) => ({
+        ...f,
+        _ic: f.ic != null ? Number(f.ic).toFixed(3) : null,
+        _icir: f.icir != null ? Number(f.icir).toFixed(2) : null,
+        _hit: f.hit != null ? `${Math.round(f.hit)}%` : null,
+        _tone: f.composite ? 'accent' : undefined,
+        _kind: f.composite ? '합성' : '',
+      })),
+      meta: quantMeta(response),
+    }),
+  },
+  // 그대로 그리되 기준(종목 수 · 기간 · 분위 스프레드)을 meta 로
+  quant_meta: {
+    apply: (rows, { response }) => ({ rows, meta: quantMeta(response) }),
+  },
+  // 모델 표: 예측 모델 먼저, 융합(평균 · 스태킹)은 아래 + 표기
+  quant_models: {
+    apply: (rows, { response }) => ({
+      rows: [...rows].sort((a, b) => Number(!!a.fusion) - Number(!!b.fusion)).map((m) => ({
+        ...m,
+        _acc: m.accuracy != null ? `${Number(m.accuracy).toFixed(1)}%` : null,
+        _auc: m.auc != null ? Number(m.auc).toFixed(3) : null,
+        _sharpe: m.sharpe != null ? Number(m.sharpe).toFixed(2) : null,
+        _kind: m.fusion ? '융합' : '',
+        _tone: m.fusion ? 'accent' : undefined,
+      })),
+      meta: quantMeta(response),
+    }),
+  },
+  // 종목 시그널: 고른 융합 방식(method)의 확률 큰 순. 상위 10% 매수 · 하위 10% 매도 (그 달 종목 안에서의 순위)
+  quant_signals: {
+    apply: (rows, { params, response }) => {
+      const by = params.method || 'stack';
+      const list = rows.filter((r) => r[by] != null).sort((a, b) => b[by] - a[by]);
+      const edge = Math.max(1, Math.round(list.length * 0.1));
+      return {
+        rows: list.map((r, i) => {
+          const buy = i < edge;
+          const sell = i >= list.length - edge;
+          return {
+            ...r,
+            _score: r[by] * 100,
+            _signal: buy ? '매수' : sell ? '매도' : '중립',
+            _tone: buy ? 'up' : sell ? 'down' : undefined,
+          };
+        }),
+        meta: quantMeta(response),
+      };
+    },
+  },
 };
+
+/** 퀀트 응답의 metadata → 출처 옆 설명에 쓸 값 */
+function quantMeta(response) {
+  const md = response?.metadata || {};
+  return {
+    asOf: md.as_of || '',
+    members: md.members ?? '',
+    signalDate: md.signal_date || md.as_of || '',
+    oos: md.oos_months ?? '',
+    spread: md.spread != null ? `${fmtPct(md.spread, 1)}p` : '',
+    regime: { bull: '강세', side: '횡보', bear: '약세' }[md.current || md.regime_current] || '',
+  };
+}
+
+/** '6시간 전' · '3일 전' · 일주일이 넘으면 MM/DD */
+function timeAgo(iso) {
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return '';
+  const min = (Date.now() - t) / 60000;
+  if (min < 60) return `${Math.max(1, Math.round(min))}분 전`;
+  if (min < 1440) return `${Math.round(min / 60)}시간 전`;
+  if (min < 1440 * 7) return `${Math.round(min / 1440)}일 전`;
+  const d = new Date(t);
+  return `${pad(d.getMonth() + 1)}/${pad(d.getDate())}`;
+}
+
+const isPeriodic = (f) => ['10-K', '10-Q'].includes(String(f.report_type || '').replace('/A', ''));
+
+/** 13F 보유 종목 한 줄 + 매매 구분(_move · _tone) — 상태 값이 없으면 주식 수 변화의 부호로 */
+function holdingMove(s) {
+  const status = String(s.status || '').toLowerCase();
+  const chg = s.share_change_pct ?? s.share_change;
+  let move = '';
+  let tone;
+  if (status.includes('new')) { move = '신규'; tone = 'accent'; }
+  else if (status.includes('sold') || status.includes('exit')) { move = '청산'; tone = 'down'; }
+  else if (status.includes('incr') || status.includes('add') || chg > 0) { move = '확대'; tone = 'up'; }
+  else if (status.includes('decr') || status.includes('reduc') || chg < 0) { move = '축소'; tone = 'down'; }
+  return { ...s, _move: move, _tone: tone };
+}
+
+function fundPerf(rows) {
+  const list = rows.filter((r) => r.period && r.return_pct != null)
+    .sort((a, b) => String(a.period).localeCompare(String(b.period)));
+  const last = list[list.length - 1];
+  return {
+    rows: list.map((r) => {
+      const month = Number(String(r.period).slice(5, 7));
+      return { ...r, _label: `${String(r.period).slice(2, 4)} Q${Math.ceil(month / 3)}` };
+    }),
+    meta: { cumulative: fmtPct(last?.cumulative_return_pct, 1) || '—', quarters: list.length },
+  };
+}
+
+/**
+ * 마지막 점에서 months 개월 안의 점만 (0 = 전부). 날짜는 key 필드.
+ * 남는 점이 2개 미만이면 전부 돌려준다 (keepAll = false 면 그대로 거른다 — 목록용).
+ */
+function windowed(points, months, key, keepAll = true) {
+  if (!months || !points.length) return points;
+  const from = new Date(points[points.length - 1][key]);
+  if (Number.isNaN(from.getTime())) return points;
+  from.setMonth(from.getMonth() - months);
+  const out = points.filter((p) => new Date(p[key]) >= from);
+  return keepAll && out.length < 2 ? points : out;
+}
 
 // 공시 제목 — 정기 보고서는 종류, 수시 보고서(8-K)는 항목 번호(Item)를 말로
 const FILING_FORMS = { '10-K': '연간 보고서', '10-Q': '분기 보고서' };
@@ -303,6 +593,9 @@ export const TAB_FILTERS = {
   // 뉴스 · 공시 목록(feed_rows)에서 한 종류만
   feed_news: (rows) => rows.filter((r) => r._kind === 'news'),
   feed_filings: (rows) => rows.filter((r) => r._kind === 'filing'),
+  // 공시 표(filing_rows)에서 정기 보고서(10-K · 10-Q)만 / 그 밖(8-K 등)만
+  filings_periodic: (rows) => rows.filter((r) => r._periodic),
+  filings_current: (rows) => rows.filter((r) => !r._periodic),
 };
 
 // ── 정의 → 스펙 ────────────────────────────────────────────────────────────────
@@ -344,6 +637,9 @@ function toColumn(f, series) {
     case 'stock': return { ...col, symbol: f.field_name, name: f.sub_field };
     case 'price': return { ...col, field: f.field_name, currency: f.sub_field };
     case 'trend': return { ...col, symbol: f.field_name, toneBy: f.sub_field, series };
+    case 'bar':   return { ...col, field: f.field_name, suffix: f.sub_field ?? undefined };
+    case 'badge': return { ...col, field: f.field_name, toneBy: f.sub_field };
+    case 'link':  return { ...col, field: f.field_name, href: f.sub_field };
     default:      return { ...col, field: f.field_name };
   }
 }
@@ -355,23 +651,26 @@ function buildSpec(def) {
   const byTab = {};   // 'tab.<탭 코드>.<이름>' — 그 탭만의 뷰·요청·옵션
   const optionsFrom = {};
   let provider = null;
+  let shared;   // 화면 변수 이름들 — 같은 이름을 쓰는 위젯이 값을 같이 따른다 (mp-widgets/shared.js)
   for (const [k, v] of Object.entries(all)) {
     if (k.startsWith('extra.')) extra[k.slice('extra.'.length)] = v;
     else if (k.startsWith('tab.')) {
       const [, code, ...name] = k.split('.');
       (byTab[code] ||= {})[name.join('.')] = v;
     } else if (k.startsWith('optionsFrom.')) {
-      // 'optionsFrom.<컨트롤>' = '경로|값 필드|이름 필드' — 선택지를 요청으로 채운다
-      const [endpoint, value = 'value', label = 'label'] = String(v).split('|');
-      optionsFrom[k.slice('optionsFrom.'.length)] = { endpoint, value, label };
+      // 'optionsFrom.<컨트롤>' = '경로|값 필드|이름 필드[|keep]' — 선택지를 요청으로 채운다 (keep = 정의의 선택지도 남긴다)
+      const [endpoint, value = 'value', label = 'label', keep] = String(v).split('|');
+      optionsFrom[k.slice('optionsFrom.'.length)] = { endpoint, value, label, keep: keep === 'keep' };
     } else if (k === 'provider') provider = String(v);
+    else if (k === 'shared') shared = String(v).split(',').map((s) => s.trim()).filter(Boolean);
     else options[k] = v;
   }
 
   const fields = def.fields || [];
-  if (def.view_type === 'table') {
-    options.columns = fields.filter((f) => f.field_role === 'COLUMN').map((f) => toColumn(f, options.series));
-  } else {
+  // 표 컬럼 — 뷰가 표가 아니어도 표로 그리는 탭(tab.<탭>.view = table)이 쓴다
+  const columns = fields.filter((f) => f.field_role === 'COLUMN').map((f) => toColumn(f, options.series));
+  if (columns.length || def.view_type === 'table') options.columns = columns;
+  if (def.view_type !== 'table') {
     for (const f of fields) {
       if (f.field_role === 'COLUMN') continue;
       options[camel(f.field_role)] = FLAG_ROLES.has(f.field_role) ? (row) => !!row[f.field_name] : f.field_name;
@@ -438,6 +737,7 @@ function buildSpec(def) {
     },
     // 데이터 소스의 처음 값 (endpoint 에 {provider} 가 있을 때). 비우면 서버가 고른다
     provider: provider || undefined,
+    shared,
     controls: (def.params || []).map((p) => {
       const opts = (p.options || []).map((o) => ({ value: o.value, label: o.label, params: coerceAll(o.params) }));
       const from = optionsFrom[p.param_name];

@@ -95,6 +95,7 @@ export const WIDGET_SIZES = {
   // ── Visualization ──
   'sparkline':                S('strip', { h: 3, minW: 4 }),   // 헤더(시장 필터) + 카드 72px
   'advanced-chart':           S('chartWide', { h: 10, minW: 6, minH: 6 }),
+  'chart-studio':             S('panel', { w: 12, h: 12, minW: 8, minH: 8 }),
   'comparison':               S('chartWide', { h: 8, minH: 6 }),
   'correlation':              S('chart', { h: 8, minW: 4, minH: 6 }),
   'backtest-lab':             S('panel', { w: 12, h: 12, minW: 8, minH: 8 }),

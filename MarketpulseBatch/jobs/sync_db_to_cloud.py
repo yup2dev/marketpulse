@@ -56,6 +56,7 @@ TABLES: Dict[str, Dict[str, Any]] = {
     "mbs_in_insti_port_hist":   {"incremental": "base_ymd"},
     "mbs_in_insti_hold_hist":   {"incremental": "base_ymd"},
     "mbs_in_research_rpt":      {},
+    "mbs_in_quant_snapshot":    {},
 }
 
 _DROP_COLS = {"id", "created_at", "updated_at"}
@@ -180,6 +181,10 @@ def main() -> int:
         try:
             total = 0
             for table in targets:
+                # 새 테이블은 서버 배포(+ 마이그레이션) 전까지 서버가 모른다 — 다른 테이블 동기화를 막지 않게 건너뛴다
+                if table not in server_status:
+                    log.warning("  %s: 서버가 아직 모르는 테이블이라 건너뜀 (서버 배포 후 전송됩니다)", table)
+                    continue
                 log.info("▶ %s 동기화", table)
                 total += sync_table(client, base_url, con, table, TABLES[table], server_status, args.full)
             log.info("✅ 완료 — 총 %d rows 전송", total)

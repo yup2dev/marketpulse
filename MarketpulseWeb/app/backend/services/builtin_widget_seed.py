@@ -14,7 +14,8 @@
     tabs     (tab_code, label, filter, empty_text, [(symbol, name)])
     options  { opt_name: opt_value } — 뷰 옵션. 'extra.<이름>' 은 보조 요청,
              'tab.<탭 코드>.<이름>' 은 그 탭만의 값 (view · endpoint · transform · controls · 뷰 옵션),
-             'provider' 는 데이터 소스의 처음 값, 'optionsFrom.<컨트롤>' 은 선택지를 채울 요청 '경로|값|이름'
+             'provider' 는 데이터 소스의 처음 값, 'optionsFrom.<컨트롤>' 은 선택지를 채울 요청 '경로|값|이름[|keep]',
+             'shared' 는 화면 변수 이름(같은 이름을 쓰는 위젯이 값을 같이 따른다), 'select' 는 표의 행 클릭 → '변수:행 필드'
 
 머리줄 컨트롤(params)은 이름과 선택지로 모양이 정해진다: date·*_date = 기준일 칩 · 선택지 4개 이하 = 한 줄 버튼 ·
 더 많거나 optionsFrom = 드롭다운 · 선택지 없음 = '옵션' 버튼 안의 입력칸. 데이터 소스 선택은 모든 위젯에 항상 있다 —
@@ -498,6 +499,452 @@ BUILTIN_WIDGETS += [
         "fields": [_field("LABEL", "_label"), _field("VALUE", "dividend")],
         "options": {"provider": "yahoo", "prefix": "$", "digits": "2"},
         "screens": [("/stock", "overview", 8, 8, 4, 5), ALL],
+    },
+]
+
+
+# ══ 종목 (/stock · News & Filings) ═══════════════════════════════════════════════
+BUILTIN_WIDGETS += [
+    # ── 뉴스: 발행처 · 시각 · 감성 / 제목 / 요약 / 관련 종목 ──
+    {
+        "widget_id": "stock-news",
+        "name": "Stock News",
+        "description": "Company news with summary, sentiment and related tickers",
+        "group_name": "Stock",
+        "title": "뉴스",
+        "view_type": "articles",
+        "endpoint": "/news/?symbol={symbol}&limit=50&period={period}",
+        "source": "$provider",
+        "transform": "news_articles",
+        "default_symbol": "AAPL",
+        "empty_text": "{symbol} 뉴스가 없어요",
+        "size": (7, 11, 4, 4),
+        "params": [
+            ("period", "기간", "1w", [("1w", "1W", None), ("1mo", "1M", None), ("3mo", "3M", None)]),
+        ],
+        "options": {
+            "source": "publisher", "time": "_time", "title": "title", "summary": "description",
+            "href": "article_url", "tags": "tickers", "sentiment": "sentiment",
+            "sentiments": "positive:긍정,negative:부정,neutral:중립",
+            "tones": "positive:up,negative:down",
+        },
+        "screens": [("/stock", "news", 0, 0, 7, 11), ALL],
+    },
+    # ── SEC 공시 표: 제출일 · 유형 · 내용 (전체 / 정기 / 수시) ──
+    {
+        "widget_id": "stock-filings",
+        "name": "SEC Filings",
+        "description": "Filings table — date, form type and subject",
+        "group_name": "Stock",
+        "view_type": "table",
+        # form_type 을 안 적으면 내부자 거래(Form 4)가 목록을 채운다 — 정기 · 수시 보고서만 받는다
+        "endpoint": f"{GATEWAY}/filings?symbol={{symbol}}&form_type=10-K,10-Q,8-K&limit=100&period={{period}}",
+        "source": "$provider",
+        "transform": "filing_rows",
+        "default_symbol": "AAPL",
+        "empty_text": "{symbol} 공시가 없어요",
+        "size": (5, 11, 3, 4),
+        "params": [
+            ("period", "기간", "1y", [("3mo", "3M", None), ("1y", "1Y", None), ("3y", "3Y", None), ("5y", "5Y", None)]),
+        ],
+        "tabs": [
+            ("all", "SEC 공시", None, None, []),
+            ("periodic", "10-K · 10-Q", "filings_periodic", "{symbol} 정기 보고서가 없어요", []),
+            ("current", "8-K", "filings_current", "{symbol} 수시 보고서가 없어요", []),
+        ],
+        "fields": [
+            _field("COLUMN", "_date", "muted", "제출일", width=92),
+            _field("COLUMN", "report_type", "badge", "유형", width=72, sub="_tone"),
+            _field("COLUMN", "_subject", "link", "내용", sub="report_url"),
+        ],
+        "options": {"provider": "sec", "rowHeight": "36", "fixed": "true", "minWidth": "0"},
+        "screens": [("/stock", "news", 7, 0, 5, 11), ALL],
+    },
+]
+
+
+# ══ 기관 13F (/stock · Institutional Holdings) ═══════════════════════════════════
+# 고른 기관은 화면 변수(institution)다 — 순위 표에서 행을 누르거나 머리줄에서 고르면 네 위젯이 같이 따른다.
+# 13F 는 로컬 배치가 적재한 값만 읽는다 (서버에서 원본을 파싱하지 않는다).
+INSTITUTION = ("institution", "기관", "berkshire", [("berkshire", "Berkshire Hathaway", None)])
+INSTITUTION_OPTIONS = {
+    "shared": "institution",
+    "optionsFrom.institution": "/portfolio/13f/institutions|key|name",
+}
+
+BUILTIN_WIDGETS += [
+    # ── 고른 기관 요약 줄 (머리줄 없는 한 줄) ──
+    {
+        "widget_id": "inst-summary",
+        "name": "Institution Summary",
+        "description": "Selected 13F filer — value, holdings, QoQ change, turnover in one line",
+        "group_name": "Institutions",
+        "title": "기관 요약",
+        "view_type": "kpis",
+        "endpoint": "/portfolio/13f/{institution}?summary_only=true",
+        "source": "sec,db",
+        "transform": "inst_kpis",
+        "empty_text": "13F 데이터가 없어요",
+        "size": (12, 1, 6, 1),
+        "params": [INSTITUTION],
+        "options": dict(INSTITUTION_OPTIONS),
+        "screens": [("/stock", "institutional", 0, 0, 12, 1), ALL],
+    },
+    # ── 기관 순위: 행을 누르면 그 기관을 고른다 ──
+    {
+        "widget_id": "inst-ranking",
+        "name": "Institution Ranking",
+        "description": "13F filers ranked by value, holdings or QoQ change — click a row to select",
+        "group_name": "Institutions",
+        "title": "기관 순위",
+        "view_type": "table",
+        "endpoint": "/portfolio/13f/summaries",
+        "source": "sec,db",
+        "source_note": "13F · 일 배치 적재",
+        "transform": "inst_rank",
+        "empty_text": "적재된 13F 가 없어요",
+        "size": (8, 8, 5, 4),
+        "params": [
+            ("sortBy", "정렬 기준", "total_value", [
+                ("total_value", "보유가치", None),
+                ("num_holdings", "종목 수", None),
+                ("value_change_pct", "전분기 대비", None),
+            ]),
+        ],
+        "fields": [
+            _field("COLUMN", "rank", "rank", "순위", width=52),
+            _field("COLUMN", "_name", "entity", "기관"),
+            _field("COLUMN", "total_value", "money", "보유가치"),
+            _field("COLUMN", "num_holdings", "number", "종목 수"),
+            _field("COLUMN", "value_change_pct", "pill", "전분기 대비"),
+            _field("COLUMN", "turnover", "bar", "회전율", width=128),
+            _field("COLUMN", "filing_date", "muted", "제출일", width=96),
+        ],
+        "options": {"shared": "institution", "select": "institution:institution_key", "minWidth": "640"},
+        "screens": [("/stock", "institutional", 0, 1, 8, 8), ALL],
+    },
+    # ── 펀드 성과 (13F 로 추정): 분기 수익률 막대 / 표 ──
+    {
+        "widget_id": "inst-performance",
+        "name": "Fund Performance (est.)",
+        "description": "Quarterly return estimated from 13F holdings — not actual NAV",
+        "group_name": "Institutions",
+        "view_type": "columns",
+        "endpoint": "/portfolio/13f/{institution}/performance?quarters=8",
+        "source": "sec,db",
+        "source_note": "누적 {cumulative} · {quarters}분기 · 13F 추정 (실제 NAV 아님)",
+        "transform": "fund_perf",
+        "empty_text": "추정 수익률이 적재돼 있지 않아요",
+        "size": (4, 8, 3, 4),
+        "params": [INSTITUTION],
+        "tabs": [
+            ("chart", "펀드 성과 (추정)", None, None, []),
+            ("table", "분기별", None, None, []),
+        ],
+        "fields": [
+            _field("LABEL", "_label"), _field("VALUE", "return_pct"),
+            # '분기별' 탭의 표 컬럼
+            _field("COLUMN", "period", "muted", "분기말"),
+            _field("COLUMN", "return_pct", "change", "수익률"),
+            _field("COLUMN", "total_value", "money", "보유가치"),
+        ],
+        "options": {
+            **INSTITUTION_OPTIONS,
+            "tone": "true", "digits": "1",
+            "tab.table.view": "table",
+            "tab.table.transform": "fund_perf_table",
+            "tab.table.minWidth": "0",
+            "tab.table.rowHeight": "32",
+        },
+        "screens": [("/stock", "institutional", 8, 1, 4, 8), ALL],
+    },
+    # ── 고른 기관의 보유 종목 / 청산 종목 ──
+    {
+        "widget_id": "inst-holdings",
+        "name": "Institution Holdings",
+        "description": "Top 13F positions of the selected filer with weight and share change",
+        "group_name": "Institutions",
+        "view_type": "table",
+        "endpoint": "/portfolio/13f/{institution}?limit=50",
+        "source": "sec,db",
+        "transform": "inst_stocks",
+        "empty_text": "보유 종목이 없어요",
+        "size": (12, 8, 5, 4),
+        "params": [INSTITUTION],
+        "tabs": [
+            ("stocks", "상위 보유 종목", None, None, []),
+            ("sold", "청산", None, "이번 분기에 청산한 종목이 없어요", []),
+        ],
+        "fields": [
+            _field("COLUMN", "rank", "rank", "순위", width=52),
+            # 13F 의 symbol 은 티커가 아니라 CUSIP 앞자리다 — 종목 화면으로 잇지 않고 이름만 보여 준다
+            _field("COLUMN", "name", "entity", "종목"),
+            _field("COLUMN", "value", "money", "보유가치"),
+            _field("COLUMN", "weight", "bar", "비중", width=128),
+            _field("COLUMN", "shares", "compact", "주식 수"),
+            _field("COLUMN", "share_change_pct", "pill", "주식 수 변화"),
+            _field("COLUMN", "_move", "badge", "매매", width=72, sub="_tone"),
+        ],
+        "options": {**INSTITUTION_OPTIONS, "minWidth": "680", "tab.sold.transform": "inst_sold"},
+        "screens": [("/stock", "institutional", 0, 9, 12, 8), ALL],
+    },
+]
+
+
+# ══ 백테스트 결과 (/backtest · Results) ══════════════════════════════════════════
+# 저장한 실행 한 건을 읽어 그린다 — 계산은 브라우저 엔진이 했고(Strategy 위젯에서 실행 → Save results),
+# 서버는 그 스냅샷(metrics · equity · trades)만 갖고 있다. 고른 실행은 화면 변수(run)라 다섯 위젯이 같이 따른다.
+RUN = ("run", "실행", "latest", [("latest", "최근 실행", None)])
+RUN_OPTIONS = {"shared": "run", "optionsFrom.run": "/backtest/runs|run_id|name|keep"}
+RUN_ENDPOINT = "/backtest/runs/{run}"
+RUN_EMPTY = "저장한 백테스트 실행이 없어요 — Strategy 에서 실행한 뒤 Save results 를 눌러 주세요"
+WINDOW = ("window", "기간", "all", [
+    ("all", "전체", "months=0"), ("5y", "5Y", "months=60"), ("3y", "3Y", "months=36"), ("1y", "1Y", "months=12"),
+])
+
+BUILTIN_WIDGETS += [
+    # ── 성과 요약 줄 (머리줄 없는 한 줄) ──
+    {
+        "widget_id": "bt-run-summary",
+        "name": "Backtest Summary",
+        "description": "Return, CAGR, Sharpe, drawdown, win rate vs buy & hold in one line",
+        "group_name": "Backtest",
+        "title": "성과 요약",
+        "view_type": "kpis",
+        "endpoint": RUN_ENDPOINT,
+        "source": "$provider",
+        "transform": "bt_kpis",
+        "empty_text": RUN_EMPTY,
+        "size": (12, 1, 6, 1),
+        "params": [RUN],
+        "options": dict(RUN_OPTIONS),
+        "screens": [("/backtest", "results", 0, 0, 12, 1), ALL],
+    },
+    # ── 누적 수익 · 낙폭 ──
+    {
+        "widget_id": "bt-run-equity",
+        "name": "Equity & Drawdown",
+        "description": "Cumulative return vs buy & hold with the drawdown pane",
+        "group_name": "Backtest",
+        "title": "누적 수익 · 낙폭",
+        "view_type": "curve",
+        "endpoint": RUN_ENDPOINT,
+        "source": "$provider",
+        "source_note": "비용 차감 후",
+        "transform": "bt_equity",
+        "empty_text": RUN_EMPTY,
+        "size": (8, 7, 4, 4),
+        "params": [RUN, WINDOW],
+        "options": {
+            **RUN_OPTIONS,
+            "x": "date", "series": "strategy:전략,benchmark:보유", "drawdown": "drawdown",
+            "excess": "true", "unit": "%", "digits": "1",
+        },
+        "screens": [("/backtest", "results", 0, 1, 8, 7), ALL],
+    },
+    # ── 월별 수익률 격자 ──
+    {
+        "widget_id": "bt-run-monthly",
+        "name": "Monthly Returns",
+        "description": "Year × month return grid with annual totals",
+        "group_name": "Backtest",
+        "title": "월별 수익률",
+        "view_type": "heatmap",
+        "endpoint": RUN_ENDPOINT,
+        "source": "$provider",
+        "source_note": "전략 · %",
+        "transform": "bt_monthly",
+        "empty_text": RUN_EMPTY,
+        "size": (4, 7, 3, 4),
+        "params": [RUN],
+        "options": {**RUN_OPTIONS, "row": "year", "col": "month", "value": "value"},
+        "screens": [("/backtest", "results", 8, 1, 4, 7), ALL],
+    },
+    # ── 거래 내역 ──
+    {
+        "widget_id": "bt-run-trades",
+        "name": "Backtest Trades",
+        "description": "Entry / exit, bars held and return per trade",
+        "group_name": "Backtest",
+        "title": "거래 내역",
+        "view_type": "table",
+        "endpoint": RUN_ENDPOINT,
+        "source": "$provider",
+        "transform": "bt_trades",
+        "empty_text": "이 기간에 거래가 없어요",
+        "size": (7, 6, 4, 3),
+        "params": [RUN, WINDOW],
+        "fields": [
+            _field("COLUMN", "_entry", "muted", "진입일", width=96),
+            _field("COLUMN", "entryPrice", "number", "진입가"),
+            _field("COLUMN", "_exit", "muted", "청산일", width=96),
+            _field("COLUMN", "exitPrice", "number", "청산가"),
+            _field("COLUMN", "bars", "number", "보유 봉"),
+            _field("COLUMN", "returnPct", "change", "수익률"),
+            _field("COLUMN", "_state", "badge", "상태", width=72, sub="_tone"),
+        ],
+        "options": {**RUN_OPTIONS, "rowHeight": "36", "minWidth": "560"},
+        "screens": [("/backtest", "results", 0, 8, 7, 6), ALL],
+    },
+    # ── 롤링 샤프 (점선 = 1.0) ──
+    {
+        "widget_id": "bt-run-rolling",
+        "name": "Rolling Sharpe",
+        "description": "Rolling annualized Sharpe of the strategy",
+        "group_name": "Backtest",
+        "title": "롤링 샤프",
+        "view_type": "curve",
+        "endpoint": RUN_ENDPOINT,
+        "source": "$provider",
+        "source_note": "창 {window} · 점선 = 1.0",
+        "transform": "bt_rolling",
+        "empty_text": "롤링 샤프를 계산하기에는 실행 기간이 짧아요",
+        "size": (5, 6, 3, 3),
+        "params": [RUN],
+        "options": {
+            **RUN_OPTIONS,
+            "x": "date", "series": "sharpe:롤링 샤프", "refs": "1", "unit": "", "digits": "2", "signed": "false",
+        },
+        "screens": [("/backtest", "results", 7, 8, 5, 6), ALL],
+    },
+]
+
+
+# ══ 퀀트 (/quantlib · Factors & ML) ══════════════════════════════════════════════
+# 팩터 → 예측 모델 → 시그널 융합. 계산은 로컬 배치(MarketpulseBatch/jobs/build_quant.py)가 하고
+# 서버는 적재된 값(mbs_in_quant_snapshot)을 읽기만 한다. 적재 전에는 빈 화면 문구가 나온다.
+QUANT = "/quant/{dataset}?universe={universe}"
+QUANT_EMPTY = "퀀트 산출물이 아직 적재되지 않았어요 — 로컬에서 build_quant.py 를 실행해 주세요"
+UNIVERSE = ("universe", "유니버스", "sp500", [("sp500", "S&P 500", None)])
+# 팩터 id 는 배치(index_analyzer/quant/factors.py)의 FACTORS 와 같다
+FACTOR_SERIES = "composite:합성,mom_12_1:모멘텀 12-1,mom_6_1:모멘텀 6-1,rev_1m:단기 반전,lowvol:저변동성,high52:52주 고가,trend:추세"
+
+
+def _quant(dataset):
+    return QUANT.replace("{dataset}", dataset)
+
+
+BUILTIN_WIDGETS += [
+    # ── 팩터: 정보계수(IC) · ICIR · 적중률 · 연 롱숏 ──
+    {
+        "widget_id": "quant-factors",
+        "name": "Factors",
+        "description": "Price factors with rank IC, ICIR, hit rate and long-short return",
+        "group_name": "Quant",
+        "title": "팩터",
+        "view_type": "table",
+        "endpoint": _quant("factors"),
+        "source": "yahoo,db",
+        "source_note": "{members}종목 · 기준 {asOf}",
+        "transform": "quant_factors",
+        "empty_text": QUANT_EMPTY,
+        "size": (5, 7, 4, 4),
+        "params": [UNIVERSE],
+        "fields": [
+            _field("COLUMN", "name", "text", "팩터"),
+            _field("COLUMN", "_ic", "value", "IC", width=64),
+            _field("COLUMN", "_icir", "value_muted", "ICIR", width=56),
+            _field("COLUMN", "_hit", "value_muted", "적중", width=52),
+            _field("COLUMN", "ls_ann", "change", "연 롱숏", width=76),
+            _field("COLUMN", "_kind", "badge", "", width=52, sub="_tone"),
+        ],
+        "options": {"shared": "universe", "rowHeight": "40", "minWidth": "420"},
+        "screens": [("/quantlib", "factors", 0, 0, 5, 7), ALL],
+    },
+    # ── 팩터 성과: 롱숏 누적 수익(계열 칩 비교) / 합성 점수 분위 수익률 ──
+    {
+        "widget_id": "quant-factor-returns",
+        "name": "Factor Performance",
+        "description": "Long-short cumulative return by factor · quintile returns of the composite score",
+        "group_name": "Quant",
+        "view_type": "lines",
+        "endpoint": _quant("factor_returns"),
+        "source": "yahoo,db",
+        "source_note": "상위 20% 롱 · 하위 20% 숏 · 최근 5년 · 비용 없음",
+        "transform": "quant_meta",
+        "empty_text": QUANT_EMPTY,
+        "size": (7, 7, 4, 4),
+        "params": [UNIVERSE],
+        "tabs": [
+            ("ls", "롱숏 누적 수익", None, None, []),
+            ("q", "분위 수익률", None, None, []),
+        ],
+        "fields": [_field("LABEL", "q"), _field("VALUE", "value")],
+        "options": {
+            "shared": "universe",
+            "x": "date", "series": FACTOR_SERIES, "pick": "composite,mom_12_1,lowvol", "max": "4",
+            "unit": "%", "digits": "1",
+            "tab.q.view": "columns",
+            "tab.q.endpoint": _quant("quantiles"),
+            "tab.q.transform": "quant_meta",
+            "tab.q.tone": "true",
+        },
+        "screens": [("/quantlib", "factors", 5, 0, 7, 7), ALL],
+    },
+    # ── 예측 모델: 표본 밖 정확도 · AUC · 샤프 · 스태킹 비중 / 시장 국면 띠 ──
+    {
+        "widget_id": "quant-models",
+        "name": "ML Models",
+        "description": "Walk-forward out-of-sample accuracy, AUC and Sharpe per model · market regime",
+        "group_name": "Quant",
+        "view_type": "table",
+        "endpoint": _quant("models"),
+        "source": "yahoo,db",
+        "source_note": "워크포워드 표본 밖 {oos}개월 · 타깃: 다음 달 수익률 > 중앙값",
+        "transform": "quant_models",
+        "empty_text": QUANT_EMPTY,
+        "size": (7, 6, 4, 3),
+        "params": [UNIVERSE],
+        "tabs": [
+            ("models", "ML 모델", None, None, []),
+            ("regime", "시장 국면", None, None, []),
+        ],
+        "fields": [
+            _field("COLUMN", "name", "text", "모델", width=132),
+            _field("COLUMN", "kind", "muted", "종류"),
+            _field("COLUMN", "_acc", "value", "정확도", width=68),
+            _field("COLUMN", "_auc", "value", "AUC", width=64),
+            _field("COLUMN", "_sharpe", "value", "샤프", width=56),
+            _field("COLUMN", "weight", "bar", "스태킹 비중", width=132),
+            _field("COLUMN", "_kind", "badge", "", width=52, sub="_tone"),
+        ],
+        "options": {
+            "shared": "universe", "rowHeight": "40", "minWidth": "640", "fixed": "true",
+            "tab.regime.view": "strip",
+            "tab.regime.endpoint": _quant("regimes"),
+            "tab.regime.transform": "quant_meta",
+            "tab.regime.x": "date", "tab.regime.state": "state",
+            "tab.regime.states": "bull:강세,side:횡보,bear:약세",
+            "tab.regime.value": "p", "tab.regime.valueLabel": "확률",
+        },
+        "screens": [("/quantlib", "factors", 0, 7, 7, 6), ALL],
+    },
+    # ── 시그널 융합: 종목별 다음 달 초과수익 확률 (단순 평균 / 스태킹) ──
+    {
+        "widget_id": "quant-signals",
+        "name": "Signal Fusion",
+        "description": "Stocks ranked by fused probability of beating the median next month",
+        "group_name": "Quant",
+        "title": "시그널 융합",
+        "view_type": "table",
+        "endpoint": _quant("signals"),
+        "source": "yahoo,db",
+        "source_note": "{signalDate} · 상위 10% 매수 · 하위 10% 매도",
+        "transform": "quant_signals",
+        "empty_text": QUANT_EMPTY,
+        "size": (5, 6, 4, 3),
+        "params": [
+            UNIVERSE,
+            ("method", "융합 방식", "stack", [("avg", "단순 평균", None), ("stack", "스태킹", None)]),
+        ],
+        "fields": [
+            _field("COLUMN", "rank", "rank", "#", width=44),
+            _field("COLUMN", "symbol", "stock", "종목", sub="name"),
+            _field("COLUMN", "_score", "bar", "확률", width=128),
+            _field("COLUMN", "_signal", "badge", "시그널", width=64, sub="_tone"),
+        ],
+        "options": {"shared": "universe", "rowHeight": "38", "minWidth": "420"},
+        "screens": [("/quantlib", "factors", 7, 7, 5, 6), ALL],
     },
 ]
 
