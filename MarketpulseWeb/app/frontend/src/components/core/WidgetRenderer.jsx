@@ -17,20 +17,12 @@ import UserWidget from './UserWidget';
 import { DataWidget } from '../../mp-widgets';
 import { WIDGET_ENDPOINTS } from '../../registry/widgetEndpoints';
 import { toSpec } from '../../registry/builtinWidgets';
+import WidgetCard from '../widgets/common/WidgetCard';
 import useUserWidgetStore from '../../store/userWidgetStore';
-
-// 제거된(deprecated) 위젯 타입 → 대체 위젯 매핑. 저장된 워크스페이스 레이아웃이
-// 옛 타입을 참조해도 "No endpoint for…"로 깨지지 않게 한다.
-//   *-sec(하드코딩 SEC 게이트웨이) → provider 셀렉터 달린 정식 위젯.
-const DEPRECATED_TYPE_ALIASES = {
-  'insider-sec':    'insider',
-  'financials-sec': 'financials',
-  'filings-sec':    'company-filings',
-};
 
 export default function WidgetRenderer({ widget, symbol, portfolioData, onRemove }) {
   const portfolioId = portfolioData?.selectedPortfolio?.portfolio_id;
-  const type = DEPRECATED_TYPE_ALIASES[widget.type] ?? widget.type;
+  const type = widget.type;
   const reg = WIDGET_ENDPOINTS[type];
   // 기본 제공 위젯 — 정의는 서버 DB 행 (store 가 불러온다)
   const builtinDef = useUserWidgetStore((s) => s.builtin.find((w) => w.widget_id === type));
@@ -81,6 +73,19 @@ export default function WidgetRenderer({ widget, symbol, portfolioData, onRemove
       (reg.propsFrom || []).map((k) => [k, propBag[k]])
     );
     return <Component {...injected} onRemove={onRemove} />;
+  }
+
+  // 어디에도 정의가 없는 타입 — 저장된 배치에 남아 있는 레거시 위젯(리디자인 때 제거 — git 이력 참고)이거나
+  // 정의를 아직 못 불러온 경우. 빈 엔드포인트로 요청하지 않고 닫을 수 있는 안내만 띄운다.
+  if (!reg && !/^(model|data)\//.test(type || '')) {
+    return (
+      <WidgetCard
+        title={widget.title || type}
+        source={null}
+        onRemove={onRemove}
+        state={{ kind: 'empty', message: '이 위젯은 더 이상 제공되지 않아요. × 로 닫아 주세요.' }}
+      />
+    );
   }
 
   // model/{model} — standard_model 단위 위젯. provider는 셀렉터로 선택(경로 {provider} 치환).

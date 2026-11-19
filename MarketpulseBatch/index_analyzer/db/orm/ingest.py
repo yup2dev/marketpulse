@@ -813,6 +813,46 @@ class MBS_IN_QUANT_SNAPSHOT(Base):
     )
 
 
+class MBS_IN_QUANT_PANEL(Base):
+    """입수 - 퀀트 월별 패널 (월말 × 종목) — 웹에서 만든 포트폴리오 전략을 서버가 바로 백테스트하는 재료.
+
+    적재: MarketpulseBatch/jobs/build_quant.py → sync_db_to_cloud → /api/ingest.
+    팩터 z-점수와 표본 밖 ML 확률(p_*)은 배치가 계산한다 — 서버는 학습하지 않고 이 값으로
+    가중합 → 상위 N종목 → 리밸런싱만 계산한다 (MarketpulseWeb/app/backend/services/quant_strategy_service.py).
+    t 월말 행의 점수는 t 월말까지의 가격만 쓰고, fwd_ret 은 t+1 월의 수익률이다.
+    벤치마크 지수는 stk_cd 가 '^' 로 시작하는 행(점수 없음, close · fwd_ret 만).
+    """
+    __tablename__ = 'mbs_in_quant_panel'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    universe = Column(String(30), nullable=False)                # 'sp500'
+    base_ymd = Column(Date, nullable=False)                      # 월의 마지막 거래일
+    stk_cd = Column(String(20), nullable=False)
+    close = Column(Float)                                        # 월말 수정 종가
+    fwd_ret = Column(Float)                                      # 다음 달 수익률 (소수, 0.05 = 5%) — 마지막 달은 비어 있다
+    # 팩터 z-점수 (index_analyzer/quant/factors.py 의 FACTORS 와 같은 id)
+    mom_12_1 = Column(Float)
+    mom_6_1 = Column(Float)
+    rev_1m = Column(Float)
+    lowvol = Column(Float)
+    high52 = Column(Float)
+    trend = Column(Float)
+    # 표본 밖 '다음 달 중앙값 초과' 확률 (워크포워드) — 모델 · 융합
+    p_gbt = Column(Float)
+    p_mlp = Column(Float)
+    p_logit = Column(Float)
+    p_avg = Column(Float)
+    p_stack = Column(Float)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint('universe', 'base_ymd', 'stk_cd', name='uq_quant_panel'),
+        Index('ix_quant_panel_universe_ymd', 'universe', 'base_ymd'),
+    )
+
+
 __all__ = [
     "MBS_IN_STBD_MST",
     "MBS_IN_INDX_STBD",
@@ -833,4 +873,5 @@ __all__ = [
     "MBS_IN_INSTI_HOLD_HIST",
     "MBS_IN_RESEARCH_RPT",
     "MBS_IN_QUANT_SNAPSHOT",
+    "MBS_IN_QUANT_PANEL",
 ]

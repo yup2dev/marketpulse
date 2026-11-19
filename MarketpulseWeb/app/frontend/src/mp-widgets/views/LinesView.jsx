@@ -10,6 +10,8 @@
  *   unit     '%'                        값 뒤 단위
  *   digits   2                          소수 자릿수
  *
+ * 계열이 응답마다 다르면(예: 사용자가 만든 전략 목록) transform 이 meta.series · meta.pick 으로 준다 — options 보다 먼저.
+ *
  * 세로축은 고른 계열의 범위에 맞춘다.
  */
 import { useCallback, useMemo } from 'react';
@@ -25,8 +27,10 @@ function dateTick(v, long) {
   return long ? `${m[1].slice(2)}.${m[2]}` : `${m[2]}.${m[3]}`;
 }
 
-export default function LinesView({ rows: input, ctx, options = {} }) {
-  const { x = 'date', series, pick, max = 4, labels = false, unit = '', digits = 2 } = options;
+export default function LinesView({ rows: input, meta, ctx, options = {} }) {
+  const { x = 'date', max = 4, labels = false, unit = '', digits = 2 } = options;
+  const series = meta?.series ?? options.series;
+  const pick = meta?.pick ?? options.pick;
   // 날짜 축이면 오래된 것부터 — 응답이 최신순으로 와도 왼쪽이 과거다
   const rows = useMemo(
     () => (isDate(input[0]?.[x]) ? [...input].sort((a, b) => String(a[x]).localeCompare(String(b[x]))) : input),

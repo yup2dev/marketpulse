@@ -8,7 +8,7 @@ provider 를 지정하지 않으면 그 국가를 지원하는 구현 중 사용
 정의는 data_fetcher.concepts.CONCEPTS.
 """
 from datetime import date
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -21,25 +21,11 @@ from app.backend.models.orm import User
 router = APIRouter()
 
 
-def _availability(user_id: str) -> Callable[[str], bool]:
-    """provider → 이 사용자가 쓸 수 있는가 (무키 provider이거나 키 등록)."""
-    from data_fetcher.abstract_provider.abstract.provider import ProviderRegistry
-
-    registered = {k["provider"] for k in user_key_service.list_status(user_id) if k.get("configured")}
-    providers = ProviderRegistry.get_all()
-
-    def is_available(name: str) -> bool:
-        prov = providers.get(name)
-        return prov is not None and (not prov.requires_credentials() or name in registered)
-
-    return is_available
-
-
 @router.get("/concepts", summary="데이터 개념 목록 + 내 사용 가능 provider")
 async def list_concepts(user: User = Depends(get_current_active_user)) -> OBBject:
     from data_fetcher.concepts import concept_catalog
 
-    is_available = _availability(str(user.user_id))
+    is_available = user_key_service.availability(str(user.user_id))
     rows = []
     for c in concept_catalog():
         rows.append({**c, "available_providers": [p for p in c["providers"] if is_available(p)]})
@@ -53,7 +39,7 @@ async def concept_countries(concept_id: str, user: User = Depends(get_current_ac
     concept = CONCEPTS.get(concept_id)
     if concept is None:
         raise HTTPException(status_code=404, detail=f"알 수 없는 지표 개념: '{concept_id}'")
-    is_available = _availability(str(user.user_id))
+    is_available = user_key_service.availability(str(user.user_id))
     rows = [
         {
             "code": c,
@@ -87,7 +73,7 @@ async def get_concept(
     try:
         res: Dict[str, Any] = await fetch_concept(
             concept_id, country, start_date=start_date, end_date=end_date,
-            provider=provider or None, is_available=_availability(str(user.user_id)),
+            provider=provider or None, is_available=user_key_service.availability(str(user.user_id)),
         )
     except ConceptError as exc:
         raise HTTPException(status_code=404, detail=str(exc))

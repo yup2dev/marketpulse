@@ -22,6 +22,7 @@ from app.backend.api.routes.keys import router as keys_router
 from app.backend.api.routes.ingest import router as ingest_router
 from app.backend.api.routes.concepts import router as concepts_router
 from app.backend.api.routes.user_widgets import router as user_widgets_router
+from app.backend.api.routes.strategies import router as strategies_router
 
 
 def register_routers(app: FastAPI) -> None:
@@ -53,6 +54,7 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(quantlib.router,                   prefix="/api/quantlib",     tags=["quantlib"])
     app.include_router(quantitative.router,               prefix="/api/quantitative", tags=["quantitative"])
     app.include_router(quant.router,                      prefix="/api",              tags=["quant"])
+    app.include_router(strategies_router,                 prefix="/api",              tags=["strategies"])
 
     # ── Universal Data Gateway ───────────────────────────────────────────────
     app.include_router(data_router,       prefix="/api/data", tags=["data"])

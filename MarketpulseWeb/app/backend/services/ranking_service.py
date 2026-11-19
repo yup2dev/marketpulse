@@ -183,6 +183,36 @@ async def _kis_domestic_ranking(sort_by: str, limit: int) -> Optional[List[Dict[
     return rows or None
 
 
+# 실시간 랭킹을 낼 수 있는 소스 — 순서 = 자동 선택 우선순위 (위젯의 데이터 소스 선택지)
+LIVE_RANKING_PROVIDERS = ('yahoo', 'kis', 'db')
+
+
+class LiveRankingError(Exception):
+    """고른 소스가 랭킹을 내지 못했다 (폴백하지 않는다)."""
+
+    def __init__(self, provider: str, message: str):
+        super().__init__(message)
+        self.provider = provider
+
+
+def _live_rows(meta: Dict[str, Dict], live: Dict[str, Dict]) -> List[Dict[str, Any]]:
+    """유니버스 메타 + 실시간 시세 → 랭킹 행."""
+    rows: List[Dict[str, Any]] = []
+    for sym, q in live.items():
+        m = meta.get(sym, {'stk_nm': sym, 'curr': 'USD', 'sector': ''})
+        rows.append({
+            'stk_cd':      sym,
+            'stk_nm':      m['stk_nm'],
+            'curr':        m['curr'],
+            'sector':      m['sector'],
+            'close_price': q['price'],
+            'change_rate': q['change_percent'],
+            'volume':      q['volume'],
+            'trade_value': q['volume'] * q['price'],
+        })
+    return rows
+
+
 # ── RankingService ─────────────────────────────────────────────────────────────
 
 class RankingService:
@@ -192,8 +222,19 @@ class RankingService:
         market:  str = 'all',
         sort_by: str = 'gainers',
         limit:   int = 50,
+        provider: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], str]:
-        """(행, 실제 응답한 provider). 위젯 출처 표기에 provider 를 그대로 쓴다."""
+        """(행, 실제 응답한 provider). 위젯 출처 표기에 provider 를 그대로 쓴다.
+
+        provider 를 주면 그 소스 하나로만 조회한다 (폴백 없음 — 실패하면 LiveRankingError):
+          yahoo  유니버스 전 종목 실시간 시세 (Redis SWR)
+          kis    한국투자증권 서버 정렬 — 국내(KRW)만
+          db     적재된 일별 시계열(mbs_in_stk_stbd)로 계산한 1일 랭킹
+        비우면 자동: 국내는 KIS(실패 시 yahoo), 그 밖은 yahoo.
+        """
+        if provider:
+            return await RankingService._live_from(provider, market, sort_by, limit)
+
         # 국내(KRW) 실시간 순위는 KIS 서버 정렬을 사용 (실패 시 아래 yfinance로 폴백).
         if market == 'domestic':
             kis = await _kis_domestic_ranking(sort_by, limit)
@@ -204,23 +245,28 @@ class RankingService:
         if not meta:
             return [], 'yahoo'
 
-        live = await _live_quotes_swr(full_key)
-
-        rows: List[Dict[str, Any]] = []
-        for sym, q in live.items():
-            m = meta.get(sym, {'stk_nm': sym, 'curr': 'USD', 'sector': ''})
-            rows.append({
-                'stk_cd':      sym,
-                'stk_nm':      m['stk_nm'],
-                'curr':        m['curr'],
-                'sector':      m['sector'],
-                'close_price': q['price'],
-                'change_rate': q['change_percent'],
-                'volume':      q['volume'],
-                'trade_value': q['volume'] * q['price'],
-            })
-
+        rows = _live_rows(meta, await _live_quotes_swr(full_key))
         return RankingService._sort_rows(rows, sort_by)[:limit], 'yahoo'
+
+    @staticmethod
+    async def _live_from(provider: str, market: str, sort_by: str, limit: int) -> Tuple[List[Dict[str, Any]], str]:
+        """고른 소스 하나로 실시간 랭킹. 다른 소스로 넘어가지 않는다."""
+        if provider == 'kis':
+            if market == 'overseas':
+                raise LiveRankingError('kis', 'KIS 랭킹은 국내 종목만 제공합니다')
+            rows = await _kis_domestic_ranking(sort_by, limit)
+            if rows is None:
+                raise LiveRankingError('kis', 'KIS 랭킹을 불러오지 못했어요 — Fetcher 와 KIS 키를 확인하세요')
+            return RankingService._sort_rows(rows, sort_by)[:limit], 'kis'
+        if provider == 'yahoo':
+            meta, _, full_key = await _live_universe_keys(market)
+            if not meta:
+                raise LiveRankingError('yahoo', '랭킹 유니버스를 불러오지 못했어요')
+            return RankingService._sort_rows(_live_rows(meta, await _live_quotes_swr(full_key)), sort_by)[:limit], 'yahoo'
+        if provider == 'db':
+            rows = _filter_rows_by_market(await _fetch_db_ranking('1d'), market)
+            return RankingService._sort_rows(rows, sort_by)[:limit], 'db'
+        raise LiveRankingError(provider, f"'{provider}' 는 실시간 랭킹을 제공하지 않습니다")
 
     @staticmethod
     async def get_ranking(

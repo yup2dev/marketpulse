@@ -289,7 +289,7 @@ export const TRANSFORMS = {
     },
   },
 
-  // ── 백테스트 실행 결과 (저장된 실행 한 건: metrics · equity · trades) ──
+  // ── 백테스트 실행 결과 (전략 실행 한 건: metrics · equity · trades — /api/strategies/result) ──
   // 성과 요약 줄: 전략 값 + 아래에 보유(buy & hold) 값
   bt_kpis: {
     apply: (rows) => {
@@ -298,7 +298,8 @@ export const TRANSFORMS = {
       if (!m) return [];
       const b = m.benchmark || {};
       const num = (v, d = 2) => (v == null ? null : Number(v).toFixed(d));
-      const hold = (v) => (v == null || v === '' ? null : `보유 ${v}`);
+      // 아래 줄 = 벤치마크 값 (포트폴리오 전략은 고른 지수 이름, 예전 단일 종목 실행은 보유)
+      const hold = (v) => (v == null || v === '' ? null : `${b.name || '보유'} ${v}`);
       return [
         { id: 'run', lead: true, label: run.name || 'Backtest', value: [m.start, m.end].filter(Boolean).map((d) => String(d).slice(0, 10)).join(' – ') },
         { id: 'total', label: '누적 수익률', value: fmtPct(m.totalReturn, 1) || null, tone: m.totalReturn, sub: hold(fmtPct(b.totalReturn, 1)) },
@@ -308,7 +309,7 @@ export const TRANSFORMS = {
         { id: 'mdd', label: '최대 낙폭', value: fmtPct(m.maxDrawdown, 1) || null, tone: m.maxDrawdown, sub: hold(fmtPct(b.maxDrawdown, 1)) },
         { id: 'vol', label: '변동성 (연)', value: m.volatility != null ? `${num(m.volatility, 1)}%` : null, sub: hold(b.volatility != null ? `${num(b.volatility, 1)}%` : null) },
         { id: 'win', label: '승률', value: m.winRate != null ? `${Math.round(m.winRate)}%` : null, sub: m.trades != null ? `거래 ${m.trades}회` : null },
-        { id: 'avg', label: '평균 거래', value: fmtPct(m.avgTrade, 2) || null, tone: m.avgTrade, sub: m.exposure != null ? `노출 ${Math.round(m.exposure)}%` : null },
+        { id: 'avg', label: '평균 거래', value: fmtPct(m.avgTrade, 2) || null, tone: m.avgTrade, sub: m.turnover != null ? `회전율 ${Math.round(m.turnover)}%` : m.exposure != null ? `노출 ${Math.round(m.exposure)}%` : null },
       ].filter((r) => r.lead || r.value != null);
     },
   },
@@ -380,7 +381,60 @@ export const TRANSFORMS = {
         const sd = Math.sqrt(w.reduce((a, b) => a + (b - mean) ** 2, 0) / (w.length - 1));
         out.push({ date: String(pts[i].date), sharpe: sd > 0 ? (mean / sd) * Math.sqrt(ppy) : null });
       }
-      return { rows: out, meta: { window: `${win}봉` } };
+      return { rows: out, meta: { window: ppy <= 13 ? `${win}개월` : `${win}봉` } };   // 월별 실행(전략)은 개월
+    },
+  },
+
+  // ── 전략별 손익 (같은 조건으로 전략마다 실행 — /api/strategies/compare) ──
+  // 누적 손익(%) 넓은 행 { date, <전략 id>: %, benchmark: % } + 계열(전략 이름)을 meta 로.
+  // 전략마다 자기 첫 달을 0 으로 (ML 전략은 표본 밖 구간부터 시작한다). 처음엔 고른 전략 + 앞의 기본 제공 둘 + 벤치마크
+  bt_compare: {
+    apply: (rows, { params }) => {
+      if (!rows.length) return [];
+      const byDate = new Map();
+      const put = (date, key, v) => {
+        const d = String(date).slice(0, 10);
+        if (!byDate.has(d)) byDate.set(d, { date: d });
+        byDate.get(d)[key] = v;
+      };
+      for (const r of rows) {
+        const pts = r.equity || [];
+        const s0 = pts[0]?.strategy || 1;
+        for (const p of pts) put(p.date, r.strategy_id, (p.strategy / s0 - 1) * 100);
+      }
+      // 벤치마크는 기간이 가장 긴 전략의 것
+      const longest = rows.reduce((a, b) => ((b.equity?.length || 0) > (a.equity?.length || 0) ? b : a), rows[0]);
+      const bpts = longest.equity || [];
+      const b0 = bpts[0]?.benchmark || 1;
+      for (const p of bpts) if (p.benchmark != null) put(p.date, 'benchmark', (p.benchmark / b0 - 1) * 100);
+      const benchName = longest.metrics?.benchmark?.name || '벤치마크';
+      const label = (n) => String(n).replace(/[,:]/g, ' ');   // 'id:이름,…' 목록의 구분자와 겹치지 않게
+      const series = [...rows.map((r) => `${r.strategy_id}:${label(r.name)}`), `benchmark:${label(benchName)}`].join(',');
+      const builtins = rows.filter((r) => r.builtin).map((r) => r.strategy_id);
+      const pick = [...new Set([params.strategy, ...builtins.slice(0, 2), 'benchmark'].filter(Boolean))].join(',');
+      const out = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+      return { rows: out, meta: { series, pick } };
+    },
+  },
+  // 같은 결과를 표로 — 전략마다 한 줄 + 맨 아래 벤치마크
+  bt_compare_table: {
+    apply: (rows) => {
+      const line = (name, m, extra = {}) => ({
+        name,
+        totalReturn: m.totalReturn, cagr: m.cagr, maxDrawdown: m.maxDrawdown,
+        _sharpe: m.sharpe != null ? Number(m.sharpe).toFixed(2) : null,
+        _vol: m.volatility != null ? `${Number(m.volatility).toFixed(1)}%` : null,
+        _turnover: m.turnover != null ? `${Math.round(m.turnover)}%` : null,
+        _period: [m.start, m.end].filter(Boolean).map((d) => String(d).slice(0, 7)).join(' – '),
+        ...extra,
+      });
+      const out = rows.map((r) => line(r.name, r.metrics || {}, {
+        _kind: r.score_kind === 'ml' ? 'ML' : '팩터', _tone: r.score_kind === 'ml' ? 'accent' : undefined,
+      }));
+      const longest = rows.reduce((a, b) => ((b.metrics?.months || 0) > (a?.metrics?.months || 0) ? b : a), rows[0]);
+      const b = longest?.metrics?.benchmark;
+      if (b) out.push(line(b.name || '벤치마크', { ...b, start: longest.metrics.start, end: longest.metrics.end }, { _kind: '지수' }));
+      return out;
     },
   },
 
@@ -651,6 +705,7 @@ function buildSpec(def) {
   const byTab = {};   // 'tab.<탭 코드>.<이름>' — 그 탭만의 뷰·요청·옵션
   const optionsFrom = {};
   let provider = null;
+  let keepProvider = false;   // 컨트롤(정렬 등)을 바꿔도 고른 데이터 소스를 유지 — 후보가 조건과 무관할 때
   let shared;   // 화면 변수 이름들 — 같은 이름을 쓰는 위젯이 값을 같이 따른다 (mp-widgets/shared.js)
   for (const [k, v] of Object.entries(all)) {
     if (k.startsWith('extra.')) extra[k.slice('extra.'.length)] = v;
@@ -663,6 +718,7 @@ function buildSpec(def) {
       optionsFrom[k.slice('optionsFrom.'.length)] = { endpoint, value, label, keep: keep === 'keep' };
     } else if (k === 'provider') provider = String(v);
     else if (k === 'shared') shared = String(v).split(',').map((s) => s.trim()).filter(Boolean);
+    else if (k === 'keepProvider') keepProvider = v === true || v === 'true';
     else options[k] = v;
   }
 
@@ -737,6 +793,7 @@ function buildSpec(def) {
     },
     // 데이터 소스의 처음 값 (endpoint 에 {provider} 가 있을 때). 비우면 서버가 고른다
     provider: provider || undefined,
+    keepProvider,
     shared,
     controls: (def.params || []).map((p) => {
       const opts = (p.options || []).map((o) => ({ value: o.value, label: o.label, params: coerceAll(o.params) }));

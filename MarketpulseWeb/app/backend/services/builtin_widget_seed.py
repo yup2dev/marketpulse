@@ -94,8 +94,9 @@ BUILTIN_WIDGETS = [
         "description": "Trade value · gainers · losers with 1D trend",
         "title": "실시간 랭킹",
         "view_type": "table",
-        "endpoint": "/stock/ranking/live?market=all&sort_by={sortBy}&limit=30",
-        "source": "$provider,live",
+        "endpoint": "/stock/ranking/live?market=all&sort_by={sortBy}&limit=30&provider={provider}",   # 데이터 소스 선택 (yahoo · kis · db)
+        "source": "$provider",
+        "live_yn": "Y",
         "transform": "rank_sort",
         "quote_key": "stk_cd",
         "empty_text": "표시할 종목이 없어요",
@@ -116,7 +117,8 @@ BUILTIN_WIDGETS = [
             _field("COLUMN", "stk_cd", "trend", "1일", width=96, sub="change_rate"),
             _field("COLUMN", "sector", "tag", "산업", width=112),
         ],
-        "options": {"series": f"{HISTORY}?period=1d&interval=5m"},
+        # 데이터 소스 후보(yahoo · kis · db)는 정렬과 무관하다 — 정렬 탭을 바꿔도 고른 소스를 유지
+        "options": {"series": f"{HISTORY}?period=1d&interval=5m", "keepProvider": "true"},
         "screens": [("/", "overview", 0, 3, 8, 6), ALL],
     },
     # ── 미니 차트 (한 종목 캔들) ──
@@ -152,7 +154,8 @@ BUILTIN_WIDGETS = [
         "title": "섹터 히트맵",
         "view_type": "treemap",
         "endpoint": "/stock/sector-performance",
-        "source": "$provider,live",
+        "source": "$provider",
+        "live_yn": "Y",
         "source_note": "시가총액 기준",
         "transform": "flatten_sectors",
         "quote_key": "symbol",
@@ -456,7 +459,7 @@ BUILTIN_WIDGETS += [
         "view_type": "list",
         # 공시(SEC — 키 없이 된다)가 주 요청, 뉴스(Polygon 키 필요)는 보조 요청 — 키가 없으면 공시만 나온다
         "endpoint": "/data/sec/filings?symbol={symbol}&form_type=10-K,10-Q,8-K&limit=20",
-        "source": "sec,polygon",
+        "source": "$provider",
         "transform": "feed_rows",
         "default_symbol": "AAPL",
         "empty_text": "{symbol} 뉴스 · 공시가 없어요",
@@ -582,7 +585,7 @@ BUILTIN_WIDGETS += [
         "title": "기관 요약",
         "view_type": "kpis",
         "endpoint": "/portfolio/13f/{institution}?summary_only=true",
-        "source": "sec,db",
+        "source": "$provider",
         "transform": "inst_kpis",
         "empty_text": "13F 데이터가 없어요",
         "size": (12, 1, 6, 1),
@@ -599,7 +602,7 @@ BUILTIN_WIDGETS += [
         "title": "기관 순위",
         "view_type": "table",
         "endpoint": "/portfolio/13f/summaries",
-        "source": "sec,db",
+        "source": "$provider",
         "source_note": "13F · 일 배치 적재",
         "transform": "inst_rank",
         "empty_text": "적재된 13F 가 없어요",
@@ -631,7 +634,7 @@ BUILTIN_WIDGETS += [
         "group_name": "Institutions",
         "view_type": "columns",
         "endpoint": "/portfolio/13f/{institution}/performance?quarters=8",
-        "source": "sec,db",
+        "source": "$provider",
         "source_note": "누적 {cumulative} · {quarters}분기 · 13F 추정 (실제 NAV 아님)",
         "transform": "fund_perf",
         "empty_text": "추정 수익률이 적재돼 있지 않아요",
@@ -666,7 +669,7 @@ BUILTIN_WIDGETS += [
         "group_name": "Institutions",
         "view_type": "table",
         "endpoint": "/portfolio/13f/{institution}?limit=50",
-        "source": "sec,db",
+        "source": "$provider",
         "transform": "inst_stocks",
         "empty_text": "보유 종목이 없어요",
         "size": (12, 8, 5, 4),
@@ -692,12 +695,13 @@ BUILTIN_WIDGETS += [
 
 
 # ══ 백테스트 결과 (/backtest · Results) ══════════════════════════════════════════
-# 저장한 실행 한 건을 읽어 그린다 — 계산은 브라우저 엔진이 했고(Strategy 위젯에서 실행 → Save results),
-# 서버는 그 스냅샷(metrics · equity · trades)만 갖고 있다. 고른 실행은 화면 변수(run)라 다섯 위젯이 같이 따른다.
-RUN = ("run", "실행", "latest", [("latest", "최근 실행", None)])
-RUN_OPTIONS = {"shared": "run", "optionsFrom.run": "/backtest/runs|run_id|name|keep"}
-RUN_ENDPOINT = "/backtest/runs/{run}"
-RUN_EMPTY = "저장한 백테스트 실행이 없어요 — Strategy 에서 실행한 뒤 Save results 를 눌러 주세요"
+# 결과 위젯은 머리줄 전략 드롭다운(StrategyPicker)이 고른 전략을 화면 변수로 따른다 (기간 · 벤치마크 · 비용은 서버 기본값).
+# 전략은 웹에서 만들고(/api/strategies), 서버가 월별 패널(mbs_in_quant_panel)로 바로 계산한다
+RUN_VARS = "strategy,bt_start,bt_end,bt_bench,bt_cost,bt_rev"
+RUN_OPTIONS = {"shared": RUN_VARS}
+RUN_ENDPOINT = ("/strategies/result?strategy={strategy}&start={bt_start}&end={bt_end}"
+                "&benchmark={bt_bench}&cost={bt_cost}&rev={bt_rev}")
+RUN_EMPTY = "전략 계산 재료(월별 패널)가 아직 없어요 — 로컬에서 build_quant.py 를 실행한 뒤 동기화해 주세요"
 WINDOW = ("window", "기간", "all", [
     ("all", "전체", "months=0"), ("5y", "5Y", "months=60"), ("3y", "3Y", "months=36"), ("1y", "1Y", "months=12"),
 ])
@@ -707,7 +711,7 @@ BUILTIN_WIDGETS += [
     {
         "widget_id": "bt-run-summary",
         "name": "Backtest Summary",
-        "description": "Return, CAGR, Sharpe, drawdown, win rate vs buy & hold in one line",
+        "description": "Return, CAGR, Sharpe, drawdown, win rate vs the benchmark in one line",
         "group_name": "Backtest",
         "title": "성과 요약",
         "view_type": "kpis",
@@ -716,15 +720,14 @@ BUILTIN_WIDGETS += [
         "transform": "bt_kpis",
         "empty_text": RUN_EMPTY,
         "size": (12, 1, 6, 1),
-        "params": [RUN],
         "options": dict(RUN_OPTIONS),
-        "screens": [("/backtest", "results", 0, 0, 12, 1), ALL],
+        "screens": [("/backtest", "results", 0, 2, 12, 1), ALL],
     },
     # ── 누적 수익 · 낙폭 ──
     {
         "widget_id": "bt-run-equity",
         "name": "Equity & Drawdown",
-        "description": "Cumulative return vs buy & hold with the drawdown pane",
+        "description": "Cumulative return vs the benchmark with the drawdown pane",
         "group_name": "Backtest",
         "title": "누적 수익 · 낙폭",
         "view_type": "curve",
@@ -734,13 +737,13 @@ BUILTIN_WIDGETS += [
         "transform": "bt_equity",
         "empty_text": RUN_EMPTY,
         "size": (8, 7, 4, 4),
-        "params": [RUN, WINDOW],
+        "params": [WINDOW],
         "options": {
             **RUN_OPTIONS,
-            "x": "date", "series": "strategy:전략,benchmark:보유", "drawdown": "drawdown",
+            "x": "date", "series": "strategy:전략,benchmark:벤치마크", "drawdown": "drawdown",
             "excess": "true", "unit": "%", "digits": "1",
         },
-        "screens": [("/backtest", "results", 0, 1, 8, 7), ALL],
+        "screens": [("/backtest", "results", 0, 3, 8, 7), ALL],
     },
     # ── 월별 수익률 격자 ──
     {
@@ -756,15 +759,14 @@ BUILTIN_WIDGETS += [
         "transform": "bt_monthly",
         "empty_text": RUN_EMPTY,
         "size": (4, 7, 3, 4),
-        "params": [RUN],
         "options": {**RUN_OPTIONS, "row": "year", "col": "month", "value": "value"},
-        "screens": [("/backtest", "results", 8, 1, 4, 7), ALL],
+        "screens": [("/backtest", "results", 8, 3, 4, 7), ALL],
     },
     # ── 거래 내역 ──
     {
         "widget_id": "bt-run-trades",
         "name": "Backtest Trades",
-        "description": "Entry / exit, bars held and return per trade",
+        "description": "Each holding: added / removed, months held and return",
         "group_name": "Backtest",
         "title": "거래 내역",
         "view_type": "table",
@@ -773,18 +775,19 @@ BUILTIN_WIDGETS += [
         "transform": "bt_trades",
         "empty_text": "이 기간에 거래가 없어요",
         "size": (7, 6, 4, 3),
-        "params": [RUN, WINDOW],
+        "params": [WINDOW],
         "fields": [
-            _field("COLUMN", "_entry", "muted", "진입일", width=96),
-            _field("COLUMN", "entryPrice", "number", "진입가"),
-            _field("COLUMN", "_exit", "muted", "청산일", width=96),
-            _field("COLUMN", "exitPrice", "number", "청산가"),
-            _field("COLUMN", "bars", "number", "보유 봉"),
+            _field("COLUMN", "symbol", "text", "종목", width=72),
+            _field("COLUMN", "_entry", "muted", "편입일", width=96),
+            _field("COLUMN", "entryPrice", "number", "편입가"),
+            _field("COLUMN", "_exit", "muted", "편출일", width=96),
+            _field("COLUMN", "exitPrice", "number", "편출가"),
+            _field("COLUMN", "bars", "number", "보유 개월"),
             _field("COLUMN", "returnPct", "change", "수익률"),
             _field("COLUMN", "_state", "badge", "상태", width=72, sub="_tone"),
         ],
         "options": {**RUN_OPTIONS, "rowHeight": "36", "minWidth": "560"},
-        "screens": [("/backtest", "results", 0, 8, 7, 6), ALL],
+        "screens": [("/backtest", "results", 0, 10, 7, 6), ALL],
     },
     # ── 롤링 샤프 (점선 = 1.0) ──
     {
@@ -800,12 +803,51 @@ BUILTIN_WIDGETS += [
         "transform": "bt_rolling",
         "empty_text": "롤링 샤프를 계산하기에는 실행 기간이 짧아요",
         "size": (5, 6, 3, 3),
-        "params": [RUN],
         "options": {
             **RUN_OPTIONS,
             "x": "date", "series": "sharpe:롤링 샤프", "refs": "1", "unit": "", "digits": "2", "signed": "false",
         },
-        "screens": [("/backtest", "results", 7, 8, 5, 6), ALL],
+        "screens": [("/backtest", "results", 7, 10, 5, 6), ALL],
+    },
+    # ── 전략별 손익: 같은 조건(기간 · 벤치마크 · 비용)으로 전략마다 실행 — 칩으로 골라 겹쳐 본다 ──
+    # 계열(전략 목록)은 응답에서 온다 (transform 이 meta.series 로) — 내 전략이 늘어도 행을 고치지 않는다
+    {
+        "widget_id": "bt-compare",
+        "name": "Strategy P&L",
+        "description": "Cumulative return of each strategy under the same period, benchmark and cost — pick which to overlay",
+        "group_name": "Backtest",
+        "title": "전략별 손익",
+        "view_type": "lines",
+        "endpoint": "/strategies/compare?start={bt_start}&end={bt_end}&benchmark={bt_bench}&cost={bt_cost}&rev={bt_rev}",
+        "source": "$provider",
+        "source_note": "비용 차감 후 · 전략마다 첫 달 = 0",
+        "transform": "bt_compare",
+        "empty_text": RUN_EMPTY,
+        "size": (12, 7, 6, 4),
+        "tabs": [
+            ("pnl", "누적 손익", None, None, []),
+            ("table", "성과 비교", None, None, []),
+        ],
+        "fields": [
+            _field("COLUMN", "name", "text", "전략"),
+            _field("COLUMN", "_kind", "badge", "점수", width=72, sub="_tone"),
+            _field("COLUMN", "totalReturn", "change", "누적 수익률"),
+            _field("COLUMN", "cagr", "change", "CAGR"),
+            _field("COLUMN", "_sharpe", "value", "샤프"),
+            _field("COLUMN", "maxDrawdown", "change", "최대 낙폭"),
+            _field("COLUMN", "_vol", "muted", "변동성"),
+            _field("COLUMN", "_turnover", "muted", "회전율"),
+            _field("COLUMN", "_period", "muted", "기간", width=128),
+        ],
+        "options": {
+            **RUN_OPTIONS,
+            "x": "date", "max": "6", "unit": "%", "digits": "1",
+            "tab.table.view": "table",
+            "tab.table.transform": "bt_compare_table",
+            "tab.table.rowHeight": "36",
+            "tab.table.minWidth": "720",
+        },
+        "screens": [("/backtest", "results", 0, 16, 12, 7), ALL],
     },
 ]
 
@@ -834,7 +876,7 @@ BUILTIN_WIDGETS += [
         "title": "팩터",
         "view_type": "table",
         "endpoint": _quant("factors"),
-        "source": "yahoo,db",
+        "source": "$provider",
         "source_note": "{members}종목 · 기준 {asOf}",
         "transform": "quant_factors",
         "empty_text": QUANT_EMPTY,
@@ -859,7 +901,7 @@ BUILTIN_WIDGETS += [
         "group_name": "Quant",
         "view_type": "lines",
         "endpoint": _quant("factor_returns"),
-        "source": "yahoo,db",
+        "source": "$provider",
         "source_note": "상위 20% 롱 · 하위 20% 숏 · 최근 5년 · 비용 없음",
         "transform": "quant_meta",
         "empty_text": QUANT_EMPTY,
@@ -889,7 +931,7 @@ BUILTIN_WIDGETS += [
         "group_name": "Quant",
         "view_type": "table",
         "endpoint": _quant("models"),
-        "source": "yahoo,db",
+        "source": "$provider",
         "source_note": "워크포워드 표본 밖 {oos}개월 · 타깃: 다음 달 수익률 > 중앙값",
         "transform": "quant_models",
         "empty_text": QUANT_EMPTY,
@@ -928,7 +970,7 @@ BUILTIN_WIDGETS += [
         "title": "시그널 융합",
         "view_type": "table",
         "endpoint": _quant("signals"),
-        "source": "yahoo,db",
+        "source": "$provider",
         "source_note": "{signalDate} · 상위 10% 매수 · 하위 10% 매도",
         "transform": "quant_signals",
         "empty_text": QUANT_EMPTY,

@@ -120,6 +120,8 @@ class ApiClient {
       // 구조화된 오류(예: 424 code=missing_key, provider=fred) — 위젯이 '키 등록' 안내로 바꾼다
       err.code     = data.code;
       err.provider = data.provider;
+      // 고를 수 있는 데이터 소스 — 실패해도 위젯이 다른 소스로 바꿀 수 있게 (예: /stock/ranking/live)
+      err.candidates = data.candidates;
       throw err;
     }
 

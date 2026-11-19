@@ -279,8 +279,9 @@ def test_builtin_widgets_are_rows_seeded_on_first_read(auth_client, db_session, 
     news = {"stock-news", "stock-filings"}
     institutions = {"inst-summary", "inst-ranking", "inst-performance", "inst-holdings"}
     backtest = {"bt-run-summary", "bt-run-equity", "bt-run-monthly", "bt-run-trades", "bt-run-rolling"}
+    compare = {"bt-compare"}
     quant = {"quant-factors", "quant-factor-returns", "quant-models", "quant-signals"}
-    assert set(widgets) == home | macro | concepts | stock | news | institutions | backtest | quant
+    assert set(widgets) == home | macro | concepts | stock | news | institutions | backtest | compare | quant
 
     # 정의는 행이다 — 마스터(user_id NULL) + 자식 테이블
     rows = db_session.query(UserWidget).all()
@@ -303,14 +304,15 @@ def test_builtin_widgets_are_rows_seeded_on_first_read(auth_client, db_session, 
             ("/stock", "overview") if wid in stock else
             ("/stock", "news") if wid in news else
             ("/stock", "institutional") if wid in institutions else
-            ("/backtest", "results") if wid in backtest else
+            ("/backtest", "results") if wid in backtest | compare else
             ("/quantlib", "factors") if wid in quant else
             ("/", "overview")
         )
         assert [s["screen"] for s in w["screens"]] == ["*", screen] and placed["tab"] == tab
 
     ranking = widgets["live-ranking"]
-    assert ranking["source"] == ["$provider", "live"] and ranking["transform"] == "rank_sort"
+    # 출처는 하나(실제로 답한 소스) — 실시간은 출처가 아니라 live_yn 으로
+    assert ranking["source"] == ["$provider"] and ranking["live_yn"] == "Y" and ranking["transform"] == "rank_sort"
     assert [o["value"] for o in ranking["params"][0]["options"]] == ["trade_value", "gainers", "losers"]
     assert [f["format"] for f in ranking["fields"]] == ["rank", "stock", "price", "change", "compact", "trend", "tag"]
     assert ranking["fields"][2]["quote_field"] == "price"
@@ -357,7 +359,7 @@ def test_builtin_widgets_are_rows_seeded_on_first_read(auth_client, db_session, 
     assert [o["value"] for o in candles["params"][0]["options"]] == ["5m", "1d", "1wk", "1mo"]
     assert widgets["stock-holders"]["view_type"] == "bars" and widgets["stock-dividends"]["view_type"] == "columns"
     feed = widgets["stock-feed"]
-    assert feed["source"] == ["sec", "polygon"] and feed["transform"] == "feed_rows"
+    assert feed["source"] == ["$provider"] and feed["transform"] == "feed_rows"
     assert [(t["tab_code"], t["filter"]) for t in feed["tabs"]] == [
         ("all", None), ("news", "feed_news"), ("filings", "feed_filings"),
     ]
@@ -371,26 +373,31 @@ def test_builtin_widgets_are_rows_seeded_on_first_read(auth_client, db_session, 
 
     # 기관 13F: 고른 기관은 화면 변수(shared) — 순위 표의 행 클릭이 그 값을 바꾼다
     for wid in institutions:
-        assert widgets[wid]["options"]["shared"] == "institution" and widgets[wid]["source"] == ["sec", "db"]
+        assert widgets[wid]["options"]["shared"] == "institution" and widgets[wid]["source"] == ["$provider"]
     assert widgets["inst-ranking"]["options"]["select"] == "institution:institution_key"
     assert widgets["inst-summary"]["endpoint"] == "/portfolio/13f/{institution}?summary_only=true"
     perf = widgets["inst-performance"]
     assert perf["view_type"] == "columns" and perf["options"]["tab.table.view"] == "table"
     assert [f["format"] for f in perf["fields"] if f["field_role"] == "COLUMN"] == ["muted", "change", "money"]
 
-    # 백테스트 결과: 다섯 위젯이 같은 실행(run)을 따르고, 처음에는 가장 최근 실행을 본다
+    # 백테스트 결과: 다섯 위젯이 머리줄 전략 드롭다운이 고른 전략을 화면 변수로 따른다 — 머리줄에 실행 선택 없음
     for wid in backtest:
         w = widgets[wid]
-        assert w["endpoint"] == "/backtest/runs/{run}" and w["options"]["shared"] == "run"
-        assert w["options"]["optionsFrom.run"] == "/backtest/runs|run_id|name|keep"
-        assert next(p for p in w["params"] if p["param_name"] == "run")["param_value"] == "latest"
+        assert w["endpoint"].startswith("/strategies/result?strategy={strategy}")
+        assert w["options"]["shared"] == "strategy,bt_start,bt_end,bt_bench,bt_cost,bt_rev"
+        assert "optionsFrom.run" not in w["options"] and all(p["param_name"] != "run" for p in w["params"])
     assert {widgets[w]["view_type"] for w in backtest} == {"kpis", "curve", "heatmap", "table"}
+    # 전략별 손익: 같은 조건(전략 빼고)으로 전략마다 — 계열은 응답에서 온다
+    cmp = widgets["bt-compare"]
+    assert cmp["endpoint"].startswith("/strategies/compare?") and "{strategy}" not in cmp["endpoint"]
+    assert cmp["options"]["shared"] == "strategy,bt_start,bt_end,bt_bench,bt_cost,bt_rev"
+    assert cmp["view_type"] == "lines" and "series" not in cmp["options"] and cmp["options"]["tab.table.view"] == "table"
 
     # 퀀트: 적재된 산출물(/api/quant/{dataset})을 읽는다 — 팩터 id 는 배치의 팩터 목록과 같아야 선이 그려진다
     from index_analyzer.quant.factors import FACTOR_IDS
 
     for wid in quant:
-        assert widgets[wid]["endpoint"].startswith("/quant/") and widgets[wid]["source"] == ["yahoo", "db"]
+        assert widgets[wid]["endpoint"].startswith("/quant/") and widgets[wid]["source"] == ["$provider"]
     series = widgets["quant-factor-returns"]["options"]["series"]
     assert [part.split(":")[0] for part in series.split(",")] == ["composite", *FACTOR_IDS]
     assert widgets["quant-models"]["options"]["tab.regime.view"] == "strip"

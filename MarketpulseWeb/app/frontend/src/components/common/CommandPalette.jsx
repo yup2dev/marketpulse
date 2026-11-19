@@ -10,7 +10,7 @@
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, LayoutDashboard, BarChart3, Globe, Briefcase, Zap, FlaskConical, SlidersHorizontal, CalendarDays, ArrowRight, Hash, Keyboard } from 'lucide-react';
+import { Search, LayoutDashboard, BarChart3, Globe, Zap, FlaskConical, ArrowRight, Hash, Keyboard } from 'lucide-react';
 import { API_BASE, apiClient } from '../../config/api';
 
 // ── 정적 명령 목록 ──────────────────────────────────────────────────────────
@@ -19,11 +19,8 @@ const NAV_COMMANDS = [
   { id: 'nav-dashboard', label: 'Dashboard',          desc: '메인 대시보드',          icon: LayoutDashboard, action: (nav) => nav('/'),           group: 'navigate' },
   { id: 'nav-stock',     label: 'Stock Analysis',     desc: '주식 분석',              icon: BarChart3,       action: (nav) => nav('/stock'),      group: 'navigate' },
   { id: 'nav-macro',     label: 'Macro',              desc: '거시경제 분석',           icon: Globe,           action: (nav) => nav('/macro'),      group: 'navigate' },
-  { id: 'nav-portfolio', label: 'Portfolio',          desc: '포트폴리오',             icon: Briefcase,       action: (nav) => nav('/portfolios'), group: 'navigate' },
   { id: 'nav-backtest',  label: 'Backtest',           desc: '백테스트',               icon: Zap,             action: (nav) => nav('/backtest'),   group: 'navigate' },
   { id: 'nav-quantlib',  label: 'Quant Lab',          desc: '퀀트 분석',              icon: FlaskConical,    action: (nav) => nav('/quantlib'),   group: 'navigate' },
-  { id: 'nav-screener',  label: 'Screener',           desc: '종목 스크리너',          icon: SlidersHorizontal, action: (nav) => nav('/screener'), group: 'navigate' },
-  { id: 'nav-calendar',  label: 'Calendar',           desc: '경제·실적 캘린더',        icon: CalendarDays,    action: (nav) => nav('/calendar'),   group: 'navigate' },
 ];
 
 const SHORTCUT_HELP = [

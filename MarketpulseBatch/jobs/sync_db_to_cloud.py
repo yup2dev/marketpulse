@@ -57,6 +57,8 @@ TABLES: Dict[str, Dict[str, Any]] = {
     "mbs_in_insti_hold_hist":   {"incremental": "base_ymd"},
     "mbs_in_research_rpt":      {},
     "mbs_in_quant_snapshot":    {},
+    # 월별 패널 — build_quant 가 통째로 다시 계산하므로(예전 달의 표본 밖 확률도 바뀐다) 증분 없이 전체 upsert
+    "mbs_in_quant_panel":       {},
 }
 
 _DROP_COLS = {"id", "created_at", "updated_at"}

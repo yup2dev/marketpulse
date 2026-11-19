@@ -1,7 +1,8 @@
 """퀀트 산출물 로컬 배치 — 팩터 성과 · 예측 모델 검증 · 시장 국면 · 종목 시그널.
 
 유니버스(지수 구성종목, mbs_in_indx_member)의 일별 수정 종가를 Yahoo Finance 에서 받아 **로컬에서** 계산하고
-로컬 DB(data/marketpulse.db)의 mbs_in_quant_snapshot 에 적재한다. 모델 학습은 운영 서버에서 하지 않으며,
+로컬 DB(data/marketpulse.db)의 mbs_in_quant_snapshot(화면 산출물) · mbs_in_quant_panel(월별 패널 — 웹에서 만든
+포트폴리오 전략을 서버가 바로 백테스트하는 재료)에 적재한다. 모델 학습은 운영 서버에서 하지 않으며,
 적재 결과는 MarketpulseBatch/jobs/sync_db_to_cloud.py 가 /api/ingest 로 전송한다.
 
 사용:
@@ -55,6 +56,7 @@ def main() -> int:
     parser.add_argument("--universe", default="sp500", help="mbs_in_indx_member 의 indx_cd (기본 sp500)")
     parser.add_argument("--years", type=int, default=11, help="받을 가격 이력 (년)")
     parser.add_argument("--limit", type=int, default=0, help="앞 N종목만 (시험 실행)")
+    parser.add_argument("--benchmark", default="^GSPC", help="전략 백테스트의 벤치마크 지수 (Yahoo 코드)")
     parser.add_argument("--only-on", choices=_WEEKDAYS, help="이 요일에만 실행(그 외엔 건너뜀)")
     args = parser.parse_args()
 
@@ -67,10 +69,10 @@ def main() -> int:
         return 0
 
     from index_analyzer.db.engine import default_db
-    from index_analyzer.db.orm import MBS_IN_INDX_MEMBER, MBS_IN_QUANT_SNAPSHOT
-    from index_analyzer.quant import build_snapshots
+    from index_analyzer.db.orm import MBS_IN_INDX_MEMBER, MBS_IN_QUANT_PANEL, MBS_IN_QUANT_SNAPSHOT
+    from index_analyzer.quant import build_all
 
-    default_db.create_tables()   # mbs_in_quant_snapshot 보장
+    default_db.create_tables()   # mbs_in_quant_snapshot · mbs_in_quant_panel 보장
     session = default_db.get_session()
     try:
         members = (
@@ -86,7 +88,11 @@ def main() -> int:
             return 1
 
         close = _download(symbols, args.years, log)
-        snapshots = build_snapshots(close, names)
+        bench = _download([args.benchmark], args.years, log)
+        benchmark = bench.iloc[:, 0].rename(args.benchmark) if bench.shape[1] else None
+        if benchmark is None:
+            log.warning("벤치마크 %s 가격을 받지 못했습니다 — 전략은 유니버스 동일 비중과만 견준다", args.benchmark)
+        snapshots, panel = build_all(close, names, args.universe, benchmark)
         base_ymd = datetime.strptime(snapshots["factors"]["meta"]["end"], "%Y-%m-%d").date()
 
         for dataset, snap in snapshots.items():
@@ -97,7 +103,11 @@ def main() -> int:
             row.base_ymd = base_ymd
             row.payload = json.dumps(snap["rows"], ensure_ascii=False, separators=(",", ":"))
             row.meta = json.dumps(snap["meta"], ensure_ascii=False, separators=(",", ":"))
+        # 패널은 유니버스 단위로 통째 교체 — 예전 달의 표본 밖 확률도 매번 다시 계산되기 때문
+        session.query(MBS_IN_QUANT_PANEL).filter(MBS_IN_QUANT_PANEL.universe == args.universe).delete()
+        session.bulk_insert_mappings(MBS_IN_QUANT_PANEL, panel)
         session.commit()
+        log.info("패널 적재 — %d행", len(panel))
         log.info("적재 완료 — %s · 기준일 %s · %s", args.universe, base_ymd, ", ".join(f"{k} {len(v['rows'])}행" for k, v in snapshots.items()))
         return 0
     finally:
