@@ -10,7 +10,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Dict, Optional
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -18,6 +18,7 @@ import pandas as pd
 from .evaluate import annualized, cumulative, long_short, monthly_ic, quantile_returns, sharpe
 from .factors import FACTORS, FACTOR_IDS, build_factors, composite
 from .models import run_models
+from .panel import panel_rows
 from .regime import STATES, fit_hmm
 
 log = logging.getLogger(__name__)
@@ -40,6 +41,12 @@ def _day(ts) -> str:
 
 def build_snapshots(close: pd.DataFrame, names: Optional[Dict[str, dict]] = None) -> Dict[str, dict]:
     """close: 일별 수정 종가(날짜 × 종목). names: { 종목: { name, sector } }."""
+    return build_all(close, names)[0]
+
+
+def build_all(close: pd.DataFrame, names: Optional[Dict[str, dict]] = None, universe: str = "sp500",
+              benchmark: Optional[pd.Series] = None) -> Tuple[Dict[str, dict], List[dict]]:
+    """(화면 산출물 dataset → rows · meta, 월별 패널 행). 패널은 웹의 포트폴리오 전략 백테스트 재료."""
     names = names or {}
     close = close.sort_index().dropna(axis=1, thresh=MIN_HISTORY_DAYS)
     scores = build_factors(close)
@@ -128,7 +135,7 @@ def build_snapshots(close: pd.DataFrame, names: Optional[Dict[str, dict]] = None
         "note": "워크포워드(12개월 묶음) 표본 밖 지표",
     }
     log.info("퀀트 산출 완료 — 종목 %d, 팩터 %d, 표본 밖 %d개월", close.shape[1], len(FACTOR_IDS), ml["oos_months"])
-    return {
+    snapshots = {
         "factors": {"rows": factor_rows, "meta": universe_meta},
         "factor_returns": {"rows": curve_rows, "meta": universe_meta},
         "quantiles": {"rows": quant_rows, "meta": {**universe_meta, "spread": _num(spread, 2)}},
@@ -136,3 +143,4 @@ def build_snapshots(close: pd.DataFrame, names: Optional[Dict[str, dict]] = None
         "regimes": {"rows": regime_rows, "meta": regime_meta},
         "signals": {"rows": signal_rows, "meta": ml_meta},
     }
+    return snapshots, panel_rows(close, scores, ml["oos"], universe, benchmark)

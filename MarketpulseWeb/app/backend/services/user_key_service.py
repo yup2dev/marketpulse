@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 from app.backend.core.db import get_db_sync
 from app.backend.core.key_crypto import decrypt, encrypt
@@ -122,3 +122,17 @@ def list_status(user_id: str) -> List[Dict[str, object]]:
         return out
     finally:
         db.close()
+
+
+def availability(user_id: str) -> Callable[[str], bool]:
+    """provider → 이 사용자가 쓸 수 있는가 (무키 provider이거나 키 등록)."""
+    from data_fetcher.abstract_provider.abstract.provider import ProviderRegistry
+
+    registered = {k["provider"] for k in list_status(user_id) if k.get("configured")}
+    providers = ProviderRegistry.get_all()
+
+    def is_available(name: str) -> bool:
+        prov = providers.get(name)
+        return prov is not None and (not prov.requires_credentials() or name in registered)
+
+    return is_available

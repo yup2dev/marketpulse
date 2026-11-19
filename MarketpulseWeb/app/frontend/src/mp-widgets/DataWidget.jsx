@@ -166,10 +166,14 @@ export default function DataWidget({ spec, symbol: pageSymbol, onRemove }) {
   // ── 그리기 ──
   const viewName = tab?.view || spec.view;
   const View = VIEWS[viewName];
-  const source = [].concat(spec.source || []).map((s) => (s === '$provider' ? (res?.provider || provider) : s)).filter(Boolean);
-  const candidates = res?.metadata?.candidates;
+  // 출처는 하나만 보인다 — 실제로 답한 소스('$provider' = 응답의 provider · 고른 소스). 응답에 없으면 정의의 첫 소스
+  const declared = [].concat(spec.source || []);
+  const answered = declared.includes('$provider') ? (res?.provider || provider) : null;
+  const one = answered || declared.find((s) => s !== '$provider');
+  const source = one ? [one] : [];
+  const candidates = res?.metadata?.candidates || error?.candidates;   // 실패해도 다른 소스로 바꿀 수 있게
   let providerValue = '_';
-  let providerOptions = [{ value: '_', label: source.map(sourceLabel).join(' · ') || '—' }];
+  let providerOptions = [{ value: '_', label: one ? sourceLabel(one) : '—' }];
   if (model) {
     providerValue = provider;
     providerOptions = registry.length ? registry : [{ value: provider, label: sourceLabel(provider) }];
@@ -182,7 +186,8 @@ export default function DataWidget({ spec, symbol: pageSymbol, onRemove }) {
   const setControl = (name, value) => {
     if (sharedNames.includes(name)) setShared(name, value);
     else setPicked((prev) => ({ ...prev, [name]: value }));
-    if (switchable && !model) setProvider(null);   // 조건이 바뀌면 후보도 바뀐다 — 다시 자동 선택
+    // 조건이 바뀌면 후보도 바뀐다 — 다시 자동 선택. 후보가 조건과 무관한 위젯(spec.keepProvider)은 고른 소스를 유지
+    if (switchable && !model && !spec.keepProvider) setProvider(null);
   };
   const empty = typeof spec.empty === 'function' ? spec.empty(ctx) : spec.empty;
 

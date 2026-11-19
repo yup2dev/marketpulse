@@ -38,6 +38,8 @@ MarketpulseFetcher/launcher/target/
 node_modules/
 MarketpulseWeb/app/frontend/dist/
 MarketpulseWeb/app/frontend/src/lib/
+# 리디자인 전 레거시 화면·위젯 (로컬 보관용 — 원본은 git 이력에 있다)
+MarketpulseWeb/app/frontend/backup/
 
 # ── 프로젝트 데이터 / 캐시 ──────────────────────────────────────────────────────
 data/
@@ -48,6 +50,7 @@ logs/
 # ── 기타 ──────────────────────────────────────────────────────────────────────
 *.backup
 bash.exe.stackdump
+/tmp/
 /test_*.py
 # .claude는 로컬 설정이므로 제외하되, 팀 공유용 스킬은 추적한다
 .claude/*

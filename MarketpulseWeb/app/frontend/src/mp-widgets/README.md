@@ -36,7 +36,7 @@ endpoint → 행 꺼내기(dataPath) → prepare → 실시간 시세 병합(quo
 
 | 컨트롤 | 언제 나오나 | 정의하는 법 |
 |---|---|---|
-| **데이터 소스** | **항상** (모든 위젯 필수) | endpoint 에 `{provider}` 를 넣으면 고를 수 있다. `/data/{provider}/<model>` 은 그 모델을 구현한 provider 목록, 그 밖(`/concepts/…&provider={provider}`)은 응답 `metadata.candidates`. `{provider}` 가 없으면 실제로 답한 소스를 보여 주기만 한다. 처음 값은 옵션 `provider` (비우면 서버가 고른다) |
+| **데이터 소스** | **항상** (모든 위젯 필수) | endpoint 에 `{provider}` 를 넣으면 고를 수 있다. `/data/{provider}/<model>` 은 그 모델을 구현한 provider 목록, 그 밖(`/concepts/…&provider={provider}`, `/stock/ranking/live?…&provider={provider}`)은 응답 `metadata.candidates` (실패 응답의 `candidates` 도 — 실패한 소스에서 다른 소스로 바꿀 수 있게). `{provider}` 가 없으면 실제로 답한 소스를 보여 주기만 한다. 처음 값은 옵션 `provider` (비우면 서버가 고른다) |
 | 기준일 칩 | 이름이 `date` · `*_date` 인 컨트롤 | params 행 + endpoint 의 `?date={date}`. 비우면 최신 (빈 값은 요청에서 빠진다) |
 | 한 줄 버튼 | 선택지 4개 이하 | params 행 + 선택지 |
 | 드롭다운 | 선택지 5개 이상, 또는 옵션 `optionsFrom.<컨트롤>` = `경로|값 필드|이름 필드[|keep]` | 국가처럼 목록을 요청으로 채울 때. `keep` 을 붙이면 정의의 선택지(예: `최근 실행`)를 앞에 남긴다 |
@@ -58,7 +58,7 @@ endpoint → 행 꺼내기(dataPath) → prepare → 실시간 시세 병합(quo
 | 항목 | 설명 |
 |---|---|
 | `title` / `tabs` | 제목, 또는 탭 `[{ id, label, items?, params?, filter?, view?, api?, options?, controls? }]`. 둘 중 하나는 필수. 탭이 `view`·`api`(endpoint·transform)·`options` 를 적으면 그 탭만 다르게 그린다 (DB: `tab.<탭>.view` · `.endpoint` · `.transform` · 그 밖의 이름은 뷰 옵션). `controls` 는 그 탭 머리줄에 보일 컨트롤 이름 (`none` = 숨김) |
-| `source` | 출처 키(`ui/sources.js`) 또는 배열. `'$provider'` 는 응답의 `provider` 값으로 바뀐다. **필수** |
+| `source` | 출처 키(`ui/sources.js`). 위젯은 출처를 **하나만** 보인다 — `'$provider'` 면 실제로 답한 소스(응답의 `provider`, 고른 소스), 응답에 없으면 정의의 첫 소스. 여러 소스를 '·' 로 잇지 않는다. 실시간은 출처가 아니라 `live` 로 표시. **필수** |
 | `sourceNote` | 출처 뒤 덧붙이는 말 — 문자열 또는 `(ctx, meta) => 문자열` (DB 의 `{이름}` 자리는 params · symbol · transform 이 넘긴 meta 로 채운다) |
 | `live` | `true` 면 출처 앞에 실시간 점 |
 | `api.endpoint` | `/api` 뒤 경로. `{이름}` 자리는 params 로 채운다 (아래) |
@@ -68,6 +68,7 @@ endpoint → 행 꺼내기(dataPath) → prepare → 실시간 시세 병합(quo
 | `api.transform` | `(rows, ctx) => rows` 또는 `{ rows, meta }` |
 | `api.extra` | 보조 요청 `{ 이름: 경로 }` → `ctx.extra.이름` |
 | `provider` | 데이터 소스의 처음 값 (endpoint 에 `{provider}` 가 있을 때) |
+| `keepProvider` | 컨트롤을 바꿔도 고른 데이터 소스를 유지 (기본은 조건이 바뀌면 자동 선택으로 돌아간다 — 국가처럼 후보가 바뀌는 경우). 후보가 조건과 무관한 위젯(실시간 랭킹의 정렬)에 쓴다 |
 | `controls` | 헤더 컨트롤 `[{ name, label, default, kind, options: [{ value, label, params? }], optionsFrom? }]` — `kind`: `seg` `select` `date` `text` |
 | `symbol` | `{ default: 'NVDA' }` — 위젯이 종목 하나를 갖는다 (`{symbol}`) |
 | `quotes` | 실시간 시세. `{ key: '행의 심볼 필드', fields: { 행필드: 시세필드 } }` · `{ key: '$symbol' }` · `{ symbols: (rows) => [...] }` |

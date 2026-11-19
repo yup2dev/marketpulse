@@ -24,11 +24,8 @@ const ROUTE_MAP = {
   'professional':       '/',
   'stock':              '/stock',
   'macro-analysis':     '/macro',
-  'portfolio-settings': '/portfolios',
-  'screener':           '/screener',
   'quantlib':           '/quantlib',
   'backtest':           '/backtest',
-  'calendar':           '/calendar',
 };
 
 // 하위 메뉴 = 그 화면의 탭(urlWidgetMap categories). 메뉴와 탭 id가 어긋나지 않도록

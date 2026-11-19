@@ -14,7 +14,7 @@ USER & PORTFOLIO Layer: 앱 도메인 (파이프라인 단계와 무관한 사�
 import uuid
 from datetime import datetime
 from sqlalchemy import (
-    Column, String, Text, Integer, DateTime, Boolean,
+    Column, String, Text, Integer, Float, DateTime, Boolean,
     ForeignKey, ForeignKeyConstraint, Index, UniqueConstraint, DECIMAL
 )
 from sqlalchemy.orm import relationship
@@ -823,6 +823,47 @@ class UserWidgetOption(Base):
     opt_value = Column(String(300), nullable=False)
 
 
+class UserQuantStrategy(Base):
+    """포트폴리오 전략 (퀀트 → 백테스트). user_id NULL = 기본 제공 (모든 사용자 공통, 고칠 수 없음).
+
+    점수를 만드는 법(score_kind)만 정의하고, 계산은 서버가 적재된 월별 패널(mbs_in_quant_panel)로 한다:
+        factor  고른 팩터 z-점수의 가중 평균 (가중치 = 자식 테이블 user_quant_strategy_factors)
+        ml      배치가 계산한 표본 밖 확률 하나 (model: stack · avg · gbt · mlp · logit)
+    그 점수로 리밸런싱마다 상위 top_n 종목을 같은 비중으로 산다.
+    기간 · 벤치마크 · 거래비용은 실행 조건이라 행에 두지 않는다 (백테스트 설정 패널이 고른다).
+    """
+    __tablename__ = 'user_quant_strategies'
+
+    strategy_id = Column(String(50), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String(50), ForeignKey('users.user_id'), nullable=True, index=True)
+    name = Column(String(100), nullable=False)
+    description = Column(String(300))
+    universe = Column(String(30), nullable=False, default='sp500')
+    score_kind = Column(String(10), nullable=False, default='factor')   # factor | ml
+    model = Column(String(20))                                           # ml 일 때: stack | avg | gbt | mlp | logit
+    top_n = Column(Integer, nullable=False, default=30)
+    rebalance = Column(String(1), nullable=False, default='M')          # M 월간 | Q 분기
+    sort_seq = Column(Integer, nullable=False, default=0)
+    use_yn = Column(String(1), nullable=False, default='Y')
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    factors = relationship(
+        'UserQuantStrategyFactor', cascade='all, delete-orphan', order_by='UserQuantStrategyFactor.factor_id',
+        lazy='selectin',
+    )
+
+
+class UserQuantStrategyFactor(Base):
+    """전략의 팩터 가중치 — 팩터 id 는 배치(index_analyzer/quant/factors.py)의 FACTORS 와 같다."""
+    __tablename__ = 'user_quant_strategy_factors'
+
+    strategy_id = Column(String(50), ForeignKey('user_quant_strategies.strategy_id', ondelete='CASCADE'), primary_key=True)
+    factor_id = Column(String(20), primary_key=True)
+    weight = Column(Float, nullable=False, default=1.0)
+
+
 __all__ = [
     "User",
     "Portfolio",
@@ -848,4 +889,6 @@ __all__ = [
     "WidgetType",
     "UserWidgetPref",
     "UserWidgetPrefScreen",
+    "UserQuantStrategy",
+    "UserQuantStrategyFactor",
 ]

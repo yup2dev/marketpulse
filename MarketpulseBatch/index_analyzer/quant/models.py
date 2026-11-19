@@ -92,7 +92,8 @@ def run_models(scores: Dict[str, pd.DataFrame]) -> dict:
     """워크포워드 검증 + 마지막 달 예측.
 
     돌려주는 값: { models: [{ id, name, kind, accuracy, auc, sharpe, weight }], fusions: { avg, stack: 지표 },
-                  latest: DataFrame(종목 × [모델 · avg · stack]), oos_months, train_months }
+                  latest: DataFrame(종목 × [모델 · avg · stack]), oos: DataFrame((월말, 종목) × 같은 열 — 표본 밖 확률),
+                  oos_months, train_months }
     """
     specs = model_specs()
     ids = [s["id"] for s in specs]
@@ -153,6 +154,7 @@ def run_models(scores: Dict[str, pd.DataFrame]) -> dict:
         ],
         "fusions": {f: metrics(f) for f in FUSIONS},
         "latest": latest,
+        "oos": oos,
         "as_of": last,
         "oos_months": int(oos.index.get_level_values("date").nunique()),
         "train_months": int(len(months)),

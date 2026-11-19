@@ -5,13 +5,12 @@
  * Workspaces:  Dashboard (/) only — multiple saved layouts with selector.
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { LayoutGrid, RefreshCw, Plus, ChevronDown, X, Copy, Trash2, Save } from 'lucide-react';
+import { useLocation, useSearchParams } from 'react-router-dom';
+import { LayoutGrid, Plus, ChevronDown, X, Copy, Trash2, Save } from 'lucide-react';
 import useWorkspace from '../../hooks/useWorkspace';
 
 import { WidgetSyncProvider } from '../../contexts/WidgetSyncContext';
 import useAuthStore from '../../store/authStore';
-import usePortfolioState from '../../hooks/usePortfolioState';
 import useNavigationStore from '../../store/navigationStore';
 
 import { URL_WIDGET_MAP, getGlobalWidgetCategories } from '../../registry/urlWidgetMap';
@@ -29,8 +28,7 @@ import DashboardPane from './DashboardPane';
 import WidgetMenu from './WidgetMenu';
 
 import StockSelectorModal from '../common/StockSelectorModal';
-import CreatePortfolioModal from '../common/CreatePortfolioModal';
-import AddTransactionModal from '../common/AddTransactionModal';
+import StrategyPicker from '../backtest/StrategyPicker';
 
 // ── Split tree helpers (localStorage — kept as offline fallback) ─────────────
 
@@ -59,7 +57,6 @@ function saveSplitTree(pathname, tree, wsId) {
 // ── Component ───────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const location = useLocation();
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { isAuthenticated } = useAuthStore();
   const { setLastSection, setLastSymbol } = useNavigationStore();
@@ -251,9 +248,6 @@ export default function DashboardPage() {
     [splitTree, updateTree, pathname, setLastSection, searchParams, setSearchParams],
   );
 
-  // ── Portfolio state ─────────────────────────────────────────────────────
-  const portfolio = usePortfolioState();
-
   // ── Derived ─────────────────────────────────────────────────────────────
   const menuPaneCategory = (() => {
     const pane = menuState.paneId
@@ -324,21 +318,6 @@ export default function DashboardPage() {
   }, [firstPaneId]);
 
 
-  // ── Auth guard ──────────────────────────────────────────────────────────
-  if (config?.needsPortfolio && !isAuthenticated) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] surface-primary text-gray-400 gap-3">
-        <p className="text-sm">Sign in to view your portfolio</p>
-        <button
-          onClick={() => navigate('/login')}
-          className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-sm rounded transition-colors"
-        >
-          Sign In
-        </button>
-      </div>
-    );
-  }
-
   if (!config) {
     return (
       <div className="flex items-center justify-center min-h-[60vh] text-gray-500 text-sm">
@@ -361,6 +340,7 @@ export default function DashboardPage() {
               <span className="text-sm font-semibold text-gray-200">
                 {config.label}
               </span>
+              {config.needsStrategy && <StrategyPicker />}
               {isDashboard && (
                 <WorkspaceSelector
                   workspaces={workspaces}
@@ -388,66 +368,6 @@ export default function DashboardPage() {
                 />
               )}
 
-              {config.needsPortfolio && (
-                <>
-                  {portfolio.lastRefreshed && (
-                    <span className="text-[10px] text-gray-600 whitespace-nowrap hidden sm:inline">
-                      {portfolio.lastRefreshed.toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </span>
-                  )}
-                  <div className="flex items-center rounded border border-gray-700 overflow-hidden">
-                    {['USD', 'KRW'].map((cur) => (
-                      <button
-                        key={cur}
-                        onClick={() => portfolio.handleCurrencyToggle(cur)}
-                        className={`px-2 py-1 text-[11px] font-medium transition-colors ${
-                          portfolio.displayCurrency === cur
-                            ? 'bg-gray-700 text-white'
-                            : 'text-gray-500 hover:text-gray-300'
-                        }`}
-                      >
-                        {cur}
-                      </button>
-                    ))}
-                  </div>
-                  {portfolio.displayCurrency === 'KRW' &&
-                    portfolio.exchangeRate && (
-                      <span
-                        className="text-[10px] text-gray-600 hidden sm:inline"
-                        title={portfolio.exchangeRateAsOf ? `기준일 ${portfolio.exchangeRateAsOf}` : undefined}
-                      >
-                        1$ = ₩{portfolio.exchangeRate.toLocaleString('ko-KR', { maximumFractionDigits: 2 })}
-                      </span>
-                    )}
-                  <button
-                    onClick={portfolio.doRefreshPrices}
-                    disabled={portfolio.isRefreshingPrices}
-                    className="p-1.5 text-gray-500 hover:text-white hover:bg-gray-800 rounded transition-colors disabled:opacity-50"
-                    title="Refresh prices"
-                  >
-                    <RefreshCw
-                      size={12}
-                      className={
-                        portfolio.isRefreshingPrices ? 'animate-spin' : ''
-                      }
-                    />
-                  </button>
-                  {portfolio.selectedPortfolio && (
-                    <button
-                      onClick={() => portfolio.setShowAddTransaction(true)}
-                      className="flex items-center gap-1 px-2 py-1 bg-cyan-900/40 hover:bg-cyan-900/60 text-cyan-400 text-xs rounded border border-cyan-800/40 transition-colors"
-                    >
-                      <Plus size={12} />
-                      Trade
-                    </button>
-                  )}
-                  <PortfolioDropdown portfolio={portfolio} />
-                </>
-              )}
-
               <button
                 onClick={() => openWidgetMenu(firstPaneId)}
                 className="flex items-center gap-1 px-2 py-1 text-xs text-gray-400 hover:text-white hover:bg-gray-800 rounded border border-gray-700 transition-colors"
@@ -461,10 +381,7 @@ export default function DashboardPage() {
 
         {/* ── Split pane content ──────────────────────────────────────── */}
         <div className="flex-1 min-h-0">
-          {!config.needsPortfolio ||
-          portfolio.portfolios.length > 0 ||
-          portfolio.selectedPortfolio ? (
-            <SplitPaneLayout
+          <SplitPaneLayout
               tree={splitTree}
               onTreeChange={updateTree}
               renderPane={(pane) => (
@@ -477,7 +394,6 @@ export default function DashboardPage() {
                   config={config}
                   pathname={pathname}
                   symbol={symbol}
-                  portfolioData={config.needsPortfolio ? portfolio : undefined}
                   onSectionChange={handleSectionChange}
                   onSplit={handleSplit}
                   onClosePane={handleClosePane}
@@ -487,18 +403,6 @@ export default function DashboardPage() {
                 />
               )}
             />
-          ) : (
-            <div className="flex flex-col items-center justify-center min-h-[40vh] gap-3">
-              <p className="text-gray-500 text-sm">No portfolios yet</p>
-              <button
-                onClick={() => portfolio.setShowCreateModal(true)}
-                className="flex items-center gap-1.5 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs rounded transition-colors"
-              >
-                <Plus size={14} />
-                Create Portfolio
-              </button>
-            </div>
-          )}
         </div>
 
         {/* ── Widget picker modal ─────────────────────────────────────── */}
@@ -509,32 +413,6 @@ export default function DashboardPage() {
           activeWidgetIds={[]}
           onAdd={handleAddWidget}
         />
-
-        {/* ── Create-portfolio modal ──────────────────────────────────── */}
-        {config.needsPortfolio && (
-          <CreatePortfolioModal
-            open={portfolio.showCreateModal}
-            onClose={() => portfolio.setShowCreateModal(false)}
-            onCreate={portfolio.handleCreatePortfolio}
-          />
-        )}
-
-        {/* ── Add / edit transaction modal ────────────────────────────── */}
-        {config.needsPortfolio &&
-          (portfolio.showAddTransaction || portfolio.editingTransaction) && (
-            <AddTransactionModal
-              open
-              isEditing={!!portfolio.editingTransaction}
-              initialValues={portfolio.editingTransaction || undefined}
-              isSubmitting={portfolio.isSubmittingTransaction}
-              onClose={() => {
-                portfolio.setShowAddTransaction(false);
-                portfolio.setEditingTransaction(null);
-              }}
-              onAdd={portfolio.handleAddTransaction}
-              onEdit={portfolio.handleEditTransaction}
-            />
-          )}
       </div>
     </WidgetSyncProvider>
   );
@@ -682,71 +560,6 @@ function WorkspaceSelector({
               >
                 <Plus size={12} />
                 New Dashboard
-              </button>
-            </div>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-// ── Portfolio dropdown ───────────────────────────────────────────────────────
-
-function PortfolioDropdown({ portfolio }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="relative">
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-1 px-2 py-1 bg-gray-800 hover:bg-gray-700 text-white text-xs rounded transition-colors max-w-[160px]"
-      >
-        <span className="truncate">
-          {portfolio.selectedPortfolio?.name || 'Select Portfolio'}
-        </span>
-        <ChevronDown size={10} className="flex-shrink-0" />
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full mt-1 bg-[#1a1a2e] border border-gray-700 rounded shadow-xl z-50 py-1 min-w-[180px]">
-            {portfolio.portfolios.length === 0 ? (
-              <div className="px-3 py-2 text-xs text-gray-500">
-                No portfolios
-              </div>
-            ) : (
-              portfolio.portfolios.map((p) => (
-                <button
-                  key={p.portfolio_id}
-                  onClick={() => {
-                    portfolio.setSelectedPortfolio(p);
-                    setOpen(false);
-                  }}
-                  className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-800 transition-colors ${
-                    portfolio.selectedPortfolio?.portfolio_id === p.portfolio_id
-                      ? 'text-cyan-400'
-                      : 'text-gray-300'
-                  }`}
-                >
-                  {p.name}
-                  {p.description && (
-                    <span className="text-gray-600 ml-1">
-                      · {p.description.slice(0, 20)}
-                    </span>
-                  )}
-                </button>
-              ))
-            )}
-            <div className="border-t border-gray-800 mt-1 pt-1">
-              <button
-                onClick={() => {
-                  setOpen(false);
-                  portfolio.setShowCreateModal(true);
-                }}
-                className="w-full text-left px-3 py-2 text-xs text-cyan-400 hover:bg-gray-800 flex items-center gap-1 transition-colors"
-              >
-                <Plus size={11} />
-                New Portfolio
               </button>
             </div>
           </div>

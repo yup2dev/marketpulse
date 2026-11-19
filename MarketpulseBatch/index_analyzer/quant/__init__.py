@@ -5,9 +5,10 @@
     models.py     워크포워드 예측 모델(그래디언트 부스팅 · MLP · 로지스틱) + 융합(평균 · 스태킹)
     regime.py     시장 국면 — 가우시안 HMM (상태 3개)
     build.py      위를 묶어 화면이 그릴 행 목록으로 (dataset → rows · meta)
+    panel.py      월별 패널(팩터 z · 표본 밖 확률 · 다음 달 수익률) — 서버가 웹의 전략을 바로 백테스트하는 재료
 
-계산은 전부 로컬 배치에서 한다. 결과는 mbs_in_quant_snapshot 에 적재되고 서버는 읽기만 한다.
+계산은 전부 로컬 배치에서 한다. 결과는 mbs_in_quant_snapshot · mbs_in_quant_panel 에 적재되고 서버는 읽기(+ 패널로 전략 계산)만 한다.
 """
-from .build import build_snapshots, DATASETS
+from .build import build_all, build_snapshots, DATASETS
 
-__all__ = ["build_snapshots", "DATASETS"]
+__all__ = ["build_all", "build_snapshots", "DATASETS"]

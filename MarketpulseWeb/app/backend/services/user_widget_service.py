@@ -151,6 +151,8 @@ CODES: Dict[str, List[Dict[str, Any]]] = {
         {"value": "bt_monthly",      "name": "백테스트 월별 수익률"},
         {"value": "bt_trades",       "name": "백테스트 거래 내역 — 최근 청산부터"},
         {"value": "bt_rolling",      "name": "백테스트 롤링 샤프"},
+        {"value": "bt_compare",      "name": "전략별 손익 (누적)"},
+        {"value": "bt_compare_table", "name": "전략별 성과 표"},
         {"value": "quant_factors",   "name": "퀀트 팩터 표 — 표기 + 합성은 맨 아래"},
         {"value": "quant_meta",      "name": "퀀트 — 그대로 + 기준(종목 수 · 기간)"},
         {"value": "quant_models",    "name": "퀀트 모델 표 — 예측 모델 먼저, 융합은 아래"},

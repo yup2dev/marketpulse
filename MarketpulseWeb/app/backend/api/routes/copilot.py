@@ -31,6 +31,7 @@ from pydantic import BaseModel
 from app.backend.core.auth.dependencies import get_current_active_user
 from app.backend.core.config import settings
 from app.backend.services import user_key_service
+from app.backend.services.builtin_widget_seed import BUILTIN_WIDGETS
 from app.backend.models.orm import User
 
 log = logging.getLogger(__name__)
@@ -149,7 +150,7 @@ switch to another provider for the same model (error messages include a hint lis
   Annotation x dates MUST exist in rows (snap each event to the nearest trading day).
 
 ## add_widget — widget_type catalog
-Static types: dividend, stock-splits, company-filings, earnings, insider, ownership-institutional, holder-breakdown, management, swot, economic-moat, investment-scorecard, stock-sentiment, financials, news-feed, research-reports, institutional-portfolios, market-ranking, watchlist, screener, alerts, sparkline, comparison, heatmap, correlation, economic-calendar, earnings-calendar, notes, gdp-forecast, inflation-momentum, initial-claims, jobs-breakdown, yield-curve-snapshot, yield-trends, real-rates, fed-balance-sheet, inflation-trends, labor-market-dashboard, pmi, fin-conditions-tab, sentiment-tab, quant-summary, quant-capm, quant-rolling, option-pricing.
+Static types: {static_widget_types}.
 Dynamic types: "data/{provider}/{model}" renders any Universal Data Gateway model as an auto table/chart widget (e.g. "data/fred/cpi", "data/yahoo/stock_price").
 The widget is added to the dashboard pane the user is currently viewing. After adding, tell the user what was added.
 
@@ -157,6 +158,13 @@ The widget is added to the dashboard pane the user is currently viewing. After a
 - Lead with the answer/summary, then supporting detail.
 - Use markdown tables for numeric comparisons. Keep it readable, not exhaustive.
 - Never fabricate data; if a fetch fails, say so and suggest an alternative."""
+
+# 위젯 카탈로그 = 기본 제공 위젯(DB 시드 행) + 코드 컴포넌트 위젯. 레거시 위젯은 제거했다 (git 이력 참고)
+_CODE_WIDGET_TYPES = ("chart-studio",)
+SYSTEM_PROMPT = SYSTEM_PROMPT.replace(
+    "{static_widget_types}",
+    ", ".join([w["widget_id"] for w in BUILTIN_WIDGETS] + list(_CODE_WIDGET_TYPES)),
+)
 
 # ── 도구 정의 — Anthropic 형식 ────────────────────────────────────────────────
 ANTHROPIC_TOOLS = [
@@ -192,7 +200,7 @@ ANTHROPIC_TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "widget_type": {"type": "string", "description": "Widget type id, e.g. 'dividend' or 'data/fred/cpi'"},
+                "widget_type": {"type": "string", "description": "Widget type id, e.g. 'stock-dividends' or 'data/fred/cpi'"},
                 "title": {"type": "string", "description": "Optional label shown to the user in the confirmation"},
                 "w": {"type": "integer", "description": "Grid width 1-12 (default 6)"},
                 "h": {"type": "integer", "description": "Grid height in rows (default 5)"},
@@ -280,7 +288,7 @@ GEMINI_TOOL_DECLS = [
         "parameters": {
             "type": "OBJECT",
             "properties": {
-                "widget_type": {"type": "STRING", "description": "Widget type id, e.g. 'dividend' or 'data/fred/cpi'"},
+                "widget_type": {"type": "STRING", "description": "Widget type id, e.g. 'stock-dividends' or 'data/fred/cpi'"},
                 "title": {"type": "STRING", "description": "Optional label shown to the user"},
                 "w": {"type": "INTEGER", "description": "Grid width 1-12 (default 6)"},
                 "h": {"type": "INTEGER", "description": "Grid height in rows (default 5)"},

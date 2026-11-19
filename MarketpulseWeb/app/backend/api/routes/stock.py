@@ -2,12 +2,15 @@
 import logging
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException, Query as FQuery
+from fastapi import APIRouter, Depends, HTTPException, Query as FQuery
+from fastapi.responses import JSONResponse
 
 from data_fetcher.core.obbject import OBBject
 from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
 from data_fetcher.query_executor import QueryExecutor
 from app.backend.api.deps import filter_dated_rows, resolve_date_range, route_handler, wrap_result
+from app.backend.core.auth.dependencies import get_current_active_user
+from app.backend.models.orm import User
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -503,11 +506,41 @@ async def get_live_stock_ranking(
     market: str = FQuery("all", description="all | domestic | overseas"),
     sort_by: str = FQuery("gainers", description="gainers | losers | volume | trade_value"),
     limit: int = FQuery(50, ge=1, le=200),
-) -> OBBject:
-    from app.backend.services.ranking_service import RankingService
-    # provider = 실제로 답한 소스(kis/yahoo) — 위젯 출처 표기에 쓰인다
-    results, source = await RankingService.get_live_ranking(market=market, sort_by=sort_by, limit=limit)
-    return OBBject(results=results, provider=source)
+    provider: Optional[str] = FQuery(None, description="yahoo | kis | db — 비우면 자동"),
+    user: User = Depends(get_current_active_user),
+):
+    """실시간 랭킹. provider 를 고르면 그 소스 하나로만 조회한다 (폴백 없음).
+
+    응답 metadata.candidates = 고를 수 있는 소스와 내 사용 가능 여부(키) — 위젯의 데이터 소스 선택지.
+    실패 응답에도 candidates 를 실어 위젯이 다른 소스로 바꿀 수 있게 한다.
+    """
+    from app.backend.services import user_key_service
+    from app.backend.services.ranking_service import (
+        LIVE_RANKING_PROVIDERS, LiveRankingError, RankingService,
+    )
+
+    is_available = user_key_service.availability(str(user.user_id))
+    candidates = [{"provider": p, "available": is_available(p)} for p in LIVE_RANKING_PROVIDERS]
+    provider = provider or None
+    if provider and provider not in LIVE_RANKING_PROVIDERS:
+        return JSONResponse(status_code=400, content={
+            "detail": f"'{provider}' 는 실시간 랭킹을 제공하지 않습니다", "candidates": candidates,
+        })
+    if provider and not is_available(provider):
+        return JSONResponse(status_code=424, content={
+            "detail": f"{provider.upper()} API 키가 필요합니다", "code": "missing_key",
+            "provider": provider, "candidates": candidates,
+        })
+    try:
+        # provider = 실제로 답한 소스 — 위젯 출처 표기에 쓰인다
+        results, source = await RankingService.get_live_ranking(
+            market=market, sort_by=sort_by, limit=limit, provider=provider,
+        )
+    except LiveRankingError as e:
+        return JSONResponse(status_code=502, content={
+            "detail": str(e), "provider": e.provider, "candidates": candidates,
+        })
+    return OBBject(results=results, provider=source, metadata={"candidates": candidates})
 
 
 @router.get("/ranking")

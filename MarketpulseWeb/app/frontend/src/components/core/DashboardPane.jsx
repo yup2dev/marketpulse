@@ -35,7 +35,7 @@ export default function DashboardPane({
       ? `${pathname}-${sectionId}`
       : `${pathname}-${paneId}-${sectionId}`;
 
-  // 기본 배치 — DB(기본 제공 위젯의 화면 등록)에 이 화면·탭의 배치가 있으면 그것, 없으면 코드의 배치.
+  // 기본 배치 — 코드 위젯(urlWidgetMap 의 defaultWidgets) + DB 위젯(기본 제공 위젯의 화면 등록) 의 배치를 합친다.
   // 그리드는 처음 그릴 때의 배치를 저장하므로, 정의를 불러온 뒤에 그린다.
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const defsLoaded = useUserWidgetStore((s) => s.loaded);
@@ -44,7 +44,10 @@ export default function DashboardPane({
     () => builtinDefaultWidgets(builtin, pathname, activeCategory?.id),
     [builtin, pathname, activeCategory?.id],
   );
-  const defaultWidgets = dbDefaults.length ? dbDefaults : activeCategory?.defaultWidgets || [];
+  const defaultWidgets = useMemo(
+    () => [...(activeCategory?.defaultWidgets || []), ...dbDefaults],
+    [activeCategory, dbDefaults],
+  );
   const gridReady = defsLoaded || !isAuthenticated;
 
   const [tabMenu, setTabMenu] = useState(null);
