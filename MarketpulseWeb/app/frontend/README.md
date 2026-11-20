@@ -62,7 +62,7 @@ npm run preview
 src/
 ├─ main.jsx · App.jsx · index.css   진입점 · 라우트 · 전역 CSS(테마 변수)
 ├─ app/            앱 껍데기 — 모든 화면을 감싸는 틀 (AppLayout · ProtectedRoute · ErrorBoundary ·
-│                  GlobalLoadingOverlay · CommandPalette · FetcherStatus · CopilotPanel)
+│                  GlobalLoadingOverlay · FetcherStatus · CopilotPanel)
 ├─ pages/          라우트 하나 = 폴더 하나. 그 화면에서만 쓰는 부품은 그 안에
 │  ├─ dashboard/   DashboardPage · DashboardGrid · DashboardPane · SplitPaneLayout
 │  ├─ settings/    SettingsPage · WidgetEditor · WidgetSettings · WidgetTypeAdmin …

@@ -188,7 +188,7 @@ export default function DashboardPage() {
     () => symbolFromUrl || useNavigationStore.getState().lastSymbol || 'AAPL',
   );
 
-  // Sync symbol when URL ?symbol= changes (CommandPalette navigates to /stock?symbol=XXX)
+  // Sync symbol when URL ?symbol= changes (링크·검색이 /stock?symbol=XXX 로 이동시킬 때)
   useEffect(() => {
     if (symbolFromUrl && symbolFromUrl !== symbol) {
       setSymbol(symbolFromUrl);
