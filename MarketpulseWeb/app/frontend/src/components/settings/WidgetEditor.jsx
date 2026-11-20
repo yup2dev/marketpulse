@@ -13,7 +13,7 @@ import { ArrowDown, ArrowUp, Eye, RefreshCw, Save, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import UniversalWidget from '../core/UniversalWidget';
 import { Select, INPUT_CLS, periodLabel } from '../widgets/ui';
-import { apiClient, API_BASE, schemaAPI } from '../../config/api';
+import { apiClient, API_BASE, schemaAPI } from '../../common';
 import { toWidgetConfig, viewKind, ALL_SCREENS } from '../../registry/userWidgets';
 import { normalizeTableRows } from '../../utils/autoRender';
 import useUserWidgetStore from '../../store/userWidgetStore';

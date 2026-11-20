@@ -9,13 +9,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { Activity, Download, Play, Power, RefreshCw, X } from 'lucide-react';
 import useFetcherHealth from '../../hooks/useFetcherHealth';
+import { shutdownFetcher } from '../../common';
 
 // 로컬 Fetcher 다운로드 위치
 const FETCHER_DOWNLOAD_URL =
   'https://github.com/yup2dev/marketpulse/releases/latest';
 
-// 로컬 Fetcher REST (loopback) — 종료 호출용
-const FETCHER_BASE = 'http://127.0.0.1:8765';
 // 설치돼 있으면 OS가 이 스킴으로 Fetcher를 기동한다(Fetcher가 첫 실행 시 자가등록).
 const FETCHER_LAUNCH_URL = 'marketpulse://start';
 
@@ -79,11 +78,7 @@ export default function FetcherStatus() {
   const handleStop = async () => {
     setStopping(true);
     try {
-      // 커스텀 헤더로 CORS preflight를 강제 → 허용 origin만 종료 가능(타 사이트의 임의 종료 차단)
-      await fetch(`${FETCHER_BASE}/shutdown`, {
-        method: 'POST',
-        headers: { 'X-MarketPulse-Control': '1' },
-      }).catch(() => {});
+      await shutdownFetcher();
       for (let i = 0; i < 8; i += 1) {
         await new Promise((r) => setTimeout(r, 800));
         if (!(await recheck())) break;

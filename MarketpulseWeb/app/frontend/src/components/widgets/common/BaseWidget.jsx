@@ -14,7 +14,7 @@
  */
 import { useState, useRef, useEffect } from 'react';
 import { GripVertical, X, RefreshCw, ChevronDown, Search, Database, FileDown, FileSpreadsheet, Image, Link2, Link2Off, Play, Check } from 'lucide-react';
-import { apiClient, API_BASE } from '../../../config/api';
+import { apiClient, API_BASE } from '../../../common';
 import { downloadCSV, downloadExcel, downloadChartPNG, makeFilename } from '../../../utils/exportUtils';
 import { useWidgetSync } from '../../../contexts/WidgetSyncContext';
 import { Select, PeriodSelect, OverflowMenu, FilterBar, WidgetState, SourceFooter } from '../ui';

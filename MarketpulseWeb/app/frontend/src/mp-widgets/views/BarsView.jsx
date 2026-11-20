@@ -10,11 +10,12 @@
  *   digits     2         compact · pct 의 소수 자릿수
  *   rowHeight  44
  */
-import { fmtCompact, fmtNumber, read } from '../format';
+import { fmtCompact, fmtNumber, fmtPct, isNum } from '../../common';
+import { read } from '../format';
 
 function formatValue(v, { format = 'compact', prefix = '', digits = 2 }) {
-  if (v == null || Number.isNaN(Number(v))) return '—';
-  if (format === 'pct') return `${Number(v).toFixed(digits)}%`;
+  if (!isNum(v)) return '—';
+  if (format === 'pct') return fmtPct(v, digits, { sign: false });
   return `${prefix}${format === 'number' ? fmtNumber(v) : fmtCompact(v, digits)}`;
 }
 

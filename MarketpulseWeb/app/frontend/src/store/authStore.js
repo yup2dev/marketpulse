@@ -11,8 +11,10 @@
  *  3. refresh 쿠키도 만료 → forceLogout 콜백 → 로그인 페이지로 이동
  */
 import { create } from 'zustand';
-import { authAPI, apiClient, setForceLogoutCallback, setAccessToken, getAccessToken } from '../config/api';
-import { clearFetcherToken, syncFetcherToken } from '../utils/fetcherToken';
+import {
+  authAPI, apiClient, setForceLogoutCallback, setAccessToken, getAccessToken,
+  clearFetcherToken, syncFetcherToken,
+} from '../common';
 
 const _clearStorage = () => {
   setAccessToken(null);

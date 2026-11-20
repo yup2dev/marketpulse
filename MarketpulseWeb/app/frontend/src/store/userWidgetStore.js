@@ -9,7 +9,7 @@
  * 설정에서 저장하면 여기가 바뀌고, 열려 있는 위젯·메뉴가 그대로 따라온다.
  */
 import { create } from 'zustand';
-import { userWidgetsAPI } from '../config/api';
+import { userWidgetsAPI } from '../common';
 import { builtinWidgetSizes } from '../registry/builtinWidgets';
 import { registerWidgetSizes } from '../registry/widgetSizes';
 

@@ -46,8 +46,8 @@ import { WidgetState, MetricTiles, stateFromError, buildViewOptions, providerFro
 import {
   isParamVisible, visibleParams, paramDisplayValue, humanizeKey, applyColumnConfig,
 } from '../widgets/common/paramSpec';
-import { apiClient, API_BASE, providersAPI } from '../../config/api';
-import { FETCHER_WORKER_CONNECTED } from '../../hooks/useFetcherHealth';
+import { apiClient, API_BASE, providersAPI } from '../../common';
+import { FETCHER_WORKER_CONNECTED } from '../../common';
 import { WIDGET_ENDPOINTS } from '../../registry/widgetEndpoints';
 import { resolveProviderView } from '../../registry/providerViews';
 import {

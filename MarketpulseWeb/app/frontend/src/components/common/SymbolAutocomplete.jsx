@@ -4,7 +4,7 @@
  */
 import { useState, useEffect, useRef } from 'react';
 import { Search, X } from 'lucide-react';
-import { apiClient, API_BASE } from '../../config/api';
+import { apiClient, API_BASE } from '../../common';
 
 const EXCHANGE_STYLES = {
   NASDAQ:  'bg-purple-900/40 text-purple-300 border-purple-700',

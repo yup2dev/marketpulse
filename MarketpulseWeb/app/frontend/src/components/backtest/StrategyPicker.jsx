@@ -8,7 +8,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { Copy, Pencil, Plus, Trash2 } from 'lucide-react';
-import { apiClient, API_BASE } from '../../config/api';
+import { apiClient, API_BASE } from '../../common';
 import { setShared, useShared } from '../../mp-widgets/shared';
 import { usePopover } from '../widgets/ui';
 import StrategyEditor, { GHOST, blank, summary } from './StrategyEditor';

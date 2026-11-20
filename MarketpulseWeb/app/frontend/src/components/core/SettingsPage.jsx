@@ -22,7 +22,7 @@ import {
   CheckCircle2, XCircle, FlaskConical, LayoutGrid,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { keysAPI, providersAPI, conceptsAPI } from '../../config/api';
+import { keysAPI, providersAPI, conceptsAPI } from '../../common';
 import useFetcherHealth from '../../hooks/useFetcherHealth';
 import WidgetSettings from '../settings/WidgetSettings';
 

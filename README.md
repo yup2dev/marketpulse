@@ -109,7 +109,7 @@ transport 가 없으므로 1·2번을 건너뛰고 직접 실행한다 — 즉 *
 
 1. 사용자가 exe 를 실행하면 트레이에 상주하며 `127.0.0.1:8765` 를 연다.
 2. 웹앱이 로그인·토큰 갱신 때마다 access token 을 `POST http://127.0.0.1:8765/user-token` 으로 넘긴다
-   (`utils/fetcherToken.js`). Fetcher 가 꺼져 있으면 조용히 무시된다.
+   (`common/api/localFetcher.js`). Fetcher 가 꺼져 있으면 조용히 무시된다.
 3. Fetcher 가 그 토큰으로 `wss://…/ws/fetcher?token=…` 에 접속한다. 서버는 토큰의 user_id 로 워커를 등록한다.
 4. 그 사용자의 요청 중 "로컬 실행 필수"에 해당하는 것만 이 연결로 내려가고, Fetcher 가 실행해 결과를 돌려준다.
    캐시는 서버에 남으므로 같은 조회가 반복되면 PC 까지 내려가지 않는다.
@@ -246,7 +246,7 @@ npm run build    # 프로덕션 빌드 (dist/)
 npm run lint
 ```
 
-> `VITE_API_URL`이 비면 `config/api.js`가 `http://localhost:8000`으로 폴백한다.
+> `VITE_API_URL`이 비면 `common/api/base.js`가 `http://localhost:8000`으로 폴백한다.
 > 운영 URL은 `.env.production`(또는 Vercel 환경변수)으로만 주입한다 — 폴백을 운영 서버로 두면
 > `.env` 없이 dev 서버를 띄운 개발자가 운영 API를 직접 때리게 된다.
 
@@ -270,7 +270,7 @@ pytest tests/             # 백엔드만
 
 - 로그인 → access/refresh JWT 발급. access token 은 **메모리**에만 두고, refresh token 은 **httpOnly 쿠키**로 받는다
   (`localStorage` 에 두지 않는다 — XSS 로 읽힌다). 새로고침하면 `/auth/refresh` 로 access token 을 다시 받는다.
-- `apiClient`(`config/api.js`)가 모든 `/api` 요청에 Bearer 주입. **401** 응답 시 자동으로 `/auth/refresh` 시도 → 성공하면 재시도, 실패하면 `forceLogout()` → `ProtectedRoute`/`AuthGuard`가 `/login`으로 리다이렉트.
+- `apiClient`(`common/api/client.js`)가 모든 `/api` 요청에 Bearer 주입. **401** 응답 시 자동으로 `/auth/refresh` 시도 → 성공하면 재시도, 실패하면 `forceLogout()` → `ProtectedRoute`/`AuthGuard`가 `/login`으로 리다이렉트.
 - 백엔드는 `auth_gate` 미들웨어가 **deny-by-default** 로 동작한다 — 공개 목록(`/`, `/health`, 로그인·가입·refresh)에
   없는 모든 경로는 Bearer 가 필요하다. 만료·미인증·자격증명 누락은 **모두 401로 통일**한다.
   통과한 요청의 user_id 는 contextvar 에 심어져 `QueryExecutor` 가 사용자별 키·워커를 고르는 데 쓴다.

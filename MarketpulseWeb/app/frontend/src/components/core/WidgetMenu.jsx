@@ -15,7 +15,7 @@
  */
 import { useState, useMemo, useEffect } from 'react';
 import { X, Search, ChevronRight, ChevronDown, Plus } from 'lucide-react';
-import { apiClient, API_BASE } from '../../config/api';
+import { apiClient, API_BASE } from '../../common';
 
 const _titleCase = (s) => s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 

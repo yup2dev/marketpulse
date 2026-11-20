@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import UniversalWidget from './UniversalWidget';
 import BaseWidget from '../widgets/common/BaseWidget';
-import { schemaAPI } from '../../config/api';
+import { schemaAPI } from '../../common';
 import useUserWidgetStore from '../../store/userWidgetStore';
 import { toWidgetConfig, USER_WIDGET_PREFIX } from '../../registry/userWidgets';
 

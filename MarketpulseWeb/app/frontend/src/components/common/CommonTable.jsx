@@ -50,6 +50,7 @@ import {
 } from '@tanstack/react-table';
 import { rankItem } from '@tanstack/match-sorter-utils';
 import { useState, useMemo, useRef, useEffect } from 'react';
+import { fmtNumber, fmtPct, fmtPrice, fmtCompact, fmtDate } from '../../common';
 import {
   ChevronUp, ChevronDown, ChevronsUpDown,
   Search, Download, ChevronLeft, ChevronRight,
@@ -58,20 +59,14 @@ import {
 } from 'lucide-react';
 
 // ── Formatters ────────────────────────────────────────────────────────────────
+// colDef.formatter 키 → common/format. 빈 값은 테이블 관례대로 '—'
+const EMPTY = { empty: '—' };
 const fmt = {
-  number:    v => v == null ? '—' : Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 }),
-  percent:   v => v == null ? '—' : `${Number(v) >= 0 ? '+' : ''}${Number(v).toFixed(2)}%`,
-  currency:  v => v == null ? '—' : `$${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-  date:      v => { if (v == null) return '—'; const d = new Date(v); if (isNaN(d)) return v; const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`; },
-  magnitude: v => {
-    if (v == null) return '—';
-    const n = Number(v);
-    if (Math.abs(n) >= 1e12) return `${(n/1e12).toFixed(2)}T`;
-    if (Math.abs(n) >= 1e9)  return `${(n/1e9).toFixed(2)}B`;
-    if (Math.abs(n) >= 1e6)  return `${(n/1e6).toFixed(2)}M`;
-    if (Math.abs(n) >= 1e3)  return `${(n/1e3).toFixed(2)}K`;
-    return Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 });
-  },
+  number:    v => fmtNumber(v, 2, EMPTY),
+  percent:   v => fmtPct(v, 2, EMPTY),
+  currency:  v => fmtPrice(v, 'USD', EMPTY),
+  date:      v => fmtDate(v, EMPTY),
+  magnitude: v => fmtCompact(v, 2, { ...EMPTY, smallDigits: 2 }),
   none: v => v ?? '—',
 };
 

@@ -5,7 +5,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { apiClient, API_BASE } from '../config/api';
+import { request, useApi, providersAPI } from '../common';
 import useQuoteSocket from '../hooks/useQuoteSocket';
 import useThemeStore from '../store/themeStore';
 import WidgetCard, { HeaderSeg } from '../components/widgets/common/WidgetCard';
@@ -13,11 +13,10 @@ import {
   WidgetState, useWidgetState, useWidgetSymbol, usePopover, stateFromError, PANEL_CLS,
   Select, ParamField, Popover, sourceLabel,
 } from '../components/widgets/ui';
-import { providersAPI } from '../config/api';
 import SymbolAutocomplete from '../components/common/SymbolAutocomplete';
 
-/** '/stock/ranking/live?…' → 응답(JSON). 경로는 /api 뒤부터 */
-export const request = (path) => apiClient.get(`${API_BASE}${path}`);
+/** '/stock/ranking/live?…' → 응답(JSON). 경로는 /api 뒤부터. useApi 는 그 경로의 조회 훅 (둘 다 common) */
+export { request, useApi };
 
 /** 종목을 눌렀을 때 갈 주소 */
 export const hrefFor = (symbol) => `/stock?symbol=${encodeURIComponent(symbol)}`;

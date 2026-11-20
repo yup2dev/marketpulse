@@ -77,26 +77,22 @@ frontend/
 
 ## API Integration
 
-The frontend connects to the backend API using the configuration in `src/config/api.js`.
+Shared code lives in `src/common/` and is imported only through `src/common/index.js`.
 
-### Available Hooks
-
-**useApi(url, options)** - Fetch data from API
-
-```javascript
-import { useApi } from './hooks/useApi';
-import { API_ENDPOINTS } from './config/api';
-
-const { data, loading, error, refetch } = useApi(API_ENDPOINTS.health);
-```
-
-**useApiMutation()** - Send POST requests
+- `common/api/base.js` — backend URL (`VITE_API_URL`, falls back to `http://localhost:8000`)
+- `common/api/client.js` — `apiClient` (Bearer token, 401/403 → refresh → retry, `stream()` for SSE)
+- `common/api/endpoints.js` — per-domain API objects (`authAPI`, `portfolioAPI`, …)
+- `common/api/useApi.js` — GET hook
+- `common/api/localFetcher.js` — local Fetcher (`127.0.0.1:8765`): health, shutdown, token hand-off
+- `common/format/` — number/date formatting (`fmtPct`, `fmtCompact`, `fmtNumber`, `fmtPrice`, `fmtDate`)
 
 ```javascript
-import { useApiMutation } from './hooks/useApi';
+import { useApi, portfolioAPI, fmtPct } from '../common';
 
-const { mutate, loading, error } = useApiMutation();
-await mutate(url, data);
+// path is relative to /api; reloads when the path changes, optional silent refresh interval
+const { data, loading, error, reload } = useApi('/stock/ranking/live?market=us', { refresh: 30000 });
+
+const portfolios = await portfolioAPI.getAll();
 ```
 
 ## Components

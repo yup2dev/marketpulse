@@ -13,31 +13,12 @@
  *   recheck  즉시 재확인 함수 (로컬 실행 여부를 boolean으로 반환)
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { API_BASE, apiClient, getAccessToken } from '../config/api';
-import { syncFetcherToken } from '../utils/fetcherToken';
+import {
+  API_BASE, apiClient, getAccessToken, syncFetcherToken, pingFetcher, FETCHER_WORKER_CONNECTED,
+} from '../common';
 
-const FETCHER_HEALTH_URL = 'http://127.0.0.1:8765/health';
 const POLL_INTERVAL_MS = 15000;
 const JOINING_POLL_INTERVAL_MS = 3000;  // 실행 중인데 미합류 — 합류를 곧바로 반영하도록 짧게
-
-/** 워커가 풀에 (재)합류하면 window에 발행 — 합류 전에 실패한 조회의 재시도 신호. */
-export const FETCHER_WORKER_CONNECTED = 'marketpulse:fetcher-worker-connected';
-
-async function pingFetcher() {
-  try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 2000);
-    const res = await fetch(FETCHER_HEALTH_URL, {
-      method: 'GET',
-      signal: ctrl.signal,
-      cache: 'no-store',
-    });
-    clearTimeout(t);
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
 
 /** 내 워커의 풀 합류 여부. 알 수 없으면(비로그인·구버전 백엔드·네트워크 오류) null. */
 async function fetchWorkerConnected() {
