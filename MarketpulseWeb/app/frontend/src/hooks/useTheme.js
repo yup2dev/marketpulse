@@ -3,7 +3,7 @@
  * Convenience hook that combines theme store and utilities
  */
 import useThemeStore from '../store/themeStore';
-import { getThemeTokens, getThemeClassNames, getChartTheme } from '../utils/themeUtils';
+import { getThemeTokens, getThemeClassNames, getChartTheme } from '../common/util/themeUtils';
 
 const useTheme = () => {
   const { theme, setTheme, toggleTheme } = useThemeStore();

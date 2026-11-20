@@ -1,0 +1,570 @@
+/**
+ * DashboardPage — unified page component for all grid-based routes.
+ *
+ * Split panes: available on all pages via right-click → "Split Right / Down".
+ * Workspaces:  Dashboard (/) only — multiple saved layouts with selector.
+ */
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useLocation, useSearchParams } from 'react-router-dom';
+import { LayoutGrid, Plus, ChevronDown, X, Copy, Trash2, Save } from 'lucide-react';
+import useWorkspace from '../../hooks/useWorkspace';
+
+import { WidgetSyncProvider } from '../../contexts/WidgetSyncContext';
+import useAuthStore from '../../store/authStore';
+import useNavigationStore from '../../store/navigationStore';
+
+import { URL_WIDGET_MAP, getGlobalWidgetCategories } from '../../widget/registry/urlWidgetMap';
+import { userWidgetCategory, applyWidgetPrefs } from '../../widget/registry/userWidgets';
+import { builtinWidgetCategories } from '../../widget/registry/builtinWidgets';
+import useUserWidgetStore from '../../store/userWidgetStore';
+import SplitPaneLayout, {
+  splitPaneNode,
+  removePaneNode,
+  updatePaneSection,
+  countPanes,
+  findPane,
+} from './SplitPaneLayout';
+import DashboardPane from './DashboardPane';
+import WidgetMenu from '../../widget/render/WidgetMenu';
+
+import StockSelectorModal from '../../common/components/StockSelectorModal';
+import StrategyPicker from '../../widget/widgets/backtest/StrategyPicker';
+
+// ── Split tree helpers (localStorage — kept as offline fallback) ─────────────
+
+// ── Split tree persistence ──────────────────────────────────────────────────
+function splitTreeStorageKey(pathname, wsId) {
+  return wsId ? `split-tree:/-${wsId}` : `split-tree:${pathname}`;
+}
+
+function loadSplitTree(pathname, defaultSectionId, wsId) {
+  const key = splitTreeStorageKey(pathname, wsId);
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw) return JSON.parse(raw);
+    if (wsId === 'default') {
+      const old = localStorage.getItem('split-tree:/');
+      if (old) return JSON.parse(old);
+    }
+  } catch {}
+  return { type: 'pane', id: 'root', sectionId: defaultSectionId };
+}
+
+function saveSplitTree(pathname, tree, wsId) {
+  localStorage.setItem(splitTreeStorageKey(pathname, wsId), JSON.stringify(tree));
+}
+
+// ── Component ───────────────────────────────────────────────────────────────
+export default function DashboardPage() {
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { isAuthenticated } = useAuthStore();
+  const { setLastSection, setLastSymbol } = useNavigationStore();
+
+  const pathname = location.pathname;
+  const config = URL_WIDGET_MAP[pathname];
+  const categories = config?.categories || [];
+  const isDashboard = pathname === '/';
+
+  // ?tab= — 헤더 메뉴의 하위 메뉴가 붙인다(구버전 ?section= 도 허용). 이 화면에 없는 탭은 무시.
+  const tabParam =
+    [searchParams.get('tab'), searchParams.get('section')].find(
+      (t) => t && categories.some((c) => c.id === t),
+    ) || null;
+
+  const defaultSection =
+    tabParam ||
+    useNavigationStore.getState().lastSection[pathname] ||
+    categories[0]?.id ||
+    '';
+
+  // ── Workspace state — backend via useWorkspace hook ─────────────────────
+  const {
+    workspace: activeWorkspace,
+    workspaces,
+    isLoading: wsLoading,
+    saveLayout: saveWsLayout,
+    createWorkspace: createWsInBackend,
+    deleteWorkspace: deleteWsFromBackend,
+    setActive: setWsActive,
+    renameWorkspace: renameWsInBackend,
+  } = useWorkspace(isDashboard ? 'dashboard' : null);
+
+  const wsId = isDashboard ? (activeWorkspace?.id || null) : null;
+  const activeWsId = wsId;
+
+  // Debounce ref for split tree auto-save
+  const saveTreeTimerRef = useRef(null);
+
+  const switchWorkspace = useCallback((id) => {
+    setWsActive(id);
+  }, [setWsActive]);
+
+  const createWorkspace = useCallback(async () => {
+    const nums = workspaces.map((w) => {
+      const m = w.name.match(/^Dashboard\s+(\d+)$/);
+      return m ? parseInt(m[1], 10) : 0;
+    });
+    const next = Math.max(0, ...nums) + 1;
+    await createWsInBackend(`Dashboard ${next}`);
+  }, [workspaces, createWsInBackend]);
+
+  const deleteWorkspace = useCallback(
+    async (id) => {
+      if (workspaces.length <= 1) return;
+      localStorage.removeItem(`split-tree:/-${id}`);
+      await deleteWsFromBackend(id);
+    },
+    [workspaces, deleteWsFromBackend],
+  );
+
+  const renameWorkspace = useCallback(
+    async (id, name) => {
+      await renameWsInBackend(id, name);
+    },
+    [renameWsInBackend],
+  );
+
+  // ── Split tree state — backend preferred, localStorage fallback ─────────
+  const splitTreeFromBackend = useMemo(() => {
+    if (!activeWorkspace?.layout?.length) return null;
+    return activeWorkspace.layout[0]?.splitTree || null;
+  }, [activeWorkspace]);
+
+  const [splitTree, setSplitTree] = useState(() =>
+    withTab(loadSplitTree(pathname, defaultSection, null), tabParam),
+  );
+
+  // When active workspace changes, reload split tree (backend first, then local)
+  useEffect(() => {
+    if (splitTreeFromBackend) {
+      setSplitTree(withTab(splitTreeFromBackend, tabParam));
+    } else {
+      setSplitTree(withTab(loadSplitTree(pathname, defaultSection, activeWsId), tabParam));
+    }
+  }, [activeWorkspace?.id, splitTreeFromBackend]);
+
+  const updateTree = useCallback(
+    (newTree) => {
+      setSplitTree(newTree);
+      saveSplitTree(pathname, newTree, activeWsId); // localStorage fallback
+      // Debounced save to backend
+      if (isDashboard) {
+        clearTimeout(saveTreeTimerRef.current);
+        saveTreeTimerRef.current = setTimeout(() => {
+          saveWsLayout([{ splitTree: newTree }], []);
+        }, 1500);
+      }
+    },
+    [pathname, activeWsId, isDashboard, saveWsLayout],
+  );
+
+  // Cleanup debounce on unmount
+  useEffect(() => () => clearTimeout(saveTreeTimerRef.current), []);
+
+  // Reload tree when page changes (not workspace — handled by workspace effect above)
+  useEffect(() => {
+    if (!isDashboard) {
+      setSplitTree(withTab(loadSplitTree(pathname, defaultSection, null), tabParam));
+    }
+  }, [pathname]);
+
+  // 메뉴 진입(?tab=) 시 첫 pane 탭 전환. 같은 하위 메뉴를 다시 눌러도 navigate가 새
+  // location.key를 만들므로 다시 적용된다(사용자가 탭을 옮긴 뒤 메뉴로 되돌아오는 경우).
+  useEffect(() => {
+    if (!tabParam) return;
+    setSplitTree((prev) => {
+      const next = withTab(prev, tabParam);
+      saveSplitTree(pathname, next, activeWsId); // 초기 로드·페이지 전환에서 적용된 탭도 저장
+      return next;
+    });
+    setLastSection(pathname, tabParam);
+  }, [location.key]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Symbol state ────────────────────────────────────────────────────────
+  const symbolFromUrl = searchParams.get('symbol')?.toUpperCase() || null;
+
+  const [symbol, setSymbol] = useState(
+    () => symbolFromUrl || useNavigationStore.getState().lastSymbol || 'AAPL',
+  );
+
+  // Sync symbol when URL ?symbol= changes (CommandPalette navigates to /stock?symbol=XXX)
+  useEffect(() => {
+    if (symbolFromUrl && symbolFromUrl !== symbol) {
+      setSymbol(symbolFromUrl);
+      setLastSymbol(symbolFromUrl);
+    }
+  }, [symbolFromUrl]);
+
+  // ── Widget menu (pane-aware) ────────────────────────────────────────────
+  const [menuState, setMenuState] = useState({ open: false, paneId: null });
+  const addWidgetRefs = useRef({});
+
+  const registerAddWidget = useCallback((paneId, fn) => {
+    addWidgetRefs.current[paneId] = fn;
+  }, []);
+
+  const handleAddWidget = useCallback(
+    (widgetDefs) => {
+      const addFn = addWidgetRefs.current[menuState.paneId];
+      if (!addFn) return;
+      const list = Array.isArray(widgetDefs) ? widgetDefs : [widgetDefs];
+      list.forEach((w) => addFn(w));
+    },
+    [menuState.paneId],
+  );
+
+  const openWidgetMenu = useCallback((paneId) => {
+    setMenuState({ open: true, paneId });
+  }, []);
+
+  // ── Tree operations ─────────────────────────────────────────────────────
+  const handleSplit = useCallback(
+    (paneId, direction, sectionId) => {
+      updateTree(splitPaneNode(splitTree, paneId, direction, sectionId));
+    },
+    [splitTree, updateTree],
+  );
+
+  const handleClosePane = useCallback(
+    (paneId) => {
+      updateTree(removePaneNode(splitTree, paneId));
+    },
+    [splitTree, updateTree],
+  );
+
+  const handleSectionChange = useCallback(
+    (paneId, sectionId) => {
+      updateTree(updatePaneSection(splitTree, paneId, sectionId));
+      setLastSection(pathname, sectionId);
+      // 첫 pane 탭은 URL(?tab=)과 동기화 — 헤더 하위 메뉴 활성 표시·새로고침·공유 링크가 현재 탭을 따른다.
+      if (paneId === findFirstPaneId(splitTree)) {
+        const next = new URLSearchParams(searchParams);
+        next.set('tab', sectionId);
+        next.delete('section');
+        setSearchParams(next, { replace: true });
+      }
+    },
+    [splitTree, updateTree, pathname, setLastSection, searchParams, setSearchParams],
+  );
+
+  // ── Derived ─────────────────────────────────────────────────────────────
+  const menuPaneCategory = (() => {
+    const pane = menuState.paneId
+      ? findPane(splitTree, menuState.paneId)
+      : null;
+    return pane
+      ? categories.find((c) => c.id === pane.sectionId) || categories[0]
+      : categories[0];
+  })();
+
+  // 설정 화면에서 만든 위젯 — 이 화면에 내놓은 것만 메뉴의 "My Widgets" 로 나온다
+  const userWidgets = useUserWidgetStore((s) => s.widgets);
+  const builtinDefs = useUserWidgetStore((s) => s.builtin);
+  const widgetPrefs = useUserWidgetStore((s) => s.prefs);
+  const loadUserWidgets = useUserWidgetStore((s) => s.load);
+  useEffect(() => { if (isAuthenticated) loadUserWidgets(); }, [isAuthenticated, loadUserWidgets]);
+  const myWidgets = userWidgetCategory(userWidgets, pathname);
+
+  // 메뉴 카탈로그 = 현재 pane 카테고리 + 내가 만든 위젯 + 전 페이지의 완성 위젯(중복 제외).
+  // WidgetMenu가 여기에 "All Models"(standard_model 단위)를 덧붙인다.
+  const menuCategories = (() => {
+    const base = menuPaneCategory ? [menuPaneCategory] : categories;
+    const baseIds = base.flatMap((c) => c.widgets.map((w) => w.id));
+    // 기본 위젯에는 내 설정(사용 안 함·내놓을 화면)을 적용한다 — 설정의 '기본 위젯' 목록
+    // 기본 제공 위젯 = 코드 카탈로그 + DB 에 정의된 위젯(홈 위젯 등)
+    // 같은 위젯이 두 번 나오지 않게: 현재 카테고리 → DB 정의 → 다른 페이지 순으로 먼저 나온 쪽만
+    const dbCategories = builtinWidgetCategories(builtinDefs, pathname, baseIds);
+    const builtin = applyWidgetPrefs([
+      ...base,
+      ...dbCategories,
+      ...getGlobalWidgetCategories({
+        excludeIds: [...baseIds, ...dbCategories.flatMap((c) => c.widgets.map((w) => w.id))],
+        includePortfolio: !!config?.needsPortfolio,
+      }),
+    ], widgetPrefs, pathname);
+    const head = builtin.filter((c) => base.some((b) => b.id === c.id));
+    const rest = builtin.filter((c) => !base.some((b) => b.id === c.id));
+    return [...head, ...(myWidgets ? [myWidgets] : []), ...rest];
+  })();
+
+  const totalPanes = countPanes(splitTree);
+  const firstPaneId =
+    splitTree.type === 'pane' ? splitTree.id : findFirstPaneId(splitTree);
+
+  // ── Copilot 위젯 추가 — CopilotPanel이 dispatch하는 CustomEvent 수신 ─────
+  useEffect(() => {
+    const handler = (e) => {
+      const { widget_type: widgetType, w, h } = e.detail || {};
+      if (!widgetType) return;
+      // copilot/{id} 합성 데이터셋 — rows는 localStorage에 보관, 위젯은 타입으로 참조
+      if (widgetType.startsWith('copilot/')) {
+        try {
+          const { title, rows, chart_hint: chartHint } = e.detail;
+          localStorage.setItem(
+            `copilot-ds:${widgetType.slice('copilot/'.length)}`,
+            JSON.stringify({ title, rows, chart_hint: chartHint, savedAt: Date.now() }),
+          );
+          gcCopilotDatasets();
+        } catch { /* quota 초과 등 — 위젯은 추가하되 빈 데이터로 표시 */ }
+      }
+      const addFn =
+        addWidgetRefs.current[firstPaneId] ||
+        Object.values(addWidgetRefs.current)[0];
+      addFn?.({ id: widgetType, defaultSize: { w: w || 6, h: h || 5 } });
+    };
+    window.addEventListener('copilot:add-widget', handler);
+    return () => window.removeEventListener('copilot:add-widget', handler);
+  }, [firstPaneId]);
+
+
+  if (!config) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh] text-gray-500 text-sm">
+        Page not configured
+      </div>
+    );
+  }
+
+  return (
+    <WidgetSyncProvider defaultSymbol={symbol}>
+      <div
+        className="flex flex-col surface-primary text-themed-primary overflow-hidden"
+        style={{ height: 'calc(100vh - 3.5rem)' }}
+      >
+        {/* ── Sub-header ─────────────────────────────────────────────── */}
+        <div className="widget-surface border-b widget-border px-4 flex-shrink-0">
+          <div className="flex items-center justify-between py-2 gap-2">
+            <div className="flex items-center gap-2">
+              <LayoutGrid size={13} className="text-gray-500" />
+              <span className="text-sm font-semibold text-gray-200">
+                {config.label}
+              </span>
+              {config.needsStrategy && <StrategyPicker />}
+              {isDashboard && (
+                <WorkspaceSelector
+                  workspaces={workspaces}
+                  activeId={activeWsId}
+                  onSwitch={switchWorkspace}
+                  onCreate={createWorkspace}
+                  onDelete={deleteWorkspace}
+                  onRename={renameWorkspace}
+                />
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              {isDashboard && wsLoading && (
+                <span className="text-[10px] text-gray-600 animate-pulse">동기화 중...</span>
+              )}
+              {config.needsSymbol && (
+                <StockSelectorModal
+                  symbol={symbol}
+                  onSelect={(s) => {
+                    const sym = s.symbol || s;
+                    setSymbol(sym);
+                    setLastSymbol(sym);
+                  }}
+                />
+              )}
+
+              <button
+                onClick={() => openWidgetMenu(firstPaneId)}
+                className="flex items-center gap-1 px-2 py-1 text-xs text-gray-400 hover:text-white hover:bg-gray-800 rounded border border-gray-700 transition-colors"
+              >
+                <Plus size={12} />
+                Widget
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Split pane content ──────────────────────────────────────── */}
+        <div className="flex-1 min-h-0">
+          <SplitPaneLayout
+              tree={splitTree}
+              onTreeChange={updateTree}
+              renderPane={(pane) => (
+                <DashboardPane
+                  paneId={pane.id}
+                  sectionId={pane.sectionId}
+                  isEmpty={!!pane.empty}
+                  workspaceId={wsId}
+                  categories={categories}
+                  config={config}
+                  pathname={pathname}
+                  symbol={symbol}
+                  onSectionChange={handleSectionChange}
+                  onSplit={handleSplit}
+                  onClosePane={handleClosePane}
+                  canClose={totalPanes > 1}
+                  onOpenWidgetMenu={openWidgetMenu}
+                  registerAddWidget={registerAddWidget}
+                />
+              )}
+            />
+        </div>
+
+        {/* ── Widget picker modal ─────────────────────────────────────── */}
+        <WidgetMenu
+          open={menuState.open}
+          onClose={() => setMenuState({ open: false, paneId: null })}
+          categories={menuCategories}
+          activeWidgetIds={[]}
+          onAdd={handleAddWidget}
+        />
+      </div>
+    </WidgetSyncProvider>
+  );
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+// 위젯 제거 후 잔존하는 copilot 데이터셋 localStorage 정리 (30일 경과분)
+function gcCopilotDatasets() {
+  const cutoff = Date.now() - 30 * 24 * 3600 * 1000;
+  for (let i = localStorage.length - 1; i >= 0; i -= 1) {
+    const key = localStorage.key(i);
+    if (!key?.startsWith('copilot-ds:')) continue;
+    try {
+      const { savedAt } = JSON.parse(localStorage.getItem(key)) || {};
+      if (!savedAt || savedAt < cutoff) localStorage.removeItem(key);
+    } catch {
+      localStorage.removeItem(key);
+    }
+  }
+}
+
+function findFirstPaneId(tree) {
+  if (tree.type === 'pane') return tree.id;
+  return findFirstPaneId(tree.children[0]);
+}
+
+// 첫 pane 을 tab 으로 전환한 트리(이미 그 탭이거나 tab 이 없으면 원본 그대로).
+function withTab(tree, tab) {
+  if (!tab) return tree;
+  const paneId = findFirstPaneId(tree);
+  return findPane(tree, paneId)?.sectionId === tab ? tree : updatePaneSection(tree, paneId, tab);
+}
+
+// ── WorkspaceSelector ────────────────────────────────────────────────────────
+
+function WorkspaceSelector({
+  workspaces,
+  activeId,
+  onSwitch,
+  onCreate,
+  onDelete,
+  onRename,
+}) {
+  const [open, setOpen] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [editName, setEditName] = useState('');
+  const inputRef = useRef(null);
+
+  const active = workspaces.find((w) => w.id === activeId) || workspaces[0];
+
+  useEffect(() => {
+    if (editingId && inputRef.current) inputRef.current.focus();
+  }, [editingId]);
+
+  const startRename = (ws) => {
+    setEditingId(ws.id);
+    setEditName(ws.name);
+  };
+
+  const commitRename = async () => {
+    if (editingId && editName.trim()) {
+      await onRename(editingId, editName.trim());
+    }
+    setEditingId(null);
+  };
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-1.5 px-2 py-1 bg-gray-800/50 hover:bg-gray-700 text-gray-300 text-xs rounded border border-gray-700 transition-colors"
+      >
+        <span className="truncate max-w-[120px]">{active?.name}</span>
+        <ChevronDown size={10} className="flex-shrink-0 text-gray-500" />
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => { setOpen(false); setEditingId(null); }} />
+          <div className="absolute left-0 top-full mt-1 bg-[#1a1a2e] border border-gray-700 rounded-lg shadow-xl z-50 py-1 min-w-[200px]">
+            {/* Workspace list */}
+            {workspaces.map((ws) => (
+              <div
+                key={ws.id}
+                className={`flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-800/60 transition-colors group ${
+                  ws.id === activeId ? 'text-cyan-400' : 'text-gray-300'
+                }`}
+              >
+                {editingId === ws.id ? (
+                  <input
+                    ref={inputRef}
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    onBlur={commitRename}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') commitRename();
+                      if (e.key === 'Escape') setEditingId(null);
+                    }}
+                    className="flex-1 bg-gray-800 border border-gray-600 rounded px-1.5 py-0.5 text-xs text-white outline-none focus:border-cyan-500"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                ) : (
+                  <button
+                    className="flex-1 text-left truncate"
+                    onClick={() => {
+                      onSwitch(ws.id);
+                      setOpen(false);
+                    }}
+                    onDoubleClick={(e) => {
+                      e.stopPropagation();
+                      startRename(ws);
+                    }}
+                  >
+                    {ws.name}
+                  </button>
+                )}
+                {ws.id === activeId && !editingId && (
+                  <span className="text-cyan-500 text-[10px]">●</span>
+                )}
+                {workspaces.length > 1 && !editingId && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(ws.id);
+                      if (workspaces.length <= 2) setOpen(false);
+                    }}
+                    className="p-0.5 text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+                    title={`Delete "${ws.name}"`}
+                  >
+                    <Trash2 size={11} />
+                  </button>
+                )}
+              </div>
+            ))}
+
+            {/* Actions */}
+            <div className="border-t border-gray-800 mt-1 pt-1">
+              <button
+                onClick={async () => {
+                  await onCreate();
+                  setOpen(false);
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-cyan-400 hover:bg-gray-800/60 transition-colors"
+              >
+                <Plus size={12} />
+                New Dashboard
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}

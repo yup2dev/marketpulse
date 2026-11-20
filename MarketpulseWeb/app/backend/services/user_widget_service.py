@@ -122,7 +122,7 @@ CODES: Dict[str, List[Dict[str, Any]]] = {
         {"value": "entity",  "name": "로고 + 이름 (기관 등)"},
         {"value": "link",    "name": "링크 글자 (주소 = 보조 필드)"},
     ],
-    # 행을 다듬는 함수 (user_widgets.transform) — 구현은 프론트 registry/builtinWidgets.js
+    # 행을 다듬는 함수 (user_widgets.transform) — 구현은 프론트 widget/registry/builtinWidgets.js
     "TRANSFORM": [
         {"value": "events_by_time",  "name": "일정을 시각 순으로 + 실제/예상 값"},
         {"value": "rank_sort",       "name": "거래대금 다시 계산 + 정렬 기준대로 정렬"},
@@ -617,7 +617,7 @@ def _seed_builtin(db: Session, existing: set) -> bool:
 
 
 def _builtin_dict(w: UserWidget) -> dict:
-    """화면(프론트 registry/builtinWidgets.js)이 받는 모양."""
+    """화면(프론트 widget/registry/builtinWidgets.js)이 받는 모양."""
     return {
         "widget_id": w.widget_id,
         "name": w.name,

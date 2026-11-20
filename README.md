@@ -117,7 +117,7 @@ transport 가 없으므로 1·2번을 건너뛰고 직접 실행한다 — 즉 *
 토큰이 바뀌면(재로그인·다른 계정) Fetcher 가 파일 변경을 감지해 재접속한다 — 재시작이 필요 없다.
 
 **새 데이터 소스를 붙이는 순서**: `providers/<name>/models/` 에 fetcher 작성 → `providers_init.py` 등록 →
-`/api/data/<name>/<model>` 로 바로 호출됨 → 프론트 `registry/widgetEndpoints.js` 에 위젯 등록.
+`/api/data/<name>/<model>` 로 바로 호출됨 → 프론트 `widget/registry/widgetEndpoints.js` 에 위젯 등록.
 서드파티 의존성이 생기면 `MarketpulseFetcher/requirements.txt` 와 `build/requirements-fetcher.txt` 양쪽에 넣는다.
 
 ### 적재 데이터 흐름 (Batch → Web)

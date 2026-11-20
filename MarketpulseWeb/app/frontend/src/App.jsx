@@ -1,13 +1,13 @@
 import { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { NotifyHost, DialogHost } from './common';
-import ProtectedRoute from './components/common/ProtectedRoute';
-import AppLayout from './components/core/AppLayout';
-import DashboardPage from './components/core/DashboardPage';
-import SettingsPage from './components/core/SettingsPage';
-import Login from './components/core/Login';
-import Register from './components/core/Register';
-import ErrorBoundary from './components/common/ErrorBoundary';
+import ProtectedRoute from './app/ProtectedRoute';
+import AppLayout from './app/AppLayout';
+import DashboardPage from './pages/dashboard/DashboardPage';
+import SettingsPage from './pages/settings/SettingsPage';
+import Login from './pages/auth/Login';
+import Register from './pages/auth/Register';
+import ErrorBoundary from './app/ErrorBoundary';
 import useAuthStore from './store/authStore';
 
 // 토큰 만료 시 로그인 페이지로 강제 이동하는 가드

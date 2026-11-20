@@ -563,7 +563,7 @@ class UserBacktestRun(Base):
 #   user_widget_options        뷰 옵션 (이름 = 값)
 #
 # 함수(정렬·펼치기·필터)는 행에 담을 수 없다 — 코드값(TRANSFORM·TAB_FILTER)으로 이름만 적고
-# 구현은 프론트(registry/builtinWidgets.js)에 있다.
+# 구현은 프론트(widget/registry/builtinWidgets.js)에 있다.
 #
 # 위젯 목록 쪽 설정도 같은 방식이다:
 #

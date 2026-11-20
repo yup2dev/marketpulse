@@ -24,7 +24,7 @@ UniversalWidget의 provider 셀렉터가 shape-safe하게 동작한다.
 - provider fetcher: `MarketpulseFetcher/data_fetcher/providers/<provider>/…` (구조는 아래 §1)
 - 등록: `MarketpulseFetcher/data_fetcher/providers_init.py` / 캐시 TTL: `query_executor.py`의 `_DEFAULT_TTL`
 - 라우트: 범용 게이트웨이 `MarketpulseWeb/app/backend/api/routes/data.py`(무코드) 또는 전용 `routes/<area>.py`
-- 프론트: `MarketpulseWeb/app/frontend/src/registry/widgetEndpoints.js` + `urlWidgetMap.js`
+- 프론트: `MarketpulseWeb/app/frontend/src/widget/registry/widgetEndpoints.js` + `urlWidgetMap.js`
 - exe 빌드: `MarketpulseFetcher/build/build.py` + 번들 의존성 `MarketpulseFetcher/build/requirements-fetcher.txt` (런처: `MarketpulseFetcher/launcher`)
 
 ---
@@ -151,7 +151,7 @@ class DBThingFetcher(DbFetcher[Q, D]):
 ### F. KIS형 — 다중 자격증명 / 스트리밍
 
 - `Provider(credentials=["appkey", "appsecret"])` — 단일 `api_key`가 아님.
-- Fetcher 키스토어(`MarketpulseFetcher/data_fetcher/server/keystore.py`)는 다중 필드 지원: 프론트 `/settings`(`MarketpulseWeb/app/frontend/src/components/core/SettingsPage.jsx`)와 keys API의 `fields` 사용.
+- Fetcher 키스토어(`MarketpulseFetcher/data_fetcher/server/keystore.py`)는 다중 필드 지원: 프론트 `/settings`(`MarketpulseWeb/app/frontend/src/pages/settings/SettingsPage.jsx`)와 keys API의 `fields` 사용.
 - REST/WS 분리를 `rest.py`/`stream.py`로. httpx/websockets는 함수 내부 지연 import(§7 hiddenimports 주의).
 - providers_init에서 try/except 등록(의존성 없는 환경 fail-soft).
 
