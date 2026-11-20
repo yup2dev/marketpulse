@@ -4,7 +4,7 @@
 import { useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import toast from 'react-hot-toast';
+import { notify } from '../../common';
 import useAuthStore from '../../store/authStore';
 
 export default function Register() {
@@ -39,10 +39,10 @@ export default function Register() {
     );
 
     if (result.success) {
-      toast.success('회원가입 성공! 환영합니다.');
+      notify.success('회원가입 성공! 환영합니다.');
       navigate('/');
     } else {
-      toast.error(result.error || '회원가입에 실패했습니다.');
+      notify.error(result.error || '회원가입에 실패했습니다.');
     }
   };
 

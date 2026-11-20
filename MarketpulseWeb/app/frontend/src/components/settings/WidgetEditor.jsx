@@ -10,7 +10,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, Eye, RefreshCw, Save, X } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { notify } from '../../common';
 import UniversalWidget from '../core/UniversalWidget';
 import { Select, INPUT_CLS, periodLabel } from '../widgets/ui';
 import { apiClient, API_BASE, schemaAPI } from '../../common';
@@ -154,7 +154,7 @@ export default function WidgetEditor({ initial, codes, variables, onDone, onCanc
   useEffect(() => {
     apiClient.get(`${API_BASE}/data/`)
       .then((r) => setCatalog(r.results || []))
-      .catch(() => toast.error('API 목록을 불러오지 못했습니다'));
+      .catch(() => notify.error('API 목록을 불러오지 못했습니다'));
   }, []);
 
   // API 를 고르면 그 스키마로 파라미터·필드 행을 만든다.
@@ -179,7 +179,7 @@ export default function WidgetEditor({ initial, codes, variables, onDone, onCanc
         setDraft(merged);
         setPreview({ seq: Date.now(), config: toWidgetConfig(toDefinition(merged, codes.VIEW_TYPE), s) });
       })
-      .catch(() => { if (alive) toast.error('API 정보를 불러오지 못했습니다'); });
+      .catch(() => { if (alive) notify.error('API 정보를 불러오지 못했습니다'); });
     return () => { alive = false; };
   }, [apiKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -238,29 +238,27 @@ export default function WidgetEditor({ initial, codes, variables, onDone, onCanc
           fields: [...d.fields, ...added.map((k) => ({ field_name: k, field_role: 'COLUMN', label: '', format: 'auto' }))],
         }));
       }
-      toast.success(rows.length
+      notify.success(rows.length
         ? `${rows.length}행 조회 — 필드 ${added.length}개 추가`
         : '조회는 됐지만 결과가 0건입니다');
     } catch (e) {
-      toast.error(e?.code === 'missing_key'
-        ? `${(e.provider || draft.provider).toUpperCase()} 키가 필요합니다 (API 키 탭에서 등록)`
-        : (e?.detail || e?.message || '조회 실패'));
+      notify.fail(e, '조회 실패', { provider: draft.provider });
     } finally {
       setSampling(false);
     }
   };
 
   const save = async () => {
-    if (!draft.provider || !draft.model) { toast.error('API 를 먼저 고르세요'); return; }
-    if (!draft.name.trim()) { toast.error('위젯 이름을 입력하세요'); return; }
+    if (!draft.provider || !draft.model) { notify.error('API 를 먼저 고르세요'); return; }
+    if (!draft.name.trim()) { notify.error('위젯 이름을 입력하세요'); return; }
     setSaving(true);
     try {
       const body = toDefinition(draft, codes.VIEW_TYPE);
       const saved = draft.widget_id ? await updateWidget(draft.widget_id, body) : await createWidget(body);
-      toast.success(`'${saved.name}' 저장됨`);
+      notify.success(`'${saved.name}' 저장됨`);
       onDone(saved);
     } catch (e) {
-      toast.error(e?.detail || e?.message || '저장 실패');
+      notify.fail(e, '저장 실패');
     } finally {
       setSaving(false);
     }

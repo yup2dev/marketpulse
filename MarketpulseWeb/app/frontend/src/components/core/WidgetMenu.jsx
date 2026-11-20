@@ -14,8 +14,8 @@
  *                     Widget type: "data/{provider}/{model}" → auto-routed by WidgetRenderer
  */
 import { useState, useMemo, useEffect } from 'react';
-import { X, Search, ChevronRight, ChevronDown, Plus } from 'lucide-react';
-import { apiClient, API_BASE } from '../../common';
+import { Search, ChevronRight, ChevronDown, Plus } from 'lucide-react';
+import { apiClient, API_BASE, Modal } from '../../common';
 
 const _titleCase = (s) => s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
@@ -164,20 +164,7 @@ export default function WidgetMenu({ open, onClose, categories = [], activeWidge
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/60" onClick={handleClose} />
-
-      {/* Modal */}
-      <div className="relative w-[860px] max-w-[95vw] h-[600px] max-h-[90vh] bg-[#1a1a1f] border border-gray-700 rounded-xl shadow-2xl flex flex-col overflow-hidden">
-
-        {/* ── Header ──────────────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-800">
-          <span className="text-sm font-semibold text-white">Widget Menu</span>
-          <button onClick={handleClose} className="p-1 text-gray-500 hover:text-white transition-colors rounded">
-            <X size={14} />
-          </button>
-        </div>
+    <Modal open={open} onClose={handleClose} title="Widget Menu" width="lg" height={600} bodyClassName="flex-1 min-h-0 flex flex-col">
 
         {/* ── Search ──────────────────────────────────────────────────────── */}
         <div className="px-5 py-2 border-b border-gray-800">
@@ -376,7 +363,6 @@ export default function WidgetMenu({ open, onClose, categories = [], activeWidge
             Add widget{selectedCount > 1 ? `s (${selectedCount})` : ''}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

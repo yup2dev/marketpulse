@@ -21,8 +21,7 @@ import {
   KeyRound, Trash2, Save, ExternalLink, RefreshCw, ShieldCheck, Download, Sparkles,
   CheckCircle2, XCircle, FlaskConical, LayoutGrid,
 } from 'lucide-react';
-import toast from 'react-hot-toast';
-import { keysAPI, providersAPI, conceptsAPI } from '../../common';
+import { notify, confirmDialog, keysAPI, providersAPI, conceptsAPI } from '../../common';
 import useFetcherHealth from '../../hooks/useFetcherHealth';
 import WidgetSettings from '../settings/WidgetSettings';
 
@@ -137,8 +136,8 @@ function ApiKeySettings() {
       const r = await keysAPI.test(p.id);
       setTestResult((m) => ({ ...m, [p.id]: r }));
       if (!quiet || r.ok === false) {
-        if (r.ok) toast.success(`${p.label} 키 확인 완료`);
-        else if (r.ok === false) toast.error(`${p.label} 키 검증 실패: ${r.message}`);
+        if (r.ok) notify.success(`${p.label} 키 확인 완료`);
+        else if (r.ok === false) notify.error(`${p.label} 키 검증 실패: ${r.message}`);
       }
     } catch (e) {
       setTestResult((m) => ({ ...m, [p.id]: { ok: false, message: e?.message || '검증 요청 실패' } }));
@@ -170,12 +169,12 @@ function ApiKeySettings() {
     const vals = inputs[p.id] || {};
     const filled = p.fields.filter((f) => (vals[f.key] || '').trim());
     if (filled.length === 0) {
-      toast.error('값을 입력하세요');
+      notify.error('값을 입력하세요');
       return;
     }
     // 다중 필드는 모두 채워야 함 (부분 갱신 혼란 방지)
     if (p.fields.length > 1 && filled.length !== p.fields.length) {
-      toast.error('모든 필드를 입력하세요');
+      notify.error('모든 필드를 입력하세요');
       return;
     }
 
@@ -188,27 +187,27 @@ function ApiKeySettings() {
     try {
       await keysAPI.set(body);
       providersAPI.invalidate();   // 위젯 기본 provider 선택이 새 키를 반영하도록
-      toast.success(`${p.label} 키 저장 완료`);
+      notify.success(`${p.label} 키 저장 완료`);
       setInputs((prev) => ({ ...prev, [p.id]: {} }));
       await loadKeys();
       if (p.keyTestable) runTest(p, { quiet: true });   // 저장 즉시 실제 호출로 검증
     } catch (e) {
-      toast.error(e?.message || '저장 실패 — Fetcher 연결을 확인하세요');
+      notify.fail(e, '저장 실패 — Fetcher 연결을 확인하세요');
     } finally {
       setSaving((s) => ({ ...s, [p.id]: false }));
     }
   };
 
   const deleteProvider = async (p) => {
-    if (!window.confirm(`${p.label} 키를 삭제하시겠습니까?`)) return;
+    if (!(await confirmDialog({ title: '키 삭제', message: `${p.label} 키를 삭제하시겠습니까?`, okText: '삭제', danger: true }))) return;
     try {
       await keysAPI.delete(p.id);
       providersAPI.invalidate();
       setTestResult((m) => ({ ...m, [p.id]: undefined }));
-      toast.success(`${p.label} 키 삭제됨`);
+      notify.success(`${p.label} 키 삭제됨`);
       await loadKeys();
     } catch (e) {
-      toast.error(e?.message || '삭제 실패 — 서버 연결을 확인하세요');
+      notify.fail(e, '삭제 실패 — 서버 연결을 확인하세요');
     }
   };
 

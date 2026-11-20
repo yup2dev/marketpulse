@@ -9,7 +9,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { LayoutGrid, Pencil, Plus, Trash2 } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { notify, confirmDialog } from '../../common';
 import WidgetEditor from './WidgetEditor';
 import BuiltinWidgetList from './BuiltinWidgetList';
 import WidgetTypeAdmin from './WidgetTypeAdmin';
@@ -41,7 +41,7 @@ export default function WidgetSettings() {
   const [section, setSection] = useState('mine');
 
   const loadMeta = useCallback(
-    () => userWidgetsAPI.codes().then(setMeta).catch(() => toast.error('설정 코드를 불러오지 못했습니다')),
+    () => userWidgetsAPI.codes().then(setMeta).catch(() => notify.error('설정 코드를 불러오지 못했습니다')),
     [],
   );
   useEffect(() => { load(true); }, [load]);
@@ -62,17 +62,22 @@ export default function WidgetSettings() {
     try {
       await update(w.widget_id, { use_yn: on ? 'Y' : 'N' });
     } catch (e) {
-      toast.error(e?.detail || e?.message || '변경 실패');
+      notify.fail(e, '변경 실패');
     }
   };
 
   const onDelete = async (w) => {
-    if (!window.confirm(`'${w.name}' 위젯을 삭제하시겠습니까?\n화면에 올려 둔 위젯은 '정의를 찾을 수 없음' 으로 바뀝니다.`)) return;
+    if (!(await confirmDialog({
+      title: '위젯 삭제',
+      message: `'${w.name}' 위젯을 삭제하시겠습니까?\n화면에 올려 둔 위젯은 '정의를 찾을 수 없음' 으로 바뀝니다.`,
+      okText: '삭제',
+      danger: true,
+    }))) return;
     try {
       await remove(w.widget_id);
-      toast.success('삭제됨');
+      notify.success('삭제됨');
     } catch (e) {
-      toast.error(e?.detail || e?.message || '삭제 실패');
+      notify.fail(e, '삭제 실패');
     }
   };
 

@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { Toaster } from 'react-hot-toast';
+import { NotifyHost, DialogHost } from './common';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import AppLayout from './components/core/AppLayout';
 import DashboardPage from './components/core/DashboardPage';
@@ -40,15 +40,8 @@ function App() {
   return (
     <ErrorBoundary>
     <Router>
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          duration: 3000,
-          style: { background: '#1a1a1a', color: '#fff', border: '1px solid #333' },
-          success: { duration: 3000, iconTheme: { primary: '#22c55e', secondary: '#fff' } },
-          error:   { duration: 4000, iconTheme: { primary: '#ef4444', secondary: '#fff' } },
-        }}
-      />
+      <NotifyHost />
+      <DialogHost />
 
       <AuthGuard>
       <Routes>

@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import { TrendingUp, LogOut, User, Settings, ChevronDown } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import toast from 'react-hot-toast';
+import { notify } from '../../common';
 import useAuthStore from '../../store/authStore';
 import useMenus from '../../hooks/useMenus';
 import ThemeToggle from './ThemeToggle';
@@ -29,7 +29,7 @@ const Header = () => {
 
   const handleLogout = async () => {
     await logout();
-    toast.success('Logged out successfully');
+    notify.success('Logged out successfully');
     navigate('/login');
   };
 

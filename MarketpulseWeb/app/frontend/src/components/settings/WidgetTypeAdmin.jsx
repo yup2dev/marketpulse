@@ -8,7 +8,7 @@
  */
 import { useState } from 'react';
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { notify, confirmDialog } from '../../common';
 import { Select, INPUT_CLS } from '../widgets/ui';
 import { widgetTypesAPI } from '../../common';
 import { UseToggle } from './parts';
@@ -27,10 +27,10 @@ export default function WidgetTypeAdmin({ codes, onChanged }) {
     setBusy(true);
     try {
       await fn();
-      if (okMessage) toast.success(okMessage);
+      if (okMessage) notify.success(okMessage);
       await onChanged();
     } catch (e) {
-      toast.error(e?.detail || e?.message || '변경 실패');
+      notify.fail(e, '변경 실패');
     } finally {
       setBusy(false);
     }
@@ -52,15 +52,15 @@ export default function WidgetTypeAdmin({ codes, onChanged }) {
   };
 
   const add = () => {
-    if (!draft.type_code.trim() || !draft.name.trim()) { toast.error('코드와 이름을 입력하세요'); return; }
+    if (!draft.type_code.trim() || !draft.name.trim()) { notify.error('코드와 이름을 입력하세요'); return; }
     run(async () => {
       await widgetTypesAPI.create({ ...draft, type_code: draft.type_code.trim(), name: draft.name.trim() });
       setDraft(EMPTY);
     }, '위젯 종류 추가됨');
   };
 
-  const remove = (t) => {
-    if (!window.confirm(`위젯 종류 '${t.name}' 을(를) 삭제하시겠습니까?`)) return;
+  const remove = async (t) => {
+    if (!(await confirmDialog({ title: '위젯 종류 삭제', message: `위젯 종류 '${t.name}' 을(를) 삭제하시겠습니까?`, okText: '삭제', danger: true }))) return;
     run(() => widgetTypesAPI.delete(t.value), '삭제됨');
   };
 

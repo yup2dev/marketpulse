@@ -4,7 +4,7 @@
 import { useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import toast from 'react-hot-toast';
+import { notify } from '../../common';
 import useAuthStore from '../../store/authStore';
 
 export default function Login() {
@@ -32,10 +32,10 @@ export default function Login() {
     const result = await login(data.email, data.password);
 
     if (result.success) {
-      toast.success('로그인 성공!');
+      notify.success('로그인 성공!');
       navigate('/');
     } else {
-      toast.error(result.error || '로그인에 실패했습니다.');
+      notify.error(result.error || '로그인에 실패했습니다.');
     }
   };
 

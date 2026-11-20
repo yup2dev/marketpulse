@@ -4,6 +4,7 @@
  *
  *   format/   숫자·날짜 표기
  *   api/      백엔드 요청(apiClient · 도메인별 *API · useApi) · 로컬 Fetcher
+ *   ui/       Modal · openDialog/confirmDialog · notify (+ App 에 한 번 올리는 DialogHost · NotifyHost)
  *
  * 공통으로 올리는 기준: 도메인과 무관하고 두 곳 이상에서 쓴다. 한 화면 전용은 그 폴더에 둔다.
  * 상태(store)는 여기 두지 않는다.
@@ -21,3 +22,10 @@ export {
   FETCHER_BASE, FETCHER_WORKER_CONNECTED, pingFetcher, shutdownFetcher,
   syncFetcherToken, clearFetcherToken, isUsableToken,
 } from './api/localFetcher';
+export { errorMessage } from './api/errors';
+
+export { default as Modal } from './ui/Modal';
+export { openDialog, confirmDialog } from './ui/dialog';
+export { default as DialogHost } from './ui/DialogHost';
+export { notify } from './ui/notify';
+export { default as NotifyHost } from './ui/NotifyHost';

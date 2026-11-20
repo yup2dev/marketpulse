@@ -9,7 +9,7 @@
  */
 import { Fragment, useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight, RotateCcw, Search } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { notify } from '../../common';
 import { INPUT_CLS } from '../widgets/ui';
 import { ALL_SCREENS, builtinWidgetCatalog, screenLabels } from '../../registry/userWidgets';
 import useUserWidgetStore from '../../store/userWidgetStore';
@@ -40,7 +40,7 @@ export default function BuiltinWidgetList() {
     try {
       await setPref(id, data);
     } catch (e) {
-      toast.error(e?.detail || e?.message || '변경 실패');
+      notify.fail(e, '변경 실패');
     }
   };
 

@@ -11,7 +11,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, LayoutDashboard, BarChart3, Globe, Zap, FlaskConical, ArrowRight, Hash, Keyboard } from 'lucide-react';
-import { API_BASE, apiClient } from '../../common';
+import { API_BASE, apiClient, Modal } from '../../common';
 
 // ── 정적 명령 목록 ──────────────────────────────────────────────────────────
 
@@ -117,7 +117,6 @@ export default function CommandPalette({ open, onClose }) {
   }, [navigate, onClose]);
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Escape')     { onClose(); return; }
     if (e.key === 'ArrowDown')  { e.preventDefault(); setSelected(i => Math.min(i + 1, results.length - 1)); return; }
     if (e.key === 'ArrowUp')    { e.preventDefault(); setSelected(i => Math.max(i - 1, 0)); return; }
     if (e.key === 'Enter' && results[selected]) { execute(results[selected]); return; }
@@ -139,15 +138,8 @@ export default function CommandPalette({ open, onClose }) {
   });
 
   return (
-    <div
-      className="fixed inset-0 z-[200] flex items-start justify-center pt-24"
-      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-
-      {/* Panel */}
-      <div className="relative w-full max-w-lg bg-[#0d0d12] border border-gray-700 rounded-xl shadow-2xl overflow-hidden">
+    // Esc 닫기는 Modal 이 한다
+    <Modal open={open} onClose={onClose} header={false} placement="top" width={512} bodyClassName="flex flex-col min-h-0">
         {/* Input */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-800">
           <Search size={16} className="text-gray-500 flex-shrink-0" />
@@ -209,7 +201,6 @@ export default function CommandPalette({ open, onClose }) {
           <span><kbd className="border border-gray-700 rounded px-1">Enter</kbd> 실행</span>
           <span><kbd className="border border-gray-700 rounded px-1">Esc</kbd> 닫기</span>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

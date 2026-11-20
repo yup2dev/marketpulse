@@ -8,7 +8,7 @@ import {
   Globe, LogOut, Settings, ChevronDown, Search, Sparkles,
 } from 'lucide-react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
-import toast from 'react-hot-toast';
+import { notify } from '../../common';
 import useAuthStore from '../../store/authStore';
 import useMenus from '../../hooks/useMenus';
 import ThemeToggle from '../common/ThemeToggle';
@@ -83,7 +83,7 @@ const AppLayout = () => {
 
   const handleLogout = async () => {
     await logout();
-    toast.success('Logged out successfully');
+    notify.success('Logged out successfully');
     navigate('/login');
   };
 
