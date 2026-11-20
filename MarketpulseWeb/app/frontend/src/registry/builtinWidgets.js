@@ -126,7 +126,7 @@ export const TRANSFORMS = {
       const md = response?.metadata || {};
       const yieldOf = (years) => (extra.yields || []).find((r) => r.years === years)?.value;
       const metric = (list, name) => (list || []).find((r) => r.metric === name);
-      const pct = (v, digits = 2) => (v == null ? null : `${Number(v).toFixed(digits)}%`);
+      const pct = (v, digits = 2) => fmtPct(v, digits, { sign: false, empty: null });
       const vix = metric(extra.sentiment, 'VIX');
       const fg = (extra.sentiment || []).find((r) => r.section === 'Fear & Greed');
       return [

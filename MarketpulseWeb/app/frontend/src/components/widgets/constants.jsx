@@ -128,28 +128,6 @@ export const WIDGET_CONSTRAINTS = {
   maxH: 6,
 };
 
-// ============================================================================
-// UTILITY FUNCTIONS
-// ============================================================================
-
-export const formatNumber = (num, includeDecimals = true) => {
-  if (num === null || num === undefined || isNaN(num)) return 'N/A';
-
-  const decimals = includeDecimals ? 2 : 0;
-
-  if (num >= 1e12) return (num / 1e12).toFixed(decimals) + 'T';
-  if (num >= 1e9) return (num / 1e9).toFixed(decimals) + 'B';
-  if (num >= 1e6) return (num / 1e6).toFixed(decimals) + 'M';
-  if (num >= 1e3) return (num / 1e3).toFixed(decimals) + 'K';
-
-  return num.toFixed(decimals);
-};
-
-export const formatCurrency = (num) => {
-  if (num === null || num === undefined || isNaN(num)) return 'N/A';
-  return '$' + formatNumber(num);
-};
-
 export { WidgetHeader } from './common/WidgetHeader';
 
 // ============================================================================
