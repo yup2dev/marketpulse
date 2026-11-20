@@ -1,7 +1,7 @@
 /**
  * useClickOutside.js — 외부 클릭 감지 hook (OpenBB tables 패턴)
  *
- * import useClickOutside from '../hooks/useClickOutside';
+ * import useClickOutside from './useClickOutside';
  * const ref = useRef(null);
  * useClickOutside(ref, () => setOpen(false));
  */

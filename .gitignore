@@ -37,7 +37,6 @@ MarketpulseFetcher/launcher/target/
 # ── MarketpulseWeb/app/frontend ───────────────────────────────────────────────────────────────
 node_modules/
 MarketpulseWeb/app/frontend/dist/
-MarketpulseWeb/app/frontend/src/lib/
 # 리디자인 전 레거시 화면·위젯 (로컬 보관용 — 원본은 git 이력에 있다)
 MarketpulseWeb/app/frontend/backup/
 

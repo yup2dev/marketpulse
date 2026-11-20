@@ -5,17 +5,17 @@ description: 대시보드 위젯을 추가/수정할 때 사용. widgetEndpoints
 
 # 위젯 추가 가이드
 
-위젯은 **`registry/widgetEndpoints.js` 항목 1개**가 기본이다. React 파일은 대부분 불필요 —
+위젯은 **`widget/registry/widgetEndpoints.js` 항목 1개**가 기본이다. React 파일은 대부분 불필요 —
 `UniversalWidget`이 응답을 보고 자동 렌더한다 (Plotly JSON → 차트, 행 배열 → CommonTable, `display:'kv'` → 지표/값 2열).
 
 핵심 파일 (`MarketpulseWeb/app/frontend/src/`):
-- `registry/widgetEndpoints.js` — **모든 위젯 타입의 단일 소스** (id → 정의)
+- `widget/registry/widgetEndpoints.js` — **모든 위젯 타입의 단일 소스** (id → 정의)
 - 예외 — **리디자인 시안 스타일 위젯(홈 위젯 등)은 코드가 아니라 DB 행**이다 (`user_widgets` 계열, `user_id` NULL).
-  레지스트리에 적지 않는다. 넣는 법은 `src/mp-widgets/README.md`, 행 → 스펙 변환은 `registry/builtinWidgets.js`
-- `registry/urlWidgetMap.js` — URL별 화면 구성 (탭·위젯 카탈로그·기본 그리드)
-- `registry/providerViews.js` — (model, provider)별 body UI 오버라이드
-- `components/core/UniversalWidget.jsx` — 자동 렌더러 (수정할 일 거의 없음)
-- `components/core/WidgetRenderer.jsx` — component escape hatch 위임
+  레지스트리에 적지 않는다. 넣는 법은 `src/widget/engine/README.md`, 행 → 스펙 변환은 `widget/registry/builtinWidgets.js`
+- `widget/registry/urlWidgetMap.js` — URL별 화면 구성 (탭·위젯 카탈로그·기본 그리드)
+- `widget/registry/providerViews.js` — (model, provider)별 body UI 오버라이드
+- `widget/render/UniversalWidget.jsx` — 자동 렌더러 (수정할 일 거의 없음)
+- `widget/render/WidgetRenderer.jsx` — component escape hatch 위임
 
 > 과거의 3-Tier `widgetConfigs.jsx`(UNIVERSAL_WIDGET_CONFIGS)는 **폐기됨** — 참조하지 말 것.
 
@@ -68,7 +68,7 @@ description: 대시보드 위젯을 추가/수정할 때 사용. widgetEndpoints
 
 ## C. providerViews — provider별 body 오버라이드
 
-같은 model인데 특정 provider만 전용 UI가 필요할 때 (`registry/providerViews.js`):
+같은 model인데 특정 provider만 전용 UI가 필요할 때 (`widget/registry/providerViews.js`):
 
 ```js
 export const PROVIDER_VIEWS = {
@@ -89,9 +89,9 @@ API fetch 이외의 상태(portfolioData 등)가 필요할 때만:
   propsFrom: ['symbol'],        // 'symbol' | 'portfolioId' 주입
 },
 ```
-컴포넌트는 `components/widgets/`에. 차트는 `PlotlyChart`/`CommonChart`, 표는 `CommonTable` 재사용 (recharts 신규 사용 금지).
+컴포넌트는 `widget/widgets/<이름>/`에. 차트는 `PlotlyChart`/`CommonChart`, 표는 `CommonTable` 재사용 (recharts 신규 사용 금지).
 
-**껍데기는 반드시 `BaseWidget`, 필터·드롭다운·상태 화면은 반드시 `components/widgets/ui/`** —
+**껍데기는 반드시 `BaseWidget`, 필터·드롭다운·상태 화면은 반드시 `common/widget/`** —
 위젯 파일 안에 pill·select·'데이터 없음' 화면을 새로 그리지 않는다 (디자인이 제각각이 된 원인):
 
 | 필요한 것 | 쓸 것 |
@@ -139,7 +139,7 @@ defaultWidgets: [   // 저장된 워크스페이스 없을 때 초기 그리드 
 ],
 ```
 
-**크기는 `registry/widgetSizes.js` 한 곳** — 새 위젯은 여기에 `{ w, h, minW, minH }` 를 꼭 등록한다
+**크기는 `widget/registry/widgetSizes.js` 한 곳** — 새 위젯은 여기에 `{ w, h, minW, minH }` 를 꼭 등록한다
 (그리는 방식별 프리셋 `table / tableWide / chart / chartWide / kv / list / panel / strip` 에서 시작).
 메뉴로 추가할 때의 크기와, 줄일 수 있는 최소 크기(헤더·FilterBar 가 깨지지 않는 한계)가 여기서 나온다.
 12열 그리드, 한 행 = 60px + 간격 8px. 나란히 놓인 기본 위젯은 높이를 맞춰 아래 구멍을 만들지 않는다.

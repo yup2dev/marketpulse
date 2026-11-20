@@ -4,14 +4,15 @@
   (BaseWidget 은 하단 SourceFooter, WidgetCard 는 헤더 오른쪽에 출처를 그린다)
 - 레지스트리(widgetEndpoints) 의 커스텀 컴포넌트는 BaseWidget·WidgetCard·SourceFooter 중 하나를 그린다
   (또는 그런 컴포넌트로 감싼다)
-- 모든 data_fetcher provider·라우트 provider 값에 출처 라벨(ui/sources.js)이 있다
+- 모든 data_fetcher provider·라우트 provider 값에 출처 라벨(common/widget/sources.js)이 있다
 """
 import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "MarketpulseWeb" / "app" / "frontend" / "src"
-WIDGETS = SRC / "components" / "widgets"
+WIDGETS = SRC / "widget" / "widgets"          # 개별 위젯 컴포넌트
+WIDGET_COMMON = SRC / "common" / "widget"     # 위젯 공통 껍데기·부품
 ROUTES = ROOT / "MarketpulseWeb" / "app" / "backend" / "api" / "routes"
 PROVIDERS = ROOT / "MarketpulseFetcher" / "data_fetcher" / "providers"
 
@@ -20,7 +21,7 @@ NON_DATA_PROVIDERS = {"concepts", "registry", "static", "index_analyzer"}
 
 
 def _jsx_files():
-    return [p for p in (SRC / "components").rglob("*.jsx")]
+    return list(SRC.rglob("*.jsx"))
 
 
 def test_every_basewidget_usage_passes_source():
@@ -34,8 +35,8 @@ def test_every_basewidget_usage_passes_source():
 
 
 def test_every_registry_component_renders_a_source():
-    reg = (SRC / "registry" / "widgetEndpoints.js").read_text(encoding="utf-8")
-    imports = dict(re.findall(r"import\s+(\w+)\s+from\s+'\.\./components/widgets/([\w/]+)'", reg))
+    reg = (SRC / "widget" / "registry" / "widgetEndpoints.js").read_text(encoding="utf-8")
+    imports = dict(re.findall(r"import\s+(\w+)\s+from\s+'\.\./widgets/([\w/]+)'", reg))
     used = set(re.findall(r"component:\s*(\w+)", reg))
     renders_source = {}
 
@@ -69,10 +70,10 @@ def test_every_builtin_widget_seed_declares_a_source():
 
 
 def test_every_function_code_is_implemented_in_the_frontend():
-    """DB 는 함수의 이름만 가진다 (코드 TRANSFORM·TAB_FILTER) — 구현은 registry/builtinWidgets.js."""
+    """DB 는 함수의 이름만 가진다 (코드 TRANSFORM·TAB_FILTER) — 구현은 widget/registry/builtinWidgets.js."""
     from app.backend.services.user_widget_service import CODES
 
-    text = (SRC / "registry" / "builtinWidgets.js").read_text(encoding="utf-8")
+    text = (SRC / "widget" / "registry" / "builtinWidgets.js").read_text(encoding="utf-8")
     missing = [
         f"{group}.{c['value']}"
         for group in ("TRANSFORM", "TAB_FILTER")
@@ -83,7 +84,7 @@ def test_every_function_code_is_implemented_in_the_frontend():
 
 
 def test_every_provider_has_a_source_label():
-    labels_js = (WIDGETS / "ui" / "sources.js").read_text(encoding="utf-8")
+    labels_js = (WIDGET_COMMON / "sources.js").read_text(encoding="utf-8")
     labels = set(re.findall(r"^\s+(\w+):\s+'", labels_js, re.M))
 
     providers = {p.name for p in PROVIDERS.iterdir() if p.is_dir() and not p.name.startswith("_")}
@@ -96,4 +97,4 @@ def test_every_provider_has_a_source_label():
         providers.add(spec.stem.split(".")[0])
 
     missing = sorted(providers - labels - NON_DATA_PROVIDERS)
-    assert not missing, f"add a label in ui/sources.js for: {missing}"
+    assert not missing, f"add a label in common/widget/sources.js for: {missing}"
