@@ -12,17 +12,15 @@
  * Pie/donut: each row = one slice; first series.key = value; xKey = label field.
  * Candlestick: data rows must have open/high/low/close (or ohlc* keys).
  */
-import { useEffect, useRef, useMemo, useCallback } from 'react';
+import { useMemo, useCallback } from 'react';
 import { CHART_COLORS } from '../../common/widget/constants';
 import ChartTypeSelector from '../../common/components/ChartTypeSelector';
 import useThemeStore from '../../store/themeStore';
+import Plot from './Plot';
 import { getPlotlyLayoutDefaults, getPlotlyPalette } from './plotlyTheme';
 
-const PLOTLY_CONFIG = {
-  displayModeBar:   false,
-  displaylogo:      false,
-  responsive:       true,
-};
+// Plot 의 기본 config 는 더블클릭을 끈다 — 이 차트는 예전처럼 Plotly 기본(더블클릭 = 축 리셋)을 쓴다
+const PLOTLY_CONFIG = { doubleClick: 'reset+autosize' };
 
 // ── Colour helpers ─────────────────────────────────────────────────────────────
 function hexToRgba(hex, alpha) {
@@ -263,8 +261,6 @@ export default function PlotlyChart({
   referenceLines = [],
   annotations = [],
 }) {
-  const containerRef = useRef(null);
-  const plotRef      = useRef(null);   // stores Plotly div element
   const theme        = useThemeStore(state => state.theme);
 
   const traces = useMemo(
@@ -277,36 +273,8 @@ export default function PlotlyChart({
     [type, compact, yFormatter, referenceLines, fillContainer, height, theme, annotations],
   );
 
-  // ── Lazy-load Plotly to avoid large bundle in initial chunk ────────────────
-  const drawChart = useCallback(async () => {
-    const el = containerRef.current;
-    if (!el) return;
-
-    try {
-      const Plotly = (await import('plotly.js-dist-min')).default;
-      if (!plotRef.current) {
-        await Plotly.newPlot(el, traces, layout, { ...PLOTLY_CONFIG, responsive: true });
-        plotRef.current = el;
-        // Wire resize observer
-        // 탭 전환 등으로 숨겨지거나 떼어진 뒤의 콜백은 무시 (Plotly가 오류를 던진다)
-        const ro = new ResizeObserver(() => { if (el.isConnected && el.offsetParent !== null) Plotly.Plots.resize(el); });
-        ro.observe(el);
-        el._ro = ro;
-      } else {
-        await Plotly.react(el, traces, layout, { ...PLOTLY_CONFIG, responsive: true });
-      }
-    } catch (err) {
-      console.warn('PlotlyChart render error:', err);
-    }
-  }, [traces, layout]);
-
-  useEffect(() => {
-    drawChart();
-    return () => {
-      const el = containerRef.current;
-      if (el?._ro) el._ro.disconnect();
-    };
-  }, [drawChart]);
+  // 그리기(지연 로드 · 크기 따라가기 · 테마 다시 그리기)는 Plot 이 한다
+  const figure = useCallback(() => ({ data: traces, layout }), [traces, layout]);
 
   const wrapperCls = `relative w-full ${fillContainer ? 'h-full' : ''}`;
   const wrapperStyle = fillContainer ? { minHeight: height } : { height };
@@ -322,7 +290,7 @@ export default function PlotlyChart({
           />
         </div>
       )}
-      <div ref={containerRef} className="w-full h-full" />
+      <Plot figure={figure} config={PLOTLY_CONFIG} />
     </div>
   );
 }
