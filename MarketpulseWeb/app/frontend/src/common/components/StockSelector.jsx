@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Search, TrendingUp } from 'lucide-react';
-import TickerSearch from './TickerSearch';
+import SymbolAutocomplete from './SymbolAutocomplete';
 
 const POPULAR_STOCKS = [
   { symbol: 'AAPL', name: 'Apple Inc.', sector: 'Technology' },
@@ -79,8 +79,10 @@ const StockSelector = ({ onSelect }) => {
             <label className="block text-sm font-medium text-gray-300 mb-3">
               Search for stocks by symbol or name
             </label>
-            <TickerSearch
+            <SymbolAutocomplete
               onSelect={handleSelectStock}
+              clearOnSelect
+              autoFocus
               placeholder="Search stocks (e.g., AAPL, Tesla)..."
             />
             <p className="mt-3 text-xs text-gray-400">

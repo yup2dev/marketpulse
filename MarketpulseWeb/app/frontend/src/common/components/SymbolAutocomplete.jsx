@@ -1,6 +1,11 @@
 /**
- * SymbolAutocomplete - Inline ticker search input for forms
- * Behaves like a text field but shows a live-search dropdown.
+ * SymbolAutocomplete — 종목 검색 입력 (앱에 하나). /stock/search 를 150ms 디바운스로 부른다.
+ *
+ * 두 가지로 쓴다
+ *   폼 입력      value · onChange 로 입력값을 들고 있고, 고르면 그 심볼이 입력칸에 남는다
+ *   골라서 이동  clearOnSelect — 고르면 onSelect(stock) 만 부르고 입력칸을 비운다 (종목 선택 창 등)
+ *
+ * props: value, onChange?(symbol), onSelect?(stock), placeholder, required, compact, clearOnSelect, autoFocus
  */
 import { useState, useEffect, useRef } from 'react';
 import { Search, X } from 'lucide-react';
@@ -19,7 +24,9 @@ function exchangeLabel(symbol, exchange) {
   return exchange;
 }
 
-export default function SymbolAutocomplete({ value, onChange, onSelect, placeholder = 'AAPL', required, compact = false }) {
+export default function SymbolAutocomplete({
+  value, onChange, onSelect, placeholder = 'AAPL', required, compact = false, clearOnSelect = false, autoFocus = false,
+}) {
   const [query, setQuery]       = useState(value || '');
   const [results, setResults]   = useState([]);
   const [open, setOpen]         = useState(false);
@@ -62,16 +69,21 @@ export default function SymbolAutocomplete({ value, onChange, onSelect, placehol
     const v = e.target.value.toUpperCase();
     setQuery(v);
     setSelectedName('');
-    onChange(v);
+    onChange?.(v);
   };
 
   const handleSelect = (stock) => {
     const sym = stock.symbol.toUpperCase();
-    setQuery(sym);
-    setSelectedName(stock.name || '');
     setResults([]);
     setOpen(false);
-    onChange(sym);
+    if (clearOnSelect) {
+      setQuery('');
+      setSelectedName('');
+    } else {
+      setQuery(sym);
+      setSelectedName(stock.name || '');
+      onChange?.(sym);
+    }
     onSelect?.(stock);
   };
 
@@ -80,7 +92,7 @@ export default function SymbolAutocomplete({ value, onChange, onSelect, placehol
     setSelectedName('');
     setResults([]);
     setOpen(false);
-    onChange('');
+    onChange?.('');
     inputRef.current?.focus();
   };
 
@@ -96,6 +108,7 @@ export default function SymbolAutocomplete({ value, onChange, onSelect, placehol
           onFocus={() => results.length > 0 && setOpen(true)}
           placeholder={placeholder}
           required={required}
+          autoFocus={autoFocus}
           className={`w-full pl-7 pr-7 bg-gray-800 border border-gray-700 rounded placeholder-gray-500 focus:outline-none focus:border-cyan-500 transition-colors font-mono uppercase ${
             compact ? 'px-2 py-1.5 text-xs' : 'px-3 py-2 text-sm'
           }`}

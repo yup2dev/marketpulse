@@ -8,6 +8,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { request, useApi, providersAPI } from '../../common';
 import useQuoteSocket from '../../hooks/useQuoteSocket';
 import useThemeStore from '../../store/themeStore';
+// 차트 그리기 — Plotly 래퍼는 앱에 하나 (lib/plotly/Plot)
+export { default as Plot, readColors, withAlpha, FONT } from '../../lib/plotly/Plot';
 import WidgetCard, { HeaderSeg } from '../../common/widget/WidgetCard';
 import {
   WidgetState, useWidgetState, useWidgetSymbol, usePopover, stateFromError, PANEL_CLS,
