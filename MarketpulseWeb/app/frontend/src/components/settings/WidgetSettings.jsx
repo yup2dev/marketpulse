@@ -15,7 +15,7 @@ import BuiltinWidgetList from './BuiltinWidgetList';
 import WidgetTypeAdmin from './WidgetTypeAdmin';
 import { UseToggle } from './parts';
 import { SegmentedControl } from '../widgets/ui';
-import { userWidgetsAPI } from '../../config/api';
+import { userWidgetsAPI } from '../../common';
 import { EMPTY_DRAFT, screenLabels } from '../../registry/userWidgets';
 import useUserWidgetStore from '../../store/userWidgetStore';
 import useAuthStore from '../../store/authStore';

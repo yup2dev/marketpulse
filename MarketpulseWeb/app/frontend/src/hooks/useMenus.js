@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { API_BASE, apiClient } from '../config/api';
+import { API_BASE, apiClient } from '../common';
 
 /**
  * Custom hook to fetch and manage menu data from API

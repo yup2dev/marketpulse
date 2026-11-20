@@ -2,7 +2,7 @@
  * Common Widget Components and Utilities
  * Shared components for all widgets to ensure consistent UI/UX
  */
-import { API_BASE } from '../../config/api';
+import { API_BASE } from '../../common';
 
 // ============================================================================
 // STYLES AND CONSTANTS

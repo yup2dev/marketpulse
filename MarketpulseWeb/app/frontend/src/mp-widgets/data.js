@@ -6,8 +6,8 @@
  *   useSeries(symbols, template)                              심볼마다 한 번씩 (스파크라인) — 캐시 + 동시 요청 제한
  *   useExtra({ favorites: '/watchlist/my-tickers' })          보조 요청 — transform·filter 의 ctx.extra 로 간다
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { request } from './adapter';
+import { useEffect, useState } from 'react';
+import { request, useApi } from './adapter';
 
 /**
  * '{name}' 자리를 params 값으로 채운다 (URL 인코딩).
@@ -54,37 +54,8 @@ export function lastSession(bars) {
   return { closes, prevClose, last: closes[closes.length - 1] ?? null };
 }
 
-// ── 주 요청 ────────────────────────────────────────────────────────────────────
-
-/**
- * path 가 바뀌면 다시 요청한다. refresh(ms) 를 주면 그 간격으로 조용히 갱신한다
- * (갱신이 실패해도 화면의 데이터는 그대로 둔다).
- */
-export function useApi(path, { refresh } = {}) {
-  const [state, setState] = useState({ path, data: null, error: null, loading: !!path });
-  const seq = useRef(0);
-
-  const load = useCallback((silent = false) => {
-    if (!path) { setState({ path, data: null, error: null, loading: false }); return; }
-    const id = ++seq.current;
-    if (!silent) setState({ path, data: null, error: null, loading: true });
-    request(path).then(
-      (data) => { if (id === seq.current) setState({ path, data, error: null, loading: false }); },
-      (error) => { if (id === seq.current && !silent) setState({ path, data: null, error, loading: false }); },
-    );
-  }, [path]);
-
-  useEffect(() => {
-    load();
-    if (!refresh) return undefined;
-    const timer = setInterval(() => load(true), refresh);
-    return () => clearInterval(timer);
-  }, [load, refresh]);
-
-  // path 가 막 바뀐 렌더에서는 아직 앞 요청의 응답을 들고 있다 — 다른 요청의 행을 넘기지 않는다
-  if (state.path !== path) return { data: null, error: null, loading: !!path, reload: load };
-  return { data: state.data, error: state.error, loading: state.loading, reload: load };
-}
+// ── 주 요청 ── useApi 는 common/api/useApi (adapter 경유) — 다시 내보내기만 한다
+export { useApi };
 
 // ── 심볼별 시계열 (스파크라인) ──────────────────────────────────────────────────
 

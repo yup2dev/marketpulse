@@ -5,7 +5,7 @@
  */
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { workspaceAPI } from '../config/api';
+import { workspaceAPI } from '../common';
 import { URL_WIDGET_MAP } from '../registry/urlWidgetMap';
 
 const useWorkspaceStore = create(

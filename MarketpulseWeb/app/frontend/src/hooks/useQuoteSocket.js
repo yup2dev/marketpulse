@@ -7,7 +7,7 @@
  *   // quotes['AAPL'] → { price, change, change_percent, volume, ... }
  */
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { getAccessToken } from '../config/api';
+import { getAccessToken } from '../common';
 
 const WS_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:8000')
   .replace(/^http/, 'ws');

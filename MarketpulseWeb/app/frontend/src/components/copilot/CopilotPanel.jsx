@@ -12,7 +12,7 @@ import {
   Sparkles, SendHorizonal, X, Square, Trash2,
   Database, LayoutGrid, Loader2, CheckCircle2, AlertCircle, KeyRound,
 } from 'lucide-react';
-import { API_BASE, apiClient } from '../../config/api';
+import { API_BASE, apiClient } from '../../common';
 import useNavigationStore from '../../store/navigationStore';
 
 // ── 경량 마크다운 렌더러 (외부 의존성 없음: 테이블/코드/볼드/리스트) ─────────
@@ -270,12 +270,9 @@ export default function CopilotPanel({ open, onClose }) {
     };
 
     try {
-      const res = await fetch(`${API_BASE}/copilot/chat`, {
+      // stream: 본문은 SSE 라 JSON 으로 읽지 않는다. 401 이면 토큰을 갱신해 다시 보내고, 오류는 Error 로 던진다
+      const res = await apiClient.stream(`${API_BASE}/copilot/chat`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...apiClient.getAuthHeaders(),
-        },
         signal: controller.signal,
         body: JSON.stringify({
           messages: history.map((m) => ({
@@ -291,11 +288,6 @@ export default function CopilotPanel({ open, onClose }) {
           provider: provider || undefined,
         }),
       });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || `HTTP ${res.status}`);
-      }
 
       await consumeSSE(res, (event, data) => {
         if (event === 'text') {

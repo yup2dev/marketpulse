@@ -11,7 +11,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, LayoutDashboard, BarChart3, Globe, Zap, FlaskConical, ArrowRight, Hash, Keyboard } from 'lucide-react';
-import { API_BASE, apiClient } from '../../config/api';
+import { API_BASE, apiClient } from '../../common';
 
 // ── 정적 명령 목록 ──────────────────────────────────────────────────────────
 

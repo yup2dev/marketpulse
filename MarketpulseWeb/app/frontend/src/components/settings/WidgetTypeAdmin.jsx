@@ -10,7 +10,7 @@ import { useState } from 'react';
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Select, INPUT_CLS } from '../widgets/ui';
-import { widgetTypesAPI } from '../../config/api';
+import { widgetTypesAPI } from '../../common';
 import { UseToggle } from './parts';
 
 const TH = 'text-left text-[10px] font-semibold uppercase tracking-wider text-gray-500 px-3 py-2';
