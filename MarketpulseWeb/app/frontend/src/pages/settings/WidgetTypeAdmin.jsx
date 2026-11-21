@@ -12,8 +12,8 @@ import { notify, confirmDialog } from '../../common';
 import { Select, INPUT_CLS } from '../../common/widget';
 import { widgetTypesAPI } from '../../common';
 import { UseToggle } from './parts';
+import { MpGrid } from '../../widget/engine';
 
-const TH = 'text-left text-[10px] font-semibold uppercase tracking-wider text-gray-500 px-3 py-2';
 const EMPTY = { type_code: '', name: '', renderer: 'table' };
 
 export default function WidgetTypeAdmin({ codes, onChanged }) {
@@ -72,85 +72,78 @@ export default function WidgetTypeAdmin({ codes, onChanged }) {
       </p>
 
       <div className="rounded-lg border border-gray-800" style={{ backgroundColor: 'var(--color-bg-widget)' }}>
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-gray-800">
-              <th className={`${TH} w-16`}>순서</th>
-              <th className={`${TH} w-[20%]`}>코드</th>
-              <th className={TH}>이름</th>
-              <th className={`${TH} w-[24%]`}>그리는 방식</th>
-              <th className={`${TH} w-16`}>사용</th>
-              <th className={`${TH} w-12`} aria-label="동작" />
-            </tr>
-          </thead>
-          <tbody>
-            {types.map((t, i) => (
-              <tr key={t.value} className={`border-b border-gray-800/60 ${t.use_yn === 'Y' ? '' : 'opacity-50'}`}>
-                <td className="px-3 py-1.5">
-                  <div className="flex">
-                    <button type="button" onClick={() => move(i, -1)} disabled={busy || i === 0} className="p-0.5 text-gray-500 hover:text-white disabled:opacity-20" aria-label={`${t.name} 위로`}><ArrowUp size={12} /></button>
-                    <button type="button" onClick={() => move(i, 1)} disabled={busy || i === types.length - 1} className="p-0.5 text-gray-500 hover:text-white disabled:opacity-20" aria-label={`${t.name} 아래로`}><ArrowDown size={12} /></button>
-                  </div>
-                </td>
-                <td className="px-3 py-1.5 text-xs text-gray-300 font-mono">{t.value}</td>
-                <td className="px-3 py-1.5">
+        <MpGrid
+          rows={types}
+          options={{
+            rowKey: 'value', minWidth: 0, rowHeight: 0, scroll: false, empty: '위젯 종류가 없습니다',
+            rowClassName: (t) => (t.use_yn === 'Y' ? '' : 'opacity-50'),
+            columns: [
+              { id: 'order', header: '순서', width: 64, render: (t, _ctx, i) => (
+                <div className="flex">
+                  <button type="button" onClick={() => move(i, -1)} disabled={busy || i === 0} className="p-0.5 text-gray-500 hover:text-white disabled:opacity-20" aria-label={`${t.name} 위로`}><ArrowUp size={12} /></button>
+                  <button type="button" onClick={() => move(i, 1)} disabled={busy || i === types.length - 1} className="p-0.5 text-gray-500 hover:text-white disabled:opacity-20" aria-label={`${t.name} 아래로`}><ArrowDown size={12} /></button>
+                </div>
+              ) },
+              { field: 'value', header: '코드', width: '20%', className: 'font-mono' },
+              { id: 'name', header: '이름', render: (t) => (
+                <input
+                  type="text" className={INPUT_CLS} maxLength={100} aria-label={`${t.value} 이름`}
+                  value={names[t.value] ?? t.name}
+                  onChange={(e) => setNames((m) => ({ ...m, [t.value]: e.target.value }))}
+                  onBlur={() => commitName(t)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                />
+              ) },
+              { id: 'renderer', header: '그리는 방식', width: '24%', render: (t) => (
+                <Select
+                  size="md" align="left" value={t.renderer} options={rendererOptions}
+                  onChange={(v) => v !== t.renderer && run(() => widgetTypesAPI.update(t.value, { renderer: v }))}
+                />
+              ) },
+              { id: 'use', header: '사용', width: 64, render: (t) => (
+                <UseToggle
+                  on={t.use_yn === 'Y'} disabled={busy} label={`${t.name} 사용`}
+                  onChange={(on) => run(() => widgetTypesAPI.update(t.value, { use_yn: on ? 'Y' : 'N' }))}
+                />
+              ) },
+              { id: 'actions', width: 48, align: 'right', render: (t) => (
+                <button type="button" onClick={() => remove(t)} disabled={busy} className="p-1.5 text-gray-500 hover:text-red-400 transition-colors disabled:opacity-40" aria-label={`${t.name} 삭제`}>
+                  <Trash2 size={14} />
+                </button>
+              ) },
+            ],
+            // 추가 줄
+            footer: (
+              <tr>
+                <td className="pl-4 pr-2 py-2 text-[11px] text-gray-500">추가</td>
+                <td className="px-2 py-2">
                   <input
-                    type="text" className={INPUT_CLS} maxLength={100} aria-label={`${t.value} 이름`}
-                    value={names[t.value] ?? t.name}
-                    onChange={(e) => setNames((m) => ({ ...m, [t.value]: e.target.value }))}
-                    onBlur={() => commitName(t)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                    type="text" className={`${INPUT_CLS} font-mono`} maxLength={30} placeholder="코드 (영문)" aria-label="새 종류 코드"
+                    value={draft.type_code} onChange={(e) => setDraft((d) => ({ ...d, type_code: e.target.value }))}
                   />
                 </td>
-                <td className="px-3 py-1.5">
-                  <Select
-                    size="md" align="left" value={t.renderer} options={rendererOptions}
-                    onChange={(v) => v !== t.renderer && run(() => widgetTypesAPI.update(t.value, { renderer: v }))}
+                <td className="px-2 py-2">
+                  <input
+                    type="text" className={INPUT_CLS} maxLength={100} placeholder="이름" aria-label="새 종류 이름"
+                    value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+                    onKeyDown={(e) => { if (e.key === 'Enter') add(); }}
                   />
                 </td>
-                <td className="px-3 py-1.5">
-                  <UseToggle
-                    on={t.use_yn === 'Y'} disabled={busy} label={`${t.name} 사용`}
-                    onChange={(on) => run(() => widgetTypesAPI.update(t.value, { use_yn: on ? 'Y' : 'N' }))}
-                  />
+                <td className="px-2 py-2">
+                  <Select size="md" align="left" value={draft.renderer} options={rendererOptions} onChange={(v) => setDraft((d) => ({ ...d, renderer: v }))} />
                 </td>
-                <td className="px-3 py-1.5 text-right">
-                  <button type="button" onClick={() => remove(t)} disabled={busy} className="p-1.5 text-gray-500 hover:text-red-400 transition-colors disabled:opacity-40" aria-label={`${t.name} 삭제`}>
-                    <Trash2 size={14} />
+                <td colSpan={2} className="pl-2 pr-4 py-2 text-right">
+                  <button
+                    type="button" onClick={add} disabled={busy}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold bg-cyan-600 hover:bg-cyan-500 text-white disabled:opacity-40 transition-colors"
+                  >
+                    <Plus size={12} /> 추가
                   </button>
                 </td>
               </tr>
-            ))}
-            {/* 추가 */}
-            <tr>
-              <td className="px-3 py-2 text-[11px] text-gray-500">추가</td>
-              <td className="px-3 py-2">
-                <input
-                  type="text" className={`${INPUT_CLS} font-mono`} maxLength={30} placeholder="코드 (영문)" aria-label="새 종류 코드"
-                  value={draft.type_code} onChange={(e) => setDraft((d) => ({ ...d, type_code: e.target.value }))}
-                />
-              </td>
-              <td className="px-3 py-2">
-                <input
-                  type="text" className={INPUT_CLS} maxLength={100} placeholder="이름" aria-label="새 종류 이름"
-                  value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
-                  onKeyDown={(e) => { if (e.key === 'Enter') add(); }}
-                />
-              </td>
-              <td className="px-3 py-2">
-                <Select size="md" align="left" value={draft.renderer} options={rendererOptions} onChange={(v) => setDraft((d) => ({ ...d, renderer: v }))} />
-              </td>
-              <td colSpan={2} className="px-3 py-2 text-right">
-                <button
-                  type="button" onClick={add} disabled={busy}
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold bg-cyan-600 hover:bg-cyan-500 text-white disabled:opacity-40 transition-colors"
-                >
-                  <Plus size={12} /> 추가
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+            ),
+          }}
+        />
       </div>
     </div>
   );

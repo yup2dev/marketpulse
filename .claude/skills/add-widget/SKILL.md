@@ -6,7 +6,7 @@ description: 대시보드 위젯을 추가/수정할 때 사용. widgetEndpoints
 # 위젯 추가 가이드
 
 위젯은 **`widget/registry/widgetEndpoints.js` 항목 1개**가 기본이다. React 파일은 대부분 불필요 —
-`UniversalWidget`이 응답을 보고 자동 렌더한다 (Plotly JSON → 차트, 행 배열 → CommonTable, `display:'kv'` → 지표/값 2열).
+`UniversalWidget`이 응답을 보고 자동 렌더한다 (Plotly JSON → 차트, 행 배열 → MpGrid 표, `display:'kv'` → 지표/값 2열).
 
 핵심 파일 (`MarketpulseWeb/app/frontend/src/`):
 - `widget/registry/widgetEndpoints.js` — **모든 위젯 타입의 단일 소스** (id → 정의)
@@ -89,7 +89,7 @@ API fetch 이외의 상태(portfolioData 등)가 필요할 때만:
   propsFrom: ['symbol'],        // 'symbol' | 'portfolioId' 주입
 },
 ```
-컴포넌트는 `widget/widgets/<이름>/`에. 차트는 `PlotlyChart`/`CommonChart`, 표는 `CommonTable` 재사용 (recharts 신규 사용 금지).
+컴포넌트는 `widget/widgets/<이름>/`에. 차트는 `PlotlyChart`/`CommonChart`, 표는 `MpGrid`(`widget/engine`, `MpGrid.init({...})` 로 미리 설정) 재사용 (recharts 신규 사용 금지).
 
 **껍데기는 반드시 `BaseWidget`, 필터·드롭다운·상태 화면은 반드시 `common/widget/`** —
 위젯 파일 안에 pill·select·'데이터 없음' 화면을 새로 그리지 않는다 (디자인이 제각각이 된 원인):

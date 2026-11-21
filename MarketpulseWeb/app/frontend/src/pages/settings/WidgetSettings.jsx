@@ -15,12 +15,11 @@ import BuiltinWidgetList from './BuiltinWidgetList';
 import WidgetTypeAdmin from './WidgetTypeAdmin';
 import { UseToggle } from './parts';
 import { SegmentedControl } from '../../common/widget';
+import { MpGrid } from '../../widget/engine';
 import { userWidgetsAPI } from '../../common';
 import { EMPTY_DRAFT, screenLabels } from '../../widget/registry/userWidgets';
 import useUserWidgetStore from '../../store/userWidgetStore';
 import useAuthStore from '../../store/authStore';
-
-const TH = 'text-left text-[10px] font-semibold uppercase tracking-wider text-gray-500 px-3 py-2';
 
 const SECTION_HINT = {
   mine: 'API 를 고르고 → 응답 필드를 매핑하고 → 보여 줄 위젯을 정해 화면에 내놓습니다. 내놓은 화면의 위젯 메뉴 "My Widgets" 에서 그리드에 추가할 수 있습니다.',
@@ -148,44 +147,37 @@ export default function WidgetSettings() {
 
       {loaded && section === 'mine' && widgets.length > 0 && (
         <div className="rounded-lg border border-gray-800" style={{ backgroundColor: 'var(--color-bg-widget)' }}>
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-800">
-                <th className={TH}>이름</th>
-                <th className={TH}>API</th>
-                <th className={TH}>위젯</th>
-                <th className={TH}>내놓을 화면</th>
-                <th className={`${TH} w-16`}>사용</th>
-                <th className={`${TH} w-20`} aria-label="동작" />
-              </tr>
-            </thead>
-            <tbody>
-              {widgets.map((w) => (
-                <tr key={w.widget_id} className={`border-b border-gray-800/60 last:border-b-0 ${w.use_yn === 'Y' ? '' : 'opacity-50'}`}>
-                  <td className="px-3 py-2.5">
-                    <div className="text-sm text-gray-100">{w.name}</div>
-                    {w.group_name && <div className="text-[11px] text-gray-500">{w.group_name}</div>}
-                  </td>
-                  <td className="px-3 py-2.5 text-xs text-gray-300 font-mono">{w.provider} / {w.model}</td>
-                  <td className="px-3 py-2.5 text-xs text-gray-300">{viewName[w.view_type] || w.view_type}</td>
-                  <td className="px-3 py-2.5 text-xs text-gray-400">{screenLabels(w.screens)}</td>
-                  <td className="px-3 py-2.5">
-                    <UseToggle on={w.use_yn === 'Y'} label={`${w.name} 사용`} onChange={(on) => toggleUse(w, on)} />
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <div className="flex items-center justify-end gap-1">
-                      <button type="button" onClick={() => setEditing(w)} disabled={!meta} className="p-1.5 text-gray-500 hover:text-cyan-400 transition-colors" aria-label={`${w.name} 수정`}>
-                        <Pencil size={14} />
-                      </button>
-                      <button type="button" onClick={() => onDelete(w)} className="p-1.5 text-gray-500 hover:text-red-400 transition-colors" aria-label={`${w.name} 삭제`}>
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <MpGrid
+            rows={widgets}
+            options={{
+              rowKey: 'widget_id', minWidth: 0, rowHeight: 0, scroll: false,
+              rowClassName: (w) => (w.use_yn === 'Y' ? '' : 'opacity-50'),
+              columns: [
+                { field: 'name', header: '이름', wrap: true, render: (w) => (
+                  <>
+                    <div className="text-sm text-[var(--mp-text)]">{w.name}</div>
+                    {w.group_name && <div className="text-[11px] text-[var(--mp-muted)]">{w.group_name}</div>}
+                  </>
+                ) },
+                { id: 'api', header: 'API', className: 'font-mono', render: (w) => `${w.provider} / ${w.model}` },
+                { id: 'view', header: '위젯', render: (w) => viewName[w.view_type] || w.view_type },
+                { id: 'screens', header: '내놓을 화면', className: 'text-[var(--mp-muted)]', render: (w) => screenLabels(w.screens) },
+                { id: 'use', header: '사용', width: 64, render: (w) => (
+                  <UseToggle on={w.use_yn === 'Y'} label={`${w.name} 사용`} onChange={(on) => toggleUse(w, on)} />
+                ) },
+                { id: 'actions', width: 80, align: 'right', render: (w) => (
+                  <div className="flex items-center justify-end gap-1">
+                    <button type="button" onClick={() => setEditing(w)} disabled={!meta} className="p-1.5 text-gray-500 hover:text-cyan-400 transition-colors" aria-label={`${w.name} 수정`}>
+                      <Pencil size={14} />
+                    </button>
+                    <button type="button" onClick={() => onDelete(w)} className="p-1.5 text-gray-500 hover:text-red-400 transition-colors" aria-label={`${w.name} 삭제`}>
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ) },
+              ],
+            }}
+          />
         </div>
       )}
     </div>

@@ -190,12 +190,6 @@ export function normalizeTableRows(response) {
 }
 
 /**
- * Auto-generate CommonTable column definitions from row objects.
- * Infers formatter and alignment from column names + sample values.
- *
- * Mirrors OpenBB Table's runtime type detection.
- */
-/**
  * Build CommonChart-compatible { xKey, series } spec from row objects.
  * Auto-detects the x-axis (first date or string column) and all numeric y-series.
  */
@@ -226,6 +220,19 @@ function isPrimitive(v) {
   return v === null || v === undefined || typeof v !== 'object';
 }
 
+// 추론한 값 종류 → MpGrid 열 종류 (정렬 방향은 MpGrid 가 열 종류로 정한다)
+const AUTO_TYPES = {
+  date:      { type: 'date' },
+  percent:   { type: 'change' },                 // 등락률 — 부호 색
+  magnitude: { type: 'compact', digits: 2 },
+  number:    { type: 'number', digits: 2 },
+  text:      { type: 'text' },
+};
+
+/**
+ * 행 객체에서 MpGrid 열 정의를 만든다 — 이름·표본 값으로 종류를 추론 (OpenBB Table 방식).
+ * 객체·배열 값만 있는 열은 뺀다.
+ */
 export function autoColumns(rows) {
   if (!rows?.length) return [];
 
@@ -239,29 +246,7 @@ export function autoColumns(rows) {
     const samples = sampleValues(rows, key).filter(isPrimitive);
     const type    = inferType(key, samples);
 
-    const col = { key, header: toTitleCase(key), sortable: true };
-
-    switch (type) {
-      case 'date':
-        col.formatter = 'date';
-        break;
-      case 'percent':
-        col.formatter  = 'percent';
-        col.align      = 'right';
-        col.renderFn   = 'greenRed';
-        break;
-      case 'magnitude':
-        col.formatter = 'magnitude';
-        col.align     = 'right';
-        break;
-      case 'number':
-        col.formatter = 'number';
-        col.align     = 'right';
-        break;
-      default:
-        break;
-    }
-
-    return col;
+    const col = { field: key, header: toTitleCase(key) };
+    return { ...col, ...AUTO_TYPES[type] };
   });
 }

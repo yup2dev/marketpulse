@@ -39,7 +39,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import BaseWidget         from '../../common/widget/BaseWidget';
 import WidgetParamForm    from '../../common/widget/WidgetParamForm';
-import CommonTable        from '../../common/components/CommonTable';
+import { MpGrid }         from '../engine';
 import CommonChart        from '../../common/components/CommonChart';
 import PlotlyRawChart     from '../../lib/plotly/PlotlyRawChart';
 import { WidgetState, MetricTiles, stateFromError, buildViewOptions, providerFromEndpoint, useWidgetState, useWidgetSymbol } from '../../common/widget';
@@ -107,11 +107,17 @@ function fmtKv(v) {
   return String(v);
 }
 
+// 표 모양 — 위젯 본문 표 · 펼친 행 · kv 표가 같은 MpGrid 를 설정만 달리 쓴다
+const MainGrid = MpGrid.init({
+  minWidth: 0, rowHeight: 32, sortable: true, searchable: true, exportable: true, columnPicker: true, pageSize: 20,
+});
+const DenseGrid = MpGrid.init({ minWidth: 0, rowHeight: 28, sortable: true });
+
 const KV_COLUMNS = [
-  { key: 'metric', header: 'Metric', sortable: false, formatter: 'none' },
-  { key: 'value',  header: 'Value',  align: 'right', sortable: false, formatter: 'none',
-    renderFn: (v) => <span className="tabular-nums text-gray-200">{fmtKv(v)}</span> },
+  { field: 'metric', header: 'Metric' },
+  { field: 'value',  header: 'Value', align: 'right', render: (row) => fmtKv(row.value) },
 ];
+const KV_OPTIONS = { columns: KV_COLUMNS, sortable: false };
 
 // ── Sub-row detail panel (lazy fetch on expand) ───────────────────────────────
 function ExpandedRowDetail({ row, config }) {
@@ -138,13 +144,7 @@ function ExpandedRowDetail({ row, config }) {
   if (!data?.length) return <WidgetState kind="empty" compact />;
 
   return (
-    <CommonTable
-      data={data}
-      columns={autoColumns(data)}
-      compact
-      searchable={false}
-      exportable={false}
-    />
+    <DenseGrid rows={data} options={{ columns: autoColumns(data) }} />
   );
 }
 
@@ -408,10 +408,11 @@ export default function UniversalWidget({
     return normalizeTableRows(response);
   }, [response, dataPath, display]);
 
-  const columns   = useMemo(
-    () => (display === 'kv' ? KV_COLUMNS : applyColumnConfig(autoColumns(rows), columnCfg)),
-    [rows, display, columnCfg],
-  );
+  const tableOptions = useMemo(() => ({
+    columns: applyColumnConfig(autoColumns(rows), columnCfg),
+    exportName: widgetId || 'export',
+    expand: expandable ? (row) => <ExpandedRowDetail row={row} config={expandable} /> : undefined,
+  }), [rows, columnCfg, expandable, widgetId]);
 
   // kv: primary 필드는 타일, 나머지는 표 (hide 는 둘 다에서 뺀다). 키는 사람이 읽는 라벨로.
   const { kvTiles, kvRows } = useMemo(() => {
@@ -547,16 +548,15 @@ export default function UniversalWidget({
       <div className="absolute inset-0 overflow-auto">
         <MetricTiles items={kvTiles} />
         {kvRows.length > 0 && (
-          <CommonTable columns={columns} data={kvRows} searchable={false} exportable={false} compact />
+          <DenseGrid rows={kvRows} options={KV_OPTIONS} />
         )}
       </div>
     );
   } else if (view === 'table' || (!chartSpec && renderType !== 'plotly')) {
     body = (
-      <CommonTable
-        columns={columns}
-        data={rows}
-        renderExpanded={expandable ? (row) => <ExpandedRowDetail row={row} config={expandable} /> : undefined}
+      <MainGrid
+        rows={rows}
+        options={tableOptions}
       />
     );
   } else if (view === 'plotly') {
