@@ -3,7 +3,7 @@
  *
  * Rendering decision (after fetch):
  *   - Plotly response  → default chart  (toggle → auto-column table)
- *   - Table response   → default table  (toggle → CommonChart with type selector)
+ *   - Table response   → default table  (View 드롭다운 → MpChart line/area/bar/stackedBar/donut)
  *
  * Optional registry (widgetEndpoints) extensions:
  *   dataPath:  'result' | 'result.points' | 'result.tests'   (dot-path → unwrap)
@@ -18,9 +18,9 @@
  *   kv:        { primary: ['npv', …], hide: [...], labels: { npv: 'NPV' } }
  *              — primary 는 큰 타일로, 나머지는 표로. 키는 자동으로 사람이 읽는 라벨로 바꾼다
  *   columns:   { hide: [...], order: [...], labels: {...} }  (자동 컬럼 손질)
- *   chart:     { defaultType?, allowedTypes?, referenceLines?, yFormatter?, xFormatter? }
- *              — defaultType ∈ 'line'|'area'|'bar'|'stackedBar'|'pie'|'donut'
- *              — allowedTypes restricts the in-header type selector
+ *   chart:     { defaultType?, allowedTypes?, referenceLines?: [{ y, label, color }], xKey?, yKeys? }
+ *              — defaultType ∈ 'line'|'area'|'bar'|'stackedBar'|'donut'  (MpChart type)
+ *              — allowedTypes restricts the View dropdown
  *   concept:   'cpi_yoy'                                   (provider 무관 지표 — /api/concepts/{concept})
  *              — 서버가 '내 키' 기준으로 provider 를 고른다. 헤더 셀렉터 = 응답의 candidates,
  *                고르면 ?provider= 로 고정. 기본 뷰는 차트.
@@ -39,9 +39,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import BaseWidget         from '../../common/widget/BaseWidget';
 import WidgetParamForm    from '../../common/widget/WidgetParamForm';
-import { MpGrid }         from '../engine';
-import CommonChart        from '../../common/components/CommonChart';
-import PlotlyRawChart     from '../../lib/plotly/PlotlyRawChart';
+import { MpGrid, MpChart } from '../engine';
 import { WidgetState, MetricTiles, stateFromError, buildViewOptions, providerFromEndpoint, useWidgetState, useWidgetSymbol } from '../../common/widget';
 import {
   isParamVisible, visibleParams, paramDisplayValue, humanizeKey, applyColumnConfig,
@@ -464,6 +462,19 @@ export default function UniversalWidget({
   const defaultView = (reg.view && viewOptions.some((o) => o.value === reg.view)) ? reg.view : preferredView;
   const view = (viewSel && viewOptions.some((o) => o.value === viewSel)) ? viewSel : defaultView;
 
+  // 차트 보기의 MpChart 옵션 — 도넛은 조각(가로축 값) · 크기(첫 계열), 나머지는 범용 x/y
+  const chartOptions = useMemo(() => {
+    if (!chartSpec) return null;
+    if (view === 'donut' || view === 'pie') return { type: 'donut', label: chartSpec.xKey, value: chartSpec.series[0]?.key };
+    return {
+      type: view,
+      x: chartSpec.xKey,
+      series: chartSpec.series.map((sr) => ({ field: sr.key, label: sr.name })),
+      refs: chartCfg.referenceLines,
+      marks: response?.chart_hint?.annotations,
+    };
+  }, [chartSpec, view, chartCfg.referenceLines, response]);
+
   // params 의 symbol 은 폼이 아니라 헤더 심볼 칩으로 (심볼 입력 위치를 한 곳으로)
   const symbolParam = (paramsSpec || []).find((ps) => ps.name === 'symbol');
   const formSpec = useMemo(
@@ -562,23 +573,13 @@ export default function UniversalWidget({
   } else if (view === 'plotly') {
     body = (
       <div className="absolute inset-0">
-        <PlotlyRawChart plotlyJson={normalizePlotlyJson(response)} />
+        <MpChart options={{ type: 'plotly', figure: normalizePlotlyJson(response) }} />
       </div>
     );
   } else {
     body = (
       <div className="absolute inset-0">
-        <CommonChart
-          data={rows}
-          series={chartSpec.series}
-          xKey={chartSpec.xKey}
-          type={view}
-          fillContainer
-          referenceLines={chartCfg.referenceLines}
-          annotations={response?.chart_hint?.annotations}
-          yFormatter={chartCfg.yFormatter}
-          xFormatter={chartCfg.xFormatter}
-        />
+        <MpChart rows={rows} options={chartOptions} />
       </div>
     );
   }

@@ -39,17 +39,6 @@ export const LOADING_COLORS = {
   banking: 'border-indigo-500',
 };
 
-export const CHART_COLORS = [
-  '#3b82f6', // blue
-  '#10b981', // emerald
-  '#f59e0b', // amber
-  '#ef4444', // red
-  '#8b5cf6', // violet
-  '#ec4899', // pink
-  '#06b6d4', // cyan
-  '#f97316', // orange
-];
-
 // TIME_RANGES with intervals to maintain ~250 bars (same as 1Y daily)
 // Note: Yahoo Finance limits intraday data (< 1d intervals) to last 60 days
 export const MACRO_INDICATORS = [

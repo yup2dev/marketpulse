@@ -9,6 +9,7 @@
 export { default as DataWidget, defineWidget, registerView } from './DataWidget';
 // 공개 부품 — DataWidget 밖(화면·다른 위젯)에서도 같은 모양으로 그린다
 export { default as MpGrid } from './MpGrid';
+export { default as MpChart, CHART_VIEWS, chartView } from './MpChart';
 export { fill, pick, normalizeBars, lastSession, useApi, useSeries } from './data';
 export { fmtPct, fmtCompact, fmtNumber, fmtPrice, toneOf } from './format';
 export { default as Plot, readColors, withAlpha } from './Plot';

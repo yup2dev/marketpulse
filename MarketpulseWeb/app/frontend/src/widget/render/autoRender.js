@@ -190,7 +190,7 @@ export function normalizeTableRows(response) {
 }
 
 /**
- * Build CommonChart-compatible { xKey, series } spec from row objects.
+ * 행 객체에서 차트 스펙 { xKey, series } 을 만든다 — UniversalWidget 이 MpChart 옵션(x · series)으로 바꾼다.
  * Auto-detects the x-axis (first date or string column) and all numeric y-series.
  */
 export function buildChartFromRows(rows) {
