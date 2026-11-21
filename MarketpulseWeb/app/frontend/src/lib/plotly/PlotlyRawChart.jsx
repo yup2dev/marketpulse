@@ -1,84 +1,39 @@
 /**
- * PlotlyRawChart — renders a raw Plotly figure object directly.
+ * PlotlyRawChart — 백엔드가 통째로 준 Plotly figure({ data, layout, frames })를 그대로 그린다.
  *
- * OpenBB style: the backend returns a complete Plotly JSON
- * ({ data, layout, frames }) and this component passes it through
- * to Plotly.react() without any transformation.
- *
- * Theme overrides (dark/light) are merged on top of whatever layout the
- * backend sends, so charts always match the app's current theme.
+ * 테마(라이트/다크)의 시각 속성만 덮어쓴다 — 데이터·축 제목 등은 백엔드 layout 을 따른다.
+ * 그리기는 Plot(lib/plotly/Plot) 이 한다.
  *
  * Props:
- *   plotlyJson  { data, layout, frames }  — raw Plotly figure
+ *   plotlyJson  { data, layout, frames }
  */
-import { useEffect, useRef, useCallback } from 'react';
+import { useCallback } from 'react';
 import useThemeStore from '../../store/themeStore';
+import Plot from './Plot';
 import { getPlotlyLayoutDefaults } from './plotlyTheme';
 
-const PLOTLY_CONFIG = {
-  displayModeBar: false,
-  displaylogo:    false,
-  responsive:     true,
-};
-
-// Singleton promise so Plotly is only loaded once across all instances
-let _plotlyPromise = null;
-function loadPlotly() {
-  if (!_plotlyPromise) {
-    _plotlyPromise = import('plotly.js-dist-min').then(m => m.default || m);
-  }
-  return _plotlyPromise;
-}
+// Plot 의 기본 config 는 더블클릭을 끈다 — 이 차트는 예전처럼 Plotly 기본(더블클릭 = 축 리셋)을 쓴다
+const CONFIG = { doubleClick: 'reset+autosize' };
 
 export default function PlotlyRawChart({ plotlyJson }) {
-  const containerRef = useRef(null);
-  const theme = useThemeStore(state => state.theme);
+  const theme = useThemeStore((s) => s.theme);
 
-  const draw = useCallback(async () => {
-    const el = containerRef.current;
-    if (!el || !plotlyJson?.data?.length) return;
-
-    const Plotly = await loadPlotly();
-    if (!Plotly) {
-      console.warn('PlotlyRawChart: could not load Plotly');
-      return;
-    }
-
-    // Merge theme overrides — backend layout takes precedence for data props,
-    // but visual theme props always follow the app theme.
+  const figure = useCallback(() => {
     const themeOverrides = getPlotlyLayoutDefaults(theme);
-    const layout = {
-      ...plotlyJson.layout,
-      ...themeOverrides,
-      // Restore any axis titles from the original layout
-      xaxis: { ...themeOverrides.xaxis, ...plotlyJson.layout?.xaxis },
-      yaxis: { ...themeOverrides.yaxis, ...plotlyJson.layout?.yaxis },
-      width:  undefined,
-      height: undefined,
+    return {
+      data: plotlyJson?.data || [],
+      layout: {
+        ...plotlyJson?.layout,
+        ...themeOverrides,
+        // 축 제목 등 원래 layout 의 축 설정은 살린다
+        xaxis: { ...themeOverrides.xaxis, ...plotlyJson?.layout?.xaxis },
+        yaxis: { ...themeOverrides.yaxis, ...plotlyJson?.layout?.yaxis },
+        width: undefined,
+        height: undefined,
+      },
     };
-
-    try {
-      if (!el._plotlyInitialized) {
-        await Plotly.newPlot(el, plotlyJson.data, layout, PLOTLY_CONFIG);
-        el._plotlyInitialized = true;
-        const ro = new ResizeObserver(() => Plotly.Plots.resize(el));
-        ro.observe(el);
-        el._ro = ro;
-      } else {
-        await Plotly.react(el, plotlyJson.data, layout, PLOTLY_CONFIG);
-      }
-    } catch (err) {
-      console.warn('PlotlyRawChart render error:', err);
-    }
   }, [plotlyJson, theme]);
 
-  useEffect(() => {
-    draw();
-    return () => {
-      const el = containerRef.current;
-      if (el?._ro) el._ro.disconnect();
-    };
-  }, [draw]);
-
-  return <div ref={containerRef} className="w-full h-full" />;
+  if (!plotlyJson?.data?.length) return <div className="w-full h-full" />;
+  return <Plot figure={figure} config={CONFIG} />;
 }

@@ -50,6 +50,7 @@ import {
 } from '@tanstack/react-table';
 import { rankItem } from '@tanstack/match-sorter-utils';
 import { useState, useMemo, useRef, useEffect } from 'react';
+import { loadPlotly } from '../../lib/plotly/Plot';
 import { fmtNumber, fmtPct, fmtPrice, fmtCompact, fmtDate } from '..';
 import {
   ChevronUp, ChevronDown, ChevronsUpDown,
@@ -102,7 +103,7 @@ function SparklineCell({ sparkData, isPositive }) {
     if (!divRef.current || !sparkData?.length) return;
     let ro;
     const draw = async () => {
-      const Plotly = (await import('plotly.js-dist-min')).default;
+      const Plotly = await loadPlotly();
       const color = isPositive ? '#22c55e' : '#ef4444';
       await Plotly.react(
         divRef.current,

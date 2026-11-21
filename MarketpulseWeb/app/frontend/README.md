@@ -76,9 +76,10 @@ src/
 │  ├─ api/ · format/ · ui/   요청 · 표기 · Modal/dialog/notify
 │  ├─ widget/      모든 위젯이 쓰는 껍데기·부품 (BaseWidget · WidgetCard · WidgetState · Select · Popover …)
 │  ├─ components/  범용 부품 (CommonTable · CommonChart · SymbolAutocomplete · StockSelector · ThemeToggle …)
-│  └─ util/        exportUtils · themeUtils
-├─ lib/            외부 라이브러리 감싸기 — plotly (PlotlyChart · PlotlyRawChart · plotlyTheme)
-├─ hooks/          앱 수준 훅 · store/ zustand 전역 상태 · contexts/ React context · styles/ JS 테마 토큰
+│  └─ util/        exportUtils
+├─ lib/            외부 라이브러리 감싸기 — plotly: Plot(유일한 Plotly 그리기 부품) 위에 PlotlyChart · PlotlyRawChart
+├─ hooks/          앱 수준 훅 · store/ zustand 전역 상태 · contexts/ React context
+                   (테마 색은 index.css CSS 변수가 단일 기준 — JS 토큰 파일을 따로 두지 않는다)
 ```
 
 어디에 둘지 정하는 기준:
