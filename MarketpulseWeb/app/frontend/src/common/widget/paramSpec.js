@@ -53,32 +53,38 @@ export function humanizeKey(key) {
 /**
  * 레지스트리 columns 설정을 자동 컬럼에 적용한다.
  *   columns: { hide: ['institution_key'], order: ['name', …], labels: { aum_change_pct: 'AUM change' },
- *              formats: { weight: 'percent' } }   // CommonTable formatter — 자동 추론을 덮어쓴다
+ *              formats: { weight: 'percent' } }   // 표시 형식 — 자동 추론을 덮어쓴다
+ * 열은 MpGrid 열 정의({ field, header, type }) — widget/render/autoRender.autoColumns 가 만든다.
  */
-const NUMERIC_FORMATS = new Set(['number', 'percent', 'currency', 'magnitude']);
+// formats 값(위젯 설정에 저장된 이름) → MpGrid 열 종류
+const FORMAT_TYPES = {
+  number:    { type: 'number', digits: 2 },
+  percent:   { type: 'percent' },
+  currency:  { type: 'price' },
+  magnitude: { type: 'compact', digits: 2 },
+  date:      { type: 'date' },
+  none:      { type: 'text' },
+};
 
 export function applyColumnConfig(cols, cfg) {
   if (!cfg) return cols;
   const hide = new Set(cfg.hide || []);
-  let out = cols.filter((c) => !hide.has(c.key));
-  if (cfg.labels) out = out.map((c) => (cfg.labels[c.key] ? { ...c, header: cfg.labels[c.key] } : c));
+  let out = cols.filter((c) => !hide.has(c.field));
+  if (cfg.labels) out = out.map((c) => (cfg.labels[c.field] ? { ...c, header: cfg.labels[c.field] } : c));
   if (cfg.formats) {
     out = out.map((c) => {
-      const f = cfg.formats[c.key];
-      if (!f || f === 'auto') return c;
-      // 형식을 직접 고르면 자동 추론이 붙인 색칠(greenRed)은 뗀다 — 퍼센트로 고른 것만 유지
-      const { renderFn, ...rest } = c;
-      return {
-        ...rest,
-        formatter: f,
-        align: NUMERIC_FORMATS.has(f) ? 'right' : undefined,
-        ...(f === 'percent' && renderFn ? { renderFn } : {}),
-      };
+      const f = cfg.formats[c.field];
+      if (!f || f === 'auto' || !FORMAT_TYPES[f]) return c;
+      // 형식을 직접 고르면 자동 추론이 붙인 색칠은 뗀다 — 등락률로 추론된 열에 퍼센트를 고른 것만 색 유지
+      if (f === 'percent' && c.type === 'change') return c;
+      const next = { ...c, ...FORMAT_TYPES[f] };
+      if (FORMAT_TYPES[f].digits == null) delete next.digits;   // 추론이 붙인 자릿수는 새 형식에 안 맞는다
+      return next;
     });
   }
   if (cfg.order?.length) {
     const rank = new Map(cfg.order.map((k, i) => [k, i]));
-    out = [...out].sort((a, b) => (rank.get(a.key) ?? 1e9) - (rank.get(b.key) ?? 1e9));
+    out = [...out].sort((a, b) => (rank.get(a.field) ?? 1e9) - (rank.get(b.field) ?? 1e9));
   }
   return out;
 }

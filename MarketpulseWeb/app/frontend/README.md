@@ -68,14 +68,14 @@ src/
 │  ├─ settings/    SettingsPage · WidgetEditor · WidgetSettings · WidgetTypeAdmin …
 │  └─ auth/        Login · Register
 ├─ widget/         위젯 시스템 — 위젯이 어떻게 정의되고 그려지는가
-│  ├─ engine/      mp-widgets 라이브러리 (DataWidget · 스펙 · views/) — README.md 참고
+│  ├─ engine/      mp-widgets 라이브러리 (DataWidget · MpGrid 표 · 스펙 · views/) — README.md 참고
 │  ├─ registry/    위젯 정의 · 화면 배치 · 크기 (widgetEndpoints · urlWidgetMap · widgetSizes · builtinWidgets …)
 │  ├─ render/      UniversalWidget · UserWidget · WidgetRenderer · WidgetMenu · autoRender
 │  └─ widgets/     컴포넌트가 따로 있는 개별 위젯 (chartstudio · backtest · providerViews 템플릿)
 ├─ common/         도메인 무관 공통 — 아래 api/format/ui 는 common/index.js 로만 import
 │  ├─ api/ · format/ · ui/   요청 · 표기 · Modal/dialog/notify
 │  ├─ widget/      모든 위젯이 쓰는 껍데기·부품 (BaseWidget · WidgetCard · WidgetState · Select · Popover …)
-│  ├─ components/  범용 부품 (CommonTable · CommonChart · SymbolAutocomplete · StockSelector · ThemeToggle …)
+│  ├─ components/  범용 부품 (CommonChart · SymbolAutocomplete · StockSelector · ThemeToggle …)
 │  └─ util/        exportUtils
 ├─ lib/            외부 라이브러리 감싸기 — plotly: Plot(유일한 Plotly 그리기 부품) 위에 PlotlyChart · PlotlyRawChart
 ├─ hooks/          앱 수준 훅 · store/ zustand 전역 상태 · contexts/ React context

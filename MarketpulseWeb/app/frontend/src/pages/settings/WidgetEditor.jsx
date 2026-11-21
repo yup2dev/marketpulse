@@ -18,6 +18,7 @@ import { toWidgetConfig, viewKind, ALL_SCREENS } from '../../widget/registry/use
 import { normalizeTableRows } from '../../widget/render/autoRender';
 import useUserWidgetStore from '../../store/userWidgetStore';
 import { ScreenChips } from './parts';
+import { MpGrid } from '../../widget/engine';
 
 const PREVIEW_SYMBOL = 'AAPL';
 const PERIOD_CHOICES = ['1mo', '3mo', '6mo', '1y', '3y', '5y', '10y'].map((id) => ({ value: id, label: periodLabel(id) }));
@@ -114,7 +115,6 @@ function Section({ step, title, hint, children, action }) {
   );
 }
 
-const TH = 'text-left text-[10px] font-semibold uppercase tracking-wider text-gray-500 pb-1.5 pr-2';
 const BTN_SECONDARY =
   'flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-1.5 rounded-md text-xs font-medium border border-gray-700 text-gray-300 hover:border-cyan-500 hover:text-cyan-300 disabled:opacity-40 transition-colors';
 
@@ -317,35 +317,35 @@ export default function WidgetEditor({ initial, codes, variables, onDone, onCanc
             {apiKey && !schema && <p className="text-xs text-gray-500">API 정보를 불러오는 중…</p>}
             {schema && draft.params.length === 0 && <p className="text-xs text-gray-500">이 API 는 파라미터가 없습니다.</p>}
             {schema && draft.params.length > 0 && (
-              <table className="w-full">
-                <thead>
-                  <tr>
-                    <th className={`${TH} w-[26%]`}>파라미터</th>
-                    <th className={`${TH} w-[24%]`}>값 넣는 방법</th>
-                    <th className={TH}>값</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {draft.params.map((p, i) => {
-                    const spec = specByName.get(p.param_name);
-                    return (
-                      <tr key={p.param_name} className="align-top">
-                        <td className="py-1 pr-2">
+              <MpGrid
+                rows={draft.params}
+                options={{
+                  rowKey: 'param_name', minWidth: 0, rowHeight: 0, scroll: false, valign: 'top',
+                  columns: [
+                    { id: 'param', header: '파라미터', width: '26%', wrap: true, render: (p) => {
+                      const spec = specByName.get(p.param_name);
+                      return (
+                        <>
                           <div className="text-xs text-gray-200 font-mono pt-2">
                             {p.param_name}
                             {spec?.required && <span className="ml-1 text-amber-400" title="필수">*</span>}
                           </div>
                           {spec?.hint && <div className="text-[10px] text-gray-500 leading-tight">{spec.hint}</div>}
-                        </td>
-                        <td className="py-1 pr-2">
-                          <Select
-                            size="md" align="left"
-                            value={p.bind_type}
-                            options={[{ value: UNUSED, label: '보내지 않음' }, ...codes.BIND_TYPE.map((c) => ({ value: c.value, label: c.name }))]}
-                            onChange={(v) => setParam(i, { bind_type: v, var_name: v === 'VAR' ? (p.var_name || variables[0]?.name) : null })}
-                          />
-                        </td>
-                        <td className="py-1">
+                        </>
+                      );
+                    } },
+                    { id: 'bind', header: '값 넣는 방법', width: '24%', render: (p, _ctx, i) => (
+                      <Select
+                        size="md" align="left"
+                        value={p.bind_type}
+                        options={[{ value: UNUSED, label: '보내지 않음' }, ...codes.BIND_TYPE.map((c) => ({ value: c.value, label: c.name }))]}
+                        onChange={(v) => setParam(i, { bind_type: v, var_name: v === 'VAR' ? (p.var_name || variables[0]?.name) : null })}
+                      />
+                    ) },
+                    { id: 'value', header: '값', render: (p, _ctx, i) => {
+                      const spec = specByName.get(p.param_name);
+                      return (
+                        <>
                           {p.bind_type === UNUSED && <div className="text-[11px] text-gray-600 pt-2">API 기본값 사용</div>}
                           {p.bind_type === 'FIXED' && (
                             <ValueInput spec={spec} value={p.param_value} placeholder="값" onChange={(v) => setParam(i, { param_value: v })} />
@@ -374,12 +374,12 @@ export default function WidgetEditor({ initial, codes, variables, onDone, onCanc
                               )}
                             </div>
                           )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                        </>
+                      );
+                    } },
+                  ],
+                }}
+              />
             )}
           </Section>
 
@@ -398,54 +398,48 @@ export default function WidgetEditor({ initial, codes, variables, onDone, onCanc
               <p className="text-xs text-gray-500">알려진 필드가 없습니다. 샘플 조회로 실제 응답에서 가져오세요.</p>
             )}
             {schema && draft.fields.length > 0 && (
-              <table className="w-full">
-                <thead>
-                  <tr>
-                    <th className={`${TH} w-12`}>순서</th>
-                    <th className={`${TH} w-[26%]`}>필드</th>
-                    <th className={`${TH} w-[22%]`}>자리</th>
-                    <th className={TH}>표시 이름</th>
-                    <th className={`${TH} w-[20%]`}>형식</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {draft.fields.map((f, i) => (
-                    <tr key={f.field_name} className={f.field_role === 'HIDDEN' ? 'opacity-50' : ''}>
-                      <td className="py-1 pr-2">
-                        <div className="flex">
-                          <button type="button" onClick={() => moveField(i, -1)} disabled={i === 0} className="p-0.5 text-gray-500 hover:text-white disabled:opacity-20" aria-label="위로"><ArrowUp size={12} /></button>
-                          <button type="button" onClick={() => moveField(i, 1)} disabled={i === draft.fields.length - 1} className="p-0.5 text-gray-500 hover:text-white disabled:opacity-20" aria-label="아래로"><ArrowDown size={12} /></button>
-                        </div>
-                      </td>
-                      <td className="py-1 pr-2">
+              <MpGrid
+                rows={draft.fields}
+                options={{
+                  rowKey: 'field_name', minWidth: 0, rowHeight: 0, scroll: false,
+                  rowClassName: (f) => (f.field_role === 'HIDDEN' ? 'opacity-50' : ''),
+                  columns: [
+                    { id: 'order', header: '순서', width: 48, render: (f, _ctx, i) => (
+                      <div className="flex">
+                        <button type="button" onClick={() => moveField(i, -1)} disabled={i === 0} className="p-0.5 text-gray-500 hover:text-white disabled:opacity-20" aria-label="위로"><ArrowUp size={12} /></button>
+                        <button type="button" onClick={() => moveField(i, 1)} disabled={i === draft.fields.length - 1} className="p-0.5 text-gray-500 hover:text-white disabled:opacity-20" aria-label="아래로"><ArrowDown size={12} /></button>
+                      </div>
+                    ) },
+                    { id: 'field', header: '필드', width: '26%', render: (f) => (
+                      <>
                         <span className="text-xs text-gray-200 font-mono">{f.field_name}</span>
                         {fieldKind.get(f.field_name) && <span className="ml-1.5 text-[10px] text-gray-600">{fieldKind.get(f.field_name)}</span>}
-                      </td>
-                      <td className="py-1 pr-2">
-                        <Select
-                          size="md" align="left" value={f.field_role}
-                          options={codes.FIELD_ROLE.map((c) => ({ value: c.value, label: c.name }))}
-                          onChange={(v) => setField(i, { field_role: v })}
-                        />
-                      </td>
-                      <td className="py-1 pr-2">
-                        <input
-                          type="text" className={INPUT_CLS} value={f.label || ''}
-                          placeholder={titleCase(f.field_name)}
-                          onChange={(e) => setField(i, { label: e.target.value })}
-                        />
-                      </td>
-                      <td className="py-1">
-                        <Select
-                          size="md" align="left" value={f.format}
-                          options={codes.FIELD_FORMAT.map((c) => ({ value: c.value, label: c.name }))}
-                          onChange={(v) => setField(i, { format: v })}
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </>
+                    ) },
+                    { id: 'role', header: '자리', width: '22%', render: (f, _ctx, i) => (
+                      <Select
+                        size="md" align="left" value={f.field_role}
+                        options={codes.FIELD_ROLE.map((c) => ({ value: c.value, label: c.name }))}
+                        onChange={(v) => setField(i, { field_role: v })}
+                      />
+                    ) },
+                    { id: 'label', header: '표시 이름', render: (f, _ctx, i) => (
+                      <input
+                        type="text" className={INPUT_CLS} value={f.label || ''}
+                        placeholder={titleCase(f.field_name)}
+                        onChange={(e) => setField(i, { label: e.target.value })}
+                      />
+                    ) },
+                    { id: 'format', header: '형식', width: '20%', render: (f, _ctx, i) => (
+                      <Select
+                        size="md" align="left" value={f.format}
+                        options={codes.FIELD_FORMAT.map((c) => ({ value: c.value, label: c.name }))}
+                        onChange={(v) => setField(i, { format: v })}
+                      />
+                    ) },
+                  ],
+                }}
+              />
             )}
           </Section>
 

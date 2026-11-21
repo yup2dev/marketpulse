@@ -86,7 +86,7 @@ endpoint → 행 꺼내기(dataPath) → prepare → 실시간 시세 병합(quo
 | 뷰 | 용도 | 옵션 (자세한 건 각 파일 머리 주석) |
 |---|---|---|
 | `tiles` | 시세 타일 격자 | `symbol, label, series, columns` |
-| `table` | 표 | `columns[{ type, header, field, width, align, render }]`, `minWidth`, `rowHeight`, `fixed`(열 폭 고정 + 넘치면 …), `select`(행 클릭 → 화면 변수) — type: `rank stock price change compact number trend tag text muted value value_muted money pct pill bar badge entity link` |
+| `table` | 표 (= `MpGrid`) | `columns[{ type, header, field, width, align, render, digits, sortable, hide }]`, `minWidth`, `rowHeight`, `fixed`(열 폭 고정 + 넘치면 …), `select`(행 클릭 → 화면 변수), 켜는 기능 `sortable` `searchable` `exportable` `columnPicker` `pageSize` `expand(row)` `onRowClick` — type: `rank stock price change percent compact number date trend tag text muted value value_muted money pct pill bar badge entity link` |
 | `candles` | 한 종목 캔들 + 거래량 | `headline`, `ma`(이동평균선 봉 수) — 등락률 기준은 `meta.prevClose` |
 | `treemap` | 넓이 = 크기, 색 = 등락률 | `value, label, change, group, link, heatMax` |
 | `list` | 시각 · 제목 · 꼬리표/값 | `time, title, sub, href, tag, tagSymbol, value, valueMuted, dot, rowHeight` |
@@ -107,6 +107,22 @@ endpoint → 행 꺼내기(dataPath) → prepare → 실시간 시세 병합(quo
 
 표 · 목록 · 카드가 같이 쓰는 작은 표시는 `views/parts.jsx` 에 있다 — 새로 만들지 말고 가져다 쓴다:
 `Pill`(색 꼬리표 — 등락 · 매수/매도 · 감성) · `MiniBar`(값 옆 얇은 막대) · `LineSwatch`(범례 선 조각) · `Switch`(켜고 끄기) · `StockLogo` · `TrendLine`.
+
+### 표만 쓰기 — `MpGrid`
+
+DataWidget 없이 내가 가진 행을 같은 표로 그린다. 앱의 표는 이것 하나다 (예전 `CommonTable` 은 합쳐 없앴다).
+
+```jsx
+import { MpGrid } from '../widget/engine';
+
+<MpGrid rows={rows} options={{ columns, sortable: true }} />          // 바로 그리기
+
+const HoldingsGrid = MpGrid.init({ columns, sortable: true, searchable: true, pageSize: 20 });
+<HoldingsGrid rows={rows} />                                          // 미리 설정해 두고 쓰기 (options 를 또 주면 그 값이 이긴다)
+```
+
+입력칸이 든 편집 표(설정 화면)도 MpGrid 다 — `rowKey` · `rowHeight: 0`(높이 자동) · `scroll: false`(칸 안 Select 가 잘리지 않게) ·
+`render(row, ctx, index)` · `rowClassName` · `expanded(row)`(펼침을 밖에서 정함) · `footer`(추가 줄). 손으로 `<table>` 을 짜지 않는다.
 
 스펙 하나로 안 되는 화면(차트 — `widget/widgets/chartstudio/`)도 같은 조각과 `Plot`(`config` · `onRelayout` 으로 그리기 도구)을 가져다 쓴다.
 

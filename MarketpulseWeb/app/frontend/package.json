@@ -10,8 +10,6 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@tanstack/match-sorter-utils": "^8.19.4",
-    "@tanstack/react-table": "^8.21.3",
     "lucide-react": "^0.462.0",
     "plotly.js-dist-min": "^3.4.0",
     "react": "^18.3.1",

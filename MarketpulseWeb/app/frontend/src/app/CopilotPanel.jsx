@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { API_BASE, apiClient } from '../common';
 import useNavigationStore from '../store/navigationStore';
+import { MpGrid } from '../widget/engine';
 
 // ── 경량 마크다운 렌더러 (외부 의존성 없음: 테이블/코드/볼드/리스트) ─────────
 function renderInline(text, keyBase) {
@@ -71,28 +72,17 @@ function MarkdownLite({ text }) {
       }
       out.push(
         <div key={key++} className="my-1.5 overflow-x-auto">
-          <table className="text-[11px] w-full border-collapse">
-            <thead>
-              <tr>
-                {header.map((h, hi) => (
-                  <th key={hi} className="text-left px-2 py-1 border-b border-gray-700 text-gray-400 font-medium whitespace-nowrap">
-                    {renderInline(h, `th${hi}`)}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r, ri) => (
-                <tr key={ri} className="border-b border-gray-800/60">
-                  {r.map((c, ci) => (
-                    <td key={ci} className="px-2 py-1 text-gray-300 whitespace-nowrap">
-                      {renderInline(c, `td${ri}-${ci}`)}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <MpGrid
+            rows={rows}
+            options={{
+              minWidth: 0, rowHeight: 24, scroll: false,
+              columns: header.map((h, ci) => ({
+                id: `c${ci}`,
+                header: renderInline(h, `th${ci}`),
+                render: (r, _ctx, ri) => renderInline(r[ci] ?? '', `td${ri}-${ci}`),
+              })),
+            }}
+          />
         </div>,
       );
       continue;
