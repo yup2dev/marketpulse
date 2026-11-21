@@ -14,7 +14,6 @@ export { default as OverflowMenu } from './OverflowMenu';
 export { default as ParamField } from './ParamField';
 export { default as WidgetState } from './WidgetState';
 export { default as Popover } from './Popover';
-export { default as MetricTiles } from './MetricTiles';
 export { default as DateStepper } from './DateStepper';
 export { default as SourceFooter } from './SourceFooter';
 export { WidgetInstanceContext, useWidgetState, useWidgetSymbol, clearWidgetState } from './widgetPersistence';

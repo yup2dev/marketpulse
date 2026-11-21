@@ -8,44 +8,22 @@ import {
 } from './adapter';
 import { ProviderSelect, ControlSelect, DateChip, OptionsMenu } from './HeaderControls';
 import { fill, pick, useApi, useExtra } from './data';
-import TilesView from './views/TilesView';
-import TableView from './views/TableView';
-import CandlesView from './views/CandlesView';
-import TreemapView from './views/TreemapView';
-import ListView from './views/ListView';
-import LinesView from './views/LinesView';
-import DonutView from './views/DonutView';
-import GaugeView from './views/GaugeView';
-import KvView from './views/KvView';
-import StatsView from './views/StatsView';
-import BarsView from './views/BarsView';
-import ColumnsView from './views/ColumnsView';
-import KpisView from './views/KpisView';
-import HeatmapView from './views/HeatmapView';
-import ArticlesView from './views/ArticlesView';
-import CurveView from './views/CurveView';
 import StripView from './views/StripView';
+import MpGrid from './MpGrid';
+import { CHART_VIEWS, chartView } from './MpChart';
+import { KPI_VIEWS } from './MpKpi';
+import { LIST_VIEWS } from './MpList';
 import { useShared, setShared } from './shared';
 
+// 화면에서 직접 쓰는 부품과 같은 것 — 표 MpGrid · 차트 MpChart · 숫자 요약 MpKpi · 목록 MpList 의 종류표
 const VIEWS = {
-  strip:    StripView,
-  kpis:     KpisView,
-  heatmap:  HeatmapView,
-  articles: ArticlesView,
-  curve:    CurveView,
-  tiles:   TilesView,
-  table:   TableView,
-  candles: CandlesView,
-  treemap: TreemapView,
-  list:    ListView,
-  lines:   LinesView,
-  donut:   DonutView,
-  gauge:   GaugeView,
-  kv:      KvView,
-  stats:   StatsView,
-  bars:    BarsView,
-  columns: ColumnsView,
+  table: MpGrid,
+  ...CHART_VIEWS,
+  ...KPI_VIEWS,
+  ...LIST_VIEWS,
+  strip: StripView,
 };
+const viewOf = (name) => VIEWS[name] || chartView(name);
 
 /**
  * 새 뷰 종류를 붙인다 — Component 는 { rows, meta, quotes, ctx, symbol, setSymbol, setParam, options } 를 받는다.
@@ -58,7 +36,7 @@ export function registerView(name, Component) {
 /** 스펙을 그대로 돌려준다 — 필수 항목이 빠졌으면 개발 중에 바로 알린다 */
 export function defineWidget(spec) {
   if (import.meta.env?.DEV) {
-    if (!spec.view || !VIEWS[spec.view]) console.error('[mp-widgets] unknown view:', spec.view, spec);
+    if (!spec.view || !viewOf(spec.view)) console.error('[mp-widgets] unknown view:', spec.view, spec);
     if (!spec.source) console.error('[mp-widgets] source is required:', spec);
     if (!spec.title && !spec.tabs?.length) console.error('[mp-widgets] title or tabs is required:', spec);
   }
@@ -165,7 +143,7 @@ export default function DataWidget({ spec, symbol: pageSymbol, onRemove }) {
 
   // ── 그리기 ──
   const viewName = tab?.view || spec.view;
-  const View = VIEWS[viewName];
+  const View = viewOf(viewName);
   // 출처는 하나만 보인다 — 실제로 답한 소스('$provider' = 응답의 provider · 고른 소스). 응답에 없으면 정의의 첫 소스
   const declared = [].concat(spec.source || []);
   const answered = declared.includes('$provider') ? (res?.provider || provider) : null;

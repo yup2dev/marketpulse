@@ -1,16 +1,15 @@
 /**
- * 위젯 '보기' 종류의 단일 기준 — 표 + 차트형. BaseWidget 의 View 드롭다운과
- * ChartTypeSelector 가 같은 목록을 쓴다.
+ * 위젯 '보기' 종류의 단일 기준 — 표 + 차트형 (BaseWidget 의 View 드롭다운).
+ * 차트형 value 는 MpChart 의 type 이다.
  */
-import { Table, TrendingUp, Activity, BarChart2, Layers, PieChart, Circle, LineChart } from 'lucide-react';
+import { Table, TrendingUp, Activity, BarChart2, Layers, PieChart, LineChart } from 'lucide-react';
 
 export const CHART_TYPES = [
   { value: 'line',       label: 'Line',         icon: TrendingUp },
   { value: 'area',       label: 'Area',         icon: Activity   },
   { value: 'bar',        label: 'Bar',          icon: BarChart2  },
   { value: 'stackedBar', label: 'Stacked bar',  icon: Layers     },
-  { value: 'pie',        label: 'Pie',          icon: PieChart   },
-  { value: 'donut',      label: 'Donut',        icon: Circle     },
+  { value: 'donut',      label: 'Donut',        icon: PieChart   },
 ];
 
 export const TABLE_VIEW  = { value: 'table',  label: 'Table', icon: Table };
