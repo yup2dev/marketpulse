@@ -8,28 +8,20 @@ import {
 } from './adapter';
 import { ProviderSelect, ControlSelect, DateChip, OptionsMenu } from './HeaderControls';
 import { fill, pick, useApi, useExtra } from './data';
-import TilesView from './views/TilesView';
-import ListView from './views/ListView';
-import KvView from './views/KvView';
-import StatsView from './views/StatsView';
-import KpisView from './views/KpisView';
-import ArticlesView from './views/ArticlesView';
 import StripView from './views/StripView';
 import MpGrid from './MpGrid';
 import { CHART_VIEWS, chartView } from './MpChart';
+import { KPI_VIEWS } from './MpKpi';
+import { LIST_VIEWS } from './MpList';
 import { useShared, setShared } from './shared';
 
-// 표는 MpGrid, 차트는 MpChart 의 종류표(CHART_VIEWS) — 화면에서 직접 쓰는 부품과 같은 것
+// 화면에서 직접 쓰는 부품과 같은 것 — 표 MpGrid · 차트 MpChart · 숫자 요약 MpKpi · 목록 MpList 의 종류표
 const VIEWS = {
+  table: MpGrid,
   ...CHART_VIEWS,
-  table:    MpGrid,
-  strip:    StripView,
-  kpis:     KpisView,
-  articles: ArticlesView,
-  tiles:    TilesView,
-  list:     ListView,
-  kv:       KvView,
-  stats:    StatsView,
+  ...KPI_VIEWS,
+  ...LIST_VIEWS,
+  strip: StripView,
 };
 const viewOf = (name) => VIEWS[name] || chartView(name);
 

@@ -68,7 +68,7 @@ src/
 │  ├─ settings/    SettingsPage · WidgetEditor · WidgetSettings · WidgetTypeAdmin …
 │  └─ auth/        Login · Register
 ├─ widget/         위젯 시스템 — 위젯이 어떻게 정의되고 그려지는가
-│  ├─ engine/      mp-widgets 라이브러리 (DataWidget · MpGrid 표 · MpChart 차트 · 스펙 · views/) — README.md 참고
+│  ├─ engine/      mp-widgets 라이브러리 (DataWidget · MpGrid 표 · MpChart 차트 · MpKpi 숫자 · MpList 목록 · views/) — README.md 참고
 │  ├─ registry/    위젯 정의 · 화면 배치 · 크기 (widgetEndpoints · urlWidgetMap · widgetSizes · builtinWidgets …)
 │  ├─ render/      UniversalWidget · UserWidget · WidgetRenderer · WidgetMenu · autoRender
 │  └─ widgets/     컴포넌트가 따로 있는 개별 위젯 (chartstudio · backtest · providerViews 템플릿)

@@ -104,6 +104,7 @@ endpoint → 행 꺼내기(dataPath) → prepare → 실시간 시세 병합(quo
 | `strip` | 시간 순 상태 띠 + 지금 상태 (달마다의 시장 국면) | `x, state, states('값:이름,…'), value, valueLabel` |
 | `line` `area` `bar` `stackedBar` `scatter` | 범용 x/y 차트 — 응답 모양을 모르는 위젯용 (끌어서 확대 · 더블클릭 되돌리기) | `x, series([{ field, label, color }] 또는 '필드:이름,…'), refs([{ y, label }]), marks([{ x, label }]), unit, digits` |
 | `plotly` | 서버가 준 Plotly 그림 그대로 (색만 테마로) | `figure({ data, layout })` |
+| `cards` | 이름 / 큰 값 상자 격자 — 계산 결과 몇 개 (참/거짓은 Yes/No + 색) | `label, value, hint, tone, min`(카드 최소 폭) |
 
 `lines` 는 계열을 골라 가며 비교할 때, `curve` 는 '내 것 대 기준' 한 쌍을 볼 때 쓴다. `stats` 는 한 줄짜리 요약, `kpis` 는 값이 주인공인 요약이다.
 
@@ -140,6 +141,24 @@ const PriceChart = MpChart.init({ type: 'area', x: 'date' });
 <PriceChart rows={rows} options={{ series: [{ field: 'close', label: '종가' }] }} />
 ```
 
+### 숫자 요약 · 목록 — `MpKpi` · `MpList`
+
+같은 틀(`family.jsx` 의 `createFamily`)이다 — `options.type` 으로 고르고 `.init({...})` 로 미리 설정한다.
+
+| 부품 | type |
+|---|---|
+| `MpKpi` | `kpis`(기본) · `stats` · `cards` · `tiles` |
+| `MpList` | `list`(기본) · `articles` · `kv` |
+
+```jsx
+import { MpKpi, MpList } from '../widget/engine';
+
+<MpKpi rows={[{ label: 'NPV', value: '1,234' }]} options={{ type: 'cards' }} />
+<MpList rows={news} options={{ type: 'list', time: 'time', title: 'title', href: 'url' }} />
+```
+
+DataWidget 의 view 는 `table`(MpGrid) · MpChart · MpKpi · MpList 의 종류표 + `strip` 이다. 새 뷰는 맞는 부품의 종류표에 넣는다.
+
 스펙 하나로 안 되는 화면(그리기 도구가 있는 차트 — `widget/widgets/chartstudio/`)은 같은 조각과 `Plot`(`config` · `onRelayout` 으로 그리기 도구)을 가져다 쓴다.
 
 뷰 옵션의 필드 자리에는 필드 이름이나 `(row, ctx) => 값` 을 쓸 수 있다.
@@ -166,10 +185,12 @@ registerView('bars', BarsView);
 | `DataWidget.jsx` | 스펙 → 화면. `defineWidget`, `registerView` |
 | `MpGrid.jsx` | 앱의 유일한 표 (view `table`) |
 | `MpChart.jsx` | 앱의 유일한 차트 — `options.type` → 차트 뷰 (`CHART_VIEWS`) |
+| `MpKpi.jsx` · `MpList.jsx` | 숫자 요약 (`KPI_VIEWS`) · 목록 (`LIST_VIEWS`) |
+| `family.jsx` | 위 세 부품의 공통 틀 — `createFamily(name, views, { defaultType, aliases })` |
 | `data.js` | `fill` `pick` `useApi` `useSeries` `useExtra` `normalizeBars` `lastSession` |
 | `format.js` | `fmtPct` `fmtPrice` `fmtCompact` `fmtNumber` `toneOf` `read` |
 | `Plot.jsx` | Plotly 래퍼 — `figure(colors)`. 테마가 바뀌면 다시 그린다 |
-| `views/` | 뷰 (차트 뷰는 MpChart 를 거쳐 쓴다) + 공용 조각(`parts.jsx`) |
+| `views/` | 뷰 (MpChart · MpKpi · MpList 를 거쳐 쓴다) + 공용 조각(`parts.jsx`) |
 | `shared.js` | 화면 변수 — 여러 위젯이 같이 따르는 값 (`useShared` · `setShared`) |
 | `adapter.js` | 앱에 기대는 것 전부 (요청·시세 소켓·테마·카드·상태 화면·라우팅). 다른 파일은 앱 코드를 직접 import 하지 않는다 |
 

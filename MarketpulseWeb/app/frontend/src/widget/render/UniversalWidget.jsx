@@ -39,8 +39,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import BaseWidget         from '../../common/widget/BaseWidget';
 import WidgetParamForm    from '../../common/widget/WidgetParamForm';
-import { MpGrid, MpChart } from '../engine';
-import { WidgetState, MetricTiles, stateFromError, buildViewOptions, providerFromEndpoint, useWidgetState, useWidgetSymbol } from '../../common/widget';
+import { MpGrid, MpChart, MpKpi } from '../engine';
+import { WidgetState, stateFromError, buildViewOptions, providerFromEndpoint, useWidgetState, useWidgetSymbol } from '../../common/widget';
 import {
   isParamVisible, visibleParams, paramDisplayValue, humanizeKey, applyColumnConfig,
 } from '../../common/widget/paramSpec';
@@ -116,6 +116,7 @@ const KV_COLUMNS = [
   { field: 'value',  header: 'Value', align: 'right', render: (row) => fmtKv(row.value) },
 ];
 const KV_OPTIONS = { columns: KV_COLUMNS, sortable: false };
+const KV_CARDS = { type: 'cards' };   // kv 의 primary 필드 — 큰 값 카드
 
 // ── Sub-row detail panel (lazy fetch on expand) ───────────────────────────────
 function ExpandedRowDetail({ row, config }) {
@@ -557,7 +558,7 @@ export default function UniversalWidget({
   } else if (display === 'kv') {
     body = (
       <div className="absolute inset-0 overflow-auto">
-        <MetricTiles items={kvTiles} />
+        {kvTiles.length > 0 && <MpKpi rows={kvTiles} options={KV_CARDS} />}
         {kvRows.length > 0 && (
           <DenseGrid rows={kvRows} options={KV_OPTIONS} />
         )}

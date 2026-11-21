@@ -23,6 +23,7 @@
  * DataWidget 의 view 이름도 이 표를 쓴다 — DB 위젯과 화면이 같은 차트를 그린다.
  * 받는 props 는 뷰와 같다: { rows, meta, ctx, symbol, setSymbol, quotes, options }.
  */
+import { createFamily } from './family';
 import BarsView from './views/BarsView';
 import CandlesView from './views/CandlesView';
 import ColumnsView from './views/ColumnsView';
@@ -63,30 +64,8 @@ export const CHART_VIEWS = {
   plotly: PlotlyView,
 };
 
-const ALIASES = { candle: 'candles', pie: 'donut' };
+const MpChart = createFamily('MpChart', CHART_VIEWS, { defaultType: 'line', aliases: { candle: 'candles', pie: 'donut' } });
+export default MpChart;
 
-/** 종류 이름 → 부품 (없으면 undefined) */
-export function chartView(type) {
-  return CHART_VIEWS[ALIASES[type] || type];
-}
-
-const NO_QUOTES = {};
-
-export default function MpChart({ rows = [], options = {}, quotes = NO_QUOTES, ...props }) {
-  const View = chartView(options.type || 'line');
-  if (!View) {
-    if (import.meta.env?.DEV) console.error('[MpChart] unknown type:', options.type);
-    return null;
-  }
-  // DataWidget 밖에서는 실시간 시세가 없다 — 시세를 읽는 뷰(candles)가 빈 값으로 그리게
-  return <View rows={rows} options={options} quotes={quotes} {...props} />;
-}
-
-/** 옵션을 미리 정해 둔 차트를 만든다 */
-MpChart.init = function init(defaults = {}) {
-  function PresetChart({ options, ...props }) {
-    return <MpChart {...props} options={options ? { ...defaults, ...options } : defaults} />;
-  }
-  PresetChart.displayName = 'MpChart.init';
-  return PresetChart;
-};
+/** 종류 이름 → 부품 (별칭 포함, 없으면 undefined) */
+export const chartView = MpChart.view;

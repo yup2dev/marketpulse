@@ -89,7 +89,7 @@ API fetch 이외의 상태(portfolioData 등)가 필요할 때만:
   propsFrom: ['symbol'],        // 'symbol' | 'portfolioId' 주입
 },
 ```
-컴포넌트는 `widget/widgets/<이름>/`에. 차트는 `MpChart`(`options.type` — line·area·bar·candles·donut·heatmap …), 표는 `MpGrid` 재사용 (둘 다 `widget/engine`, `.init({...})` 로 미리 설정) (recharts 신규 사용 금지).
+컴포넌트는 `widget/widgets/<이름>/`에. 차트는 `MpChart`(`options.type` — line·area·bar·candles·donut·heatmap …), 표는 `MpGrid`, 숫자 요약은 `MpKpi`(kpis·stats·cards·tiles), 목록은 `MpList`(list·articles·kv) 재사용 (모두 `widget/engine`, `.init({...})` 로 미리 설정) (recharts 신규 사용 금지).
 
 **껍데기는 반드시 `BaseWidget`, 필터·드롭다운·상태 화면은 반드시 `common/widget/`** —
 위젯 파일 안에 pill·select·'데이터 없음' 화면을 새로 그리지 않는다 (디자인이 제각각이 된 원인):
