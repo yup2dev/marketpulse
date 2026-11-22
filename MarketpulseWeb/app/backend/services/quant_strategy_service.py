@@ -13,6 +13,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import threading
 import uuid
 from collections import OrderedDict
 from datetime import date
@@ -232,6 +233,12 @@ def delete_strategy(db: Session, user_id: str, strategy_id: str) -> None:
 
 _PANEL_CACHE: Dict[str, Tuple[tuple, dict]] = {}
 
+# 운영 서버는 메모리가 아주 작다(컨테이너 300MB). 백테스트 화면은 요청 7개를 한꺼번에 보내는데,
+# 캐시가 비어 있을 때 스레드마다 패널을 따로 읽으면 그만큼 메모리를 동시에 써서 서버가 스왑에 빠진다
+# (2026-11-22 장애). 패널 읽기와 백테스트 계산은 한 번에 하나만 하고, 기다린 요청은 캐시를 쓴다.
+_PANEL_LOCK = threading.Lock()
+_BACKTEST_LOCK = threading.Lock()
+
 
 def _panel_version(db: Session, universe: str) -> tuple:
     q = db.query(func.count(MBS_IN_QUANT_PANEL.id), func.max(MBS_IN_QUANT_PANEL.updated_at),
@@ -248,10 +255,21 @@ def load_panel(db: Session, universe: str) -> Optional[dict]:
     hit = _PANEL_CACHE.get(universe)
     if hit and hit[0] == version:
         return hit[1]
+    with _PANEL_LOCK:
+        hit = _PANEL_CACHE.get(universe)   # 기다리는 동안 다른 요청이 읽어 두었으면 그걸 쓴다
+        if hit and hit[0] == version:
+            return hit[1]
+        _PANEL_CACHE.pop(universe, None)  # 옛 패널은 새로 읽기 전에 놓아 둘이 함께 메모리에 있지 않게
+        panel = _read_panel(db, universe, version)
+        _PANEL_CACHE[universe] = (version, panel)
+        return panel
 
+
+def _read_panel(db: Session, universe: str, version: tuple) -> dict:
     cols = ["base_ymd", "stk_cd", "close", "fwd_ret", *FACTOR_IDS, *[f"p_{m}" for m in MODEL_IDS]]
     rows = db.query(*[getattr(MBS_IN_QUANT_PANEL, c) for c in cols]).filter(MBS_IN_QUANT_PANEL.universe == universe).all()
     df = pd.DataFrame(rows, columns=cols)
+    del rows
     df["base_ymd"] = pd.to_datetime(df["base_ymd"])
     is_bench = df["stk_cd"].str.startswith("^")
     stocks, bench = df[~is_bench], df[is_bench]
@@ -267,7 +285,6 @@ def load_panel(db: Session, universe: str) -> Optional[dict]:
         code: g.set_index("base_ymd")["close"].sort_index().astype(float) for code, g in bench.groupby("stk_cd")
     }
     panel["version"] = version
-    _PANEL_CACHE[universe] = (version, panel)
     return panel
 
 
@@ -476,13 +493,17 @@ def backtest(db: Session, user_id: str, strategy_id: Optional[str], start: Optio
         return None, status
     key_src = json.dumps([s, panel["version"], str(start), str(end), benchmark, cost_bps], sort_keys=True, default=str)
     key = hashlib.sha1(key_src.encode()).hexdigest()
-    if key in _RESULT_CACHE:
-        _RESULT_CACHE.move_to_end(key)
-        return _RESULT_CACHE[key], status
-    result = run_backtest(s, panel, start, end, benchmark, cost_bps)
-    _RESULT_CACHE[key] = result
-    while len(_RESULT_CACHE) > _RESULT_CACHE_SIZE:
-        _RESULT_CACHE.popitem(last=False)
+    hit = _RESULT_CACHE.get(key)
+    if hit is not None:
+        return hit, status
+    with _BACKTEST_LOCK:
+        if key in _RESULT_CACHE:          # 같은 조건을 먼저 들어온 요청이 계산해 두었다
+            _RESULT_CACHE.move_to_end(key)
+            return _RESULT_CACHE[key], status
+        result = run_backtest(s, panel, start, end, benchmark, cost_bps)
+        _RESULT_CACHE[key] = result
+        while len(_RESULT_CACHE) > _RESULT_CACHE_SIZE:
+            _RESULT_CACHE.popitem(last=False)
     return result, status
 
 
