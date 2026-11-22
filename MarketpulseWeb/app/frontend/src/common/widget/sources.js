@@ -36,6 +36,7 @@ export const SOURCE_LABELS = {
   screener:      'MarketPulse DB (screener)',
   backtest:      'Computed in browser',
   user:          'Your data',
+  server:        'MarketPulse server (live metrics)',
   live:          'Live quotes (Polygon · KIS stream)',
 };
 

@@ -22,6 +22,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.backend.core.config import settings
 from app.backend.core.lifespan import lifespan
 from app.backend.core.middleware.auth_gate import AuthGateMiddleware
+from app.backend.core.middleware.request_metrics import RequestMetricsMiddleware
 from app.backend.api.routers import register_routers
 
 app = FastAPI(
@@ -38,6 +39,8 @@ app = FastAPI(
 # status를 못 보고(네트워크 오류로 처리) refresh/forceLogout/로그인 리다이렉트가
 # 동작하지 않는다.
 app.add_middleware(AuthGateMiddleware)
+# 계측은 인증 게이트 바깥 — 401 로 막힌 요청도 센다 (운영 모니터링 /admin)
+app.add_middleware(RequestMetricsMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_allow_origins,

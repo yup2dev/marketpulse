@@ -18,6 +18,8 @@
     POST   /api/admin/widget-types                      위젯 종류 추가 (설정 화면 '보여 줄 위젯' 목록)
     PUT    /api/admin/widget-types/{type_code}          이름·그리는 방식·사용 여부·순서
     DELETE /api/admin/widget-types/{type_code}          쓰는 위젯이 있으면 409
+    GET    /api/admin/monitor/{dataset}                 운영 모니터링 (/admin 화면 위젯)
+           summary · system · traffic · endpoints · inflight · slow
 """
 from typing import Optional
 
@@ -74,6 +76,30 @@ async def circuit_breaker_reset(provider: str):
 async def fetcher_workers():
     from app.backend.core.fetcher_pool import fetcher_pool
     return {"connected": fetcher_pool.count(), "workers": fetcher_pool.status()}
+
+
+# ── 운영 모니터링 ─────────────────────────────────────────────────────────────
+# 값은 프로세스 메모리에만 있다 (services/monitor_service.py). async 로 둔다 — 동기 라우트가 스레드 풀을
+# 다 붙잡아 서버가 느려졌을 때도 이 화면은 이벤트 루프에서 바로 답해야 원인을 볼 수 있다.
+
+MONITOR_PROVIDER = "server"   # 출처 표기 (common/widget/sources.js)
+
+
+@router.get("/monitor/{dataset}", summary="운영 모니터링 — 부하 · 메모리 · 요청 성능")
+async def monitor(dataset: str):
+    from app.backend.services import monitor_service as mon
+    readers = {
+        "summary": mon.summary,
+        "system": mon.system_series,
+        "traffic": mon.traffic_series,
+        "endpoints": mon.endpoints,
+        "inflight": mon.inflight,
+        "slow": mon.slow_requests,
+    }
+    reader = readers.get(dataset)
+    if reader is None:
+        raise HTTPException(status_code=404, detail=f"모르는 항목이에요: {dataset}")
+    return {"results": reader(), "provider": MONITOR_PROVIDER}
 
 
 # ── 위젯 종류 목록 ────────────────────────────────────────────────────────────

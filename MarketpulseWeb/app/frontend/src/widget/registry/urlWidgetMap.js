@@ -82,6 +82,15 @@ export const URL_WIDGET_MAP = {
     // 결과 위젯(bt-run-* · bt-compare)의 배치는 DB 에 있다. 전략 고르기 · 만들기 · 고치기는 머리줄(StrategyPicker)
     categories: [dbTab('results', 'Results')],
   },
+
+  // ─── 운영 (관리자만) — 서버 부하 · 메모리 · 요청 성능. 위젯은 DB 행(ops-*), 값은 /api/admin/monitor/* ──
+  '/admin': {
+    label: 'Admin',
+    adminOnly: true,
+    needsSymbol: false,
+    needsPortfolio: false,
+    categories: [dbTab('monitor', 'Monitoring')],
+  },
 };
 
 /**

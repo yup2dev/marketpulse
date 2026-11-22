@@ -25,6 +25,7 @@ const ROUTE_MAP = {
   'macro-analysis':     '/macro',
   'quantlib':           '/quantlib',
   'backtest':           '/backtest',
+  'admin':              '/admin',
 };
 
 // 하위 메뉴 = 그 화면의 탭(urlWidgetMap categories). 메뉴와 탭 id가 어긋나지 않도록
@@ -51,7 +52,11 @@ const AppLayout = () => {
   const location = useLocation();
   const { user, logout } = useAuthStore();
   const { menus: rawMenus, loading: menusLoading } = useMenus();
-  const menus = useMemo(() => rawMenus.map(withTabChildren), [rawMenus]);
+  const isAdmin = user?.role === 'admin';
+  const menus = useMemo(
+    () => rawMenus.filter((m) => !m.adminOnly || isAdmin).map(withTabChildren),
+    [rawMenus, isAdmin],
+  );
   const [hoveredMenu, setHoveredMenu] = useState(null);
   const [copilotOpen, setCopilotOpen] = useState(
     () => localStorage.getItem('copilot-open') === '1',

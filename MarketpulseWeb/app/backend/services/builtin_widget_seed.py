@@ -992,3 +992,140 @@ BUILTIN_WIDGETS += [
 
 # 모든 기본 제공 위젯의 메뉴 분류 (group_name 을 따로 적지 않은 것)
 DEFAULT_GROUP = "Home"
+
+
+# ══ 운영 모니터링 (/admin · Monitoring) — 관리자만 (API 가 require_admin) ═══════════════════
+# 값은 서버 프로세스 메모리에 있다 (services/monitor_service.py) — 재시작하면 처음부터 다시 쌓인다.
+# 다른 화면의 메뉴에는 내놓지 않는다 (관리자가 아니면 403 이라 빈 위젯만 생긴다).
+MONITOR = "/admin/monitor/"
+MONITOR_EMPTY = "아직 쌓인 값이 없어요 — 15초쯤 뒤에 채워져요"
+MONITOR_TAB = ("/admin", "monitor")
+
+BUILTIN_WIDGETS += [
+    # ── 요약 줄: 가동 · 부하 · CPU · 메모리 · 스왑 · 컨테이너 · 요청 · p95 · 처리 중 ──
+    {
+        "widget_id": "ops-summary",
+        "name": "Server Summary",
+        "description": "Uptime, load, CPU, memory, swap, container memory, requests, p95 and in-flight in one line",
+        "group_name": "Operations",
+        "title": "서버 상태",
+        "view_type": "kpis",
+        "endpoint": MONITOR + "summary",
+        "source": "$provider",
+        "refresh_sec": 10,
+        "live_yn": "Y",
+        "empty_text": MONITOR_EMPTY,
+        "size": (12, 1, 6, 1),
+        "screens": [(*MONITOR_TAB, 0, 0, 12, 1)],
+    },
+    # ── 자원 추이 (15초 표본 · 최근 2시간) ──
+    {
+        "widget_id": "ops-system",
+        "name": "Server Resources",
+        "description": "CPU, I/O wait, memory, swap and container memory every 15 seconds (last 2 hours)",
+        "group_name": "Operations",
+        "view_type": "lines",
+        "endpoint": MONITOR + "system",
+        "source": "$provider",
+        "source_note": "15초 표본 · 최근 2시간",
+        "refresh_sec": 15,
+        "empty_text": MONITOR_EMPTY,
+        "size": (8, 6, 4, 4),
+        "tabs": [
+            ("res", "사용률", None, None, []),
+            ("mem", "메모리", None, None, []),
+            ("load", "부하 · 스왑 I/O", None, None, []),
+        ],
+        "options": {
+            "x": "time", "max": "6",
+            "tab.res.series": "cpu_pct:CPU,iowait_pct:I/O 대기,app_cpu_pct:앱 CPU,mem_pct:메모리,swap_pct:스왑,cg_pct:컨테이너",
+            "tab.res.pick": "cpu_pct,iowait_pct,mem_pct,cg_pct",
+            "tab.res.unit": "%", "tab.res.digits": "0",
+            "tab.mem.series": "mem_mb:호스트 사용,cg_mb:컨테이너,rss_mb:앱 RSS,swap_mb:스왑",
+            "tab.mem.unit": "MB", "tab.mem.digits": "0",
+            "tab.load.series": "load1:부하 1분,load5:부하 5분,inflight:처리 중,threads:스레드,swap_in_kbs:스왑 in KB/s,swap_out_kbs:스왑 out KB/s",
+            "tab.load.pick": "load1,inflight,threads,swap_in_kbs",
+            "tab.load.digits": "1",
+        },
+        "screens": [(*MONITOR_TAB, 0, 1, 8, 6)],
+    },
+    # ── 지금 처리 중인 요청 · 최근 느린 요청 / 5xx ──
+    {
+        "widget_id": "ops-requests",
+        "name": "Live Requests",
+        "description": "Requests in flight (longest first) and recent slow (>1s) or 5xx requests",
+        "group_name": "Operations",
+        "view_type": "table",
+        "endpoint": MONITOR + "inflight",
+        "source": "$provider",
+        "refresh_sec": 5,
+        "live_yn": "Y",
+        "size": (4, 6, 3, 4),
+        "tabs": [
+            ("inflight", "처리 중", None, "지금 처리 중인 요청이 없어요", []),
+            ("slow", "느린 요청 · 오류", None, "1초 넘게 걸린 요청이나 5xx 가 없어요", []),
+        ],
+        "fields": [
+            _field("COLUMN", "time", "muted", "시각", width=72),
+            _field("COLUMN", "path", "text", "경로"),
+            _field("COLUMN", "elapsed_ms", "number", "ms", width=60),
+            _field("COLUMN", "_state", "badge", "", width=56, sub="_tone"),
+        ],
+        "options": {
+            "rowHeight": "30", "fixed": "true", "minWidth": "0",
+            "tab.slow.endpoint": MONITOR + "slow",
+        },
+        "screens": [(*MONITOR_TAB, 8, 1, 4, 6)],
+    },
+    # ── 분 단위 요청 수 · 응답 시간 ──
+    {
+        "widget_id": "ops-traffic",
+        "name": "Traffic & Latency",
+        "description": "Requests and errors per minute · p95 and average latency (last 2 hours)",
+        "group_name": "Operations",
+        "view_type": "lines",
+        "endpoint": MONITOR + "traffic",
+        "source": "$provider",
+        "source_note": "분 단위 · /health · OPTIONS · 이 화면의 요청 제외",
+        "refresh_sec": 30,
+        "empty_text": MONITOR_EMPTY,
+        "size": (6, 6, 4, 4),
+        "tabs": [
+            ("count", "요청 수", None, None, []),
+            ("lat", "응답 시간", None, None, []),
+        ],
+        "options": {
+            "x": "time", "digits": "0",
+            "tab.count.series": "count:요청,errors:오류 (5xx)",
+            "tab.lat.series": "p95_ms:p95,avg_ms:평균",
+            "tab.lat.unit": "ms",
+        },
+        "screens": [(*MONITOR_TAB, 0, 7, 6, 6)],
+    },
+    # ── 경로별 누계 — 서버를 가장 오래 붙잡은 경로부터 ──
+    {
+        "widget_id": "ops-endpoints",
+        "name": "Endpoints",
+        "description": "Per-route count, average / p95 / max latency, total time and errors since start",
+        "group_name": "Operations",
+        "title": "경로별 성능",
+        "view_type": "table",
+        "endpoint": MONITOR + "endpoints",
+        "source": "$provider",
+        "source_note": "앱 시작 후 누계 · 쓴 시간 합이 큰 순",
+        "refresh_sec": 30,
+        "empty_text": MONITOR_EMPTY,
+        "size": (6, 6, 4, 4),
+        "fields": [
+            _field("COLUMN", "route", "text", "경로"),
+            _field("COLUMN", "count", "number", "횟수", width=56),
+            _field("COLUMN", "avg_ms", "value", "평균 ms", width=64),
+            _field("COLUMN", "p95_ms", "value_muted", "p95", width=56),
+            _field("COLUMN", "max_ms", "value_muted", "최대", width=60),
+            _field("COLUMN", "total_s", "value_muted", "합 (초)", width=60),
+            _field("COLUMN", "errors", "number", "오류", width=44),
+        ],
+        "options": {"rowHeight": "30", "fixed": "true", "minWidth": "520"},
+        "screens": [(*MONITOR_TAB, 6, 7, 6, 6)],
+    },
+]
