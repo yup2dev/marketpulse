@@ -22,7 +22,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.backend.core.config import settings
 from app.backend.core.lifespan import lifespan
 from app.backend.core.middleware.auth_gate import AuthGateMiddleware
-from app.backend.core.middleware.request_metrics import RequestMetricsMiddleware
+from fastapi import Depends
+
+from app.backend.core.middleware.request_metrics import RequestMetricsMiddleware, capture_route
 from app.backend.api.routers import register_routers
 
 app = FastAPI(
@@ -30,6 +32,8 @@ app = FastAPI(
     description="Financial data visualization dashboard",
     version=settings.APP_VERSION,
     lifespan=lifespan,
+    # 요청 계측이 경로 템플릿을 알 수 있게 (core/middleware/request_metrics.py) — 모든 라우트에 붙는다
+    dependencies=[Depends(capture_route)],
 )
 
 # ── Middleware ────────────────────────────────────────────────────────────────

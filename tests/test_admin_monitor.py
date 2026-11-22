@@ -55,18 +55,23 @@ def test_requests_are_grouped_by_route_template(auth_client, admin):
     assert sum(t["count"] for t in traffic) == 2
 
 
-def test_template_is_found_even_when_the_router_does_not_leave_the_route_in_scope():
-    """FastAPI 0.163 은 바깥 scope 에 route 를 남기지 않는다 — 앱 라우트 표에서 찾아야 한다."""
-    from app.backend.core.middleware.request_metrics import UNMATCHED, route_template
-    from app.backend.main import app
+def test_template_comes_from_the_dependency_not_the_outer_scope():
+    """FastAPI 0.163 은 미들웨어의 scope 에 route 를 남기지 않는다 — 의존성이 적은 칸만으로 묶여야 한다."""
+    from app.backend.core.middleware.request_metrics import SCOPE_KEY, UNMATCHED, route_template
 
-    def scope(method, path):
-        return {"type": "http", "method": method, "path": path, "root_path": "", "app": app,
-                "headers": [], "query_string": b""}
+    assert route_template({SCOPE_KEY: {"template": "/api/x/{id}"}}) == "/api/x/{id}"
+    assert route_template({SCOPE_KEY: {}}) == UNMATCHED
 
-    assert route_template(scope("PUT", "/api/user-widgets/prefs/insider")) == "/api/user-widgets/prefs/{widget_type}"
-    assert route_template(scope("GET", "/api/admin/monitor/summary")) == "/api/admin/monitor/{dataset}"
-    assert route_template(scope("GET", "/no/such/path")) == UNMATCHED
+
+def test_include_prefix_is_restored_from_the_real_path():
+    """0.163 은 path_format 에 include prefix 가 없다 — 실제 경로에서 되살린다. 예전 버전(전체 경로)도 그대로."""
+    from app.backend.core.middleware.request_metrics import full_template
+
+    params = {"widget_type": "insider"}
+    path = "/api/user-widgets/prefs/insider"
+    assert full_template(path, "/user-widgets/prefs/{widget_type}", params) == "/api/user-widgets/prefs/{widget_type}"
+    assert full_template(path, "/api/user-widgets/prefs/{widget_type}", params) == "/api/user-widgets/prefs/{widget_type}"
+    assert full_template("/api/strategies", "/strategies", {}) == "/api/strategies"
 
 
 def test_slow_and_failed_requests_are_kept():
