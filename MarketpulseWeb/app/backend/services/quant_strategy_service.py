@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from app.backend.models.orm import MBS_IN_QUANT_PANEL, UserQuantStrategy, UserQuantStrategyFactor
@@ -266,24 +266,50 @@ def load_panel(db: Session, universe: str) -> Optional[dict]:
 
 
 def _read_panel(db: Session, universe: str, version: tuple) -> dict:
-    cols = ["base_ymd", "stk_cd", "close", "fwd_ret", *FACTOR_IDS, *[f"p_{m}" for m in MODEL_IDS]]
-    rows = db.query(*[getattr(MBS_IN_QUANT_PANEL, c) for c in cols]).filter(MBS_IN_QUANT_PANEL.universe == universe).all()
-    df = pd.DataFrame(rows, columns=cols)
-    del rows
-    df["base_ymd"] = pd.to_datetime(df["base_ymd"])
-    is_bench = df["stk_cd"].str.startswith("^")
-    stocks, bench = df[~is_bench], df[is_bench]
+    """패널 행을 (월말 × 종목) 행렬로 바로 채운다.
 
-    def pivot(col: str) -> pd.DataFrame:
-        return stocks.pivot(index="base_ymd", columns="stk_cd", values=col).sort_index().astype(float)
+    행 객체 6만 개 → DataFrame → 피벗 순서로 읽으면 사본이 여러 번 생겨 순간 메모리가 90MB 가량 늘었다
+    (운영 서버는 평소 여유가 85MB 안팎 — 백테스트 화면을 열면 스왑에 빠져 멈췄다, 2026-11-23).
+    날짜 · 종목 목록을 먼저 읽고, 값은 조금씩 받아 미리 만든 numpy 행렬에 넣는다.
+    """
+    cols = ["close", "fwd_ret", *FACTOR_IDS, *[f"p_{m}" for m in MODEL_IDS]]
+    conn = db.connection()
+    where = "FROM mbs_in_quant_panel WHERE universe = :u"
+    stock_dates = [r[0] for r in conn.execute(
+        text(f"SELECT DISTINCT base_ymd {where} AND stk_cd NOT LIKE '^%' ORDER BY base_ymd"), {"u": universe})]
+    syms = [r[0] for r in conn.execute(
+        text(f"SELECT DISTINCT stk_cd {where} AND stk_cd NOT LIKE '^%' ORDER BY stk_cd"), {"u": universe})]
+    di = {str(d)[:10]: i for i, d in enumerate(stock_dates)}
+    si = {s: j for j, s in enumerate(syms)}
+    mats = {c: np.full((len(di), len(si)), np.nan) for c in cols}
+    bench_rows: Dict[str, List[tuple]] = {}
+    res = conn.execute(text(f"SELECT base_ymd, stk_cd, {', '.join(cols)} {where}"), {"u": universe})
+    while True:
+        chunk = res.fetchmany(5000)
+        if not chunk:
+            break
+        for row in chunk:
+            day, sym = str(row[0])[:10], row[1]
+            if sym.startswith("^"):
+                bench_rows.setdefault(sym, []).append((day, row[2], row[3]))   # close · fwd_ret
+                continue
+            i, j = di[day], si[sym]
+            for k, c in enumerate(cols):
+                v = row[2 + k]
+                if v is not None:
+                    mats[c][i, j] = v
+        del chunk
+    index = pd.DatetimeIndex(pd.to_datetime(list(di)), name="base_ymd")
+    columns = pd.Index(syms, name="stk_cd")
+    panel = {c: pd.DataFrame(m, index=index, columns=columns) for c, m in mats.items()}
 
-    panel = {c: pivot(c) for c in ["close", "fwd_ret", *FACTOR_IDS, *[f"p_{m}" for m in MODEL_IDS]]}
-    panel["bench"] = {
-        code: g.set_index("base_ymd")["fwd_ret"].sort_index().astype(float) for code, g in bench.groupby("stk_cd")
-    }
-    panel["bench_close"] = {
-        code: g.set_index("base_ymd")["close"].sort_index().astype(float) for code, g in bench.groupby("stk_cd")
-    }
+    def series(rows: List[tuple], k: int) -> pd.Series:
+        rows = sorted(rows)
+        return pd.Series([np.nan if r[k] is None else float(r[k]) for r in rows],
+                         index=pd.DatetimeIndex(pd.to_datetime([r[0] for r in rows]), name="base_ymd"), dtype=float)
+
+    panel["bench"] = {code: series(rows, 2) for code, rows in bench_rows.items()}
+    panel["bench_close"] = {code: series(rows, 1) for code, rows in bench_rows.items()}
     panel["version"] = version
     return panel
 
@@ -310,7 +336,7 @@ def panel_status(panel: Optional[dict]) -> dict:
 # ══ 백테스트 ════════════════════════════════════════════════════════════════════
 
 _RESULT_CACHE: "OrderedDict[str, dict]" = OrderedDict()
-_RESULT_CACHE_SIZE = 64
+_RESULT_CACHE_SIZE = 16   # 결과 하나가 ~1MB — 운영 메모리가 작다
 
 
 def _score(strategy: dict, panel: dict) -> pd.DataFrame:
