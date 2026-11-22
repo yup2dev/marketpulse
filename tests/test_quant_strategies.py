@@ -181,3 +181,33 @@ def test_other_users_strategy_is_invisible(loaded, db_session):
     headers = {"Authorization": f"Bearer {create_access_token({'sub': other})}"}
     assert client.get("/api/strategies/result", params={"strategy": sid}, headers=headers).status_code == 404
     assert sid not in [s["strategy_id"] for s in client.get("/api/strategies", headers=headers).json()["results"]]
+
+
+def test_concurrent_requests_read_the_panel_once(monkeypatch):
+    """백테스트 화면은 요청을 한꺼번에 보낸다 — 캐시가 비어 있어도 패널은 한 번만 읽어야 한다
+    (스레드마다 따로 읽으면 작은 운영 서버가 메모리 부족으로 멈춘다, 2026-11-22 장애)."""
+    import threading
+    import time
+
+    from app.backend.services import quant_strategy_service as svc
+
+    reads = []
+
+    def slow_read(db, universe, version):
+        reads.append(universe)
+        time.sleep(0.2)                       # 읽는 동안 다른 요청이 들어온다
+        return {"version": version}
+
+    monkeypatch.setattr(svc, "_panel_version", lambda db, u: (100, "t", None))
+    monkeypatch.setattr(svc, "_read_panel", slow_read)
+    monkeypatch.setattr(svc, "_PANEL_CACHE", {})
+
+    got = []
+    threads = [threading.Thread(target=lambda: got.append(svc.load_panel(None, "sp500"))) for _ in range(7)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert reads == ["sp500"]
+    assert len(got) == 7 and all(g is got[0] for g in got)
