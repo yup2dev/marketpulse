@@ -10,7 +10,7 @@ FastAPI 0.163(운영·CI)은 라우팅을 따로 된 scope 에서 해 미들웨�
 그래서 미들웨어가 scope 에 빈 칸(dict)을 넣어 두고, 앱 전체 의존성 capture_route 가 라우트가 정해진 뒤
 그 칸에 템플릿을 적는다 (하위 scope 는 키를 복사하므로 같은 dict 를 가리킨다). 공개 API 만 쓴다.
 """
-from fastapi import Request
+from starlette.requests import HTTPConnection
 
 from app.backend.services import monitor_service
 
@@ -36,8 +36,12 @@ def full_template(path: str, path_format: str, path_params: dict) -> str:
     return path_format
 
 
-def capture_route(request: Request) -> None:
-    """앱 전체 의존성 (main.py) — 라우트가 정해진 요청에서 템플릿을 미들웨어의 칸에 적는다."""
+def capture_route(request: HTTPConnection) -> None:
+    """앱 전체 의존성 (main.py) — 라우트가 정해진 요청에서 템플릿을 미들웨어의 칸에 적는다.
+
+    앱 전체 의존성은 웹소켓 라우트에도 붙는다 — `Request` 로 받으면 웹소켓에서는 채울 값이 없어
+    연결이 500 으로 거절된다. 둘의 공통 부모 `HTTPConnection` 으로 받는다 (웹소켓은 칸이 없어 아무것도 안 한다).
+    """
     slot = request.scope.get(SCOPE_KEY)
     route = request.scope.get("route")
     fmt = getattr(route, "path_format", None) or getattr(route, "path", None)
