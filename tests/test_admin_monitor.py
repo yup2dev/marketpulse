@@ -74,6 +74,27 @@ def test_include_prefix_is_restored_from_the_real_path():
     assert full_template("/api/strategies", "/strategies", {}) == "/api/strategies"
 
 
+def test_websockets_still_connect_with_the_app_wide_dependency():
+    """앱 전체 의존성은 웹소켓 라우트에도 붙는다 — Request 로 받으면 연결이 500 으로 거절됐다 (운영 장애)."""
+    from fastapi import Depends, FastAPI, WebSocket
+    from fastapi.testclient import TestClient
+
+    from app.backend.core.middleware.request_metrics import RequestMetricsMiddleware, capture_route
+
+    app = FastAPI(dependencies=[Depends(capture_route)])
+    app.add_middleware(RequestMetricsMiddleware)
+
+    @app.websocket("/ws/echo")
+    async def echo(ws: WebSocket):
+        await ws.accept()
+        await ws.send_text(await ws.receive_text())
+        await ws.close()
+
+    with TestClient(app).websocket_connect("/ws/echo") as ws:
+        ws.send_text("ping")
+        assert ws.receive_text() == "ping"
+
+
 def test_slow_and_failed_requests_are_kept():
     t = mon.record_start("GET", "/api/strategies/result")
     mon.record_end(t, "/api/strategies/result", 500)
