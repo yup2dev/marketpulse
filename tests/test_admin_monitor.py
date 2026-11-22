@@ -55,6 +55,20 @@ def test_requests_are_grouped_by_route_template(auth_client, admin):
     assert sum(t["count"] for t in traffic) == 2
 
 
+def test_template_is_found_even_when_the_router_does_not_leave_the_route_in_scope():
+    """FastAPI 0.163 은 바깥 scope 에 route 를 남기지 않는다 — 앱 라우트 표에서 찾아야 한다."""
+    from app.backend.core.middleware.request_metrics import UNMATCHED, route_template
+    from app.backend.main import app
+
+    def scope(method, path):
+        return {"type": "http", "method": method, "path": path, "root_path": "", "app": app,
+                "headers": [], "query_string": b""}
+
+    assert route_template(scope("PUT", "/api/user-widgets/prefs/insider")) == "/api/user-widgets/prefs/{widget_type}"
+    assert route_template(scope("GET", "/api/admin/monitor/summary")) == "/api/admin/monitor/{dataset}"
+    assert route_template(scope("GET", "/no/such/path")) == UNMATCHED
+
+
 def test_slow_and_failed_requests_are_kept():
     t = mon.record_start("GET", "/api/strategies/result")
     mon.record_end(t, "/api/strategies/result", 500)
