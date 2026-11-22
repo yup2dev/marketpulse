@@ -97,12 +97,17 @@ async def lifespan(app: FastAPI):
     await refresh_cache()
     stock_list_task = asyncio.create_task(stock_list_warmup_loop())
 
+    # 운영 모니터링 표본 (15초마다 /proc · cgroup 몇 개를 읽을 뿐 — services/monitor_service.py)
+    from app.backend.services.monitor_service import sampler_loop
+    monitor_task = asyncio.create_task(sampler_loop())
+
     yield
 
     quote_pub_task.cancel()
     kis_task.cancel()
     warmup_task.cancel()
     stock_list_task.cancel()
+    monitor_task.cancel()
     if fetcher_client is not None:
         await fetcher_client.aclose()
     await cache.close()

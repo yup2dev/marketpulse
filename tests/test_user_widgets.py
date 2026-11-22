@@ -281,7 +281,8 @@ def test_builtin_widgets_are_rows_seeded_on_first_read(auth_client, db_session, 
     backtest = {"bt-run-summary", "bt-run-equity", "bt-run-monthly", "bt-run-trades", "bt-run-rolling"}
     compare = {"bt-compare"}
     quant = {"quant-factors", "quant-factor-returns", "quant-models", "quant-signals"}
-    assert set(widgets) == home | macro | concepts | stock | news | institutions | backtest | compare | quant
+    ops = {"ops-summary", "ops-system", "ops-requests", "ops-traffic", "ops-endpoints"}
+    assert set(widgets) == home | macro | concepts | stock | news | institutions | backtest | compare | quant | ops
 
     # 정의는 행이다 — 마스터(user_id NULL) + 자식 테이블
     rows = db_session.query(UserWidget).all()
@@ -296,6 +297,10 @@ def test_builtin_widgets_are_rows_seeded_on_first_read(auth_client, db_session, 
         if w["widget_id"] in concepts:
             # 지표 개념 위젯은 매크로 Global Indicators 탭에만 (코드 레지스트리의 같은 id 를 대신한다)
             assert [(s["screen"], s["tab"]) for s in w["screens"]] == [("/macro", "global")]
+            continue
+        if w["widget_id"] in ops:
+            # 운영 모니터링은 관리자 화면에만 — 다른 화면 메뉴('*')에 내놓지 않는다
+            assert [(s["screen"], s["tab"]) for s in w["screens"]] == [("/admin", "monitor")]
             continue
         # 모든 화면의 메뉴('*') + 자기 화면·탭의 기본 배치
         wid = w["widget_id"]

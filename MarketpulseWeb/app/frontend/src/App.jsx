@@ -30,6 +30,12 @@ function AuthGuard({ children }) {
   return children;
 }
 
+// 운영 화면(/admin) — 관리자가 아니면 홈으로 (API 도 require_admin 으로 막는다)
+function AdminRoute({ children }) {
+  const role = useAuthStore((s) => s.user?.role);
+  return role === 'admin' ? children : <Navigate to="/" replace />;
+}
+
 function App() {
   const initializeAuth = useAuthStore((s) => s.initializeAuth);
 
@@ -59,6 +65,7 @@ function App() {
           <Route path="quantlib" element={<DashboardPage />} />
           <Route path="backtest" element={<DashboardPage />} />
           <Route path="settings" element={<SettingsPage />} />
+          <Route path="admin" element={<AdminRoute><DashboardPage /></AdminRoute>} />
         </Route>
 
         {/* Auth */}
