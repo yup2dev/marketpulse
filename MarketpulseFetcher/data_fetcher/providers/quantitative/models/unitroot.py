@@ -2,8 +2,6 @@
 import logging
 from typing import Any, Dict, List, Optional
 
-from statsmodels.tsa.stattools import adfuller
-
 from data_fetcher.abstract_provider.abstract.base_fetchers import ComputeFetcher
 from data_fetcher.providers.quantitative.utils.prices import aload_series
 from data_fetcher.abstract_provider.standard_models.quant_analysis import (
@@ -32,6 +30,8 @@ class QuantUnitRootFetcher(ComputeFetcher[UnitRootQueryParams, UnitRootData]):
         series, _ = await aload_series(query.symbol, query.target, query.start_date, query.end_date)
         if len(series) < 30:
             raise ValueError(f"ADF needs ≥30 obs (got {len(series)})")
+
+        from statsmodels.tsa.stattools import adfuller   # 처음 쓸 때 import (+65MB) — utils/lazy_import.py
 
         stat, p, used_lag, n_obs, crit, _ = adfuller(
             series.values, regression=query.regression, autolag="AIC"

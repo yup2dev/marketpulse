@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections import OrderedDict
 from datetime import date
 from typing import Dict, List, Optional, Tuple
 
@@ -34,8 +33,7 @@ MAX_CASH = 50
 VOL_MONTHS = 12
 NOTE = "고른 종목 · 목표 비중 그대로 · 리밸런싱 사이에는 가격에 따라 비중이 움직여요 · 수익률이 없는 달은 0%"
 
-_RESULT_CACHE: "OrderedDict[str, dict]" = OrderedDict()
-_RESULT_CACHE_SIZE = 8
+_RESULT_CACHE = qs.PackedCache(8)   # 압축 JSON — quant_strategy_service.PackedCache
 
 
 class PortfolioError(qs.StrategyError):
@@ -321,9 +319,7 @@ def backtest(db: Session, user_id: str, strategy_id: str, start: Optional[date],
     target = target_weights(p, {r["symbol"]: r for r in rows})
     with qs._BACKTEST_LOCK:
         result = run_backtest(p, panel, target, start, end, benchmark, cost_bps)
-    _RESULT_CACHE[key] = result
-    while len(_RESULT_CACHE) > _RESULT_CACHE_SIZE:
-        _RESULT_CACHE.popitem(last=False)
+    _RESULT_CACHE.put(key, result)
     return result, status
 
 

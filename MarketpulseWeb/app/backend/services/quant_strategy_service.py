@@ -15,6 +15,7 @@ import json
 import logging
 import threading
 import uuid
+import zlib
 from collections import OrderedDict
 from datetime import date
 from typing import Any, Dict, List, Optional, Tuple
@@ -335,8 +336,46 @@ def panel_status(panel: Optional[dict]) -> dict:
 
 # ══ 백테스트 ════════════════════════════════════════════════════════════════════
 
-_RESULT_CACHE: "OrderedDict[str, dict]" = OrderedDict()
-_RESULT_CACHE_SIZE = 16   # 결과 하나가 ~1MB — 운영 메모리가 작다
+class PackedCache:
+    """결과를 압축한 JSON 으로 들고 있는 LRU — 꺼낼 때만 푼다.
+
+    백테스트 결과 하나는 파이썬 객체로 ~2MB 인데(거래 내역 · 월말 자산의 float 하나하나가 객체), 압축 JSON 으로는
+    ~0.2MB 다. 운영 서버(512MB)에서 결과를 여러 개 들고 있어도 부담이 없게 (2026-11-23 측정).
+    값은 _clean 을 거친 JSON 으로 옮길 수 있는 값만 넣는다.
+    """
+
+    def __init__(self, size: int):
+        self.size = size
+        self._d: "OrderedDict[str, bytes]" = OrderedDict()
+
+    def get(self, key: str):
+        blob = self._d.get(key)
+        if blob is None:
+            return None
+        self._d.move_to_end(key)
+        return json.loads(zlib.decompress(blob))
+
+    def put(self, key: str, value) -> None:
+        self._d[key] = zlib.compress(json.dumps(value, separators=(",", ":")).encode(), 1)
+        self._d.move_to_end(key)
+        while len(self._d) > self.size:
+            self._d.popitem(last=False)
+
+    def __contains__(self, key: str) -> bool:
+        return key in self._d
+
+    def __len__(self) -> int:
+        return len(self._d)
+
+    def nbytes(self) -> int:
+        return sum(len(b) for b in self._d.values())
+
+    def clear(self) -> None:
+        self._d.clear()
+
+
+_RESULT_CACHE = PackedCache(16)
+_COMPARE_CACHE = PackedCache(4)   # 전략별 손익 — 성과 지표 · 월말 자산만
 
 
 def _score(strategy: dict, panel: dict) -> pd.DataFrame:
@@ -517,20 +556,22 @@ def backtest(db: Session, user_id: str, strategy_id: Optional[str], start: Optio
     status = panel_status(panel)
     if not panel:
         return None, status
-    key_src = json.dumps([s, panel["version"], str(start), str(end), benchmark, cost_bps], sort_keys=True, default=str)
-    key = hashlib.sha1(key_src.encode()).hexdigest()
+    key = _run_key(s, panel, start, end, benchmark, cost_bps)
     hit = _RESULT_CACHE.get(key)
     if hit is not None:
         return hit, status
     with _BACKTEST_LOCK:
-        if key in _RESULT_CACHE:          # 같은 조건을 먼저 들어온 요청이 계산해 두었다
-            _RESULT_CACHE.move_to_end(key)
-            return _RESULT_CACHE[key], status
+        hit = _RESULT_CACHE.get(key)      # 같은 조건을 먼저 들어온 요청이 계산해 두었다
+        if hit is not None:
+            return hit, status
         result = run_backtest(s, panel, start, end, benchmark, cost_bps)
-        _RESULT_CACHE[key] = result
-        while len(_RESULT_CACHE) > _RESULT_CACHE_SIZE:
-            _RESULT_CACHE.popitem(last=False)
+        _RESULT_CACHE.put(key, result)
     return result, status
+
+
+def _run_key(s: dict, panel: dict, start, end, benchmark: str, cost_bps: float) -> str:
+    src = json.dumps([s, panel["version"], str(start), str(end), benchmark, cost_bps], sort_keys=True, default=str)
+    return hashlib.sha1(src.encode()).hexdigest()
 
 
 
@@ -543,28 +584,40 @@ def compare(db: Session, user_id: str, start: Optional[date], end: Optional[date
 
     전략마다 metrics · 월말 자산(equity)만 돌려준다 (거래 내역은 빼서 가볍게).
     고른 기간에 값이 없는 전략(예: ML 전략에 표본 밖 구간 이전 기간)은 빼고 note 에 적는다.
+
+    메모리: 전략마다 전체 결과(거래 내역 포함)를 결과 캐시에 넣지 않는다 — 계산한 결과는 줄인 모양만 남기고 버린다.
+    이미 결과 캐시에 있는 전략은 그걸 쓴다. 같은 조건의 비교는 통째로 비교 캐시에 (압축).
     """
     rows = list_strategies(db, user_id)[:COMPARE_MAX]
-    status = panel_status(load_panel(db, "sp500"))
+    panel = load_panel(db, "sp500")
+    status = panel_status(panel)
     if not status.get("loaded"):
         return [], status
+    strategies = [to_dict(r, user_id) for r in rows]
+    ckey = _run_key({"compare": strategies}, panel, start, end, benchmark, cost_bps)
+    hit = _COMPARE_CACHE.get(ckey)
+    if hit is not None:
+        return hit["rows"], {**status, **hit["extra"]}
     out, skipped = [], []
-    for r in rows:
-        try:
-            res, _ = backtest(db, user_id, r.strategy_id, start, end, benchmark, cost_bps)
-        except StrategyError:
-            skipped.append(r.name)
-            continue
-        if not res:
-            continue
+    for r, s in zip(rows, strategies):
+        key = _run_key(s, panel, start, end, benchmark, cost_bps)
+        res = _RESULT_CACHE.get(key)
+        if res is None:
+            try:
+                with _BACKTEST_LOCK:
+                    res = run_backtest(s, panel, start, end, benchmark, cost_bps)
+            except StrategyError:
+                skipped.append(r.name)
+                continue
         out.append({
             "strategy_id": res["strategy_id"], "name": res["name"],
             "builtin": r.user_id is None, "score_kind": r.score_kind,
             "metrics": res["metrics"], "equity": res["equity"],
         })
-    if skipped:
-        status = {**status, "skipped": skipped}
-    return out, status
+        del res
+    extra = {"skipped": skipped} if skipped else {}
+    _COMPARE_CACHE.put(ckey, {"rows": out, "extra": extra})
+    return out, {**status, **extra}
 
 def catalog() -> dict:
     """편집 화면이 쓸 선택지."""
