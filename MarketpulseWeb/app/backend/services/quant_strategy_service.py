@@ -50,7 +50,19 @@ MODELS: List[Tuple[str, str]] = [
 ]
 MODEL_IDS = [m[0] for m in MODELS]
 
-BENCHMARKS = {"^GSPC": "S&P 500", "equal": "동일 비중"}
+BENCHMARKS = {"^GSPC": "S&P 500", "equal": "동일 비중", "^SOX": "필라델피아 반도체"}
+
+# 매크로 시장 지표 — 패널의 '^' 행 (배치 MarketpulseBatch/index_analyzer/quant/macro.py 와 같은 코드 · tests 가 맞춰 본다)
+# (코드, 이름, 종류: rate = 금리 · 포인트 → 변화는 차이 / price = 가격 → 변화는 %)
+MACRO_SERIES: List[Tuple[str, str, str]] = [
+    ("^TNX", "미국 10년물 금리", "rate"),
+    ("^IRX", "미국 3개월물 금리", "rate"),
+    ("^DXY", "달러 지수", "price"),
+    ("^HG", "구리 선물", "price"),
+    ("^VIX", "VIX 변동성", "rate"),
+    ("^SOX", "필라델피아 반도체 지수", "price"),
+]
+MACRO_IDS = [m[0] for m in MACRO_SERIES]
 REBALANCE = {"M": "월간", "Q": "분기"}
 MAX_PER_USER = 50
 TOP_N_RANGE = (5, 100)
@@ -329,7 +341,8 @@ def panel_status(panel: Optional[dict]) -> dict:
         "months": int(len(have)),
         "members": int(fwd.shape[1]),
         "ml_start": ml_have[0].date().isoformat() if len(ml_have) else None,
-        "benchmarks": sorted(panel["bench"]),
+        "benchmarks": sorted(b for b in panel["bench"] if b in BENCHMARKS),
+        "macro": sorted(m for m in MACRO_IDS if m in panel["bench_close"]),
         "as_of": panel["version"][2].isoformat() if panel["version"][2] else None,
     }
 

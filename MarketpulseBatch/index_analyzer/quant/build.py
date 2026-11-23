@@ -45,8 +45,10 @@ def build_snapshots(close: pd.DataFrame, names: Optional[Dict[str, dict]] = None
 
 
 def build_all(close: pd.DataFrame, names: Optional[Dict[str, dict]] = None, universe: str = "sp500",
-              benchmark: Optional[pd.Series] = None) -> Tuple[Dict[str, dict], List[dict]]:
-    """(화면 산출물 dataset → rows · meta, 월별 패널 행). 패널은 웹의 포트폴리오 전략 백테스트 재료."""
+              benchmark: Optional[pd.Series] = None,
+              macro: Optional[List[pd.Series]] = None) -> Tuple[Dict[str, dict], List[dict]]:
+    """(화면 산출물 dataset → rows · meta, 월별 패널 행). 패널은 웹의 포트폴리오 전략 백테스트 재료.
+    macro: 매크로 지표 일별 값 (이름 = 패널 코드, macro.MACRO_SERIES) — 패널에 '^' 행으로 같이 넣는다."""
     names = names or {}
     close = close.sort_index().dropna(axis=1, thresh=MIN_HISTORY_DAYS)
     scores = build_factors(close)
@@ -143,4 +145,4 @@ def build_all(close: pd.DataFrame, names: Optional[Dict[str, dict]] = None, univ
         "regimes": {"rows": regime_rows, "meta": regime_meta},
         "signals": {"rows": signal_rows, "meta": ml_meta},
     }
-    return snapshots, panel_rows(close, scores, ml["oos"], universe, benchmark)
+    return snapshots, panel_rows(close, scores, ml["oos"], universe, benchmark, macro)

@@ -309,6 +309,9 @@ export const TRANSFORMS = {
         { id: 'mdd', label: '최대 낙폭', value: fmtPct(m.maxDrawdown, 1) || null, tone: m.maxDrawdown, sub: hold(fmtPct(b.maxDrawdown, 1)) },
         { id: 'vol', label: '변동성 (연)', value: m.volatility != null ? `${num(m.volatility, 1)}%` : null, sub: hold(b.volatility != null ? `${num(b.volatility, 1)}%` : null) },
         { id: 'win', label: '승률', value: m.winRate != null ? `${Math.round(m.winRate)}%` : null, sub: m.trades != null ? `거래 ${m.trades}회` : null },
+        // 매크로 조건이 있는 포트폴리오 — 보유한 달의 비율 · 전환 횟수 · 이번 달 판단 (조건이 꺼진 달은 현금)
+        { id: 'market', label: '보유 기간', value: m.timeInMarket != null ? `${Math.round(m.timeInMarket)}%` : null,
+          sub: m.timeInMarket != null ? [`전환 ${m.switches ?? 0}회`, run.overlayNow ? `지금 ${run.overlayNow.state === 'in' ? '보유' : '현금'}` : null].filter(Boolean).join(' · ') : null },
         { id: 'avg', label: '평균 거래', value: fmtPct(m.avgTrade, 2) || null, tone: m.avgTrade, sub: m.turnover != null ? `회전율 ${Math.round(m.turnover)}%` : m.exposure != null ? `노출 ${Math.round(m.exposure)}%` : null },
       ].filter((r) => r.lead || r.value != null);
     },
