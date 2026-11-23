@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <!-- MarketPulse 앱 아이콘 — 잉크 타일(모서리 20%) 위 '상승 계단' 마크 (design Logo.dc.html) -->
+  <rect x="0.5" y="0.5" width="47" height="47" rx="9.6" fill="#0E0F12" stroke="#2E2F35"/>
+  <g transform="translate(24 24) scale(0.64) translate(-24 -24)">
+    <path d="M4 44V31H16V20H28V9H44V44Z" fill="#F2F2F0"/>
+    <path d="M4 9h10v10h-10Z" fill="#06B6D4"/>
+  </g>
+</svg>

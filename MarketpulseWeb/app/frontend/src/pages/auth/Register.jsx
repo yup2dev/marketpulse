@@ -1,212 +1,112 @@
 /**
- * 회원가입 페이지
+ * 회원가입 페이지 — 로그인(시안 Login.dc.html)의 폼과 같은 모양 · 다크 고정. 가운데 한 칸에 로고와 폼.
  */
 import { useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
+import { AlertTriangle, ArrowRight } from 'lucide-react';
 import { notify } from '../../common';
+import BrandLogo from '../../common/brand/BrandLogo';
+import { BRAND } from '../../common/brand/brand';
 import useAuthStore from '../../store/authStore';
+
+const EMAIL = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
+const FIELD = 'w-full h-12 box-border px-3.5 rounded-sm bg-[#111113] text-[#F2F2F0] text-[15px] outline-none border placeholder:text-[#6E7078] focus:border-[#06B6D4] focus:shadow-[0_0_0_3px_rgba(6,182,212,0.28)]';
+
+function Field({ id, label, error, children }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={id} className="text-[13px] font-medium text-[#C9CBD2]">{label}</label>
+      {children}
+      {error && <span className="text-xs text-[#FF7A85]">{error.message}</span>}
+    </div>
+  );
+}
+
+const border = (err) => (err ? 'border-[#F04452]' : 'border-[#2E2F36]');
 
 export default function Register() {
   const navigate = useNavigate();
   const { register: registerUser, isAuthenticated, isInitializing, isLoading, error, clearError } = useAuthStore();
-  const {
-    register,
-    handleSubmit,
-    watch,
-    formState: { errors },
-  } = useForm();
-
+  const { register, handleSubmit, watch, formState: { errors } } = useForm();
   const password = watch('password');
 
   useEffect(() => {
-    if (!isInitializing && isAuthenticated) {
-      navigate('/');
-    }
+    if (!isInitializing && isAuthenticated) navigate('/');
   }, [isAuthenticated, isInitializing, navigate]);
 
-  useEffect(() => {
-    // 에러 클리어
-    return () => clearError();
-  }, [clearError]);
+  useEffect(() => () => clearError(), [clearError]);
 
   const onSubmit = async (data) => {
-    const result = await registerUser(
-      data.email,
-      data.username,
-      data.password,
-      data.full_name
-    );
-
+    const result = await registerUser(data.email, data.username, data.password, data.full_name);
     if (result.success) {
       notify.success('회원가입 성공! 환영합니다.');
       navigate('/');
-    } else {
-      notify.error(result.error || '회원가입에 실패했습니다.');
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="max-w-md w-full">
-        {/* 로고 */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">MarketPulse</h1>
-          <p className="text-gray-600">투자 포트폴리오 관리 플랫폼</p>
-        </div>
-
-        {/* 회원가입 카드 */}
-        <div className="bg-white rounded-lg shadow-xl p-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">회원가입</h2>
-
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            {/* 이메일 */}
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                이메일
-              </label>
-              <input
-                id="email"
-                type="email"
-                {...register('email', {
-                  required: '이메일을 입력해주세요.',
-                  pattern: {
-                    value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                    message: '올바른 이메일 형식이 아닙니다.',
-                  },
-                })}
-                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                  errors.email ? 'border-red-500' : 'border-gray-300'
-                }`}
-                placeholder="example@email.com"
-              />
-              {errors.email && (
-                <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
-              )}
-            </div>
-
-            {/* 사용자명 */}
-            <div>
-              <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">
-                사용자명
-              </label>
-              <input
-                id="username"
-                type="text"
-                {...register('username', {
-                  required: '사용자명을 입력해주세요.',
-                  minLength: {
-                    value: 3,
-                    message: '사용자명은 최소 3자 이상이어야 합니다.',
-                  },
-                })}
-                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                  errors.username ? 'border-red-500' : 'border-gray-300'
-                }`}
-                placeholder="username"
-              />
-              {errors.username && (
-                <p className="mt-1 text-sm text-red-600">{errors.username.message}</p>
-              )}
-            </div>
-
-            {/* 이름 */}
-            <div>
-              <label htmlFor="full_name" className="block text-sm font-medium text-gray-700 mb-1">
-                이름 (선택)
-              </label>
-              <input
-                id="full_name"
-                type="text"
-                {...register('full_name')}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="홍길동"
-              />
-            </div>
-
-            {/* 비밀번호 */}
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-                비밀번호
-              </label>
-              <input
-                id="password"
-                type="password"
-                {...register('password', {
-                  required: '비밀번호를 입력해주세요.',
-                  minLength: {
-                    value: 6,
-                    message: '비밀번호는 최소 6자 이상이어야 합니다.',
-                  },
-                })}
-                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                  errors.password ? 'border-red-500' : 'border-gray-300'
-                }`}
-                placeholder="••••••••"
-              />
-              {errors.password && (
-                <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
-              )}
-            </div>
-
-            {/* 비밀번호 확인 */}
-            <div>
-              <label
-                htmlFor="password_confirm"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                비밀번호 확인
-              </label>
-              <input
-                id="password_confirm"
-                type="password"
-                {...register('password_confirm', {
-                  required: '비밀번호 확인을 입력해주세요.',
-                  validate: (value) => value === password || '비밀번호가 일치하지 않습니다.',
-                })}
-                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                  errors.password_confirm ? 'border-red-500' : 'border-gray-300'
-                }`}
-                placeholder="••••••••"
-              />
-              {errors.password_confirm && (
-                <p className="mt-1 text-sm text-red-600">{errors.password_confirm.message}</p>
-              )}
-            </div>
-
-            {/* 에러 메시지 */}
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-                {error}
-              </div>
-            )}
-
-            {/* 회원가입 버튼 */}
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 focus:ring-4 focus:ring-blue-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
-            >
-              {isLoading ? '회원가입 중...' : '회원가입'}
-            </button>
-          </form>
-
-          {/* 로그인 링크 */}
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
-              이미 계정이 있으신가요?{' '}
-              <Link to="/login" className="text-blue-600 hover:text-blue-700 font-medium">
-                로그인
-              </Link>
-            </p>
-          </div>
-        </div>
-
-        {/* 푸터 */}
-        <div className="mt-8 text-center text-sm text-gray-500">
-          <p>&copy; 2024 MarketPulse. All rights reserved.</p>
-        </div>
+    <div className="mp-auth min-h-screen bg-[#0A0A0B] text-[#F2F2F0] text-sm flex flex-col items-center justify-center gap-10 px-4 py-12" style={{ fontFamily: "Inter, 'Noto Sans KR', system-ui, sans-serif" }}>
+      <div className="w-full max-w-[380px] flex">
+        <Link to="/login" aria-label="MarketPulse 로그인으로" className="flex no-underline"><BrandLogo size="auth" tone="dark" /></Link>
       </div>
+
+      <form onSubmit={handleSubmit(onSubmit)} noValidate className="w-full max-w-[380px] flex flex-col gap-5">
+        <div className="flex flex-col gap-2.5">
+          <span className="text-[11px] font-semibold tracking-[0.18em] text-[#8A8C95]">SIGN UP</span>
+          <h2 className="m-0 text-[28px] font-bold tracking-[-0.6px]">회원가입</h2>
+          <p className="m-0 text-sm text-[#A3A5AD]">계정을 만들면 대시보드와 위젯 배치가 저장돼요</p>
+        </div>
+
+        {error && (
+          <div role="alert" className="flex gap-2.5 items-start px-3.5 py-3 rounded-sm bg-[#2A1417] border border-[#5A2229] text-[#FF9AA2] text-[13px] leading-normal">
+            <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" aria-hidden="true" />
+            {error}
+          </div>
+        )}
+
+        <Field id="rg-email" label="이메일" error={errors.email}>
+          <input id="rg-email" type="email" autoComplete="email" placeholder="example@email.com" aria-invalid={!!errors.email}
+            className={`${FIELD} ${border(errors.email)}`}
+            {...register('email', { required: '이메일을 입력해주세요.', pattern: { value: EMAIL, message: '올바른 이메일 형식이 아닙니다.' } })} />
+        </Field>
+        <Field id="rg-username" label="사용자명" error={errors.username}>
+          <input id="rg-username" type="text" autoComplete="username" placeholder="3자 이상" aria-invalid={!!errors.username}
+            className={`${FIELD} ${border(errors.username)}`}
+            {...register('username', { required: '사용자명을 입력해주세요.', minLength: { value: 3, message: '사용자명은 최소 3자 이상이어야 합니다.' } })} />
+        </Field>
+        <Field id="rg-name" label="이름 (선택)">
+          <input id="rg-name" type="text" autoComplete="name" placeholder="홍길동" className={`${FIELD} ${border(false)}`} {...register('full_name')} />
+        </Field>
+        <Field id="rg-pw" label="비밀번호" error={errors.password}>
+          <input id="rg-pw" type="password" autoComplete="new-password" placeholder="6자 이상" aria-invalid={!!errors.password}
+            className={`${FIELD} ${border(errors.password)}`}
+            {...register('password', { required: '비밀번호를 입력해주세요.', minLength: { value: 6, message: '비밀번호는 최소 6자 이상이어야 합니다.' } })} />
+        </Field>
+        <Field id="rg-pw2" label="비밀번호 확인" error={errors.password_confirm}>
+          <input id="rg-pw2" type="password" autoComplete="new-password" placeholder="한 번 더" aria-invalid={!!errors.password_confirm}
+            className={`${FIELD} ${border(errors.password_confirm)}`}
+            {...register('password_confirm', {
+              required: '비밀번호 확인을 입력해주세요.',
+              validate: (value) => value === password || '비밀번호가 일치하지 않습니다.',
+            })} />
+        </Field>
+
+        <button
+          type="submit" disabled={isLoading}
+          className="w-full h-12 rounded-sm text-[15px] font-bold flex items-center justify-center gap-2.5 hover:brightness-110 disabled:opacity-60 disabled:hover:brightness-100"
+          style={{ background: BRAND.signalColor, color: '#0E0F12' }}
+        >
+          {isLoading ? '가입 중…' : '회원가입'}
+          <ArrowRight size={16} strokeWidth={2.2} aria-hidden="true" />
+        </button>
+
+        <p className="m-0 text-center text-[13px] text-[#A3A5AD]">
+          이미 계정이 있으신가요? <Link to="/login" className="font-semibold no-underline text-[#06B6D4] hover:text-white">로그인</Link>
+        </p>
+      </form>
+
+      <span className="text-[11px] font-semibold tracking-[0.08em] text-[#8A8C95]">© 2026 MARKETPULSE</span>
     </div>
   );
 }

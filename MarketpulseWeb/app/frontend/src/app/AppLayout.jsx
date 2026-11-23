@@ -4,7 +4,7 @@
  */
 import { useState, useCallback, useMemo } from 'react';
 import {
-  TrendingUp, LayoutDashboard, BarChart3, Briefcase,
+  LayoutDashboard, BarChart3, Briefcase,
   Globe, LogOut, Settings, ChevronDown, Sparkles,
 } from 'lucide-react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
@@ -17,6 +17,7 @@ import { WidgetSyncProvider } from '../contexts/WidgetSyncContext';
 import FetcherStatus from './FetcherStatus';
 import { URL_WIDGET_MAP } from '../widget/registry/urlWidgetMap';
 import CopilotPanel from './CopilotPanel';
+import BrandLogo from '../common/brand/BrandLogo';
 
 // Menu path to URL route mapping
 const ROUTE_MAP = {
@@ -107,15 +108,14 @@ const AppLayout = () => {
         <div className="px-6">
           <div className="flex items-center h-14">
             {/* Logo */}
-            <div
-              className="flex items-center gap-2.5 cursor-pointer mr-8"
+            <button
+              type="button"
+              aria-label="MarketPulse 홈"
+              className="flex items-center cursor-pointer mr-8"
               onClick={() => navigate('/')}
             >
-              <div className="bg-gradient-to-r from-cyan-500 to-blue-500 p-1.5 rounded-lg">
-                <TrendingUp className="text-white" size={18} />
-              </div>
-              <span className="text-base font-semibold text-white tracking-tight">MarketPulse</span>
-            </div>
+              <BrandLogo size="header" />
+            </button>
 
             {/* Navigation */}
             <nav className="flex items-center gap-0.5 flex-1">
@@ -242,7 +242,7 @@ const AppLayout = () => {
               <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
               <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Online</span>
             </div>
-            <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>© 2025 MarketPulse</span>
+            <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>© 2026 MarketPulse</span>
           </div>
         </div>
       </footer>
