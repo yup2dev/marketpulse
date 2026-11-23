@@ -882,6 +882,9 @@ class UserQuantPortfolio(Base):
     cash_pct = Column(Float, nullable=False, default=0.0)
     rebalance = Column(String(1), nullable=False, default='Q')
     cost_bps = Column(Float, nullable=False, default=10.0)
+    # 매크로 조건(JSON) — {"mode": "all"|"any", "rules": [{series, transform, op, value}]}. 조건이 꺼진 달은 현금.
+    # 비우면 늘 보유 (quant_portfolio_service.validate_overlay)
+    overlay = Column(Text)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

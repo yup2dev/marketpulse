@@ -6,6 +6,7 @@
  *   가운데 유니버스 · 종목 찾기 · 섹터 칩 · 체크 목록 (유니버스 종목은 /api/quant-portfolios/universe — 패널 마지막 달)
  *   오른쪽 담은 종목 · 비중 방식(동일 · 직접 입력 · 시가총액 · 역변동성) · 현금 · 리밸런싱 · 거래비용
  * 비중 계산은 서버(quant_portfolio_service.target_weights)와 같은 규칙이다.
+ * 매크로 조건(OverlayEditor) — 켜진 달만 보유, 꺼진 달은 현금.
  * '이 포트폴리오로 백테스트' = 화면 변수 strategy 를 pf:<id> 로 두고 /backtest — 결과 위젯이 그대로 그린다.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -15,6 +16,7 @@ import { apiClient, API_BASE, confirmDialog, notify } from '../../../common';
 import WidgetCard from '../../../common/widget/WidgetCard';
 import { setShared, useShared } from '../../engine/shared';
 import { BTN_GHOST, BTN_PRIMARY, FIELD, LBL, ListItem, PANEL, Seg } from './quantShared';
+import OverlayEditor from './OverlayEditor';
 
 const WT = { equal: '동일 비중', manual: '직접 입력', mcap: '시가총액', invvol: '역변동성' };
 const WT_NOTE = {
@@ -30,7 +32,7 @@ const p1 = (v) => `${(v * 100).toFixed(1)}%`;
 
 const toDraft = (p) => ({
   id: p.portfolio_id, name: p.name, universe: p.universe, weighting: p.weighting, cash_pct: p.cash_pct,
-  rebalance: p.rebalance, cost_bps: p.cost_bps,
+  rebalance: p.rebalance, cost_bps: p.cost_bps, overlay: p.overlay || null,
   picks: p.items.map((i) => i.symbol),
   manual: Object.fromEntries(p.items.filter((i) => i.weight != null).map((i) => [i.symbol, i.weight])),
 });
@@ -38,6 +40,7 @@ const toDraft = (p) => ({
 const toBody = (d) => ({
   name: d.name.trim() || '이름 없는 포트폴리오', universe: d.universe, weighting: d.weighting,
   cash_pct: d.weighting === 'manual' ? 0 : Number(d.cash_pct) || 0, rebalance: d.rebalance, cost_bps: Number(d.cost_bps),
+  overlay: d.overlay || null,
   items: d.picks.map((s) => ({ symbol: s, weight: d.weighting === 'manual' ? Number(d.manual[s]) || 0 : null })),
 });
 
@@ -58,6 +61,8 @@ export default function PortfolioSettings({ onRemove }) {
   const shared = useShared();
   const [list, setList] = useState(null);
   const [universes, setUniverses] = useState([{ id: 'sp500', name: 'S&P 500' }]);
+  const [catalog, setCatalog] = useState({});
+  const [macroLoaded, setMacroLoaded] = useState([]);   // 패널에 적재된 매크로 지표
   const [members, setMembers] = useState({});   // universe → rows
   const [sel, setSel] = useState(null);
   const [draft, setDraft] = useState(null);
@@ -71,6 +76,7 @@ export default function PortfolioSettings({ onRemove }) {
     const r = await apiClient.get(`${API_BASE}/quant-portfolios`);
     setList(r.results || []);
     if (r.metadata?.universes?.length) setUniverses(r.metadata.universes);
+    setCatalog(r.metadata || {});
     return r.results || [];
   }, []);
   useEffect(() => { load().catch(() => setList([])); }, [load]);
@@ -92,7 +98,10 @@ export default function PortfolioSettings({ onRemove }) {
   useEffect(() => {
     if (!uni || members[uni]) return;
     apiClient.get(`${API_BASE}/quant-portfolios/universe?universe=${encodeURIComponent(uni)}`)
-      .then((r) => setMembers((m) => ({ ...m, [uni]: r.results || [] })))
+      .then((r) => {
+        setMembers((m) => ({ ...m, [uni]: r.results || [] }));
+        setMacroLoaded(r.metadata?.macro || []);
+      })
       .catch(() => setMembers((m) => ({ ...m, [uni]: [] })));
   }, [uni, members]);
 
@@ -171,7 +180,7 @@ export default function PortfolioSettings({ onRemove }) {
   else if (picks.length && maxW > 0.25) warn = picks.length < 5 ? `종목이 ${picks.length}개뿐이라 한 종목 비중이 커요` : `한 종목 비중이 ${p1(maxW)}로 커요`;
 
   const uniName = (id) => universes.find((u) => u.id === id)?.name || id;
-  const summaryOf = (p) => `${uniName(p.universe)} · ${(p.items || p.picks).length}종목 · ${WT[p.weighting]} · 리밸런싱 ${REB[p.rebalance]}`;
+  const summaryOf = (p) => `${uniName(p.universe)} · ${(p.items || p.picks).length}종목 · ${WT[p.weighting]} · 리밸런싱 ${REB[p.rebalance]}${p.overlay?.rules?.length ? ` · 매크로 조건 ${p.overlay.rules.length}개` : ''}`;
   const picked = [...picks].sort((a, b) => (w[b] || 0) - (w[a] || 0));
 
   return (
@@ -366,6 +375,9 @@ export default function PortfolioSettings({ onRemove }) {
                       items={COSTS.map((c) => ({ id: c, label: `${c}bp` }))} />
                   </div>
                   <span className="text-[11.5px] text-[var(--mp-muted)]">리밸런싱 = 가격이 움직여 달라진 비중을 목표 비중으로 되돌리기</span>
+                </div>
+                <div className="px-4 py-3 border-t border-[var(--mp-tag)]">
+                  <OverlayEditor value={cur.overlay} onChange={(o) => upd({ overlay: o })} catalog={catalog} loaded={macroLoaded} />
                 </div>
               </aside>
             </div>

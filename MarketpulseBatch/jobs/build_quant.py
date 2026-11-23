@@ -9,6 +9,7 @@
     python MarketpulseBatch/jobs/build_quant.py                    # S&P 500, 최근 11년
     python MarketpulseBatch/jobs/build_quant.py --only-on sun      # 오늘이 일요일일 때만 (daily_ingest.bat 용)
     python MarketpulseBatch/jobs/build_quant.py --limit 60         # 앞 60종목만 (시험 실행)
+    python MarketpulseBatch/jobs/build_quant.py --macro-only       # 매크로 지표('^TNX' · '^HG' …)만 패널에 (quant/macro.py)
 """
 from __future__ import annotations
 
@@ -51,6 +52,18 @@ def _download(symbols, years: int, log):
     return out
 
 
+def _macro(years: int, yahoo_to_id: dict, log):
+    """매크로 지표 일별 값 — 이름을 패널 코드('^TNX' · '^HG' …)로. 받지 못한 지표는 빼고 경고만."""
+    data = _download(list(yahoo_to_id), years, log)
+    out = []
+    for yahoo, code in yahoo_to_id.items():
+        if yahoo in data and data[yahoo].notna().any():
+            out.append(data[yahoo].dropna().rename(code))
+        else:
+            log.warning("매크로 지표 %s(%s) 를 받지 못했습니다 — 이 지표를 쓰는 조건은 계산되지 않습니다", code, yahoo)
+    return out
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--universe", default="sp500", help="mbs_in_indx_member 의 indx_cd (기본 sp500)")
@@ -58,6 +71,8 @@ def main() -> int:
     parser.add_argument("--limit", type=int, default=0, help="앞 N종목만 (시험 실행)")
     parser.add_argument("--benchmark", default="^GSPC", help="전략 백테스트의 벤치마크 지수 (Yahoo 코드)")
     parser.add_argument("--only-on", choices=_WEEKDAYS, help="이 요일에만 실행(그 외엔 건너뜀)")
+    parser.add_argument("--macro-only", action="store_true",
+                        help="매크로 지표('^' 행)만 받아 패널에 넣는다 — 종목 · 모델은 그대로 (빠름)")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -71,6 +86,8 @@ def main() -> int:
     from index_analyzer.db.engine import default_db
     from index_analyzer.db.orm import MBS_IN_INDX_MEMBER, MBS_IN_QUANT_PANEL, MBS_IN_QUANT_SNAPSHOT
     from index_analyzer.quant import build_all
+    from index_analyzer.quant.macro import MACRO_IDS, YAHOO_TO_ID
+    from index_analyzer.quant.panel import index_rows
 
     default_db.create_tables()   # mbs_in_quant_snapshot · mbs_in_quant_panel 보장
     session = default_db.get_session()
@@ -81,6 +98,16 @@ def main() -> int:
             .order_by(MBS_IN_INDX_MEMBER.stk_cd)
             .all()
         )
+        if args.macro_only:
+            macro = _macro(args.years, YAHOO_TO_ID, log)
+            rows = [r for m in macro for r in index_rows(m, args.universe)]
+            session.query(MBS_IN_QUANT_PANEL).filter(
+                MBS_IN_QUANT_PANEL.universe == args.universe, MBS_IN_QUANT_PANEL.stk_cd.in_(MACRO_IDS)).delete()
+            session.bulk_insert_mappings(MBS_IN_QUANT_PANEL, rows)
+            session.commit()
+            log.info("매크로 지표 적재 — %s · %d행", ", ".join(m.name for m in macro), len(rows))
+            return 0
+
         names = {m.stk_cd: {"name": m.stk_nm, "sector": m.sector} for m in members}
         symbols = sorted(names)[: args.limit or None]
         if len(symbols) < 50:
@@ -92,7 +119,8 @@ def main() -> int:
         benchmark = bench.iloc[:, 0].rename(args.benchmark) if bench.shape[1] else None
         if benchmark is None:
             log.warning("벤치마크 %s 가격을 받지 못했습니다 — 전략은 유니버스 동일 비중과만 견준다", args.benchmark)
-        snapshots, panel = build_all(close, names, args.universe, benchmark)
+        macro = _macro(args.years, YAHOO_TO_ID, log)
+        snapshots, panel = build_all(close, names, args.universe, benchmark, macro)
         base_ymd = datetime.strptime(snapshots["factors"]["meta"]["end"], "%Y-%m-%d").date()
 
         for dataset, snap in snapshots.items():

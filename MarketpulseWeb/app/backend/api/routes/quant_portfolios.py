@@ -30,6 +30,19 @@ class Item(BaseModel):
     weight: Optional[float] = None
 
 
+class Rule(BaseModel):
+    series: str = Field(..., max_length=20)
+    transform: str = "level"
+    op: str = ">"
+    value: float = 0.0
+
+
+class Overlay(BaseModel):
+    """매크로 조건 — 켜진 달만 보유, 꺼진 달은 현금."""
+    mode: str = "all"
+    rules: List[Rule] = []
+
+
 class PortfolioBody(BaseModel):
     name: str = Field(..., max_length=100)
     universe: str = "sp500"
@@ -38,6 +51,7 @@ class PortfolioBody(BaseModel):
     rebalance: str = "Q"
     cost_bps: float = 10.0
     items: List[Item] = []
+    overlay: Optional[Overlay] = None
 
 
 def _own(fn):

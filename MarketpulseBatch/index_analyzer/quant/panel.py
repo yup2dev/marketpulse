@@ -22,10 +22,28 @@ def _clean(frame: pd.DataFrame) -> List[dict]:
             for r in frame.to_dict("records")]
 
 
+def index_rows(series: pd.Series, universe: str, start=None, months=None) -> List[dict]:
+    """지수 · 매크로 지표 하나 → 월말 '^' 행 (close = 월말 값, fwd_ret = 다음 달 변화율, 팩터 · 확률은 비움).
+    months: 종목 쪽에서 정답(다음 달 수익률)이 있는 달 — 그 밖의 달은 fwd_ret 를 지워 같은 달끼리 견준다."""
+    b = month_end(series.dropna().sort_index().to_frame()).iloc[:, 0]
+    if start is not None:
+        b = b[b.index >= start]
+    frame = pd.DataFrame({"close": b, "fwd_ret": b.pct_change(fill_method=None).shift(-1)})
+    if months is not None:
+        frame.loc[[d.to_period("M") not in months for d in frame.index], "fwd_ret"] = np.nan
+    for col in FACTOR_IDS + [f"p_{c}" for c in PROB_COLS]:
+        frame[col] = np.nan
+    frame["base_ymd"] = [pd.Timestamp(d).date() for d in frame.index]
+    frame["stk_cd"] = str(series.name)
+    frame["universe"] = universe
+    return _clean(frame.reset_index(drop=True))
+
+
 def panel_rows(close: pd.DataFrame, scores: Dict[str, pd.DataFrame], oos: Optional[pd.DataFrame],
-               universe: str, benchmark: Optional[pd.Series] = None) -> List[dict]:
+               universe: str, benchmark: Optional[pd.Series] = None,
+               extra: Optional[List[pd.Series]] = None) -> List[dict]:
     """close: 일별 수정 종가. scores: factors.build_factors 결과. oos: run_models 의 표본 밖 확률((월말, 종목) × 열).
-    benchmark: 지수의 일별 종가 (이름 = 지수 코드, 예: '^GSPC')."""
+    benchmark: 지수의 일별 종가 (이름 = 지수 코드, 예: '^GSPC'). extra: 매크로 지표 일별 값 (이름 = 패널 코드, macro.py)."""
     fwd = scores["fwd"]
     m_close = month_end(close.sort_index()).reindex(index=fwd.index, columns=fwd.columns)
     cols = {"close": m_close, "fwd_ret": fwd, **{f: scores[f] for f in FACTOR_IDS}}
@@ -40,17 +58,11 @@ def panel_rows(close: pd.DataFrame, scores: Dict[str, pd.DataFrame], oos: Option
     frame["universe"] = universe
     rows = _clean(frame)
 
+    ok = set(fwd.index[fwd.notna().any(axis=1)].to_period("M"))
     if benchmark is not None and len(benchmark.dropna()):
-        b = month_end(benchmark.dropna().sort_index().to_frame()).iloc[:, 0]
-        b = b[b.index >= fwd.index[0]]
-        bench = pd.DataFrame({"close": b, "fwd_ret": b.pct_change(fill_method=None).shift(-1)})
-        # 종목 쪽에서 정답을 지운 달(끝나지 않은 달 직전 등)은 지수도 지운다 — 같은 달끼리 견준다
-        ok = set(fwd.index[fwd.notna().any(axis=1)].to_period("M"))
-        bench.loc[[d.to_period("M") not in ok for d in bench.index], "fwd_ret"] = np.nan
-        for col in FACTOR_IDS + [f"p_{c}" for c in PROB_COLS]:
-            bench[col] = np.nan
-        bench["base_ymd"] = [pd.Timestamp(d).date() for d in bench.index]
-        bench["stk_cd"] = str(benchmark.name)
-        bench["universe"] = universe
-        rows += _clean(bench.reset_index(drop=True))
+        rows += index_rows(benchmark, universe, start=fwd.index[0], months=ok)
+    # 매크로 지표는 패널 첫 달보다 15개월 앞부터 — 12개월 평균 같은 조건을 첫 달부터 계산할 수 있게
+    for series in extra or []:
+        if series is not None and len(series.dropna()):
+            rows += index_rows(series, universe, start=fwd.index[0] - pd.DateOffset(months=15), months=ok)
     return rows
