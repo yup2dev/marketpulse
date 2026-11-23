@@ -877,21 +877,24 @@ BUILTIN_WIDGETS += [
         "view_type": "table",
         "endpoint": _quant("factors"),
         "source": "$provider",
-        "source_note": "{members}종목 · 기준 {asOf}",
+        "source_note": "{used} · 동일 비중 · {members}종목",
         "transform": "quant_factors",
         "empty_text": QUANT_EMPTY,
-        "size": (5, 7, 4, 4),
+        "size": (4, 7, 4, 4),
         "params": [UNIVERSE],
+        # 스위치로 끈 팩터는 화면 변수 quant_off 에 모인다 — 머리줄 '백테스트로 보내기'가 켠 팩터로 전략을 만든다
         "fields": [
+            _field("COLUMN", "_toggle", "switch", "", width=44, sub="quant_off"),
             _field("COLUMN", "name", "text", "팩터"),
-            _field("COLUMN", "_ic", "value", "IC", width=64),
-            _field("COLUMN", "_icir", "value_muted", "ICIR", width=56),
-            _field("COLUMN", "_hit", "value_muted", "적중", width=52),
-            _field("COLUMN", "ls_ann", "change", "연 롱숏", width=76),
+            _field("COLUMN", "_w", "value_muted", "비중", width=48),
+            _field("COLUMN", "_ic", "value", "IC", width=60),
+            _field("COLUMN", "_icir", "value_muted", "ICIR", width=52),
+            _field("COLUMN", "ls_ann", "change", "연 롱숏", width=72),
             _field("COLUMN", "_kind", "badge", "", width=52, sub="_tone"),
         ],
-        "options": {"shared": "universe", "rowHeight": "40", "minWidth": "420"},
-        "screens": [("/quantlib", "factors", 0, 0, 5, 7), ALL],
+        "options": {"shared": "universe,quant_off", "rowHeight": "40", "minWidth": "400",
+                    "muteBy": "_off", "highlight": "quant_step:factor"},
+        "screens": [("/quantlib", "factors", 0, 0, 4, 7), ALL],
     },
     # ── 팩터 성과: 롱숏 누적 수익(계열 칩 비교) / 합성 점수 분위 수익률 ──
     {
@@ -905,7 +908,7 @@ BUILTIN_WIDGETS += [
         "source_note": "상위 20% 롱 · 하위 20% 숏 · 최근 5년 · 비용 없음",
         "transform": "quant_meta",
         "empty_text": QUANT_EMPTY,
-        "size": (7, 7, 4, 4),
+        "size": (8, 7, 4, 4),
         "params": [UNIVERSE],
         "tabs": [
             ("ls", "롱숏 누적 수익", None, None, []),
@@ -913,7 +916,7 @@ BUILTIN_WIDGETS += [
         ],
         "fields": [_field("LABEL", "q"), _field("VALUE", "value")],
         "options": {
-            "shared": "universe",
+            "shared": "universe", "highlight": "quant_step:factor",
             "x": "date", "series": FACTOR_SERIES, "pick": "composite,mom_12_1,lowvol", "max": "4",
             "unit": "%", "digits": "1",
             "tab.q.view": "columns",
@@ -921,7 +924,7 @@ BUILTIN_WIDGETS += [
             "tab.q.transform": "quant_meta",
             "tab.q.tone": "true",
         },
-        "screens": [("/quantlib", "factors", 5, 0, 7, 7), ALL],
+        "screens": [("/quantlib", "factors", 4, 0, 8, 7), ALL],
     },
     # ── 예측 모델: 표본 밖 정확도 · AUC · 샤프 · 스태킹 비중 / 시장 국면 띠 ──
     {
@@ -951,7 +954,8 @@ BUILTIN_WIDGETS += [
             _field("COLUMN", "_kind", "badge", "", width=52, sub="_tone"),
         ],
         "options": {
-            "shared": "universe", "rowHeight": "40", "minWidth": "640", "fixed": "true",
+            "shared": "universe", "highlight": "quant_step:ml",
+            "rowHeight": "40", "minWidth": "640", "fixed": "true",
             "tab.regime.view": "strip",
             "tab.regime.endpoint": _quant("regimes"),
             "tab.regime.transform": "quant_meta",
@@ -985,7 +989,7 @@ BUILTIN_WIDGETS += [
             _field("COLUMN", "_score", "bar", "확률", width=128),
             _field("COLUMN", "_signal", "badge", "시그널", width=64, sub="_tone"),
         ],
-        "options": {"shared": "universe", "rowHeight": "38", "minWidth": "420"},
+        "options": {"shared": "universe", "highlight": "quant_step:fusion", "rowHeight": "38", "minWidth": "420"},
         "screens": [("/quantlib", "factors", 7, 7, 5, 6), ALL],
     },
 ]

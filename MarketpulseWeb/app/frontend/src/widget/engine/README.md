@@ -50,6 +50,7 @@ endpoint → 행 꺼내기(dataPath) → prepare → 실시간 시세 병합(quo
 옵션 `shared` = `이름[,이름]` 으로 적는다 — 그 이름의 컨트롤 값이 위젯마다 따로가 아니라 한 곳(`shared.js`)에 놓여,
 한 위젯에서 바꾸면 같은 이름을 쓰는 위젯이 모두 따라온다 (새로고침해도 남는다).
 표는 옵션 `select` = `이름:행 필드` 로 행 클릭을 그 값에 연결한다 (예: 기관 순위 → `institution:institution_key`).
+옵션 `highlight` = `이름:값` 이면 그 화면 변수가 그 값일 때 패널 테두리를 강조한다 (퀀트 머리줄의 단계 ①②③ → `quant_step:factor`).
 
 같은 `widget_id` 가 코드 레지스트리(`widgetEndpoints`)에도 있으면 DB 정의가 이긴다 — 기존 위젯을 이 방식으로 옮길 때 같은 id 로 행을 넣는다.
 
@@ -86,7 +87,7 @@ endpoint → 행 꺼내기(dataPath) → prepare → 실시간 시세 병합(quo
 | 뷰 | 용도 | 옵션 (자세한 건 각 파일 머리 주석) |
 |---|---|---|
 | `tiles` | 시세 타일 격자 | `symbol, label, series, columns` |
-| `table` | 표 (= `MpGrid`) | `columns[{ type, header, field, width, align, render, digits, sortable, hide }]`, `minWidth`, `rowHeight`, `fixed`(열 폭 고정 + 넘치면 …), `select`(행 클릭 → 화면 변수), 켜는 기능 `sortable` `searchable` `exportable` `columnPicker` `pageSize` `expand(row)` `onRowClick` — type: `rank stock price change percent compact number date trend tag text muted value value_muted money pct pill bar badge entity link` |
+| `table` | 표 (= `MpGrid`) | `columns[{ type, header, field, width, align, render, digits, sortable, hide }]`, `minWidth`, `rowHeight`, `fixed`(열 폭 고정 + 넘치면 …), `select`(행 클릭 → 화면 변수), 켜는 기능 `sortable` `searchable` `exportable` `columnPicker` `pageSize` `expand(row)` `onRowClick` `muteBy`(참인 행 흐리게) — type: `rank stock price change percent compact number date trend tag text muted value value_muted money pct pill bar badge entity link switch` (`switch` = 켜고 끄기, 보조 필드 = 꺼 둔 값 목록의 화면 변수) |
 | `candles` | 한 종목 캔들 + 거래량 | `headline`, `ma`(이동평균선 봉 수) — 등락률 기준은 `meta.prevClose` |
 | `treemap` | 넓이 = 크기, 색 = 등락률 | `value, label, change, group, link, heatMax` |
 | `list` | 시각 · 제목 · 꼬리표/값 | `time, title, sub, href, tag, tagSymbol, value, valueMuted, dot, rowHeight` |

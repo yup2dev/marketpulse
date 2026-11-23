@@ -29,6 +29,7 @@ import WidgetMenu from '../../widget/render/WidgetMenu';
 
 import StockSelectorModal from '../../common/components/StockSelectorModal';
 import StrategyPicker from '../../widget/widgets/backtest/StrategyPicker';
+import QuantWorkflow from '../../widget/widgets/quant/QuantWorkflow';
 
 // ── Split tree helpers (localStorage — kept as offline fallback) ─────────────
 
@@ -335,12 +336,13 @@ export default function DashboardPage() {
         {/* ── Sub-header ─────────────────────────────────────────────── */}
         <div className="widget-surface border-b widget-border px-4 flex-shrink-0">
           <div className="flex items-center justify-between py-2 gap-2">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
               <LayoutGrid size={13} className="text-gray-500" />
               <span className="text-sm font-semibold text-gray-200">
                 {config.label}
               </span>
               {config.needsStrategy && <StrategyPicker />}
+              {config.needsQuantWorkflow && <QuantWorkflow />}
               {isDashboard && (
                 <WorkspaceSelector
                   workspaces={workspaces}

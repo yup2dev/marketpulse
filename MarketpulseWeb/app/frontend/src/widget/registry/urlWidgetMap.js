@@ -66,7 +66,9 @@ export const URL_WIDGET_MAP = {
   // ─── 퀀트 (Quant.dc.html) ────────────────────────────────────────────────
   '/quantlib': {
     label: 'QuantLib',
-    needsSymbol: true,
+    // 종목이 아니라 유니버스 단위 — 종목 선택 대신 머리줄에 워크플로 줄 (widget/widgets/quant/QuantWorkflow)
+    needsSymbol: false,
+    needsQuantWorkflow: true,
     needsPortfolio: false,
     // 값은 로컬 배치가 적재한다
     categories: [dbTab('factors', 'Factors & ML')],
