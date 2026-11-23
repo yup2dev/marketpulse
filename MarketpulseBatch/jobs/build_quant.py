@@ -30,8 +30,10 @@ _WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 _CHUNK = 100
 
 
-def _download(symbols, years: int, log):
-    """일별 수정 종가(날짜 × 종목). Yahoo 는 클래스 주식을 'BRK-B' 로 적는다."""
+def _download(symbols, years: int, log, yahoo_codes: bool = False):
+    """일별 수정 종가(날짜 × 종목). Yahoo 는 클래스 주식을 'BRK-B' 로 적는다.
+    yahoo_codes: 이미 Yahoo 코드('DX-Y.NYB' 처럼 점이 코드의 일부)라 바꾸지 않는다."""
+    fix = (lambda s: s) if yahoo_codes else (lambda s: s.replace(".", "-"))
     import pandas as pd
     import yfinance as yf
 
@@ -39,13 +41,13 @@ def _download(symbols, years: int, log):
     for i in range(0, len(symbols), _CHUNK):
         chunk = symbols[i:i + _CHUNK]
         data = yf.download(
-            [s.replace(".", "-") for s in chunk], period=f"{years}y", interval="1d",
+            [fix(s) for s in chunk], period=f"{years}y", interval="1d",
             auto_adjust=True, progress=False, threads=True,
         )
         close = data["Close"] if "Close" in data else data
         if isinstance(close, pd.Series):
             close = close.to_frame(chunk[0])
-        frames.append(close.rename(columns={s.replace(".", "-"): s for s in chunk}))
+        frames.append(close.rename(columns={fix(s): s for s in chunk}))
         log.info("가격 %d / %d 종목", min(i + _CHUNK, len(symbols)), len(symbols))
     out = pd.concat(frames, axis=1).dropna(axis=1, how="all")
     out.index = pd.to_datetime(out.index).tz_localize(None)
@@ -54,7 +56,7 @@ def _download(symbols, years: int, log):
 
 def _macro(years: int, yahoo_to_id: dict, log):
     """매크로 지표 일별 값 — 이름을 패널 코드('^TNX' · '^HG' …)로. 받지 못한 지표는 빼고 경고만."""
-    data = _download(list(yahoo_to_id), years, log)
+    data = _download(list(yahoo_to_id), years, log, yahoo_codes=True)
     out = []
     for yahoo, code in yahoo_to_id.items():
         if yahoo in data and data[yahoo].notna().any():
