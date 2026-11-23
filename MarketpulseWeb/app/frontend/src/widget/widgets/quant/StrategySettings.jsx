@@ -1,12 +1,14 @@
 /**
  * StrategySettings — 퀀트 '전략 설정' 탭 (시안 QuantStrategy.dc.html).
  *
- * 전략 = 종목 점수 규칙만 정한다 (팩터 조합의 가중치 또는 ML 모델 하나). 담을 종목은 포트폴리오 설정 탭.
+ * 전략 = 규칙 전체 — 대상 종목 · 점수 · 매크로 조건 · 보유 수 · 리밸런싱.
  *   왼쪽  전략 목록 — 기본 제공(잠김) · 내 전략, 새 전략
- *   오른쪽 편집 — 이름 · 점수 종류 · 팩터와 가중치(IC · ICIR · 연 롱숏 · 판정을 근거로) 또는 모델 카드
+ *   오른쪽 편집 — 이름 · 대상 종목(S&P 500 전체 또는 내 포트폴리오 묶음) · 점수 종류
+ *          (팩터와 가중치 — IC · ICIR · 연 롱숏 · 판정을 근거로 / ML 모델 카드 / 대상 전부 보유)
+ *          · 매크로 조건(OverlayEditor — 켜진 달만 보유, 꺼진 달은 현금) · 보유 수 · 리밸런싱
  *          기본 제공은 읽기 전용 — 복제해서 내 전략으로 고친다
  * 저장하면 화면 변수 strategy 를 그 전략으로 — 메인 · 백테스트가 그 전략으로 열린다.
- * 보유 종목 수 · 리밸런싱(top_n · rebalance)은 여기서 고치지 않고 그대로 둔다 (백테스트 실행 조건).
+ * 종목 묶음(무엇을 얼마나)은 포트폴리오 설정 탭에서 만든다.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -18,8 +20,15 @@ import { Switch } from '../../engine/views/parts';
 import {
   BTN_DANGER, BTN_GHOST, BTN_PRIMARY, FIELD, KindTag, LBL, ListItem, PANEL, Seg, strategyHead, verdict,
 } from './quantShared';
+import OverlayEditor from './OverlayEditor';
 
-const KINDS = [{ id: 'factor', label: '팩터 조합' }, { id: 'ml', label: 'ML 모델' }];
+const KINDS = [{ id: 'factor', label: '팩터 조합' }, { id: 'ml', label: 'ML 모델' }, { id: 'none', label: '대상 전부 보유' }];
+const KIND_NOTE = {
+  factor: '켜진 팩터의 z-점수를 가중합해 점수를 만들어요',
+  ml: '학습된 모델의 확률을 그대로 점수로 써요',
+  none: '점수 없이 대상 종목을 전부 보유해요 (포트폴리오의 비중 방식대로)',
+};
+const REBALANCE = [{ id: 'M', label: '월간' }, { id: 'Q', label: '분기' }];
 const pct = (v, d = 1) => (v == null ? '—' : `${v > 0 ? '+' : ''}${Number(v).toFixed(d)}%`);
 
 /** 서버 행 → 편집 모양 (가중치는 합 100 의 %) */
@@ -28,6 +37,7 @@ function toDraft(s) {
   return {
     id: s.strategy_id, builtin: s.builtin, name: s.name, description: s.description || '',
     score_kind: s.score_kind, model: s.model || 'stack', top_n: s.top_n, rebalance: s.rebalance,
+    basket_id: s.basket_id || '', overlay: s.overlay || null,
     w: Object.fromEntries(s.factors.map((f) => [f.factor_id, Math.round((Number(f.weight) / total) * 100)])),
   };
 }
@@ -39,7 +49,8 @@ function toBody(d) {
   return {
     name: d.name.trim() || '이름 없는 전략', description: d.description || null,
     score_kind: d.score_kind, model: d.score_kind === 'ml' ? d.model : null,
-    factors: d.score_kind === 'ml' ? [] : ids
+    basket_id: d.basket_id || null, overlay: d.overlay || null,
+    factors: d.score_kind !== 'factor' ? [] : ids
       .filter((k) => Number(d.w[k]) > 0)
       .map((k) => ({ factor_id: k, weight: sum ? Math.round(((Number(d.w[k]) || 0) / sum) * 10000) / 1000 : 0 })),
     top_n: d.top_n, rebalance: d.rebalance,
@@ -57,6 +68,11 @@ export default function StrategySettings({ onRemove }) {
   const [draft, setDraft] = useState(null);
   const [busy, setBusy] = useState(false);
   const [flash, setFlash] = useState('');
+  const [baskets, setBaskets] = useState([]);   // 대상 종목 묶음 = 내 포트폴리오
+
+  useEffect(() => {
+    apiClient.get(`${API_BASE}/quant-portfolios`).then((r) => setBaskets(r.results || [])).catch(() => setBaskets([]));
+  }, []);
 
   const load = useCallback(async () => {
     const r = await apiClient.get(`${API_BASE}/strategies`);
@@ -146,19 +162,24 @@ export default function StrategySettings({ onRemove }) {
   const factors = catalog.factors || [];
   const onIds = cur ? factors.filter((f) => cur.w[f.id] != null).map((f) => f.id) : [];
   const sum = onIds.reduce((a, k) => a + (Number(cur.w[k]) || 0), 0);
-  const isFactor = cur?.score_kind !== 'ml';
+  const isFactor = cur?.score_kind === 'factor';
+  const isMl = cur?.score_kind === 'ml';
+  const holdAll = cur?.score_kind === 'none';
   const noFactor = isFactor && onIds.length === 0;
+  const basket = baskets.find((b) => b.portfolio_id === cur?.basket_id);
+  const needBasket = holdAll && !cur?.basket_id;
+  const headOf = (s) => strategyHead(s, catalog, baskets);
   const builtins = (list || []).filter((s) => s.builtin);
   const mine = (list || []).filter((s) => !s.builtin);
   const shownName = (s) => (s.strategy_id === sel && draft ? draft.name : s.name);
-  const shownHead = (s) => strategyHead(s.strategy_id === sel && draft ? { ...toBody(draft) } : s, catalog);
+  const shownHead = (s) => headOf(s.strategy_id === sel && draft ? { ...toBody(draft) } : s);
   const period = stats.meta.start && stats.meta.end ? `${String(stats.meta.start).slice(0, 7)}–${String(stats.meta.end).slice(0, 7)}` : '';
 
   return (
     <WidgetCard
       title="전략 설정"
       source="db"
-      sourceNote="여기서는 종목 점수 규칙만 정해요 · 담을 종목은 포트폴리오 설정에서 직접 골라요"
+      sourceNote="전략 = 대상 종목 · 점수 · 매크로 조건 · 리밸런싱 · 종목 묶음은 포트폴리오 설정에서 만들어요"
       onRemove={onRemove}
       loading={!list}
     >
@@ -177,7 +198,7 @@ export default function StrategySettings({ onRemove }) {
             {builtins.map((s) => (
               <ListItem
                 key={s.strategy_id} on={s.strategy_id === sel} onClick={() => pick(s.strategy_id)}
-                title={s.name} sub={strategyHead(s, catalog)}
+                title={s.name} sub={headOf(s)}
                 right={<><KindTag kind={s.score_kind} /><Lock size={13} className="text-[var(--mp-muted)]" aria-label="잠김" /></>}
               />
             ))}
@@ -210,7 +231,7 @@ export default function StrategySettings({ onRemove }) {
               <span className="flex gap-2">
                 <button type="button" className={BTN_GHOST} onClick={dup} disabled={busy}><Copy size={14} aria-hidden="true" />복제</button>
                 <button type="button" className={BTN_DANGER} onClick={del} disabled={ro || busy}><Trash2 size={14} aria-hidden="true" />삭제</button>
-                <button type="button" className={BTN_PRIMARY} onClick={save} disabled={ro || !dirty || noFactor || busy}>저장</button>
+                <button type="button" className={BTN_PRIMARY} onClick={save} disabled={ro || !dirty || noFactor || needBasket || busy}>저장</button>
               </span>
             </div>
 
@@ -224,14 +245,47 @@ export default function StrategySettings({ onRemove }) {
               )}
 
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                <span className={`${LBL} w-24`}>점수 종류</span>
-                <Seg items={KINDS} value={cur.score_kind} onChange={(k) => upd({ score_kind: k })} disabled={ro} label="점수 종류" />
+                <label htmlFor="st-basket" className={`${LBL} w-24`}>대상 종목</label>
+                <select
+                  id="st-basket" value={cur.basket_id || ''} disabled={ro}
+                  onChange={(e) => upd({ basket_id: e.target.value, ...(e.target.value ? {} : { score_kind: holdAll ? 'factor' : cur.score_kind }) })}
+                  className="h-8 px-2 rounded-md border border-[var(--mp-tile-line)] bg-[var(--mp-raised)] text-[13px] text-[var(--mp-text)] outline-none focus:border-[var(--mp-accent)] [&_option]:bg-[var(--mp-panel)] disabled:text-[var(--mp-muted)]"
+                >
+                  <option value="">S&amp;P 500 전체</option>
+                  {baskets.map((b) => <option key={b.portfolio_id} value={b.portfolio_id}>{b.name} · {b.items.length}종목</option>)}
+                </select>
                 <span className="text-xs text-[var(--mp-muted)]">
-                  {isFactor ? '켜진 팩터의 z-점수를 가중합해 점수를 만들어요' : '학습된 모델의 확률을 그대로 점수로 써요'}
+                  {basket ? '이 묶음 안에서만 고르거나 전부 보유해요' : '유니버스 전체에서 점수로 골라요'}
+                  {' · '}
+                  <button type="button" className="underline-offset-2 hover:underline text-[var(--mp-text-2)]" onClick={() => navigate('/quantlib?tab=portfolio')}>
+                    묶음 만들기 · 고치기
+                  </button>
                 </span>
               </div>
 
-              {isFactor ? (
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <span className={`${LBL} w-24`}>점수 종류</span>
+                <Seg
+                  items={KINDS.map((k) => (k.id === 'none' && !cur.basket_id ? { ...k, label: '대상 전부 보유 (묶음 필요)' } : k))}
+                  value={cur.score_kind}
+                  onChange={(k) => { if (k === 'none' && !cur.basket_id) return; upd({ score_kind: k }); }}
+                  disabled={ro} label="점수 종류"
+                />
+                <span className="text-xs text-[var(--mp-muted)]">{KIND_NOTE[cur.score_kind]}</span>
+              </div>
+
+              {holdAll ? (
+                <div className="flex flex-col gap-1 px-3 py-2.5 border border-[var(--mp-tag)] rounded-md text-xs">
+                  {basket ? (
+                    <>
+                      <span className="text-[13px] font-bold">{basket.name} — {basket.items.length}종목 전부 보유</span>
+                      <span className="text-[var(--mp-muted)] truncate">{basket.items.map((i) => i.symbol).join(' · ')}</span>
+                    </>
+                  ) : (
+                    <span className="text-[#F5A623]">대상 종목 묶음을 골라 주세요</span>
+                  )}
+                </div>
+              ) : isFactor ? (
                 <div className="flex flex-col border border-[var(--mp-tag)] rounded-md">
                   <div className="flex flex-wrap items-center gap-3 min-h-10 px-3 py-1 border-b border-[var(--mp-tag)]">
                     <span className="text-[13px] font-bold">팩터와 가중치</span>
@@ -308,7 +362,7 @@ export default function StrategySettings({ onRemove }) {
                     <span className="ml-auto text-[var(--mp-muted)]">IC = 월간 순위 상관 평균 · 판정은 t값 기준</span>
                   </div>
                 </div>
-              ) : (
+              ) : isMl && (
                 <div className="flex flex-col gap-2.5">
                   <span className="flex items-center gap-3">
                     <span className="text-[13px] font-bold">모델</span>
@@ -343,22 +397,39 @@ export default function StrategySettings({ onRemove }) {
                 </div>
               )}
 
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5 p-3.5 border border-dashed border-[var(--mp-tile-line)] rounded-md">
-                <span className="flex flex-col gap-1 flex-[1_1_320px] min-w-0">
-                  <span className="text-[13px] font-bold">보유 종목은 포트폴리오에서 따로 골라요</span>
-                  <span className="text-[11.5px] text-[var(--mp-muted)]">
-                    전략은 종목 점수만 정해요 · 백테스트는 점수 상위 {cur.top_n}종목 · {cur.rebalance === 'Q' ? '분기' : '월간'} 리밸런싱
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <span className={`${LBL} w-24`}>보유 · 리밸런싱</span>
+                {!holdAll && (
+                  <label className="flex items-center gap-1.5 text-xs text-[var(--mp-muted)]">
+                    점수 상위
+                    <input
+                      className={`${FIELD} !h-8 w-16 !px-1.5 text-right`} type="number" min={catalog.top_n?.[0] || 5} max={catalog.top_n?.[1] || 100}
+                      value={String(cur.top_n)} disabled={ro} aria-label="보유 종목 수"
+                      onChange={(e) => upd({ top_n: Math.max(catalog.top_n?.[0] || 5, Math.min(catalog.top_n?.[1] || 100, Math.round(Number(e.target.value) || 5))) })}
+                    />
+                    종목
+                  </label>
+                )}
+                <Seg items={REBALANCE} value={cur.rebalance} onChange={(r) => upd({ rebalance: r })} disabled={ro} label="리밸런싱" size="sm" />
+              </div>
+
+              <div className="p-3.5 border border-[var(--mp-tag)] rounded-md">
+                {ro ? (
+                  <span className="text-xs text-[var(--mp-muted)]">
+                    매크로 조건 — {cur.overlay?.rules?.length ? `${cur.overlay.rules.length}개` : '없음 (늘 보유)'} · 복제하면 고칠 수 있어요
                   </span>
-                </span>
-                <button type="button" className={`${BTN_GHOST} !h-8`} onClick={() => navigate('/quantlib?tab=portfolio')}>
-                  포트폴리오 설정<ArrowRight size={13} aria-hidden="true" />
-                </button>
+                ) : (
+                  <OverlayEditor
+                    value={cur.overlay} onChange={(o) => upd({ overlay: o })}
+                    catalog={catalog} loaded={catalog.panel?.macro || []}
+                  />
+                )}
               </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 flex-shrink-0 border-t border-[var(--mp-tag)] bg-[var(--mp-raised)]/40">
               <span className={LBL}>요약</span>
-              <span className="text-[13px] font-semibold">{strategyHead(toBody(cur), catalog)}</span>
+              <span className="text-[13px] font-semibold">{headOf(toBody(cur))}</span>
               <span className="ml-auto flex gap-2">
                 <button type="button" className={BTN_GHOST} onClick={() => open('/quantlib?tab=factors')}>메인에서 보기</button>
                 <button type="button" className={BTN_PRIMARY} onClick={() => open('/backtest')}>

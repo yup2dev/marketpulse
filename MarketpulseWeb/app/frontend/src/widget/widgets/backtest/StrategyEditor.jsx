@@ -24,12 +24,14 @@ export const blank = (catalog) => ({
 export function summary(s, catalog) {
   if (!s) return '';
   const reb = s.rebalance === 'Q' ? '분기' : '월간';
+  const extra = s.overlay?.rules?.length ? ` · 매크로 조건 ${s.overlay.rules.length}개` : '';
+  if (s.score_kind === 'none') return `${s.basket?.name || '묶음'} 전부 보유 · ${reb}${extra}`;
   if (s.score_kind === 'ml') {
     const m = catalog?.models?.find((x) => x.id === s.model)?.name || s.model;
-    return `${m} · ${reb} · 상위 ${s.top_n}종목`;
+    return `${m} · ${reb} · 상위 ${s.top_n}종목${extra}`;
   }
   const names = s.factors.map((f) => catalog?.factors?.find((x) => x.id === f.factor_id)?.name || f.factor_id);
-  return `${names.length > 2 ? `팩터 ${names.length}개` : names.join(' + ')} · ${reb} · 상위 ${s.top_n}종목`;
+  return `${s.basket ? `${s.basket.name} 안 ` : ''}${names.length > 2 ? `팩터 ${names.length}개` : names.join(' + ')} · ${reb} · 상위 ${s.top_n}종목${extra}`;
 }
 
 export default function StrategyEditor({ form, setForm, catalog, saving, error, onSave, onCopy, onClose }) {

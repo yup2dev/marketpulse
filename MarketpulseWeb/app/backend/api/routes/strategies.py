@@ -45,6 +45,8 @@ class StrategyBody(BaseModel):
     factors: List[FactorWeight] = []
     top_n: int = 30
     rebalance: str = "M"
+    basket_id: Optional[str] = Field(None, max_length=50)   # 대상 종목 묶음(내 포트폴리오) — 비우면 유니버스 전체
+    overlay: Optional[dict] = None                          # 매크로 조건 (services/quant_overlay)
 
 
 def _errors(fn):

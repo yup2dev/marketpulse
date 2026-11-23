@@ -7,8 +7,8 @@
 
     비중 방식  equal 동일 · manual 직접 입력(%) · mcap 시가총액(종목 프로필의 지금 값) · invvol 역변동성(최근 12개월)
     현금       manual 이 아니면 cash_pct, manual 이면 100 - 입력 합계 — 수익률 0
-    매크로 조건 overlay = {mode: all|any, rules: [{series, transform, op, value}]} — 매달 말 그때까지의 값으로
-               판단해 켜지면 목표 비중으로 보유, 꺼지면 전부 현금. 지표는 패널의 '^' 행(배치 quant/macro.py)
+포트폴리오는 종목 묶음과 비중만 정한다. 매크로 조건(언제 보유할지)은 전략에 붙는다 — 대상 종목을 이 묶음으로 한
+'점수 없음(전부 보유)' 전략이 이 모듈의 run_backtest 로 계산된다 (quant_strategy_service._run).
 """
 from __future__ import annotations
 
@@ -22,6 +22,7 @@ import pandas as pd
 from sqlalchemy.orm import Session
 
 from app.backend.models.orm import MBS_IN_STK_PROFILE, UserQuantPortfolio, UserQuantPortfolioItem
+from app.backend.services import quant_overlay as ov
 from app.backend.services import quant_strategy_service as qs
 
 PREFIX = "pf:"                       # /api/strategies/result?strategy=pf:<id>
@@ -34,19 +35,6 @@ MAX_ITEMS = 200
 MAX_CASH = 50
 VOL_MONTHS = 12
 NOTE = "고른 종목 · 목표 비중 그대로 · 리밸런싱 사이에는 가격에 따라 비중이 움직여요 · 수익률이 없는 달은 0%"
-OVERLAY_NOTE = "매크로 조건은 매달 말 그때까지의 지표 값으로 판단 · 꺼진 달은 전부 현금(수익률 0)"
-
-# 매크로 조건 — 변환(월말 값 기준) · 비교
-TRANSFORMS = {
-    "level": "값",
-    "chg_3m": "3개월 변화",       # rate = 차이(%p · 포인트), price = %
-    "chg_1m": "1개월 변화",
-    "ma12_gap": "12개월 평균 대비 %",
-    "yoy": "1년 전 대비 %",
-}
-OPS = {">": lambda a, b: a > b, ">=": lambda a, b: a >= b, "<": lambda a, b: a < b, "<=": lambda a, b: a <= b}
-MAX_RULES = 5
-
 _RESULT_CACHE = qs.PackedCache(8)   # 압축 JSON — quant_strategy_service.PackedCache
 
 
@@ -67,7 +55,6 @@ def to_dict(p: UserQuantPortfolio) -> dict:
         "rebalance": p.rebalance,
         "cost_bps": p.cost_bps,
         "items": [{"symbol": i.stk_cd, "weight": i.weight} for i in p.items],
-        "overlay": json.loads(p.overlay) if p.overlay else None,
         "updated_at": p.updated_at.isoformat() if p.updated_at else None,
     }
 
@@ -119,39 +106,12 @@ def _validate(body: dict) -> dict:
     if weighting == "manual" and sum(w or 0 for _, w in items) > 100.05:
         raise PortfolioError("비중 합계가 100%를 넘어요")
     return {"name": name[:100], "universe": universe, "weighting": weighting, "rebalance": rebalance,
-            "cost_bps": cost, "cash_pct": cash, "items": items, "overlay": validate_overlay(body.get("overlay"))}
-
-
-def validate_overlay(raw) -> Optional[dict]:
-    """매크로 조건 정리 — 규칙이 없으면 None (늘 보유)."""
-    if not raw or not raw.get("rules"):
-        return None
-    mode = raw.get("mode") or "all"
-    if mode not in ("all", "any"):
-        raise PortfolioError("조건 묶음은 all(모두) 또는 any(하나라도)예요")
-    rules = []
-    for r in raw["rules"]:
-        series, transform, op = r.get("series"), r.get("transform") or "level", r.get("op") or ">"
-        if series not in qs.MACRO_IDS:
-            raise PortfolioError(f"모르는 매크로 지표예요: {series}")
-        if transform not in TRANSFORMS:
-            raise PortfolioError(f"모르는 변환이에요: {transform}")
-        if op not in OPS:
-            raise PortfolioError(f"모르는 비교예요: {op}")
-        try:
-            value = float(r.get("value") if r.get("value") is not None else 0)
-        except (TypeError, ValueError):
-            raise PortfolioError(f"{series} 조건의 기준값은 숫자여야 해요")
-        rules.append({"series": series, "transform": transform, "op": op, "value": value})
-    if len(rules) > MAX_RULES:
-        raise PortfolioError(f"조건은 {MAX_RULES}개까지예요")
-    return {"mode": mode, "rules": rules}
+            "cost_bps": cost, "cash_pct": cash, "items": items}
 
 
 def _apply(row: UserQuantPortfolio, v: dict) -> None:
     for k in ("name", "universe", "weighting", "rebalance", "cost_bps", "cash_pct"):
         setattr(row, k, v[k])
-    row.overlay = json.dumps(v["overlay"], ensure_ascii=False) if v["overlay"] else None
     row.items = [UserQuantPortfolioItem(stk_cd=s, seq=i, weight=w) for i, (s, w) in enumerate(v["items"])]
 
 
@@ -179,7 +139,12 @@ def update_portfolio(db: Session, user_id: str, portfolio_id: str, body: dict) -
 
 
 def delete_portfolio(db: Session, user_id: str, portfolio_id: str) -> None:
-    db.delete(_own(db, user_id, portfolio_id))
+    from app.backend.models.orm import UserQuantStrategy
+    row = _own(db, user_id, portfolio_id)
+    used = [s.name for s in db.query(UserQuantStrategy).filter(UserQuantStrategy.basket_id == portfolio_id)]
+    if used:
+        raise PortfolioError(f"이 종목 묶음을 대상으로 쓰는 전략이 있어요: {', '.join(used)} — 전략을 먼저 바꾸거나 지워 주세요")
+    db.delete(row)
     db.commit()
 
 
@@ -219,7 +184,7 @@ def universe_members(db: Session, universe: str) -> Tuple[List[dict], dict]:
     rows.sort(key=lambda r: (-(r["mcap"] or 0), r["symbol"]))
     return qs._clean(rows), {
         "loaded": True, "as_of": have[-1].date().isoformat(), "members": len(rows),
-        "macro": [m for m in qs.MACRO_IDS if m in panel["bench_close"]],
+        "macro": [m for m in ov.MACRO_IDS if m in panel["bench_close"]],
         "universes": [{"id": k, "name": v} for k, v in UNIVERSES.items()],
     }
 
@@ -250,52 +215,6 @@ def target_weights(p: dict, members: Dict[str, dict]) -> Dict[str, float]:
 
 
 # ══ 백테스트 ════════════════════════════════════════════════════════════════════
-
-def _monthly(panel: dict, code: str) -> pd.Series:
-    """'^' 지표의 월말 값 — 달(Period) 인덱스."""
-    s = panel["bench_close"].get(code)
-    if s is None or not s.notna().any():
-        name = dict((m[0], m[1]) for m in qs.MACRO_SERIES).get(code, code)
-        raise PortfolioError(f"매크로 지표 {name}({code}) 가 아직 적재되지 않았어요 — 로컬에서 build_quant.py --macro-only 를 실행해 주세요")
-    s = s.dropna()
-    return pd.Series(s.values, index=s.index.to_period("M")).groupby(level=0).last()
-
-
-def _transformed(series: pd.Series, transform: str, kind: str) -> pd.Series:
-    if transform == "level":
-        return series
-    if transform in ("chg_3m", "chg_1m"):
-        n = 3 if transform == "chg_3m" else 1
-        return series.diff(n) if kind == "rate" else (series / series.shift(n) - 1) * 100
-    if transform == "ma12_gap":
-        return (series / series.rolling(12).mean() - 1) * 100
-    return (series / series.shift(12) - 1) * 100   # yoy
-
-
-def rule_label(r: dict) -> str:
-    name = dict((m[0], m[1]) for m in qs.MACRO_SERIES).get(r["series"], r["series"])
-    return f"{name} {TRANSFORMS[r['transform']]} {r['op']} {r['value']:g}"
-
-
-def overlay_states(overlay: Optional[dict], panel: dict, months: pd.DatetimeIndex) -> Tuple[pd.Series, pd.DataFrame]:
-    """달마다 (보유 여부 True/False · 값이 모자라면 None, 규칙별 지표 값 표). 조건이 없으면 전부 True.
-    값은 그 달 말 지표 값까지만 쓴다 — 그 달 말에 판단해 다음 달 수익률을 먹는다."""
-    if not overlay:
-        return pd.Series(True, index=months, dtype=object), pd.DataFrame(index=months)
-    kinds = {m[0]: m[2] for m in qs.MACRO_SERIES}
-    per = months.to_period("M")
-    values, checks = {}, {}
-    for i, r in enumerate(overlay["rules"]):
-        v = _transformed(_monthly(panel, r["series"]), r["transform"], kinds[r["series"]]).reindex(per)
-        v.index = months
-        values[rule_label(r)] = v
-        checks[i] = [None if pd.isna(x) else OPS[r["op"]](x, r["value"]) for x in v.values]
-    table = pd.DataFrame(checks, index=months)
-    known = table.notna().all(axis=1)
-    hit = table.astype(bool).all(axis=1) if overlay["mode"] == "all" else table.astype(bool).any(axis=1)
-    states = pd.Series([bool(h) if k else None for h, k in zip(hit, known)], index=months, dtype=object)
-    return states, pd.DataFrame(values, index=months)
-
 
 def _is_rebalance(code: str, i: int, d: pd.Timestamp) -> bool:
     if i == 0:
@@ -330,9 +249,9 @@ def run_backtest(p: dict, panel: dict, target: Dict[str, float], start: Optional
         bench_fwd.index = months
 
     overlay = p.get("overlay")
-    states, values = overlay_states(overlay, panel, months)
+    states, values = ov.states(overlay, panel, months)
     if overlay:
-        months = months[[states[d] is not None for d in months]]   # 지표 값이 모자란 달은 뺀다
+        months = ov.evaluable(states, months)   # 지표 값이 모자란 달은 뺀다
         if len(months) < 2:
             raise PortfolioError("매크로 조건을 계산할 수 있는 달이 모자라요 — 기간을 넓히거나 조건을 바꿔 주세요")
         bench_fwd = bench_fwd.reindex(months) if benchmark != "equal" else bench_fwd
@@ -354,8 +273,7 @@ def run_backtest(p: dict, panel: dict, target: Dict[str, float], start: Optional
         else:
             turnover = 0.0
         if overlay and (prev is None or changed):
-            switches.append({"date": d.date().isoformat(), "state": "in" if on else "out",
-                             "values": {k: qs._clean(float(v)) for k, v in values.loc[d].items()}})
+            switches.append(ov.switch(d, on, values, qs._clean))
         prev = on
         exposure.append(float(w.sum() * 100))
         r = fwd.loc[d].reindex(tgt.index).fillna(0.0)
@@ -410,15 +328,13 @@ def run_backtest(p: dict, panel: dict, target: Dict[str, float], start: Optional
             "kind": "portfolio", "weighting": p["weighting"], "rebalance": p["rebalance"],
             "cash_pct": p["cash_pct"], "items": len(syms), "benchmark": benchmark,
             "cost_bps": cost * 1e4, "overlay": overlay,
-            "rules": [rule_label(r) for r in overlay["rules"]] if overlay else [],
+            "rules": [ov.rule_label(r) for r in overlay["rules"]] if overlay else [],
         },
         "metrics": metrics, "equity": equity, "trades": trades, "holdings": holdings,
         "switches": switches,
         # 지금(마지막 달 말) 판단 — 다음 달에 보유할지
-        "overlayNow": ({"date": months[-1].date().isoformat(), "state": "in" if states[months[-1]] else "out",
-                        "values": {k: qs._clean(float(v)) for k, v in values.loc[months[-1]].items()}}
-                       if overlay else None),
-        "note": NOTE + (" · " + OVERLAY_NOTE if overlay else ""),
+        "overlayNow": ov.switch(months[-1], bool(states[months[-1]]), values, qs._clean) if overlay else None,
+        "note": NOTE + (" · " + ov.NOTE if overlay else ""),
     })
 
 
@@ -448,9 +364,6 @@ def catalog() -> dict:
         "weighting": [{"id": k, "name": v} for k, v in WEIGHTING.items()],
         "rebalance": [{"id": k, "name": v} for k, v in REBALANCE.items()],
         "costs": COSTS,
-        "macro": [{"id": i, "name": n, "kind": k} for i, n, k in qs.MACRO_SERIES],
-        "transforms": [{"id": k, "name": v} for k, v in TRANSFORMS.items()],
-        "ops": list(OPS),
         "universes": [{"id": k, "name": v} for k, v in UNIVERSES.items()],
         "max_cash": MAX_CASH,
     }

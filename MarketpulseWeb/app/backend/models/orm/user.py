@@ -826,10 +826,14 @@ class UserWidgetOption(Base):
 class UserQuantStrategy(Base):
     """포트폴리오 전략 (퀀트 → 백테스트). user_id NULL = 기본 제공 (모든 사용자 공통, 고칠 수 없음).
 
-    점수를 만드는 법(score_kind)만 정의하고, 계산은 서버가 적재된 월별 패널(mbs_in_quant_panel)로 한다:
-        factor  고른 팩터 z-점수의 가중 평균 (가중치 = 자식 테이블 user_quant_strategy_factors)
-        ml      배치가 계산한 표본 밖 확률 하나 (model: stack · avg · gbt · mlp · logit)
-    그 점수로 리밸런싱마다 상위 top_n 종목을 같은 비중으로 산다.
+    전략 = 규칙 전체 — 대상 종목 · 점수 · 매크로 조건 · 보유 수 · 리밸런싱. 계산은 서버가 적재된 월별 패널
+    (mbs_in_quant_panel)로 한다:
+        대상    basket_id 가 비면 유니버스 전체, 있으면 그 종목 묶음(user_quant_portfolios)
+        점수    factor  고른 팩터 z-점수의 가중 평균 (가중치 = 자식 테이블 user_quant_strategy_factors)
+                ml      배치가 계산한 표본 밖 확률 하나 (model: stack · avg · gbt · mlp · logit)
+                none    점수 없이 대상 종목을 전부 보유 (묶음의 비중 방식대로) — basket_id 필수
+        조건    overlay(JSON, quant_overlay) — 켜진 달만 보유, 꺼진 달은 현금. 비우면 늘 보유
+    점수가 있으면 리밸런싱마다 상위 top_n 종목을 같은 비중으로 산다.
     기간 · 벤치마크 · 거래비용은 실행 조건이라 행에 두지 않는다 (백테스트 설정 패널이 고른다).
     """
     __tablename__ = 'user_quant_strategies'
@@ -843,6 +847,8 @@ class UserQuantStrategy(Base):
     model = Column(String(20))                                           # ml 일 때: stack | avg | gbt | mlp | logit
     top_n = Column(Integer, nullable=False, default=30)
     rebalance = Column(String(1), nullable=False, default='M')          # M 월간 | Q 분기
+    basket_id = Column(String(50), ForeignKey('user_quant_portfolios.portfolio_id'), nullable=True)
+    overlay = Column(Text)                                               # 매크로 조건 JSON
     sort_seq = Column(Integer, nullable=False, default=0)
     use_yn = Column(String(1), nullable=False, default='Y')
 
@@ -853,6 +859,7 @@ class UserQuantStrategy(Base):
         'UserQuantStrategyFactor', cascade='all, delete-orphan', order_by='UserQuantStrategyFactor.factor_id',
         lazy='selectin',
     )
+    basket = relationship('UserQuantPortfolio', lazy='selectin', viewonly=True)
 
 
 class UserQuantStrategyFactor(Base):
@@ -865,7 +872,8 @@ class UserQuantStrategyFactor(Base):
 
 
 class UserQuantPortfolio(Base):
-    """퀀트 포트폴리오 — 유니버스 안에서 사용자가 직접 고른 종목 · 비중 · 리밸런싱 (전략과 무관).
+    """퀀트 포트폴리오 = 종목 묶음 — 유니버스 안에서 사용자가 직접 고른 종목 · 비중 · 리밸런싱.
+    언제 보유할지(매크로 조건)는 이 묶음을 대상으로 한 전략에 붙는다 (UserQuantStrategy.basket_id · overlay).
 
     weighting: equal 동일 비중 | manual 직접 입력(종목 행의 weight %) | mcap 시가총액 | invvol 역변동성
     cash_pct : manual 이 아닐 때 현금으로 남길 비중 (%) — manual 은 100 - 합계가 현금
@@ -882,8 +890,7 @@ class UserQuantPortfolio(Base):
     cash_pct = Column(Float, nullable=False, default=0.0)
     rebalance = Column(String(1), nullable=False, default='Q')
     cost_bps = Column(Float, nullable=False, default=10.0)
-    # 매크로 조건(JSON) — {"mode": "all"|"any", "rules": [{series, transform, op, value}]}. 조건이 꺼진 달은 현금.
-    # 비우면 늘 보유 (quant_portfolio_service.validate_overlay)
+    # (옛 자리) 매크로 조건 — 전략(UserQuantStrategy.overlay)으로 옮겼다 (마이그레이션 e1b5c8a3d7f2). 쓰지 않는다
     overlay = Column(Text)
 
     created_at = Column(DateTime, default=datetime.utcnow)
