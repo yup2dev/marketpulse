@@ -864,6 +864,44 @@ class UserQuantStrategyFactor(Base):
     weight = Column(Float, nullable=False, default=1.0)
 
 
+class UserQuantPortfolio(Base):
+    """퀀트 포트폴리오 — 유니버스 안에서 사용자가 직접 고른 종목 · 비중 · 리밸런싱 (전략과 무관).
+
+    weighting: equal 동일 비중 | manual 직접 입력(종목 행의 weight %) | mcap 시가총액 | invvol 역변동성
+    cash_pct : manual 이 아닐 때 현금으로 남길 비중 (%) — manual 은 100 - 합계가 현금
+    rebalance: N 안 함 | M 월간 | Q 분기 | Y 연 1회 — 가격이 움직여 달라진 비중을 목표로 되돌리는 주기
+    계산은 서버가 월별 패널(mbs_in_quant_panel)의 다음 달 수익률로 한다 (/api/strategies/result?strategy=pf:<id>).
+    """
+    __tablename__ = 'user_quant_portfolios'
+
+    portfolio_id = Column(String(50), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String(50), ForeignKey('users.user_id'), nullable=False, index=True)
+    name = Column(String(100), nullable=False)
+    universe = Column(String(30), nullable=False, default='sp500')
+    weighting = Column(String(10), nullable=False, default='equal')
+    cash_pct = Column(Float, nullable=False, default=0.0)
+    rebalance = Column(String(1), nullable=False, default='Q')
+    cost_bps = Column(Float, nullable=False, default=10.0)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    items = relationship(
+        'UserQuantPortfolioItem', cascade='all, delete-orphan', order_by='UserQuantPortfolioItem.seq',
+        lazy='selectin',
+    )
+
+
+class UserQuantPortfolioItem(Base):
+    """포트폴리오에 담은 종목 — weight 는 직접 입력(manual)일 때만 쓴다 (%)."""
+    __tablename__ = 'user_quant_portfolio_items'
+
+    portfolio_id = Column(String(50), ForeignKey('user_quant_portfolios.portfolio_id', ondelete='CASCADE'), primary_key=True)
+    stk_cd = Column(String(20), primary_key=True)
+    seq = Column(Integer, nullable=False, default=0)
+    weight = Column(Float)
+
+
 __all__ = [
     "User",
     "Portfolio",
@@ -891,4 +929,6 @@ __all__ = [
     "UserWidgetPrefScreen",
     "UserQuantStrategy",
     "UserQuantStrategyFactor",
+    "UserQuantPortfolio",
+    "UserQuantPortfolioItem",
 ]

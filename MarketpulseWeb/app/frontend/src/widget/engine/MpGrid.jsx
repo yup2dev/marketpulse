@@ -28,6 +28,7 @@
  *   entity   field                         로고 + 이름 (종목이 아닌 것 — 기관)
  *   link     field, href                   글자를 누르면 href 필드의 주소를 새 탭으로
  *   switch   field, variable               켜고 끄기 — 화면 변수 variable(쉼표 목록)에 field 값이 있으면 꺼짐.
+ *                                          variable 이 없으면 읽기 전용 — field 값(참/거짓)을 그대로 보인다.
  *                                          field 가 빈 행은 스위치 없음 (DataWidget 이 setParam 을 준다)
  *   공통: id · header · width(px 또는 '20%') · align('left'|'right') · render(row, ctx, index) · sortable(false 면 그 열만 끔)
  *         · hide(처음엔 숨김) · wrap(true 면 줄바꿈 허용) · className(칸에 붙일 클래스)
@@ -160,6 +161,10 @@ function Cell({ col, row, index, ctx, series, max, setParam }) {
     }
     case 'switch': {
       if (blank(v)) return null;
+      // 화면 변수가 없으면 읽기 전용 — 값(참/거짓)을 그대로 보여 준다 (퀀트 메인: 전략이 쓰는 팩터)
+      if (!col.variable) {
+        return <Switch checked={v === true || v === 'true'} disabled label={`${row[col.labelField] ?? ''} — 전략 설정 탭에서 바꿔요`} />;
+      }
       const off = String(ctx?.params?.[col.variable] || '').split(',').filter(Boolean);
       const on = !off.includes(String(v));
       const flip = (next) => setParam?.(col.variable, (next ? off.filter((x) => x !== String(v)) : [...off, String(v)]).join(','));

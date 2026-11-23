@@ -26,6 +26,8 @@ const S = (preset, over = {}) => ({ ...P[preset], ...over });
 // DB 위젯(기본 제공)의 크기는 DB 행의 size 로 registerWidgetSizes 가 등록한다.
 export const WIDGET_SIZES = {
   'chart-studio':             S('panel', { w: 12, h: 12, minW: 8, minH: 8 }),
+  'quant-strategy-settings':  S('panel', { w: 12, h: 14, minW: 8, minH: 10 }),
+  'quant-portfolio-settings': S('panel', { w: 12, h: 14, minW: 8, minH: 10 }),
 };
 
 // 등록되지 않은 위젯(model/*, copilot/* 동적 위젯)

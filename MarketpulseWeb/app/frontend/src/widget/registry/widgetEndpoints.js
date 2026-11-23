@@ -46,6 +46,8 @@
 // 리디자인 화면의 위젯은 대부분 DB 행(widget/registry/builtinWidgets)이라 여기에 없다. 남은 것은 컴포넌트가 따로 있는
 // 위젯뿐이다. 시안에 없는 레거시 위젯 정의는 git 이력의 이 파일에 있다 (리디자인 레거시 정리 이전).
 import ChartStudioWidget from '../widgets/chartstudio/ChartStudioWidget';
+import StrategySettings from '../widgets/quant/StrategySettings';
+import PortfolioSettings from '../widgets/quant/PortfolioSettings';
 
 export const WIDGET_ENDPOINTS = {
   // 리디자인 차트 — 비교 · 지표 · 매크로 겹침 · 이벤트 · 분할 · 그리기 (Chart.dc.html)
@@ -53,5 +55,15 @@ export const WIDGET_ENDPOINTS = {
     title:     'Chart',
     component: ChartStudioWidget,
     propsFrom: ['symbol'],
+  },
+  // 퀀트 전략 설정 — 종목 점수 규칙(팩터 가중치 · ML 모델) 만들기 · 고치기 (QuantStrategy.dc.html)
+  'quant-strategy-settings': {
+    title:     'Strategy Settings',
+    component: StrategySettings,
+  },
+  // 퀀트 포트폴리오 설정 — 유니버스 안에서 직접 고른 종목 · 비중 · 리밸런싱 (QuantPortfolio.dc.html)
+  'quant-portfolio-settings': {
+    title:     'Portfolio Settings',
+    component: PortfolioSettings,
   },
 };
