@@ -158,6 +158,8 @@ CODES: Dict[str, List[Dict[str, Any]]] = {
         {"value": "quant_meta",      "name": "퀀트 — 그대로 + 기준(종목 수 · 기간)"},
         {"value": "quant_models",    "name": "퀀트 모델 표 — 예측 모델 먼저, 융합은 아래"},
         {"value": "quant_signals",   "name": "퀀트 종목 시그널 — 고른 융합 방식의 확률 순"},
+        {"value": "quant_returns",   "name": "퀀트 팩터 성과 — 고른 전략의 합성 + 전략 팩터 계열"},
+        {"value": "quant_ranking",   "name": "퀀트 이번 달 순위 — 전략 점수 순 · 상위 N 매수"},
     ],
     # 탭에서 행을 거르는 함수 (user_widget_tabs.filter)
     "TAB_FILTER": [

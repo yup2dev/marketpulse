@@ -439,39 +439,60 @@ export const TRANSFORMS = {
   },
 
   // ── 퀀트 (로컬 배치가 계산해 적재한 값 — /api/quant/*) ──
-  // 팩터 표: 숫자를 표기로 + 기준(종목 수 · 기간)을 meta 로. 합성은 맨 아래
-  // 팩터 표: 합성은 맨 아래. 화면 변수 quant_off(꺼 둔 팩터 id 목록)로 스위치 · 비중(켠 팩터 동일 비중) · 흐림.
-  // 합성 행은 배치가 6개 전부로 계산한 값이라 스위치가 없다
+  // 팩터 표: 합성은 맨 아래. 머리줄에서 고른 전략(응답 metadata.weights)이 쓰는 팩터만 스위치가 켜지고 비중이 붙는다.
+  // 스위치는 읽기 전용 — 바꾸려면 전략 설정 탭. 전략 정보가 없으면(적재값 그대로) 6개 동일 비중 합성
   quant_factors: {
-    apply: (rows, { params, response }) => {
-      const off = new Set(String(params.quant_off || '').split(',').filter(Boolean));
+    apply: (rows, { response }) => {
+      const md = response?.metadata || {};
+      const weights = md.weights || null;
+      const ml = md.score_kind === 'ml';
       const singles = rows.filter((f) => !f.composite);
-      const used = singles.filter((f) => !off.has(f.id)).length;
+      const on = (f) => (weights ? Number(weights[f.id]) > 0 : !ml);
+      const used = singles.filter(on).length;
       return {
         rows: [...rows].sort((a, b) => Number(!!a.composite) - Number(!!b.composite)).map((f) => {
-          const isOff = !f.composite && off.has(f.id);
+          const isOn = !f.composite && on(f);
+          const w = weights ? Number(weights[f.id]) : (isOn && used ? 100 / used : null);
           return {
             ...f,
-            name: f.composite ? `${f.name} (전체)` : f.name,
-            _toggle: f.composite ? null : f.id,
-            _w: f.composite || isOff || !used ? null : `${Math.round(100 / used)}%`,
-            _off: isOff,
+            name: f.composite && !md.strategy ? `${f.name} (전체)` : f.name,
+            _toggle: f.composite ? null : isOn,
+            _w: f.composite ? '100%' : isOn && w ? `${Math.round(w)}%` : '—',
+            _off: !f.composite && !isOn,
             _ic: f.ic != null ? Number(f.ic).toFixed(3) : null,
             _icir: f.icir != null ? Number(f.icir).toFixed(2) : null,
             _hit: f.hit != null ? `${Math.round(f.hit)}%` : null,
             _tone: f.composite ? 'accent' : undefined,
-            _kind: f.composite ? '합성' : '',
+            _kind: f.composite ? (ml ? 'ML' : '합성') : '',
           };
         }),
-        meta: { ...quantMeta(response), used: `${singles.length}개 중 ${used}개 사용` },
+        meta: {
+          ...quantMeta(response),
+          used: ml
+            ? `${md.strategy} — 팩터 대신 ${md.composite_name || 'ML 확률'}`
+            : `${md.strategy ? `${md.strategy} · ` : ''}켜진 팩터 ${used}개`,
+        },
       };
+    },
+  },
+  // 팩터 성과: 롱숏 곡선의 합성 = 고른 전략 점수. 처음 보이는 계열 = 전략 합성 + 전략이 쓰는 팩터(비중 큰 순)
+  quant_returns: {
+    apply: (rows, { response }, options = {}) => {
+      const md = response?.metadata || {};
+      const base = quantMeta(response);
+      if (!md.strategy) return { rows, meta: base };
+      const name = md.composite_name || '전략 합성';
+      const series = String(options.series || '').split(',')
+        .map((p) => (p.split(':')[0] === 'composite' ? `composite:${name}` : p)).join(',') || undefined;
+      const mine = Object.entries(md.weights || {}).sort((a, b) => b[1] - a[1]).map(([id]) => id);
+      return { rows, meta: { ...base, series, pick: ['composite', ...mine].slice(0, Number(options.max) || 4).join(',') } };
     },
   },
   // 그대로 그리되 기준(종목 수 · 기간 · 분위 스프레드)을 meta 로
   quant_meta: {
     apply: (rows, { response }) => ({ rows, meta: quantMeta(response) }),
   },
-  // 모델 표: 예측 모델 먼저, 융합(평균 · 스태킹)은 아래 + 표기
+  // 모델 표: 예측 모델 먼저, 융합(평균 · 스태킹)은 아래 + 표기. 고른 ML 전략이 쓰는 모델(used)엔 '전략 점수'
   quant_models: {
     apply: (rows, { response }) => ({
       rows: [...rows].sort((a, b) => Number(!!a.fusion) - Number(!!b.fusion)).map((m) => ({
@@ -479,8 +500,8 @@ export const TRANSFORMS = {
         _acc: m.accuracy != null ? `${Number(m.accuracy).toFixed(1)}%` : null,
         _auc: m.auc != null ? Number(m.auc).toFixed(3) : null,
         _sharpe: m.sharpe != null ? Number(m.sharpe).toFixed(2) : null,
-        _kind: m.fusion ? '융합' : '',
-        _tone: m.fusion ? 'accent' : undefined,
+        _kind: m.used ? '전략 점수' : m.fusion ? '융합' : '',
+        _tone: m.used || m.fusion ? 'accent' : undefined,
       })),
       meta: quantMeta(response),
     }),
@@ -506,6 +527,22 @@ export const TRANSFORMS = {
       };
     },
   },
+  // 이번 달 순위: 서버가 전략 점수 순으로 준다 (상위 top_n 이 buy). 점수 = ML 확률 ×100 또는 팩터 가중 z
+  quant_ranking: {
+    apply: (rows, { response }) => {
+      const md = response?.metadata || {};
+      const ml = md.score_kind === 'ml';
+      return {
+        rows: rows.map((r) => ({
+          ...r,
+          _score: r.score == null ? null : ml ? r.score * 100 : r.score,
+          _signal: r.buy ? '매수' : '—',
+          _tone: r.buy ? 'up' : undefined,
+        })),
+        meta: { ...quantMeta(response), topN: md.top_n ?? '' },
+      };
+    },
+  },
 };
 
 /** 퀀트 응답의 metadata → 출처 옆 설명에 쓸 값 */
@@ -518,6 +555,7 @@ function quantMeta(response) {
     oos: md.oos_months ?? '',
     spread: md.spread != null ? `${fmtPct(md.spread, 1)}p` : '',
     regime: { bull: '강세', side: '횡보', bear: '약세' }[md.current || md.regime_current] || '',
+    strategy: md.strategy || '전체 팩터 동일 비중',
   };
 }
 

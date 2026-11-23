@@ -1,133 +1,116 @@
 /**
- * QuantWorkflow — 퀀트 머리줄 (시안 Quant.dc.html 맨 위 줄): 유니버스 · 리밸런싱 · 단계 ①②③ · 기간 · 백테스트로 보내기.
+ * QuantWorkflow — 퀀트 메인(대시보드) 머리줄 (시안 QuantMain.dc.html):
+ *   유니버스 · 전략 · 점수 종류와 요약 · 단계 ①②③ · 기간 · 전략 편집 · 백테스트에서 보기
  *
- *   유니버스   화면 변수 universe — 퀀트 위젯 4개가 같이 따른다
- *   리밸런싱   화면 변수 quant_rebalance — 보낼 전략의 리밸런싱 (서버 전략이 고를 수 있는 값만)
+ *   유니버스   화면 변수 universe — 퀀트 위젯이 같이 따른다
+ *   전략       화면 변수 strategy — /backtest 머리줄(StrategyPicker)과 같은 변수라 한쪽에서 고르면 다른 쪽도 그 전략.
+ *             메인 위젯(팩터 · 팩터 성과 · ML 모델 · 이번 달 순위)이 그 전략 점수로 바뀐다 (routes/quant.py)
  *   단계       화면 변수 quant_step — 그 단계의 위젯(옵션 highlight)이 테두리로 강조된다
- *   보내기     팩터 표에서 켠 팩터(화면 변수 quant_off 가 꺼 둔 목록)의 동일 비중 전략을 만들어 /backtest 로 간다.
- *             같은 조합의 전략이 이미 있으면(기본 제공 포함) 새로 만들지 않고 그걸 고른다
+ *   전략 편집  전략 설정 탭(?tab=strategy) — 메인의 팩터 스위치는 읽기 전용이다
  *
- * 값을 다시 계산하지 않는다 — 퀀트 값은 배치가 적재한 것이고, 백테스트는 서버가 월별 패널로 바로 계산한다.
+ * 전략 설정 · 포트폴리오 설정 탭에서는 그리지 않는다 (그 탭은 화면 안에 자기 머리줄이 있다).
  */
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowRight, ChevronRight } from 'lucide-react';
-import { apiClient, API_BASE, notify } from '../../../common';
+import { apiClient, API_BASE } from '../../../common';
 import { setShared, useShared } from '../../engine/shared';
+import { KindTag, strategyHead } from './quantShared';
 
 // 배치(build_quant.py)가 적재하는 유니버스 — 늘리면 여기와 위젯의 universe 선택지를 같이 늘린다
 const UNIVERSES = [{ id: 'sp500', name: 'S&P 500' }];
-const REBALANCE = [{ id: 'M', name: '월간' }, { id: 'Q', name: '분기' }];
-const TOP_N = 30;
+export const DASHBOARD_TAB = 'factors';
 
 const STEPS = [
-  { id: 'factor', label: '팩터 빌더', sub: '신호 재료 고르기' },
-  { id: 'ml', label: 'ML 파이프라인', sub: 'GBT · MLP · 로지스틱 · HMM' },
-  { id: 'fusion', label: '시그널 융합', sub: '최종 점수 · 종목 선정' },
+  { id: 'factor', label: '팩터' },
+  { id: 'ml', label: 'ML 모델' },
+  { id: 'rank', label: '이번 달 순위' },
 ];
 
-const SELECT = 'flex items-center gap-1.5 h-8 px-2.5 rounded-md bg-[var(--mp-raised)] text-xs text-[var(--mp-muted)]';
+const CTL = 'flex items-center gap-1.5 h-8 px-2.5 rounded-md border border-[var(--mp-tile-line)] bg-[var(--mp-raised)] text-xs text-[var(--mp-muted)]';
+const SELECT = 'bg-transparent text-[var(--mp-text)] font-bold outline-none cursor-pointer [&_option]:bg-[var(--mp-panel)] [&_optgroup]:bg-[var(--mp-panel)]';
 const ym = (d) => (d ? String(d).slice(0, 7).replace('-', '.') : '');
-
-/** 켠 팩터가 같고(동일 비중) 리밸런싱·보유 수가 같은 전략 */
-function sameStrategy(s, ids, rebalance) {
-  if (s.score_kind !== 'factor' || s.rebalance !== rebalance || s.top_n !== TOP_N) return false;
-  const ws = s.factors.map((f) => f.weight);
-  return s.factors.length === ids.length && ws.every((w) => w === ws[0])
-    && s.factors.every((f) => ids.includes(f.factor_id));
-}
 
 export default function QuantWorkflow() {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const tab = params.get('tab') || DASHBOARD_TAB;
   const shared = useShared();
   const universe = shared.universe || UNIVERSES[0].id;
   const step = shared.quant_step || 'factor';
-  const [catalog, setCatalog] = useState(null);
+  const [list, setList] = useState(null);
+  const [catalog, setCatalog] = useState({});
   const [period, setPeriod] = useState('');
-  const [sending, setSending] = useState(false);
-
-  const rebalances = catalog?.rebalance?.length ? catalog.rebalance : REBALANCE;
-  const rebalance = rebalances.some((r) => r.id === shared.quant_rebalance) ? shared.quant_rebalance : 'M';
-  const off = String(shared.quant_off || '').split(',').filter(Boolean);
-  const factors = (catalog?.factors || []).filter((f) => !off.includes(f.id));
 
   useEffect(() => {
-    apiClient.get(`${API_BASE}/strategies`).then((r) => setCatalog(r.metadata || {})).catch(() => setCatalog({}));
-  }, []);
+    apiClient.get(`${API_BASE}/strategies`)
+      .then((r) => { setList(r.results || []); setCatalog(r.metadata || {}); })
+      .catch(() => setList([]));
+  }, [tab]);   // 전략 설정 탭에서 고치고 돌아오면 다시 읽는다
 
-  // 기간 — 팩터 검증 기간 + 모델 학습 · 표본 밖 개월 (적재 전이면 비운다)
+  const fallback = catalog.default || list?.[0]?.strategy_id || '';
+  const valid = list?.some((s) => s.strategy_id === shared.strategy);
+  const value = valid ? shared.strategy : fallback;
+  const selected = list?.find((s) => s.strategy_id === value);
+
+  // 화면 변수가 비었거나 메인에서 쓸 수 없는 값(포트폴리오 등)이면 기본 전략으로 — 위젯이 같은 전략을 그리게
+  useEffect(() => {
+    if (list && !valid && fallback) setShared('strategy', fallback);
+  }, [list, valid, fallback]);
+
+  // 기간 — 팩터 검증 기간 (적재 전이면 비운다)
   useEffect(() => {
     let alive = true;
-    const q = `universe=${encodeURIComponent(universe)}`;
-    Promise.all([
-      apiClient.get(`${API_BASE}/quant/factors?${q}`).catch(() => null),
-      apiClient.get(`${API_BASE}/quant/models?${q}`).catch(() => null),
-    ]).then(([f, m]) => {
-      if (!alive) return;
-      const fm = f?.metadata || {};
-      const mm = m?.metadata || {};
-      setPeriod([
-        fm.start && fm.end ? `기간 ${ym(fm.start)}–${ym(fm.end)}` : null,
-        mm.train_months ? `학습 ${mm.train_months}개월` : null,
-        mm.oos_months ? `표본 밖 ${mm.oos_months}개월` : null,
-      ].filter(Boolean).join(' · '));
-    });
+    apiClient.get(`${API_BASE}/quant/factors?universe=${encodeURIComponent(universe)}`)
+      .then((f) => {
+        const md = f?.metadata || {};
+        if (alive) setPeriod(md.start && md.end ? `${ym(md.start)}–${ym(md.end)}` : '');
+      })
+      .catch(() => alive && setPeriod(''));
     return () => { alive = false; };
   }, [universe]);
 
-  const send = async () => {
-    if (!factors.length || sending) return;
-    setSending(true);
-    try {
-      const ids = factors.map((f) => f.id);
-      const res = await apiClient.get(`${API_BASE}/strategies`);
-      let target = (res.results || []).find((s) => sameStrategy(s, ids, rebalance));
-      if (!target) {
-        const names = factors.map((f) => f.name);
-        const reb = rebalances.find((r) => r.id === rebalance)?.name || rebalance;
-        const created = await apiClient.post(`${API_BASE}/strategies`, {
-          name: `퀀트 · ${names.length > 3 ? `팩터 ${names.length}개` : names.join(' + ')} · ${reb}`,
-          description: `퀀트 화면에서 보냄 — ${names.join(', ')} 동일 비중`,
-          score_kind: 'factor',
-          factors: ids.map((id) => ({ factor_id: id, weight: 1 })),
-          top_n: TOP_N,
-          rebalance,
-        });
-        target = created.results?.[0];
-      }
-      if (!target) throw new Error('전략을 만들지 못했어요');
-      setShared('strategy', target.strategy_id);
-      setShared('bt_rev', String(Date.now()));   // 결과 위젯이 다시 부르게
-      navigate('/backtest');
-    } catch (e) {
-      notify.fail(e, '백테스트로 보내지 못했어요');
-    } finally {
-      setSending(false);
-    }
-  };
+  const head = useMemo(() => strategyHead(selected, catalog), [selected, catalog]);
+
+  if (tab !== DASHBOARD_TAB) return null;
+  const builtin = (list || []).filter((s) => s.builtin);
+  const mine = (list || []).filter((s) => !s.builtin);
 
   return (
     <div className="flex-1 flex flex-wrap items-center gap-x-3 gap-y-2 min-w-0">
-      <label className={SELECT}>
+      <label className={CTL}>
         유니버스
-        <select
-          value={universe}
-          onChange={(e) => setShared('universe', e.target.value)}
-          className="bg-transparent text-[var(--mp-text)] font-bold outline-none [&_option]:bg-[var(--mp-panel)]"
-        >
+        <select value={universe} onChange={(e) => setShared('universe', e.target.value)} className={SELECT}>
           {UNIVERSES.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
         </select>
       </label>
-      <label className={SELECT}>
-        리밸런싱
+      <label className={`${CTL}`}>
+        전략
         <select
-          value={rebalance}
-          onChange={(e) => setShared('quant_rebalance', e.target.value)}
-          className="bg-transparent text-[var(--mp-text)] font-bold outline-none [&_option]:bg-[var(--mp-panel)]"
+          aria-label="전략 선택"
+          value={value}
+          onChange={(e) => { setShared('strategy', e.target.value); setShared('bt_rev', String(Date.now())); }}
+          className={`${SELECT} max-w-[220px]`}
         >
-          {rebalances.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+          {!list?.length && <option value="">불러오는 중…</option>}
+          {builtin.length > 0 && (
+            <optgroup label="기본 제공">
+              {builtin.map((s) => <option key={s.strategy_id} value={s.strategy_id}>{s.name}</option>)}
+            </optgroup>
+          )}
+          {mine.length > 0 && (
+            <optgroup label="내 전략">
+              {mine.map((s) => <option key={s.strategy_id} value={s.strategy_id}>{s.name}</option>)}
+            </optgroup>
+          )}
         </select>
       </label>
+      {selected && (
+        <span className="flex items-center gap-2 min-w-0">
+          <KindTag kind={selected.score_kind} />
+          <span className="text-xs font-medium text-[var(--mp-text-2)] truncate max-w-[220px]" title={head}>{head}</span>
+        </span>
+      )}
 
       <ol aria-label="워크플로 단계" className="flex flex-wrap items-center gap-0.5 m-0 ml-1 p-0 list-none">
         {STEPS.map((s, i) => {
@@ -138,33 +121,37 @@ export default function QuantWorkflow() {
                 type="button"
                 aria-pressed={on}
                 onClick={() => setShared('quant_step', s.id)}
-                className={`flex items-center gap-2 h-9 pl-1.5 pr-3 rounded-md transition-colors ${on ? 'bg-[var(--mp-raised)] text-[var(--mp-text)]' : 'text-[var(--mp-muted)] hover:text-[var(--mp-text)]'}`}
+                className={`flex items-center gap-2 h-8 pl-1.5 pr-2.5 rounded-md transition-colors ${on ? 'bg-[var(--mp-raised)] text-[var(--mp-text)]' : 'text-[var(--mp-muted)] hover:text-[var(--mp-text)]'}`}
               >
-                <span className={`w-[22px] h-[22px] rounded-full flex items-center justify-center text-[11px] font-bold text-white ${on ? 'bg-[var(--mp-accent)]' : 'bg-[var(--mp-chip-on)]'}`}>{i + 1}</span>
-                <span className="flex flex-col items-start leading-tight">
-                  <span className="text-xs font-bold">{s.label}</span>
-                  <span className="text-[10.5px] text-[var(--mp-muted)]">{s.sub}</span>
-                </span>
+                <span className={`w-5 h-5 flex items-center justify-center text-[11px] font-semibold ${on ? 'bg-[var(--mp-accent)] text-white' : 'bg-[var(--mp-chip-on)] text-[var(--mp-text-2)]'}`}>{i + 1}</span>
+                <span className="text-xs font-semibold whitespace-nowrap">{s.label}</span>
               </button>
-              {i < STEPS.length - 1 && <ChevronRight size={14} className="text-[var(--mp-grip)]" aria-hidden="true" />}
+              {i < STEPS.length - 1 && <ChevronRight size={12} className="text-[var(--mp-grip)]" aria-hidden="true" />}
             </li>
           );
         })}
       </ol>
 
-      {period && <span className="ml-auto text-[11px] text-[var(--mp-faint)] whitespace-nowrap">{period}</span>}
-      <button
-        type="button"
-        onClick={send}
-        disabled={!factors.length || sending}
-        title={factors.length
-          ? `켠 팩터 ${factors.length}개 동일 비중 · ${rebalances.find((r) => r.id === rebalance)?.name} · 상위 ${TOP_N}종목으로 백테스트`
-          : '팩터를 하나 이상 켜 주세요'}
-        className={`${period ? '' : 'ml-auto'} flex items-center gap-1.5 h-8 px-3 rounded-md bg-[var(--mp-accent)] text-white text-xs font-bold whitespace-nowrap hover:brightness-110 disabled:opacity-50 disabled:pointer-events-none`}
-      >
-        {sending ? '보내는 중…' : '백테스트로 보내기'}
-        <ArrowRight size={13} aria-hidden="true" />
-      </button>
+      <span className="ml-auto flex items-center gap-2">
+        {period && <span className="text-[11px] text-[var(--mp-faint)] whitespace-nowrap" title="팩터 검증 기간">기간 {period}</span>}
+        <button
+          type="button"
+          onClick={() => navigate(`/quantlib?tab=strategy`)}
+          className="h-8 px-3 rounded-md border border-[var(--mp-tile-line)] text-xs font-semibold text-[var(--mp-text)] hover:bg-[var(--mp-raised)] whitespace-nowrap"
+        >
+          전략 편집
+        </button>
+        <button
+          type="button"
+          disabled={!value}
+          onClick={() => { setShared('strategy', value); setShared('bt_rev', String(Date.now())); navigate('/backtest'); }}
+          title={selected ? `${selected.name} 을(를) 백테스트 화면에서 열어요` : undefined}
+          className="flex items-center gap-1.5 h-8 px-3 rounded-md bg-[var(--mp-accent)] text-white text-xs font-bold whitespace-nowrap hover:brightness-110 disabled:opacity-50"
+        >
+          백테스트에서 보기
+          <ArrowRight size={13} aria-hidden="true" />
+        </button>
+      </span>
     </div>
   );
 }

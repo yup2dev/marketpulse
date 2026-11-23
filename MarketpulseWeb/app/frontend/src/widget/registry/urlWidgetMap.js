@@ -63,15 +63,32 @@ export const URL_WIDGET_MAP = {
     ],
   },
 
-  // ─── 퀀트 (Quant.dc.html) ────────────────────────────────────────────────
+  // ─── 퀀트 (QuantMain · QuantStrategy · QuantPortfolio) ─────────────────────
   '/quantlib': {
     label: 'QuantLib',
-    // 종목이 아니라 유니버스 단위 — 종목 선택 대신 머리줄에 워크플로 줄 (widget/widgets/quant/QuantWorkflow)
+    // 종목이 아니라 유니버스 단위 — 종목 선택 대신 머리줄에 워크플로 줄 (widget/widgets/quant/QuantWorkflow).
+    // 머리줄의 전략(화면 변수 strategy)은 /backtest 와 같은 변수다
     needsSymbol: false,
     needsQuantWorkflow: true,
     needsPortfolio: false,
-    // 값은 로컬 배치가 적재한다
-    categories: [dbTab('factors', 'Factors & ML')],
+    categories: [
+      // 대시보드 — 고른 전략 기준의 팩터 · 성과 · ML 모델 · 이번 달 순위. 위젯은 DB 행, 값은 로컬 배치가 적재
+      dbTab('factors', 'Dashboard'),
+      // 전략 = 종목 점수 규칙만 (팩터 가중치 · ML 모델)
+      {
+        id: 'strategy',
+        label: 'Strategy',
+        defaultWidgets: [{ id: 'quant-strategy-settings-1', type: 'quant-strategy-settings', x: 0, y: 0, w: 12, h: 14 }],
+        widgets: [{ id: 'quant-strategy-settings', name: 'Strategy Settings', description: 'Build scoring rules from factor weights or an ML model' }],
+      },
+      // 포트폴리오 = 유니버스 안에서 직접 고른 종목 · 비중 · 리밸런싱 (전략과 무관)
+      {
+        id: 'portfolio',
+        label: 'Portfolio',
+        defaultWidgets: [{ id: 'quant-portfolio-settings-1', type: 'quant-portfolio-settings', x: 0, y: 0, w: 12, h: 14 }],
+        widgets: [{ id: 'quant-portfolio-settings', name: 'Portfolio Settings', description: 'Pick stocks within a universe, set weights and rebalancing' }],
+      },
+    ],
   },
 
   // ─── 백테스트 (Backtest.dc.html) ─────────────────────────────────────────

@@ -280,7 +280,7 @@ def test_builtin_widgets_are_rows_seeded_on_first_read(auth_client, db_session, 
     institutions = {"inst-summary", "inst-ranking", "inst-performance", "inst-holdings"}
     backtest = {"bt-run-summary", "bt-run-equity", "bt-run-monthly", "bt-run-trades", "bt-run-rolling"}
     compare = {"bt-compare"}
-    quant = {"quant-factors", "quant-factor-returns", "quant-models", "quant-signals"}
+    quant = {"quant-factors", "quant-factor-returns", "quant-models", "quant-ranking"}
     ops = {"ops-summary", "ops-system", "ops-requests", "ops-traffic", "ops-endpoints"}
     assert set(widgets) == home | macro | concepts | stock | news | institutions | backtest | compare | quant | ops
 
@@ -406,7 +406,10 @@ def test_builtin_widgets_are_rows_seeded_on_first_read(auth_client, db_session, 
     series = widgets["quant-factor-returns"]["options"]["series"]
     assert [part.split(":")[0] for part in series.split(",")] == ["composite", *FACTOR_IDS]
     assert widgets["quant-models"]["options"]["tab.regime.view"] == "strip"
-    assert [o["value"] for o in widgets["quant-signals"]["params"][1]["options"]] == ["avg", "stack"]
+    # 메인(대시보드)은 머리줄에서 고른 전략(/backtest 와 같은 화면 변수 strategy)을 따른다
+    for wid in ("quant-factors", "quant-factor-returns", "quant-models", "quant-ranking"):
+        assert "strategy={strategy}" in widgets[wid]["endpoint"], wid
+        assert widgets[wid]["options"]["shared"] == "universe,strategy", wid
 
     # 두 번째 읽기는 다시 넣지 않는다. 모든 사용자가 같은 정의를 본다
     assert len(client.get("/api/user-widgets/builtin", headers=admin).json()["widgets"]) == len(BUILTIN_WIDGETS)

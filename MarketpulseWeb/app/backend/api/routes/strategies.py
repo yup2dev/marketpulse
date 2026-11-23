@@ -6,6 +6,7 @@
     DELETE /api/strategies/{strategy_id}   내 전략 지우기
     GET    /api/strategies/result          백테스트 실행 결과 (백테스트 결과 위젯이 그리는 실행 모양)
            ?strategy=&start=&end=&benchmark=^GSPC|equal&cost=10
+           strategy=pf:<id> 면 퀀트 포트폴리오(직접 고른 종목 · 비중)를 같은 모양으로 — 비용을 비우면 포트폴리오의 비용
     GET    /api/strategies/compare         같은 조건으로 전략마다 실행한 손익 (전략별 손익 위젯)
            ?start=&end=&benchmark=&cost=  (전략은 고르지 않는다 — 위젯이 고른 것만 그린다)
 
@@ -22,6 +23,7 @@ from app.backend.api.deps import route_handler
 from app.backend.core.auth.dependencies import get_current_active_user
 from app.backend.core.db import get_db
 from app.backend.models.orm import User
+from app.backend.services import quant_portfolio_service as portfolios
 from app.backend.services import quant_strategy_service as svc
 from data_fetcher.core.obbject import OBBject
 
@@ -75,11 +77,15 @@ def strategy_result(
     start: Optional[date] = Query(None),
     end: Optional[date] = Query(None),
     benchmark: str = Query("^GSPC", description="^GSPC | equal"),
-    cost: float = Query(10.0, ge=0, le=svc.MAX_COST_BPS, description="편도 거래비용 (bp)"),
+    cost: Optional[float] = Query(None, ge=0, le=svc.MAX_COST_BPS, description="편도 거래비용 (bp) — 비우면 10 (포트폴리오는 그 비용)"),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_active_user),
 ) -> OBBject:
-    result, status = _errors(lambda: svc.backtest(db, str(user.user_id), strategy, start, end, benchmark or "^GSPC", cost))
+    uid, bench = str(user.user_id), benchmark or "^GSPC"
+    if strategy and strategy.startswith(portfolios.PREFIX):
+        result, status = _errors(lambda: portfolios.backtest(db, uid, strategy, start, end, bench, cost))
+    else:
+        result, status = _errors(lambda: svc.backtest(db, uid, strategy, start, end, bench, 10.0 if cost is None else cost))
     return OBBject(results=[result] if result else [], provider=PROVIDER, metadata={"panel": status})
 
 

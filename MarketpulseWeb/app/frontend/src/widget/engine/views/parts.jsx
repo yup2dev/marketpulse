@@ -77,15 +77,17 @@ export function MiniBar({ ratio, color = 'var(--mp-accent)', width = 56 }) {
 }
 
 /** Switch — 켜고 끄는 스위치 (지표 · 이벤트 표시) */
-export function Switch({ checked, onChange, label }) {
+export function Switch({ checked, onChange, label, disabled = false }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
       aria-label={label}
-      onClick={() => onChange(!checked)}
-      className={`flex-shrink-0 w-[30px] h-[18px] rounded-full p-0.5 flex items-center transition-colors ${checked ? 'bg-[var(--mp-accent)] justify-end' : 'bg-[var(--mp-chip-on)] justify-start'}`}
+      title={disabled ? label : undefined}
+      disabled={disabled}
+      onClick={() => onChange?.(!checked)}
+      className={`flex-shrink-0 w-[30px] h-[18px] rounded-full p-0.5 flex items-center transition-colors disabled:cursor-not-allowed ${checked ? 'bg-[var(--mp-accent)] justify-end' : 'bg-[var(--mp-chip-on)] justify-start'}`}
     >
       <span className="w-3.5 h-3.5 rounded-full bg-white" />
     </button>

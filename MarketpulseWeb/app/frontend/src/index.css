@@ -20,6 +20,10 @@ html.dark {
   --color-negative:      #ef4444;
   --color-header-bg:     #0d0d0d;
 
+  /* 로고 (common/brand/BrandLogo) — 잉크 한 색 + 시그널 한 색 */
+  --mp-brand-ink:    #F2F2F0;
+  --mp-brand-signal: #06B6D4;
+
   /* 리디자인 시안 토큰 — WidgetCard 와 홈 위젯이 쓴다 */
   --mp-panel:     #121214;
   --mp-raised:    #1E1E22;
@@ -58,6 +62,8 @@ html[data-updown="us"] {
 
 /* Light mode overrides */
 html.light {
+  --mp-brand-ink:    #0E0F12;
+  --mp-brand-signal: #0891B2;
   --color-bg-primary:    #f5f7fa;
   --color-bg-secondary:  #ffffff;
   --color-bg-tertiary:   #f1f5f9;
@@ -216,6 +222,12 @@ html.light input[type="number"] {
   background-color: var(--color-bg-tertiary) !important;
 }
 html.light ::placeholder { color: var(--color-text-muted) !important; }
+/* 로그인 · 회원가입은 다크 고정 (시안 Login.dc.html) — 라이트 테마의 입력창 덮어쓰기를 받지 않는다 */
+html.light .mp-auth input {
+  color: #F2F2F0 !important;
+  background-color: #111113 !important;
+}
+html.light .mp-auth ::placeholder { color: #6E7078 !important; }
 
 /* 그리드 */
 html.light .react-grid-layout { background-color: var(--color-bg-primary); }

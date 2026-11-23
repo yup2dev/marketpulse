@@ -852,10 +852,13 @@ BUILTIN_WIDGETS += [
 ]
 
 
-# ══ 퀀트 (/quantlib · Factors & ML) ══════════════════════════════════════════════
-# 팩터 → 예측 모델 → 시그널 융합. 계산은 로컬 배치(MarketpulseBatch/jobs/build_quant.py)가 하고
-# 서버는 적재된 값(mbs_in_quant_snapshot)을 읽기만 한다. 적재 전에는 빈 화면 문구가 나온다.
-QUANT = "/quant/{dataset}?universe={universe}"
+# ══ 퀀트 (/quantlib · Dashboard) ════════════════════════════════════════════════
+# 팩터 → ML 모델 → 이번 달 순위. 학습은 로컬 배치(MarketpulseBatch/jobs/build_quant.py)가 하고
+# 서버는 적재된 값(mbs_in_quant_snapshot · mbs_in_quant_panel)을 읽는다. 적재 전에는 빈 화면 문구가 나온다.
+# 머리줄(QuantWorkflow)에서 고른 전략(화면 변수 strategy — /backtest 와 같은 변수)을 따른다:
+# 팩터 표의 비중 · 합성 줄, 롱숏 곡선의 합성, 분위 수익률, 순위가 그 전략 점수로 바뀐다 (routes/quant.py).
+QUANT = "/quant/{dataset}?universe={universe}&strategy={strategy}"
+QUANT_SHARED = "universe,strategy"
 QUANT_EMPTY = "퀀트 산출물이 아직 적재되지 않았어요 — 로컬에서 build_quant.py 를 실행해 주세요"
 UNIVERSE = ("universe", "유니버스", "sp500", [("sp500", "S&P 500", None)])
 # 팩터 id 는 배치(index_analyzer/quant/factors.py)의 FACTORS 와 같다
@@ -877,14 +880,14 @@ BUILTIN_WIDGETS += [
         "view_type": "table",
         "endpoint": _quant("factors"),
         "source": "$provider",
-        "source_note": "{used} · 동일 비중 · {members}종목",
+        "source_note": "{used} · {members}종목",
         "transform": "quant_factors",
         "empty_text": QUANT_EMPTY,
         "size": (4, 7, 4, 4),
         "params": [UNIVERSE],
-        # 스위치로 끈 팩터는 화면 변수 quant_off 에 모인다 — 머리줄 '백테스트로 보내기'가 켠 팩터로 전략을 만든다
+        # 스위치는 읽기 전용 — 고른 전략이 쓰는 팩터만 켜져 있다 (바꾸려면 전략 설정 탭)
         "fields": [
-            _field("COLUMN", "_toggle", "switch", "", width=44, sub="quant_off"),
+            _field("COLUMN", "_toggle", "switch", "", width=44),
             _field("COLUMN", "name", "text", "팩터"),
             _field("COLUMN", "_w", "value_muted", "비중", width=48),
             _field("COLUMN", "_ic", "value", "IC", width=60),
@@ -892,7 +895,7 @@ BUILTIN_WIDGETS += [
             _field("COLUMN", "ls_ann", "change", "연 롱숏", width=72),
             _field("COLUMN", "_kind", "badge", "", width=52, sub="_tone"),
         ],
-        "options": {"shared": "universe,quant_off", "rowHeight": "40", "minWidth": "400",
+        "options": {"shared": QUANT_SHARED, "rowHeight": "40", "minWidth": "400",
                     "muteBy": "_off", "highlight": "quant_step:factor"},
         "screens": [("/quantlib", "factors", 0, 0, 4, 7), ALL],
     },
@@ -905,8 +908,8 @@ BUILTIN_WIDGETS += [
         "view_type": "lines",
         "endpoint": _quant("factor_returns"),
         "source": "$provider",
-        "source_note": "상위 20% 롱 · 하위 20% 숏 · 최근 5년 · 비용 없음",
-        "transform": "quant_meta",
+        "source_note": "{strategy} · 상위 20% 롱 · 하위 20% 숏 · 최근 5년 · 비용 없음",
+        "transform": "quant_returns",
         "empty_text": QUANT_EMPTY,
         "size": (8, 7, 4, 4),
         "params": [UNIVERSE],
@@ -916,12 +919,12 @@ BUILTIN_WIDGETS += [
         ],
         "fields": [_field("LABEL", "q"), _field("VALUE", "value")],
         "options": {
-            "shared": "universe", "highlight": "quant_step:factor",
+            "shared": QUANT_SHARED, "highlight": "quant_step:factor",
             "x": "date", "series": FACTOR_SERIES, "pick": "composite,mom_12_1,lowvol", "max": "4",
             "unit": "%", "digits": "1",
             "tab.q.view": "columns",
             "tab.q.endpoint": _quant("quantiles"),
-            "tab.q.transform": "quant_meta",
+            "tab.q.transform": "quant_returns",
             "tab.q.tone": "true",
         },
         "screens": [("/quantlib", "factors", 4, 0, 8, 7), ALL],
@@ -954,7 +957,7 @@ BUILTIN_WIDGETS += [
             _field("COLUMN", "_kind", "badge", "", width=52, sub="_tone"),
         ],
         "options": {
-            "shared": "universe", "highlight": "quant_step:ml",
+            "shared": QUANT_SHARED, "highlight": "quant_step:ml",
             "rowHeight": "40", "minWidth": "640", "fixed": "true",
             "tab.regime.view": "strip",
             "tab.regime.endpoint": _quant("regimes"),
@@ -965,31 +968,30 @@ BUILTIN_WIDGETS += [
         },
         "screens": [("/quantlib", "factors", 0, 7, 7, 6), ALL],
     },
-    # ── 시그널 융합: 종목별 다음 달 초과수익 확률 (단순 평균 / 스태킹) ──
+    # 시그널 융합(quant-signals)은 시안 개편(QuantMain)으로 '이번 달 순위'가 대신한다 — 마이그레이션 b8d3f1a6c2e7 이
+    # 이미 들어간 행을 숨긴다(use_yn=N). 되살릴 때는 git 이력의 이 자리에서 가져온다.
+    # ── 이번 달 순위: 고른 전략 점수로 패널 마지막 달 종목을 줄 세운다 (상위 top_n 매수) ──
     {
-        "widget_id": "quant-signals",
-        "name": "Signal Fusion",
-        "description": "Stocks ranked by fused probability of beating the median next month",
+        "widget_id": "quant-ranking",
+        "name": "Strategy Ranking",
+        "description": "This month's stocks ranked by the picked strategy's score · top N to buy",
         "group_name": "Quant",
-        "title": "시그널 융합",
+        "title": "이번 달 순위",
         "view_type": "table",
-        "endpoint": _quant("signals"),
+        "endpoint": "/quant/ranking?universe={universe}&strategy={strategy}",
         "source": "$provider",
-        "source_note": "{signalDate} · 상위 10% 매수 · 하위 10% 매도",
-        "transform": "quant_signals",
+        "source_note": "{strategy} · {asOf} 기준 · 상위 {topN} 매수",
+        "transform": "quant_ranking",
         "empty_text": QUANT_EMPTY,
         "size": (5, 6, 4, 3),
-        "params": [
-            UNIVERSE,
-            ("method", "융합 방식", "stack", [("avg", "단순 평균", None), ("stack", "스태킹", None)]),
-        ],
+        "params": [UNIVERSE],
         "fields": [
             _field("COLUMN", "rank", "rank", "#", width=44),
             _field("COLUMN", "symbol", "stock", "종목", sub="name"),
-            _field("COLUMN", "_score", "bar", "확률", width=128),
-            _field("COLUMN", "_signal", "badge", "시그널", width=64, sub="_tone"),
+            _field("COLUMN", "_score", "bar", "점수", width=128, sub=""),   # 단위 없음 — ML 은 확률 ×100, 팩터는 가중 z
+            _field("COLUMN", "_signal", "badge", "표시", width=64, sub="_tone"),
         ],
-        "options": {"shared": "universe", "highlight": "quant_step:fusion", "rowHeight": "38", "minWidth": "420"},
+        "options": {"shared": QUANT_SHARED, "highlight": "quant_step:rank", "rowHeight": "36", "minWidth": "380"},
         "screens": [("/quantlib", "factors", 7, 7, 5, 6), ALL],
     },
 ]

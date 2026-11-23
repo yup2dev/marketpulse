@@ -24,7 +24,7 @@ import pandas as pd
 from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
-from app.backend.models.orm import MBS_IN_QUANT_PANEL, UserQuantStrategy, UserQuantStrategyFactor
+from app.backend.models.orm import MBS_IN_QUANT_PANEL, MBS_IN_STK_PROFILE, UserQuantStrategy, UserQuantStrategyFactor
 
 log = logging.getLogger(__name__)
 
@@ -576,3 +576,150 @@ def catalog() -> dict:
         "top_n": list(TOP_N_RANGE),
         "max_cost_bps": MAX_COST_BPS,
     }
+
+
+# ══ 전략 기준 보기 (퀀트 메인 · 대시보드) ═══════════════════════════════════════════
+# 배치는 팩터 6개를 모두 쓴 합성만 계산해 둔다. 메인에서 전략을 고르면 그 전략 점수(팩터 가중합 또는
+# ML 확률)의 성과를 같은 패널(팩터 z · 다음 달 수익률)로 여기서 계산한다 — 학습은 없다. 계산법은 배치
+# (MarketpulseBatch/index_analyzer/quant/evaluate.py)와 같다: 순위 IC · 5분위 · 상위-하위 롱숏.
+
+CHART_MONTHS = 60
+MIN_NAMES = 30
+RANK_EXTRA = 10          # 순위 표에 매수 기준선 아래로 더 보여 줄 종목 수
+_VIEW_CACHE: "OrderedDict[tuple, dict]" = OrderedDict()
+_VIEW_CACHE_SIZE = 32
+# 메인을 열면 팩터 표 · 롱숏 곡선 · 분위가 같은 전략 보기를 한꺼번에 부른다 — 계산은 한 번만 (기다린 요청은 캐시)
+_VIEW_LOCK = threading.Lock()
+
+SECTOR_NAMES = {
+    "Technology": "IT", "Communication Services": "커뮤니케이션", "Consumer Cyclical": "임의소비재",
+    "Consumer Defensive": "필수소비재", "Healthcare": "헬스케어", "Financial Services": "금융",
+    "Industrials": "산업재", "Energy": "에너지", "Utilities": "유틸리티", "Real Estate": "부동산",
+    "Basic Materials": "소재",
+}
+UNKNOWN_SECTOR = "미분류"
+
+
+def sector_name(raw: Optional[str]) -> str:
+    return SECTOR_NAMES.get(raw or "", raw or UNKNOWN_SECTOR)
+
+
+def _ranked_months(score: pd.DataFrame, fwd: pd.DataFrame):
+    for d in score.index:
+        s, f = score.loc[d], fwd.loc[d]
+        ok = s.notna() & f.notna()
+        if ok.sum() >= MIN_NAMES:
+            yield d, s[ok], f[ok]
+
+
+def _annualized(m: pd.Series) -> Optional[float]:
+    r = m.dropna()
+    return float(((1 + r).prod() ** (12 / len(r)) - 1) * 100) if len(r) else None
+
+
+def strategy_weights(s: dict) -> Dict[str, float]:
+    """팩터 전략의 비중(%) — 합이 100 이 되게. ML 전략은 빈 dict."""
+    if s["score_kind"] != "factor":
+        return {}
+    w = {f["factor_id"]: float(f["weight"]) for f in s["factors"] if float(f["weight"]) > 0}
+    total = sum(w.values()) or 1.0
+    return {k: v / total * 100 for k, v in w.items()}
+
+
+def strategy_view(db: Session, user_id: str, universe: str, strategy_id: Optional[str]) -> Optional[dict]:
+    """고른 전략 점수의 { strategy, row: 팩터 표 합성 줄, curve: {날짜: 롱숏 누적 %}, quantiles, spread }.
+    패널이 없으면 None."""
+    s = to_dict(get_strategy(db, strategy_id, user_id), user_id)
+    panel = load_panel(db, universe)
+    if not panel:
+        return None
+    sig = json.dumps([s["score_kind"], s["model"], sorted((f["factor_id"], f["weight"]) for f in s["factors"])])
+    key = (universe, panel["version"], sig)
+    hit = _VIEW_CACHE.get(key)
+    if hit is not None:
+        return {**hit, "strategy": s}
+    with _VIEW_LOCK:
+        hit = _VIEW_CACHE.get(key)
+        if hit is None:
+            hit = _compute_view(s, panel)
+            _VIEW_CACHE[key] = hit
+            while len(_VIEW_CACHE) > _VIEW_CACHE_SIZE:
+                _VIEW_CACHE.popitem(last=False)
+    return {**hit, "strategy": s}
+
+
+def _compute_view(s: dict, panel: dict) -> dict:
+    score = _score(s, panel)
+    fwd = panel["fwd_ret"]
+    ic, qrows = {}, {}
+    for d, sc, f in _ranked_months(score, fwd):
+        ic[d] = sc.rank().corr(f.rank())
+        group = pd.qcut(sc.rank(method="first"), 5, labels=False)
+        qrows[d] = f.groupby(group).mean()
+    ic = pd.Series(ic, dtype=float)
+    q = pd.DataFrame(qrows).T.sort_index()
+    ls = (q[q.columns.max()] - q[q.columns.min()]) if len(q) else pd.Series(dtype=float)
+    sd = ls.dropna().std()
+    names = {f[0]: f[1] for f in FACTORS}
+    if s["score_kind"] == "ml":
+        model = dict(MODELS).get(s["model"], s["model"])
+        title, desc = f"{model} 확률", "모델이 낸 다음 달 초과수익 확률"
+    else:
+        w = strategy_weights(s)
+        title = "전략 합성"
+        desc = " · ".join(f"{names.get(k, k)} {round(v)}%" for k, v in sorted(w.items(), key=lambda x: -x[1]))
+    row = {
+        "id": "composite", "name": title, "composite": True, "desc": desc,
+        "ic": float(ic.mean()) if len(ic) else None,
+        "icir": float(ic.mean() / ic.std() * np.sqrt(12)) if len(ic) > 1 and ic.std() else None,
+        "hit": float((ic > 0).mean() * 100) if len(ic) else None,
+        "ls_ann": _annualized(ls),
+        "ls_sharpe": float(ls.mean() / sd * np.sqrt(12)) if len(ls.dropna()) > 2 and sd else None,
+        "months": int(len(ic)),
+    }
+    recent = fwd.index[fwd.notna().sum(axis=1) > 0][-CHART_MONTHS:]
+    cum = ((1 + ls.reindex(recent).fillna(0)).cumprod() - 1) * 100
+    curve = {d.date().isoformat(): float(v) for d, v in cum.items()}
+    cols = sorted(q.columns)
+    quantiles = [
+        {"q": f"Q{k + 1}" + (" 하위" if k == 0 else " 상위" if k == len(cols) - 1 else ""), "value": _annualized(q[c])}
+        for k, c in enumerate(cols)
+    ]
+    spread = (quantiles[-1]["value"] or 0) - (quantiles[0]["value"] or 0) if quantiles else None
+    return _clean({"row": row, "curve": curve, "quantiles": quantiles, "spread": spread})
+
+
+def _profiles(db: Session, symbols) -> dict:
+    rows = (db.query(MBS_IN_STK_PROFILE.stk_cd, MBS_IN_STK_PROFILE.stk_nm, MBS_IN_STK_PROFILE.sector,
+                     MBS_IN_STK_PROFILE.market_cap)
+            .filter(MBS_IN_STK_PROFILE.stk_cd.in_(list(symbols))).all())
+    return {r.stk_cd: r for r in rows}
+
+
+def ranking(db: Session, user_id: str, universe: str, strategy_id: Optional[str]) -> Tuple[List[dict], dict]:
+    """이번 달 순위 — 패널 마지막 달(점수가 있는 달)의 전략 점수 큰 순. 상위 top_n 에 매수 표시.
+    (행, metadata). 패널이 없으면 ([], {loaded: False})."""
+    s = to_dict(get_strategy(db, strategy_id, user_id), user_id)
+    panel = load_panel(db, universe)
+    if not panel:
+        return [], {"loaded": False}
+    score = _score(s, panel)
+    close = panel["close"]
+    have = score.index[score.notna().sum(axis=1) > 0]
+    if not len(have):
+        return [], {"loaded": True}
+    d = have[-1]
+    sc = score.loc[d].dropna()
+    sc = sc[close.loc[d].reindex(sc.index).notna()].sort_values(ascending=False)
+    top_n = int(s["top_n"])
+    head = sc.iloc[: top_n + RANK_EXTRA]
+    prof = _profiles(db, head.index)
+    rows = [{
+        "rank": i + 1, "symbol": sym, "name": getattr(prof.get(sym), "stk_nm", None),
+        "score": float(v), "buy": i < top_n,
+    } for i, (sym, v) in enumerate(head.items())]
+    meta = {
+        "loaded": True, "as_of": d.date().isoformat(), "members": int(len(sc)), "top_n": top_n,
+        "strategy_id": s["strategy_id"], "strategy": s["name"], "score_kind": s["score_kind"],
+    }
+    return _clean(rows), meta
