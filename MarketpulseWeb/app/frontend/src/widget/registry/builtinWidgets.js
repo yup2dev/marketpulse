@@ -440,18 +440,32 @@ export const TRANSFORMS = {
 
   // ── 퀀트 (로컬 배치가 계산해 적재한 값 — /api/quant/*) ──
   // 팩터 표: 숫자를 표기로 + 기준(종목 수 · 기간)을 meta 로. 합성은 맨 아래
+  // 팩터 표: 합성은 맨 아래. 화면 변수 quant_off(꺼 둔 팩터 id 목록)로 스위치 · 비중(켠 팩터 동일 비중) · 흐림.
+  // 합성 행은 배치가 6개 전부로 계산한 값이라 스위치가 없다
   quant_factors: {
-    apply: (rows, { response }) => ({
-      rows: [...rows].sort((a, b) => Number(!!a.composite) - Number(!!b.composite)).map((f) => ({
-        ...f,
-        _ic: f.ic != null ? Number(f.ic).toFixed(3) : null,
-        _icir: f.icir != null ? Number(f.icir).toFixed(2) : null,
-        _hit: f.hit != null ? `${Math.round(f.hit)}%` : null,
-        _tone: f.composite ? 'accent' : undefined,
-        _kind: f.composite ? '합성' : '',
-      })),
-      meta: quantMeta(response),
-    }),
+    apply: (rows, { params, response }) => {
+      const off = new Set(String(params.quant_off || '').split(',').filter(Boolean));
+      const singles = rows.filter((f) => !f.composite);
+      const used = singles.filter((f) => !off.has(f.id)).length;
+      return {
+        rows: [...rows].sort((a, b) => Number(!!a.composite) - Number(!!b.composite)).map((f) => {
+          const isOff = !f.composite && off.has(f.id);
+          return {
+            ...f,
+            name: f.composite ? `${f.name} (전체)` : f.name,
+            _toggle: f.composite ? null : f.id,
+            _w: f.composite || isOff || !used ? null : `${Math.round(100 / used)}%`,
+            _off: isOff,
+            _ic: f.ic != null ? Number(f.ic).toFixed(3) : null,
+            _icir: f.icir != null ? Number(f.icir).toFixed(2) : null,
+            _hit: f.hit != null ? `${Math.round(f.hit)}%` : null,
+            _tone: f.composite ? 'accent' : undefined,
+            _kind: f.composite ? '합성' : '',
+          };
+        }),
+        meta: { ...quantMeta(response), used: `${singles.length}개 중 ${used}개 사용` },
+      };
+    },
   },
   // 그대로 그리되 기준(종목 수 · 기간 · 분위 스프레드)을 meta 로
   quant_meta: {
@@ -694,6 +708,7 @@ function toColumn(f, series) {
     case 'bar':   return { ...col, field: f.field_name, suffix: f.sub_field ?? undefined };
     case 'badge': return { ...col, field: f.field_name, toneBy: f.sub_field };
     case 'link':  return { ...col, field: f.field_name, href: f.sub_field };
+    case 'switch': return { ...col, field: f.field_name, variable: f.sub_field, labelField: 'name' };
     default:      return { ...col, field: f.field_name };
   }
 }
@@ -707,6 +722,7 @@ function buildSpec(def) {
   let provider = null;
   let keepProvider = false;   // 컨트롤(정렬 등)을 바꿔도 고른 데이터 소스를 유지 — 후보가 조건과 무관할 때
   let shared;   // 화면 변수 이름들 — 같은 이름을 쓰는 위젯이 값을 같이 따른다 (widget/engine/shared.js)
+  let highlight;   // '화면 변수:값' — 그 변수가 이 값이면 패널 테두리를 강조 (퀀트 워크플로 단계)
   for (const [k, v] of Object.entries(all)) {
     if (k.startsWith('extra.')) extra[k.slice('extra.'.length)] = v;
     else if (k.startsWith('tab.')) {
@@ -719,6 +735,10 @@ function buildSpec(def) {
     } else if (k === 'provider') provider = String(v);
     else if (k === 'shared') shared = String(v).split(',').map((s) => s.trim()).filter(Boolean);
     else if (k === 'keepProvider') keepProvider = v === true || v === 'true';
+    else if (k === 'highlight') {
+      const [name, value] = String(v).split(':');
+      highlight = { name, value };
+    }
     else options[k] = v;
   }
 
@@ -795,6 +815,7 @@ function buildSpec(def) {
     provider: provider || undefined,
     keepProvider,
     shared,
+    highlight,
     controls: (def.params || []).map((p) => {
       const opts = (p.options || []).map((o) => ({ value: o.value, label: o.label, params: coerceAll(o.params) }));
       const from = optionsFrom[p.param_name];

@@ -56,6 +56,7 @@ export default function WidgetCard({
   onRetry,
   bare = false,
   sourceInActions = false,   // 출처를 actions 의 데이터 소스 선택이 보여 준다 — 글자로 다시 적지 않는다
+  highlight = false,    // 강조 테두리 (퀀트 워크플로에서 고른 단계의 패널)
   children,
 }) {
   const items = tabs?.length ? tabs : [{ id: '_', label: title }];
@@ -106,7 +107,7 @@ export default function WidgetCard({
   return (
     <section
       aria-label={items.find((t) => t.id === current)?.label}
-      className="h-full flex flex-col rounded-lg bg-[var(--mp-panel)] text-[var(--mp-text)] text-[13px] tabular-nums"
+      className={`h-full flex flex-col rounded-lg bg-[var(--mp-panel)] text-[var(--mp-text)] text-[13px] tabular-nums ${highlight ? 'ring-1 ring-inset ring-[var(--mp-accent)]' : ''}`}
     >
       <div className="flex items-center gap-1 h-10 px-2 flex-shrink-0">
         {/* 왼쪽: 끌기 손잡이 + 탭 */}

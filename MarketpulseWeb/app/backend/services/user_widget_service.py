@@ -121,6 +121,7 @@ CODES: Dict[str, List[Dict[str, Any]]] = {
         {"value": "badge",   "name": "글자 꼬리표 (색 = 보조 필드)"},
         {"value": "entity",  "name": "로고 + 이름 (기관 등)"},
         {"value": "link",    "name": "링크 글자 (주소 = 보조 필드)"},
+        {"value": "switch",  "name": "켜고 끄기 (보조 필드 = 꺼 둔 값 목록의 화면 변수)"},
     ],
     # 행을 다듬는 함수 (user_widgets.transform) — 구현은 프론트 widget/registry/builtinWidgets.js
     "TRANSFORM": [

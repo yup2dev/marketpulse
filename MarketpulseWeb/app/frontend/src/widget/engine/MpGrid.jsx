@@ -27,6 +27,8 @@
  *   badge    field, toneBy                 글자 꼬리표 — 색은 toneBy 필드('up'·'down'·'accent'·숫자 부호), 없으면 회색
  *   entity   field                         로고 + 이름 (종목이 아닌 것 — 기관)
  *   link     field, href                   글자를 누르면 href 필드의 주소를 새 탭으로
+ *   switch   field, variable               켜고 끄기 — 화면 변수 variable(쉼표 목록)에 field 값이 있으면 꺼짐.
+ *                                          field 가 빈 행은 스위치 없음 (DataWidget 이 setParam 을 준다)
  *   공통: id · header · width(px 또는 '20%') · align('left'|'right') · render(row, ctx, index) · sortable(false 면 그 열만 끔)
  *         · hide(처음엔 숨김) · wrap(true 면 줄바꿈 허용) · className(칸에 붙일 클래스)
  *   field 는 필드 이름 또는 (row, ctx) => 값. 머리글·field 가 없는 열(동작 버튼)은 id 를 준다
@@ -39,6 +41,7 @@
  *   valign     'top' 이면 칸 내용을 위에 붙인다
  *   rowKey     행 React key — 필드 이름 또는 (row) => 값 (편집 표는 꼭 준다)
  *   rowClassName (row) => 클래스 (예: 사용 안 함 행 흐리게)
+ *   muteBy     필드 이름 — 그 값이 참인 행은 글자를 흐리게 (DB 위젯용. 꺼 둔 팩터)
  *   footer     <tr>…</tr> — 표 맨 아래 고정 행 (예: 추가 입력 줄)
  *   scroll     false 면 표 안 스크롤을 끈다 — 칸 안 드롭다운(Select)이 잘리지 않게 (편집 표)
  *
@@ -65,10 +68,10 @@ import {
 import { Link, hrefFor } from './adapter';
 import { useSeries } from './data';
 import { fmtCompact, fmtDate, fmtNumber, fmtPct, fmtPrice, toneOf, read } from './format';
-import { MiniBar, Pill, StockLogo, TrendLine } from './views/parts';
+import { MiniBar, Pill, StockLogo, Switch, TrendLine } from './views/parts';
 
 const RIGHT = new Set(['price', 'change', 'percent', 'compact', 'number', 'trend', 'value', 'value_muted', 'money', 'pct', 'pill', 'bar']);
-const UNSORTABLE = new Set(['rank', 'trend']);
+const UNSORTABLE = new Set(['rank', 'trend', 'switch']);
 const blank = (v) => v == null || String(v).trim() === '';
 const plain = (v) => (v != null && typeof v === 'object' ? '—' : (v ?? '—'));
 const EMPTY = [];
@@ -82,7 +85,7 @@ function rawValue(c, row, ctx) {
   return read(row, c.field, ctx);
 }
 
-function Cell({ col, row, index, ctx, series, max }) {
+function Cell({ col, row, index, ctx, series, max, setParam }) {
   if (col.render) return col.render(row, ctx, index);
   const v = read(row, col.field, ctx);
   switch (col.type) {
@@ -154,6 +157,17 @@ function Cell({ col, row, index, ctx, series, max }) {
       return url
         ? <a href={url} target="_blank" rel="noopener noreferrer" className="truncate hover:underline" onClick={(e) => e.stopPropagation()}>{v ?? '—'}</a>
         : <span className="truncate">{v ?? '—'}</span>;
+    }
+    case 'switch': {
+      if (blank(v)) return null;
+      const off = String(ctx?.params?.[col.variable] || '').split(',').filter(Boolean);
+      const on = !off.includes(String(v));
+      const flip = (next) => setParam?.(col.variable, (next ? off.filter((x) => x !== String(v)) : [...off, String(v)]).join(','));
+      return (
+        <span className="inline-flex" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+          <Switch checked={on} onChange={flip} label={`${row[col.labelField] ?? v} 사용`} />
+        </span>
+      );
     }
     default:
       return <span className="truncate">{plain(v)}</span>;
@@ -260,7 +274,7 @@ export default function MpGrid({ rows = EMPTY, ctx, options = {}, setParam }) {
     columns: allColumns = EMPTY, minWidth = 600, rowHeight = 40, fixed = false, select,
     sortable = false, searchable = false, exportable = false, exportName = 'export', columnPicker = false,
     pageSize, expand, expanded: isOpen, onRowClick, empty = 'No data',
-    rowKey, rowClassName, footer, valign, scroll = true,
+    rowKey, rowClassName, muteBy, footer, valign, scroll = true,
   } = options;
 
   const [hidden, setHidden] = useState(() => new Set(allColumns.filter((c) => c.hide).map(colId)));
@@ -387,7 +401,7 @@ export default function MpGrid({ rows = EMPTY, ctx, options = {}, setParam }) {
               const tr = (
                 <tr
                   key={key}
-                  className={`hover:bg-[var(--mp-row-hover)] transition-colors ${dense || !rowHeight ? 'border-t border-[var(--mpc-grid)] first:border-t-0' : ''} ${valign === 'top' ? 'align-top' : ''} ${clickable ? 'cursor-pointer' : ''} ${isSelected || (open && toggles) ? 'bg-[var(--mp-raised)]' : ''} ${rowClassName ? rowClassName(row) || '' : ''}`}
+                  className={`hover:bg-[var(--mp-row-hover)] transition-colors ${dense || !rowHeight ? 'border-t border-[var(--mpc-grid)] first:border-t-0' : ''} ${valign === 'top' ? 'align-top' : ''} ${clickable ? 'cursor-pointer' : ''} ${isSelected || (open && toggles) ? 'bg-[var(--mp-raised)]' : ''} ${rowClassName ? rowClassName(row) || '' : ''} ${muteBy && row[muteBy] ? 'text-[var(--mp-muted)]' : ''}`}
                   style={rowHeight ? { height: rowHeight } : undefined}
                   aria-selected={selectField ? isSelected : undefined}
                   aria-expanded={toggles ? !!open : undefined}
@@ -404,7 +418,7 @@ export default function MpGrid({ rows = EMPTY, ctx, options = {}, setParam }) {
                       className={`${c.wrap ? '' : 'whitespace-nowrap'} ${rowHeight ? '' : 'py-1.5'} ${pad(ci)} ${alignOf(c) === 'right' ? 'text-right tabular-nums' : 'text-left'} ${c.className || ''} ${c.type === 'stock' || c.type === 'entity' ? 'max-w-0 w-[34%]' : ''} ${fixed ? 'overflow-hidden text-ellipsis' : ''}`}
                       title={fixed && !c.width ? String(read(row, c.field, ctx) ?? '') : undefined}
                     >
-                      <Cell col={c} row={row} index={(paged ? current * size : 0) + r} ctx={ctx} series={series} max={maxes[ci]} />
+                      <Cell col={c} row={row} index={(paged ? current * size : 0) + r} ctx={ctx} series={series} max={maxes[ci]} setParam={setParam} />
                     </td>
                   ))}
                 </tr>

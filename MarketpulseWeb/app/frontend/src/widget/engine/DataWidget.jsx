@@ -223,6 +223,7 @@ export default function DataWidget({ spec, symbol: pageSymbol, onRemove }) {
       live={!!spec.live && !error}
       actions={actions}
       onRemove={onRemove}
+      highlight={!!spec.highlight && shared[spec.highlight.name] === spec.highlight.value}
     >
       {body}
     </Card>
