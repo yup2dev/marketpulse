@@ -2,27 +2,38 @@
  * 퀀트 탭(메인 · 전략 설정 · 포트폴리오 설정)이 같이 쓰는 작은 부품과 표기.
  */
 
-/** 점수 종류 표시 — 팩터 / ML */
+const KIND_TAG = {
+  factor: ['팩터', 'bg-[#1B2A44] text-[#8FB8FF]'],
+  ml: ['ML', 'bg-[#231A33] text-[#C4B5FD]'],
+  none: ['보유', 'bg-[#14201A] text-[#3FC27A]'],
+};
+
+/** 점수 종류 표시 — 팩터 / ML / 보유(대상 전부 보유) */
 export function KindTag({ kind }) {
-  const ml = kind === 'ml';
-  return (
-    <span className={`px-1.5 py-px rounded-md text-[10px] font-semibold whitespace-nowrap ${ml ? 'bg-[#231A33] text-[#C4B5FD]' : 'bg-[#1B2A44] text-[#8FB8FF]'}`}>
-      {ml ? 'ML' : '팩터'}
-    </span>
-  );
+  const [label, cls] = KIND_TAG[kind] || KIND_TAG.factor;
+  return <span className={`px-1.5 py-px rounded-md text-[10px] font-semibold whitespace-nowrap ${cls}`}>{label}</span>;
 }
 
-/** 전략 한 줄 요약 — '모멘텀 12-1 + 추세' (비중 큰 순) 또는 'ML 융합 · 스태킹 확률' */
-export function strategyHead(s, catalog) {
+/** 전략 한 줄 요약 — '모멘텀 12-1 + 추세' (비중 큰 순) · 'ML 융합 · 스태킹 확률' · '반도체 전부 보유'
+ *  + 대상 종목 묶음 · 매크로 조건 수. baskets = 내 포트폴리오 목록 (서버 행에 basket 이 있으면 그걸 쓴다) */
+export function strategyHead(s, catalog, baskets = []) {
   if (!s) return '';
-  if (s.score_kind === 'ml') {
-    return `${catalog?.models?.find((m) => m.id === s.model)?.name || s.model} 확률`;
+  const basket = s.basket || baskets.find((b) => b.portfolio_id === s.basket_id);
+  let head;
+  if (s.score_kind === 'none') {
+    head = `${basket?.name || '묶음'} 전부 보유`;
+  } else if (s.score_kind === 'ml') {
+    head = `${catalog?.models?.find((m) => m.id === s.model)?.name || s.model} 확률`;
+  } else {
+    head = [...(s.factors || [])]
+      .filter((f) => Number(f.weight) > 0)
+      .sort((a, b) => b.weight - a.weight)
+      .map((f) => catalog?.factors?.find((x) => x.id === f.factor_id)?.name || f.factor_id)
+      .join(' + ') || '팩터 없음';
+    if (basket) head = `${basket.name} 안 ${head}`;
   }
-  const names = [...(s.factors || [])]
-    .filter((f) => Number(f.weight) > 0)
-    .sort((a, b) => b.weight - a.weight)
-    .map((f) => catalog?.factors?.find((x) => x.id === f.factor_id)?.name || f.factor_id);
-  return names.join(' + ') || '팩터 없음';
+  const n = s.overlay?.rules?.length;
+  return n ? `${head} · 매크로 조건 ${n}개` : head;
 }
 
 /** 판정 — 월간 IC 의 t 값 (= 연환산 ICIR × √(개월/12)) 기준 */

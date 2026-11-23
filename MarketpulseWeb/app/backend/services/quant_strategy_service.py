@@ -25,6 +25,7 @@ import pandas as pd
 from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
+from app.backend.services import quant_overlay as ov
 from app.backend.models.orm import MBS_IN_QUANT_PANEL, MBS_IN_STK_PROFILE, UserQuantStrategy, UserQuantStrategyFactor
 
 log = logging.getLogger(__name__)
@@ -52,18 +53,12 @@ MODEL_IDS = [m[0] for m in MODELS]
 
 BENCHMARKS = {"^GSPC": "S&P 500", "equal": "동일 비중", "^SOX": "필라델피아 반도체"}
 
-# 매크로 시장 지표 — 패널의 '^' 행 (배치 MarketpulseBatch/index_analyzer/quant/macro.py 와 같은 코드 · tests 가 맞춰 본다)
-# (코드, 이름, 종류: rate = 금리 · 포인트 → 변화는 차이 / price = 가격 → 변화는 %)
-MACRO_SERIES: List[Tuple[str, str, str]] = [
-    ("^TNX", "미국 10년물 금리", "rate"),
-    ("^IRX", "미국 3개월물 금리", "rate"),
-    ("^DXY", "달러 지수", "price"),
-    ("^HG", "구리 선물", "price"),
-    ("^VIX", "VIX 변동성", "rate"),
-    ("^SOX", "필라델피아 반도체 지수", "price"),
-]
-MACRO_IDS = [m[0] for m in MACRO_SERIES]
+# 매크로 시장 지표 · 조건 — quant_overlay (전략에 붙는다). 이름은 옛 import 를 위해 그대로 둔다
+MACRO_SERIES = ov.MACRO_SERIES
+MACRO_IDS = ov.MACRO_IDS
+SCORE_KINDS = {"factor": "팩터 조합", "ml": "ML 모델", "none": "대상 전부 보유"}
 REBALANCE = {"M": "월간", "Q": "분기"}
+
 MAX_PER_USER = 50
 TOP_N_RANGE = (5, 100)
 MAX_COST_BPS = 100
@@ -121,9 +116,23 @@ def to_dict(s: UserQuantStrategy, user_id: Optional[str] = None) -> dict:
         "factors": [{"factor_id": f.factor_id, "weight": f.weight} for f in s.factors],
         "top_n": s.top_n,
         "rebalance": s.rebalance,
+        "basket_id": s.basket_id,
+        "basket": _basket_dict(s.basket),
+        "overlay": json.loads(s.overlay) if s.overlay else None,
         "builtin": s.user_id is None,
         "editable": s.user_id is not None and s.user_id == user_id,
         "updated_at": s.updated_at.isoformat() if s.updated_at else None,
+    }
+
+
+def _basket_dict(b) -> Optional[dict]:
+    """대상 종목 묶음(user_quant_portfolios) — 계산 · 캐시 키에 쓰는 모양 (quant_portfolio_service.to_dict 와 같은 키)."""
+    if b is None:
+        return None
+    return {
+        "portfolio_id": b.portfolio_id, "name": b.name, "universe": b.universe, "weighting": b.weighting,
+        "cash_pct": b.cash_pct, "rebalance": b.rebalance, "cost_bps": b.cost_bps,
+        "items": [{"symbol": i.stk_cd, "weight": i.weight} for i in b.items],
     }
 
 
@@ -156,8 +165,11 @@ def _validate(body: dict) -> dict:
     if not name or len(name) > 100:
         raise StrategyError("전략 이름은 1~100자로 적어 주세요")
     kind = body.get("score_kind")
-    if kind not in ("factor", "ml"):
-        raise StrategyError("점수 종류는 factor 또는 ml 이어야 해요")
+    if kind not in SCORE_KINDS:
+        raise StrategyError("점수 종류는 factor · ml · none 중 하나여야 해요")
+    basket_id = body.get("basket_id") or None
+    if kind == "none" and not basket_id:
+        raise StrategyError("'대상 전부 보유'는 대상 종목 묶음(내 포트폴리오)을 골라야 해요")
     try:
         top_n = int(body.get("top_n") or 30)
     except (TypeError, ValueError):
@@ -185,7 +197,7 @@ def _validate(body: dict) -> dict:
                 factors[fid] = w
         if not factors:
             raise StrategyError("팩터를 하나 이상 골라 주세요")
-    else:
+    elif kind == "ml":
         model = body.get("model") or "stack"
         if model not in MODEL_IDS:
             raise StrategyError(f"모르는 모델이에요: {model}")
@@ -194,18 +206,34 @@ def _validate(body: dict) -> dict:
     if desc and len(desc) > 300:
         raise StrategyError("설명은 300자 이하로 적어 주세요")
     return {"name": name, "description": desc, "score_kind": kind, "model": model,
-            "top_n": top_n, "rebalance": rebalance, "factors": factors}
+            "top_n": top_n, "rebalance": rebalance, "factors": factors,
+            "basket_id": basket_id, "overlay": ov.validate(body.get("overlay"))}
+
+
+def _check_basket(db: Session, user_id: str, basket_id: Optional[str]) -> None:
+    """대상 종목 묶음은 내 포트폴리오여야 한다."""
+    if not basket_id:
+        return
+    from app.backend.models.orm import UserQuantPortfolio
+    b = db.query(UserQuantPortfolio).filter(UserQuantPortfolio.portfolio_id == basket_id).first()
+    if not b or b.user_id != user_id:
+        raise StrategyError("대상 종목 묶음을 찾을 수 없어요 — 포트폴리오 설정에서 만든 내 포트폴리오를 골라 주세요")
+    if not b.items:
+        raise StrategyError(f"'{b.name}' 에 담은 종목이 없어요")
 
 
 def _apply(row: UserQuantStrategy, v: dict) -> None:
     row.name, row.description = v["name"], v["description"]
     row.score_kind, row.model = v["score_kind"], v["model"]
     row.top_n, row.rebalance = v["top_n"], v["rebalance"]
+    row.basket_id = v["basket_id"]
+    row.overlay = json.dumps(v["overlay"], ensure_ascii=False) if v["overlay"] else None
     row.factors = [UserQuantStrategyFactor(factor_id=f, weight=w) for f, w in v["factors"].items()]
 
 
 def create_strategy(db: Session, user_id: str, body: dict) -> UserQuantStrategy:
     v = _validate(body)
+    _check_basket(db, user_id, v["basket_id"])
     count = db.query(func.count(UserQuantStrategy.strategy_id)).filter(UserQuantStrategy.user_id == user_id).scalar()
     if count >= MAX_PER_USER:
         raise StrategyError(f"전략은 {MAX_PER_USER}개까지 만들 수 있어요 — 안 쓰는 전략을 지워 주세요")
@@ -230,7 +258,9 @@ def _own(db: Session, strategy_id: str, user_id: str) -> UserQuantStrategy:
 
 def update_strategy(db: Session, user_id: str, strategy_id: str, body: dict) -> UserQuantStrategy:
     row = _own(db, strategy_id, user_id)
-    _apply(row, _validate(body))
+    v = _validate(body)
+    _check_basket(db, user_id, v["basket_id"])
+    _apply(row, v)
     db.commit()
     db.refresh(row)
     return row
@@ -391,7 +421,29 @@ _RESULT_CACHE = PackedCache(16)
 _COMPARE_CACHE = PackedCache(4)   # 전략별 손익 — 성과 지표 · 월말 자산만
 
 
+def _basket_symbols(strategy: dict) -> Optional[List[str]]:
+    b = strategy.get("basket")
+    return [i["symbol"] for i in b["items"]] if b else None
+
+
 def _score(strategy: dict, panel: dict) -> pd.DataFrame:
+    """종목 점수 (월말 × 종목). 대상 종목 묶음이 있으면 그 밖의 종목은 NaN — 순위에 들지 않는다."""
+    if strategy.get("basket_id") and strategy.get("basket") is None:
+        raise StrategyError("대상 종목 묶음이 지워졌어요 — 전략 설정에서 다시 골라 주세요")
+    score = _raw_score(strategy, panel)
+    basket = _basket_symbols(strategy)
+    if basket is not None:
+        keep = score.columns.isin(basket)
+        if not keep.any():
+            raise StrategyError("대상 종목 묶음의 종목이 패널에 없어요")
+        score = score.copy()
+        score.loc[:, ~keep] = np.nan
+    return score
+
+
+def _raw_score(strategy: dict, panel: dict) -> pd.DataFrame:
+    if strategy["score_kind"] == "none":
+        return pd.DataFrame(1.0, index=panel["fwd_ret"].index, columns=panel["fwd_ret"].columns)
     if strategy["score_kind"] == "ml":
         score = panel[f"p_{strategy['model']}"]
         if not score.notna().any().any():
@@ -462,6 +514,13 @@ def run_backtest(strategy: dict, panel: dict, start: Optional[date] = None, end:
         raise StrategyError("이 기간에는 계산할 달이 모자라요 — 기간을 넓혀 주세요"
                             + (" (ML 점수는 표본 밖 구간에만 있어요)" if strategy["score_kind"] == "ml" else ""))
 
+    overlay = strategy.get("overlay")
+    states, values = ov.states(overlay, panel, months)
+    if overlay:
+        months = ov.evaluable(states, months)   # 지표 값이 모자란 앞쪽 달은 뺀다
+        if len(months) < 2:
+            raise StrategyError("매크로 조건을 계산할 수 있는 달이 모자라요 — 기간을 넓히거나 조건을 바꿔 주세요")
+
     top_n = int(strategy["top_n"])
     quarterly = strategy["rebalance"] == "Q"
     cost = cost_bps / 1e4
@@ -477,11 +536,30 @@ def run_backtest(strategy: dict, panel: dict, start: Optional[date] = None, end:
         bench_fwd.index = months
 
     held: List[str] = []
-    rets, costs, turnovers = [], [], []
+    rets, costs, turnovers, exposure, switches = [], [], [], [], []
     spells: Dict[str, dict] = {}   # 지금 들고 있는 종목의 거래
     trades: List[dict] = []
+    prev = None
     for i, d in enumerate(months):
-        rebalance = i == 0 or not quarterly or d.month in (3, 6, 9, 12)
+        on = bool(states[d])
+        changed = prev is not None and on != prev
+        if overlay and (prev is None or changed):
+            switches.append(ov.switch(d, on, values, _clean))
+        prev = on
+        if not on:
+            # 조건이 꺼진 달 — 들고 있던 종목을 다 팔고 현금
+            turnover = 1.0 if held else 0.0
+            for sym in held:
+                t = spells.pop(sym)
+                trades.append({**t, "exitDate": d.date().isoformat(), "exitPrice": _clean(close.at[d, sym]),
+                               "returnPct": (t.pop("_growth") - 1) * 100, "open": False})
+            held = []
+            rets.append(0.0)
+            costs.append(turnover * cost)
+            turnovers.append(turnover)
+            exposure.append(0.0)
+            continue
+        rebalance = i == 0 or changed or not quarterly or d.month in (3, 6, 9, 12)
         if rebalance:
             s = score.loc[d].dropna()
             s = s[close.loc[d].reindex(s.index).notna()]
@@ -509,15 +587,17 @@ def run_backtest(strategy: dict, panel: dict, start: Optional[date] = None, end:
         rets.append(float(r_each.mean()) if len(held) else 0.0)
         costs.append(turnover * cost)
         turnovers.append(turnover)
+        exposure.append(100.0 if held else 0.0)
 
     net = pd.Series(rets, index=months) - pd.Series(costs, index=months)
     bench_r = bench_fwd.reindex(months)
     dates = [_month_after(d) if i == len(months) - 1 else months[i + 1] for i, d in enumerate(months)]
     eq_s = (1 + net).cumprod()
     eq_b = (1 + bench_r.fillna(0)).cumprod()
-    equity = [{"date": months[0].date().isoformat(), "strategy": 1.0, "benchmark": 1.0}] + [
-        {"date": dt.date().isoformat(), "strategy": float(s), "benchmark": float(b)}
-        for dt, s, b in zip(dates, eq_s.values, eq_b.values)
+    # exposure = 그 점에서 시작하는 달의 주식 비중 % (마지막 점은 마지막 달 값을 이어 쓴다)
+    equity = [{"date": months[0].date().isoformat(), "strategy": 1.0, "benchmark": 1.0, "exposure": exposure[0]}] + [
+        {"date": dt.date().isoformat(), "strategy": float(s), "benchmark": float(b), "exposure": x}
+        for dt, s, b, x in zip(dates, eq_s.values, eq_b.values, exposure[1:] + [exposure[-1]])
     ]
     last = dates[-1].date().isoformat()
     # 아직 들고 있는 종목의 '현재가' = 마지막 수익률이 끝나는 달의 종가 (패널에 그 달 행이 있으면)
@@ -538,7 +618,9 @@ def run_backtest(strategy: dict, panel: dict, start: Optional[date] = None, end:
         "trades": len(trades),
         "winRate": len(wins) / len(done) * 100 if done else None,
         "avgTrade": float(np.mean([t["returnPct"] for t in done])) if done else None,
-        "exposure": 100.0,
+        "exposure": float(np.mean(exposure)),
+        "timeInMarket": float(np.mean([x > 0 for x in exposure]) * 100) if overlay else None,
+        "switches": len(switches) if overlay else None,
         "turnover": float(np.mean(turnovers[1:]) * 100) if len(turnovers) > 1 else None,
         "costTotal": float(sum(costs) * 100),
         "benchmark": {**_stats(bench_r), "name": BENCHMARKS[benchmark]},
@@ -552,13 +634,34 @@ def run_backtest(strategy: dict, panel: dict, start: Optional[date] = None, end:
             "score_kind": strategy["score_kind"], "model": strategy.get("model"),
             "factors": strategy["factors"], "top_n": top_n, "rebalance": strategy["rebalance"],
             "benchmark": benchmark, "cost_bps": cost_bps,
+            "basket": (strategy.get("basket") or {}).get("name"),
+            "overlay": overlay, "rules": [ov.rule_label(r) for r in overlay["rules"]] if overlay else [],
         },
         "metrics": metrics,
         "equity": equity,
         "trades": trades,
         "holdings": holdings,
-        "note": NOTE,
+        "switches": switches,
+        "overlayNow": ov.switch(months[-1], bool(states[months[-1]]), values, _clean) if overlay else None,
+        "note": NOTE + (" · " + ov.NOTE if overlay else ""),
     })
+
+
+def _run(db: Session, s: dict, panel: dict, start, end, benchmark: str, cost_bps: float) -> dict:
+    """전략 하나 계산. '대상 전부 보유'(none)는 종목 묶음의 비중 방식대로 — 포트폴리오 계산을 쓴다."""
+    if s["score_kind"] != "none":
+        return run_backtest(s, panel, start, end, benchmark, cost_bps)
+    from app.backend.services import quant_portfolio_service as qp
+    b = s.get("basket")
+    if not b:
+        raise StrategyError("대상 종목 묶음이 지워졌어요 — 전략 설정에서 다시 골라 주세요")
+    rows, _ = qp.universe_members(db, b["universe"])
+    target = qp.target_weights(b, {r["symbol"]: r for r in rows})
+    p = {**b, "name": s["name"], "rebalance": s["rebalance"], "overlay": s.get("overlay")}
+    out = qp.run_backtest(p, panel, target, start, end, benchmark, cost_bps)
+    out["strategy_id"] = s["strategy_id"]
+    out["config"] = {**out["config"], "score_kind": "none", "basket": b["name"], "top_n": len(target)}
+    return out
 
 
 def backtest(db: Session, user_id: str, strategy_id: Optional[str], start: Optional[date], end: Optional[date],
@@ -577,7 +680,7 @@ def backtest(db: Session, user_id: str, strategy_id: Optional[str], start: Optio
         hit = _RESULT_CACHE.get(key)      # 같은 조건을 먼저 들어온 요청이 계산해 두었다
         if hit is not None:
             return hit, status
-        result = run_backtest(s, panel, start, end, benchmark, cost_bps)
+        result = _run(db, s, panel, start, end, benchmark, cost_bps)
         _RESULT_CACHE.put(key, result)
     return result, status
 
@@ -618,7 +721,7 @@ def compare(db: Session, user_id: str, start: Optional[date], end: Optional[date
         if res is None:
             try:
                 with _BACKTEST_LOCK:
-                    res = run_backtest(s, panel, start, end, benchmark, cost_bps)
+                    res = _run(db, s, panel, start, end, benchmark, cost_bps)
             except StrategyError:
                 skipped.append(r.name)
                 continue
@@ -641,6 +744,8 @@ def catalog() -> dict:
         "rebalance": [{"id": k, "name": v} for k, v in REBALANCE.items()],
         "top_n": list(TOP_N_RANGE),
         "max_cost_bps": MAX_COST_BPS,
+        "score_kinds": [{"id": k, "name": v} for k, v in SCORE_KINDS.items()],
+        **ov.catalog(),
     }
 
 
@@ -696,10 +801,16 @@ def strategy_view(db: Session, user_id: str, universe: str, strategy_id: Optiona
     """고른 전략 점수의 { strategy, row: 팩터 표 합성 줄, curve: {날짜: 롱숏 누적 %}, quantiles, spread }.
     패널이 없으면 None."""
     s = to_dict(get_strategy(db, strategy_id, user_id), user_id)
+    if s["score_kind"] == "none":
+        raise StrategyError("'대상 전부 보유' 전략은 종목 점수가 없어서 팩터 성과를 따로 그리지 않아요")
+    basket = _basket_symbols(s)
+    if basket is not None and len(basket) < MIN_NAMES:
+        raise StrategyError(f"대상 종목이 {len(basket)}개라 분위 · IC 를 계산하지 않아요 ({MIN_NAMES}개 이상일 때)")
     panel = load_panel(db, universe)
     if not panel:
         return None
-    sig = json.dumps([s["score_kind"], s["model"], sorted((f["factor_id"], f["weight"]) for f in s["factors"])])
+    sig = json.dumps([s["score_kind"], s["model"], sorted((f["factor_id"], f["weight"]) for f in s["factors"]),
+                      sorted(basket or [])])
     key = (universe, panel["version"], sig)
     hit = _VIEW_CACHE.get(key)
     if hit is not None:
@@ -777,15 +888,22 @@ def ranking(db: Session, user_id: str, universe: str, strategy_id: Optional[str]
     d = have[-1]
     sc = score.loc[d].dropna()
     sc = sc[close.loc[d].reindex(sc.index).notna()].sort_values(ascending=False)
-    top_n = int(s["top_n"])
+    top_n = len(sc) if s["score_kind"] == "none" else int(s["top_n"])
+    # 매크로 조건이 이번 달 꺼져 있으면 아무것도 사지 않는다 (현금)
+    note, cash = None, False
+    if s.get("overlay"):
+        st, _ = ov.states(s["overlay"], panel, pd.DatetimeIndex([d]))
+        if st[d] is False:
+            cash, note = True, "매크로 조건이 꺼져 있어 이번 달은 현금이에요"
     head = sc.iloc[: top_n + RANK_EXTRA]
     prof = _profiles(db, head.index)
     rows = [{
         "rank": i + 1, "symbol": sym, "name": getattr(prof.get(sym), "stk_nm", None),
-        "score": float(v), "buy": i < top_n,
+        "score": float(v), "buy": i < top_n and not cash,
     } for i, (sym, v) in enumerate(head.items())]
     meta = {
         "loaded": True, "as_of": d.date().isoformat(), "members": int(len(sc)), "top_n": top_n,
         "strategy_id": s["strategy_id"], "strategy": s["name"], "score_kind": s["score_kind"],
+        **({"note": note} if note else {}),
     }
     return _clean(rows), meta

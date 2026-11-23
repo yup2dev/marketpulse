@@ -61,6 +61,8 @@ export default function StrategyPicker() {
         name: selected.name, description: selected.description || '', score_kind: selected.score_kind,
         model: selected.model || 'stack', factors: selected.factors.map((f) => ({ ...f })),
         top_n: selected.top_n, rebalance: selected.rebalance,
+        // 팝오버에서 고치지 않는 값 — 그대로 넘겨 지워지지 않게 (대상 종목 · 매크로 조건은 퀀트 전략 설정 탭)
+        basket_id: selected.basket_id || null, overlay: selected.overlay || null,
       };
       setForm(mode === 'edit' && selected.editable ? { ...base, id: selected.strategy_id } : { ...base, name: `${selected.name} 복사본` });
     }
@@ -140,7 +142,9 @@ export default function StrategyPicker() {
       {!port && <button
         type="button"
         className={GHOST}
-        onClick={() => openEditor(selected?.editable ? 'edit' : 'copy')}
+        onClick={() => (selected?.score_kind === 'none' || selected?.overlay || selected?.basket_id
+          ? navigate('/quantlib?tab=strategy')
+          : openEditor(selected?.editable ? 'edit' : 'copy'))}
         title={selected?.editable ? '이 전략 고치기' : '기본 제공 전략은 복제해서 고쳐요'}
       >
         {selected?.editable ? <><Pencil size={12} />편집</> : <><Copy size={12} />복제해서 편집</>}
