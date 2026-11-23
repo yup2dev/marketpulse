@@ -1,9 +1,13 @@
 """QuantLib Option Pricing provider (standard OptionPricing 모델 경유)"""
+from __future__ import annotations
+
 import logging
 from datetime import date as date_type, datetime
 from typing import Any, Dict, List, Optional
 
-import QuantLib as ql
+from data_fetcher.utils.lazy_import import lazy
+
+ql = lazy("QuantLib")   # 처음 쓸 때 import (+14MB) — utils/lazy_import.py
 
 from data_fetcher.abstract_provider.abstract.base_fetchers import ComputeFetcher
 from data_fetcher.abstract_provider.standard_models.option_pricing import (
@@ -22,11 +26,13 @@ from data_fetcher.abstract_provider.standard_models.option_pricing import (
 log = logging.getLogger(__name__)
 
 
-_DAY_COUNT_MAP = {
-    "act365": ql.Actual365Fixed(),
-    "act360": ql.Actual360(),
-    "30_360": ql.Thirty360(ql.Thirty360.BondBasis),
-}
+def _day_count(name: str):
+    """일수 계산 규약 — QuantLib 객체라 처음 쓸 때 만든다."""
+    return {
+        "act365": ql.Actual365Fixed,
+        "act360": ql.Actual360,
+        "30_360": lambda: ql.Thirty360(ql.Thirty360.BondBasis),
+    }[name]()
 
 
 def _to_ql_date(d: date_type) -> ql.Date:
@@ -54,7 +60,7 @@ class QuantLibPricingFetcher(ComputeFetcher[OptionPricingQueryParams, OptionPric
             ql.Settings.instance().evaluationDate = ql_eval_date
 
             calendar = ql.NullCalendar()
-            day_count = _DAY_COUNT_MAP[query.day_count]
+            day_count = _day_count(query.day_count)
 
             ql_expiry = _to_ql_date(query.expiry)
             if ql_expiry <= ql_eval_date:

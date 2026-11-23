@@ -135,10 +135,18 @@ def test_my_strategy_lifecycle(loaded):
 
 
 def test_compare_runs_every_strategy_under_the_same_conditions(loaded):
+    from app.backend.services import quant_strategy_service as svc
+
     client = loaded
     mine = client.post("/api/strategies", json={"name": "추세만", "score_kind": "factor",
                                                 "factors": [{"factor_id": "trend"}]}).json()["results"][0]
+    svc._RESULT_CACHE.clear()
+    svc._COMPARE_CACHE.clear()
     body = client.get("/api/strategies/compare", params={"cost": 25, "benchmark": "equal"}).json()
+    # 비교는 전략마다 전체 결과(거래 내역 포함)를 결과 캐시에 넣지 않는다 — 운영 메모리 (test_server_memory.py)
+    assert len(svc._RESULT_CACHE) == 0 and len(svc._COMPARE_CACHE) == 1
+    again = client.get("/api/strategies/compare", params={"cost": 25, "benchmark": "equal"}).json()
+    assert again["results"] == body["results"]
     rows = body["results"]
     ids = [r["strategy_id"] for r in rows]
     assert ids[:3] == ["builtin-ml-stack", "builtin-multifactor", "builtin-momentum"] and mine["strategy_id"] in ids

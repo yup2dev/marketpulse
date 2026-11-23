@@ -2,8 +2,9 @@
 import logging
 from typing import Any, Dict, List, Optional
 
-import yfinance as yf
+from data_fetcher.utils.lazy_import import lazy
 
+yf = lazy("yfinance")   # 처음 쓸 때 import — 서버 기동 메모리 (utils/lazy_import.py)
 from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 from data_fetcher.abstract_provider.standard_models.swot_analysis import (
     SwotItem as YFinanceSWOTItem,

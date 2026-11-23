@@ -6,13 +6,7 @@ from typing import List, Dict, Any
 import pandas as pd
 from io import BytesIO
 from datetime import datetime
-import openpyxl
-from openpyxl.styles import Font, Alignment, PatternFill
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import letter, A4
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib.units import inch
+# openpyxl · reportlab 은 내보낼 때만 불러온다 (서버 기동 메모리 +11MB — 운영 서버 512MB)
 
 from app.backend.models.orm import Portfolio, Holding, Transaction
 
@@ -33,6 +27,7 @@ class ExportService:
         """
         데이터를 Excel로 내보내기 (스타일 포함)
         """
+        from openpyxl.styles import Font, Alignment, PatternFill  # noqa: F401 — 쓸 때만 import
         df = pd.DataFrame(data)
 
         # BytesIO 버퍼 생성
@@ -81,6 +76,11 @@ class ExportService:
         """
         포트폴리오를 PDF로 내보내기
         """
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import letter
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.lib.units import inch
         buffer = BytesIO()
         doc = SimpleDocTemplate(buffer, pagesize=letter)
         elements = []

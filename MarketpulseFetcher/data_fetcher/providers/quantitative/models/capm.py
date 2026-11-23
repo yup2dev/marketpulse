@@ -4,7 +4,9 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
-from scipy import stats
+from data_fetcher.utils.lazy_import import lazy
+
+stats = lazy("scipy.stats")   # 처음 쓸 때 import (+35MB) — utils/lazy_import.py
 
 from data_fetcher.abstract_provider.abstract.base_fetchers import ComputeFetcher
 from data_fetcher.providers.quantitative.utils.prices import (
