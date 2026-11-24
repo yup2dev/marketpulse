@@ -38,6 +38,13 @@ _INFO: Dict[str, Dict[str, Any]] = {
         "label": "US EIA", "desc": "미국 에너지 통계 (원유 재고 · 단기 전망)",
         "key_docs": "https://www.eia.gov/opendata/register.php",
     },
+    "kosis": {
+        "label": "통계청 KOSIS", "desc": "국내 산업 · 경제 통계표 (광공업 생산 · 수출입 · 자동차 등)",
+        "key_docs": "https://kosis.kr/openapi",
+        # 주민등록인구(전국 총인구) 최근 3개월 — 가장 싼 호출
+        "key_test": {"model": "series", "params": {"org_id": "101", "tbl_id": "DT_1B040A3", "itm_id": "T20",
+                                                   "obj_l1": "00", "start_date": "-3m"}},
+    },
     "kis": {
         "label": "한국투자증권 (KIS)", "desc": "국내주식 실시간 · 1일 랭킹",
         "key_docs": "https://apiportal.koreainvestment.com",

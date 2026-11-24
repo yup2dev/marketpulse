@@ -17,6 +17,7 @@ export const SOURCE_LABELS = {
   kis:           'Korea Investment & Securities (KIS)',
   krx:           'KRX',
   ecos:          'Bank of Korea (ECOS)',
+  kosis:         'Statistics Korea (KOSIS)',
   oecd:          'OECD',
   imf:           'IMF',
   bls:           'U.S. BLS',

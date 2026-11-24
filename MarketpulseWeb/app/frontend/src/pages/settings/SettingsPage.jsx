@@ -28,7 +28,7 @@ import WidgetSettings from './WidgetSettings';
 const FETCHER_DOWNLOAD_URL = 'https://github.com/yup2dev/marketpulse/releases/latest';
 
 // 카드 정렬 우선순위 (나머지는 이름순)
-const PROVIDER_ORDER = ['ecos', 'fred', 'kis', 'fmp', 'polygon', 'alphavantage', 'tiingo', 'eia'];
+const PROVIDER_ORDER = ['ecos', 'kosis', 'fred', 'kis', 'fmp', 'polygon', 'alphavantage', 'tiingo', 'eia'];
 
 // /api/providers 카탈로그 항목 → 카드 모델
 function toCard(p) {

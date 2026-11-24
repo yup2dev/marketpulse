@@ -162,6 +162,9 @@ API_ENV_MAPPING = {
         'appkey': 'KIS_APPKEY',
         'appsecret': 'KIS_APPSECRET',
     },
+    'KOSIS': {
+        'api_key': 'KOSIS_API_KEY'
+    },
     # OpenBB 이식 provider (키 규약: <provider>_api_key)
     'EIA': {
         'eia_api_key': 'EIA_API_KEY',

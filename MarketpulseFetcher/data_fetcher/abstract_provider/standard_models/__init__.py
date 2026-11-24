@@ -26,6 +26,10 @@ from data_fetcher.abstract_provider.standard_models.fred_series import (
     FredSeriesQueryParams,
     FredSeriesData,
 )
+from data_fetcher.abstract_provider.standard_models.kosis_series import (
+    KosisSeriesQueryParams,
+    KosisSeriesData,
+)
 from data_fetcher.abstract_provider.standard_models.technical_indicators import (
     TechnicalIndicatorQueryParams,
     TechnicalIndicatorData,
@@ -91,6 +95,7 @@ __all__ = [
     "IncomeStatementQueryParams", "IncomeStatementData",
     "AnalystEstimatesQueryParams", "AnalystEstimatesData",
     "FredSeriesQueryParams", "FredSeriesData",
+    "KosisSeriesQueryParams", "KosisSeriesData",
     "TechnicalIndicatorQueryParams", "TechnicalIndicatorData",
     "MACDData", "BollingerBandsData",
     "NewsQueryParams", "NewsData",
