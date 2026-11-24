@@ -6,6 +6,8 @@
  *   전략       화면 변수 strategy — /backtest 머리줄(StrategyPicker)과 같은 변수라 한쪽에서 고르면 다른 쪽도 그 전략.
  *             메인 위젯(팩터 · 팩터 성과 · ML 모델 · 이번 달 순위)이 그 전략 점수로 바뀐다 (routes/quant.py)
  *   단계       화면 변수 quant_step — 그 단계의 위젯(옵션 highlight)이 테두리로 강조된다
+ *   기준월     화면 변수 quant_asof (월말 YYYY-MM-DD, 비우면 최신 — 전략 점수가 있는 마지막 달) — 순위 위젯이 그달 점수로 줄 세우고,
+ *             지난달이면 실제 다음 달 수익률을 같이 보여 준다 (그때 이 순위대로 샀으면 어땠는지)
  *   전략 편집  전략 설정 탭(?tab=strategy) — 메인의 팩터 스위치는 읽기 전용이다
  *
  * 전략 설정 · 포트폴리오 설정 탭에서는 그리지 않는다 (그 탭은 화면 안에 자기 머리줄이 있다).
@@ -15,7 +17,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowRight, ChevronRight } from 'lucide-react';
 import { apiClient, API_BASE } from '../../../common';
 import { setShared, useShared } from '../../engine/shared';
-import { KindTag, strategyHead } from './quantShared';
+import { KindTag, kindOf, monthEnds, strategyHead } from './quantShared';
 
 // 배치(build_quant.py)가 적재하는 유니버스 — 늘리면 여기와 위젯의 universe 선택지를 같이 늘린다
 const UNIVERSES = [{ id: 'sp500', name: 'S&P 500' }];
@@ -24,7 +26,7 @@ export const DASHBOARD_TAB = 'factors';
 const STEPS = [
   { id: 'factor', label: '팩터' },
   { id: 'ml', label: 'ML 모델' },
-  { id: 'rank', label: '이번 달 순위' },
+  { id: 'rank', label: '종목 순위' },
 ];
 
 const CTL = 'flex items-center gap-1.5 h-8 px-2.5 rounded-md border border-[var(--mp-tile-line)] bg-[var(--mp-raised)] text-xs text-[var(--mp-muted)]';
@@ -72,6 +74,13 @@ export default function QuantWorkflow() {
 
   const head = useMemo(() => strategyHead(selected, catalog), [selected, catalog]);
 
+  // 기준월 — 패널 첫 달 ~ 마지막 달(이번 달). 목록 밖 값(패널이 바뀜)은 이번 달로
+  const months = useMemo(() => monthEnds(catalog.panel?.start, catalog.panel?.last), [catalog]);
+  const asOf = months.slice(1).includes(shared.quant_asof) ? shared.quant_asof : '';
+  useEffect(() => {
+    if (months.length && shared.quant_asof && !asOf) setShared('quant_asof', '');
+  }, [months, shared.quant_asof, asOf]);
+
   if (tab !== DASHBOARD_TAB) return null;
   const builtin = (list || []).filter((s) => s.builtin);
   const mine = (list || []).filter((s) => !s.builtin);
@@ -107,8 +116,8 @@ export default function QuantWorkflow() {
       </label>
       {selected && (
         <span className="flex items-center gap-2 min-w-0">
-          <KindTag kind={selected.score_kind} />
-          <span className="text-xs font-medium text-[var(--mp-text-2)] truncate max-w-[220px]" title={head}>{head}</span>
+          <span title={head}><KindTag kind={kindOf(selected)} /></span>
+          <span className="hidden 2xl:inline text-xs font-medium text-[var(--mp-text-2)] truncate max-w-[220px]" title={head}>{head}</span>
         </span>
       )}
 
@@ -133,7 +142,16 @@ export default function QuantWorkflow() {
       </ol>
 
       <span className="ml-auto flex items-center gap-2">
-        {period && <span className="text-[11px] text-[var(--mp-faint)] whitespace-nowrap" title="팩터 검증 기간">기간 {period}</span>}
+        {months.length > 0 && (
+          <label className="flex items-center gap-1 h-8 px-2 rounded-md border border-[var(--mp-tile-line)] text-[11px] text-[var(--mp-muted)]" title="이 달의 점수로 순위를 매겨요 — 지난달이면 실제 다음 달 수익률도 보여요">
+            순위 기준
+            <select aria-label="순위 기준월" value={asOf} onChange={(e) => setShared('quant_asof', e.target.value)} className={`${SELECT} text-xs`}>
+              <option value="">최신</option>
+              {months.slice(1).map((d) => <option key={d} value={d}>{ym(d)}</option>)}
+            </select>
+          </label>
+        )}
+        {period && <span className="hidden 2xl:inline text-[11px] text-[var(--mp-faint)] whitespace-nowrap" title="팩터 검증 기간">기간 {period}</span>}
         <button
           type="button"
           onClick={() => navigate(`/quantlib?tab=strategy`)}

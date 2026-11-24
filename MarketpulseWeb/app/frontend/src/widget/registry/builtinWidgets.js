@@ -530,19 +530,25 @@ export const TRANSFORMS = {
       };
     },
   },
-  // 이번 달 순위: 서버가 전략 점수 순으로 준다 (상위 top_n 이 buy). 점수 = ML 확률 ×100 또는 팩터 가중 z
+  // 기준월 순위: 서버가 전략 점수 순으로 준다 (상위 top_n 이 buy). 점수 = ML 확률 ×100 또는 팩터 가중 z
+  // 지난달을 고르면 fwd(실제 다음 달 수익률, 비율)와 매수 · 전체 평균(fwd_buy · fwd_all)이 온다
   quant_ranking: {
     apply: (rows, { response }) => {
       const md = response?.metadata || {};
       const ml = md.score_kind === 'ml';
+      const pct = (v) => fmtPct(v * 100, 1, { sign: true });
+      const result = md.fwd_buy != null
+        ? ` · 다음 달 매수 ${pct(md.fwd_buy)}${md.fwd_all != null ? ` (전체 ${pct(md.fwd_all)})` : ''}`
+        : '';
       return {
         rows: rows.map((r) => ({
           ...r,
           _score: r.score == null ? null : ml ? r.score * 100 : r.score,
+          _fwd: r.fwd == null ? null : r.fwd * 100,
           _signal: r.buy ? '매수' : '—',
           _tone: r.buy ? 'up' : undefined,
         })),
-        meta: { ...quantMeta(response), topN: md.top_n ?? '' },
+        meta: { ...quantMeta(response), topN: md.top_n ?? '', result },
       };
     },
   },

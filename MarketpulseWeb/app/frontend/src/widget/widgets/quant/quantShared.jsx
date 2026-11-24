@@ -5,10 +5,38 @@
 const KIND_TAG = {
   factor: ['팩터', 'bg-[#1B2A44] text-[#8FB8FF]'],
   ml: ['ML', 'bg-[#231A33] text-[#C4B5FD]'],
+  mix: ['팩터+ML', 'bg-[#231A33] text-[#C4B5FD]'],
   none: ['보유', 'bg-[#14201A] text-[#3FC27A]'],
 };
 
-/** 점수 종류 표시 — 팩터 / ML / 보유(대상 전부 보유) */
+const pad = (n) => String(n).padStart(2, '0');
+
+/** first ~ last(YYYY-MM-DD) 사이 월말 날짜 — 최근 달부터 */
+export function monthEnds(first, last) {
+  if (!first || !last) return [];
+  const out = [];
+  let y = Number(last.slice(0, 4));
+  let m = Number(last.slice(5, 7));
+  const stop = first.slice(0, 7);
+  while (`${y}-${pad(m)}` >= stop && out.length < 600) {
+    out.push(`${y}-${pad(m)}-${pad(new Date(y, m, 0).getDate())}`);
+    m -= 1;
+    if (!m) { m = 12; y -= 1; }
+  }
+  return out;
+}
+
+/** 점수 종류 — 'factor' · 'ml' · 'none', 팩터 조합에 ML 점수(ml_*)를 섞었으면 'mix' */
+export function kindOf(s) {
+  if (!s) return 'factor';
+  if (s.score_kind !== 'factor') return s.score_kind;
+  const ids = (s.factors || []).filter((f) => Number(f.weight) > 0).map((f) => f.factor_id);
+  const ml = ids.filter((id) => id.startsWith('ml_')).length;
+  if (!ml) return 'factor';
+  return ml === ids.length ? 'ml' : 'mix';
+}
+
+/** 점수 종류 표시 — 팩터 / ML / 팩터+ML / 보유(대상 전부 보유) */
 export function KindTag({ kind }) {
   const [label, cls] = KIND_TAG[kind] || KIND_TAG.factor;
   return <span className={`px-1.5 py-px rounded-md text-[10px] font-semibold whitespace-nowrap ${cls}`}>{label}</span>;

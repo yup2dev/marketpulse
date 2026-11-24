@@ -61,6 +61,36 @@ def test_ranking_marks_the_top_n_to_buy(dashboard):
     assert [r["rank"] for r in rows] == list(range(1, len(rows) + 1)) and len(rows) == 22
     assert sum(r["buy"] for r in rows) == 12 and rows[0]["buy"] and not rows[-1]["buy"]
     assert all(a["score"] >= b["score"] for a, b in zip(rows, rows[1:]))
+    # 이번 달은 다음 달 수익률을 아직 모른다
+    assert md["latest"] and md["last"] == md["as_of"] and "fwd_buy" not in md
+    assert all(r["fwd"] is None for r in rows)
+
+
+def test_ranking_for_a_past_month_shows_the_next_month(dashboard):
+    """기준월을 고르면 그날 이전 마지막 달 점수로 줄 세우고, 실제 다음 달 수익률(매수 평균 · 전체 평균)을 붙인다."""
+    client = dashboard
+    sid = client.post("/api/strategies", json={"name": "모멘텀", "score_kind": "factor", "top_n": 10,
+                                               "factors": [{"factor_id": "mom_12_1", "weight": 1}]}).json()["results"][0]["strategy_id"]
+    now = client.get("/api/quant/ranking", params={"strategy": sid, "as_of": ""}).json()["metadata"]
+    assert now["latest"]   # 빈 값 = 이번 달
+
+    import pandas as pd
+    pick = (pd.Timestamp(now["last"]) - pd.DateOffset(months=12)).date()
+    body = client.get("/api/quant/ranking", params={"strategy": sid, "as_of": pick.isoformat()}).json()
+    rows, md = body["results"], body["metadata"]
+    assert not md["latest"] and md["as_of"] <= pick.isoformat() and md["as_of"] > (pick - pd.DateOffset(months=1)).date().isoformat()
+    assert md["first"] <= md["as_of"] < md["last"]
+    assert all(r["fwd"] is not None for r in rows)
+    buys = [r["fwd"] for r in rows if r["buy"]]
+    assert len(buys) == 10 and abs(md["fwd_buy"] - sum(buys) / 10) < 1e-9
+    assert md["fwd_all"] is not None
+
+    # 점수가 있기 전 날짜는 안내만 (오류 아님)
+    early = client.get("/api/quant/ranking", params={"strategy": sid, "as_of": "1990-01-31"}).json()
+    assert early["results"] == [] and "이전에는" in early["metadata"]["note"]
+    # 잘못된 날짜는 이번 달로
+    bad = client.get("/api/quant/ranking", params={"strategy": sid, "as_of": "nope"}).json()["metadata"]
+    assert bad["latest"]
 
 
 def test_portfolio_lifecycle_and_backtest(dashboard):
