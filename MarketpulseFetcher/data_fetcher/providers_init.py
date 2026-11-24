@@ -179,6 +179,8 @@ from data_fetcher.providers.nasdaq.models.economic_calendar import NasdaqEconomi
 from data_fetcher.providers.nasdaq.models.earnings_calendar import NasdaqEarningsCalendarFetcher
 from data_fetcher.providers.krx.models.listing import KRXListingFetcher
 from data_fetcher.providers.krx.models.bond import KRXBondFetcher
+# KOSIS (MACRO — 통계청 국가통계포털 통계표) — provider 정의는 providers/kosis/__init__.py
+from data_fetcher.providers.kosis import kosis_provider
 
 # KIS(한국투자증권) — httpx만 있으면 동작. import 실패 시 조용히 스킵.
 try:
@@ -681,6 +683,7 @@ def register_all_providers():
     ProviderRegistry.register(nasdaqtrader_provider)
     ProviderRegistry.register(nasdaq_provider)
     ProviderRegistry.register(krx_provider)
+    ProviderRegistry.register(kosis_provider)
     if kis_provider is not None:
         ProviderRegistry.register(kis_provider)
     ProviderRegistry.register(whalewisdom_provider)
