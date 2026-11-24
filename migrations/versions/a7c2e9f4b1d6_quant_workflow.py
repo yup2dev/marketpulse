@@ -1,6 +1,6 @@
 """quant workflow — factor switches, step highlight, 4+8 first row
 
-퀀트 화면(/quantlib)을 시안(design/mockups/Quant.dc.html)에 맞춘다.
+퀀트 화면(/quantlib)을 시안(캔버스 https://claude.ai/artifact/DFm1eYtd4yVjoiwX4Ejmrd · Quant)에 맞춘다.
   - 팩터 표(quant-factors): 켜고 끄기 스위치 열 · 비중 열(켠 팩터 동일 비중) 추가, 적중 열 빼기,
     꺼 둔 팩터는 화면 변수 quant_off 에 모인다 → 머리줄 '백테스트로 보내기'가 켠 팩터로 전략을 만든다
   - 네 위젯 모두 옵션 highlight(화면 변수 quant_step) — 머리줄 단계 ①②③ 을 누르면 그 단계 패널 테두리 강조
