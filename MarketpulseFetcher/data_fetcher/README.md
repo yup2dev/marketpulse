@@ -120,3 +120,9 @@ python -c "import data_fetcher.providers_init; from data_fetcher.providers.fred.
 ```
 
 exe 빌드는 `python MarketpulseFetcher/build/build.py` (uv·cargo 필요). Rust 런처(`MarketpulseFetcher/launcher`)가 내장 Python 런타임 + data_fetcher 페이로드를 품은 단일 실행파일이며, 첫 실행 때 `%LOCALAPPDATA%/MarketPulseFetcher/runtime/<id>`에 풀고 `python -I -m data_fetcher.app`(헤드리스)를 띄운다. 번들 의존성은 `MarketpulseFetcher/build/requirements-fetcher.txt`.
+
+## 확인 필요
+
+- [ ] fastapi · starlette 버전 고정이 서로 어긋난다 — `MarketpulseFetcher/requirements.txt` 는 `fastapi>=0.104` · `starlette<0.48`,
+  exe 번들 `build/requirements-fetcher.txt` 는 `fastapi==0.120.0` · `starlette==0.48.0`, 웹 서버 venv 는 fastapi 0.116.1 · starlette 0.47.3.
+  starlette 1.x 는 fastapi 0.116 과 충돌해 기동하지 않으므로(`<0.48` 고정 이유) 어느 쪽으로 맞출지 정한다.

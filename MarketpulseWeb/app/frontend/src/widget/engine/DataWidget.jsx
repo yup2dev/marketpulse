@@ -2,7 +2,7 @@
  * DataWidget — 스펙 하나로 위젯을 그린다:  API → (실시간 시세 병합) → transform → 뷰.
  * 스펙 모양은 README.md 참고. 위젯마다 컴포넌트를 새로 만들지 않는다.
  */
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import {
   Card, HeaderSeg, StateView, toState, useStored, useSymbol, useQuotes, useProviderOptions, sourceLabel,
 } from './adapter';
@@ -14,6 +14,7 @@ import { CHART_VIEWS, chartView } from './MpChart';
 import { KPI_VIEWS } from './MpKpi';
 import { LIST_VIEWS } from './MpList';
 import { useShared, setShared } from './shared';
+import { useGroupValues, setGroupValue } from './groups';
 
 // 화면에서 직접 쓰는 부품과 같은 것 — 표 MpGrid · 차트 MpChart · 숫자 요약 MpKpi · 목록 MpList 의 종류표
 const VIEWS = {
@@ -50,8 +51,22 @@ const today = () => {
 
 const EMPTY = [];
 
-export default function DataWidget({ spec, symbol: pageSymbol, onRemove }) {
+/** 'bar:막대,line:선' → [{ value: 'bar', label: '막대' }, …] — 이름을 안 적으면 뷰 이름 그대로 */
+function parseViews(text) {
+  if (!text) return EMPTY;
+  return String(text).split(',').map((pair) => pair.trim()).filter(Boolean).map((pair) => {
+    const [value, label] = pair.split(':');
+    return { value: value.trim(), label: (label || value).trim() };
+  }).filter((v) => viewOf(v.value));
+}
+
+export default function DataWidget({ spec, symbol: pageSymbol, onRemove, groups }) {
   const { tabs, controls = EMPTY, quotes: quoteSpec } = spec;
+  // 화면 단위 파라미터 그룹 (user_screen_groups) — 이 화면에서 이 위젯이 묶인 그룹들. 값은 화면별로 저장
+  const bindings = groups?.bindings || EMPTY;
+  const groupScreen = groups?.screen;
+  const groupValues = useGroupValues(groupScreen, bindings);
+  const boundTo = useMemo(() => Object.fromEntries(bindings.map((b) => [b.param_name, b])), [bindings]);
 
   // ── 고른 값: 탭 · 헤더 컨트롤 · 종목 (다시 mount 돼도 기억한다) ──
   const [tabId, setTab] = useStored('tab', tabs?.[0]?.id);
@@ -70,6 +85,8 @@ export default function DataWidget({ spec, symbol: pageSymbol, onRemove }) {
   //   그 밖의 '{provider}'        서버가 알려 주는 후보(응답 metadata.candidates) 중에서 — 비우면 자동
   //   '{provider}' 없음           고정 — 실제로 답한 소스를 보여 주기만 한다
   const [pickedProvider, setProvider] = useStored('provider', null);
+  // 보기 전환 (옵션 views = 'bar:막대,line:선' · 'table:표,bar:차트') — 머리줄 토글, 위젯마다 기억한다
+  const [pickedView, setPickedView] = useStored('view', null);
   const endpoint = api.endpoint || '';
   const model = /\/data\/\{provider\}\/([\w-]+)/.exec(endpoint)?.[1];
   const switchable = endpoint.includes('{provider}');
@@ -85,15 +102,25 @@ export default function DataWidget({ spec, symbol: pageSymbol, onRemove }) {
     const out = { today: today(), symbol, provider };
     for (const name of sharedNames) out[name] = shared[name] ?? '';
     for (const c of controls) {
-      const value = (sharedNames.includes(c.name) ? shared[c.name] : picked[c.name]) ?? c.default;
+      const value = (boundTo[c.name] ? groupValues[c.name]
+        : sharedNames.includes(c.name) ? shared[c.name] : picked[c.name]) ?? c.default;
       out[c.name] = value;
       Object.assign(out, c.options.find((o) => o.value === value)?.params);
     }
+    // 컨트롤이 없는 그룹 파라미터 (예: 목록에서 고른 dataset) — 값이 없으면 빈 문자열
+    for (const b of bindings) {
+      if (!controls.some((c) => c.name === b.param_name)) out[b.param_name] = groupValues[b.param_name] ?? '';
+    }
     return Object.assign(out, tab?.params);
-  }, [controls, picked, symbol, tab, provider, sharedNames, shared]);
+  }, [controls, picked, symbol, tab, provider, sharedNames, shared, bindings, boundTo, groupValues]);
 
   // ── 요청 ──
-  const path = api.endpoint ? fill(api.endpoint, params) : null;
+  // 따르는 그룹(source 아님)의 값이 아직 없으면 요청하지 않는다 — 고르기 전 빈 값으로 부르면 422 다
+  // (값을 내보내는 위젯은 비어도 부른다: 서버가 기본값을 고르고, 그 결과로 그룹 값을 맞춘다)
+  const waitingGroup = !!api.endpoint && bindings.some(
+    (b) => !b.is_source && b.is_required !== false && api.endpoint.includes(`{${b.param_name}}`) && !groupValues[b.param_name],
+  );
+  const path = api.endpoint && !waitingGroup ? fill(api.endpoint, params) : null;
   const { data: res, error, loading, reload } = useApi(path, { refresh: api.refresh });
   const extra = useExtra(api.extra, params);
 
@@ -142,7 +169,8 @@ export default function DataWidget({ spec, symbol: pageSymbol, onRemove }) {
   }, [baseRows, quotes, quoteSpec, api, tab, ctx]);
 
   // ── 그리기 ──
-  const viewName = tab?.view || spec.view;
+  const viewChoices = useMemo(() => parseViews(options?.views), [options?.views]);
+  const viewName = viewChoices.some((v) => v.value === pickedView) ? pickedView : (tab?.view || spec.view);
   const View = viewOf(viewName);
   // 출처는 하나만 보인다 — 실제로 답한 소스('$provider' = 응답의 provider · 고른 소스). 응답에 없으면 정의의 첫 소스
   const declared = [].concat(spec.source || []);
@@ -162,12 +190,43 @@ export default function DataWidget({ spec, symbol: pageSymbol, onRemove }) {
       .map((c) => ({ value: c.provider, label: sourceLabel(c.provider), note: c.available ? undefined : 'Key needed' }));
   }
   const setControl = (name, value) => {
-    if (sharedNames.includes(name)) setShared(name, value);
+    const b = boundTo[name];
+    if (b) setGroupValue(groupScreen, b.tab, b.group_code, value);
+    else if (sharedNames.includes(name)) setShared(name, value);
     else setPicked((prev) => ({ ...prev, [name]: value }));
     // 조건이 바뀌면 후보도 바뀐다 — 다시 자동 선택. 후보가 조건과 무관한 위젯(spec.keepProvider)은 고른 소스를 유지
     if (switchable && !model && !spec.keepProvider) setProvider(null);
   };
   const empty = typeof spec.empty === 'function' ? spec.empty(ctx) : spec.empty;
+
+  // ── 그룹 값을 내보내는 위젯 (user_screen_groups.source_yn) ──
+  //   행을 누르면 그 행의 param_name 값을 그룹 값으로 — 첫 그룹은 MpGrid select(고른 행 강조), 나머지는 onRowClick
+  //   그룹 값이 없거나 지금 행들에 없는 값이면 첫 행을 고른 것으로 한다 (OpenBB groups 의 defaultValue 자리)
+  //   — 위 단계 그룹이 바뀌어(산업 → 데이터셋 목록) 예전 값이 목록에 없을 때도 첫 행으로 맞춘다
+  const sources = useMemo(() => bindings.filter((b) => b.is_source), [bindings]);
+  const viewOptions = useMemo(() => {
+    if (!sources.length) return options;
+    const [first, ...rest] = sources;
+    const own = options || {};
+    return {
+      ...own,
+      select: own.select || `${first.param_name}:${first.param_name}`,
+      onRowClick: (row) => {
+        for (const b of rest) setGroupValue(groupScreen, b.tab, b.group_code, row[b.param_name]);
+        own.onRowClick?.(row);
+      },
+    };
+  }, [options, sources, groupScreen]);
+  useEffect(() => {
+    if (!sources.length || !rows.length || (path && loading)) return;
+    for (const b of sources) {
+      const current = groupValues[b.param_name];
+      const inRows = current != null && rows.some((r) => String(r[b.param_name]) === current);
+      if (!inRows && rows[0][b.param_name] != null) {
+        setGroupValue(groupScreen, b.tab, b.group_code, rows[0][b.param_name]);
+      }
+    }
+  }, [rows, sources, groupValues, groupScreen, path, loading]);
 
   // 탭이 controls 를 적었으면 그 이름의 컨트롤만 머리줄에 보인다 (빈 목록 = 숨김)
   const shown = tab?.controls ? controls.filter((c) => tab.controls.includes(c.name)) : controls;
@@ -175,9 +234,12 @@ export default function DataWidget({ spec, symbol: pageSymbol, onRemove }) {
   const actions = (
     <>
       <ProviderSelect value={providerValue} options={providerOptions} onChange={(v) => { if (v !== '_') setProvider(v); }} />
+      {viewChoices.length > 1 && (
+        <HeaderSeg value={viewName} options={viewChoices} onChange={setPickedView} ariaLabel="View" />
+      )}
       {shown.map((c) => {
         if (c.kind === 'date') return <DateChip key={c.name} control={c} value={params[c.name]} onChange={(v) => setControl(c.name, v)} />;
-        if (c.kind === 'select') return <ControlSelect key={c.name} control={c} value={params[c.name]} onChange={(v) => setControl(c.name, v)} />;
+        if (c.kind === 'select') return <ControlSelect key={c.name} control={c} value={params[c.name]} params={params} onChange={(v) => setControl(c.name, v)} />;
         if (c.kind === 'text' || c.kind === 'number') return null;
         return (
           <HeaderSeg
@@ -206,7 +268,7 @@ export default function DataWidget({ spec, symbol: pageSymbol, onRemove }) {
   const body = state && !View?.ownsState ? state : (
     <View
       rows={rows} meta={meta} quotes={quotes} ctx={ctx} state={state}
-      symbol={symbol} setSymbol={setSymbol} setParam={setControl} options={options}
+      symbol={symbol} setSymbol={setSymbol} setParam={setControl} options={viewOptions}
     />
   );
 

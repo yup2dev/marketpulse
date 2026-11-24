@@ -52,6 +52,23 @@ endpoint → 행 꺼내기(dataPath) → prepare → 실시간 시세 병합(quo
 표는 옵션 `select` = `이름:행 필드` 로 행 클릭을 그 값에 연결한다 (예: 기관 순위 → `institution:institution_key`).
 옵션 `highlight` = `이름:값` 이면 그 화면 변수가 그 값일 때 패널 테두리를 강조한다 (퀀트 머리줄의 단계 ①②③ → `quant_step:factor`).
 
+### 화면 단위 파라미터 그룹 — 새 화면은 이것으로 (OpenBB apps.json 의 groups)
+
+`shared` 는 위젯마다 옵션으로 적고 값이 **전역** 하나다. 새 화면(`/industry` 부터)은 화면 설정에 그룹을 선언한다 —
+DB `user_screen_groups` (시드: `services/builtin_widget_seed.py` `SCREEN_GROUPS`).
+
+| 칸 | 뜻 |
+|---|---|
+| `screen` · `tab` | 그룹이 걸리는 화면(+탭). 탭이 `''` 이면 그 화면 전체 |
+| `group_code` | 그룹 이름 — 같은 화면 · 탭 · 코드의 위젯들이 값 하나를 같이 따른다 |
+| `widget_id` · `param_name` | 묶인 위젯과 그 위젯에서의 파라미터 이름 (위젯마다 달라도 된다). 같은 이름의 컨트롤이 있으면 그 값이 되고, 없으면 endpoint 의 `{param_name}` 자리를 채운다 |
+| `source_yn` | `Y` = 행을 누르면 그 행의 `param_name` 값을 그룹 값으로 내보낸다 (첫 그룹은 `select` 처럼 고른 행 강조). 값이 없거나 지금 행에 없으면 첫 행으로 맞춘다 |
+| `required_yn` | `Y`(기본) = 그룹 값이 생길 때까지 요청하지 않는다 (빈 값이면 오류인 파라미터 — 예: `dataset`). `N` = 비어도 부른다 (서버가 기본값을 고르는 파라미터 — 예: `series`) |
+
+값은 화면별로 `localStorage` `mp.group.{screen}.{tab}.{group_code}` (`groups.js`) — 다른 화면으로 새지 않는다.
+위젯 스펙은 그룹을 모른다 — `WidgetRenderer` 가 지금 화면 · 탭의 행을 골라 `DataWidget` 의 `groups` 로 넘긴다.
+기존 `shared` 15행(institution · run · universe · strategy …)은 그대로 두고 화면 하나씩 옮긴다.
+
 같은 `widget_id` 가 코드 레지스트리(`widgetEndpoints`)에도 있으면 DB 정의가 이긴다 — 기존 위젯을 이 방식으로 옮길 때 같은 id 로 행을 넣는다.
 
 ## 스펙

@@ -142,6 +142,8 @@ export default function DashboardPane({
               symbol={symbol}
               portfolioData={config.needsPortfolio ? portfolioData : undefined}
               onRemove={onRemoveWidget}
+              screen={pathname}
+              tab={activeCategory?.id}
             />
           )}
         />}

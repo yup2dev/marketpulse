@@ -24,6 +24,7 @@ const ROUTE_MAP = {
   'professional':       '/',
   'stock':              '/stock',
   'macro-analysis':     '/macro',
+  'industry':           '/industry',
   'quantlib':           '/quantlib',
   'backtest':           '/backtest',
   'admin':              '/admin',

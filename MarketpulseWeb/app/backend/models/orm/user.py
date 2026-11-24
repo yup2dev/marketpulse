@@ -823,6 +823,27 @@ class UserWidgetOption(Base):
     opt_value = Column(String(300), nullable=False)
 
 
+class UserScreenGroup(Base):
+    """화면 단위 파라미터 그룹 (OpenBB apps.json 의 groups) — 한 화면(+탭)의 위젯 여러 개가 값 하나를 같이 따른다.
+
+    한 행 = 그룹에 묶인 위젯 하나. 위젯마다 파라미터 이름이 달라도 된다(param_name).
+    source_yn=Y 인 위젯은 행을 누르면 그 행의 param_name 값을 그룹 값으로 내보낸다.
+    required_yn=Y 면 그룹 값이 생길 때까지 그 위젯은 요청하지 않는다 (빈 값으로 부르면 오류인 파라미터).
+    N 이면 비어도 부른다 — 서버가 기본값을 고르는 파라미터 (예: 계열 — 비우면 첫 계열).
+    값은 브라우저에 화면별로 저장한다 (localStorage mp.group.{screen}.{tab}.{group_code}) — 다른 화면으로 새지 않는다.
+    위젯 옵션 shared(전역 화면 변수)와 별개다 — 기존 shared 는 화면 하나씩 이쪽으로 옮긴다.
+    """
+    __tablename__ = 'user_screen_groups'
+
+    screen = Column(String(50), primary_key=True)           # '/industry'
+    tab = Column(String(50), primary_key=True, default='')  # 'overview' · 탭이 없으면 ''
+    group_code = Column(String(50), primary_key=True)       # 'industry' · 'dataset'
+    widget_id = Column(String(50), ForeignKey('user_widgets.widget_id', ondelete='CASCADE'), primary_key=True)
+    param_name = Column(String(100), nullable=False)        # 그 위젯에서의 파라미터 이름
+    source_yn = Column(String(1), nullable=False, default='N')   # Y = 행을 누르면 값을 내보내는 위젯
+    required_yn = Column(String(1), nullable=False, default='Y')  # Y = 값이 생길 때까지 요청하지 않는다
+
+
 class UserQuantStrategy(Base):
     """포트폴리오 전략 (퀀트 → 백테스트). user_id NULL = 기본 제공 (모든 사용자 공통, 고칠 수 없음).
 

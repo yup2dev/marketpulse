@@ -6,9 +6,10 @@ OpenBB의 OBBject 패턴을 따릅니다.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, Generic, List, Optional, TYPE_CHECKING
 
 from pydantic import BaseModel, Field
+from typing_extensions import TypeVar
 
 from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
 from data_fetcher.core.warnings import WarningsCollector
@@ -16,8 +17,14 @@ from data_fetcher.core.warnings import WarningsCollector
 if TYPE_CHECKING:
     from data_fetcher.core.query import Query
 
+# results 의 타입. 지정하지 않으면 List[Any] — 기존 `-> OBBject` 라우트의 OpenAPI 스키마가 그대로다.
+# 라우트가 `-> OBBject[List[Row]]` 로 적으면 results 가 Row 목록으로 검증되고 스키마에 Row 가 나온다.
+T = TypeVar("T", default=List[Any])
 
-class OBBject(BaseModel):
+
+# OpenBB OBBject[T] 와 같은 제네릭. docstring 은 OpenAPI 스키마의 description 으로 나가므로 바꾸지 않는다
+# (tests/test_response_envelope.py 가 타입 없는 OBBject 스키마가 그대로인지 본다).
+class OBBject(BaseModel, Generic[T]):
     """
     표준 API 응답 객체
 
@@ -28,7 +35,7 @@ class OBBject(BaseModel):
         metadata: 추가 메타데이터 (모델, 파라미터, AnnotatedResult 정보)
     """
 
-    results: List[Any] = Field(default_factory=list)
+    results: T = Field(default_factory=list)   # 지정하지 않으면 List[Any]
     provider: Optional[str] = None
     warnings: List[str] = Field(default_factory=list)
     metadata: Dict[str, Any] = Field(default_factory=dict)

@@ -9,7 +9,7 @@
 import { useEffect, useState } from 'react';
 import { CalendarDays, Database, SlidersHorizontal } from 'lucide-react';
 import { Select, ParamField, Popover, usePopover } from './adapter';
-import { cachedRequest, pick } from './data';
+import { cachedRequest, fill, pick } from './data';
 
 const CHIP_CLS =
   'flex items-center gap-1 h-6 px-2 bg-gray-800 hover:bg-gray-700 rounded text-[11px] text-gray-300 transition-colors whitespace-nowrap';
@@ -33,14 +33,18 @@ export function ProviderSelect({ value, options, onChange }) {
   );
 }
 
-/** control.optionsFrom = { endpoint, value, label, keep } 이면 선택지를 요청으로 채운다 (실패하면 정의의 선택지 그대로) */
-export function ControlSelect({ control, value, onChange }) {
+/** control.optionsFrom = { endpoint, value, label, keep } 이면 선택지를 요청으로 채운다 (실패하면 정의의 선택지 그대로).
+ *  endpoint 의 {이름} 자리는 위젯의 지금 파라미터로 채운다 — 고른 값에 따라 선택지가 바뀐다 (예: 데이터셋 → 계열) */
+export function ControlSelect({ control, value, onChange, params }) {
   const from = control.optionsFrom;
+  const endpoint = from ? fill(from.endpoint, params || {}) : null;
+  // 채울 자리 중 빈 값이 있으면(예: 아직 데이터셋을 안 고름) 요청하지 않는다 — fill 은 빈 쌍을 지워 버리므로 원본 자리로 본다
+  const ready = !!from && [...from.endpoint.matchAll(/\{(\w+)\}/g)].every(([, k]) => params?.[k] != null && params[k] !== '');
   const [loaded, setLoaded] = useState(null);
   useEffect(() => {
-    if (!from) return undefined;
+    if (!from || !ready) return undefined;
     let alive = true;
-    cachedRequest(from.endpoint)
+    cachedRequest(endpoint)
       .then((res) => {
         const rows = pick(res) || [];
         if (alive && rows.length) {
@@ -53,7 +57,7 @@ export function ControlSelect({ control, value, onChange }) {
       })
       .catch(() => {});
     return () => { alive = false; };
-  }, [from]);
+  }, [from, endpoint, ready]);
   return <Select value={value} options={loaded || control.options} onChange={onChange} title={control.label} menuWidth="min-w-[180px]" />;
 }
 

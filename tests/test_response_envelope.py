@@ -180,3 +180,39 @@ def test_no_annotated_result_isinstance_outside_obbject():
                     and len(node.args) == 2 and getattr(node.args[1], "id", None) == "AnnotatedResult"):
                 offenders.append(f"{path.name}:{node.lineno}")
     assert not offenders, f"OBBject.unwrap / OBBject.from_result 를 쓰세요: {offenders}"
+
+
+# ── OBBject[T] 제네릭 — 타입 없는 기존 라우트의 스키마는 그대로 ─────────────────
+
+def test_untyped_obbject_openapi_schema_unchanged():
+    """`-> OBBject` 라우트들의 공개 스키마는 제네릭 전과 같다 (results = 아무 값 배열)."""
+    from app.backend.main import app
+
+    schema = app.openapi()["components"]["schemas"]["OBBject"]
+    assert schema["properties"]["results"] == {"items": {}, "type": "array", "title": "Results"}
+    assert set(schema["properties"]) == {"results", "provider", "warnings", "metadata"}
+
+
+def test_typed_obbject_publishes_row_schema_and_validates():
+    from typing import List
+
+    from fastapi import FastAPI
+
+    class Row(BaseData):
+        code: str
+        value: float
+
+    app = FastAPI()
+
+    @app.get("/rows")
+    def rows() -> OBBject[List[Row]]:
+        return OBBject[List[Row]].from_result([{"code": "A", "value": 1}], "p")
+
+    spec = app.openapi()
+    name = next(k for k in spec["components"]["schemas"] if k.startswith("OBBject"))
+    assert spec["components"]["schemas"][name]["properties"]["results"]["items"] == {"$ref": "#/components/schemas/Row"}
+
+    obb = OBBject[List[Row]].from_result(AnnotatedResult(result=[Row(code="B", value=2)], metadata={"m": 1}), "p")
+    assert isinstance(obb.results[0], Row) and obb.results[0].code == "B" and obb.metadata == {"m": 1}
+    with pytest.raises(Exception):
+        OBBject[List[Row]](results=[{"code": "C"}])          # value 없음 → 검증 실패

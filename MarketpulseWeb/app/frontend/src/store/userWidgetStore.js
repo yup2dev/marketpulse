@@ -4,6 +4,7 @@
  *   builtin  기본 제공 위젯의 정의 목록 (모든 사용자 공통 — 홈 위젯 등). 그리는 법은 widget/registry/builtinWidgets
  *   widgets  내가 만든 위젯 정의 목록
  *   prefs    기본 제공 위젯의 내 설정 { [위젯 id]: { use_yn, screens } } — 기본값과 다른 것만 들어 있다
+ *   groups   화면 단위 파라미터 그룹 행 [{ screen, tab, group_code, widget_id, param_name, is_source }]
  *
  * 세 곳이 같이 본다: 설정 화면(만들기·고치기), 위젯 메뉴, 그리드의 user/{id} 위젯.
  * 설정에서 저장하면 여기가 바뀌고, 열려 있는 위젯·메뉴가 그대로 따라온다.
@@ -19,6 +20,7 @@ const useUserWidgetStore = create((set, get) => ({
   builtin: [],
   widgets: [],
   prefs: {},
+  groups: [],
   loaded: false,
 
   /** 처음 한 번만 불러온다 (force 면 다시). 실패하면 빈 목록으로 두고 다음 호출에서 재시도. */
@@ -29,13 +31,15 @@ const useUserWidgetStore = create((set, get) => ({
         userWidgetsAPI.list(),
         userWidgetsAPI.prefs().catch(() => null),
         userWidgetsAPI.builtin().catch(() => null),
+        userWidgetsAPI.screenGroups().catch(() => null),
       ])
-        .then(([res, prefRes, builtinRes]) => {
+        .then(([res, prefRes, builtinRes, groupRes]) => {
           const widgets = res?.widgets || [];
           const prefs = Object.fromEntries((prefRes?.prefs || []).map((p) => [p.widget_type, p]));
           const builtin = builtinRes?.widgets || [];
           registerWidgetSizes(builtinWidgetSizes(builtin));   // 그리드가 크기를 여기서 찾는다
-          set({ builtin, widgets, prefs, loaded: true });
+          const groups = groupRes?.results || [];   // OBBject 계약 — res.results
+          set({ builtin, widgets, prefs, groups, loaded: true });
           return widgets;
         })
         .catch(() => {

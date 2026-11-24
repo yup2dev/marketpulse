@@ -24,6 +24,7 @@ from app.backend.api.routes.concepts import router as concepts_router
 from app.backend.api.routes.user_widgets import router as user_widgets_router
 from app.backend.api.routes.strategies import router as strategies_router
 from app.backend.api.routes.quant_portfolios import router as quant_portfolios_router
+from app.backend.api.routes.industry import router as industry_router
 
 
 def register_routers(app: FastAPI) -> None:
@@ -57,6 +58,7 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(quant.router,                      prefix="/api",              tags=["quant"])
     app.include_router(strategies_router,                 prefix="/api",              tags=["strategies"])
     app.include_router(quant_portfolios_router,           prefix="/api",              tags=["quant-portfolios"])
+    app.include_router(industry_router,                   prefix="/api",              tags=["industry"])
 
     # ── Universal Data Gateway ───────────────────────────────────────────────
     app.include_router(data_router,       prefix="/api/data", tags=["data"])

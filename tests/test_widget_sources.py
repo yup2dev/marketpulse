@@ -17,7 +17,8 @@ ROUTES = ROOT / "MarketpulseWeb" / "app" / "backend" / "api" / "routes"
 PROVIDERS = ROOT / "MarketpulseFetcher" / "data_fetcher" / "providers"
 
 # 사람이 볼 출처가 아닌 내부 응답 값 (메타 라우트 등)
-NON_DATA_PROVIDERS = {"concepts", "registry", "static", "index_analyzer"}
+# industry = 산업 카탈로그 응답 (데이터 출처는 각 데이터셋의 provider 가 밝힌다)
+NON_DATA_PROVIDERS = {"concepts", "registry", "static", "index_analyzer", "industry"}
 
 
 def _jsx_files():
