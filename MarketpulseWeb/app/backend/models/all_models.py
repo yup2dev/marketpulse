@@ -29,5 +29,6 @@ from app.backend.models.orm import Base  # noqa: F401
 from app.backend.models import menu  # noqa: F401
 from app.backend.models import quant_factor  # noqa: F401
 from app.backend.models import quant_factor_catalog  # noqa: F401
+from app.backend.models import industry_catalog  # noqa: F401
 
 __all__ = ["Base"]

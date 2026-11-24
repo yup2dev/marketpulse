@@ -53,10 +53,11 @@ const APP_MENUS = [
   { menu_id: 'dashboard', menu_name: 'Dashboard', menu_icon: 'Grid3x3',           menu_path: 'professional',       display_seq: 1, children: [] },
   { menu_id: 'analysis',  menu_name: 'Analysis',  menu_icon: 'LayoutDashboard',   menu_path: 'stock',              display_seq: 2, children: [] },
   { menu_id: 'macro',     menu_name: 'Macro',     menu_icon: 'Globe',             menu_path: 'macro-analysis',     display_seq: 3, children: [] },
-  { menu_id: 'quantlib',  menu_name: 'QuantLib',  menu_icon: 'Sigma',             menu_path: 'quantlib',           display_seq: 4, children: [] },
-  { menu_id: 'backtest',  menu_name: 'Backtest',  menu_icon: 'LineChart',         menu_path: 'backtest',           display_seq: 5, children: [] },
+  { menu_id: 'industry',  menu_name: 'Industry',  menu_icon: 'Factory',           menu_path: 'industry',           display_seq: 4, children: [] },
+  { menu_id: 'quantlib',  menu_name: 'QuantLib',  menu_icon: 'Sigma',             menu_path: 'quantlib',           display_seq: 5, children: [] },
+  { menu_id: 'backtest',  menu_name: 'Backtest',  menu_icon: 'LineChart',         menu_path: 'backtest',           display_seq: 6, children: [] },
   // 운영 모니터링 — role 이 admin 인 사용자에게만 보인다 (AppLayout 이 거른다, API 도 require_admin)
-  { menu_id: 'admin',     menu_name: 'Admin',     menu_icon: 'Activity',          menu_path: 'admin',              display_seq: 6, children: [], adminOnly: true },
+  { menu_id: 'admin',     menu_name: 'Admin',     menu_icon: 'Activity',          menu_path: 'admin',              display_seq: 7, children: [], adminOnly: true },
 ];
 
 /**

@@ -20,12 +20,18 @@ import { toSpec } from '../registry/builtinWidgets';
 import WidgetCard from '../../common/widget/WidgetCard';
 import useUserWidgetStore from '../../store/userWidgetStore';
 
-export default function WidgetRenderer({ widget, symbol, portfolioData, onRemove }) {
+export default function WidgetRenderer({ widget, symbol, portfolioData, onRemove, screen, tab }) {
   const portfolioId = portfolioData?.selectedPortfolio?.portfolio_id;
   const type = widget.type;
   const reg = WIDGET_ENDPOINTS[type];
   // 기본 제공 위젯 — 정의는 서버 DB 행 (store 가 불러온다)
   const builtinDef = useUserWidgetStore((s) => s.builtin.find((w) => w.widget_id === type));
+  // 이 화면(+탭)에서 이 위젯이 묶인 파라미터 그룹 — 탭이 '' 인 행은 화면 전체에 걸린다
+  const allGroups = useUserWidgetStore((s) => s.groups);
+  const groups = useMemo(() => {
+    const bindings = (allGroups || []).filter((g) => g.widget_id === type && g.screen === screen && (g.tab === '' || g.tab === tab));
+    return bindings.length ? { screen, bindings } : undefined;
+  }, [allGroups, type, screen, tab]);
 
   // copilot/{id} — Copilot이 합성한 데이터셋. rows는 localStorage(copilot-ds:{id})에 있다.
   const copilotDs = useMemo(() => {
@@ -63,7 +69,7 @@ export default function WidgetRenderer({ widget, symbol, portfolioData, onRemove
   // 기본 제공 위젯 — DB 정의를 mp-widgets 스펙으로 바꿔 그린다 (위젯마다 컴포넌트 없음).
   // 같은 id 가 코드 레지스트리에도 있으면 DB 정의가 이긴다 — 레지스트리 쪽은 정의를 못 불러왔을 때의 대체다.
   if (builtinDef) {
-    return <DataWidget spec={toSpec(builtinDef)} symbol={symbol} onRemove={onRemove} />;
+    return <DataWidget spec={toSpec(builtinDef)} symbol={symbol} onRemove={onRemove} groups={groups} />;
   }
 
   if (reg?.component) {

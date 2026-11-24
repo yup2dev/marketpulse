@@ -282,7 +282,8 @@ def test_builtin_widgets_are_rows_seeded_on_first_read(auth_client, db_session, 
     compare = {"bt-compare"}
     quant = {"quant-factors", "quant-factor-returns", "quant-models", "quant-ranking"}
     ops = {"ops-summary", "ops-system", "ops-requests", "ops-traffic", "ops-endpoints"}
-    assert set(widgets) == home | macro | concepts | stock | news | institutions | backtest | compare | quant | ops
+    industry = {"industry-list", "industry-datasets", "industry-chart", "industry-summary", "industry-recent", "industry-peers"}
+    assert set(widgets) == home | macro | concepts | stock | news | institutions | backtest | compare | quant | ops | industry
 
     # 정의는 행이다 — 마스터(user_id NULL) + 자식 테이블
     rows = db_session.query(UserWidget).all()
@@ -311,6 +312,7 @@ def test_builtin_widgets_are_rows_seeded_on_first_read(auth_client, db_session, 
             ("/stock", "institutional") if wid in institutions else
             ("/backtest", "results") if wid in backtest | compare else
             ("/quantlib", "factors") if wid in quant else
+            ("/industry", "overview") if wid in industry else
             ("/", "overview")
         )
         assert [s["screen"] for s in w["screens"]] == ["*", screen] and placed["tab"] == tab

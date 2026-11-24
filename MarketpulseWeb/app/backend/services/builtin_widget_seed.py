@@ -1144,3 +1144,157 @@ BUILTIN_WIDGETS += [
         "screens": [(*MONITOR_TAB, 6, 7, 6, 6)],
     },
 ]
+
+
+# ── 화면 단위 파라미터 그룹 (OpenBB apps.json 의 groups) — user_screen_groups 행 ─────────────────
+# (screen, tab, group_code, widget_id, param_name, source[, required=True])
+#   한 그룹에 묶인 위젯들은 그 화면(+탭)에서 값 하나를 같이 따른다. 위젯마다 파라미터 이름이 달라도 된다.
+#   source=True 인 위젯은 행을 누르면 그 행의 param_name 값을 그룹 값으로 내보낸다.
+#   required=False 면 그룹 값이 비어도 요청한다 (서버가 기본값을 고르는 파라미터).
+#   위젯 행(BUILTIN_WIDGETS)이 DB 에 있어야 들어간다 (widget_id 외래키).
+SCREEN_GROUPS = []
+
+
+# ══ 산업 (/industry · Overview) — Industry.dc.html ═══════════════════════════════════════════
+# 산업 → 데이터셋 → (차트 · 요약 카드 · 최근 12개월) · 관련 기업. 위젯끼리는 화면 그룹(SCREEN_GROUPS)으로 묶는다:
+#   industry  산업 목록이 내보내고 → 데이터셋 목록 · 관련 기업이 따른다
+#   dataset   데이터셋 목록이 내보내고 → 차트 · 요약 · 최근 12개월이 따른다
+#   series    차트의 계열 선택이 정하고 → 요약 · 최근 12개월이 따른다 (데이터셋을 바꾸면 그 데이터셋의 첫 계열로 맞춘다)
+# 카탈로그 · 데이터는 /api/industry/* (services/industry_service.py) — KOSIS 는 '내 키'로 부른다.
+INDUSTRY_TAB = ("/industry", "overview")
+INDUSTRY_DATA = "/industry/data?dataset={dataset}&series={series}"
+
+BUILTIN_WIDGETS += [
+    {
+        "widget_id": "industry-list",
+        "name": "Industries",
+        "description": "Industry list — click to pick an industry (datasets and related companies follow)",
+        "group_name": "Industry",
+        "title": "산업",
+        "view_type": "table",
+        "endpoint": "/industry",
+        "source": "kosis",
+        "source_note": "산업 분류 · 데이터셋 카탈로그",
+        "empty_text": "산업 목록이 없어요",
+        "size": (2, 15, 2, 6),
+        "fields": [
+            _field("COLUMN", "name", "text", "산업"),
+            _field("COLUMN", "dataset_count", "value_muted", "데이터", width=56),
+        ],
+        "options": {"rowHeight": "34", "fixed": "true", "minWidth": "160"},
+        "screens": [(*INDUSTRY_TAB, 0, 0, 2, 15), ALL],
+    },
+    {
+        "widget_id": "industry-datasets",
+        "name": "Industry Datasets",
+        "description": "Datasets of the selected industry — click to show it in the chart",
+        "group_name": "Industry",
+        "title": "데이터셋",
+        "view_type": "table",
+        "endpoint": "/industry/datasets?industry={industry}",
+        "source": "kosis",
+        "empty_text": "이 산업의 데이터셋을 준비하고 있어요",
+        "size": (3, 15, 2, 6),
+        "fields": [
+            _field("COLUMN", "name", "text", "데이터셋"),
+            _field("COLUMN", "group", "muted", "구분", width=52),
+        ],
+        "options": {"rowHeight": "38", "fixed": "true", "minWidth": "220", "searchable": "true"},
+        "screens": [(*INDUSTRY_TAB, 2, 0, 3, 15), ALL],
+    },
+    {
+        "widget_id": "industry-chart",
+        "name": "Industry Data Chart",
+        "description": "Selected dataset — value bars/line with YoY or MoM on the right axis",
+        "group_name": "Industry",
+        "title": "데이터",
+        "view_type": "bar",
+        "endpoint": INDUSTRY_DATA + "&period={period}&rate={rate}",
+        "source": "$provider",
+        "empty_text": "데이터셋을 고르세요",
+        "size": (5, 7, 3, 4),
+        "params": [
+            ("series", "계열", "", []),
+            # 5개라 드롭다운 — 머리줄이 좁아 버튼 줄로는 증감률 버튼이 잘린다
+            ("period", "기간", "5y", [("1y", "1Y", None), ("3y", "3Y", None), ("5y", "5Y", None), ("10y", "10Y", None),
+                                    ("max", "전체", None)]),
+            ("rate", "증감률", "yoy", [("yoy", "YoY", None), ("mom", "MoM", None), ("none", "끄기", None)]),
+        ],
+        "options": {
+            "optionsFrom.series": "/industry/series?dataset={dataset}|code|label",
+            "views": "bar:막대,line:선",
+            "x": "date",
+            "series": "value:값",
+            "right": "rate:증감률",
+        },
+        "screens": [(*INDUSTRY_TAB, 5, 0, 5, 7), ALL],
+    },
+    {
+        "widget_id": "industry-summary",
+        "name": "Industry Data Summary",
+        "description": "Latest value, YoY, MoM, 3-period average YoY, YTD or 1Y average, 1Y high/low",
+        "group_name": "Industry",
+        "title": "요약",
+        "view_type": "cards",
+        "endpoint": "/industry/summary?dataset={dataset}&series={series}",
+        "source": "$provider",
+        "empty_text": "데이터셋을 고르세요",
+        "size": (5, 3, 3, 2),
+        "options": {"min": "120"},
+        "screens": [(*INDUSTRY_TAB, 5, 7, 5, 3), ALL],
+    },
+    {
+        "widget_id": "industry-recent",
+        "name": "Industry Data — Last 12",
+        "description": "Last 12 periods of the selected dataset — table or chart",
+        "group_name": "Industry",
+        "title": "최근 12개월",
+        "view_type": "table",
+        "endpoint": INDUSTRY_DATA + "&period=1y&rate=yoy&order=desc&limit=12",
+        "source": "$provider",
+        "empty_text": "데이터셋을 고르세요",
+        "size": (5, 5, 3, 3),
+        "fields": [
+            _field("COLUMN", "date", "muted", "기간", width=112),
+            _field("COLUMN", "value", "compact", "값"),
+            _field("COLUMN", "mom", "change", "직전 대비"),
+            _field("COLUMN", "yoy", "change", "전년 대비"),
+        ],
+        "options": {"views": "table:표,bar:차트", "x": "date", "series": "value:값", "right": "yoy:전년 대비",
+                    "rowHeight": "30", "fixed": "true", "minWidth": "360"},
+        "screens": [(*INDUSTRY_TAB, 5, 10, 5, 5), ALL],
+    },
+    {
+        "widget_id": "industry-peers",
+        "name": "Industry Companies",
+        "description": "Companies in the selected industry — latest daily close and change (as of each stock's last bar)",
+        "group_name": "Industry",
+        "title": "관련 기업",
+        "view_type": "table",
+        "endpoint": "/industry/companies?industry={industry}",
+        "source": "db",
+        "source_note": "종목 마스터 업종 · 일봉 적재 기준",
+        "empty_text": "이 산업에 연결된 종목이 없어요",
+        "size": (2, 15, 2, 6),
+        "fields": [
+            _field("COLUMN", "symbol", "stock", "종목", sub="name"),
+            _field("COLUMN", "change_rate", "change", "등락", width=80),
+        ],
+        "options": {"rowHeight": "42", "fixed": "true", "minWidth": "180"},
+        "screens": [(*INDUSTRY_TAB, 10, 0, 2, 15), ALL],
+    },
+]
+
+SCREEN_GROUPS += [
+    (*INDUSTRY_TAB, "industry", "industry-list", "industry", True),
+    (*INDUSTRY_TAB, "industry", "industry-datasets", "industry", False),
+    (*INDUSTRY_TAB, "industry", "industry-peers", "industry", False),
+    (*INDUSTRY_TAB, "dataset", "industry-datasets", "dataset", True),
+    (*INDUSTRY_TAB, "dataset", "industry-chart", "dataset", False),
+    (*INDUSTRY_TAB, "dataset", "industry-summary", "dataset", False),
+    (*INDUSTRY_TAB, "dataset", "industry-recent", "dataset", False),
+    (*INDUSTRY_TAB, "series", "industry-chart", "series", True),
+    # 계열은 비어도 된다 — 서버가 첫 계열을 고른다 (차트가 키 없음 등으로 못 정해도 요약 · 표는 스스로 부른다)
+    (*INDUSTRY_TAB, "series", "industry-summary", "series", False, False),
+    (*INDUSTRY_TAB, "series", "industry-recent", "series", False, False),
+]

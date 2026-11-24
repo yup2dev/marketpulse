@@ -8,6 +8,8 @@
  *   series   [{ field, label, color }] 또는 'f1:이름,f2:이름'
  *   refs     [{ y, label, color }]   가로 기준선 (점선)
  *   marks    [{ x, label, color }]   세로 이벤트 표시 (뉴스 등)
+ *   right    'rate:증감률'           오른쪽 축에 선으로 겹칠 계열 ('필드:이름' 목록) — 값이 전부 비면 그리지 않는다
+ *   rightUnit '%'                    오른쪽 축 값 뒤 단위
  *   unit     ''                      값 뒤 단위
  *   digits   2                       툴팁 소수 자릿수
  *
@@ -22,7 +24,7 @@ const isDate = (v) => /^\d{4}-\d{2}-\d{2}/.test(String(v ?? ''));
 const CONFIG = { doubleClick: 'reset+autosize' };
 
 export default function XYView({ rows: input, options = {} }) {
-  const { type = 'line', x = 'date', refs, marks, unit = '', digits = 2 } = options;
+  const { type = 'line', x = 'date', refs, marks, unit = '', digits = 2, rightUnit = '%' } = options;
   const rows = useMemo(
     () => (isDate(input[0]?.[x]) ? [...input].sort((a, b) => String(a[x]).localeCompare(String(b[x]))) : input),
     [input, x],
@@ -32,6 +34,13 @@ export default function XYView({ rows: input, options = {} }) {
     const palette = list.length <= 3 ? SLICE_COLORS : SERIES_COLORS;
     return list.map((s, i) => ({ ...s, label: s.label ?? s.field, color: s.color || palette[i % palette.length] }));
   }, [options.series]);
+  // 오른쪽 축 계열 — 값(막대·선) 위에 증감률 같은 다른 단위를 선으로 겹친다
+  const right = useMemo(() => {
+    if (!options.right) return [];
+    const list = Array.isArray(options.right) ? options.right : parseSeries(options.right);
+    // 색을 안 주면 그릴 때 테마 글자색(밝은/어두운 테마 모두 보이게) — 둘째부터는 계열 팔레트
+    return list.map((s, i) => ({ ...s, label: s.label ?? s.field, color: s.color || (i ? SERIES_COLORS[(i + 3) % SERIES_COLORS.length] : null) }));
+  }, [options.right]);
 
   const figure = useCallback((c) => {
     const xs = rows.map((r) => r[x]);
@@ -56,6 +65,15 @@ export default function XYView({ rows: input, options = {} }) {
         hovertemplate: hover(s),
       };
     });
+    // 오른쪽 축 — 값이 하나라도 있는 계열만 (증감률 '끄기'면 전부 비어 그리지 않는다)
+    const rightData = right
+      .map((s) => ({ s, y: ys(s) }))
+      .filter(({ y }) => y.some((v) => v != null))
+      .map(({ s, y }) => ({
+        type: 'scatter', mode: 'lines', name: s.label, x: xs, y, yaxis: 'y2', connectgaps: true,
+        line: { color: s.color || c.text, width: 1.5 }, hovertemplate: `%{y:,.1f}${rightUnit}<extra>${s.label}</extra>`,
+      }));
+    data.push(...rightData);
 
     const shapes = [];
     const notes = [];
@@ -70,7 +88,7 @@ export default function XYView({ rows: input, options = {} }) {
       if (m.label) notes.push({ x: m.x, y: 1, xref: 'x', yref: 'paper', text: String(m.label).slice(0, 40), showarrow: false, textangle: -90, xanchor: 'left', yanchor: 'top', font: { color, size: 10, family: FONT } });
     }
 
-    const multi = series.length > 1;
+    const multi = series.length + rightData.length > 1;
     return {
       data,
       layout: {
@@ -85,11 +103,17 @@ export default function XYView({ rows: input, options = {} }) {
         hoverlabel: { bgcolor: c.surface, bordercolor: c.line, font: { color: c.text, size: 11, family: FONT } },
         xaxis: { showgrid: false, linecolor: c.axis, tickfont, automargin: true },
         yaxis: { nticks: 5, gridcolor: c.grid, zeroline: false, tickfont, ticksuffix: unit, automargin: true },
+        ...(rightData.length ? {
+          yaxis2: {
+            overlaying: 'y', side: 'right', nticks: 5, showgrid: false, tickfont, ticksuffix: rightUnit, automargin: true,
+            zeroline: true, zerolinecolor: c.axis, zerolinewidth: 1,
+          },
+        } : {}),
         shapes,
         annotations: notes,
       },
     };
-  }, [rows, x, series, type, refs, marks, unit, digits]);
+  }, [rows, x, series, right, type, refs, marks, unit, digits, rightUnit]);
 
   return (
     <div className="h-full min-h-0 px-1 pb-1">

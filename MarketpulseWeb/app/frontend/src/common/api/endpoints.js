@@ -80,6 +80,7 @@ export const providersAPI = {
 export const userWidgetsAPI = {
   codes:  ()         => apiClient.get(`${API_BASE}/user-widgets/codes`),
   builtin: ()        => apiClient.get(`${API_BASE}/user-widgets/builtin`),
+  screenGroups: ()   => apiClient.get(`${API_BASE}/user-widgets/screen-groups`),   // OBBject — 화면 단위 파라미터 그룹
   list:   ()         => apiClient.get(`${API_BASE}/user-widgets`),
   create: (data)     => apiClient.post(`${API_BASE}/user-widgets`, data),
   update: (id, data) => apiClient.put(`${API_BASE}/user-widgets/${id}`, data),

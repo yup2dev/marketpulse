@@ -25,8 +25,10 @@ from app.backend.core.auth.dependencies import get_current_user
 from app.backend.core.db import get_db
 from app.backend.models.orm import User
 from app.backend.services.user_widget_service import (
-    BuiltinWidgetService, UserWidgetError, UserWidgetService, WidgetPrefService, get_codes, serialize,
+    BuiltinWidgetService, ScreenGroupService, UserWidgetError, UserWidgetService, WidgetPrefService,
+    get_codes, serialize,
 )
+from data_fetcher.core.obbject import OBBject
 
 router = APIRouter(prefix="/user-widgets", tags=["user-widgets"])
 
@@ -86,6 +88,24 @@ def codes(_: User = Depends(get_current_user), db: Session = Depends(get_db)):
 @router.get("/builtin")
 def list_builtin(_: User = Depends(get_current_user), db: Session = Depends(get_db)):
     return {"widgets": BuiltinWidgetService.list(db)}
+
+
+class ScreenGroupOut(BaseModel):
+    screen: str = Field(description="화면 경로 (예: /industry)")
+    tab: str = Field(description="탭 — 탭이 없으면 ''")
+    group_code: str = Field(description="그룹 코드 (예: dataset)")
+    widget_id: str = Field(description="그룹에 묶인 위젯")
+    param_name: str = Field(description="그 위젯에서의 파라미터 이름")
+    is_source: bool = Field(description="행을 누르면 값을 내보내는 위젯")
+    is_required: bool = Field(default=True, description="값이 생길 때까지 요청하지 않는다 (False 면 비어도 부른다)")
+
+
+@router.get("/screen-groups", summary="화면 단위 파라미터 그룹")
+def list_screen_groups(
+    _: User = Depends(get_current_user), db: Session = Depends(get_db),
+) -> OBBject[List[ScreenGroupOut]]:
+    """OpenBB apps.json 의 groups — 한 화면(+탭)의 위젯들이 같이 따르는 파라미터."""
+    return OBBject[List[ScreenGroupOut]](results=ScreenGroupService.list(db), provider="registry")
 
 
 @router.get("/prefs")

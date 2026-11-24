@@ -62,6 +62,7 @@ function App() {
           <Route index element={<DashboardPage />} />
           <Route path="stock" element={<DashboardPage />} />
           <Route path="macro" element={<DashboardPage />} />
+          <Route path="industry" element={<DashboardPage />} />
           <Route path="quantlib" element={<DashboardPage />} />
           <Route path="backtest" element={<DashboardPage />} />
           <Route path="settings" element={<SettingsPage />} />

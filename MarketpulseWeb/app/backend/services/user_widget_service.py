@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.backend.models.orm import (
     UserWidget, UserWidgetField, UserWidgetOption, UserWidgetParam, UserWidgetParamOption,
-    UserWidgetPref, UserWidgetPrefScreen, UserWidgetScreen, UserWidgetTab, UserWidgetTabItem,
+    UserScreenGroup, UserWidgetPref, UserWidgetPrefScreen, UserWidgetScreen, UserWidgetTab, UserWidgetTabItem,
     WidgetType,
 )
 
@@ -82,6 +82,9 @@ CODES: Dict[str, List[Dict[str, Any]]] = {
         {"value": "heatmap",  "name": "줄 × 칸 색 격자 (월별 수익률)"},
         {"value": "articles", "name": "기사 목록 (제목 · 요약 · 관련 종목)"},
         {"value": "strip",    "name": "상태 띠 (달마다의 국면)"},
+        {"value": "cards",    "name": "숫자 카드 격자 (이름 · 큰 값 · 색)"},
+        {"value": "bar",      "name": "막대 차트 (x · 계열, 오른쪽 축 선 겹치기 right)"},
+        {"value": "line",     "name": "선 차트 (x · 계열, 오른쪽 축 선 겹치기 right)"},
     ],
     # 필드가 뷰에서 맡는 자리 (user_widget_fields.field_role)
     "SPEC_FIELD_ROLE": [
@@ -696,3 +699,44 @@ class BuiltinWidgetService:
         if _seed_builtin(db, {w.widget_id for w in rows}):
             rows = BuiltinWidgetService._rows(db)
         return [_builtin_dict(w) for w in rows if w.use_yn == "Y"]
+
+
+# ── 화면 단위 파라미터 그룹 (OpenBB apps.json 의 groups) ─────────────────────────────────
+
+def _seed_screen_groups(db: Session) -> bool:
+    """시드(builtin_widget_seed.SCREEN_GROUPS) 중 DB 에 없는 행만 넣는다 — 위젯 행이 있는 것만. 넣었으면 True."""
+    from app.backend.services.builtin_widget_seed import SCREEN_GROUPS
+
+    if not SCREEN_GROUPS:
+        return False
+    have = {(g.screen, g.tab, g.group_code, g.widget_id) for g in db.query(UserScreenGroup).all()}
+    widgets = {wid for (wid,) in db.query(UserWidget.widget_id).all()}
+    added = False
+    for row in SCREEN_GROUPS:
+        screen, tab, code, wid, param, source = row[:6]
+        required = row[6] if len(row) > 6 else True
+        if (screen, tab or "", code, wid) in have or wid not in widgets:
+            continue
+        db.add(UserScreenGroup(screen=screen, tab=tab or "", group_code=code, widget_id=wid, param_name=param,
+                               source_yn="Y" if source else "N", required_yn="Y" if required else "N"))
+        added = True
+    if added:
+        db.commit()
+    return added
+
+
+class ScreenGroupService:
+
+    @staticmethod
+    def list(db: Session) -> List[dict]:
+        """모든 화면의 파라미터 그룹 행 — 프론트가 화면 · 탭 · 위젯으로 골라 쓴다 (몇십 행이라 한 번에)."""
+        BuiltinWidgetService.list(db)        # 기본 제공 위젯 행이 먼저 있어야 외래키가 맞는다
+        _seed_screen_groups(db)
+        rows = (db.query(UserScreenGroup)
+                .order_by(UserScreenGroup.screen, UserScreenGroup.tab, UserScreenGroup.group_code,
+                          UserScreenGroup.widget_id).all())
+        return [
+            {"screen": g.screen, "tab": g.tab or "", "group_code": g.group_code, "widget_id": g.widget_id,
+             "param_name": g.param_name, "is_source": g.source_yn == "Y", "is_required": g.required_yn != "N"}
+            for g in rows
+        ]

@@ -45,5 +45,18 @@ export function stateFromError(err) {
   if (!err) return null;
   if (err.code === 'missing_key') return { kind: 'missing-key', provider: err.provider };
   if (err.status === 503) return { kind: 'fetcher-off' };
-  return { kind: 'error', message: err.detail || err.message };
+  return { kind: 'error', message: detailText(err.detail) || err.message };
+}
+
+/** 오류 detail → 글자. FastAPI 422 는 [{ loc, msg, … }] 목록이라 그대로 그리면 React 가 터진다 (화면 전체가 오류 경계로 간다) */
+function detailText(detail) {
+  if (detail == null || detail === '') return '';
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) {
+    return detail.map((d) => (d && typeof d === 'object'
+      ? [Array.isArray(d.loc) ? d.loc.filter((p) => p !== 'query' && p !== 'body').join('.') : '', d.msg].filter(Boolean).join(': ')
+      : String(d))).join(' · ');
+  }
+  if (typeof detail === 'object') return detail.msg || detail.message || JSON.stringify(detail);
+  return String(detail);
 }
