@@ -72,7 +72,7 @@ MAX_PER_USER = 50
 TOP_N_RANGE = (5, 100)
 MAX_COST_BPS = 100
 
-# 기본 제공 — 시안(design/mockups/Backtest.dc.html)의 세 전략. id 가 고정이라 다시 넣어도 같은 행이다
+# 기본 제공 — 시안(캔버스 https://claude.ai/artifact/DFm1eYtd4yVjoiwX4Ejmrd · Backtest)의 세 전략. id 가 고정이라 다시 넣어도 같은 행이다
 BUILTIN_STRATEGIES: List[dict] = [
     {"strategy_id": "builtin-ml-stack", "name": "멀티팩터 + ML 융합 (스태킹)",
      "description": "세 모델의 표본 밖 확률을 스태킹으로 합친 점수 상위 종목",

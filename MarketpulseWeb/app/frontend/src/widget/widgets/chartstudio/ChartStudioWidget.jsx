@@ -1,5 +1,5 @@
 /**
- * ChartStudioWidget — 리디자인 시안의 차트 화면 (design/mockups/Chart.dc.html).
+ * ChartStudioWidget — 리디자인 시안의 차트 화면 (캔버스 https://claude.ai/artifact/DFm1eYtd4yVjoiwX4Ejmrd · Chart).
  *
  *   [종목] [비교 최대 3] [주기] [캔들·라인·영역] [지표·매크로·이벤트] …… [1·2·4 분할]
  *   [그리기 도구] [차트 칸 …]                                   [설정 패널: 지표 / 매크로 / 이벤트]

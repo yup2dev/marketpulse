@@ -1,7 +1,7 @@
 /**
  * urlWidgetMap — per-URL widget configuration.
  *
- * 리디자인 시안(design/mockups, 캔버스 https://claude.ai/artifact/DFm1eYtd4yVjoiwX4Ejmrd)에 있는 화면만 둔다.
+ * 리디자인 시안(캔버스 https://claude.ai/artifact/DFm1eYtd4yVjoiwX4Ejmrd)에 있는 화면만 둔다.
  * 시안에 없는 레거시 화면·탭·위젯은 앱에서 뺐다 — 되살릴 때는 git 이력에서 가져온다 (리디자인 레거시 정리 커밋의 부모).
  *
  * Each entry maps a URL pathname to:
