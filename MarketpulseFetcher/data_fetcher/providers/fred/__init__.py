@@ -1,4 +1,5 @@
 """FRED Provider"""
+from data_fetcher.abstract_provider.abstract.provider import Provider
 from data_fetcher.providers.fred.models.gdp import FREDGDPFetcher
 from data_fetcher.providers.fred.models.cpi import FREDCPIFetcher
 from data_fetcher.providers.fred.models.unemployment import FREDUnemploymentFetcher
@@ -26,3 +27,50 @@ from data_fetcher.providers.fred.models.phillips_curve import FREDPhillipsCurveF
 from data_fetcher.providers.fred.models.financial_conditions import FREDFinancialConditionsFetcher
 from data_fetcher.providers.fred.models.sentiment_composite import FREDSentimentCompositeFetcher
 from data_fetcher.providers.fred.models.labor_dashboard import FREDLaborDashboardFetcher
+from data_fetcher.providers.fred.models.fed_policy_stance import FREDFedPolicyStanceFetcher
+from data_fetcher.providers.fred.models.inflation_decomposition import FREDInflationDecompositionFetcher
+from data_fetcher.providers.fred.models.regime_current import FREDRegimeCurrentFetcher
+
+
+fred_provider = Provider(
+    name="fred",
+    description="Federal Reserve Economic Data (FRED)",
+    website="https://fred.stlouisfed.org",
+    credentials=["api_key"],
+    fetcher_dict={
+        "gdp": FREDGDPFetcher,
+        "cpi": FREDCPIFetcher,
+        "unemployment": FREDUnemploymentFetcher,
+        "interest_rate": FREDInterestRateFetcher,
+        "employment": FREDEmploymentFetcher,
+        "industrial_production": FREDIndustrialProductionFetcher,
+        "consumer_sentiment": FREDConsumerSentimentFetcher,
+        "housing_starts": FREDHousingStartsFetcher,
+        "retail_sales": FREDRetailSalesFetcher,
+        "nonfarm_payroll": FREDNonfarmPayrollFetcher,
+        "series": FREDGenericSeriesFetcher,
+        "fed_balance_sheet":    FREDFedBalanceSheetFetcher,
+        "real_rates":           FREDRealRatesFetcher,
+        "pmi":                  FREDPMIFetcher,
+        "yield_curve":          FREDYieldCurveFetcher,
+        "inflation_momentum":           FREDInflationMomentumFetcher,
+        "yield_curve_history":          FREDYieldCurveHistoryFetcher,
+        "initial_claims":               FREDInitialClaimsFetcher,
+        "jobs_breakdown":               FREDJobsBreakdownFetcher,
+        "financial_conditions_history": FREDFinancialConditionsHistoryFetcher,
+        "sentiment_history":            FREDSentimentHistoryFetcher,
+        "inflation_sector":             FREDInflationSectorFetcher,
+        "regime_history":               FREDRegimeHistoryFetcher,
+        "regime_current":               FREDRegimeCurrentFetcher,
+        "fed_policy_stance":            FREDFedPolicyStanceFetcher,
+        "inflation_decomposition":      FREDInflationDecompositionFetcher,
+        "phillips_curve":               FREDPhillipsCurveFetcher,
+        "financial_conditions":         FREDFinancialConditionsFetcher,
+        "sentiment_composite":          FREDSentimentCompositeFetcher,
+        "labor_dashboard":              FREDLaborDashboardFetcher,
+    },
+    metadata={
+        "rate_limit": "120 requests/minute",
+        "data_coverage": "US economic data",
+    }
+)

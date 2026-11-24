@@ -8,7 +8,7 @@ import asyncio
 import logging
 from typing import Any, List, Optional
 
-from data_fetcher.abstract_provider.abstract.annotated_result import AnnotatedResult
+from data_fetcher.core.obbject import OBBject
 from data_fetcher.query_executor import QueryExecutor, RemoteUnavailableError
 from app.backend.models.orm import MBS_IN_STK_PROFILE, MBS_IN_STK_RELATIONS
 from app.backend.core.database import default_db
@@ -53,7 +53,7 @@ def get_profile_from_db(symbol: str) -> Optional[dict]:
 
 
 def _items(raw: Any) -> List[Any]:
-    return raw.result if isinstance(raw, AnnotatedResult) else (raw or [])
+    return OBBject.unwrap(raw) or []
 
 
 async def _fetch_profile(symbol: str) -> dict:

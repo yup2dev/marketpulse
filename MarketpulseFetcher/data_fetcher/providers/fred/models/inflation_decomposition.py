@@ -22,9 +22,8 @@ from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.abstract.data import BaseData
 from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
 from data_fetcher.abstract_provider.abstract.query_params import BaseQueryParams
-from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper
+from data_fetcher.providers.fred.models.generic_series import FREDGenericSeriesFetcher
 from data_fetcher.providers.fred.utils.yoy import pct_change_at, yoy_at
-from data_fetcher.utils.api_keys import get_api_key
 
 log = logging.getLogger(__name__)
 
@@ -138,13 +137,14 @@ class FREDInflationDecompositionFetcher(
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any,
     ) -> Dict[str, Dict[str, List[Dict[str, Any]]]]:
-        api_key = get_api_key(credentials=credentials, api_name="FRED", env_var="FRED_API_KEY")
-
         async def _fetch(sid: str, limit: int):
             try:
-                return sid, await FredSeriesHelper.fetch_series(
-                    sid, api_key, limit=limit, sort_order="desc", end_date=query.date,
-                )
+                return sid, [d.model_dump() for d in await FREDGenericSeriesFetcher.fetch_data(dict(
+                    series_id=sid,
+                    limit=limit,
+                    sort_order="desc",
+                    end_date=query.date,
+                ), credentials)]
             except Exception as e:
                 log.warning("[InflationDecomposition] %s 조회 실패: %s", sid, e)
                 return sid, []

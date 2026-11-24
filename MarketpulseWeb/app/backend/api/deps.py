@@ -23,7 +23,6 @@ from typing import Any
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 
-from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
 from data_fetcher.core.obbject import OBBject
 from data_fetcher.query_executor import (
     MissingCredentialsError, QueryExecutorError, RemoteUnavailableError,
@@ -33,24 +32,8 @@ from data_fetcher.utils.http_client import HTTPClientError
 
 
 def wrap_result(raw: Any, provider: str) -> OBBject:
-    """
-    OpenBB OBBject.from_query 와 동일한 역할:
-      - AnnotatedResult  → result 리스트 추출 + metadata 보존
-      - List[DataModel]  → model_dump(mode='json') 직렬화
-      - List[dict]       → 그대로
-      - dict (snapshot)  → [dict] 단일 행
-    """
-    metadata: dict = {}
-    if isinstance(raw, AnnotatedResult):
-        metadata = raw.metadata or {}
-        raw = raw.result
-
-    items = raw if isinstance(raw, list) else ([raw] if raw is not None else [])
-    results = [
-        item.model_dump(mode="json") if hasattr(item, "model_dump") else item
-        for item in items
-    ]
-    return OBBject(results=results, provider=provider, metadata=metadata)
+    """fetcher 결과 → OBBject. AnnotatedResult 처리는 OBBject.from_result 가 맡는다."""
+    return OBBject.from_result(raw, provider)
 
 
 # ── 날짜가 있는 행 목록 공통 처리 (게이트웨이·전용 라우트 공용) ──────────────────

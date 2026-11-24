@@ -1,4 +1,5 @@
 """Yahoo Finance Provider"""
+from data_fetcher.abstract_provider.abstract.provider import Provider
 from data_fetcher.providers.yahoo.models.stock_price import YFinanceStockPriceFetcher
 from data_fetcher.providers.yahoo.models.stock_quote import YFinanceQuoteFetcher
 from data_fetcher.providers.yahoo.models.batch_quotes import YFinanceBatchQuotesFetcher
@@ -21,4 +22,41 @@ from data_fetcher.providers.yahoo.models.insider_trading import (
     YFinanceInsiderTradingFetcher,
     YFinanceInsiderHoldersFetcher,
     YFinanceInsiderTradingSummaryFetcher,
+)
+from data_fetcher.providers.yahoo.models.company_peers import YFinanceCompanyPeersFetcher
+
+
+yahoo_provider = Provider(
+    name="yahoo",
+    description="Yahoo Finance",
+    website="https://finance.yahoo.com",
+    credentials=[],  # No API key required
+    fetcher_dict={
+        "stock_price": YFinanceStockPriceFetcher,
+        "quote":       YFinanceQuoteFetcher,
+        "batch_quotes": YFinanceBatchQuotesFetcher,
+        "dividends": YFinanceDividendsFetcher,
+        "company_info": YFinanceCompanyInfoFetcher,
+        "company_peers": YFinanceCompanyPeersFetcher,
+        "financials": YFinanceFinancialsFetcher,
+        "balance_sheet": YFinanceBalanceSheetFetcher,
+        "key_metrics": YFinanceKeyMetricsFetcher,
+        "quarterly_pnl": YFinanceQuarterlyPnLFetcher,
+        "holders": YFinanceHoldersFetcher,
+        "calendar": YFinanceCalendarFetcher,
+        "splits": YFinanceSplitsFetcher,
+        "filings": YFinanceFilingsFetcher,
+        "estimates": YFinanceEstimatesFetcher,
+        "management": YFinanceManagementFetcher,
+        "moat": YFinanceMoatFetcher,
+        "swot": YFinanceSWOTFetcher,
+        "scorecard": YFinanceScorecardFetcher,
+        "insider_trading": YFinanceInsiderTradingFetcher,
+        "insider_trading_summary": YFinanceInsiderTradingSummaryFetcher,
+        "insider_holders": YFinanceInsiderHoldersFetcher,
+    },
+    metadata={
+        "rate_limit": "2000 requests/hour",
+        "data_coverage": "Global stock market data",
+    }
 )

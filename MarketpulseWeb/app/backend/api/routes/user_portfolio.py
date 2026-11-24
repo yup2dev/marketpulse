@@ -15,7 +15,7 @@ from app.backend.api.deps import filter_dated_rows, resolve_date_range, route_ha
 from app.backend.services.user_portfolio_service import UserPortfolioService
 from app.backend.services.fx_service import FXRateNotFound, convert_fields, get_rate
 from data_fetcher.query_executor import QueryExecutor
-from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
+from data_fetcher.core.obbject import OBBject
 from app.backend.models.orm import User
 
 router = APIRouter(prefix="/user-portfolio", tags=["User Portfolio"])
@@ -436,7 +436,7 @@ async def get_price_at_date(
     raw = await QueryExecutor.fetch("yahoo", "stock_price", {
         "symbol": ticker, "start_date": start, "end_date": end, "interval": "1d",
     })
-    history = raw.result if isinstance(raw, AnnotatedResult) else (raw or [])
+    history = OBBject.unwrap(raw) or []
 
     if not history:
         raise HTTPException(status_code=404, detail=f"{ticker} 가격 데이터 없음")
@@ -494,7 +494,7 @@ async def refresh_holding_prices(
     async def fetch_price(ticker):
         try:
             raw = await QueryExecutor.fetch("yahoo", "quote", {"symbol": ticker})
-            items = raw.result if isinstance(raw, AnnotatedResult) else (raw or [])
+            items = OBBject.unwrap(raw) or []
             if not items:
                 return (ticker, None, None)
             q = items[0]

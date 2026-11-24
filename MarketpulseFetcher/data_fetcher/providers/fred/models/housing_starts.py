@@ -10,8 +10,7 @@ from data_fetcher.abstract_provider.standard_models.fred_series import (
     FredSeriesQueryParams,
     FredSeriesData,
 )
-from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
-from data_fetcher.utils.api_keys import get_api_key
+from data_fetcher.providers.fred.models.generic_series import FREDGenericSeriesFetcher
 
 
 class HousingStartsQueryParams(FredSeriesQueryParams):
@@ -88,7 +87,7 @@ class FREDHousingStartsFetcher(ApiFetcher[HousingStartsQueryParams, HousingStart
     """
     FRED Housing Starts Fetcher
 
-    Uses FredSeriesFetcher for common API logic.
+    Uses FREDGenericSeriesFetcher (the only FRED HTTP call) for observations.
     """
 
     api_name = "FRED"
@@ -105,32 +104,26 @@ class FREDHousingStartsFetcher(ApiFetcher[HousingStartsQueryParams, HousingStart
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any
     ) -> List[Dict[str, Any]]:
-        api_key = get_api_key(
-            credentials=credentials,
-            api_name="FRED",
-            env_var="FRED_API_KEY"
-        )
-
         if query.country != 'US':
             log.warning(f"Only US Housing Starts is supported via FRED, got {query.country}")
 
-        observations = await FredSeriesFetcher.fetch_series(
+        observations = [d.model_dump() for d in await FREDGenericSeriesFetcher.fetch_data(dict(
             series_id=FRED_SERIES_MAP['total'],
-            api_key=api_key,
             start_date=query.start_date,
             end_date=query.end_date,
             limit=400,
-        )
+            sort_order='desc',
+        ), credentials)]
 
         permits_map: Dict[str, float] = {}
         try:
-            permits_obs = await FredSeriesFetcher.fetch_series(
+            permits_obs = [d.model_dump() for d in await FREDGenericSeriesFetcher.fetch_data(dict(
                 series_id=FRED_SERIES_MAP['permits'],
-                api_key=api_key,
                 start_date=query.start_date,
                 end_date=query.end_date,
                 limit=400,
-            )
+                sort_order='desc',
+            ), credentials)]
             permits_map = {
                 o['date']: float(o['value'])
                 for o in permits_obs

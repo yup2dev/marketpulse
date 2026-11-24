@@ -10,8 +10,7 @@ from data_fetcher.abstract_provider.standard_models.fred_series import (
     FredSeriesQueryParams,
     FredSeriesData,
 )
-from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
-from data_fetcher.utils.api_keys import get_api_key
+from data_fetcher.providers.fred.models.generic_series import FREDGenericSeriesFetcher
 
 
 class JobsBreakdownQueryParams(FredSeriesQueryParams):
@@ -50,17 +49,15 @@ class FREDJobsBreakdownFetcher(ApiFetcher[JobsBreakdownQueryParams, JobsBreakdow
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any,
     ) -> Dict[str, List[Dict]]:
-        api_key = get_api_key(credentials=credentials, api_name="FRED", env_var="FRED_API_KEY")
         result: Dict[str, List[Dict]] = {}
         for key, series_id in [("private", "USPRIV"), ("government", "USGOVT")]:
             try:
-                result[key] = await FredSeriesFetcher.fetch_series(
+                result[key] = [d.model_dump() for d in await FREDGenericSeriesFetcher.fetch_data(dict(
                     series_id=series_id,
-                    api_key=api_key,
                     start_date=query.start_date,
                     end_date=query.end_date,
                     sort_order="asc",
-                )
+                ), credentials)]
             except Exception as e:
                 log.warning(f"[JobsBreakdown] {series_id} failed: {e}")
                 result[key] = []

@@ -2,13 +2,13 @@
 공통 서비스 유틸리티
 
 모든 서비스 파일에서 공유하는 헬퍼 함수 모음.
-QueryExecutor 결과(AnnotatedResult 또는 raw)를 일관되게 처리합니다.
+QueryExecutor 결과를 일관되게 처리합니다 (AnnotatedResult 는 OBBject 가 푼다).
 """
 import asyncio
 import logging
 from typing import Any, Dict, List, Optional, TypeVar
 
-from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
+from data_fetcher.core.obbject import OBBject
 from data_fetcher.query_executor import QueryExecutor, RemoteUnavailableError
 
 log = logging.getLogger(__name__)
@@ -100,8 +100,8 @@ T = TypeVar("T")
 
 
 def unwrap(raw: Any) -> Any:
-    """AnnotatedResult 또는 raw 데이터에서 결과 리스트를 추출합니다."""
-    return raw.result if isinstance(raw, AnnotatedResult) else raw
+    """fetcher 결과에서 데이터만 (직렬화 없이) — OBBject.unwrap."""
+    return OBBject.unwrap(raw)
 
 
 def first(raw: Any) -> Optional[Any]:

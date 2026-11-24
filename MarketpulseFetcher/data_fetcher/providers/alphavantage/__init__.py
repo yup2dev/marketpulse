@@ -1,4 +1,5 @@
 """Alpha Vantage Provider"""
+from data_fetcher.abstract_provider.abstract.provider import Provider
 from data_fetcher.providers.alphavantage.models.equity_quote import (
     AlphaVantageEquityQuoteQueryParams,
     AlphaVantageEquityQuoteData,
@@ -36,3 +37,23 @@ __all__ = [
     'ForexData',
     'AlphaVantageForexFetcher',
 ]
+
+
+alphavantage_provider = Provider(
+    name="alphavantage",
+    description="Alpha Vantage Financial Data API",
+    website="https://www.alphavantage.co",
+    credentials=["api_key"],
+    fetcher_dict={
+        "quote": AlphaVantageQuoteFetcher,
+        "timeseries": AlphaVantageTimeseriesFetcher,
+        "forex": AlphaVantageForexFetcher,
+        # yahoo와 같은 model 키 — standard CompanyProfile 공유로 provider 셀렉터 전환 가능
+        "company_info": AlphaVantageCompanyOverviewFetcher,
+        "crypto": AlphaVantageCryptoFetcher,
+    },
+    metadata={
+        "rate_limit": "5 requests/minute (free tier)",
+        "data_coverage": "Global stock market and economic data",
+    }
+)

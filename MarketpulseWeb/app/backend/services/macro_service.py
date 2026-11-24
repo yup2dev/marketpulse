@@ -20,6 +20,7 @@ from data_fetcher.providers.fred.models.housing_starts import FREDHousingStartsF
 from data_fetcher.providers.fred.models.industrial_production import FREDIndustrialProductionFetcher
 from data_fetcher.providers.bond.models.bond_prices import FMPBondPricesFetcher
 from data_fetcher.query_executor import QueryExecutor
+from data_fetcher.core.obbject import OBBject
 from data_fetcher.utils.helpers import parse_period_to_dates
 
 # Fetcher class → (provider, model) mapping for QueryExecutor
@@ -174,12 +175,9 @@ class MacroService:
 
     async def _qe(self, fetcher_cls, params=None) -> List[Dict]:
         """_fetch 대체: _FETCHER_MAP → QueryExecutor.fetch → List[Dict]"""
-        from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
         provider, model = _FETCHER_MAP[fetcher_cls]
         raw = await QueryExecutor.fetch(provider, model, params or {})
-        if isinstance(raw, AnnotatedResult):
-            raw = raw.result
-        return [m.model_dump(mode='json') if hasattr(m, 'model_dump') else m for m in (raw or [])]
+        return OBBject.from_result(raw, provider).results
 
     async def _qe_series(self, series_id: str, *, limit: int = 10000, sort_order: str = 'asc',
                          start_date=None, end_date=None) -> List[Dict]:

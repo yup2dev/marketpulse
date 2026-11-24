@@ -10,8 +10,7 @@ from data_fetcher.abstract_provider.standard_models.fred_series import (
     FredSeriesQueryParams,
     FredSeriesData,
 )
-from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
-from data_fetcher.utils.api_keys import get_api_key
+from data_fetcher.providers.fred.models.generic_series import FREDGenericSeriesFetcher
 
 
 class InflationSectorQueryParams(FredSeriesQueryParams):
@@ -66,23 +65,25 @@ class FREDInflationSectorFetcher(ApiFetcher[InflationSectorQueryParams, Inflatio
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any,
     ) -> Dict[str, List[Dict]]:
-        api_key = get_api_key(credentials=credentials, api_name="FRED", env_var="FRED_API_KEY")
         # 13개월 확장 시작 — YoY 계산에 필요
         extended_start: Optional[date_type] = None
         if query.start_date:
             from dateutil.relativedelta import relativedelta
             extended_start = query.start_date - relativedelta(months=13)
 
-        series_map = await FredSeriesFetcher.fetch_multiple_series(
-            series_ids=list(_SECTOR_SERIES.values()),
-            api_key=api_key,
+        # 시리즈 여러 개를 한 번에 — 실패한 시리즈만 비고 나머지는 온다 (행마다 series_id)
+        rows = await FREDGenericSeriesFetcher.fetch_data(dict(
+            series_id=",".join(_SECTOR_SERIES.values()),
             start_date=extended_start,
             end_date=query.end_date,
             sort_order="asc",
-        )
-        # remap from series_id keys back to sector name keys
+        ), credentials)
+        by_series: Dict[str, List[Dict]] = {}
+        for d in rows:
+            by_series.setdefault(d.series_id, []).append(d.model_dump())
+        # series_id → sector 이름 키
         raw: Dict[str, List[Dict]] = {
-            key: series_map.get(series_id, [])
+            key: by_series.get(series_id, [])
             for key, series_id in _SECTOR_SERIES.items()
         }
         return raw
