@@ -12,6 +12,7 @@ Quant API — 팩터 성과 · 모델 검증 · 시장 국면 · 종목 시그�
 핸들러는 `def`(동기)다 — DB 만 읽는다.
 """
 import json
+from datetime import date
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, Query
@@ -35,14 +36,20 @@ BY_STRATEGY = ("factors", "factor_returns", "quantiles", "models")
 def get_quant_ranking(
     universe: str = Query("sp500", max_length=30),
     strategy: Optional[str] = Query(None, max_length=50, description="전략 id — 비우면 첫 기본 제공 전략"),
+    as_of: Optional[str] = Query(None, max_length=10, description="기준일 YYYY-MM-DD — 그날 이전 마지막 달. 비우면 이번 달"),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_active_user),
 ) -> OBBject:
-    """이번 달 순위 — 패널 마지막 달의 전략 점수 큰 순 (상위 top_n 매수)."""
+    """기준월 순위 — 그달의 전략 점수 큰 순 (상위 top_n 매수). 지난달이면 실제 다음 달 수익률도."""
+    # 화면 변수가 비면 'as_of=' 로 온다 — 빈 값 · 잘못된 값은 이번 달
     try:
-        rows, meta = strategies.ranking(db, str(user.user_id), universe, strategy)
+        day = date.fromisoformat(as_of) if as_of else None
+    except ValueError:
+        day = None
+    try:
+        rows, meta = strategies.ranking(db, str(user.user_id), universe, strategy, day)
     except LookupError:
-        rows, meta = strategies.ranking(db, str(user.user_id), universe, None)
+        rows, meta = strategies.ranking(db, str(user.user_id), universe, None, day)
     except strategies.StrategyError as e:
         rows, meta = [], {"loaded": True, "note": str(e)}
     return OBBject(results=rows, provider="db", metadata={**meta, "universe": universe})
@@ -83,8 +90,10 @@ def _by_strategy(db, user_id, universe, strategy_id, dataset, rows, meta):
             s = strategies.to_dict(strategies.get_strategy(db, strategy_id, user_id), user_id)
         except LookupError:
             return rows, meta
-        used = s["model"] if s["score_kind"] == "ml" else None
-        return [{**r, "used": r.get("id") == used} for r in rows], {**meta, "strategy": s["name"]}
+        # ML 전략의 모델 + 팩터 조합에 섞은 ML 점수(ml_<모델>)
+        used = {s["model"]} if s["score_kind"] == "ml" else {
+            f["factor_id"][len(strategies.ML_PREFIX):] for f in s["factors"] if strategies.is_ml(f["factor_id"])}
+        return [{**r, "used": r.get("id") in used} for r in rows], {**meta, "strategy": s["name"]}
     try:
         view = strategies.strategy_view(db, user_id, universe, strategy_id)
     except LookupError:

@@ -409,7 +409,10 @@ def test_builtin_widgets_are_rows_seeded_on_first_read(auth_client, db_session, 
     # 메인(대시보드)은 머리줄에서 고른 전략(/backtest 와 같은 화면 변수 strategy)을 따른다
     for wid in ("quant-factors", "quant-factor-returns", "quant-models", "quant-ranking"):
         assert "strategy={strategy}" in widgets[wid]["endpoint"], wid
-        assert widgets[wid]["options"]["shared"] == "universe,strategy", wid
+        assert widgets[wid]["options"]["shared"].startswith("universe,strategy"), wid
+    # 순위는 머리줄의 기준월(화면 변수 quant_asof)도 따른다
+    assert "as_of={quant_asof}" in widgets["quant-ranking"]["endpoint"]
+    assert widgets["quant-ranking"]["options"]["shared"] == "universe,strategy,quant_asof"
 
     # 두 번째 읽기는 다시 넣지 않는다. 모든 사용자가 같은 정의를 본다
     assert len(client.get("/api/user-widgets/builtin", headers=admin).json()["widgets"]) == len(BUILTIN_WIDGETS)

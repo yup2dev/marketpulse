@@ -3,7 +3,7 @@
  *
  * 지금 있는 전략(기본 제공 + 내 전략, /api/strategies)을 보여 주고, 고르면 화면 변수 strategy 를 바꾼다.
  * 결과 위젯(bt-run-* · bt-compare — DB 행)이 같은 변수로 /api/strategies/* 를 다시 부른다.
- * 기간 · 벤치마크 · 거래비용은 따로 고르지 않는다 — 서버 기본값(전체 기간 · S&P 500 · 10bp).
+ * 기간은 옆의 BacktestPeriod(화면 변수 bt_start · bt_end)로 고른다. 벤치마크 · 거래비용은 서버 기본값(S&P 500 · 10bp).
  * 기본 제공 전략은 고칠 수 없어 '복제해서 편집' 으로 내 전략을 만든다.
  * 퀀트 포트폴리오(직접 고른 종목 · 비중 — /api/quant-portfolios)도 같은 드롭다운에 pf:<id> 로 나온다 (고치기는 퀀트 포트폴리오 설정 탭).
  */
@@ -14,6 +14,7 @@ import { apiClient, API_BASE } from '../../../common';
 import { setShared, useShared } from '../../engine/shared';
 import { usePopover } from '../../../common/widget';
 import StrategyEditor, { GHOST, blank, summary } from './StrategyEditor';
+import BacktestPeriod from './BacktestPeriod';
 
 const bump = () => setShared('bt_rev', String(Date.now()));   // 결과 위젯이 다시 부르게 (같은 전략을 고쳤을 때도)
 
@@ -154,6 +155,10 @@ export default function StrategyPicker() {
           <Trash2 size={12} />
         </button>
       )}
+
+      <span className="ml-2 pl-2 border-l border-gray-800">
+        <BacktestPeriod panel={meta?.panel} />
+      </span>
 
       {pop.open && form && (
         <StrategyEditor

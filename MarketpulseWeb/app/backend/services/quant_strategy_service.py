@@ -51,6 +51,15 @@ MODELS: List[Tuple[str, str]] = [
 ]
 MODEL_IDS = [m[0] for m in MODELS]
 
+# ML 점수도 팩터처럼 섞어 쓴다 — 'ml_<모델>'. 확률을 달마다 종목 간 z-점수로 바꿔 팩터 z 와 같은 척도로 더한다.
+# ML 은 표본 밖 구간(배치 panel 의 ml_start 이후)에만 있어서, 섞은 전략은 그 구간만 계산한다.
+ML_PREFIX = "ml_"
+ML_SIGNALS: List[Tuple[str, str, str]] = [
+    (f"{ML_PREFIX}{m}", n, "모델이 낸 다음 달 초과수익 확률 (달마다 z-점수)") for m, n in MODELS
+]
+SIGNAL_IDS = FACTOR_IDS + [s[0] for s in ML_SIGNALS]
+SIGNAL_NAMES = {**{f[0]: f[1] for f in FACTORS}, **{s[0]: s[1] for s in ML_SIGNALS}}
+
 BENCHMARKS = {"^GSPC": "S&P 500", "equal": "동일 비중", "^SOX": "필라델피아 반도체"}
 
 # 매크로 시장 지표 · 조건 — quant_overlay (전략에 붙는다). 이름은 옛 import 를 위해 그대로 둔다
@@ -185,7 +194,7 @@ def _validate(body: dict) -> dict:
     if kind == "factor":
         for f in body.get("factors") or []:
             fid = f.get("factor_id")
-            if fid not in FACTOR_IDS:
+            if fid not in SIGNAL_IDS:
                 raise StrategyError(f"모르는 팩터예요: {fid}")
             try:
                 w = float(f.get("weight", 1))
@@ -368,6 +377,8 @@ def panel_status(panel: Optional[dict]) -> dict:
         "loaded": True,
         "start": have[0].date().isoformat() if len(have) else None,
         "end": have[-1].date().isoformat() if len(have) else None,
+        # 마지막 달 — 다음 달 수익률은 아직 없지만 점수는 있는 '이번 달' (순위 기준월 선택의 끝)
+        "last": panel["close"].index[-1].date().isoformat() if len(panel["close"].index) else None,
         "months": int(len(have)),
         "members": int(fwd.shape[1]),
         "ml_start": ml_have[0].date().isoformat() if len(ml_have) else None,
@@ -452,11 +463,40 @@ def _raw_score(strategy: dict, panel: dict) -> pd.DataFrame:
     weights = {f["factor_id"]: float(f["weight"]) for f in strategy["factors"] if float(f["weight"]) > 0}
     if not weights:
         raise StrategyError("팩터를 하나 이상 골라 주세요")
-    num = sum(panel[f].fillna(0) * w for f, w in weights.items())
-    have = sum(panel[f].notna() * w for f, w in weights.items())
+    mats = {f: _signal(panel, f) for f in weights}
+    num = sum(mats[f].fillna(0) * w for f, w in weights.items())
+    have = sum(mats[f].notna() * w for f, w in weights.items())
     total = sum(weights.values())
     # 가중치의 절반 이상에 해당하는 팩터 값이 있는 종목만 점수를 준다
-    return (num / have.replace(0, np.nan)).where(have >= total / 2)
+    score = (num / have.replace(0, np.nan)).where(have >= total / 2)
+    # ML 을 섞었으면 ML 점수가 있는 달(표본 밖 구간)만 — 앞쪽 달이 팩터만으로 계산되지 않게
+    for f in weights:
+        if is_ml(f):
+            score = score.where(mats[f].notna().any(axis=1), axis=0)
+    return score
+
+
+def is_ml(signal_id: str) -> bool:
+    return signal_id.startswith(ML_PREFIX)
+
+
+def uses_ml(strategy: dict) -> bool:
+    return strategy["score_kind"] == "ml" or any(is_ml(f["factor_id"]) for f in strategy.get("factors") or [])
+
+
+def _signal(panel: dict, signal_id: str) -> pd.DataFrame:
+    """팩터 z (패널 그대로) 또는 ML 확률의 달별 종목 간 z-점수 (처음 쓸 때 계산해 패널에 둔다)."""
+    if not is_ml(signal_id):
+        return panel[signal_id]
+    key = f"z_{signal_id}"
+    z = panel.get(key)
+    if z is None:
+        p = panel[f"p_{signal_id[len(ML_PREFIX):]}"]
+        if not p.notna().any().any():
+            raise StrategyError("ML 점수가 아직 적재되지 않았어요 — 로컬에서 build_quant.py 를 실행해 주세요")
+        z = p.sub(p.mean(axis=1), axis=0).div(p.std(axis=1).replace(0, np.nan), axis=0)
+        panel[key] = z
+    return z
 
 
 def _stats(monthly: pd.Series) -> dict:
@@ -512,7 +552,7 @@ def run_backtest(strategy: dict, panel: dict, start: Optional[date] = None, end:
         months = months[months <= pd.Timestamp(end)]
     if len(months) < 2:
         raise StrategyError("이 기간에는 계산할 달이 모자라요 — 기간을 넓혀 주세요"
-                            + (" (ML 점수는 표본 밖 구간에만 있어요)" if strategy["score_kind"] == "ml" else ""))
+                            + (" (ML 점수는 표본 밖 구간에만 있어요)" if uses_ml(strategy) else ""))
 
     overlay = strategy.get("overlay")
     states, values = ov.states(overlay, panel, months)
@@ -738,7 +778,9 @@ def compare(db: Session, user_id: str, start: Optional[date], end: Optional[date
 def catalog() -> dict:
     """편집 화면이 쓸 선택지."""
     return {
-        "factors": [{"id": i, "name": n, "desc": d} for i, n, d in FACTORS],
+        # 점수 재료 — 가격 팩터 + ML 점수 (group 으로 나눠 보여 준다)
+        "factors": [{"id": i, "name": n, "desc": d, "group": "factor"} for i, n, d in FACTORS]
+                   + [{"id": i, "name": n, "desc": d, "group": "ml", "model": i[len(ML_PREFIX):]} for i, n, d in ML_SIGNALS],
         "models": [{"id": i, "name": n} for i, n in MODELS],
         "benchmarks": [{"id": k, "name": v} for k, v in BENCHMARKS.items()],
         "rebalance": [{"id": k, "name": v} for k, v in REBALANCE.items()],
@@ -837,7 +879,7 @@ def _compute_view(s: dict, panel: dict) -> dict:
     q = pd.DataFrame(qrows).T.sort_index()
     ls = (q[q.columns.max()] - q[q.columns.min()]) if len(q) else pd.Series(dtype=float)
     sd = ls.dropna().std()
-    names = {f[0]: f[1] for f in FACTORS}
+    names = SIGNAL_NAMES
     if s["score_kind"] == "ml":
         model = dict(MODELS).get(s["model"], s["model"])
         title, desc = f"{model} 확률", "모델이 낸 다음 달 초과수익 확률"
@@ -873,37 +915,60 @@ def _profiles(db: Session, symbols) -> dict:
     return {r.stk_cd: r for r in rows}
 
 
-def ranking(db: Session, user_id: str, universe: str, strategy_id: Optional[str]) -> Tuple[List[dict], dict]:
-    """이번 달 순위 — 패널 마지막 달(점수가 있는 달)의 전략 점수 큰 순. 상위 top_n 에 매수 표시.
+def ranking(db: Session, user_id: str, universe: str, strategy_id: Optional[str],
+            as_of: Optional[date] = None) -> Tuple[List[dict], dict]:
+    """기준월 순위 — 그달(점수가 있는 달)의 전략 점수 큰 순. 상위 top_n 에 매수 표시.
+    as_of 를 비우면 패널 마지막 달(이번 달), 주면 그날 이전의 마지막 달. 지난달이면 행마다 실제 다음 달
+    수익률(fwd)을, metadata 에 매수 종목 · 전체 평균(fwd_buy · fwd_all)을 붙인다 — 그때 이 순위대로 샀으면 어땠는지.
     (행, metadata). 패널이 없으면 ([], {loaded: False})."""
     s = to_dict(get_strategy(db, strategy_id, user_id), user_id)
     panel = load_panel(db, universe)
     if not panel:
         return [], {"loaded": False}
     score = _score(s, panel)
-    close = panel["close"]
+    close, fwd = panel["close"], panel["fwd_ret"]
     have = score.index[score.notna().sum(axis=1) > 0]
     if not len(have):
         return [], {"loaded": True}
-    d = have[-1]
+    latest = have[-1]
+    d = latest
+    if as_of:
+        before = have[have <= pd.Timestamp(as_of)]
+        if not len(before):
+            raise StrategyError(f"{have[0].strftime('%Y.%m')} 이전에는 이 전략 점수가 없어요"
+                                + (" (ML 점수는 표본 밖 구간에만 있어요)" if uses_ml(s) else ""))
+        d = before[-1]
     sc = score.loc[d].dropna()
     sc = sc[close.loc[d].reindex(sc.index).notna()].sort_values(ascending=False)
     top_n = len(sc) if s["score_kind"] == "none" else int(s["top_n"])
-    # 매크로 조건이 이번 달 꺼져 있으면 아무것도 사지 않는다 (현금)
+    # 매크로 조건이 그달 꺼져 있으면 아무것도 사지 않는다 (현금)
     note, cash = None, False
     if s.get("overlay"):
         st, _ = ov.states(s["overlay"], panel, pd.DatetimeIndex([d]))
         if st[d] is False:
-            cash, note = True, "매크로 조건이 꺼져 있어 이번 달은 현금이에요"
+            cash, note = True, f"매크로 조건이 꺼져 있어 {'이번 달은' if d == latest else '이달은'} 현금이에요"
+    nxt = fwd.loc[d].reindex(sc.index)
+    realized = bool(nxt.notna().any())   # 다음 달이 지났나 (이번 달이면 아직 모른다)
     head = sc.iloc[: top_n + RANK_EXTRA]
     prof = _profiles(db, head.index)
     rows = [{
         "rank": i + 1, "symbol": sym, "name": getattr(prof.get(sym), "stk_nm", None),
         "score": float(v), "buy": i < top_n and not cash,
+        "fwd": float(nxt[sym]) if realized and pd.notna(nxt[sym]) else None,
     } for i, (sym, v) in enumerate(head.items())]
     meta = {
-        "loaded": True, "as_of": d.date().isoformat(), "members": int(len(sc)), "top_n": top_n,
+        "loaded": True, "as_of": d.date().isoformat(), "latest": bool(d == latest),
+        "first": have[0].date().isoformat(), "last": latest.date().isoformat(),
+        "members": int(len(sc)), "top_n": top_n,
         "strategy_id": s["strategy_id"], "strategy": s["name"], "score_kind": s["score_kind"],
         **({"note": note} if note else {}),
     }
+    if realized:
+        meta["fwd_buy"] = 0.0 if cash else _mean(nxt.iloc[:top_n])
+        meta["fwd_all"] = _mean(nxt)
     return _clean(rows), meta
+
+
+def _mean(v: pd.Series) -> Optional[float]:
+    m = v.mean()
+    return None if pd.isna(m) else float(m)

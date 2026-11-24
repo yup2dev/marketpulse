@@ -160,6 +160,41 @@ def test_compare_runs_every_strategy_under_the_same_conditions(loaded):
     assert got["metrics"]["totalReturn"] == one["metrics"]["totalReturn"]
 
 
+def test_ml_scores_mix_with_factors(loaded):
+    """ML 점수(ml_<모델>)를 팩터처럼 켜고 가중치로 섞는다 — 확률을 달마다 z-점수로 바꿔 더한다."""
+    client = loaded
+    meta = client.get("/api/strategies").json()["metadata"]
+    groups = {f["id"]: f["group"] for f in meta["factors"]}
+    assert groups["mom_12_1"] == "factor" and groups["ml_stack"] == "ml"
+    ml_start = meta["panel"]["ml_start"]
+
+    # ML 점수 하나만 켠 조합 = 그 모델의 ML 전략 (순위가 같다)
+    only = client.post("/api/strategies", json={"name": "스태킹만", "score_kind": "factor", "top_n": 10,
+                                               "factors": [{"factor_id": "ml_stack"}]}).json()["results"][0]
+    ml = client.post("/api/strategies", json={"name": "ML", "score_kind": "ml", "model": "stack",
+                                             "top_n": 10}).json()["results"][0]
+    a = client.get("/api/strategies/result", params={"strategy": only["strategy_id"]}).json()["results"][0]
+    b = client.get("/api/strategies/result", params={"strategy": ml["strategy_id"]}).json()["results"][0]
+    assert a["metrics"]["totalReturn"] == pytest.approx(b["metrics"]["totalReturn"])
+    assert [h["symbol"] for h in a["holdings"]] == [h["symbol"] for h in b["holdings"]]
+
+    # 섞으면 ML 이 있는 달(표본 밖 구간)부터만 — 앞쪽 달이 팩터만으로 계산되지 않는다
+    mix = client.post("/api/strategies", json={"name": "모멘텀 + ML", "score_kind": "factor", "top_n": 10, "factors": [
+        {"factor_id": "mom_12_1", "weight": 2}, {"factor_id": "ml_stack", "weight": 1}]}).json()["results"][0]
+    run = client.get("/api/strategies/result", params={"strategy": mix["strategy_id"]}).json()["results"][0]
+    assert run["metrics"]["start"] >= ml_start
+    factor_only = client.post("/api/strategies", json={"name": "모멘텀", "score_kind": "factor", "top_n": 10,
+                                                       "factors": [{"factor_id": "mom_12_1"}]}).json()["results"][0]
+    early = client.get("/api/strategies/result", params={"strategy": factor_only["strategy_id"]}).json()["results"][0]
+    assert early["metrics"]["start"] < run["metrics"]["start"]
+
+    # 퀀트 메인의 모델 표는 섞은 ML 점수도 '사용 중'으로 표시한다
+    models = client.get("/api/quant/models", params={"strategy": mix["strategy_id"]})
+    if models.status_code == 200 and models.json()["results"]:
+        used = {r["id"] for r in models.json()["results"] if r.get("used")}
+        assert used == {"stack"}
+
+
 def test_compare_is_empty_until_the_panel_is_loaded(auth_client):
     client, _ = auth_client
     body = client.get("/api/strategies/compare").json()
@@ -170,6 +205,7 @@ def test_compare_is_empty_until_the_panel_is_loaded(auth_client):
     ({"name": "x", "score_kind": "factor", "factors": []}, "팩터"),
     ({"name": "x", "score_kind": "factor", "factors": [{"factor_id": "nope"}]}, "모르는 팩터"),
     ({"name": "x", "score_kind": "ml", "model": "lstm"}, "모르는 모델"),
+    ({"name": "x", "score_kind": "factor", "factors": [{"factor_id": "ml_lstm"}]}, "모르는 팩터"),
     ({"name": "x", "score_kind": "factor", "factors": [{"factor_id": "trend"}], "top_n": 1}, "보유 종목 수"),
 ])
 def test_invalid_strategies_are_rejected(auth_client, body, needle):

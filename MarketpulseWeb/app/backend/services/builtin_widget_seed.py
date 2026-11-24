@@ -695,7 +695,8 @@ BUILTIN_WIDGETS += [
 
 
 # ══ 백테스트 결과 (/backtest · Results) ══════════════════════════════════════════
-# 결과 위젯은 머리줄 전략 드롭다운(StrategyPicker)이 고른 전략을 화면 변수로 따른다 (기간 · 벤치마크 · 비용은 서버 기본값).
+# 결과 위젯은 머리줄 전략 드롭다운(StrategyPicker)이 고른 전략 · 기간(BacktestPeriod — bt_start · bt_end)을 화면 변수로 따른다
+# (벤치마크 · 비용은 서버 기본값). 위젯 안의 '기간'(WINDOW)은 계산된 결과를 잘라 보는 확대다.
 # 전략은 웹에서 만들고(/api/strategies), 서버가 월별 패널(mbs_in_quant_panel)로 바로 계산한다
 RUN_VARS = "strategy,bt_start,bt_end,bt_bench,bt_cost,bt_rev"
 RUN_OPTIONS = {"shared": RUN_VARS}
@@ -859,6 +860,11 @@ BUILTIN_WIDGETS += [
 # 팩터 표의 비중 · 합성 줄, 롱숏 곡선의 합성, 분위 수익률, 순위가 그 전략 점수로 바뀐다 (routes/quant.py).
 QUANT = "/quant/{dataset}?universe={universe}&strategy={strategy}"
 QUANT_SHARED = "universe,strategy"
+# 순위는 기준월(quant_asof)도 따른다 — 마이그레이션 d2a8f5c1e9b4 가 이미 들어간 행을 같은 값으로 바꾼다
+RANKING_SHARED = "universe,strategy,quant_asof"
+RANKING_ENDPOINT = "/quant/ranking?universe={universe}&strategy={strategy}&as_of={quant_asof}"
+RANKING_TITLE = "기준월 순위"
+RANKING_NOTE = "{strategy} · {asOf} 기준 · 상위 {topN} 매수{result}"
 QUANT_EMPTY = "퀀트 산출물이 아직 적재되지 않았어요 — 로컬에서 build_quant.py 를 실행해 주세요"
 UNIVERSE = ("universe", "유니버스", "sp500", [("sp500", "S&P 500", None)])
 # 팩터 id 는 배치(index_analyzer/quant/factors.py)의 FACTORS 와 같다
@@ -970,17 +976,19 @@ BUILTIN_WIDGETS += [
     },
     # 시그널 융합(quant-signals)은 시안 개편(QuantMain)으로 '이번 달 순위'가 대신한다 — 마이그레이션 b8d3f1a6c2e7 이
     # 이미 들어간 행을 숨긴다(use_yn=N). 되살릴 때는 git 이력의 이 자리에서 가져온다.
-    # ── 이번 달 순위: 고른 전략 점수로 패널 마지막 달 종목을 줄 세운다 (상위 top_n 매수) ──
+    # ── 기준월 순위: 고른 전략 점수로 그달 종목을 줄 세운다 (상위 top_n 매수) ──
+    # 기준월은 머리줄(QuantWorkflow)의 화면 변수 quant_asof — 비우면 패널 마지막 달(이번 달).
+    # 지난달이면 '다음 달' 칸에 실제 수익률, 출처 옆에 매수 평균 · 전체 평균 (transform quant_ranking)
     {
         "widget_id": "quant-ranking",
         "name": "Strategy Ranking",
-        "description": "This month's stocks ranked by the picked strategy's score · top N to buy",
+        "description": "Stocks ranked by the picked strategy's score for a month · top N to buy · next-month return for past months",
         "group_name": "Quant",
-        "title": "이번 달 순위",
+        "title": RANKING_TITLE,
         "view_type": "table",
-        "endpoint": "/quant/ranking?universe={universe}&strategy={strategy}",
+        "endpoint": RANKING_ENDPOINT,
         "source": "$provider",
-        "source_note": "{strategy} · {asOf} 기준 · 상위 {topN} 매수",
+        "source_note": RANKING_NOTE,
         "transform": "quant_ranking",
         "empty_text": QUANT_EMPTY,
         "size": (5, 6, 4, 3),
@@ -989,9 +997,10 @@ BUILTIN_WIDGETS += [
             _field("COLUMN", "rank", "rank", "#", width=44),
             _field("COLUMN", "symbol", "stock", "종목", sub="name"),
             _field("COLUMN", "_score", "bar", "점수", width=128, sub=""),   # 단위 없음 — ML 은 확률 ×100, 팩터는 가중 z
+            _field("COLUMN", "_fwd", "change", "다음 달", width=72),        # 지난달을 고르면 실제 수익률 (이번 달은 —)
             _field("COLUMN", "_signal", "badge", "표시", width=64, sub="_tone"),
         ],
-        "options": {"shared": QUANT_SHARED, "highlight": "quant_step:rank", "rowHeight": "36", "minWidth": "380"},
+        "options": {"shared": RANKING_SHARED, "highlight": "quant_step:rank", "rowHeight": "36", "minWidth": "440"},
         "screens": [("/quantlib", "factors", 7, 7, 5, 6), ALL],
     },
 ]

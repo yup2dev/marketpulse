@@ -31,7 +31,9 @@ export function summary(s, catalog) {
     return `${m} · ${reb} · 상위 ${s.top_n}종목${extra}`;
   }
   const names = s.factors.map((f) => catalog?.factors?.find((x) => x.id === f.factor_id)?.name || f.factor_id);
-  return `${s.basket ? `${s.basket.name} 안 ` : ''}${names.length > 2 ? `팩터 ${names.length}개` : names.join(' + ')} · ${reb} · 상위 ${s.top_n}종목${extra}`;
+  const ml = s.factors.filter((f) => f.factor_id.startsWith('ml_')).length;
+  const many = ml ? `팩터 ${names.length - ml} + ML ${ml}` : `팩터 ${names.length}개`;
+  return `${s.basket ? `${s.basket.name} 안 ` : ''}${names.length > 2 ? many : names.join(' + ')} · ${reb} · 상위 ${s.top_n}종목${extra}`;
 }
 
 export default function StrategyEditor({ form, setForm, catalog, saving, error, onSave, onCopy, onClose }) {
