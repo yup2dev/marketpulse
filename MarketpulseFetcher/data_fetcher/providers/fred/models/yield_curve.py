@@ -10,8 +10,7 @@ from data_fetcher.abstract_provider.standard_models.yield_curve import (
     YieldCurveQueryParams,
     YieldCurveData,
 )
-from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
-from data_fetcher.utils.api_keys import get_api_key
+from data_fetcher.providers.fred.models.generic_series import FREDGenericSeriesFetcher
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -56,17 +55,15 @@ class FREDYieldCurveFetcher(ApiFetcher[FREDYieldCurveQueryParams, YieldCurveData
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any,
     ) -> List[Dict]:
-        api_key = get_api_key(credentials=credentials, api_name="FRED", env_var="FRED_API_KEY")
         rows = []
         for mat in _MATURITIES:
             try:
-                obs = await FredSeriesFetcher.fetch_series(
+                obs = [d.model_dump() for d in await FREDGenericSeriesFetcher.fetch_data(dict(
                     series_id=mat["series"],
-                    api_key=api_key,
                     limit=1,
                     sort_order="desc",
                     end_date=query.date,
-                )
+                ), credentials)]
                 if obs and obs[0].get("value") not in (None, ".", ""):
                     rows.append({
                         "maturity": mat["name"],

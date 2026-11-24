@@ -11,8 +11,7 @@ from data_fetcher.abstract_provider.standard_models.indicator_dashboard import (
     IndicatorDashboardData,
 )
 from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
-from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
-from data_fetcher.utils.api_keys import get_api_key
+from data_fetcher.providers.fred.models.generic_series import FREDGenericSeriesFetcher
 
 
 # ── QueryParams / Data (standard IndicatorDashboard 경유) ──────────────────────
@@ -69,15 +68,15 @@ class FREDLaborDashboardFetcher(ApiFetcher[DashboardQueryParams, DashboardRowDat
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any,
     ) -> Dict[str, List[Dict]]:
-        api_key = get_api_key(credentials=credentials, api_name="FRED", env_var="FRED_API_KEY")
         raw: Dict[str, List[Dict]] = {}
         for key, series_id, limit, sort in _SERIES:
             try:
-                raw[key] = await FredSeriesFetcher.fetch_series(
-                    series_id=series_id, api_key=api_key,
+                raw[key] = [d.model_dump() for d in await FREDGenericSeriesFetcher.fetch_data(dict(
+                    series_id=series_id,
                     end_date=query.date,
-                    limit=limit, sort_order=sort,
-                )
+                    limit=limit,
+                    sort_order=sort,
+                ), credentials)]
             except Exception as e:
                 log.warning(f"[LaborDashboard] {series_id} failed: {e}")
                 raw[key] = []

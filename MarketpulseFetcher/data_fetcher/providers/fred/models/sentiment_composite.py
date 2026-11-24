@@ -11,8 +11,7 @@ from data_fetcher.abstract_provider.standard_models.indicator_dashboard import (
     IndicatorDashboardData,
 )
 from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
-from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
-from data_fetcher.utils.api_keys import get_api_key
+from data_fetcher.providers.fred.models.generic_series import FREDGenericSeriesFetcher
 
 
 # ── QueryParams / Data (standard IndicatorDashboard 경유) ──────────────────────
@@ -60,7 +59,6 @@ class FREDSentimentCompositeFetcher(ApiFetcher[DashboardQueryParams, DashboardRo
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any,
     ) -> Dict[str, List[Dict]]:
-        api_key = get_api_key(credentials=credentials, api_name="FRED", env_var="FRED_API_KEY")
         raw: Dict[str, List[Dict]] = {}
         for key, series_id, limit in [
             ("vix",    "VIXCLS",       1),
@@ -68,11 +66,12 @@ class FREDSentimentCompositeFetcher(ApiFetcher[DashboardQueryParams, DashboardRo
             ("dgs10",  "DGS10",        20),  # recent 20 obs for safe-haven calc
         ]:
             try:
-                raw[key] = await FredSeriesFetcher.fetch_series(
-                    series_id=series_id, api_key=api_key,
+                raw[key] = [d.model_dump() for d in await FREDGenericSeriesFetcher.fetch_data(dict(
+                    series_id=series_id,
                     end_date=query.date,
-                    limit=limit, sort_order="desc",
-                )
+                    limit=limit,
+                    sort_order="desc",
+                ), credentials)]
             except Exception as e:
                 log.warning(f"[SentimentComposite] {series_id} failed: {e}")
                 raw[key] = []

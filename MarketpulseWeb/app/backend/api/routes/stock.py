@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query as FQuery
 from fastapi.responses import JSONResponse
 
 from data_fetcher.core.obbject import OBBject
-from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
 from data_fetcher.query_executor import QueryExecutor
 from app.backend.api.deps import filter_dated_rows, resolve_date_range, route_handler, wrap_result
 from app.backend.core.auth.dependencies import get_current_active_user
@@ -19,7 +18,7 @@ router = APIRouter()
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _unwrap(raw: Any) -> List[Any]:
-    return raw.result if isinstance(raw, AnnotatedResult) else (raw or [])
+    return OBBject.unwrap(raw) or []
 
 
 def _serialize(items: List[Any]) -> List[Dict]:

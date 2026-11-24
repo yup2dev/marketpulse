@@ -9,7 +9,6 @@ from app.backend.api.deps import filter_dated_rows, period_start, resolve_date_r
 from data_fetcher.providers.fred.models import (
     financial_conditions, inflation_decomposition, labor_dashboard, sentiment_composite, yield_curve,
 )
-from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper
 
 
 # ── 이벤트 목록 기간 ──────────────────────────────────────────────────────────
@@ -73,16 +72,21 @@ def test_stock_dividends_period_filters_and_skips_default_limit(monkeypatch):
     (inflation_decomposition.FREDInflationDecompositionFetcher, inflation_decomposition.InflationDecompositionQueryParams),
 ])
 def test_as_of_date_caps_every_fred_request(monkeypatch, fetcher_cls, qp_cls):
+    """FRED HTTP 는 FREDGenericSeriesFetcher 한 곳 — 거기서 나가는 요청마다 observation_end 를 본다."""
     ends = []
 
-    async def fake_series(*args, end_date=None, **kwargs):
-        ends.append(end_date)
-        return [{"date": "2020-03-13", "value": "1.0"}]
+    async def fake_request(url, params=None, **kwargs):
+        ends.append(params.get("observation_end"))
+        return {"observations": [{"date": "2020-03-13", "value": "1.0"}]}
 
-    monkeypatch.setattr(FredSeriesHelper, "fetch_series", staticmethod(fake_series))
+    async def no_sleep(_):
+        return None
+
+    monkeypatch.setattr("data_fetcher.utils.provider_helpers.amake_json_request", fake_request)
+    monkeypatch.setattr("data_fetcher.providers.fred.models.generic_series.asyncio.sleep", no_sleep)
     monkeypatch.setenv("FRED_API_KEY", "test")
     asyncio.run(fetcher_cls.aextract_data(qp_cls(date="2020-03-16"), credentials={"fred_api_key": "test"}))
-    assert ends and all(e == date(2020, 3, 16) for e in ends)
+    assert ends and all(e == "2020-03-16" for e in ends)
 
     ends.clear()
     asyncio.run(fetcher_cls.aextract_data(qp_cls(), credentials={"fred_api_key": "test"}))

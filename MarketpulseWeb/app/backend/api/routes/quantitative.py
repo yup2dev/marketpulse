@@ -5,7 +5,7 @@ from typing import Literal, Optional
 
 from fastapi import APIRouter, Query
 
-from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
+from data_fetcher.core.obbject import OBBject
 from data_fetcher.core import OBBject
 from data_fetcher.query_executor import QueryExecutor
 from app.backend.api.deps import route_handler
@@ -27,7 +27,7 @@ def _common(symbol: str, target: _TARGET, start_date, end_date):
 
 def _first_dict(raw) -> dict:
     """fetcher 결과(리스트)에서 첫 번째 항목을 dict로 반환 — 프론트는 dataPath: 'results.0' 으로 읽는다."""
-    items = raw.result if isinstance(raw, AnnotatedResult) else (raw or [])
+    items = OBBject.unwrap(raw) or []
     item = items[0] if items else None
     return item.model_dump(mode="json") if item else {}
 

@@ -32,14 +32,14 @@ async def _load_from_db() -> List[Dict]:
     """
     try:
         from data_fetcher.query_executor import QueryExecutor
-        from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
-
+        from data_fetcher.core.obbject import OBBject
+        
         raw = await QueryExecutor.fetch(
             provider="db",
             model="stock_list",
             params={"active_only": True},
         )
-        items = raw.result if isinstance(raw, AnnotatedResult) else raw
+        items = OBBject.unwrap(raw)
         if items:
             result = [
                 item.model_dump() if hasattr(item, "model_dump") else dict(item)

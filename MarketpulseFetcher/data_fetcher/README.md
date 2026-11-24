@@ -28,15 +28,16 @@ rows = await QueryExecutor.fetch("fred", "gdp", {"start_date": "2020-01-01"})
 ```
 data_fetcher/
 ├── query_executor.py        # 실행 진입점 (캐시·라우팅·위임)
-├── providers_init.py        # Provider 생성 + fetcher_dict 등록 (선택 의존성은 fail-soft)
+├── providers_init.py        # 각 패키지의 <p>_provider 를 모아 등록만 (선택 의존성은 fail-soft)
 ├── abstract_provider/
 │   ├── abstract/            # Fetcher, Api/Db/Compute/Library 베이스, BaseData/BaseQueryParams, Provider
 │   └── standard_models/     # model(category)별 공통 QueryParams/Data — provider 간 shape 통일
 ├── providers/<p>/
-│   ├── models/<model>.py    # model fetcher (예외 없이 여기)
-│   ├── utils/               # provider 전용 헬퍼
+│   ├── __init__.py          # <p>_provider = Provider(...) 정의 (OpenBB openbb_<p>/__init__.py 와 같음)
+│   ├── models/<model>.py    # model fetcher (예외 없이 여기). 시계열 API면 series.py 가 HTTP 하는 유일한 곳
+│   ├── utils/helpers.py     # 상수 · 코드 맵 · 순수 함수 (HTTP 없음)
 │   └── assets/              # 동봉 데이터 파일
-├── core/                    # OBBject 응답 래퍼, CommandRouter, warnings
+├── core/                    # OBBject 응답 래퍼 (AnnotatedResult 는 여기서만 푼다), CommandRouter, warnings
 ├── server/                  # Fetcher exe 측: 로컬 REST, 백엔드 WS 워커, 키스토어
 ├── utils/                   # api_keys, http_client, circuit_breaker, registry 등
 ├── assets/                  # exe 아이콘 / 키 관리 UI
@@ -60,7 +61,56 @@ class FMPThingFetcher(ApiFetcher[FMPThingQueryParams, FMPThingData]):
     def transform_data(query, data, **kwargs): return [FMPThingData(**r) for r in data]
 ```
 
-`QueryParams`/`Data`는 `standard_models/<model>.py`를 상속한다. 등록은 `providers_init.py`.
+`QueryParams`/`Data`는 `standard_models/<model>.py`를 상속한다. 등록은 `providers/<p>/__init__.py` 의
+`Provider(...)` fetcher_dict (새 provider 면 `providers_init.py` 의 `PROVIDERS` 에도).
+
+## 흐름 — OpenBB 식 (fred · kosis 적용)
+
+```
+지표 모델 (cpi · mining_manufacturing_index …)
+  aextract_data   helpers 코드 맵 → await <P>SeriesFetcher.fetch_data(dict(...), credentials)   ← HTTP 는 여기 안에서만
+  transform_data  지표 정규화 (category 키 · 단위 · yoy/mom) → AnnotatedResult(result, metadata)
+라우트 · 서비스
+  OBBject.from_result(raw, provider)   응답 (AnnotatedResult 풀기 · metadata 보존 · 직렬화)
+  OBBject.unwrap(raw) / metadata_of    모델 객체 그대로 계산할 때
+```
+
+- HTTP · 오류 코드 · 호출 간격(Semaphore + sleep) · 로그는 범용 series fetcher 한 곳 (`fred/models/generic_series.py`, `kosis/models/series.py`).
+- `utils/helpers.py` 에는 HTTP 를 두지 않는다 (OpenBB `fred_helpers.py` 처럼 상수 · 코드 맵 · 순수 함수).
+- 라우트 · 서비스 · provider 는 `isinstance(raw, AnnotatedResult)` 를 직접 쓰지 않는다 — `tests/test_response_envelope.py` 가 막는다.
+
+## TODO — 모든 provider 를 이 흐름으로
+
+2026-11 에 **provider 정의 위치**(22개 전부)와 **AnnotatedResult → OBBject**(전부)는 맞췄고,
+**HTTP 한 곳 + 지표 조합**은 fred · kosis 만 적용했다. 나머지 provider 도 같은 흐름으로 옮긴다.
+옮길 때는 실 API 로 모델 전부를 호출해 결과를 전후 비교한다 (fred 는 30개 중 28개 동일, 나머지 2개는 의도한 차이였다).
+
+| provider | 지금 HTTP 위치 | 할 일 |
+|---|---|---|
+| fmp | 모델 11개 각자 + `utils/helpers.py` | 범용 요청 fetcher 하나로 모으고 모델은 조합, helpers 에서 HTTP 제거 |
+| oecd | 모델 8개 각자 + `utils/helpers.py` | SDMX 범용 series fetcher + 지표 조합 |
+| imf | `utils/` 3곳 | SDMX 범용 series fetcher + 지표 조합 (자산 파일 fail-soft 유지) |
+| polygon | 모델 7개 각자 + `utils/helpers.py` | 범용 요청 fetcher + 모델 조합 |
+| sec | 모델 9개 + `utils/` 6곳 | EDGAR 요청(User-Agent · 초당 10건)을 한 곳으로, 파서는 utils 에 순수 함수로 |
+| bls · eia | `utils/helpers.py` | `series` fetcher 로 HTTP 이동 (bls 는 이미 series 모델 있음), helpers 는 순수 함수만 |
+| alphavantage · wsj · nasdaq | 모델마다 각자 | 범용 요청 fetcher + 모델 조합 |
+| tiingo · social · nasdaqtrader · bond · krx | 모델 1~2개 | 모델이 늘 때 같이 — 지금은 그대로 둬도 됨 |
+| yahoo · kis · database · quantlib · quantitative · whalewisdom | 라이브러리 · DB · 계산 · 전용 클라이언트 | 해당 없음 (HTTP 를 직접 하지 않거나 rest.py/stream.py 인프라) |
+
+바꾸지 않기로 한 것 (비용 > 이득): 키 필드 이름 `<p>_api_key` 통일(저장된 사용자 키 마이그레이션 필요),
+모델 키 · 표준 모델을 OpenBB 이름으로(`/api/data` 주소 · 위젯 · DB 위젯 행 · concepts 전부 영향).
+
+## TODO — 웹 백엔드(`MarketpulseWeb/app/backend`)도 OpenBB 식으로 (다음 단계)
+
+OpenBB 는 `openbb_core/app`(Router · CommandRunner · Query) + `openbb_core/api`(exception_handlers) 가 이 계층을 맡는다.
+지금 이 프로젝트와 다른 점과 할 일:
+
+| | OpenBB | 지금 | 할 일 |
+|---|---|---|---|
+| 엔드포인트 | `@router.command(model="ConsumerPriceIndex")` — 파라미터 · provider 선택지 · REST 경로를 표준 모델에서 자동 생성, 본문은 `return await OBBject.from_query(Query(**locals()))` 한 줄 | 영역별 라우트를 손으로 작성 (`macro.py` · `stock.py` …). 범용 게이트웨이 `/api/data/{p}/{m}` 와 `fundamental.py` 만 비슷 | 손 라우트를 표준 모델 기반 command 로 — 프론트 엔드포인트 주소가 바뀌므로 위젯 레지스트리 · DB 위젯 행과 같이 옮긴다 |
+| 가공 로직 | fetcher `transform_data` / 계산 command(`methods=["POST"]`, `OBBject(results=…)`) | `services/*` 가 QueryExecutor 를 불러 가공 · 캐시 | 서비스의 가공을 fetcher 로 (provider 를 거치는 것) 또는 계산 command 로 (거치지 않는 것) |
+| 실행 · 오류 | CommandRunner 가 OBBject 보장 · 경고 수집 · `OpenBBError` 로 감싸기, 전역 exception handler 가 HTTP 로 | `deps.route_handler` · 게이트웨이 try/except (키 없음 424 · Fetcher 꺼짐 503 · 서킷 OPEN 503) | 전역 exception handler 로 모은다 — 주소 변화 없이 내부만 바뀌어 먼저 하기 좋다 |
+| 빈 결과 | `EmptyDataError` → 204 | 빈 목록 200 (위젯 '데이터 없음') | 200 + 빈 목록 유지 (204 로 바꾸면 위젯 응답 처리가 달라진다) |
 
 ## 검증
 

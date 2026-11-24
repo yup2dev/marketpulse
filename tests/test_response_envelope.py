@@ -125,3 +125,58 @@ def test_not_found_still_surfaces(auth_client):
     assert client.get("/api/menu/does-not-exist").status_code == 404
     assert client.put("/api/notes/nope", json={"content": "x"}).status_code == 404
     assert client.delete("/api/watchlist/nope").status_code == 404
+
+
+# ── AnnotatedResult 는 OBBject 단에서만 푼다 ────────────────────────────────────
+
+from data_fetcher.abstract_provider.abstract.annotated_result import AnnotatedResult  # noqa: E402
+from data_fetcher.abstract_provider.abstract.data import BaseData  # noqa: E402
+from data_fetcher.core.obbject import OBBject  # noqa: E402
+
+
+class _Row(BaseData):
+    d: str
+    v: float
+
+
+def test_from_result_unwraps_annotated_result_and_keeps_metadata():
+    raw = AnnotatedResult(result=[_Row(d="2024-01-01", v=1.5)], metadata={"table_name": "T"})
+    obb = OBBject.from_result(raw, "kosis", metadata={"model": "series"})
+    assert obb.results == [{"d": "2024-01-01", "v": 1.5}]            # 모델 → dict 직렬화
+    assert obb.provider == "kosis"
+    assert obb.metadata == {"model": "series", "table_name": "T"}    # 넘긴 metadata 위에 fetcher metadata
+
+
+@pytest.mark.parametrize("raw,expected", [
+    ([{"a": 1}], [{"a": 1}]),          # dict 목록은 그대로
+    ({"a": 1}, [{"a": 1}]),            # 스냅샷 dict 하나 → 한 행 (예전 from_query 는 key 를 돌았다)
+    (_Row(d="x", v=2), [{"d": "x", "v": 2.0}]),
+    (None, []),
+    (AnnotatedResult(result=None), []),
+])
+def test_from_result_normalizes_shapes(raw, expected):
+    assert OBBject.from_result(raw, "p").results == expected
+
+
+def test_unwrap_keeps_model_objects():
+    rows = [_Row(d="x", v=1)]
+    assert OBBject.unwrap(AnnotatedResult(result=rows)) is rows      # 직렬화하지 않는다 (서비스 계산용)
+    assert OBBject.unwrap(rows) is rows and OBBject.unwrap(None) is None
+    assert OBBject.metadata_of(AnnotatedResult(result=rows, metadata={"k": 1})) == {"k": 1}
+    assert OBBject.metadata_of(rows) == {}                            # 목록이면 metadata 없음
+
+
+def test_no_annotated_result_isinstance_outside_obbject():
+    """라우트 · 서비스 · provider 가 isinstance(raw, AnnotatedResult) 를 직접 보면 안 된다
+    — OBBject.unwrap / metadata_of / from_result 를 쓴다. (fetcher 추상 계층 · OBBject · 전송 직렬화만 예외)"""
+    backend = ROUTES_DIR.parents[1]
+    providers = backend.parents[2] / "MarketpulseFetcher" / "data_fetcher" / "providers"
+    assert any(providers.glob("*/models/*.py")), f"provider 디렉터리를 못 찾음: {providers}"
+    offenders = []
+    for path in sorted([*backend.rglob("*.py"), *providers.rglob("*.py")]):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.Call) and getattr(node.func, "id", None) == "isinstance"
+                    and len(node.args) == 2 and getattr(node.args[1], "id", None) == "AnnotatedResult"):
+                offenders.append(f"{path.name}:{node.lineno}")
+    assert not offenders, f"OBBject.unwrap / OBBject.from_result 를 쓰세요: {offenders}"

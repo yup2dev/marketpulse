@@ -5,7 +5,6 @@ from fastapi import APIRouter, Depends, Query as FQuery
 from sqlalchemy.orm import Session
 
 from data_fetcher.core.obbject import OBBject
-from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
 from data_fetcher.query_executor import QueryExecutor
 from app.backend.api.deps import filter_dated_rows, resolve_date_range, route_handler
 from app.backend.core.db import get_db
@@ -32,11 +31,7 @@ async def get_news(
     if end:
         params["end_date"] = end
     raw = await QueryExecutor.fetch(provider, "news", params)
-    items = raw.result if isinstance(raw, AnnotatedResult) else (raw or [])
-    serialized = [
-        item.model_dump(mode="json") if hasattr(item, "model_dump") else item
-        for item in items
-    ]
+    serialized = OBBject.from_result(raw, provider).results
     if start or end:
         serialized = filter_dated_rows(serialized, start, end, key="published_utc")
     return OBBject(results=serialized[:limit], provider=provider)

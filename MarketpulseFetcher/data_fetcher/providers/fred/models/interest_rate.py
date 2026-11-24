@@ -10,8 +10,7 @@ from data_fetcher.abstract_provider.standard_models.fred_series import (
     FredSeriesQueryParams,
     FredSeriesData,
 )
-from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
-from data_fetcher.utils.api_keys import get_api_key
+from data_fetcher.providers.fred.models.generic_series import FREDGenericSeriesFetcher
 
 
 class InterestRateQueryParams(FredSeriesQueryParams):
@@ -79,7 +78,7 @@ class FREDInterestRateFetcher(ApiFetcher[InterestRateQueryParams, InterestRateDa
     """
     FRED (Federal Reserve Economic Data) Interest Rate Fetcher
 
-    Uses FredSeriesFetcher for common API logic.
+    Uses FREDGenericSeriesFetcher (the only FRED HTTP call) for observations.
     """
 
     api_name = "FRED"
@@ -96,23 +95,17 @@ class FREDInterestRateFetcher(ApiFetcher[InterestRateQueryParams, InterestRateDa
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any
     ) -> List[Dict[str, Any]]:
-        api_key = get_api_key(
-            credentials=credentials,
-            api_name="FRED",
-            env_var="FRED_API_KEY"
-        )
-
         rate_type = query.rate_type.lower()
         if rate_type not in FRED_SERIES_MAP:
             raise ValueError(f"Unsupported interest rate type: {rate_type}")
 
-        return await FredSeriesFetcher.fetch_series(
+        return [d.model_dump() for d in await FREDGenericSeriesFetcher.fetch_data(dict(
             series_id=FRED_SERIES_MAP[rate_type],
-            api_key=api_key,
             start_date=query.start_date,
             end_date=query.end_date,
             limit=400,
-        )
+            sort_order='desc',
+        ), credentials)]
 
     @staticmethod
     def transform_data(

@@ -35,6 +35,52 @@ class OBBject(BaseModel):
 
     model_config = {"arbitrary_types_allowed": True}
 
+    # ── fetcher 결과 다루기 — AnnotatedResult 는 여기서만 안다 ────────────────
+    # fetcher 는 List[Data] 또는 AnnotatedResult(result, metadata) 를 돌려준다.
+    # 라우트 · 서비스는 isinstance(raw, AnnotatedResult) 를 직접 보지 않고 아래 둘 중 하나를 쓴다.
+
+    @staticmethod
+    def unwrap(raw: Any) -> Any:
+        """fetcher 결과에서 데이터만 — AnnotatedResult 면 .result, 아니면 그대로. 직렬화하지 않는다.
+
+        모델 객체(속성 · 날짜 타입)를 그대로 써야 하는 서비스 계산용. 응답을 만들 때는 from_result.
+        """
+        return raw.result if isinstance(raw, AnnotatedResult) else raw
+
+    @staticmethod
+    def metadata_of(raw: Any) -> Dict[str, Any]:
+        """fetcher 결과의 metadata — AnnotatedResult 가 아니면 빈 dict. unwrap 과 짝."""
+        return dict(raw.metadata or {}) if isinstance(raw, AnnotatedResult) else {}
+
+    @classmethod
+    def from_result(
+        cls,
+        raw: Any,
+        provider: Optional[str] = None,
+        *,
+        metadata: Optional[Dict[str, Any]] = None,
+        warnings: Optional[List[str]] = None,
+    ) -> "OBBject":
+        """fetcher 결과 → OBBject (OpenBB OBBject.from_query 의 결과 처리부).
+
+          - AnnotatedResult  → result 추출 + metadata 보존 (넘긴 metadata 위에 덮는다)
+          - List[DataModel]  → model_dump(mode='json') 직렬화
+          - List[dict]       → 그대로
+          - dict · 모델 하나 → 한 행짜리 목록 (스냅샷)
+          - None             → 빈 목록
+        """
+        merged: Dict[str, Any] = dict(metadata or {})
+        if isinstance(raw, AnnotatedResult):
+            merged.update(raw.metadata or {})
+            raw = raw.result
+
+        items = raw if isinstance(raw, list) else ([raw] if raw is not None else [])
+        results = [
+            item.model_dump(mode="json") if hasattr(item, "model_dump") else item
+            for item in items
+        ]
+        return cls(results=results, provider=provider, warnings=list(warnings or []), metadata=merged)
+
     # ── 팩토리 ──────────────────────────────────────────────────────────────
     @classmethod
     async def from_query(cls, query: "Query") -> "OBBject":
@@ -54,29 +100,9 @@ class OBBject(BaseModel):
             raw = await query.execute()
             collected_warnings = wc.warnings
 
-        # AnnotatedResult 언래핑
-        extra_metadata: Dict[str, Any] = {}
-        if isinstance(raw, AnnotatedResult):
-            extra_metadata = raw.metadata or {}
-            raw = raw.result
-
-        # Pydantic 모델 → dict 직렬화
-        serialized: List[Any] = []
-        for item in (raw or []):
-            if hasattr(item, "model_dump"):
-                serialized.append(item.model_dump(mode="json"))
-            elif isinstance(item, dict):
-                serialized.append(item)
-            else:
-                serialized.append(item)
-
-        return cls(
-            results=serialized,
-            provider=query.provider,
+        return cls.from_result(
+            raw,
+            query.provider,
+            metadata={"model": query.model, "params": query.params},
             warnings=collected_warnings,
-            metadata={
-                "model": query.model,
-                "params": query.params,
-                **extra_metadata,
-            },
         )

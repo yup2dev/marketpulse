@@ -10,8 +10,7 @@ from data_fetcher.abstract_provider.standard_models.unemployment import (
     UnemploymentQueryParams as BaseUnemploymentQueryParams,
     UnemploymentData as BaseUnemploymentData,
 )
-from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
-from data_fetcher.utils.api_keys import get_api_key
+from data_fetcher.providers.fred.models.generic_series import FREDGenericSeriesFetcher
 
 
 class FredUnemploymentQueryParams(BaseUnemploymentQueryParams):
@@ -66,7 +65,7 @@ class FREDUnemploymentFetcher(ApiFetcher[FredUnemploymentQueryParams, FredUnempl
     """
     FRED (Federal Reserve Economic Data) Unemployment Rate Fetcher
 
-    Uses FredSeriesFetcher for common API logic.
+    Uses FREDGenericSeriesFetcher (the only FRED HTTP call) for observations.
     """
 
     api_name = "FRED"
@@ -83,25 +82,19 @@ class FREDUnemploymentFetcher(ApiFetcher[FredUnemploymentQueryParams, FredUnempl
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any
     ) -> List[Dict[str, Any]]:
-        api_key = get_api_key(
-            credentials=credentials,
-            api_name="FRED",
-            env_var="FRED_API_KEY"
-        )
-
         if query.country != 'US':
             log.warning(f"Only US unemployment rate is supported via FRED, got {query.country}")
 
         age_group = getattr(query, 'age_group', 'all').lower()
         series_key = AGE_GROUP_MAP.get(age_group, 'total')
 
-        observations = await FredSeriesFetcher.fetch_series(
+        observations = [d.model_dump() for d in await FREDGenericSeriesFetcher.fetch_data(dict(
             series_id=FRED_SERIES_MAP[series_key],
-            api_key=api_key,
             start_date=query.start_date,
             end_date=query.end_date,
             limit=400,
-        )
+            sort_order='desc',
+        ), credentials)]
 
         # 보조 시리즈 (참가율, 고용률) → 날짜별 맵
         aux_maps: Dict[str, Dict[str, float]] = {'participation': {}, 'employment': {}}
@@ -111,13 +104,13 @@ class FREDUnemploymentFetcher(ApiFetcher[FredUnemploymentQueryParams, FredUnempl
         }
         for key, sid in labor_series.items():
             try:
-                aux_obs = await FredSeriesFetcher.fetch_series(
+                aux_obs = [d.model_dump() for d in await FREDGenericSeriesFetcher.fetch_data(dict(
                     series_id=sid,
-                    api_key=api_key,
                     start_date=query.start_date,
                     end_date=query.end_date,
                     limit=400,
-                )
+                    sort_order='desc',
+                ), credentials)]
                 aux_maps[key] = {
                     o['date']: float(o['value'])
                     for o in aux_obs

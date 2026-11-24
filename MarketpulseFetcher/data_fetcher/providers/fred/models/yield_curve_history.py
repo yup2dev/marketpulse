@@ -8,8 +8,7 @@ from data_fetcher.abstract_provider.standard_models.yield_curve import (
     YieldCurveQueryParams,
     YieldCurveHistoryData,
 )
-from data_fetcher.providers.fred.utils.helpers import FredSeriesHelper as FredSeriesFetcher
-from data_fetcher.utils.api_keys import get_api_key
+from data_fetcher.providers.fred.models.generic_series import FREDGenericSeriesFetcher
 
 
 class YieldCurveHistoryQueryParams(YieldCurveQueryParams):
@@ -50,17 +49,15 @@ class FREDYieldCurveHistoryFetcher(ApiFetcher[YieldCurveHistoryQueryParams, Yiel
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any,
     ) -> Dict[str, List[Dict]]:
-        api_key = get_api_key(credentials=credentials, api_name="FRED", env_var="FRED_API_KEY")
         raw: Dict[str, List[Dict]] = {}
         for key, series_id in _SERIES_MAP.items():
             try:
-                raw[key] = await FredSeriesFetcher.fetch_series(
+                raw[key] = [d.model_dump() for d in await FREDGenericSeriesFetcher.fetch_data(dict(
                     series_id=series_id,
-                    api_key=api_key,
                     start_date=query.start_date,
                     end_date=query.end_date,
                     sort_order="asc",
-                )
+                ), credentials)]
             except Exception as e:
                 log.warning(f"[YieldCurveHistory] {series_id} failed: {e}")
                 raw[key] = []
