@@ -85,6 +85,7 @@ SERIES_COMPOSITION = {
     "kosis/models/ict_exports.py",
     "kosis/models/mining_manufacturing_index.py",
     "kosis/models/product_trade.py",
+    "sec/models/insider_trading.py",          # sec/utils/form4 를 거쳐 filings 목록
     "sec/models/institutional_13f.py",
     "sec/models/management_discussion_analysis.py",
     "sec/utils/form4.py",
@@ -113,7 +114,12 @@ ANALYSIS_TO_COMMAND = {
     "fred/models/yield_curve_history.py",
     "polygon/models/sentiment.py",
     "quantitative/models/correlation.py",
-    "quantitative/utils/prices.py",
+    "quantitative/utils/prices.py",          # yahoo 시세를 QueryExecutor 로 — 아래 quantitative 모델이 이걸 쓴다
+    "quantitative/models/capm.py",
+    "quantitative/models/normality.py",
+    "quantitative/models/rolling.py",
+    "quantitative/models/summary.py",
+    "quantitative/models/unitroot.py",
     # 13F 는 서버에서 파싱하지 않는다 — 이 셋은 command 가 아니라 로컬 배치(적재 테이블)로 옮긴다
     "sec/models/fund_performance.py",
     "whalewisdom/models/institutional_holdings.py",
@@ -123,8 +129,8 @@ ANALYSIS_TO_COMMAND = {
 _FETCH_METHODS = {"fetch_data", "afetch_data", "aextract_data", "extract_data"}
 
 
-def _fetcher_calls(path: Path):
-    """fetcher 파일 안에서 QueryExecutor · 다른 fetcher 를 부르는 곳 (줄, 설명)."""
+def _direct_calls(path: Path):
+    """파일 안에서 QueryExecutor · 다른 fetcher 를 직접 부르는 곳 (줄, 설명)."""
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     own_classes = {n.name for n in ast.walk(tree) if isinstance(n, ast.ClassDef)}
     for node in ast.walk(tree):
@@ -139,6 +145,32 @@ def _fetcher_calls(path: Path):
               and isinstance(node.value, ast.Name) and node.value.id.endswith("Fetcher")
               and node.value.id not in own_classes):
             yield node.lineno, f"{node.value.id}.{node.attr}"
+
+
+def _module_name(path: Path) -> str:
+    return "data_fetcher.providers." + ".".join(path.relative_to(PROVIDERS_DIR).with_suffix("").parts)
+
+
+_TAINTED: dict = {}
+
+
+def _tainted_helpers() -> set:
+    """직접 위반이 있는 헬퍼 모듈 (models/ 밖, 예: quantitative/utils/prices.py) — 이걸 쓰면 간접 위반."""
+    if not _TAINTED:
+        _TAINTED["mods"] = {
+            _module_name(p) for p in _provider_files()
+            if "models" not in p.relative_to(PROVIDERS_DIR).parts and list(_direct_calls(p))
+        }
+    return _TAINTED["mods"]
+
+
+def _fetcher_calls(path: Path):
+    """fetcher 안에서 QueryExecutor · 다른 fetcher 를 부르는 곳 — 헬퍼를 거친 간접 호출도."""
+    yield from _direct_calls(path)
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module in _tainted_helpers():
+            yield node.lineno, f"via {node.module}"
 
 
 def _provider_files():
