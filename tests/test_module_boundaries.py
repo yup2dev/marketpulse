@@ -121,10 +121,6 @@ ANALYSIS_TO_COMMAND = {
     "quantitative/models/rolling.py",
     "quantitative/models/summary.py",
     "quantitative/models/unitroot.py",
-    # 13F 는 서버에서 파싱하지 않는다 — 이 셋은 command 가 아니라 로컬 배치(적재 테이블)로 옮긴다
-    "sec/models/fund_performance.py",
-    "whalewisdom/models/institutional_holdings.py",
-    "whalewisdom/models/institutions_list.py",
 }
 
 # 다른 fetcher 를 부르지 않고 받은 값으로 직접 분석하는 것 (호출 검사로는 안 잡힌다).

@@ -6,7 +6,7 @@ NAT/방화벽 뒤에서도 동작한다 — 연결을 먼저 여는 쪽이 Fetch
 흐름:
     Fetcher → wss://.../ws/fetcher?token=<로그인 JWT> 로 접속
     백엔드  → {"type": "fetch", "id", "provider", "model", "params"}
-    Fetcher → QueryExecutor.fetch(...) 로컬 실행 (Class A: yahoo/whalewisdom 등 keyless 스크래핑)
+    Fetcher → QueryExecutor.fetch(...) 로컬 실행 (Class A: yahoo 등 keyless 스크래핑, 13F 원본 파싱)
     Fetcher → {"type": "fetch_result"|"fetch_error", "id", ...}
 
 토큰은 매 접속 시점에 token_provider()로 새로 읽는다. 데스크톱 앱이 로그인/갱신 때

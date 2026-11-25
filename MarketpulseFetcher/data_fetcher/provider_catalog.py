@@ -57,7 +57,6 @@ _INFO: Dict[str, Dict[str, Any]] = {
     "bls": {"label": "US BLS", "desc": "미국 노동 · 물가 통계"},
     "wsj": {"label": "Wall Street Journal", "desc": "시장 지표"},
     "krx": {"label": "KRX", "desc": "한국거래소 종목 · 시세"},
-    "whalewisdom": {"label": "WhaleWisdom", "desc": "기관 13F 보유 현황"},
     "database": {"label": "MarketPulse DB", "desc": "적재된 시세 · 기관 데이터"},
 }
 

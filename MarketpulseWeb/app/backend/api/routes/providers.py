@@ -19,7 +19,7 @@ _PROVIDER_GROUP_FALLBACK: Dict[str, str] = {
     "fred": "macro", "bls": "macro", "eia": "macro", "oecd": "macro", "imf": "macro", "bond": "macro",
     "kosis": "macro",
     "yahoo": "stock", "fmp": "stock", "polygon": "stock", "alphavantage": "stock",
-    "tiingo": "stock", "whalewisdom": "stock", "sec": "stock", "wsj": "stock",
+    "tiingo": "stock", "sec": "stock", "wsj": "stock",
     "kis": "stock", "krx": "stock", "nasdaqtrader": "stock", "database": "stock", "db": "stock", "social": "stock",
     "quantitative": "quant", "quantlib": "quant",
 }

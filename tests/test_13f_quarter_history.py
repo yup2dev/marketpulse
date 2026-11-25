@@ -50,47 +50,70 @@ def test_unloaded_period_is_empty(tmp_path):
     assert _fetch(_fetcher_db(tmp_path), period="2020-03-31") == []
 
 
-def test_whalewisdom_finds_filing_and_previous_by_report_period(monkeypatch):
-    from data_fetcher.providers.sec.models.fund_performance import SECFundPerformanceFetcher
-    from data_fetcher.providers.whalewisdom.models import institutional_holdings as ww
+_FILINGS = [
+    {"accession": "0001-26-000003", "filing_date": "2026-05-15", "period": "2026-03-31"},
+    {"accession": "0001-26-000002", "filing_date": "2026-02-14", "period": "2025-12-31"},
+    {"accession": "0001-25-000001", "filing_date": "2025-11-14", "period": "2025-09-30"},
+]
 
-    filings = [
-        {"accession": "0001-26-000003", "filing_date": "2026-05-15", "period": "2026-03-31"},
-        {"accession": "0001-26-000002", "filing_date": "2026-02-14", "period": "2025-12-31"},
-        {"accession": "0001-25-000001", "filing_date": "2025-11-14", "period": "2025-09-30"},
-    ]
-    monkeypatch.setattr(SECFundPerformanceFetcher, "_list_13f_filings", staticmethod(lambda cik, limit: filings))
-    out = ww.filings_for_period("1067983", "2025-12-31")
-    assert [d for _, d in out] == ["2026-02-14", "2025-11-14"]       # 그 분기 + 직전 분기
-    assert out[0][0].endswith("/1067983/000126000002/0001-26-000002-index.htm")
-    assert ww.filings_for_period("1067983", "2019-12-31") == []
+
+def _fake_sec(monkeypatch):
+    """SEC 호출 없이 — 공시 목록 · 파싱을 바꾸고, 어느 인덱스 URL 을 파싱했는지 기록한다."""
+    from data_fetcher.providers.sec.models import institutional_13f as m
+
+    parsed = []
+    monkeypatch.setattr(m, "list_13f_filings", lambda cik, limit: _FILINGS[:limit])
+    monkeypatch.setattr(m.SEC13FFetcher, "_resolve_institution",
+                        staticmethod(lambda k: {"cik": "1067983", "name": "Berkshire", "manager": "Buffett"}))
+    monkeypatch.setattr(m.time, "sleep", lambda s: None)
+
+    def parse(url, headers, filing_date=None):
+        parsed.append(url)
+        return [{"cusip": "X", "value": 1.0, "shares": 1, "share_type": "SH"}], filing_date
+
+    monkeypatch.setattr(m.SEC13FFetcher, "_parse_filing", staticmethod(parse))
+    return m, parsed
+
+
+def test_sec_13f_picks_report_period_and_previous(monkeypatch):
+    m, parsed = _fake_sec(monkeypatch)
+    [f] = m.SEC13FFetcher.fetch_data_sync({"institution_key": "berkshire", "period": "2025-12-31"})
+    assert (f.report_period, f.filing_date) == ("2025-12-31", "2026-02-14")           # 그 분기
+    assert (f.previous_report_period, f.previous_filing_date) == ("2025-09-30", "2025-11-14")  # 직전 분기
+    assert parsed[0].endswith("/1067983/000126000002/0001-26-000002-index.htm")
+    assert f.holdings and "weight" not in f.holdings[0]                              # 원본 라인 — 계산 없음
+
+    parsed.clear()
+    [latest] = m.SEC13FFetcher.fetch_data_sync({"institution_key": "berkshire", "with_previous": False})
+    assert latest.report_period == "2026-03-31" and latest.previous_holdings == [] and len(parsed) == 1
+    import pytest
+    with pytest.raises(Exception):
+        m.SEC13FFetcher.fetch_data_sync({"institution_key": "berkshire", "period": "2019-12-31"})
 
 
 def test_batch_history_parses_only_missing_quarters(monkeypatch):
-    from data_fetcher.providers.sec.models.fund_performance import SECFundPerformanceFetcher
-    from data_fetcher.providers.sec.models.institutional_13f import SEC13FFetcher
     from index_analyzer.collectors.institutional import holdings_13f as h
 
     monkeypatch.setattr(h, "_rate_gate", lambda *a, **k: None)
-    monkeypatch.setattr(SEC13FFetcher, "_resolve_institution", staticmethod(lambda k: {"cik": "1"}))
-    monkeypatch.setattr(SECFundPerformanceFetcher, "_list_13f_filings", staticmethod(
-        lambda cik, limit: [{"period": "2026-03-31"}, {"period": "2025-12-31"}]))
     monkeypatch.setattr(h, "stored_institution_periods", lambda k: {"2025-12-31"})
     asked, stored = [], []
 
-    class _P:
-        stocks = [object()]
-
     def fake_fetch(self, model, params, provider=""):
+        if model == "13f_filings":
+            return [{"period": "2026-03-31"}, {"period": "2025-12-31"}]
         asked.append(params.get("period"))
-        return [_P()]
+        return [{"institution_key": "berkshire", "filing_date": "2026-05-15", "report_period": params.get("period"),
+                 "holdings": [{"cusip": "X", "symbol": "AAPL", "name": "Apple", "value": 10.0, "shares": 1,
+                               "share_type": "SH"}]}]
 
     monkeypatch.setattr(h.Institutional13FCollector, "_fetch_sync", fake_fetch)
-    monkeypatch.setattr(h, "_serialize_portfolio", lambda p: {"stocks": []})
-    monkeypatch.setattr(h, "store_institution_history", lambda k, period, port: stored.append(period))
+    monkeypatch.setattr(h, "store_institution_history", lambda k, period, port: stored.append((period, port)))
 
     assert h.Institutional13FCollector()._store_history("berkshire") == 1
-    assert asked == ["2026-03-31"] and stored == ["2026-03-31"]
+    assert asked == ["2026-03-31"]
+    [(period, port)] = stored
+    assert period == "2026-03-31" and port["period_end"] == "2026-03-31"
+    assert port["stocks"][0]["weight"] == 100.0                     # 비중은 배치가 계산
 
 
 def test_ingest_upserts_history_rows_without_updated_at(db_session):
