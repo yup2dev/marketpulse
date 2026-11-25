@@ -179,3 +179,17 @@ def test_screen_stocks_merges_prices_then_price_filters(db_session, monkeypatch)
     # 가격 조건은 시세를 붙인 뒤에 건다 — 시세 없는 종목은 빠진다
     rows = asyncio.run(svc.ScreenerService.screen_stocks({"sector": ["Technology"], "change_pct_min": 1}))
     assert [r["stk_cd"] for r in rows] == ["AAPL"]
+
+
+# ── 기간 랭킹 ─────────────────────────────────────────────────────────────────
+
+def test_stock_ranking_market_sort_limit(db_session):
+    for cd, curr, chg in (("AAA", "USD", 3.0), ("BBB", "USD", -1.0), ("CCC", "KRW", 5.0), ("DDD", "USD", 1.0)):
+        db_session.add(MBS_IN_STK_STBD(stk_cd=cd, stk_nm=cd, curr=curr, close_price=Decimal("10"),
+                                       change_rate=Decimal(str(chg)), base_ymd=date(2026, 11, 21)))
+    db_session.commit()
+    gainers = rows_sync("db", "stock_ranking", period="1d", sort_by="gainers")
+    assert [r.stk_cd for r in gainers] == ["CCC", "AAA", "DDD"]          # 내린 종목은 빠진다
+    us = rows_sync("db", "stock_ranking", period="1d", market="overseas", sort_by="gainers", limit=1)
+    assert [r.stk_cd for r in us] == ["AAA"]
+    assert [r.stk_cd for r in rows_sync("db", "stock_ranking", period="1d", sort_by="losers")] == ["BBB"]

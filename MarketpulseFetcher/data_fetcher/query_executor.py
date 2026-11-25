@@ -163,6 +163,7 @@ _DEFAULT_TTL: Dict[str, int] = {
     "income_statement":       3600,
     "index_constituents":     7200,
     "stock_list":             7200,
+    "stock_ranking":           300,  # 일별 시계열로 계산 — 적재는 하루 한 번
     "listing":               21600,  # universe (nasdaqtrader/krx) — 일 갱신, 6h 캐시
     "bond":                  21600,  # KR 국고채 벤치마크 (krx) — 일 갱신
     "institutional_holdings": 3600,
