@@ -80,6 +80,9 @@ SERIES_COMPOSITION = {
     "fred/models/nonfarm_payroll.py",
     "fred/models/pmi.py",
     "fred/models/retail_sales.py",
+    "fred/models/real_rates.py",            # 여러 시리즈를 날짜로 모으기만 (계산 없음)
+    "fred/models/yield_curve.py",
+    "fred/models/yield_curve_history.py",
     "fred/models/unemployment.py",
     "kosis/models/capacity_utilization.py",
     "kosis/models/ict_exports.py",
@@ -105,13 +108,10 @@ ANALYSIS_TO_COMMAND = {
     "fred/models/jobs_breakdown.py",
     "fred/models/labor_dashboard.py",
     "fred/models/phillips_curve.py",
-    "fred/models/real_rates.py",
     "fred/models/regime_current.py",
     "fred/models/regime_history.py",
     "fred/models/sentiment_composite.py",
     "fred/models/sentiment_history.py",
-    "fred/models/yield_curve.py",
-    "fred/models/yield_curve_history.py",
     "polygon/models/sentiment.py",
     "quantitative/models/correlation.py",
     "quantitative/utils/prices.py",          # yahoo 시세를 QueryExecutor 로 — 아래 quantitative 모델이 이걸 쓴다
