@@ -4,6 +4,7 @@
     indicator_history         주요 지표 하나의 시계열 (indicator=gdp | unemployment | …)
     macro_series_overview     추가 시리즈(통화량 · 신용 · 금리 · 무역 · 부동산 · 원자재)의 최신값 + 변화율
     macro_series_history      추가 시리즈 하나의 시계열 (series=money_supply_m2 | …)
+    corporate_profits_gdp     세후 기업이익(CPATAX) ÷ 명목 GDP (%) — 재정수지 %GDP 와 같은 축으로 비교
 
 주요 지표는 지표별 fred fetcher(gdp · cpi …)를, 추가 시리즈는 generic series 를 부른다.
 """
@@ -218,3 +219,35 @@ class FREDMacroSeriesHistoryFetcher(ApiFetcher[MacroSeriesHistoryQueryParams, Li
     def transform_data(query: MacroSeriesHistoryQueryParams, data: List[Dict[str, Any]],
                        **kwargs: Any) -> List[DatedValue]:
         return [DatedValue(date=r["date"], value=r.get("value")) for r in data if r.get("date")]
+
+
+# ── 기업이익 %GDP ─────────────────────────────────────────────────────────────
+
+class DateRangeQueryParams(BaseQueryParams):
+    start_date: Optional[dateType] = Field(default=None, description="시작일")
+    end_date: Optional[dateType] = Field(default=None, description="종료일")
+
+
+class FREDCorporateProfitsGDPFetcher(ApiFetcher[DateRangeQueryParams, List[DatedValue]]):
+    """세후 기업이익(CPATAX)을 같은 분기 명목 GDP 대비 % 로."""
+
+    @staticmethod
+    def transform_query(params: Dict[str, Any]) -> DateRangeQueryParams:
+        return DateRangeQueryParams(**params)
+
+    @staticmethod
+    async def aextract_data(query: DateRangeQueryParams, credentials: Optional[Dict[str, str]] = None,
+                            **kwargs: Any) -> List[Dict[str, Any]]:
+        params = {"series_id": "CPATAX,GDP", "start_date": query.start_date, "end_date": query.end_date}
+        return [r.model_dump() for r in await FREDGenericSeriesFetcher.fetch_data(
+            {k: v for k, v in params.items() if v is not None}, credentials)]
+
+    @staticmethod
+    def transform_data(query: DateRangeQueryParams, data: List[Dict[str, Any]],
+                       **kwargs: Any) -> List[DatedValue]:
+        gdp = {r["date"]: r["value"] for r in data if r.get("series_id") == "GDP" and r.get("value")}
+        return [
+            DatedValue(date=r["date"], value=round(r["value"] / gdp[r["date"]] * 100, 2))
+            for r in sorted(data, key=lambda r: r["date"])
+            if r.get("series_id") == "CPATAX" and r.get("value") is not None and gdp.get(r["date"])
+        ]

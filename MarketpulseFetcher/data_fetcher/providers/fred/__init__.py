@@ -32,7 +32,7 @@ from data_fetcher.providers.fred.models.inflation_decomposition import FREDInfla
 from data_fetcher.providers.fred.models.regime_current import FREDRegimeCurrentFetcher
 from data_fetcher.providers.fred.models.indicators import (
     FREDIndicatorHistoryFetcher, FREDIndicatorOverviewFetcher,
-    FREDMacroSeriesHistoryFetcher, FREDMacroSeriesOverviewFetcher,
+    FREDMacroSeriesHistoryFetcher, FREDMacroSeriesOverviewFetcher, FREDCorporateProfitsGDPFetcher,
 )
 
 
@@ -76,6 +76,7 @@ fred_provider = Provider(
         "indicator_history":            FREDIndicatorHistoryFetcher,
         "macro_series_overview":        FREDMacroSeriesOverviewFetcher,
         "macro_series_history":         FREDMacroSeriesHistoryFetcher,
+        "corporate_profits_gdp":        FREDCorporateProfitsGDPFetcher,
     },
     metadata={
         "rate_limit": "120 requests/minute",

@@ -99,3 +99,37 @@ def test_macro_routes_have_no_service_layer():
     for p in ("/api/macro/indicators/overview", "/api/macro/fred/series", "/api/macro/forex/rates",
               "/api/macro/regime/current", "/api/macro/bonds"):
         assert p in paths
+
+
+def test_corporate_profits_pct_gdp(monkeypatch):
+    fake = _fake_fetch([
+        {"date": "2026-04-01", "value": 3000.0, "series_id": "CPATAX"},
+        {"date": "2026-04-01", "value": 30000.0, "series_id": "GDP"},
+        {"date": "2026-07-01", "value": 3300.0, "series_id": "CPATAX"},          # GDP 없는 분기는 빠진다
+    ])
+    monkeypatch.setattr(ind.FREDGenericSeriesFetcher, "fetch_data", fake)
+    rows = _run("fred", "corporate_profits_gdp", {"start_date": "2026-01-01"})
+    assert [(r.date, r.value) for r in rows] == [(date(2026, 4, 1), 10.0)]
+    assert fake.calls[0]["series_id"] == "CPATAX,GDP"
+
+
+def test_yahoo_compare_rows_and_partial_failure(monkeypatch):
+    from data_fetcher.providers.yahoo.models import compare as cmp
+
+    async def quote(params, credentials=None, **kwargs):
+        if params["symbol"] == "BAD":
+            raise RuntimeError("down")
+        return [{"price": 10.0, "change_percent": 1.5, "volume": 100}]
+
+    async def metrics(params, credentials=None, **kwargs):
+        return [{"symbol": params["symbol"], "pe_ratio": 20.0, "net_margin": 0.3, "week_52_high": 12.0}]
+
+    monkeypatch.setattr(cmp.YFinanceQuoteFetcher, "fetch_data", quote)
+    monkeypatch.setattr(cmp.YFinanceKeyMetricsFetcher, "fetch_data", metrics)
+    monkeypatch.setattr(QueryExecutor, "_remote", None)            # 위임 transport 없음 → 직접 실행
+    rows = asyncio.run(cmp.YFinanceCompareFetcher.fetch_data({"symbols": "aapl,bad"}))
+    assert rows[0].symbol == "AAPL" and rows[0].price == 10.0 and rows[0].profit_margin == 0.3
+    assert rows[0].week_52_high == 12.0
+    assert rows[1].symbol == "BAD" and rows[1].error
+    with pytest.raises(Exception):
+        cmp.YFinanceCompareFetcher.transform_query({"symbols": "AAPL"})        # 2~4개
