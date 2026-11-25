@@ -79,6 +79,10 @@ export const providersAPI = {
 // 사용자 정의 위젯 (API → 매핑 → 위젯 → 화면 등록). 정의 목록은 store/userWidgetStore 가 들고 있다.
 export const userWidgetsAPI = {
   codes:  ()         => apiClient.get(`${API_BASE}/user-widgets/codes`),
+  // 데이터 카탈로그 (DB) — 고를 수 있는 (provider, model) 목록 · 그 쌍의 파라미터 · 응답 필드
+  catalog: ()        => apiClient.get(`${API_BASE}/user-widgets/catalog`),
+  catalogEntry: (provider, model) =>
+    apiClient.get(`${API_BASE}/user-widgets/catalog/${encodeURIComponent(provider)}/${encodeURIComponent(model)}`),
   builtin: ()        => apiClient.get(`${API_BASE}/user-widgets/builtin`),
   screenGroups: ()   => apiClient.get(`${API_BASE}/user-widgets/screen-groups`),   // OBBject — 화면 단위 파라미터 그룹
   list:   ()         => apiClient.get(`${API_BASE}/user-widgets`),
@@ -109,6 +113,42 @@ export const schemaAPI = {
       }));
     }
     return _schemaPromises.get(key);
+  },
+
+  /**
+   * 위젯 만들기용 — 카탈로그(DB) 행을 /schema 와 같은 모양으로 준다 ({ accepts_symbol, params, fields, source }).
+   * 선택지를 그때그때 받는 파라미터(dynamic_yn=Y)가 있을 때만 /schema 를 불러 선택지를 얹는다.
+   * 카탈로그에 없는 쌍(동기화 전 · 빠진 API)은 /schema 로 대신하고 source='gateway' 로 알린다.
+   */
+  fromCatalog: async (provider, model) => {
+    let entry;
+    try {
+      entry = await userWidgetsAPI.catalogEntry(provider, model);
+    } catch (e) {
+      if (e?.status !== 404) throw e;
+      return { ...(await schemaAPI.get(provider, model)), source: 'gateway' };
+    }
+    const params = entry.params.map((p) => ({
+      name: p.param_name,
+      kind: p.kind,
+      required: p.required_yn === 'Y',
+      default: p.default_value,
+      options: p.choices || undefined,
+      hint: p.hint,
+      dynamic: p.dynamic_yn === 'Y',
+    }));
+    if (params.some((p) => p.dynamic)) {
+      try {
+        const live = new Map(((await schemaAPI.get(provider, model)).params || []).map((p) => [p.name, p]));
+        for (const p of params) if (p.dynamic && live.get(p.name)?.options) p.options = live.get(p.name).options;
+      } catch { /* 선택지 없이도 입력칸으로 쓸 수 있다 */ }
+    }
+    return {
+      accepts_symbol: params.some((p) => p.name === 'symbol' || p.name === 'ticker'),
+      params,
+      fields: entry.fields.map((f) => ({ name: f.field_name, kind: f.kind, description: f.description })),
+      source: 'catalog',
+    };
   },
 };
 

@@ -6,14 +6,16 @@
  *   ③ 위젯     보여 줄 위젯 종류, 이름, 내놓을 화면
  *
  * 오른쪽 미리보기는 실제 위젯(UniversalWidget)을 같은 설정으로 그린 것이다 — 저장하면 그대로 나온다.
- * 선택지는 전부 서버 코드값(codes)에서 온다 — '보여 줄 위젯' 은 관리자가 고치는 위젯 종류 목록이다. API 목록·파라미터·필드는 게이트웨이 메타에서 온다.
+ * 선택지는 전부 서버 코드값(codes)에서 온다 — '보여 줄 위젯' 은 관리자가 고치는 위젯 종류 목록이다.
+ * 데이터 목록·파라미터·필드는 데이터 카탈로그(DB, /api/user-widgets/catalog)에서 온다. OpenBB coverage 처럼
+ * 데이터(model)를 먼저 고르고 그 데이터를 주는 출처(provider)를 고른다. 동적 선택지만 /schema 에서 받는다.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, Eye, RefreshCw, Save, X } from 'lucide-react';
 import { notify } from '../../common';
 import UniversalWidget from '../../widget/render/UniversalWidget';
 import { Select, INPUT_CLS, periodLabel } from '../../common/widget';
-import { apiClient, API_BASE, schemaAPI } from '../../common';
+import { apiClient, API_BASE, schemaAPI, userWidgetsAPI } from '../../common';
 import { toWidgetConfig, viewKind, ALL_SCREENS } from '../../widget/registry/userWidgets';
 import { normalizeTableRows } from '../../widget/render/autoRender';
 import useUserWidgetStore from '../../store/userWidgetStore';
@@ -139,7 +141,7 @@ function ValueInput({ spec, value, onChange, placeholder }) {
 
 export default function WidgetEditor({ initial, codes, variables, onDone, onCancel }) {
   const [draft, setDraft] = useState(initial);
-  const [catalog, setCatalog] = useState([]);     // /api/data/ — [{ provider, models: [{ model }] }]
+  const [catalog, setCatalog] = useState([]);     // 카탈로그 — [{ provider, model, provider_name, key_yn, param_count, field_count }]
   const [schema, setSchema] = useState(null);
   const [saving, setSaving] = useState(false);
   const [sampling, setSampling] = useState(false);
@@ -152,9 +154,9 @@ export default function WidgetEditor({ initial, codes, variables, onDone, onCanc
   useEffect(() => { draftRef.current = draft; }, [draft]);
 
   useEffect(() => {
-    apiClient.get(`${API_BASE}/data/`)
-      .then((r) => setCatalog(r.results || []))
-      .catch(() => notify.error('API 목록을 불러오지 못했습니다'));
+    userWidgetsAPI.catalog()
+      .then((r) => setCatalog(r.items || []))
+      .catch(() => notify.error('데이터 목록을 불러오지 못했습니다'));
   }, []);
 
   // API 를 고르면 그 스키마로 파라미터·필드 행을 만든다.
@@ -166,7 +168,7 @@ export default function WidgetEditor({ initial, codes, variables, onDone, onCanc
     let alive = true;
     const [provider, model] = apiKey.split('/');
     setSchema(null);
-    schemaAPI.get(provider, model)
+    schemaAPI.fromCatalog(provider, model)
       .then((s) => {
         if (!alive) return;
         const keepSaved = apiKey === initialKey && initial.widget_id;
@@ -184,20 +186,50 @@ export default function WidgetEditor({ initial, codes, variables, onDone, onCanc
   }, [apiKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const specByName = useMemo(() => new Map((schema?.params || []).map((p) => [p.name, p])), [schema]);
-  const fieldKind = useMemo(() => new Map((schema?.fields || []).map((f) => [f.name, f.kind])), [schema]);
+  const fieldSpec = useMemo(() => new Map((schema?.fields || []).map((f) => [f.name, f])), [schema]);
 
-  const providerOptions = useMemo(
-    () => catalog.map((p) => ({
-      value: p.provider,
-      label: p.provider.toUpperCase(),
-      note: p.credentials_required ? 'Key' : undefined,
-    })),
-    [catalog],
-  );
+  // 데이터(model) → 그 데이터를 주는 출처들. 카탈로그가 모델 · 출처 순으로 온다.
+  const providersByModel = useMemo(() => {
+    const m = new Map();
+    for (const row of catalog) {
+      if (!m.has(row.model)) m.set(row.model, []);
+      m.get(row.model).push(row);
+    }
+    return m;
+  }, [catalog]);
+  // 저장된 위젯이 쓰던 쌍이 카탈로그에서 빠졌으면 (등록에서 빠짐 · 동기화 전) 선택지에 남겨 두고 알린다
+  const missingPair = Boolean(catalog.length && apiKey
+    && !(providersByModel.get(draft.model) || []).some((r) => r.provider === draft.provider));
+
   const modelOptions = useMemo(() => {
-    const p = catalog.find((c) => c.provider === draft.provider);
-    return (p?.models || []).map((m) => ({ value: m.model, label: titleCase(m.model) }));
-  }, [catalog, draft.provider]);
+    const opts = [...providersByModel.entries()].map(([model, rows]) => ({
+      value: model,
+      label: titleCase(model),
+      note: rows.length > 1 ? `${rows.length}곳` : rows[0].provider_name,
+    }));
+    if (draft.model && !providersByModel.has(draft.model)) {
+      opts.unshift({ value: draft.model, label: titleCase(draft.model), note: '목록에 없음' });
+    }
+    return opts;
+  }, [providersByModel, draft.model]);
+  const providerOptions = useMemo(() => {
+    const opts = (providersByModel.get(draft.model) || []).map((r) => ({
+      value: r.provider,
+      label: r.provider_name || r.provider.toUpperCase(),
+      note: r.key_yn === 'Y' ? 'Key' : undefined,
+    }));
+    if (draft.provider && !opts.some((o) => o.value === draft.provider)) {
+      opts.unshift({ value: draft.provider, label: draft.provider.toUpperCase(), note: '목록에 없음' });
+    }
+    return opts;
+  }, [providersByModel, draft.model, draft.provider]);
+
+  // 데이터를 바꾸면 지금 출처가 그 데이터를 주면 그대로, 아니면 첫 출처로
+  const selectModel = (model) => {
+    const rows = providersByModel.get(model) || [];
+    const provider = rows.some((r) => r.provider === draft.provider) ? draft.provider : (rows[0]?.provider || '');
+    patch({ model, provider, params: [], fields: [] });
+  };
 
   const setParam = (i, p) => setDraft((d) => ({ ...d, params: d.params.map((row, k) => (k === i ? { ...row, ...p } : row)) }));
   const setField = (i, p) => setDraft((d) => ({ ...d, fields: d.fields.map((row, k) => (k === i ? { ...row, ...p } : row)) }));
@@ -294,26 +326,31 @@ export default function WidgetEditor({ initial, codes, variables, onDone, onCanc
         <div className="space-y-4 min-w-0">
 
           {/* ① API ─────────────────────────────────────────────────────────── */}
-          <Section step="①" title="API" hint="어떤 데이터를 가져올지 고르고, 파라미터마다 값을 어떻게 넣을지 정합니다.">
+          <Section step="①" title="API" hint="어떤 데이터를 가져올지, 어느 출처에서 받을지 고르고 파라미터마다 값을 어떻게 넣을지 정합니다.">
             <div className="grid grid-cols-2 gap-3 mb-4">
               <div>
-                <div className="text-[11px] font-medium text-gray-400 mb-1">Provider</div>
+                <div className="text-[11px] font-medium text-gray-400 mb-1">데이터</div>
                 <Select
-                  size="md" align="left" placeholder="Provider 선택"
-                  value={draft.provider} options={providerOptions}
-                  onChange={(v) => patch({ provider: v, model: '', params: [], fields: [] })}
+                  size="md" align="left" placeholder={catalog.length ? '데이터 선택' : '불러오는 중…'}
+                  value={draft.model} options={modelOptions}
+                  onChange={selectModel}
                 />
               </div>
               <div>
-                <div className="text-[11px] font-medium text-gray-400 mb-1">Model</div>
+                <div className="text-[11px] font-medium text-gray-400 mb-1">출처</div>
                 <Select
-                  size="md" align="left" placeholder={draft.provider ? 'Model 선택' : 'Provider 를 먼저 고르세요'}
-                  value={draft.model} options={modelOptions}
-                  onChange={(v) => patch({ model: v })}
+                  size="md" align="left" placeholder={draft.model ? '출처 선택' : '데이터를 먼저 고르세요'}
+                  value={draft.provider} options={providerOptions}
+                  onChange={(v) => patch({ provider: v, params: [], fields: [] })}
                 />
               </div>
             </div>
 
+            {missingPair && (
+              <p className="text-xs text-amber-400 mb-3">
+                {draft.provider}/{draft.model} 은(는) 지금 데이터 카탈로그에 없습니다. 등록에서 빠졌거나 아직 동기화 전입니다 — 다른 데이터·출처로 바꾸는 것을 권합니다.
+              </p>
+            )}
             {apiKey && !schema && <p className="text-xs text-gray-500">API 정보를 불러오는 중…</p>}
             {schema && draft.params.length === 0 && <p className="text-xs text-gray-500">이 API 는 파라미터가 없습니다.</p>}
             {schema && draft.params.length > 0 && (
@@ -410,12 +447,15 @@ export default function WidgetEditor({ initial, codes, variables, onDone, onCanc
                         <button type="button" onClick={() => moveField(i, 1)} disabled={i === draft.fields.length - 1} className="p-0.5 text-gray-500 hover:text-white disabled:opacity-20" aria-label="아래로"><ArrowDown size={12} /></button>
                       </div>
                     ) },
-                    { id: 'field', header: '필드', width: '26%', render: (f) => (
-                      <>
-                        <span className="text-xs text-gray-200 font-mono">{f.field_name}</span>
-                        {fieldKind.get(f.field_name) && <span className="ml-1.5 text-[10px] text-gray-600">{fieldKind.get(f.field_name)}</span>}
-                      </>
-                    ) },
+                    { id: 'field', header: '필드', width: '26%', render: (f) => {
+                      const spec = fieldSpec.get(f.field_name);
+                      return (
+                        <span title={spec?.description || undefined}>
+                          <span className="text-xs text-gray-200 font-mono">{f.field_name}</span>
+                          {spec?.kind && <span className="ml-1.5 text-[10px] text-gray-600">{spec.kind}</span>}
+                        </span>
+                      );
+                    } },
                     { id: 'role', header: '자리', width: '22%', render: (f, _ctx, i) => (
                       <Select
                         size="md" align="left" value={f.field_role}
