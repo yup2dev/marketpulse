@@ -1,18 +1,21 @@
 """Macro Economic API Routes — OBBject pattern
 
-가공은 fetcher 가 한다 (fred indicator_overview · indicator_history · macro_series_* · regime · … ,
-alphavantage forex_rates · forex). 라우트는 기간(period)을 날짜로 바꿔 넘기고 결과를 감싸기만 한다.
-캐시는 QueryExecutor 의 모델별 TTL.
+단순 조회(지표 · 시리즈 이력, regime · yield_curve 같은 fred 모델)는 QueryExecutor 를 바로 부른다.
+최신값 · 변화율처럼 받은 뒤에 계산하는 것은 command(app/backend/commands/)가 한다 — 라우트는 어느 provider ·
+model 을 쓸지 Source 로 넘기고 결과를 감싸기만 한다. 캐시는 출처마다 QueryExecutor 의 모델별 TTL.
 """
 import logging
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Query as FQuery
+from fastapi import APIRouter, HTTPException, Query as FQuery
 
 from data_fetcher.core.obbject import OBBject
 from data_fetcher.query_executor import QueryExecutor
 from data_fetcher.utils.helpers import parse_period_to_dates
 from app.backend.api.deps import route_handler, wrap_result
+from app.backend.commands import fx as fx_cmd, macro as macro_cmd
+from app.backend.commands._base import Source, fetch_rows
+from app.backend.constants.macro_catalog import FX_PAIRS, INDICATORS, MACRO_SERIES
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -26,18 +29,32 @@ async def _fetch(provider: str, model: str, params: Optional[Dict[str, Any]] = N
     return wrap_result(await QueryExecutor.fetch(provider, model, p), provider)
 
 
+def _dated_values(rows: List[Dict[str, Any]], digits: Optional[int] = None) -> List[Dict[str, Any]]:
+    """행 → {date, value} (화면이 쓰는 두 칸만)."""
+    return [{"date": r["date"], "value": round(r["value"], digits) if digits is not None else r["value"]}
+            for r in rows if r.get("date") and (digits is None or r.get("value") is not None)]
+
+
 # ── Economic Indicators ───────────────────────────────────────────────────────
 
 @router.get("/indicators/overview")
 @route_handler
 async def get_indicators_overview() -> OBBject:
-    return await _fetch("fred", "indicator_overview")
+    # 지표 6개를 병렬로 (fred 는 서버에서 사용자 키로 직접 호출 — Fetcher 위임 아님)
+    specs = [macro_cmd.IndicatorSpec(key, Source("fred", model, params), unit)
+             for key, (model, _name, unit, params) in INDICATORS.items()]
+    return wrap_result(await macro_cmd.indicator_overview(specs), "fred")
 
 
 @router.get("/indicators/{indicator_key}/history")
 @route_handler
 async def get_indicator_history(indicator_key: str, period: str = "5y") -> OBBject:
-    return await _fetch("fred", "indicator_history", {"indicator": indicator_key}, period)
+    if indicator_key not in INDICATORS:
+        raise HTTPException(status_code=400, detail=f"Invalid indicator. Valid: {', '.join(INDICATORS)}")
+    model, _name, _unit, params = INDICATORS[indicator_key]
+    start, end = parse_period_to_dates(period)
+    rows = await fetch_rows(Source("fred", model, {**params, "start_date": start, "end_date": end}))
+    return OBBject(results=_dated_values(rows, digits=2), provider="fred")
 
 
 # ── FRED Series ───────────────────────────────────────────────────────────────
@@ -45,14 +62,24 @@ async def get_indicator_history(indicator_key: str, period: str = "5y") -> OBBje
 @router.get("/fred/series")
 @route_handler
 async def list_fred_series(date: Optional[str] = None) -> OBBject:
-    # date = 기준일(As of). 비우면 최신 관측값.
-    return await _fetch("fred", "macro_series_overview", {"as_of": date})
+    # date = 기준일(As of). 비우면 최신 관측값. 시리즈 전부를 한 요청으로, 시리즈마다 최근 관측 2개.
+    catalog = [macro_cmd.SeriesSpec(key, sid, name, category, unit)
+               for key, (sid, name, category, unit) in MACRO_SERIES.items()]
+    source = Source("fred", "series", {"series_id": ",".join(s.series_id for s in catalog),
+                                       "limit": 2, "sort_order": "desc"}).with_params(end_date=date)
+    return wrap_result(await macro_cmd.series_overview(source, catalog), "fred")
 
 
 @router.get("/fred/series/{series_key}")
 @route_handler
 async def get_fred_series_data(series_key: str, period: str = "5y") -> OBBject:
-    return await _fetch("fred", "macro_series_history", {"series": series_key}, period)
+    if series_key not in MACRO_SERIES:
+        raise HTTPException(status_code=400, detail=f"Invalid series. Valid: {', '.join(MACRO_SERIES)}")
+    start, end = parse_period_to_dates(period)
+    rows = await fetch_rows(Source("fred", "series", {
+        "series_id": MACRO_SERIES[series_key][0], "sort_order": "asc", "start_date": start, "end_date": end,
+    }))
+    return OBBject(results=_dated_values(rows), provider="fred")
 
 
 # ── Forex ─────────────────────────────────────────────────────────────────────
@@ -60,7 +87,11 @@ async def get_fred_series_data(series_key: str, period: str = "5y") -> OBBject:
 @router.get("/forex/rates")
 @route_handler
 async def get_forex_rates() -> OBBject:
-    return await _fetch("alphavantage", "forex_rates")
+    # 쌍 5개를 병렬로 (alphavantage 는 서버에서 사용자 키로 직접 호출). 쌍마다 forex TTL 캐시
+    pairs = [fx_cmd.PairSpec(f"{base}/{quote}", name, Source("alphavantage", "forex", {
+                 "from_currency": base, "to_currency": quote, "interval": "daily"}))
+             for base, quote, name in FX_PAIRS]
+    return wrap_result(await fx_cmd.latest_rates(pairs), "alphavantage")
 
 
 @router.get("/forex/history")

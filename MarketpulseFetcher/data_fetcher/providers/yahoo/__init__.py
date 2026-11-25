@@ -8,7 +8,6 @@ from data_fetcher.providers.yahoo.models.company_info import YFinanceCompanyInfo
 from data_fetcher.providers.yahoo.models.financials import YFinanceFinancialsFetcher
 from data_fetcher.providers.yahoo.models.balance_sheet import YFinanceBalanceSheetFetcher
 from data_fetcher.providers.yahoo.models.key_metrics import YFinanceKeyMetricsFetcher
-from data_fetcher.providers.yahoo.models.compare import YFinanceCompareFetcher
 from data_fetcher.providers.yahoo.models.quarterly_pnl import YFinanceQuarterlyPnLFetcher
 from data_fetcher.providers.yahoo.models.holders import YFinanceHoldersFetcher
 from data_fetcher.providers.yahoo.models.calendar import YFinanceCalendarFetcher
@@ -42,7 +41,6 @@ yahoo_provider = Provider(
         "financials": YFinanceFinancialsFetcher,
         "balance_sheet": YFinanceBalanceSheetFetcher,
         "key_metrics": YFinanceKeyMetricsFetcher,
-        "compare":     YFinanceCompareFetcher,
         "quarterly_pnl": YFinanceQuarterlyPnLFetcher,
         "holders": YFinanceHoldersFetcher,
         "calendar": YFinanceCalendarFetcher,
