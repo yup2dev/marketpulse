@@ -230,6 +230,7 @@ model별 TTL(초). 실시간 60 / 반-신선 300~600 / 일일 1800~3600. 같은 
 - 기본: 게이트웨이 `GET /api/data/<provider>/<category>?param=…` — 무코드. provider별 파라미터 폼은 `/api/data/{provider}/{model}/schema`가 자동 생성.
 - 전용 라우트가 필요하면 `MarketpulseWeb/app/backend/api/routes/<area>.py`에서 `QueryExecutor.fetch(...)` 호출 + **`provider: str = "<default>"` 쿼리 파라미터 노출**.
 - **새 라우트 파일은 `MarketpulseWeb/app/backend/api/routes/` 에 두기만 하면 자동 등록된다** (`api/routers.py` 의 자동 탐색 — 모듈의 `router` 를 찾아 붙인다). 붙는 주소는 `PREFIX`(기본 `/api`) + `APIRouter(prefix="/my-area")` 이므로 라우터에 자기 구간 prefix 를 준다. 앞부분이 다르면 모듈에 `PREFIX = "/api/stock"` 처럼, `/{provider}/{model}` 처럼 넓게 받는 범용 라우트면 `ORDER = 900` 으로 뒤로 보낸다. 태그는 `TAGS`(기본 모듈 이름). `tests/test_app_boot.py` 가 등록 누락을 잡는다.
+- **모델을 그대로 내보내는 라우트는 함수를 쓰지 않는다** — `CommandRouter` 의 등록 목록에 한 줄 (`Command("/income-statement", "income_statement", provider="fmp")`, 예: `routes/fundamental.py`). 파라미터 · provider 선택지는 표준 모델에서 만들어지고, 일부 provider 만 받는 파라미터는 설명 끝에 `(provider: …)` 가 붙는다. 가공이 필요하면 `@router.command(model=...)` 를 `**params` 만 받는 함수에. `tests/test_command_router.py` 가 등록된 모든 모델이 라우트로 바뀌는지 본다.
 - **인증 게이트는 deny-by-default다**(`MarketpulseWeb/app/backend/core/middleware/auth_gate.py`). `/api/` 아래 새 경로는 자동으로 Bearer 토큰을 요구하므로 별도 조치가 필요 없다. 반대로 **공개가 필요하면 그 파일의 `PUBLIC_PATHS`/`PUBLIC_PREFIXES`에 명시해야 한다** — 무심코 `/api/` 밖(루트)에 엔드포인트를 달면 `test_app_boot.py`가 실패한다(과거 무인증 노출 사고의 재발 방지).
 - `widgetEndpoints.js`에 위젯 추가(`category` 지정 시 provider 셀렉터 자동) + `urlWidgetMap.js` 화면 등록.
 - 프론트는 항상 `res.results`로 읽는다(OBBject 계약) — `.data` 참조 금지.

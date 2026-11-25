@@ -107,7 +107,7 @@ OpenBB 는 `openbb_core/app`(Router · CommandRunner · Query) + `openbb_core/ap
 
 | | OpenBB | 지금 | 할 일 |
 |---|---|---|---|
-| 엔드포인트 | `@router.command(model="ConsumerPriceIndex")` — 파라미터 · provider 선택지 · REST 경로를 표준 모델에서 자동 생성, 본문은 `return await OBBject.from_query(Query(**locals()))` 한 줄 | 영역별 라우트를 손으로 작성 (`macro.py` · `stock.py` …). 범용 게이트웨이 `/api/data/{p}/{m}` 와 `fundamental.py` 만 비슷 | 손 라우트를 표준 모델 기반 command 로 — 프론트 엔드포인트 주소가 바뀌므로 위젯 레지스트리 · DB 위젯 행과 같이 옮긴다 |
+| 엔드포인트 | `@router.command(model="ConsumerPriceIndex")` — 파라미터 · provider 선택지 · REST 경로를 표준 모델에서 자동 생성, 본문은 `return await OBBject.from_query(Query(**locals()))` 한 줄 | 생성기 있음 — `CommandRouter` 가 표준 모델에서 파라미터 · provider 선택지 · 경로를 만든다 (등록 목록 `Command(...)` 또는 `**params` 함수, `core/interface.py`). 목록은 `/api/v1/coverage`. `fundamental.py` 만 쓰고, 영역별 손 라우트(`macro.py` · `stock.py` …)는 그대로 | 손 라우트를 등록 목록으로 — 프론트 엔드포인트 주소가 바뀌므로 위젯 레지스트리 · DB 위젯 행과 같이, 영역 하나씩 옮긴다 |
 | 가공 로직 | fetcher `transform_data` / 계산 command(`methods=["POST"]`, `OBBject(results=…)`) | `services/*` 가 QueryExecutor 를 불러 가공 · 캐시 | 서비스의 가공을 fetcher 로 (provider 를 거치는 것) 또는 계산 command 로 (거치지 않는 것) |
 | 실행 · 오류 | CommandRunner 가 OBBject 보장 · 경고 수집 · `OpenBBError` 로 감싸기, 전역 exception handler 가 HTTP 로 | `deps.route_handler` · 게이트웨이 try/except (키 없음 424 · Fetcher 꺼짐 503 · 서킷 OPEN 503) | 전역 exception handler 로 모은다 — 주소 변화 없이 내부만 바뀌어 먼저 하기 좋다 |
 | 빈 결과 | `EmptyDataError` → 204 | 빈 목록 200 (위젯 '데이터 없음') | 200 + 빈 목록 유지 (204 로 바꾸면 위젯 응답 처리가 달라진다) |
