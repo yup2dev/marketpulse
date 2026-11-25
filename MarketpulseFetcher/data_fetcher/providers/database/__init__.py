@@ -5,6 +5,7 @@ from data_fetcher.providers.database.models.stock_list import DBStockListFetcher
 from data_fetcher.providers.database.models.stock_ranking import DBStockRankingFetcher
 from data_fetcher.providers.database.models.research_reports import DBResearchReportsFetcher
 from data_fetcher.providers.database.models.fund_performance import DBFundPerformanceFetcher
+from data_fetcher.providers.database.models.fx_rate import DBFxRateFetcher
 from data_fetcher.providers.database.models.institutional_holdings import DBInstitutionalHoldingsFetcher
 from data_fetcher.providers.database.models.institutions_list import DBInstitutionsListFetcher
 from data_fetcher.providers.database.models.institutions_summary import DBInstitutionsSummaryFetcher
@@ -23,5 +24,6 @@ db_provider = Provider(
         "institutions_summary": DBInstitutionsSummaryFetcher,
         "fund_performance": DBFundPerformanceFetcher,
         "research_reports": DBResearchReportsFetcher,
+        "fx_rate": DBFxRateFetcher,
     },
 )

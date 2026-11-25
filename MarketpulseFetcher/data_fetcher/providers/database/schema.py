@@ -257,6 +257,20 @@ class MBS_IN_INSTI_PERF(Base):
     )
 
 
+class MBS_IN_FX_STBD(Base):
+    """환율 일별 상태판 — 배치(FXRateCollector)가 적재. rate = base_curr 1단위당 quote_curr."""
+
+    __tablename__ = 'mbs_in_fx_stbd'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    fx_cd = Column(String(20), nullable=False, index=True)       # 'USDKRW'
+    base_curr = Column(String(10), nullable=False)
+    quote_curr = Column(String(10), nullable=False)
+    rate = Column(DECIMAL(20, 6), nullable=False)
+    change_rate = Column(DECIMAL(10, 4))                         # 전일比 (%)
+    base_ymd = Column(Date, nullable=False, index=True)
+
+
 class MBS_IN_INSTI_PORT_HIST(Base):
     """기관 13F 포트폴리오 요약 — 분기 이력. 한 행 = 기관 × 보고 분기(period).
 
@@ -373,4 +387,5 @@ __all__ = [
     "MBS_IN_INSTI_HOLD_HIST",
     "MBS_IN_INSTI_PERF",
     "MBS_IN_RESEARCH_RPT",
+    "MBS_IN_FX_STBD",
 ]
