@@ -257,6 +257,151 @@ class MBS_IN_INSTI_PERF(Base):
     )
 
 
+class MBS_IN_FX_STBD(Base):
+    """환율 일별 상태판 — 배치(FXRateCollector)가 적재. rate = base_curr 1단위당 quote_curr."""
+
+    __tablename__ = 'mbs_in_fx_stbd'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    fx_cd = Column(String(20), nullable=False, index=True)       # 'USDKRW'
+    base_curr = Column(String(10), nullable=False)
+    quote_curr = Column(String(10), nullable=False)
+    rate = Column(DECIMAL(20, 6), nullable=False)
+    change_rate = Column(DECIMAL(10, 4))                         # 전일比 (%)
+    base_ymd = Column(Date, nullable=False, index=True)
+
+
+class MBS_IN_STK_PROFILE(Base):
+    """종목 상세 프로필 — 배치(load_profiles 등)가 적재."""
+
+    __tablename__ = 'mbs_in_stk_profile'
+
+    stk_cd = Column(String(20), primary_key=True)
+    stk_nm = Column(String(200))
+    sector = Column(String(100), index=True)
+    industry = Column(String(100), index=True)
+    description = Column(Text)
+    website = Column(String(300))
+    ceo = Column(String(100))
+    employees = Column(Integer)
+    country = Column(String(50))
+    exchange = Column(String(50))
+    currency = Column(String(10), default='USD')
+    ipo_date = Column(Date)
+    image_url = Column(String(500))
+    market_cap = Column(DECIMAL(20, 2))
+    price = Column(DECIMAL(20, 4))
+    beta = Column(DECIMAL(10, 4))
+    in_sp500 = Column(Boolean, default=False, index=True)
+    in_nasdaq100 = Column(Boolean, default=False)
+    in_dow30 = Column(Boolean, default=False)
+    data_source = Column(String(50))
+    last_updated = Column(DateTime)
+
+
+class MBS_IN_STK_RELATIONS(Base):
+    """종목 관계 (공급망 · 경쟁 · 지분 등) — 배치(load_all_relations)가 적재."""
+
+    __tablename__ = 'mbs_in_stk_relations'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    stk_cd = Column(String(20), nullable=False, index=True)
+    related_cd = Column(String(20), nullable=False, index=True)
+    relation_type = Column(String(30), nullable=False, index=True)
+    related_nm = Column(String(200))
+    detail = Column(Text)
+    confidence = Column(DECIMAL(5, 4), default=1.0)
+    data_source = Column(String(50))
+
+
+class MBS_IN_FINANCIAL_METRICS(Base):
+    """기업 재무지표 — 배치가 적재."""
+
+    __tablename__ = 'mbs_in_financial_metrics'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    stk_cd = Column(String(20), nullable=False, index=True)
+    stk_nm = Column(String(100))
+    debt_to_asset = Column(DECIMAL(10, 4))
+    debt_to_equity = Column(DECIMAL(10, 4))
+    current_ratio = Column(DECIMAL(10, 4))
+    quick_ratio = Column(DECIMAL(10, 4))
+    roe = Column(DECIMAL(10, 4))
+    roa = Column(DECIMAL(10, 4))
+    profit_margin = Column(DECIMAL(10, 4))
+    pe_ratio = Column(DECIMAL(10, 4))
+    pb_ratio = Column(DECIMAL(10, 4))
+    market_cap = Column(DECIMAL(20, 2))
+    fiscal_period = Column(String(20))
+    base_ymd = Column(Date, nullable=False, index=True)
+
+
+class MBS_IN_ARTICLE(Base):
+    """뉴스 기사 원본 — 크롤 worker 가 적재."""
+
+    __tablename__ = 'mbs_in_article'
+
+    news_id = Column(String(50), primary_key=True)
+    base_ymd = Column(Date, nullable=False, index=True)
+    source_cd = Column(String(50), nullable=False, index=True)
+    url = Column(Text)
+    title = Column(Text, nullable=False)
+    publish_dt = Column(DateTime, index=True)
+
+
+class MBS_PROC_ARTICLE(Base):
+    """기사 분석 결과 (종목 매핑 · 감성 · 가격 영향) — worker PROC 단계가 적재."""
+
+    __tablename__ = 'mbs_proc_article'
+
+    proc_id = Column(String(50), primary_key=True)
+    news_id = Column(String(50), nullable=False, index=True)
+    stk_cd = Column(String(20), index=True)
+    summary_text = Column(Text)
+    match_score = Column(DECIMAL(10, 4))
+    price_impact = Column(DECIMAL(10, 4))
+    sentiment_score = Column(DECIMAL(10, 4))
+    price = Column(DECIMAL(20, 4))
+    base_ymd = Column(Date, nullable=False, index=True)
+
+
+class MBS_IN_QUANT_SNAPSHOT(Base):
+    """퀀트 산출물 스냅샷 — 배치(build_quant)가 학습 · 검증 결과를 적재. payload · meta 는 JSON 글."""
+
+    __tablename__ = 'mbs_in_quant_snapshot'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    universe = Column(String(30), nullable=False, index=True)
+    dataset = Column(String(30), nullable=False)
+    base_ymd = Column(Date, nullable=False)
+    payload = Column(Text, nullable=False)
+    meta = Column(Text)
+
+
+class MBS_IN_QUANT_PANEL(Base):
+    """퀀트 월별 패널 (월말 × 종목) — 팩터 z · ML 확률 · 다음 달 수익률. 배치(build_quant)가 적재."""
+
+    __tablename__ = 'mbs_in_quant_panel'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    universe = Column(String(30), nullable=False)
+    base_ymd = Column(Date, nullable=False)
+    stk_cd = Column(String(20), nullable=False)
+    close = Column(Float)
+    fwd_ret = Column(Float)
+    mom_12_1 = Column(Float)
+    mom_6_1 = Column(Float)
+    rev_1m = Column(Float)
+    lowvol = Column(Float)
+    high52 = Column(Float)
+    trend = Column(Float)
+    p_gbt = Column(Float)
+    p_mlp = Column(Float)
+    p_logit = Column(Float)
+    p_avg = Column(Float)
+    p_stack = Column(Float)
+
+
 class MBS_IN_INSTI_PORT_HIST(Base):
     """기관 13F 포트폴리오 요약 — 분기 이력. 한 행 = 기관 × 보고 분기(period).
 
@@ -373,4 +518,12 @@ __all__ = [
     "MBS_IN_INSTI_HOLD_HIST",
     "MBS_IN_INSTI_PERF",
     "MBS_IN_RESEARCH_RPT",
+    "MBS_IN_FX_STBD",
+    "MBS_IN_STK_PROFILE",
+    "MBS_IN_STK_RELATIONS",
+    "MBS_IN_FINANCIAL_METRICS",
+    "MBS_IN_ARTICLE",
+    "MBS_PROC_ARTICLE",
+    "MBS_IN_QUANT_SNAPSHOT",
+    "MBS_IN_QUANT_PANEL",
 ]

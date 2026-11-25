@@ -21,13 +21,6 @@ def _unwrap(raw: Any) -> List[Any]:
     return OBBject.unwrap(raw) or []
 
 
-def _serialize(items: List[Any]) -> List[Dict]:
-    return [
-        item.model_dump(mode="json") if hasattr(item, "model_dump") else item
-        for item in items
-    ]
-
-
 _wrap = wrap_result
 
 
@@ -350,89 +343,23 @@ async def get_company_relations_route(symbol: str, provider: str = "db") -> OBBj
 
 @router.get("/sector-performance")
 @route_handler
-def get_sector_performance(provider: str = "db") -> OBBject:
-    from app.backend.core.db import get_db_sync
-    from app.backend.models.orm import MBS_IN_STK_PROFILE
-
-    db = get_db_sync()
-    try:
-        base_q = db.query(MBS_IN_STK_PROFILE).filter(MBS_IN_STK_PROFILE.sector.isnot(None))
-        sp500 = base_q.filter(MBS_IN_STK_PROFILE.in_sp500 == True).all()
-        profiles = sp500 if len(sp500) >= 50 else base_q.all()
-
-        sector_map: Dict[str, Any] = {}
-        for p in profiles:
-            s = p.sector or "Other"
-            if s not in sector_map:
-                sector_map[s] = {"sector": s, "stocks": [], "total_market_cap": 0}
-            mcap = float(p.market_cap) if p.market_cap else 0
-            sector_map[s]["stocks"].append({
-                "symbol": p.stk_cd,
-                "name": p.stk_nm,
-                "sector": s,
-                "industry": p.industry,
-                "market_cap": mcap,
-                "price": float(p.price) if p.price else None,
-            })
-            sector_map[s]["total_market_cap"] += mcap
-
-        sectors = sorted(sector_map.values(), key=lambda x: x["total_market_cap"], reverse=True)
-        for sec in sectors:
-            sec["count"] = len(sec["stocks"])
-            sec["stocks"] = sorted(sec["stocks"], key=lambda x: x["market_cap"], reverse=True)[:50]
-
-        return OBBject(results=sectors, provider=provider)
-    finally:
-        db.close()
+async def get_sector_performance(provider: str = "db") -> OBBject:
+    """섹터별 묶음 — db provider sector_performance (종목 프로필을 섹터로)."""
+    raw = await QueryExecutor.fetch("db", "sector_performance", {})
+    return OBBject.from_result(raw, provider)
 
 
 @router.get("/compare")
 @route_handler
 async def compare_stocks(
     symbols: str = FQuery(..., description="Comma-separated symbols (2-4)"),
-    provider: str = "yahoo",
 ) -> OBBject:
-    tickers = [s.strip().upper() for s in symbols.split(",") if s.strip()]
-    if len(tickers) < 2:
-        raise ValueError("At least 2 symbols required")
-    if len(tickers) > 4:
-        raise ValueError("Maximum 4 symbols allowed")
-
-    results = []
-    for sym in tickers:
-        try:
-            quote_raw   = await QueryExecutor.fetch("yahoo", "quote",       {"symbol": sym})
-            metrics_raw = await QueryExecutor.fetch("yahoo", "key_metrics", {"symbol": sym})
-            q = _unwrap(quote_raw)
-            q = q[0].model_dump(mode="json") if q and hasattr(q[0], "model_dump") else (q[0] if q else {})
-            metrics_items = _unwrap(metrics_raw)
-            m = metrics_items[0].model_dump(mode="json") if metrics_items and hasattr(metrics_items[0], "model_dump") else (metrics_items[0] if metrics_items else {})
-            results.append({
-                "symbol": sym,
-                "name": m.get("symbol", sym),
-                "price": q.get("price"),
-                "change": q.get("change"),
-                "changesPercentage": q.get("change_percent"),
-                "marketCap": m.get("market_cap"),
-                "volume": q.get("volume"),
-                "pe": m.get("pe_ratio"),
-                "eps": m.get("eps_trailing"),
-                "beta": m.get("beta"),
-                "dividend_yield": m.get("dividend_yield"),
-                "roe": m.get("roe"),
-                "roa": m.get("roa"),
-                "debt_to_equity": m.get("debt_to_equity"),
-                "profit_margin": m.get("net_margin"),
-                "revenue_growth": m.get("revenue_growth"),
-                "52w_high": m.get("week_52_high"),
-                "52w_low": m.get("week_52_low"),
-            })
-        except Exception:
-            results.append({"symbol": sym, "error": "Failed to fetch data"})
-
-    return OBBject(results=results, provider=provider)
+    """종목 2~4개 비교 — yahoo compare (시세 + 주요 지표)."""
+    raw = await QueryExecutor.fetch("yahoo", "compare", {"symbols": symbols})
+    return _wrap(raw, "yahoo")
 
 
+# 지표 키 → fred 모델 (+ 고정 파라미터)
 _INDICATOR_MAP: Dict[str, tuple] = {
     "GDP":                   ("gdp",                  {}),
     "UNEMPLOYMENT":          ("unemployment",          {}),
@@ -446,58 +373,25 @@ _INDICATOR_MAP: Dict[str, tuple] = {
     "INDUSTRIAL_PRODUCTION": ("industrial_production", {}),
     # 섹터별 수지: 연방 재정수지 %GDP (연간, 적자는 음수)
     "FISCAL_BALANCE":        ("series",                {"series_id": "FYFSGDA188S"}),
+    # 세후 기업이익 %GDP — 재정수지 %GDP 와 같은 축
+    "CORP_PROFITS_GDP":      ("corporate_profits_gdp", {}),
 }
-
-
-async def _fetch_fred_series(series_id: str, start_date, end_date) -> List[Dict]:
-    raw = await QueryExecutor.fetch(
-        "fred", "series",
-        {"series_id": series_id, "start_date": start_date, "end_date": end_date},
-    )
-    return _serialize(_unwrap(raw))
-
-
-async def _corp_profits_pct_gdp(start_date, end_date) -> List[Dict]:
-    """세후 기업이익(CPATAX)을 명목 GDP 대비 %로 환산 — 재정수지 %GDP와 동일 축 비교용."""
-    profits = await _fetch_fred_series("CPATAX", start_date, end_date)
-    gdp = await _fetch_fred_series("GDP", start_date, end_date)
-    gdp_by_date = {row["date"]: row["value"] for row in gdp if row.get("value")}
-    return [
-        {"date": row["date"], "value": round(row["value"] / gdp_by_date[row["date"]] * 100, 2)}
-        for row in profits
-        if row.get("value") is not None and gdp_by_date.get(row["date"])
-    ]
 
 
 @router.get("/indicator/{indicator}")
 @route_handler
-async def get_indicator_history(
-    indicator: str,
-    period: str = "5y",
-    provider: str = "fred",
-) -> OBBject:
+async def get_indicator_history(indicator: str, period: str = "5y") -> OBBject:
     from data_fetcher.utils.helpers import parse_period_to_dates
 
-    key = indicator.upper()
-    start_date, end_date = parse_period_to_dates(period)
-
-    if key == "CORP_PROFITS_GDP":
-        data = await _corp_profits_pct_gdp(start_date, end_date)
-        if not data:
-            raise HTTPException(status_code=404, detail=f"No data for {indicator}")
-        return _wrap(data, provider)
-
-    entry = _INDICATOR_MAP.get(key)
+    entry = _INDICATOR_MAP.get(indicator.upper())
     if not entry:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid indicator. Valid: {', '.join([*_INDICATOR_MAP, 'CORP_PROFITS_GDP'])}",
-        )
+        raise HTTPException(status_code=400, detail=f"Invalid indicator. Valid: {', '.join(_INDICATOR_MAP)}")
     model, base_params = entry
+    start_date, end_date = parse_period_to_dates(period)
     raw = await QueryExecutor.fetch("fred", model, {**base_params, "start_date": start_date, "end_date": end_date})
     if not _unwrap(raw):
         raise HTTPException(status_code=404, detail=f"No data for {indicator}")
-    return _wrap(raw, provider)
+    return _wrap(raw, "fred")
 
 
 @router.get("/ranking/live")

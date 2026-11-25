@@ -21,7 +21,7 @@ import numpy as np
 import pandas as pd
 from sqlalchemy.orm import Session
 
-from app.backend.models.orm import MBS_IN_STK_PROFILE, UserQuantPortfolio, UserQuantPortfolioItem
+from app.backend.models.orm import UserQuantPortfolio, UserQuantPortfolioItem
 from app.backend.services import quant_overlay as ov
 from app.backend.services import quant_strategy_service as qs
 
@@ -168,17 +168,15 @@ def universe_members(db: Session, universe: str) -> Tuple[List[dict], dict]:
     last = close.loc[have[-1]]
     syms = list(last.dropna().index)
     vol = _vol(close)
-    prof = {r.stk_cd: r for r in db.query(MBS_IN_STK_PROFILE.stk_cd, MBS_IN_STK_PROFILE.stk_nm,
-                                           MBS_IN_STK_PROFILE.sector, MBS_IN_STK_PROFILE.market_cap)
-            .filter(MBS_IN_STK_PROFILE.stk_cd.in_(syms)).all()}
+    prof = qs._profiles(syms)
     rows = []
     for s in syms:
         p = prof.get(s)
         rows.append({
             "symbol": s,
-            "name": getattr(p, "stk_nm", None) or s,
+            "name": getattr(p, "company_name", None) or s,
             "sector": qs.sector_name(getattr(p, "sector", None)),
-            "mcap": float(p.market_cap) if p is not None and p.market_cap is not None else None,
+            "mcap": p.market_cap if p is not None else None,
             "vol": float(vol.get(s)) if pd.notna(vol.get(s)) else None,
         })
     rows.sort(key=lambda r: (-(r["mcap"] or 0), r["symbol"]))
