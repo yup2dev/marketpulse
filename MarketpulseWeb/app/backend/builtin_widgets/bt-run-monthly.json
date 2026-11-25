@@ -1,0 +1,20 @@
+{
+  "widget_id": "bt-run-monthly",
+  "sort_seq": 290,
+  "name": "Monthly Returns",
+  "description": "Year × month return grid with annual totals",
+  "group_name": "Backtest",
+  "view_type": "heatmap",
+  "title": "월별 수익률",
+  "endpoint": "/strategies/result?strategy={strategy}&start={bt_start}&end={bt_end}&benchmark={bt_bench}&cost={bt_cost}&rev={bt_rev}",
+  "source": "$provider",
+  "source_note": "전략 · %",
+  "transform": "bt_monthly",
+  "empty_text": "전략 계산 재료(월별 패널)가 아직 없어요 — 로컬에서 build_quant.py 를 실행한 뒤 동기화해 주세요",
+  "size": {"w": 4, "h": 7, "min_w": 3, "min_h": 4},
+  "options": {"col": "month", "row": "year", "shared": "strategy,bt_start,bt_end,bt_bench,bt_cost,bt_rev", "value": "value"},
+  "screens": [
+    {"screen": "*"},
+    {"screen": "/backtest", "tab": "results", "x": 8, "y": 3, "w": 4, "h": 7}
+  ]
+}

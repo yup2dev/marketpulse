@@ -1,0 +1,35 @@
+{
+  "widget_id": "cpi-breakdown",
+  "sort_seq": 80,
+  "name": "CPI Breakdown",
+  "description": "CPI weights donut with YoY and contribution by component",
+  "group_name": "Macro",
+  "view_type": "donut",
+  "title": "CPI 구성",
+  "endpoint": "/data/{provider}/inflation_decomposition?date={date}",
+  "source": "$provider",
+  "source_note": "{asOf} · 전년 대비",
+  "transform": "cpi_breakdown",
+  "empty_text": "CPI 데이터가 없어요",
+  "size": {"w": 5, "h": 6, "min_w": 4, "min_h": 4},
+  "params": [
+    {"param_name": "date", "label": "기준일"}
+  ],
+  "fields": [
+    {"field_name": "weight", "field_role": "VALUE", "format": "text"},
+    {"field_name": "category", "field_role": "LABEL", "format": "text"},
+    {"field_name": "yoy_change", "field_role": "CHANGE", "format": "text"}
+  ],
+  "options": {
+    "centerLabel": "CPI",
+    "changeHeader": "상승률",
+    "detail": "contribution",
+    "detailHeader": "기여",
+    "labelHeader": "항목 · 가중치",
+    "provider": "fred"
+  },
+  "screens": [
+    {"screen": "*"},
+    {"screen": "/macro", "tab": "overview", "x": 7, "y": 1, "w": 5, "h": 6}
+  ]
+}

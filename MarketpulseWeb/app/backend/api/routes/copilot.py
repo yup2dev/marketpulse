@@ -31,7 +31,7 @@ from pydantic import BaseModel
 from app.backend.core.auth.dependencies import get_current_active_user
 from app.backend.core.config import settings
 from app.backend.services import user_key_service
-from app.backend.services.builtin_widget_seed import BUILTIN_WIDGETS
+from app.backend.services.builtin_widgets import load_specs as builtin_widget_specs
 from app.backend.models.orm import User
 
 log = logging.getLogger(__name__)
@@ -159,11 +159,12 @@ The widget is added to the dashboard pane the user is currently viewing. After a
 - Use markdown tables for numeric comparisons. Keep it readable, not exhaustive.
 - Never fabricate data; if a fetch fails, say so and suggest an alternative."""
 
-# 위젯 카탈로그 = 기본 제공 위젯(DB 시드 행) + 코드 컴포넌트 위젯. 레거시 위젯은 제거했다 (git 이력 참고)
+# 위젯 카탈로그 = 기본 제공 위젯(기본값 파일 app/backend/builtin_widgets) + 코드 컴포넌트 위젯. 레거시 위젯은 제거했다 (git 이력 참고)
 _CODE_WIDGET_TYPES = ("chart-studio",)
 SYSTEM_PROMPT = SYSTEM_PROMPT.replace(
     "{static_widget_types}",
-    ", ".join([w["widget_id"] for w in BUILTIN_WIDGETS] + list(_CODE_WIDGET_TYPES)),
+    ", ".join([w["widget_id"] for w in builtin_widget_specs() if w.get("use_yn", "Y") == "Y"]
+              + list(_CODE_WIDGET_TYPES)),
 )
 
 # ── 도구 정의 — Anthropic 형식 ────────────────────────────────────────────────

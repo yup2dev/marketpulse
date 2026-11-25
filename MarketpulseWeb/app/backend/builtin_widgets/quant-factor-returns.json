@@ -1,0 +1,50 @@
+{
+  "widget_id": "quant-factor-returns",
+  "sort_seq": 340,
+  "name": "Factor Performance",
+  "description": "Long-short cumulative return by factor · quintile returns of the composite score",
+  "group_name": "Quant",
+  "view_type": "lines",
+  "endpoint": "/quant/factor_returns?universe={universe}&strategy={strategy}",
+  "source": "$provider",
+  "source_note": "{strategy} · 상위 20% 롱 · 하위 20% 숏 · 최근 5년 · 비용 없음",
+  "transform": "quant_returns",
+  "empty_text": "퀀트 산출물이 아직 적재되지 않았어요 — 로컬에서 build_quant.py 를 실행해 주세요",
+  "size": {"w": 8, "h": 7, "min_w": 4, "min_h": 4},
+  "params": [
+    {
+      "param_name": "universe",
+      "label": "유니버스",
+      "param_value": "sp500",
+      "options": [
+        {"option_value": "sp500", "label": "S&P 500"}
+      ]
+    }
+  ],
+  "fields": [
+    {"field_name": "q", "field_role": "LABEL", "format": "text"},
+    {"field_name": "value", "field_role": "VALUE", "format": "text"}
+  ],
+  "tabs": [
+    {"tab_code": "ls", "label": "롱숏 누적 수익"},
+    {"tab_code": "q", "label": "분위 수익률"}
+  ],
+  "options": {
+    "digits": "1",
+    "highlight": "quant_step:factor",
+    "max": "4",
+    "pick": "composite,mom_12_1,lowvol",
+    "series": "composite:합성,mom_12_1:모멘텀 12-1,mom_6_1:모멘텀 6-1,rev_1m:단기 반전,lowvol:저변동성,high52:52주 고가,trend:추세",
+    "shared": "universe,strategy",
+    "tab.q.endpoint": "/quant/quantiles?universe={universe}&strategy={strategy}",
+    "tab.q.tone": "true",
+    "tab.q.transform": "quant_returns",
+    "tab.q.view": "columns",
+    "unit": "%",
+    "x": "date"
+  },
+  "screens": [
+    {"screen": "*"},
+    {"screen": "/quantlib", "tab": "factors", "x": 4, "y": 0, "w": 8, "h": 7}
+  ]
+}

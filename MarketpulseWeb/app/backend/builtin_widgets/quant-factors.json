@@ -1,0 +1,45 @@
+{
+  "widget_id": "quant-factors",
+  "sort_seq": 330,
+  "name": "Factors",
+  "description": "Price factors with rank IC, ICIR, hit rate and long-short return",
+  "group_name": "Quant",
+  "view_type": "table",
+  "title": "팩터",
+  "endpoint": "/quant/factors?universe={universe}&strategy={strategy}",
+  "source": "$provider",
+  "source_note": "{used} · {members}종목",
+  "transform": "quant_factors",
+  "empty_text": "퀀트 산출물이 아직 적재되지 않았어요 — 로컬에서 build_quant.py 를 실행해 주세요",
+  "size": {"w": 4, "h": 7, "min_w": 4, "min_h": 4},
+  "params": [
+    {
+      "param_name": "universe",
+      "label": "유니버스",
+      "param_value": "sp500",
+      "options": [
+        {"option_value": "sp500", "label": "S&P 500"}
+      ]
+    }
+  ],
+  "fields": [
+    {"field_name": "_toggle", "field_role": "COLUMN", "format": "switch", "label": "", "width": 44},
+    {"field_name": "name", "field_role": "COLUMN", "format": "text", "label": "팩터"},
+    {"field_name": "_w", "field_role": "COLUMN", "format": "value_muted", "label": "비중", "width": 48},
+    {"field_name": "_ic", "field_role": "COLUMN", "format": "value", "label": "IC", "width": 60},
+    {"field_name": "_icir", "field_role": "COLUMN", "format": "value_muted", "label": "ICIR", "width": 52},
+    {"field_name": "ls_ann", "field_role": "COLUMN", "format": "change", "label": "연 롱숏", "width": 72},
+    {"field_name": "_kind", "field_role": "COLUMN", "format": "badge", "label": "", "width": 52, "sub_field": "_tone"}
+  ],
+  "options": {
+    "highlight": "quant_step:factor",
+    "minWidth": "400",
+    "muteBy": "_off",
+    "rowHeight": "40",
+    "shared": "universe,strategy"
+  },
+  "screens": [
+    {"screen": "*"},
+    {"screen": "/quantlib", "tab": "factors", "x": 0, "y": 0, "w": 4, "h": 7}
+  ]
+}

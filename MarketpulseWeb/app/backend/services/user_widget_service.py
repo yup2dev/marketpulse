@@ -5,10 +5,13 @@
   - 위젯 종류 목록(widget_types) — 관리자가 고치는 목록. 처음 읽을 때 기본 행을 넣는다
   - 사용자 정의 위젯의 검증·CRUD (자식 행은 저장할 때 통째로 바꾼다)
   - 기본 제공 위젯의 사용자별 설정(사용 여부·내놓을 화면)
-  - 기본 제공 위젯의 정의(user_id NULL 인 행) — 처음 읽을 때 시드를 넣고, 화면이 그릴 모양으로 돌려준다
+  - 기본 제공 위젯의 정의(user_id NULL 인 행) — 읽을 때 기본값 파일(builtin_widgets/*.json)과 맞추고,
+    화면이 그릴 모양으로 돌려준다
 을 맡는다.
 """
+import logging
 import re
+import threading
 import uuid
 from typing import Any, Dict, List, Optional
 from urllib.parse import parse_qsl
@@ -16,10 +19,13 @@ from urllib.parse import parse_qsl
 from sqlalchemy.orm import Session
 
 from app.backend.models.orm import (
-    UserWidget, UserWidgetField, UserWidgetOption, UserWidgetParam, UserWidgetParamOption,
-    UserScreenGroup, UserWidgetPref, UserWidgetPrefScreen, UserWidgetScreen, UserWidgetTab, UserWidgetTabItem,
-    WidgetType,
+    UserScreenGroup, UserWidget, UserWidgetField, UserWidgetOption, UserWidgetOrigin, UserWidgetParam,
+    UserWidgetParamOption, UserWidgetPref, UserWidgetPrefScreen, UserWidgetScreen, UserWidgetSeed, UserWidgetTab,
+    UserWidgetTabItem, WidgetType,
 )
+from app.backend.services import builtin_widgets
+
+log = logging.getLogger(__name__)
 
 # ── 고정 코드값 — 설정 화면의 선택지 ──────────────────────────────────────────
 # { 코드그룹: [{ value, name, ... }] }.  프론트는 이 목록으로 select 를 그리고,
@@ -298,9 +304,45 @@ def get_codes(db: Session) -> dict:
 
 
 def serialize(db: Session, widgets: List[UserWidget]) -> List[dict]:
-    """정의 + 그리는 방식(renderer). 종류가 지워졌으면 표로 그린다."""
+    """정의 + 그리는 방식(renderer) + 원본 상태. 종류가 지워졌으면 표로 그린다."""
     renderer = {t.type_code: t.renderer for t in WidgetTypeService.list(db)}
-    return [{**w.to_dict(), "renderer": renderer.get(w.view_type, "table")} for w in widgets]
+    origins = _origin_states(db, widgets)
+    return [
+        {**w.to_dict(), "renderer": renderer.get(w.view_type, "table"), "origin": origins.get(w.widget_id)}
+        for w in widgets
+    ]
+
+
+def _origin_hash(w: UserWidget) -> str:
+    return builtin_widgets.spec_hash(builtin_widgets.row_to_spec(w))
+
+
+def _origin_states(db: Session, widgets: List[UserWidget]) -> Dict[str, dict]:
+    """복사해 만든 위젯의 원본 상태 — updated: 복사한 뒤 원본이 바뀜 · missing: 원본이 지워짐.
+    알리기만 한다. 사용자 위젯은 원본을 따라 바뀌지 않는다."""
+    links = {w.widget_id: w.origin for w in widgets if w.origin is not None}
+    if not links:
+        return {}
+    ids = {o.origin_widget_id for o in links.values()}
+    current = {o.widget_id: _origin_hash(o) for o in db.query(UserWidget).filter(UserWidget.widget_id.in_(ids))}
+    return {
+        wid: {
+            "widget_id": o.origin_widget_id,
+            "missing": o.origin_widget_id not in current,
+            "updated": o.origin_widget_id in current and current[o.origin_widget_id] != o.origin_hash,
+        }
+        for wid, o in links.items()
+    }
+
+
+def _origin_link(db: Session, user_id: str, origin_id: Optional[str]) -> Optional[UserWidgetOrigin]:
+    """복사할 원본 — 기본 제공 위젯이거나 내 위젯이어야 한다. 지금 지문을 함께 적는다."""
+    if not origin_id:
+        return None
+    origin = db.get(UserWidget, origin_id)
+    if origin is None or origin.user_id not in (None, user_id):
+        raise UserWidgetError(f"원본 위젯 '{origin_id}' 을(를) 찾을 수 없습니다")
+    return UserWidgetOrigin(origin_widget_id=origin_id, origin_hash=_origin_hash(origin))
 
 
 # ── 사용자 정의 위젯 ──────────────────────────────────────────────────────────
@@ -440,6 +482,8 @@ class UserWidgetService:
             sort_seq=int(data.get("sort_seq") or 0),
         )
         _set_children(w, params, fields, data.get("screens") or [ALL_SCREENS])
+        # 고쳐 저장한 기본 위젯이면 원본을 적어 둔다 — 행은 통째로 새로 만든다 (원본을 따라가지 않는다)
+        w.origin = _origin_link(db, user_id, data.get("origin_widget_id"))
         db.add(w)
         db.commit()
         db.refresh(w)
@@ -558,68 +602,101 @@ class WidgetPrefService:
 
 
 # ── 기본 제공 위젯의 정의 (user_id NULL) ─────────────────────────────────────
+# 기본값은 데이터 파일(app/backend/builtin_widgets/<widget_id>.json — services/builtin_widgets.py)에 있다.
+# 서버가 위젯 목록을 읽을 때 파일과 DB 를 맞춘다 — 위젯 정의를 바꿀 때 마이그레이션은 쓰지 않는다.
+#   DB 에 없음                              → 파일대로 넣는다
+#   지문 기록(user_widget_seeds)이 없음      → 파일대로 맞춘다 (예전 시드 · 마이그레이션이 넣은 행.
+#                                            기본 제공 행은 API 로 고칠 수 없어 손댄 사람이 없다)
+#   행이 기록된 지문 그대로 · 파일이 바뀜    → 파일대로 바꾼다
+#   행이 기록된 지문과 다름 (DB 를 직접 고침) → 건드리지 않고 로그만 (되돌리려면 scripts/builtin_widgets reset)
+# 파일에 없는 행(옛 위젯 — use_yn=N 으로 숨김)은 그대로 둔다.
 
-def _seed_builtin(db: Session, existing: set) -> bool:
-    """시드(services/builtin_widget_seed.py) 중 DB 에 없는 위젯만 행으로 넣는다. 넣은 게 있으면 True.
+_SKIPPED: set = set()   # (widget_id, 파일 지문, 기록된 지문) — 손댄 행이라 건너뛴 것. 요청마다 다시 보지 않게
+_SYNC_LOCK = threading.Lock()   # 화면을 열면 여러 요청이 한꺼번에 온다 — 같은 행을 두 번 바꾸지 않게
 
-    이미 있는 행은 건드리지 않는다 — 코드값이 틀리면 넣지 않고 알린다.
-    """
-    from app.backend.services.builtin_widget_seed import BUILTIN_WIDGETS, DEFAULT_GROUP
 
-    missing = [(seq, d) for seq, d in enumerate(BUILTIN_WIDGETS) if d["widget_id"] not in existing]
-    for seq, d in missing:
-        wid = d["widget_id"]
-        _check("SPEC_VIEW", d["view_type"], f"기본 위젯 '{wid}'")
-        if d.get("transform"):
-            _check("TRANSFORM", d["transform"], f"기본 위젯 '{wid}'")
-        if not d.get("source"):
-            raise UserWidgetError(f"기본 위젯 '{wid}': 출처(source)가 비어 있습니다")
-        w, h, min_w, min_h = d["size"]
-        widget = UserWidget(
-            widget_id=wid, user_id=None, name=d["name"], description=d.get("description"),
-            group_name=d.get("group_name", DEFAULT_GROUP), view_type=d["view_type"],
-            use_yn="Y", sort_seq=seq * 10,
-            title=d.get("title"), endpoint=d.get("endpoint"), data_path=d.get("data_path"),
-            source=d["source"], source_note=d.get("source_note"), transform=d.get("transform"),
-            quote_key=d.get("quote_key"), refresh_sec=d.get("refresh_sec"),
-            live_yn=d.get("live_yn", "N"), default_symbol=d.get("default_symbol"),
-            empty_text=d.get("empty_text"), size_w=w, size_h=h, min_w=min_w, min_h=min_h,
+def _validate_spec(spec: dict) -> None:
+    """코드값이 틀린 파일은 넣지 않고 알린다."""
+    wid = spec["widget_id"]
+    _check("SPEC_VIEW", spec["view_type"], f"기본 위젯 '{wid}'")
+    if spec.get("transform"):
+        _check("TRANSFORM", spec["transform"], f"기본 위젯 '{wid}'")
+    if not spec.get("source"):
+        raise UserWidgetError(f"기본 위젯 '{wid}': 출처(source)가 비어 있습니다")
+    for f in spec.get("fields", []):
+        _check("SPEC_FIELD_ROLE", f["field_role"], f"기본 위젯 '{wid}' 필드 '{f['field_name']}'")
+        _check("CELL_TYPE", f["format"], f"기본 위젯 '{wid}' 필드 '{f['field_name']}'")
+    for t in spec.get("tabs", []):
+        if t.get("filter"):
+            _check("TAB_FILTER", t["filter"], f"기본 위젯 '{wid}' 탭 '{t['tab_code']}'")
+
+
+def _replace_builtin(db: Session, spec: dict, old: Optional[UserWidget]) -> None:
+    if old is not None:
+        created = old.created_at
+        db.delete(old)
+        db.flush()   # 같은 기본 키로 다시 넣기 전에 지운다 (자식 행까지)
+    else:
+        created = None
+    row = builtin_widgets.build_row(spec)
+    if created:
+        row.created_at = created
+    db.add(row)
+
+
+def _sync_builtin(db: Session, force: Optional[set] = None) -> List[str]:
+    """파일과 DB 를 맞춘다. 바꾼 위젯 id 목록. force 에 든 id 는 손댄 행이어도 파일대로 되돌린다."""
+    specs = {s["widget_id"]: s for s in builtin_widgets.load_specs()}
+    want = builtin_widgets.spec_hashes()
+    have = dict(db.query(UserWidget.widget_id, UserWidget.user_id).filter(UserWidget.widget_id.in_(list(specs))).all())
+    seeds = {r.widget_id: r for r in db.query(UserWidgetSeed).all()}
+    force = force or set()
+    def recorded(wid):
+        return seeds[wid].seed_hash if wid in seeds else None
+
+    todo = [
+        wid for wid in specs
+        if wid in force or wid not in have or (
+            recorded(wid) != want[wid] and (wid, want[wid], recorded(wid)) not in _SKIPPED
         )
-        widget.params = [
-            UserWidgetParam(
-                param_seq=i, param_name=name, bind_type="INPUT", param_value=default, label=label,
-                options=[
-                    UserWidgetParamOption(widget_id=wid, option_seq=j, option_value=v, label=lb, option_params=extra)
-                    for j, (v, lb, extra) in enumerate(options)
-                ],
-            )
-            for i, (name, label, default, options) in enumerate(d.get("params", []))
-        ]
-        for i, f in enumerate(d.get("fields", [])):
-            _check("SPEC_FIELD_ROLE", f["field_role"], f"기본 위젯 '{wid}' 필드 '{f['field_name']}'")
-            _check("CELL_TYPE", f["format"], f"기본 위젯 '{wid}' 필드 '{f['field_name']}'")
-            widget.fields.append(UserWidgetField(field_seq=i, **f))
-        for i, (code, label, flt, empty, items) in enumerate(d.get("tabs", [])):
-            if flt:
-                _check("TAB_FILTER", flt, f"기본 위젯 '{wid}' 탭 '{code}'")
-            widget.tabs.append(UserWidgetTab(
-                tab_seq=i, tab_code=code, label=label, filter=flt, empty_text=empty,
-                items=[
-                    UserWidgetTabItem(widget_id=wid, item_seq=j, symbol=sym, name=nm)
-                    for j, (sym, nm) in enumerate(items)
-                ],
-            ))
-        widget.options = [
-            UserWidgetOption(opt_name=k, opt_value=str(v)) for k, v in d.get("options", {}).items()
-        ]
-        widget.screens = [
-            UserWidgetScreen(screen=screen, tab=tab, pos_x=x, pos_y=y, pos_w=pw, pos_h=ph)
-            for screen, tab, x, y, pw, ph in d.get("screens", [])
-        ]
-        db.add(widget)
-    if missing:
-        db.commit()
-    return bool(missing)
+    ]
+    if not todo:
+        return []
+    with _SYNC_LOCK:
+        return _apply_sync(db, specs, want, todo, force)
+
+
+def _apply_sync(db: Session, specs: dict, want: dict, todo: List[str], force: set) -> List[str]:
+    db.expire_all()   # 기다리는 동안 다른 요청이 바꿨을 수 있다 — 다시 읽는다
+    have = dict(db.query(UserWidget.widget_id, UserWidget.user_id).filter(UserWidget.widget_id.in_(todo)).all())
+    seeds = {r.widget_id: r for r in db.query(UserWidgetSeed).filter(UserWidgetSeed.widget_id.in_(todo)).all()}
+    changed = []
+    for wid in todo:
+        spec = specs[wid]
+        _validate_spec(spec)
+        if wid in have and have[wid] is not None:
+            log.warning("[widgets] 기본 위젯 '%s' 와 같은 id 의 사용자 위젯이 있어 넣지 않아요", wid)
+            _SKIPPED.add((wid, want[wid], seeds[wid].seed_hash if wid in seeds else None))
+            continue
+        old = db.get(UserWidget, wid) if wid in have else None
+        seed = seeds.get(wid)
+        if old is not None and seed is not None and wid not in force:
+            current = builtin_widgets.spec_hash(builtin_widgets.row_to_spec(old))
+            if current != seed.seed_hash:
+                log.warning("[widgets] 기본 위젯 '%s' 는 DB 에서 직접 고쳐져 있어 파일 값으로 바꾸지 않아요", wid)
+                _SKIPPED.add((wid, want[wid], seed.seed_hash))
+                continue
+        if old is None or builtin_widgets.spec_hash(builtin_widgets.row_to_spec(old)) != want[wid]:
+            _replace_builtin(db, spec, old)
+            changed.append(wid)
+        if seed is None:
+            db.add(UserWidgetSeed(widget_id=wid, seed_hash=want[wid]))
+        elif seed.seed_hash != want[wid]:
+            seed.seed_hash = want[wid]
+    db.commit()
+    if changed:
+        log.info("[widgets] 기본 위젯을 파일대로 맞췄어요: %s", ", ".join(changed))
+    return changed
 
 
 def _builtin_dict(w: UserWidget) -> dict:
@@ -692,33 +769,33 @@ class BuiltinWidgetService:
     def list(db: Session) -> List[dict]:
         """사용 중(use_yn=Y)인 기본 제공 위젯.
 
-        시드에 있는데 DB 에 없는 위젯은 먼저 넣는다 (새 DB · 새로 추가된 위젯).
-        있는 행은 그대로 둔다 — 빼려면 행을 지우지 말고 use_yn=N 으로 둔다 (지우면 다시 들어온다).
+        먼저 파일(app/backend/builtin_widgets)과 맞춘다 (_sync_builtin) — 새 위젯은 넣고, 바뀐 위젯은 고친다.
+        위젯을 빼려면 파일을 지우지 말고 "use_yn": "N" 으로 둔다 (지운 파일의 행은 DB 에 그대로 남는다).
         """
+        if _sync_builtin(db):
+            db.expire_all()
         rows = BuiltinWidgetService._rows(db)
-        if _seed_builtin(db, {w.widget_id for w in rows}):
-            rows = BuiltinWidgetService._rows(db)
         return [_builtin_dict(w) for w in rows if w.use_yn == "Y"]
 
 
 # ── 화면 단위 파라미터 그룹 (OpenBB apps.json 의 groups) ─────────────────────────────────
 
 def _seed_screen_groups(db: Session) -> bool:
-    """시드(builtin_widget_seed.SCREEN_GROUPS) 중 DB 에 없는 행만 넣는다 — 위젯 행이 있는 것만. 넣었으면 True."""
-    from app.backend.services.builtin_widget_seed import SCREEN_GROUPS
-
-    if not SCREEN_GROUPS:
+    """기본 행(app/backend/builtin_screen_groups.json) 중 DB 에 없는 행만 넣는다 — 위젯 행이 있는 것만. 넣었으면 True.
+    DB 에서 고친 행은 되돌리지 않는다."""
+    groups = builtin_widgets.load_screen_groups()
+    if not groups:
         return False
     have = {(g.screen, g.tab, g.group_code, g.widget_id) for g in db.query(UserScreenGroup).all()}
     widgets = {wid for (wid,) in db.query(UserWidget.widget_id).all()}
     added = False
-    for row in SCREEN_GROUPS:
-        screen, tab, code, wid, param, source = row[:6]
-        required = row[6] if len(row) > 6 else True
-        if (screen, tab or "", code, wid) in have or wid not in widgets:
+    for g in groups:
+        tab, wid = g.get("tab") or "", g["widget_id"]
+        if (g["screen"], tab, g["group_code"], wid) in have or wid not in widgets:
             continue
-        db.add(UserScreenGroup(screen=screen, tab=tab or "", group_code=code, widget_id=wid, param_name=param,
-                               source_yn="Y" if source else "N", required_yn="Y" if required else "N"))
+        db.add(UserScreenGroup(screen=g["screen"], tab=tab, group_code=g["group_code"], widget_id=wid,
+                               param_name=g["param_name"], source_yn="Y" if g.get("source") else "N",
+                               required_yn="N" if g.get("required") is False else "Y"))
         added = True
     if added:
         db.commit()

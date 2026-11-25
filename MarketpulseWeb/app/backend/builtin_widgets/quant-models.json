@@ -1,0 +1,56 @@
+{
+  "widget_id": "quant-models",
+  "sort_seq": 350,
+  "name": "ML Models",
+  "description": "Walk-forward out-of-sample accuracy, AUC and Sharpe per model · market regime",
+  "group_name": "Quant",
+  "view_type": "table",
+  "endpoint": "/quant/models?universe={universe}&strategy={strategy}",
+  "source": "$provider",
+  "source_note": "워크포워드 표본 밖 {oos}개월 · 타깃: 다음 달 수익률 > 중앙값",
+  "transform": "quant_models",
+  "empty_text": "퀀트 산출물이 아직 적재되지 않았어요 — 로컬에서 build_quant.py 를 실행해 주세요",
+  "size": {"w": 7, "h": 6, "min_w": 4, "min_h": 3},
+  "params": [
+    {
+      "param_name": "universe",
+      "label": "유니버스",
+      "param_value": "sp500",
+      "options": [
+        {"option_value": "sp500", "label": "S&P 500"}
+      ]
+    }
+  ],
+  "fields": [
+    {"field_name": "name", "field_role": "COLUMN", "format": "text", "label": "모델", "width": 132},
+    {"field_name": "kind", "field_role": "COLUMN", "format": "muted", "label": "종류"},
+    {"field_name": "_acc", "field_role": "COLUMN", "format": "value", "label": "정확도", "width": 68},
+    {"field_name": "_auc", "field_role": "COLUMN", "format": "value", "label": "AUC", "width": 64},
+    {"field_name": "_sharpe", "field_role": "COLUMN", "format": "value", "label": "샤프", "width": 56},
+    {"field_name": "weight", "field_role": "COLUMN", "format": "bar", "label": "스태킹 비중", "width": 132},
+    {"field_name": "_kind", "field_role": "COLUMN", "format": "badge", "label": "", "width": 52, "sub_field": "_tone"}
+  ],
+  "tabs": [
+    {"tab_code": "models", "label": "ML 모델"},
+    {"tab_code": "regime", "label": "시장 국면"}
+  ],
+  "options": {
+    "fixed": "true",
+    "highlight": "quant_step:ml",
+    "minWidth": "640",
+    "rowHeight": "40",
+    "shared": "universe,strategy",
+    "tab.regime.endpoint": "/quant/regimes?universe={universe}&strategy={strategy}",
+    "tab.regime.state": "state",
+    "tab.regime.states": "bull:강세,side:횡보,bear:약세",
+    "tab.regime.transform": "quant_meta",
+    "tab.regime.value": "p",
+    "tab.regime.valueLabel": "확률",
+    "tab.regime.view": "strip",
+    "tab.regime.x": "date"
+  },
+  "screens": [
+    {"screen": "*"},
+    {"screen": "/quantlib", "tab": "factors", "x": 0, "y": 7, "w": 7, "h": 6}
+  ]
+}

@@ -38,6 +38,7 @@ from .ingest import (
 from .process import MBS_PROC_ARTICLE
 from .calc import MBS_CALC_METRIC
 from .recommend import MBS_RCMD_RESULT
+from .data_catalog import DataSource, DataModel, DataModelProvider, DataModelParam, DataModelField
 from .user import (
     User,
     UserApiKey,
@@ -66,6 +67,8 @@ from .user import (
     UserWidgetTabItem,
     UserWidgetOption,
     UserScreenGroup,
+    UserWidgetSeed,
+    UserWidgetOrigin,
     WidgetType,
     UserWidgetPref,
     UserWidgetPrefScreen,
@@ -128,7 +131,15 @@ __all__ = [
     "UserWidgetTabItem",
     "UserWidgetOption",
     "UserScreenGroup",
+    "UserWidgetSeed",
+    "UserWidgetOrigin",
     "WidgetType",
+    # 데이터 카탈로그
+    "DataSource",
+    "DataModel",
+    "DataModelProvider",
+    "DataModelParam",
+    "DataModelField",
     "UserWidgetPref",
     "UserWidgetPrefScreen",
 ]

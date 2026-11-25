@@ -1,0 +1,36 @@
+{
+  "widget_id": "ops-system",
+  "sort_seq": 380,
+  "name": "Server Resources",
+  "description": "CPU, I/O wait, memory, swap and container memory every 15 seconds (last 2 hours)",
+  "group_name": "Operations",
+  "view_type": "lines",
+  "endpoint": "/admin/monitor/system",
+  "source": "$provider",
+  "source_note": "15초 표본 · 최근 2시간",
+  "refresh_sec": 15,
+  "empty_text": "아직 쌓인 값이 없어요 — 15초쯤 뒤에 채워져요",
+  "size": {"w": 8, "h": 6, "min_w": 4, "min_h": 4},
+  "tabs": [
+    {"tab_code": "res", "label": "사용률"},
+    {"tab_code": "mem", "label": "메모리"},
+    {"tab_code": "load", "label": "부하 · 스왑 I/O"}
+  ],
+  "options": {
+    "max": "6",
+    "tab.load.digits": "1",
+    "tab.load.pick": "load1,inflight,threads,swap_in_kbs",
+    "tab.load.series": "load1:부하 1분,load5:부하 5분,inflight:처리 중,threads:스레드,swap_in_kbs:스왑 in KB/s,swap_out_kbs:스왑 out KB/s",
+    "tab.mem.digits": "0",
+    "tab.mem.series": "mem_mb:호스트 사용,cg_mb:컨테이너,rss_mb:앱 RSS,swap_mb:스왑",
+    "tab.mem.unit": "MB",
+    "tab.res.digits": "0",
+    "tab.res.pick": "cpu_pct,iowait_pct,mem_pct,cg_pct",
+    "tab.res.series": "cpu_pct:CPU,iowait_pct:I/O 대기,app_cpu_pct:앱 CPU,mem_pct:메모리,swap_pct:스왑,cg_pct:컨테이너",
+    "tab.res.unit": "%",
+    "x": "time"
+  },
+  "screens": [
+    {"screen": "/admin", "tab": "monitor", "x": 0, "y": 1, "w": 8, "h": 6}
+  ]
+}

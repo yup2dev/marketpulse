@@ -1,0 +1,30 @@
+{
+  "widget_id": "stock-feed",
+  "sort_seq": 190,
+  "name": "News & Filings",
+  "description": "Company news and SEC filings in one list",
+  "group_name": "Stock",
+  "view_type": "list",
+  "endpoint": "/data/sec/filings?symbol={symbol}&form_type=10-K,10-Q,8-K&limit=20",
+  "source": "$provider",
+  "transform": "feed_rows",
+  "default_symbol": "AAPL",
+  "empty_text": "{symbol} 뉴스 · 공시가 없어요",
+  "size": {"w": 8, "h": 5, "min_w": 4, "min_h": 3},
+  "fields": [
+    {"field_name": "_time", "field_role": "TIME", "format": "text"},
+    {"field_name": "title", "field_role": "TITLE", "format": "text"},
+    {"field_name": "_href", "field_role": "HREF", "format": "text"},
+    {"field_name": "_tag", "field_role": "TAG", "format": "text"}
+  ],
+  "tabs": [
+    {"tab_code": "all", "label": "뉴스 · 공시"},
+    {"tab_code": "news", "label": "뉴스", "filter": "feed_news", "empty_text": "{symbol} 뉴스가 없어요"},
+    {"tab_code": "filings", "label": "공시", "filter": "feed_filings", "empty_text": "{symbol} 공시가 없어요"}
+  ],
+  "options": {"extra.news": "/news/?symbol={symbol}&limit=30&period=1mo", "rowHeight": "40"},
+  "screens": [
+    {"screen": "*"},
+    {"screen": "/stock", "tab": "overview", "x": 0, "y": 8, "w": 8, "h": 5}
+  ]
+}

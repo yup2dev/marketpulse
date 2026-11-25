@@ -1,0 +1,28 @@
+{
+  "widget_id": "ops-endpoints",
+  "sort_seq": 410,
+  "name": "Endpoints",
+  "description": "Per-route count, average / p95 / max latency, total time and errors since start",
+  "group_name": "Operations",
+  "view_type": "table",
+  "title": "경로별 성능",
+  "endpoint": "/admin/monitor/endpoints",
+  "source": "$provider",
+  "source_note": "앱 시작 후 누계 · 쓴 시간 합이 큰 순",
+  "refresh_sec": 30,
+  "empty_text": "아직 쌓인 값이 없어요 — 15초쯤 뒤에 채워져요",
+  "size": {"w": 6, "h": 6, "min_w": 4, "min_h": 4},
+  "fields": [
+    {"field_name": "route", "field_role": "COLUMN", "format": "text", "label": "경로"},
+    {"field_name": "count", "field_role": "COLUMN", "format": "number", "label": "횟수", "width": 56},
+    {"field_name": "avg_ms", "field_role": "COLUMN", "format": "value", "label": "평균 ms", "width": 64},
+    {"field_name": "p95_ms", "field_role": "COLUMN", "format": "value_muted", "label": "p95", "width": 56},
+    {"field_name": "max_ms", "field_role": "COLUMN", "format": "value_muted", "label": "최대", "width": 60},
+    {"field_name": "total_s", "field_role": "COLUMN", "format": "value_muted", "label": "합 (초)", "width": 60},
+    {"field_name": "errors", "field_role": "COLUMN", "format": "number", "label": "오류", "width": 44}
+  ],
+  "options": {"fixed": "true", "minWidth": "520", "rowHeight": "30"},
+  "screens": [
+    {"screen": "/admin", "tab": "monitor", "x": 6, "y": 7, "w": 6, "h": 6}
+  ]
+}

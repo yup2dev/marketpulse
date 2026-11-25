@@ -11,14 +11,16 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 @pytest.fixture
 def groups_seed(monkeypatch):
-    from app.backend.services import builtin_widget_seed
+    from app.backend.services import builtin_widgets
 
     rows = [
-        ("/", "overview", "market", "index-tiles", "symbol", True),
-        ("/", "overview", "market", "mini-chart", "symbol", False),
-        ("/", "", "ghost", "no-such-widget", "x", False),        # 위젯 행이 없으면 넣지 않는다 (외래키)
+        {"screen": "/", "tab": "overview", "group_code": "market", "widget_id": "index-tiles",
+         "param_name": "symbol", "source": True},
+        {"screen": "/", "tab": "overview", "group_code": "market", "widget_id": "mini-chart", "param_name": "symbol"},
+        # 위젯 행이 없으면 넣지 않는다 (외래키)
+        {"screen": "/", "tab": "", "group_code": "ghost", "widget_id": "no-such-widget", "param_name": "x"},
     ]
-    monkeypatch.setattr(builtin_widget_seed, "SCREEN_GROUPS", rows)
+    monkeypatch.setattr(builtin_widgets, "load_screen_groups", lambda path=None: rows)
     return rows
 
 

@@ -1,0 +1,61 @@
+{
+  "widget_id": "live-ranking",
+  "sort_seq": 20,
+  "name": "Live Ranking",
+  "description": "Trade value · gainers · losers with 1D trend",
+  "view_type": "table",
+  "title": "실시간 랭킹",
+  "endpoint": "/stock/ranking/live?market=all&sort_by={sortBy}&limit=30&provider={provider}",
+  "source": "$provider",
+  "transform": "rank_sort",
+  "quote_key": "stk_cd",
+  "live_yn": "Y",
+  "empty_text": "표시할 종목이 없어요",
+  "size": {"w": 8, "h": 6, "min_w": 5, "min_h": 4},
+  "params": [
+    {
+      "param_name": "sortBy",
+      "label": "정렬 기준",
+      "param_value": "trade_value",
+      "options": [
+        {"option_value": "trade_value", "label": "거래대금"},
+        {"option_value": "gainers", "label": "급상승"},
+        {"option_value": "losers", "label": "급하락"}
+      ]
+    }
+  ],
+  "fields": [
+    {"field_name": "rank", "field_role": "COLUMN", "format": "rank", "label": "순위", "width": 56},
+    {"field_name": "stk_cd", "field_role": "COLUMN", "format": "stock", "label": "종목", "sub_field": "stk_nm"},
+    {
+      "field_name": "close_price",
+      "field_role": "COLUMN",
+      "format": "price",
+      "label": "현재가",
+      "sub_field": "curr",
+      "quote_field": "price"
+    },
+    {
+      "field_name": "change_rate",
+      "field_role": "COLUMN",
+      "format": "change",
+      "label": "등락률",
+      "quote_field": "change_percent"
+    },
+    {"field_name": "volume", "field_role": "COLUMN", "format": "compact", "label": "거래량", "quote_field": "volume"},
+    {
+      "field_name": "stk_cd",
+      "field_role": "COLUMN",
+      "format": "trend",
+      "label": "1일",
+      "width": 96,
+      "sub_field": "change_rate"
+    },
+    {"field_name": "sector", "field_role": "COLUMN", "format": "tag", "label": "산업", "width": 112}
+  ],
+  "options": {"keepProvider": "true", "series": "/stock/history/{symbol}?period=1d&interval=5m"},
+  "screens": [
+    {"screen": "*"},
+    {"screen": "/", "tab": "overview", "x": 0, "y": 3, "w": 8, "h": 6}
+  ]
+}

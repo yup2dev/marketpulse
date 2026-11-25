@@ -1,6 +1,8 @@
 """위젯 설정 API — 설정 화면(/settings?tab=widgets)과 위젯 메뉴가 쓴다.
 
     GET    /api/user-widgets/codes      코드값·위젯 종류·화면 변수 (설정 화면의 선택지)
+    GET    /api/user-widgets/catalog    고를 수 있는 데이터 (provider, model) 목록 — DB 카탈로그
+    GET    /api/user-widgets/catalog/{provider}/{model}   그 데이터의 파라미터 · 응답 필드
     GET    /api/user-widgets/builtin    기본 제공 위젯의 정의 (모든 사용자 공통 — 홈 위젯 등)
     GET    /api/user-widgets/prefs      기본 제공 위젯의 내 설정 (기본값과 다른 것만)
     PUT    /api/user-widgets/prefs/{widget_type}   사용 여부·내놓을 화면
@@ -11,8 +13,8 @@
 
 위젯 종류 목록을 고치는 건 관리자만 — /api/admin/widget-types (routes/admin.py).
 
-API 목록·파라미터·응답 필드는 여기서 다시 만들지 않는다 — 게이트웨이가 이미 준다:
-    GET /api/data/                           provider·model 목록
+카탈로그(services/data_catalog)는 Fetcher 등록 정보를 기동할 때 DB 에 적은 것이다. 동적 선택지
+(dynamic_yn=Y)와 지금 막 바뀐 스키마는 게이트웨이가 그때그때 준다:
     GET /api/data/{provider}/{model}/schema  파라미터 폼 스펙 + 응답 필드
 """
 from typing import List, Optional
@@ -24,6 +26,7 @@ from sqlalchemy.orm import Session
 from app.backend.core.auth.dependencies import get_current_user
 from app.backend.core.db import get_db
 from app.backend.models.orm import User
+from app.backend.services import data_catalog
 from app.backend.services.user_widget_service import (
     BuiltinWidgetService, ScreenGroupService, UserWidgetError, UserWidgetService, WidgetPrefService,
     get_codes, serialize,
@@ -59,6 +62,7 @@ class WidgetCreate(BaseModel):
     params: List[ParamIn] = []
     fields: List[FieldIn] = []
     screens: List[str] = []
+    origin_widget_id: Optional[str] = Field(None, max_length=50)   # 고쳐 저장한 원본 위젯 (복사)
 
 
 class WidgetUpdate(BaseModel):
@@ -83,6 +87,20 @@ class PrefIn(BaseModel):
 @router.get("/codes")
 def codes(_: User = Depends(get_current_user), db: Session = Depends(get_db)):
     return get_codes(db)
+
+
+@router.get("/catalog")
+def list_catalog(_: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return {"items": data_catalog.list_catalog(db)}
+
+
+@router.get("/catalog/{provider}/{model}")
+def get_catalog_entry(provider: str, model: str, _: User = Depends(get_current_user),
+                      db: Session = Depends(get_db)):
+    entry = data_catalog.get_entry(db, provider, model)
+    if entry is None:
+        raise HTTPException(status_code=404, detail=f"'{provider}/{model}' 은(는) 카탈로그에 없습니다")
+    return entry
 
 
 @router.get("/builtin")

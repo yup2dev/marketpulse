@@ -60,13 +60,13 @@ def test_every_registry_component_renders_a_source():
 
 
 def test_every_builtin_widget_seed_declares_a_source():
-    """DB 에 정의되는 기본 제공 위젯은 컴포넌트가 없으므로 시드 행의 source 를 본다.
+    """DB 에 정의되는 기본 제공 위젯은 컴포넌트가 없으므로 기본값 파일(app/backend/builtin_widgets)의 source 를 본다.
 
-    (넣을 때도 서비스가 확인한다 — source 가 빈 위젯은 시드되지 않는다)
+    (넣을 때도 서비스가 확인한다 — source 가 빈 위젯은 넣지 않는다)
     """
-    from app.backend.services.builtin_widget_seed import BUILTIN_WIDGETS
+    from app.backend.services.builtin_widgets import load_specs
 
-    missing = [w["widget_id"] for w in BUILTIN_WIDGETS if not w.get("source")]
+    missing = [w["widget_id"] for w in load_specs() if not w.get("source")]
     assert not missing, f"builtin widgets without source: {missing}"
 
 

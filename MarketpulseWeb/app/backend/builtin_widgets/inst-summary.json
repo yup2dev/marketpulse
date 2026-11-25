@@ -1,0 +1,29 @@
+{
+  "widget_id": "inst-summary",
+  "sort_seq": 230,
+  "name": "Institution Summary",
+  "description": "Selected 13F filer — value, holdings, QoQ change, turnover in one line",
+  "group_name": "Institutions",
+  "view_type": "kpis",
+  "title": "기관 요약",
+  "endpoint": "/portfolio/13f/{institution}?summary_only=true",
+  "source": "$provider",
+  "transform": "inst_kpis",
+  "empty_text": "13F 데이터가 없어요",
+  "size": {"w": 12, "h": 1, "min_w": 6, "min_h": 1},
+  "params": [
+    {
+      "param_name": "institution",
+      "label": "기관",
+      "param_value": "berkshire",
+      "options": [
+        {"option_value": "berkshire", "label": "Berkshire Hathaway"}
+      ]
+    }
+  ],
+  "options": {"optionsFrom.institution": "/portfolio/13f/institutions|key|name", "shared": "institution"},
+  "screens": [
+    {"screen": "*"},
+    {"screen": "/stock", "tab": "institutional", "x": 0, "y": 0, "w": 12, "h": 1}
+  ]
+}

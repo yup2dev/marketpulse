@@ -1,0 +1,41 @@
+{
+  "widget_id": "bt-run-equity",
+  "sort_seq": 280,
+  "name": "Equity & Drawdown",
+  "description": "Cumulative return vs the benchmark with the drawdown pane",
+  "group_name": "Backtest",
+  "view_type": "curve",
+  "title": "누적 수익 · 낙폭",
+  "endpoint": "/strategies/result?strategy={strategy}&start={bt_start}&end={bt_end}&benchmark={bt_bench}&cost={bt_cost}&rev={bt_rev}",
+  "source": "$provider",
+  "source_note": "비용 차감 후",
+  "transform": "bt_equity",
+  "empty_text": "전략 계산 재료(월별 패널)가 아직 없어요 — 로컬에서 build_quant.py 를 실행한 뒤 동기화해 주세요",
+  "size": {"w": 8, "h": 7, "min_w": 4, "min_h": 4},
+  "params": [
+    {
+      "param_name": "window",
+      "label": "기간",
+      "param_value": "all",
+      "options": [
+        {"option_value": "all", "label": "전체", "option_params": "months=0"},
+        {"option_value": "5y", "label": "5Y", "option_params": "months=60"},
+        {"option_value": "3y", "label": "3Y", "option_params": "months=36"},
+        {"option_value": "1y", "label": "1Y", "option_params": "months=12"}
+      ]
+    }
+  ],
+  "options": {
+    "digits": "1",
+    "drawdown": "drawdown",
+    "excess": "true",
+    "series": "strategy:전략,benchmark:벤치마크",
+    "shared": "strategy,bt_start,bt_end,bt_bench,bt_cost,bt_rev",
+    "unit": "%",
+    "x": "date"
+  },
+  "screens": [
+    {"screen": "*"},
+    {"screen": "/backtest", "tab": "results", "x": 0, "y": 3, "w": 8, "h": 7}
+  ]
+}

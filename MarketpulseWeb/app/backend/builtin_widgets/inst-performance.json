@@ -1,0 +1,49 @@
+{
+  "widget_id": "inst-performance",
+  "sort_seq": 250,
+  "name": "Fund Performance (est.)",
+  "description": "Quarterly return estimated from 13F holdings — not actual NAV",
+  "group_name": "Institutions",
+  "view_type": "columns",
+  "endpoint": "/portfolio/13f/{institution}/performance?quarters=8",
+  "source": "$provider",
+  "source_note": "누적 {cumulative} · {quarters}분기 · 13F 추정 (실제 NAV 아님)",
+  "transform": "fund_perf",
+  "empty_text": "추정 수익률이 적재돼 있지 않아요",
+  "size": {"w": 4, "h": 8, "min_w": 3, "min_h": 4},
+  "params": [
+    {
+      "param_name": "institution",
+      "label": "기관",
+      "param_value": "berkshire",
+      "options": [
+        {"option_value": "berkshire", "label": "Berkshire Hathaway"}
+      ]
+    }
+  ],
+  "fields": [
+    {"field_name": "_label", "field_role": "LABEL", "format": "text"},
+    {"field_name": "return_pct", "field_role": "VALUE", "format": "text"},
+    {"field_name": "period", "field_role": "COLUMN", "format": "muted", "label": "분기말"},
+    {"field_name": "return_pct", "field_role": "COLUMN", "format": "change", "label": "수익률"},
+    {"field_name": "total_value", "field_role": "COLUMN", "format": "money", "label": "보유가치"}
+  ],
+  "tabs": [
+    {"tab_code": "chart", "label": "펀드 성과 (추정)"},
+    {"tab_code": "table", "label": "분기별"}
+  ],
+  "options": {
+    "digits": "1",
+    "optionsFrom.institution": "/portfolio/13f/institutions|key|name",
+    "shared": "institution",
+    "tab.table.minWidth": "0",
+    "tab.table.rowHeight": "32",
+    "tab.table.transform": "fund_perf_table",
+    "tab.table.view": "table",
+    "tone": "true"
+  },
+  "screens": [
+    {"screen": "*"},
+    {"screen": "/stock", "tab": "institutional", "x": 8, "y": 1, "w": 4, "h": 8}
+  ]
+}

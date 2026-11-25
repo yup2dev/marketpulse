@@ -1,0 +1,18 @@
+{
+  "widget_id": "ops-summary",
+  "sort_seq": 370,
+  "name": "Server Summary",
+  "description": "Uptime, load, CPU, memory, swap, container memory, requests, p95 and in-flight in one line",
+  "group_name": "Operations",
+  "view_type": "kpis",
+  "title": "서버 상태",
+  "endpoint": "/admin/monitor/summary",
+  "source": "$provider",
+  "refresh_sec": 10,
+  "live_yn": "Y",
+  "empty_text": "아직 쌓인 값이 없어요 — 15초쯤 뒤에 채워져요",
+  "size": {"w": 12, "h": 1, "min_w": 6, "min_h": 1},
+  "screens": [
+    {"screen": "/admin", "tab": "monitor", "x": 0, "y": 0, "w": 12, "h": 1}
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "widget_id": "key-events",
+  "sort_seq": 10,
+  "name": "Key Events",
+  "description": "Today's economic events at a glance",
+  "view_type": "table",
+  "title": "주요 일정",
+  "endpoint": "/data/nasdaq/economic_calendar?date={today}",
+  "source": "nasdaq",
+  "transform": "events_by_time",
+  "empty_text": "오늘 일정이 없어요",
+  "size": {"w": 4, "h": 3, "min_w": 3, "min_h": 2},
+  "fields": [
+    {"field_name": "time", "field_role": "COLUMN", "format": "muted", "label": "시간", "width": 62},
+    {"field_name": "_cc", "field_role": "COLUMN", "format": "muted", "label": "국가", "width": 38},
+    {"field_name": "event", "field_role": "COLUMN", "format": "text", "label": "지표"},
+    {"field_name": "actual", "field_role": "COLUMN", "format": "value", "label": "실제", "width": 60},
+    {"field_name": "consensus", "field_role": "COLUMN", "format": "value_muted", "label": "예상", "width": 60},
+    {"field_name": "previous", "field_role": "COLUMN", "format": "value_muted", "label": "이전", "width": 68}
+  ],
+  "options": {"fixed": "true", "minWidth": "0", "rowHeight": "28"},
+  "screens": [
+    {"screen": "*"},
+    {"screen": "/", "tab": "overview", "x": 8, "y": 0, "w": 4, "h": 3}
+  ]
+}

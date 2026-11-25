@@ -1,0 +1,26 @@
+{
+  "widget_id": "stock-summary",
+  "sort_seq": 160,
+  "name": "Stock Summary",
+  "description": "Price · 52-week high/low · beta · volatility · last dividend in one line",
+  "group_name": "Stock",
+  "view_type": "stats",
+  "title": "종목 요약",
+  "endpoint": "/data/{provider}/key_metrics?symbol={symbol}",
+  "source": "$provider",
+  "transform": "stock_kpis",
+  "quote_key": "$symbol",
+  "default_symbol": "AAPL",
+  "empty_text": "{symbol} 지표를 불러오지 못했어요",
+  "size": {"w": 12, "h": 1, "min_w": 6, "min_h": 1},
+  "options": {
+    "extra.dividends": "/stock/dividends/{symbol}?period=2y",
+    "extra.history": "/stock/history/{symbol}?period=1y&interval=1d",
+    "extra.quote": "/stock/quote/{symbol}",
+    "provider": "yahoo"
+  },
+  "screens": [
+    {"screen": "*"},
+    {"screen": "/stock", "tab": "overview", "x": 0, "y": 0, "w": 12, "h": 1}
+  ]
+}

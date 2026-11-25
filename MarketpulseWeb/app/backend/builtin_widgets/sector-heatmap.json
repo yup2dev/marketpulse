@@ -1,0 +1,28 @@
+{
+  "widget_id": "sector-heatmap",
+  "sort_seq": 40,
+  "name": "Sector Heatmap",
+  "description": "Market-cap treemap colored by change",
+  "view_type": "treemap",
+  "title": "섹터 히트맵",
+  "endpoint": "/stock/sector-performance",
+  "source": "$provider",
+  "source_note": "시가총액 기준",
+  "transform": "flatten_sectors",
+  "quote_key": "symbol",
+  "live_yn": "Y",
+  "empty_text": "섹터 데이터가 없어요",
+  "size": {"w": 5, "h": 5, "min_w": 3, "min_h": 4},
+  "fields": [
+    {"field_name": "market_cap", "field_role": "VALUE", "format": "text"},
+    {"field_name": "symbol", "field_role": "LABEL", "format": "text"},
+    {"field_name": "change_pct", "field_role": "CHANGE", "format": "text", "quote_field": "change_percent"},
+    {"field_name": "sector", "field_role": "GROUP", "format": "text"},
+    {"field_name": "symbol", "field_role": "LINK", "format": "text"}
+  ],
+  "options": {"perSector": "8"},
+  "screens": [
+    {"screen": "*"},
+    {"screen": "/", "tab": "overview", "x": 0, "y": 9, "w": 5, "h": 5}
+  ]
+}

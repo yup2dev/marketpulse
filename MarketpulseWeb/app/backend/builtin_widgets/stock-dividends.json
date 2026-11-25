@@ -1,0 +1,38 @@
+{
+  "widget_id": "stock-dividends",
+  "sort_seq": 200,
+  "name": "Dividend History",
+  "description": "Dividend per share by payment",
+  "group_name": "Stock",
+  "view_type": "columns",
+  "title": "배당",
+  "endpoint": "/data/{provider}/dividends?symbol={symbol}&period={period}&end_date={today}",
+  "source": "$provider",
+  "source_note": "주당 · {currency}",
+  "transform": "dividend_bars",
+  "default_symbol": "AAPL",
+  "empty_text": "{symbol} 배당 내역이 없어요",
+  "size": {"w": 4, "h": 5, "min_w": 3, "min_h": 3},
+  "params": [
+    {
+      "param_name": "period",
+      "label": "기간",
+      "param_value": "1y",
+      "options": [
+        {"option_value": "1y", "label": "1Y"},
+        {"option_value": "3y", "label": "3Y"},
+        {"option_value": "5y", "label": "5Y"},
+        {"option_value": "10y", "label": "10Y"}
+      ]
+    }
+  ],
+  "fields": [
+    {"field_name": "_label", "field_role": "LABEL", "format": "text"},
+    {"field_name": "dividend", "field_role": "VALUE", "format": "text"}
+  ],
+  "options": {"digits": "2", "prefix": "$", "provider": "yahoo"},
+  "screens": [
+    {"screen": "*"},
+    {"screen": "/stock", "tab": "overview", "x": 8, "y": 8, "w": 4, "h": 5}
+  ]
+}

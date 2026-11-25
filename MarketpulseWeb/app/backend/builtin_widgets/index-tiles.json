@@ -1,0 +1,49 @@
+{
+  "widget_id": "index-tiles",
+  "sort_seq": 0,
+  "name": "Indices",
+  "description": "Index / FX · commodity tiles with sparklines",
+  "view_type": "tiles",
+  "source": "yahoo",
+  "quote_key": "symbol",
+  "size": {"w": 8, "h": 3, "min_w": 4, "min_h": 2},
+  "fields": [
+    {"field_name": "symbol", "field_role": "SYMBOL", "format": "text"},
+    {"field_name": "name", "field_role": "LABEL", "format": "text"}
+  ],
+  "tabs": [
+    {
+      "tab_code": "index",
+      "label": "지수",
+      "items": [
+        {"symbol": "^GSPC", "name": "S&P 500"},
+        {"symbol": "^NDX", "name": "Nasdaq 100"},
+        {"symbol": "^DJI", "name": "Dow 30"},
+        {"symbol": "^RUT", "name": "Russell 2000"},
+        {"symbol": "^KS11", "name": "KOSPI"},
+        {"symbol": "^KQ11", "name": "KOSDAQ"},
+        {"symbol": "^N225", "name": "Nikkei 225"},
+        {"symbol": "^VIX", "name": "VIX"}
+      ]
+    },
+    {
+      "tab_code": "fxcmd",
+      "label": "환율 · 원자재",
+      "items": [
+        {"symbol": "KRW=X", "name": "USD/KRW"},
+        {"symbol": "JPY=X", "name": "USD/JPY"},
+        {"symbol": "EURUSD=X", "name": "EUR/USD"},
+        {"symbol": "DX-Y.NYB", "name": "Dollar Index"},
+        {"symbol": "GC=F", "name": "Gold"},
+        {"symbol": "CL=F", "name": "WTI"},
+        {"symbol": "BTC-USD", "name": "Bitcoin"},
+        {"symbol": "^TNX", "name": "US 10Y"}
+      ]
+    }
+  ],
+  "options": {"series": "/stock/history/{symbol}?period=2d&interval=5m"},
+  "screens": [
+    {"screen": "*"},
+    {"screen": "/", "tab": "overview", "x": 0, "y": 0, "w": 8, "h": 3}
+  ]
+}

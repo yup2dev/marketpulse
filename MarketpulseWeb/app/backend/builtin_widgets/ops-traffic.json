@@ -1,0 +1,28 @@
+{
+  "widget_id": "ops-traffic",
+  "sort_seq": 400,
+  "name": "Traffic & Latency",
+  "description": "Requests and errors per minute · p95 and average latency (last 2 hours)",
+  "group_name": "Operations",
+  "view_type": "lines",
+  "endpoint": "/admin/monitor/traffic",
+  "source": "$provider",
+  "source_note": "분 단위 · /health · OPTIONS · 이 화면의 요청 제외",
+  "refresh_sec": 30,
+  "empty_text": "아직 쌓인 값이 없어요 — 15초쯤 뒤에 채워져요",
+  "size": {"w": 6, "h": 6, "min_w": 4, "min_h": 4},
+  "tabs": [
+    {"tab_code": "count", "label": "요청 수"},
+    {"tab_code": "lat", "label": "응답 시간"}
+  ],
+  "options": {
+    "digits": "0",
+    "tab.count.series": "count:요청,errors:오류 (5xx)",
+    "tab.lat.series": "p95_ms:p95,avg_ms:평균",
+    "tab.lat.unit": "ms",
+    "x": "time"
+  },
+  "screens": [
+    {"screen": "/admin", "tab": "monitor", "x": 0, "y": 7, "w": 6, "h": 6}
+  ]
+}

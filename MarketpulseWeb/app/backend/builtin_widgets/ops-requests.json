@@ -1,0 +1,27 @@
+{
+  "widget_id": "ops-requests",
+  "sort_seq": 390,
+  "name": "Live Requests",
+  "description": "Requests in flight (longest first) and recent slow (>1s) or 5xx requests",
+  "group_name": "Operations",
+  "view_type": "table",
+  "endpoint": "/admin/monitor/inflight",
+  "source": "$provider",
+  "refresh_sec": 5,
+  "live_yn": "Y",
+  "size": {"w": 4, "h": 6, "min_w": 3, "min_h": 4},
+  "fields": [
+    {"field_name": "time", "field_role": "COLUMN", "format": "muted", "label": "시각", "width": 72},
+    {"field_name": "path", "field_role": "COLUMN", "format": "text", "label": "경로"},
+    {"field_name": "elapsed_ms", "field_role": "COLUMN", "format": "number", "label": "ms", "width": 60},
+    {"field_name": "_state", "field_role": "COLUMN", "format": "badge", "label": "", "width": 56, "sub_field": "_tone"}
+  ],
+  "tabs": [
+    {"tab_code": "inflight", "label": "처리 중", "empty_text": "지금 처리 중인 요청이 없어요"},
+    {"tab_code": "slow", "label": "느린 요청 · 오류", "empty_text": "1초 넘게 걸린 요청이나 5xx 가 없어요"}
+  ],
+  "options": {"fixed": "true", "minWidth": "0", "rowHeight": "30", "tab.slow.endpoint": "/admin/monitor/slow"},
+  "screens": [
+    {"screen": "/admin", "tab": "monitor", "x": 8, "y": 1, "w": 4, "h": 6}
+  ]
+}

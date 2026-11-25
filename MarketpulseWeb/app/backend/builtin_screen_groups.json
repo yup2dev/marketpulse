@@ -1,0 +1,12 @@
+[
+  {"screen": "/industry", "tab": "overview", "group_code": "industry", "widget_id": "industry-list", "param_name": "industry", "source": true},
+  {"screen": "/industry", "tab": "overview", "group_code": "industry", "widget_id": "industry-datasets", "param_name": "industry"},
+  {"screen": "/industry", "tab": "overview", "group_code": "industry", "widget_id": "industry-peers", "param_name": "industry"},
+  {"screen": "/industry", "tab": "overview", "group_code": "dataset", "widget_id": "industry-datasets", "param_name": "dataset", "source": true},
+  {"screen": "/industry", "tab": "overview", "group_code": "dataset", "widget_id": "industry-chart", "param_name": "dataset"},
+  {"screen": "/industry", "tab": "overview", "group_code": "dataset", "widget_id": "industry-summary", "param_name": "dataset"},
+  {"screen": "/industry", "tab": "overview", "group_code": "dataset", "widget_id": "industry-recent", "param_name": "dataset"},
+  {"screen": "/industry", "tab": "overview", "group_code": "series", "widget_id": "industry-chart", "param_name": "series", "source": true},
+  {"screen": "/industry", "tab": "overview", "group_code": "series", "widget_id": "industry-summary", "param_name": "series", "required": false},
+  {"screen": "/industry", "tab": "overview", "group_code": "series", "widget_id": "industry-recent", "param_name": "series", "required": false}
+]

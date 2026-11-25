@@ -1,0 +1,27 @@
+{
+  "widget_id": "macro-summary",
+  "sort_seq": 60,
+  "name": "Macro Summary",
+  "description": "10Y · 2Y · CPI · core CPI · unemployment · VIX · Fear & Greed in one line",
+  "group_name": "Macro",
+  "view_type": "stats",
+  "title": "주요 지표",
+  "endpoint": "/data/{provider}/inflation_decomposition?date={date}",
+  "source": "$provider",
+  "transform": "macro_kpis",
+  "empty_text": "지표를 불러오지 못했어요",
+  "size": {"w": 12, "h": 1, "min_w": 6, "min_h": 1},
+  "params": [
+    {"param_name": "date", "label": "기준일"}
+  ],
+  "options": {
+    "extra.labor": "/data/{provider}/labor_dashboard?date={date}",
+    "extra.sentiment": "/data/{provider}/sentiment_composite?date={date}",
+    "extra.yields": "/data/{provider}/yield_curve?date={date}",
+    "provider": "fred"
+  },
+  "screens": [
+    {"screen": "*"},
+    {"screen": "/macro", "tab": "overview", "x": 0, "y": 0, "w": 12, "h": 1}
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "widget_id": "labor-overview",
+  "sort_seq": 90,
+  "name": "Labor Overview",
+  "description": "Key labor metrics · weekly initial claims with 4-week average",
+  "group_name": "Macro",
+  "view_type": "kv",
+  "endpoint": "/data/{provider}/labor_dashboard?date={date}",
+  "source": "$provider",
+  "transform": "labor_summary",
+  "empty_text": "고용 데이터가 없어요",
+  "size": {"w": 7, "h": 6, "min_w": 4, "min_h": 4},
+  "params": [
+    {"param_name": "date", "label": "기준일"},
+    {
+      "param_name": "period",
+      "label": "기간",
+      "param_value": "1y",
+      "options": [
+        {"option_value": "3mo", "label": "3M"},
+        {"option_value": "6mo", "label": "6M"},
+        {"option_value": "1y", "label": "1Y"},
+        {"option_value": "5y", "label": "5Y"}
+      ]
+    }
+  ],
+  "tabs": [
+    {"tab_code": "summary", "label": "고용"},
+    {"tab_code": "claims", "label": "신규 실업수당"}
+  ],
+  "options": {
+    "provider": "fred",
+    "tab.claims.controls": "period",
+    "tab.claims.digits": "0",
+    "tab.claims.endpoint": "/data/{provider}/initial_claims?period={period}",
+    "tab.claims.series": "claims:신규 청구,ma_4w:4주 평균",
+    "tab.claims.unit": "K",
+    "tab.claims.view": "lines",
+    "tab.claims.x": "date",
+    "tab.summary.controls": "date"
+  },
+  "screens": [
+    {"screen": "*"},
+    {"screen": "/macro", "tab": "overview", "x": 0, "y": 7, "w": 7, "h": 6}
+  ]
+}

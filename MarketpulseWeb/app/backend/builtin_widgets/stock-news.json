@@ -1,0 +1,42 @@
+{
+  "widget_id": "stock-news",
+  "sort_seq": 210,
+  "name": "Stock News",
+  "description": "Company news with summary, sentiment and related tickers",
+  "group_name": "Stock",
+  "view_type": "articles",
+  "title": "뉴스",
+  "endpoint": "/news/?symbol={symbol}&limit=50&period={period}",
+  "source": "$provider",
+  "transform": "news_articles",
+  "default_symbol": "AAPL",
+  "empty_text": "{symbol} 뉴스가 없어요",
+  "size": {"w": 7, "h": 11, "min_w": 4, "min_h": 4},
+  "params": [
+    {
+      "param_name": "period",
+      "label": "기간",
+      "param_value": "1w",
+      "options": [
+        {"option_value": "1w", "label": "1W"},
+        {"option_value": "1mo", "label": "1M"},
+        {"option_value": "3mo", "label": "3M"}
+      ]
+    }
+  ],
+  "options": {
+    "href": "article_url",
+    "sentiment": "sentiment",
+    "sentiments": "positive:긍정,negative:부정,neutral:중립",
+    "source": "publisher",
+    "summary": "description",
+    "tags": "tickers",
+    "time": "_time",
+    "title": "title",
+    "tones": "positive:up,negative:down"
+  },
+  "screens": [
+    {"screen": "*"},
+    {"screen": "/stock", "tab": "news", "x": 0, "y": 0, "w": 7, "h": 11}
+  ]
+}
