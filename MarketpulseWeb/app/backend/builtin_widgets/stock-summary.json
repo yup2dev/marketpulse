@@ -6,19 +6,13 @@
   "group_name": "Stock",
   "view_type": "stats",
   "title": "종목 요약",
-  "endpoint": "/data/{provider}/key_metrics?symbol={symbol}",
-  "source": "$provider",
+  "endpoint": "/stock/summary/{symbol}",
+  "source": "yahoo",
   "transform": "stock_kpis",
   "quote_key": "$symbol",
   "default_symbol": "AAPL",
   "empty_text": "{symbol} 지표를 불러오지 못했어요",
   "size": {"w": 12, "h": 1, "min_w": 6, "min_h": 1},
-  "options": {
-    "extra.dividends": "/data/yahoo/dividends?symbol={symbol}&period=2y",
-    "extra.history": "/data/yahoo/stock_price?symbol={symbol}&period=1y&interval=1d",
-    "extra.quote": "/data/yahoo/quote?symbol={symbol}",
-    "provider": "yahoo"
-  },
   "screens": [
     {"screen": "*"},
     {"screen": "/stock", "tab": "overview", "x": 0, "y": 0, "w": 12, "h": 1}

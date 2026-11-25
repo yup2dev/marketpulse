@@ -65,3 +65,35 @@ def compare_from(codes: List[str], data: Dict[str, Any]) -> List[CompareData]:
             week_52_low=m.get("week_52_low"),
         ))
     return out
+
+
+# ── 종목 요약 줄 — 주요 지표 + 시세 + 1년 일봉 + 배당 ─────────────────────────────
+
+def annual_volatility(closes: List[float]) -> Optional[float]:
+    """일간 로그수익률 표준편차 × √252 (%). 수익률이 20개 미만이면 None."""
+    import math
+    rets = [math.log(b / a) for a, b in zip(closes, closes[1:]) if a and b and a > 0 and b > 0]
+    if len(rets) < 20:
+        return None
+    mean = sum(rets) / len(rets)
+    return math.sqrt(sum((r - mean) ** 2 for r in rets) / (len(rets) - 1)) * math.sqrt(252) * 100
+
+
+def summary_from(symbol: str, data: Dict[str, Any]) -> Dict[str, Any]:
+    """종목 요약 한 행 — 현재가 · 등락(시세) · 52주 고저(없으면 1년 종가) · 베타 · 연 변동성 · 최근 배당 · 시총."""
+    m, q = _first(data.get("metrics")), _first(data.get("quote"))
+    closes = [float(b["close"]) for b in sorted(data.get("history") or [], key=lambda b: str(b.get("date")))
+              if b.get("close") is not None]
+    divs = sorted((d for d in data.get("dividends") or [] if d.get("dividend") is not None),
+                  key=lambda d: str(d.get("date")))
+    pick = lambda *vals: next((v for v in vals if v is not None), None)  # noqa: E731
+    return {
+        "symbol": symbol, "name": q.get("name"), "currency": q.get("currency"),
+        "price": q.get("last_price"), "change_percent": q.get("change_percent"),
+        "week_52_high": pick(m.get("week_52_high"), q.get("week_52_high"), max(closes) if closes else None),
+        "week_52_low": pick(m.get("week_52_low"), q.get("week_52_low"), min(closes) if closes else None),
+        "beta": m.get("beta"),
+        "volatility": annual_volatility(closes),
+        "last_dividend": divs[-1]["dividend"] if divs else None,
+        "market_cap": pick(m.get("market_cap"), q.get("market_cap")),
+    }

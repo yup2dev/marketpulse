@@ -307,3 +307,54 @@ def test_fund_performance_cumulative_from_first_shown_quarter():
     assert [r["period"] for r in out] == [r["period"] for r in rows]   # 순서 유지
     assert [r["cumulative_return_pct"] for r in out] == [-45.0, None, -50.0]
     assert rows[0]["cumulative_return_pct"] == 99.0                    # 입력은 그대로
+
+
+# ── 백테스트 파생 계열 · 종목 요약 (#114 5단계 — 위젯 transform 에서 옮김) ──────────
+
+from app.backend.commands import backtest as bt_cmd  # noqa: E402
+
+
+def _equity(n=40):
+    from datetime import timedelta
+    d0 = date(2023, 1, 31)
+    vals = [1.0 * (1.01 if i % 3 else 0.98) ** i for i in range(n)]
+    return [{"date": (d0 + timedelta(days=30 * i)).isoformat(), "strategy": v, "benchmark": 1 + i * 0.01}
+            for i, v in enumerate(vals)]
+
+
+def test_backtest_equity_view_window_rebases_and_drawdown():
+    eq = _equity()
+    full = bt_cmd.equity_view(eq, 0)
+    assert full[0]["strategy"] == 0 and full[0]["benchmark"] == 0
+    assert all(p["drawdown"] <= 0 for p in full)
+    last12 = bt_cmd.equity_view(eq, 12)
+    assert 12 <= len(last12) <= 14 and last12[0]["strategy"] == 0          # 기간 시작점이 0
+    assert bt_cmd.equity_view(eq[:1], 0) == []
+
+
+def test_backtest_monthly_and_rolling():
+    eq = _equity()
+    m = bt_cmd.monthly_returns(eq)
+    assert m[0]["value"] == 0 and m[1]["value"] == pytest.approx((eq[1]["strategy"] / eq[0]["strategy"] - 1) * 100)
+    rows, win = bt_cmd.rolling_sharpe(eq)
+    assert win.endswith("개월") and rows and all("sharpe" in r for r in rows)
+    assert bt_cmd.rolling_sharpe(eq[:10]) == ([], None)
+    out = bt_cmd.with_views({"equity": eq}, 12)
+    assert {"equity_view", "monthly", "rolling", "rolling_window"} <= set(out)
+    cmp = bt_cmd.with_cumulative({"equity": eq})["equity"]
+    assert cmp[0]["strategy_pct"] == 0 and cmp[-1]["benchmark_pct"] == pytest.approx(39.0)
+
+
+def test_stock_summary_from_inputs():
+    closes = [100 * (1.01 if i % 2 else 0.99) for i in range(30)]
+    data = {
+        "metrics": [{"beta": 1.2, "market_cap": 3e12}],
+        "quote": [{"name": "Apple", "last_price": 101.0, "change_percent": 1.0, "currency": "USD"}],
+        "history": [{"date": f"2026-01-{i + 1:02d}", "close": c} for i, c in enumerate(closes)],
+        "dividends": [{"date": "2026-02-01", "dividend": 0.25}, {"date": "2026-05-01", "dividend": 0.26}],
+    }
+    out = stock_cmd.summary_from("AAPL", data)
+    assert out["price"] == 101.0 and out["name"] == "Apple" and out["last_dividend"] == 0.26
+    assert out["week_52_high"] == max(closes) and out["week_52_low"] == min(closes)     # 지표에 없으면 1년 종가
+    assert out["volatility"] > 0
+    assert stock_cmd.annual_volatility(closes[:10]) is None

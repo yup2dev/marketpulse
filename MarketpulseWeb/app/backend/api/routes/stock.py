@@ -97,6 +97,19 @@ def compare(data, symbols: str):
     return stock_cmd.compare_from(stock_cmd.parse_symbols(symbols), data)
 
 
+# ── 종목 요약 줄 ─────────────────────────────────────────────────────────────
+
+@router.command(path="/summary/{symbol}", inputs=lambda symbol: {
+    "metrics": Fetch("yahoo", "key_metrics", {"symbol": symbol.upper()}),
+    "quote": Fetch("yahoo", "quote", {"symbol": symbol.upper()}),
+    "history": Fetch("yahoo", "stock_price", {"symbol": symbol.upper(), "period": "1y", "interval": "1d"}),
+    "dividends": Fetch("yahoo", "dividends", {"symbol": symbol.upper()}),
+})
+def stock_summary(data, symbol: str):
+    """현재가 · 52주 고저 · 베타 · 연 변동성 · 최근 배당 · 시총 — 한 행 (화면은 실시간 시세로 가격만 덮는다)."""
+    return [stock_cmd.summary_from(symbol.upper(), data)]
+
+
 # ── 거시 지표 (종목 차트 비교용) ──────────────────────────────────────────────
 
 # 지표 키 → fred 모델 (+ 고정 파라미터)

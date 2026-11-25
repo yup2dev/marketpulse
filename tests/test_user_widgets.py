@@ -359,10 +359,10 @@ def test_builtin_widgets_are_rows_seeded_on_first_read(auth_client, db_session, 
     ]
     assert [f["width"] for f in events["fields"]].count(None) == 1
 
-    # 종목 위젯: 페이지 종목({symbol})을 따르고, 게이트웨이 요청은 데이터 소스를 고를 수 있다
-    assert widgets["stock-summary"]["endpoint"] == "/data/{provider}/key_metrics?symbol={symbol}"
+    # 종목 위젯: 페이지 종목({symbol})을 따른다
+    assert widgets["stock-summary"]["endpoint"] == "/stock/summary/{symbol}"
     assert widgets["stock-summary"]["view_type"] == "stats" and widgets["stock-summary"]["quote_key"] == "$symbol"
-    assert set(widgets["stock-summary"]["options"]) == {"provider", "extra.quote", "extra.history", "extra.dividends"}
+    assert not widgets["stock-summary"]["options"]          # 보조 요청 없음 — /stock/summary command 가 한 번에
     candles = widgets["stock-chart"]
     assert candles["options"] == {"headline": "false", "ma": "5"} and candles["params"][0]["param_value"] == "1d"
     assert [o["value"] for o in candles["params"][0]["options"]] == ["5m", "1d", "1wk", "1mo"]

@@ -6,7 +6,7 @@
   "group_name": "Backtest",
   "view_type": "curve",
   "title": "누적 수익 · 낙폭",
-  "endpoint": "/strategies/result?strategy={strategy}&start={bt_start}&end={bt_end}&benchmark={bt_bench}&cost={bt_cost}&rev={bt_rev}",
+  "endpoint": "/strategies/result?strategy={strategy}&start={bt_start}&end={bt_end}&benchmark={bt_bench}&cost={bt_cost}&rev={bt_rev}&months={months}",
   "source": "$provider",
   "source_note": "비용 차감 후",
   "transform": "bt_equity",

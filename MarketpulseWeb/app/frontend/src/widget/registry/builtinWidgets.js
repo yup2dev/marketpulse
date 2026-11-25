@@ -141,35 +141,27 @@ export const TRANSFORMS = {
     },
   },
 
-  // 종목 요약 줄: 현재가 · 등락(시세 → 없으면 quote) + 1년 최고/최저 · 베타(주 요청) · 연 변동성(일봉) · 최근 배당
+  // 종목 요약 줄 — 값은 서버(/stock/summary: 52주 고저 · 연 변동성 · 최근 배당)가 계산. 가격 · 등락은 실시간 시세로 덮는다
   stock_kpis: {
-    apply: (rows, { symbol, extra, quotes }) => {
+    apply: (rows, { symbol, quotes }) => {
       const m = (Array.isArray(rows) ? rows[0] : rows) || {};
-      const q = (extra.quote || [])[0] || {};
       const live = quotes?.[String(symbol || '').toUpperCase()] || {};
-      const cur = q.currency;
-      const price = live.price ?? q.last_price;
-      const pct = live.change_percent ?? q.change_percent;
-      // 등락폭은 현재가와 등락률에서 다시 구한다 (실시간 시세에는 등락폭이 없다)
+      const price = live.price ?? m.price;
+      const pct = live.change_percent ?? m.change_percent;
+      // 등락폭은 현재가와 등락률에서 (실시간 시세에는 등락폭이 없다) — 표기용
       const diff = price != null && pct != null ? price - price / (1 + pct / 100) : null;
-      const closes = normalizeBars(extra.history).map((b) => b.close);
-      const high = m.week_52_high ?? q.week_52_high ?? (closes.length ? Math.max(...closes) : null);
-      const low = m.week_52_low ?? q.week_52_low ?? (closes.length ? Math.min(...closes) : null);
-      const vol = annualVolatility(closes);
-      const lastDiv = [...(extra.dividends || [])].sort((a, b) => String(b.date).localeCompare(String(a.date)))[0];
-      const cap = m.market_cap ?? q.market_cap;
-      const money = (v) => (v == null ? null : fmtPrice(v, cur));
+      const money = (v) => (v == null ? null : fmtPrice(v, m.currency));
       return [
         {
-          id: 'price', label: q.name || symbol, value: money(price), tone: pct,
+          id: 'price', label: m.name || symbol, value: money(price), tone: pct,
           change: diff != null ? `${diff > 0 ? '+' : diff < 0 ? '−' : ''}${Math.abs(diff).toFixed(2)} (${fmtPct(pct)})` : null,
         },
-        { id: 'high', label: '1년 최고', value: money(high) },
-        { id: 'low', label: '1년 최저', value: money(low) },
+        { id: 'high', label: '1년 최고', value: money(m.week_52_high) },
+        { id: 'low', label: '1년 최저', value: money(m.week_52_low) },
         { id: 'beta', label: '베타', value: m.beta != null ? Number(m.beta).toFixed(2) : null },
-        { id: 'vol', label: '연 변동성', value: vol != null ? `${vol.toFixed(1)}%` : null },
-        { id: 'div', label: '최근 배당', value: money(lastDiv?.dividend) },
-        { id: 'cap', label: '시가총액', value: cap != null ? fmtCompact(cap, 2) : null },
+        { id: 'vol', label: '연 변동성', value: m.volatility != null ? `${Number(m.volatility).toFixed(1)}%` : null },
+        { id: 'div', label: '최근 배당', value: money(m.last_dividend) },
+        { id: 'cap', label: '시가총액', value: m.market_cap != null ? fmtCompact(m.market_cap, 2) : null },
       ].filter((r) => r.value != null);
     },
   },
@@ -317,40 +309,11 @@ export const TRANSFORMS = {
     },
   },
 
-  // 누적 수익(%) · 낙폭(%) — 고른 기간(months)의 시작점을 0 으로 다시 맞춘다
-  bt_equity: {
-    apply: (rows, { params }) => {
-      const pts = windowed(rows[0]?.equity || [], Number(params.months) || 0, 'date');
-      if (pts.length < 2) return [];
-      const s0 = pts[0].strategy || 1;
-      const b0 = pts[0].benchmark || 1;
-      let peak = -Infinity;
-      return pts.map((p) => {
-        const s = p.strategy / s0;
-        peak = Math.max(peak, s);
-        return { date: String(p.date), strategy: (s - 1) * 100, benchmark: (p.benchmark / b0 - 1) * 100, drawdown: (s / peak - 1) * 100 };
-      });
-    },
-  },
+  // 누적 수익(%) · 낙폭(%) — 서버가 고른 기간(months)으로 계산한 equity_view
+  bt_equity: { apply: (rows) => rows[0]?.equity_view || [] },
 
-  // 월별 수익률(%) — 월말 자산을 앞 달 월말과 비교 (첫 달은 시작점 대비)
-  bt_monthly: {
-    apply: (rows) => {
-      const pts = rows[0]?.equity || [];
-      const ends = [];   // [{ key: 'YYYY-MM', value }] — 달마다 마지막 점
-      for (const p of pts) {
-        const key = String(p.date).slice(0, 7);
-        if (ends.length && ends[ends.length - 1].key === key) ends[ends.length - 1].value = p.strategy;
-        else ends.push({ key, value: p.strategy });
-      }
-      let prev = pts[0]?.strategy;
-      return ends.map(({ key, value }) => {
-        const ret = prev ? (value / prev - 1) * 100 : null;
-        prev = value;
-        return { year: key.slice(0, 4), month: Number(key.slice(5, 7)), value: ret };
-      });
-    },
-  },
+  // 월별 수익률(%) — 서버 계산 (monthly)
+  bt_monthly: { apply: (rows) => rows[0]?.monthly || [] },
 
   // 거래 내역 — 최근 청산부터, 고른 기간 안의 것만. 아직 들고 있는 거래는 '보유 중'
   bt_trades: {
@@ -367,30 +330,17 @@ export const TRANSFORMS = {
     },
   },
 
-  // 롤링 샤프 — 창은 1년(자료가 짧으면 전체의 1/3), 연환산. 창 길이를 meta 로
+  // 롤링 샤프 — 서버 계산 (rolling · rolling_window: 1년 창, 연환산)
   bt_rolling: {
     apply: (rows) => {
-      const pts = rows[0]?.equity || [];
-      const n = pts.length;
-      if (n < 30) return [];
-      const years = (new Date(pts[n - 1].date) - new Date(pts[0].date)) / (365.25 * 86400e3);
-      const ppy = years > 0 ? (n - 1) / years : 252;
-      const win = Math.max(10, Math.min(Math.round(ppy), Math.floor(n / 3)));
-      const rets = pts.map((p, i) => (i ? p.strategy / pts[i - 1].strategy - 1 : 0));
-      const out = [];
-      for (let i = win; i < n; i += 1) {
-        const w = rets.slice(i - win + 1, i + 1);
-        const mean = w.reduce((a, b) => a + b, 0) / w.length;
-        const sd = Math.sqrt(w.reduce((a, b) => a + (b - mean) ** 2, 0) / (w.length - 1));
-        out.push({ date: String(pts[i].date), sharpe: sd > 0 ? (mean / sd) * Math.sqrt(ppy) : null });
-      }
-      return { rows: out, meta: { window: ppy <= 13 ? `${win}개월` : `${win}봉` } };   // 월별 실행(전략)은 개월
+      const run = rows[0];
+      return run?.rolling?.length ? { rows: run.rolling, meta: { window: run.rolling_window } } : [];
     },
   },
 
   // ── 전략별 손익 (같은 조건으로 전략마다 실행 — /api/strategies/compare) ──
   // 누적 손익(%) 넓은 행 { date, <전략 id>: %, benchmark: % } + 계열(전략 이름)을 meta 로.
-  // 전략마다 자기 첫 달을 0 으로 (ML 전략은 표본 밖 구간부터 시작한다). 처음엔 고른 전략 + 앞의 기본 제공 둘 + 벤치마크
+  // 전략마다 자기 첫 달이 0 (서버 계산 — ML 전략은 표본 밖 구간부터 시작한다). 처음엔 고른 전략 + 앞의 기본 제공 둘 + 벤치마크
   bt_compare: {
     apply: (rows, { params }) => {
       if (!rows.length) return [];
@@ -400,16 +350,11 @@ export const TRANSFORMS = {
         if (!byDate.has(d)) byDate.set(d, { date: d });
         byDate.get(d)[key] = v;
       };
-      for (const r of rows) {
-        const pts = r.equity || [];
-        const s0 = pts[0]?.strategy || 1;
-        for (const p of pts) put(p.date, r.strategy_id, (p.strategy / s0 - 1) * 100);
-      }
+      // 누적 수익률(%)은 서버가 전략마다 자기 첫 달 기준으로 계산해 온다 (strategy_pct · benchmark_pct)
+      for (const r of rows) for (const p of r.equity || []) put(p.date, r.strategy_id, p.strategy_pct);
       // 벤치마크는 기간이 가장 긴 전략의 것
       const longest = rows.reduce((a, b) => ((b.equity?.length || 0) > (a.equity?.length || 0) ? b : a), rows[0]);
-      const bpts = longest.equity || [];
-      const b0 = bpts[0]?.benchmark || 1;
-      for (const p of bpts) if (p.benchmark != null) put(p.date, 'benchmark', (p.benchmark / b0 - 1) * 100);
+      for (const p of longest.equity || []) if (p.benchmark_pct != null) put(p.date, 'benchmark', p.benchmark_pct);
       const benchName = longest.metrics?.benchmark?.name || '벤치마크';
       const label = (n) => String(n).replace(/[,:]/g, ' ');   // 'id:이름,…' 목록의 구분자와 겹치지 않게
       const series = [...rows.map((r) => `${r.strategy_id}:${label(r.name)}`), `benchmark:${label(benchName)}`].join(',');
@@ -508,27 +453,6 @@ export const TRANSFORMS = {
       })),
       meta: quantMeta(response),
     }),
-  },
-  // 종목 시그널: 고른 융합 방식(method)의 확률 큰 순. 상위 10% 매수 · 하위 10% 매도 (그 달 종목 안에서의 순위)
-  quant_signals: {
-    apply: (rows, { params, response }) => {
-      const by = params.method || 'stack';
-      const list = rows.filter((r) => r[by] != null).sort((a, b) => b[by] - a[by]);
-      const edge = Math.max(1, Math.round(list.length * 0.1));
-      return {
-        rows: list.map((r, i) => {
-          const buy = i < edge;
-          const sell = i >= list.length - edge;
-          return {
-            ...r,
-            _score: r[by] * 100,
-            _signal: buy ? '매수' : sell ? '매도' : '중립',
-            _tone: buy ? 'up' : sell ? 'down' : undefined,
-          };
-        }),
-        meta: quantMeta(response),
-      };
-    },
   },
   // 기준월 순위: 서버가 전략 점수 순으로 준다 (상위 top_n 이 buy). 점수 = ML 확률 ×100 또는 팩터 가중 z
   // 지난달을 고르면 fwd(실제 다음 달 수익률, 비율)와 매수 · 전체 평균(fwd_buy · fwd_all)이 온다
@@ -641,16 +565,6 @@ function filingSubject(f) {
 }
 
 /** 일봉 종가 → 연 변동성(%) — 일간 로그수익률의 표준편차 × √252. 봉이 모자라면 null */
-function annualVolatility(closes) {
-  const rets = [];
-  for (let i = 1; i < closes.length; i += 1) {
-    if (closes[i] > 0 && closes[i - 1] > 0) rets.push(Math.log(closes[i] / closes[i - 1]));
-  }
-  if (rets.length < 20) return null;
-  const mean = rets.reduce((a, b) => a + b, 0) / rets.length;
-  const variance = rets.reduce((a, b) => a + (b - mean) ** 2, 0) / (rets.length - 1);
-  return Math.sqrt(variance) * Math.sqrt(252) * 100;
-}
 
 // 일정 표의 국가 칸 — 응답의 국가 이름을 두 글자로 (없는 이름은 그대로)
 const COUNTRY_CODES = {
