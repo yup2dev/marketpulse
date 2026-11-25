@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 from app.backend.models.orm import (
     DataModel, DataModelField, DataModelParam, DataModelProvider, DataSource, UserWidget,
 )
-from app.backend.services.model_schema import has_dynamic_choices, model_schema
+from data_fetcher.core.model_schema import has_dynamic_choices, model_schema
 
 log = logging.getLogger(__name__)
 

@@ -81,9 +81,25 @@ class ProviderInterface:
         return ProviderInterface.params(model).providers
 
     @staticmethod
+    def fetcher(model: str, provider: str):
+        """(provider, model) 의 fetcher 클래스 — 없으면 None."""
+        from data_fetcher.abstract_provider.abstract.provider import ProviderRegistry
+        _registry()
+        prov = ProviderRegistry.get_all().get(provider)
+        return prov.fetcher_dict.get(model) if prov else None
+
+    @staticmethod
+    def schema(model: str, provider: str, dynamic: bool = True) -> Optional[dict]:
+        """(provider, model) 의 파라미터 폼 스펙 + 응답 필드 (위젯 · 사용자 위젯 · 데이터 카탈로그가 쓴다)."""
+        from data_fetcher.core.model_schema import model_schema
+        fetcher_cls = ProviderInterface.fetcher(model, provider)
+        return model_schema(fetcher_cls, dynamic=dynamic) if fetcher_cls else None
+
+    @staticmethod
     def field_names(model: str, provider: str) -> Optional[set]:
-        """그 provider 가 받는 칸 이름 (alias 포함). QueryParams 를 못 읽으면 None — 거르지 않는다."""
-        qp = _qp_type(_registry().get(model, provider))
+        """그 provider 가 받는 칸 이름 (alias 포함). fetcher · QueryParams 를 못 읽으면 None — 거르지 않는다."""
+        fetcher_cls = ProviderInterface.fetcher(model, provider)
+        qp = _qp_type(fetcher_cls) if fetcher_cls else None
         if qp is None:
             return None
         names = set(qp.model_fields)

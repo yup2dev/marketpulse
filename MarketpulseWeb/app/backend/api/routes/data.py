@@ -17,13 +17,11 @@ from typing import Any, Dict
 
 from fastapi import APIRouter, HTTPException, Request
 
-from app.backend.api.deps import (
-    filter_dated_rows as _postprocess_dated_rows, missing_key_response, route_handler, wrap_result,
-)
-from app.backend.services.model_schema import model_schema, resolve_choices
-from data_fetcher.core.obbject import OBBject
+from app.backend.api.deps import filter_dated_rows as _postprocess_dated_rows, route_handler
+from data_fetcher.core import OBBject, ProviderInterface, Query
+from data_fetcher.core.model_schema import resolve_choices
 from data_fetcher.query_executor import (
-    MissingCredentialsError, QueryExecutor, QueryExecutorError, RemoteUnavailableError,
+    MissingCredentialsError, QueryExecutorError, RemoteUnavailableError,
 )
 from data_fetcher.utils.circuit_breaker import CircuitBreakerOpen
 
@@ -48,115 +46,50 @@ def _coerce(value: str) -> Any:
     return value
 
 
-def _lookup_fetcher(provider: str, model: str):
-    """ProviderRegistry에서 (provider, model) fetcher 클래스 조회. 없으면 None."""
-    try:
-        from data_fetcher.abstract_provider.abstract.provider import ProviderRegistry
-        prov = ProviderRegistry.get_all().get(provider)
-        return prov.fetcher_dict.get(model) if prov else None
-    except Exception:  # noqa: BLE001
-        return None
-
-
-def _qp_fields(fetcher_cls) -> dict:
-    """Fetcher QueryParams(pydantic)의 model_fields. 해석 불가 시 빈 dict."""
-    try:
-        from pydantic import BaseModel
-        qp = fetcher_cls.query_params_type
-        if isinstance(qp, type) and issubclass(qp, BaseModel):
-            return qp.model_fields
-    except Exception:  # noqa: BLE001
-        pass
-    return {}
-
-
 @router.get("/{provider}/{model}")
 @route_handler
-async def fetch_data(
-    provider: str,
-    model: str,
-    request: Request,
-) -> OBBject:
-    """
-    범용 데이터 조회 엔드포인트.
+async def fetch_data(provider: str, model: str, request: Request) -> OBBject:
+    """범용 데이터 조회 — 등록된 (provider, model) 무엇이든. 쿼리 파라미터는 fetcher QueryParams 로 그대로.
 
-    - provider: ProviderRegistry에 등록된 제공자 이름 (fred, yahoo, fmp, polygon ...)
-    - model:    해당 provider의 fetcher_dict 키 (yield_curve, quote, income_statement ...)
-    - query params: Fetcher의 QueryParams 필드에 그대로 전달
-
-    복잡한 비즈니스 로직이 필요한 경우(여러 fetcher 조합, 점수 계산 등)는
-    기존 서비스 메서드를 별도 엔드포인트로 유지합니다.
+    OpenBB 의 model command 를 동적으로 연 것이다 (Query · ProviderInterface 를 같이 쓴다).
+    가공(여러 모델 조합 · 계산)이 필요하면 여기가 아니라 Router.command(inputs=...) 로.
     """
+    if ProviderInterface.fetcher(model, provider) is None:
+        raise HTTPException(status_code=404, detail=f"Model '{model}' not found for provider '{provider}'")
     params: Dict[str, Any] = {k: _coerce(v) for k, v in request.query_params.items()}
 
-    fetcher_cls = _lookup_fetcher(provider, model)
-    qp_fields = _qp_fields(fetcher_cls) if fetcher_cls else {}
-
-    # 위젯 계층이 무조건 주입하는 symbol/ticker 제거 — 모델이 해당 파라미터를
-    # 선언하지 않으면(institution 계열 등) 잘못된 파라미터로 fetcher가 깨진다.
-    # (BaseQueryParams extra='allow'라 _filter_extra_params가 걸러주지 않음)
-    if qp_fields:
-        aliases = {f.alias for f in qp_fields.values() if f.alias}
+    # 위젯 계층이 늘 넣는 symbol/ticker — 모델이 받지 않으면 뺀다 (BaseQueryParams 가 extra 를 허용해서
+    # 그대로 두면 잘못된 파라미터로 fetcher 가 깨진다. 예: 기관 계열)
+    accepted = ProviderInterface.field_names(model, provider)
+    if accepted is not None:
         for k in ("symbol", "ticker"):
-            if k in params and k not in qp_fields and k not in aliases:
+            if k in params and k not in accepted:
                 params.pop(k)
 
-    # period → start_date / end_date 자동 변환.
-    # 단, 모델 자체가 period 파라미터를 선언하면(예: financials의 annual/quarterly)
-    # 날짜 범위 축약이 아니므로 그대로 전달한다.
-    if "period" in params and "start_date" not in params and "period" not in qp_fields:
-        from data_fetcher.utils.helpers import parse_period_to_dates
-        start_date, end_date = parse_period_to_dates(str(params.pop("period")))
-        params["start_date"] = start_date
-        params.setdefault("end_date", end_date)   # 끝 날짜를 직접 준 요청은 그 날짜까지
-        # 날짜를 문자열(YYYY-MM-DD)로 선언한 모델(예: dividends)에는 문자열로 넘긴다
-        for key in ("start_date", "end_date"):
-            field = qp_fields.get(key)
-            if field is not None and "date" not in str(field.annotation) and hasattr(params[key], "isoformat"):
-                params[key] = params[key].isoformat()
-
+    query = Query(_model=model, provider=provider, **params)
     try:
-        raw = await QueryExecutor.fetch(provider, model, params)
-    except MissingCredentialsError as e:
-        return missing_key_response(e)
-    except RemoteUnavailableError:
-        # Fetcher 워커 미접속 등 → route_handler 가 503 으로 바꾼다.
-        # 여기서 400 으로 뭉개면 위젯이 'Fetcher 실행' 안내 대신 일반 오류를 띄운다.
-        raise
+        obb = await OBBject.from_query(query)
     except QueryExecutorError as e:
-        if isinstance(e.__cause__, CircuitBreakerOpen):
-            raise   # 서킷 OPEN → route_handler 가 503 + Retry-After
+        if isinstance(e, (MissingCredentialsError, RemoteUnavailableError)) or isinstance(e.__cause__, CircuitBreakerOpen):
+            raise                               # route_handler 가 424 · 503 으로
         msg = str(e)
-        if "not found" in msg.lower():
-            raise HTTPException(status_code=404, detail=msg)
-        raise HTTPException(status_code=400, detail=msg)
+        raise HTTPException(status_code=404 if "not found" in msg.lower() else 400, detail=msg)
 
-    obb = wrap_result(raw, provider)
-    # 날짜 필드가 있는 데이터 공통 후처리: 날짜 범위 필터 + desc 정렬.
-    # QP가 start/end를 선언하지 않는 fetcher도 위젯의 날짜 선택이 동작한다.
-    obb.results = _postprocess_dated_rows(
-        obb.results, params.get("start_date"), params.get("end_date")
-    )
+    # 날짜가 있는 데이터 공통 후처리: 날짜 범위 필터 + 최신순 — QueryParams 가 날짜 범위를 받지 않아도
+    # 위젯의 기간 선택이 동작한다
+    norm = query.normalized_params()
+    obb.results = _postprocess_dated_rows(obb.results, norm.get("start_date"), norm.get("end_date"))
+    obb.metadata.pop("params", None)
     return obb
 
 
 @router.get("/{provider}/{model}/schema")
 async def get_model_schema(provider: str, model: str) -> Dict[str, Any]:
-    """(provider, model) 쌍의 파라미터 폼 스키마.
-
-    UniversalWidget이 provider 셀렉터 변경 시 호출 — 선택된 provider의
-    QueryParams(표준모델 + provider 전용 필드)로 파라미터 폼을 자동 생성한다.
-    """
-    from data_fetcher.abstract_provider.abstract.provider import ProviderRegistry
-
-    prov = ProviderRegistry.get_all().get(provider)
-    if prov is None:
-        raise HTTPException(status_code=404, detail=f"Provider '{provider}' not found")
-    fetcher_cls = prov.fetcher_dict.get(model)
-    if fetcher_cls is None:
+    """(provider, model) 파라미터 폼 · 응답 필드 — UniversalWidget · 사용자 위젯 설정이 쓴다."""
+    schema = ProviderInterface.schema(model, provider)
+    if schema is None:
         raise HTTPException(status_code=404, detail=f"Model '{model}' not found for provider '{provider}'")
-
-    return {"provider": provider, "model": model, **model_schema(fetcher_cls)}
+    return {"provider": provider, "model": model, **schema}
 
 
 @router.get("/")

@@ -39,7 +39,7 @@ def wrap_result(raw: Any, provider: str) -> OBBject:
 # ── 날짜가 있는 행 목록 공통 처리 (게이트웨이·전용 라우트 공용) ──────────────────
 
 # 행 dict에서 날짜 필드로 인정하는 키 (우선순위 순)
-from app.backend.services.model_schema import DATE_KEYS  # noqa: E402 — 날짜 필드 이름은 한 곳에
+from data_fetcher.core.model_schema import DATE_KEYS  # noqa: E402 — 날짜 필드 이름은 한 곳에
 
 
 def row_date_key(rows: list) -> str | None:

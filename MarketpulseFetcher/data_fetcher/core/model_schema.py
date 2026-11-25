@@ -1,7 +1,7 @@
 """(provider, model) 의 파라미터 · 응답 필드 — Fetcher 의 pydantic 모델에서 읽는다.
 
 두 곳이 같은 규칙을 쓴다:
-    GET /api/data/{provider}/{model}/schema   그때그때 읽어 위젯 파라미터 폼을 만든다 (dynamic=True)
+    GET /api/data/{provider}/{model}/schema   ProviderInterface.schema — 위젯 파라미터 폼 (dynamic=True)
     services/data_catalog.sync_catalog        DB 카탈로그(data_model_params · data_model_fields)로 적는다
                                               (dynamic=False — 동적 선택지는 부르지 않는다)
 """
