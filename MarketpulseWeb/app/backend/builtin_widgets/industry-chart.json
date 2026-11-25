@@ -1,0 +1,49 @@
+{
+  "widget_id": "industry-chart",
+  "sort_seq": 440,
+  "name": "Industry Data Chart",
+  "description": "Selected dataset — value bars/line with YoY or MoM on the right axis",
+  "group_name": "Industry",
+  "view_type": "bar",
+  "title": "데이터",
+  "endpoint": "/industry/data?dataset={dataset}&series={series}&period={period}&rate={rate}",
+  "source": "$provider",
+  "empty_text": "데이터셋을 고르세요",
+  "size": {"w": 5, "h": 7, "min_w": 3, "min_h": 4},
+  "params": [
+    {"param_name": "series", "label": "계열", "param_value": ""},
+    {
+      "param_name": "period",
+      "label": "기간",
+      "param_value": "5y",
+      "options": [
+        {"option_value": "1y", "label": "1Y"},
+        {"option_value": "3y", "label": "3Y"},
+        {"option_value": "5y", "label": "5Y"},
+        {"option_value": "10y", "label": "10Y"},
+        {"option_value": "max", "label": "전체"}
+      ]
+    },
+    {
+      "param_name": "rate",
+      "label": "증감률",
+      "param_value": "yoy",
+      "options": [
+        {"option_value": "yoy", "label": "YoY"},
+        {"option_value": "mom", "label": "MoM"},
+        {"option_value": "none", "label": "끄기"}
+      ]
+    }
+  ],
+  "options": {
+    "optionsFrom.series": "/industry/series?dataset={dataset}|code|label",
+    "right": "rate:증감률",
+    "series": "value:값",
+    "views": "bar:막대,line:선",
+    "x": "date"
+  },
+  "screens": [
+    {"screen": "*"},
+    {"screen": "/industry", "tab": "overview", "x": 5, "y": 0, "w": 5, "h": 7}
+  ]
+}

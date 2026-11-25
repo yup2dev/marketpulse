@@ -1,0 +1,44 @@
+{
+  "widget_id": "concept-unemployment",
+  "sort_seq": 130,
+  "name": "Unemployment Rate",
+  "description": "Seasonally adjusted unemployment — pick a country and a data source",
+  "group_name": "Macro",
+  "view_type": "lines",
+  "title": "실업률",
+  "endpoint": "/concepts/unemployment_rate?country={country}&period={period}&provider={provider}",
+  "source": "$provider",
+  "empty_text": "이 국가의 데이터가 없어요",
+  "size": {"w": 6, "h": 7, "min_w": 4, "min_h": 4},
+  "params": [
+    {
+      "param_name": "country",
+      "label": "국가",
+      "param_value": "USA",
+      "options": [
+        {"option_value": "USA", "label": "United States"},
+        {"option_value": "KOR", "label": "Korea"}
+      ]
+    },
+    {
+      "param_name": "period",
+      "label": "기간",
+      "param_value": "10y",
+      "options": [
+        {"option_value": "1y", "label": "1Y"},
+        {"option_value": "3y", "label": "3Y"},
+        {"option_value": "5y", "label": "5Y"},
+        {"option_value": "10y", "label": "10Y"}
+      ]
+    }
+  ],
+  "options": {
+    "optionsFrom.country": "/concepts/unemployment_rate/countries|code|label",
+    "series": "value:실업률",
+    "unit": "%",
+    "x": "date"
+  },
+  "screens": [
+    {"screen": "/macro", "tab": "global", "x": 0, "y": 7, "w": 6, "h": 7}
+  ]
+}

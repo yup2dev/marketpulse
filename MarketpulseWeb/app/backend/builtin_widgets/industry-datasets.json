@@ -1,0 +1,22 @@
+{
+  "widget_id": "industry-datasets",
+  "sort_seq": 430,
+  "name": "Industry Datasets",
+  "description": "Datasets of the selected industry — click to show it in the chart",
+  "group_name": "Industry",
+  "view_type": "table",
+  "title": "데이터셋",
+  "endpoint": "/industry/datasets?industry={industry}",
+  "source": "kosis",
+  "empty_text": "이 산업의 데이터셋을 준비하고 있어요",
+  "size": {"w": 3, "h": 15, "min_w": 2, "min_h": 6},
+  "fields": [
+    {"field_name": "name", "field_role": "COLUMN", "format": "text", "label": "데이터셋"},
+    {"field_name": "group", "field_role": "COLUMN", "format": "muted", "label": "구분", "width": 52}
+  ],
+  "options": {"fixed": "true", "minWidth": "220", "rowHeight": "38", "searchable": "true"},
+  "screens": [
+    {"screen": "*"},
+    {"screen": "/industry", "tab": "overview", "x": 2, "y": 0, "w": 3, "h": 15}
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "widget_id": "stock-filings",
+  "sort_seq": 220,
+  "name": "SEC Filings",
+  "description": "Filings table — date, form type and subject",
+  "group_name": "Stock",
+  "view_type": "table",
+  "endpoint": "/data/{provider}/filings?symbol={symbol}&form_type=10-K,10-Q,8-K&limit=100&period={period}",
+  "source": "$provider",
+  "transform": "filing_rows",
+  "default_symbol": "AAPL",
+  "empty_text": "{symbol} 공시가 없어요",
+  "size": {"w": 5, "h": 11, "min_w": 3, "min_h": 4},
+  "params": [
+    {
+      "param_name": "period",
+      "label": "기간",
+      "param_value": "1y",
+      "options": [
+        {"option_value": "3mo", "label": "3M"},
+        {"option_value": "1y", "label": "1Y"},
+        {"option_value": "3y", "label": "3Y"},
+        {"option_value": "5y", "label": "5Y"}
+      ]
+    }
+  ],
+  "fields": [
+    {"field_name": "_date", "field_role": "COLUMN", "format": "muted", "label": "제출일", "width": 92},
+    {
+      "field_name": "report_type",
+      "field_role": "COLUMN",
+      "format": "badge",
+      "label": "유형",
+      "width": 72,
+      "sub_field": "_tone"
+    },
+    {"field_name": "_subject", "field_role": "COLUMN", "format": "link", "label": "내용", "sub_field": "report_url"}
+  ],
+  "tabs": [
+    {"tab_code": "all", "label": "SEC 공시"},
+    {"tab_code": "periodic", "label": "10-K · 10-Q", "filter": "filings_periodic", "empty_text": "{symbol} 정기 보고서가 없어요"},
+    {"tab_code": "current", "label": "8-K", "filter": "filings_current", "empty_text": "{symbol} 수시 보고서가 없어요"}
+  ],
+  "options": {"fixed": "true", "minWidth": "0", "provider": "sec", "rowHeight": "36"},
+  "screens": [
+    {"screen": "*"},
+    {"screen": "/stock", "tab": "news", "x": 7, "y": 0, "w": 5, "h": 11}
+  ]
+}

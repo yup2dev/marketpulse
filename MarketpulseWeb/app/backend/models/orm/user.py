@@ -660,6 +660,7 @@ class UserWidget(Base):
     options = relationship(
         "UserWidgetOption", cascade="all, delete-orphan", order_by="UserWidgetOption.opt_name",
     )
+    origin = relationship("UserWidgetOrigin", uselist=False, cascade="all, delete-orphan")
 
     def to_dict(self) -> dict:
         return {
@@ -842,6 +843,36 @@ class UserScreenGroup(Base):
     param_name = Column(String(100), nullable=False)        # 그 위젯에서의 파라미터 이름
     source_yn = Column(String(1), nullable=False, default='N')   # Y = 행을 누르면 값을 내보내는 위젯
     required_yn = Column(String(1), nullable=False, default='Y')  # Y = 값이 생길 때까지 요청하지 않는다
+
+
+class UserWidgetSeed(Base):
+    """기본 제공 위젯을 마지막으로 파일(app/backend/builtin_widgets/*.json)에서 넣었을 때의 지문.
+
+    행이 이 지문 그대로면 아무도 손대지 않은 것 — 파일이 바뀌면 서버가 새 값으로 바꾼다.
+    다르면(DB 를 직접 고침) 건드리지 않는다. 자세한 규칙은 services/user_widget_service._sync_builtin.
+    user_widgets 에 컬럼을 더하지 않고 따로 둔다 — create_all 이 새 테이블은 만들어 주므로
+    마이그레이션을 빠뜨린 서버에서도 위젯 조회가 깨지지 않는다.
+    """
+    __tablename__ = 'user_widget_seeds'
+
+    widget_id = Column(String(50), primary_key=True)
+    seed_hash = Column(String(64), nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class UserWidgetOrigin(Base):
+    """복사해 만든 위젯의 원본. 위젯을 고쳐 저장하면 원본을 통째로 복사한다 — 원본을 따라 바뀌지 않는다.
+
+    origin_hash 는 복사할 때 원본의 지문(builtin_widgets.spec_hash). 지금 원본의 지문과 다르면
+    목록에 '원본 업데이트 있음'만 알린다. 원본이 지워져도 행은 남긴다 (origin_widget_id 는 FK 가 아니다).
+    user_widgets 에 컬럼을 더하지 않고 따로 둔다 — UserWidgetSeed 와 같은 이유 (create_all 은 새 테이블만 만든다).
+    """
+    __tablename__ = 'user_widget_origins'
+
+    widget_id = Column(String(50), ForeignKey('user_widgets.widget_id'), primary_key=True)
+    origin_widget_id = Column(String(50), nullable=False, index=True)
+    origin_hash = Column(String(64), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class UserQuantStrategy(Base):

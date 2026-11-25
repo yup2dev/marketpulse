@@ -1,0 +1,29 @@
+{
+  "widget_id": "breaking-news",
+  "sort_seq": 50,
+  "name": "Breaking News",
+  "description": "One-line headlines · watchlist news",
+  "view_type": "list",
+  "endpoint": "/news?limit=50&period=1w",
+  "source": "polygon",
+  "transform": "news_rows",
+  "refresh_sec": 120,
+  "live_yn": "Y",
+  "empty_text": "뉴스가 없어요",
+  "size": {"w": 7, "h": 5, "min_w": 4, "min_h": 3},
+  "fields": [
+    {"field_name": "_time", "field_role": "TIME", "format": "text"},
+    {"field_name": "title", "field_role": "TITLE", "format": "text"},
+    {"field_name": "article_url", "field_role": "HREF", "format": "text"},
+    {"field_name": "_tag", "field_role": "TAG", "format": "text"}
+  ],
+  "tabs": [
+    {"tab_code": "breaking", "label": "속보"},
+    {"tab_code": "watch", "label": "관심종목 뉴스", "filter": "watchlist_tickers", "empty_text": "관심 종목 관련 뉴스가 아직 없어요"}
+  ],
+  "options": {"extra.favorites": "/watchlist/my-tickers", "tagSymbol": "true"},
+  "screens": [
+    {"screen": "*"},
+    {"screen": "/", "tab": "overview", "x": 5, "y": 9, "w": 7, "h": 5}
+  ]
+}

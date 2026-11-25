@@ -1,0 +1,41 @@
+{
+  "widget_id": "inst-ranking",
+  "sort_seq": 240,
+  "name": "Institution Ranking",
+  "description": "13F filers ranked by value, holdings or QoQ change — click a row to select",
+  "group_name": "Institutions",
+  "view_type": "table",
+  "title": "기관 순위",
+  "endpoint": "/portfolio/13f/summaries",
+  "source": "$provider",
+  "source_note": "13F · 일 배치 적재",
+  "transform": "inst_rank",
+  "empty_text": "적재된 13F 가 없어요",
+  "size": {"w": 8, "h": 8, "min_w": 5, "min_h": 4},
+  "params": [
+    {
+      "param_name": "sortBy",
+      "label": "정렬 기준",
+      "param_value": "total_value",
+      "options": [
+        {"option_value": "total_value", "label": "보유가치"},
+        {"option_value": "num_holdings", "label": "종목 수"},
+        {"option_value": "value_change_pct", "label": "전분기 대비"}
+      ]
+    }
+  ],
+  "fields": [
+    {"field_name": "rank", "field_role": "COLUMN", "format": "rank", "label": "순위", "width": 52},
+    {"field_name": "_name", "field_role": "COLUMN", "format": "entity", "label": "기관"},
+    {"field_name": "total_value", "field_role": "COLUMN", "format": "money", "label": "보유가치"},
+    {"field_name": "num_holdings", "field_role": "COLUMN", "format": "number", "label": "종목 수"},
+    {"field_name": "value_change_pct", "field_role": "COLUMN", "format": "pill", "label": "전분기 대비"},
+    {"field_name": "turnover", "field_role": "COLUMN", "format": "bar", "label": "회전율", "width": 128},
+    {"field_name": "filing_date", "field_role": "COLUMN", "format": "muted", "label": "제출일", "width": 96}
+  ],
+  "options": {"minWidth": "640", "select": "institution:institution_key", "shared": "institution"},
+  "screens": [
+    {"screen": "*"},
+    {"screen": "/stock", "tab": "institutional", "x": 0, "y": 1, "w": 8, "h": 8}
+  ]
+}

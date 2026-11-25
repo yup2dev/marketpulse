@@ -1,0 +1,28 @@
+{
+  "widget_id": "bt-run-rolling",
+  "sort_seq": 310,
+  "name": "Rolling Sharpe",
+  "description": "Rolling annualized Sharpe of the strategy",
+  "group_name": "Backtest",
+  "view_type": "curve",
+  "title": "롤링 샤프",
+  "endpoint": "/strategies/result?strategy={strategy}&start={bt_start}&end={bt_end}&benchmark={bt_bench}&cost={bt_cost}&rev={bt_rev}",
+  "source": "$provider",
+  "source_note": "창 {window} · 점선 = 1.0",
+  "transform": "bt_rolling",
+  "empty_text": "롤링 샤프를 계산하기에는 실행 기간이 짧아요",
+  "size": {"w": 5, "h": 6, "min_w": 3, "min_h": 3},
+  "options": {
+    "digits": "2",
+    "refs": "1",
+    "series": "sharpe:롤링 샤프",
+    "shared": "strategy,bt_start,bt_end,bt_bench,bt_cost,bt_rev",
+    "signed": "false",
+    "unit": "",
+    "x": "date"
+  },
+  "screens": [
+    {"screen": "*"},
+    {"screen": "/backtest", "tab": "results", "x": 7, "y": 10, "w": 5, "h": 6}
+  ]
+}

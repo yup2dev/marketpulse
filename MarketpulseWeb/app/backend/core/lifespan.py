@@ -58,6 +58,10 @@ async def lifespan(app: FastAPI):
     import data_fetcher.providers_init  # noqa: F401 — registers all providers/fetchers
     init_db()
 
+    # 데이터 카탈로그(위젯 만들기의 데이터 목록)를 등록 정보와 맞춘다 — 실패해도 기동은 계속
+    from app.backend.services.data_catalog import sync_on_startup
+    await asyncio.to_thread(sync_on_startup)
+
     from app.backend.services.symbol_cache import get_symbol_cache
     await get_symbol_cache().ensure_loaded()
 

@@ -18,6 +18,8 @@
     POST   /api/admin/widget-types                      위젯 종류 추가 (설정 화면 '보여 줄 위젯' 목록)
     PUT    /api/admin/widget-types/{type_code}          이름·그리는 방식·사용 여부·순서
     DELETE /api/admin/widget-types/{type_code}          쓰는 위젯이 있으면 409
+    POST   /api/admin/data-catalog/sync                 데이터 카탈로그를 Fetcher 등록 정보와 다시 맞춤
+    GET    /api/admin/data-catalog/broken-widgets       빠진 API · 필드 · 파라미터를 쓰는 위젯
     GET    /api/admin/monitor/{dataset}                 운영 모니터링 (/admin 화면 위젯)
            summary · system · traffic · endpoints · inflight · slow
 """
@@ -150,3 +152,18 @@ def delete_widget_type(type_code: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=409, detail=str(e))
     if not found:
         raise HTTPException(status_code=404, detail="Widget type not found")
+
+
+# ── 데이터 카탈로그 ───────────────────────────────────────────────────────────
+# 기동할 때 한 번 맞춘다 (core/lifespan). Fetcher 를 고친 뒤 재기동 없이 맞출 때 쓴다.
+
+@router.post("/data-catalog/sync", summary="데이터 카탈로그 동기화")
+def sync_data_catalog(db: Session = Depends(get_db)):
+    from app.backend.services.data_catalog import sync_catalog
+    return sync_catalog(db)
+
+
+@router.get("/data-catalog/broken-widgets", summary="깨진 위젯 점검")
+def broken_widgets(db: Session = Depends(get_db)):
+    from app.backend.services.data_catalog import find_broken_widgets
+    return find_broken_widgets(db)

@@ -18,9 +18,9 @@ from typing import Any, Dict
 from fastapi import APIRouter, HTTPException, Request
 
 from app.backend.api.deps import (
-    DATE_KEYS as _DATE_KEYS, filter_dated_rows as _postprocess_dated_rows,
-    missing_key_response, route_handler, wrap_result,
+    filter_dated_rows as _postprocess_dated_rows, missing_key_response, route_handler, wrap_result,
 )
+from app.backend.services.model_schema import model_schema, resolve_choices
 from data_fetcher.core.obbject import OBBject
 from data_fetcher.query_executor import (
     MissingCredentialsError, QueryExecutor, QueryExecutorError, RemoteUnavailableError,
@@ -140,158 +140,6 @@ async def fetch_data(
     return obb
 
 
-# ── QueryParams → 위젯 파라미터 폼 스키마 추출 ────────────────────────────────
-def _resolve_choices(fetcher_cls) -> Dict[str, Any]:
-    """파라미터 선택지. resolve_param_choices()(동적) > param_choices(정적) > {}."""
-    try:
-        fn = getattr(fetcher_cls, "resolve_param_choices", None)
-        if callable(fn):
-            pc = fn()
-            return dict(pc) if isinstance(pc, dict) else {}
-        pc = getattr(fetcher_cls, "param_choices", None)
-        return dict(pc) if isinstance(pc, dict) else {}
-    except Exception:
-        return {}
-
-
-def _serialize_value(v: Any) -> Any:
-    """스키마 default/choices 값을 JSON-호환으로 직렬화."""
-    import datetime as _dt
-    import enum
-    if isinstance(v, bool):
-        return "true" if v else "false"   # 프론트 select 값과 일치
-    if v is None or isinstance(v, (str, int, float)):
-        return v
-    if isinstance(v, (_dt.date, _dt.datetime)):
-        return v.isoformat()[:10]
-    if isinstance(v, enum.Enum):
-        return _serialize_value(v.value)
-    return str(v)
-
-
-def _param_specs(fetcher_cls) -> list[dict]:
-    """Fetcher QueryParams(pydantic) → 프론트 WidgetParamForm 스펙 목록.
-
-    kind 추론: choices/Literal→select, bool→select(true/false),
-    int/float→number, date/datetime 또는 *_date 이름→date, 그 외 text.
-    """
-    import datetime as _dt
-    from typing import Literal, Union, get_args, get_origin
-    from pydantic import BaseModel
-    from pydantic_core import PydanticUndefined
-
-    qp = fetcher_cls.query_params_type
-    if not (isinstance(qp, type) and issubclass(qp, BaseModel)):
-        return []
-
-    choices_map = _resolve_choices(fetcher_cls)
-    extra_meta = getattr(qp, "__json_schema_extra__", {}) or {}
-
-    def unwrap(ann):
-        if get_origin(ann) is Union:
-            args = [a for a in get_args(ann) if a is not type(None)]
-            return args[0] if args else ann
-        return ann
-
-    specs = []
-    for name, field in qp.model_fields.items():
-        base = unwrap(field.annotation)
-
-        options = choices_map.get(name) or (extra_meta.get(name) or {}).get("choices")
-        if not options and get_origin(base) is Literal:
-            options = [_serialize_value(a) for a in get_args(base)]
-
-        if options:
-            kind = "select"
-        elif base is bool:
-            kind, options = "select", ["true", "false"]
-        elif base in (int, float):
-            kind = "number"
-        elif base in (_dt.date, _dt.datetime) or name.endswith("_date") or name == "date":
-            kind = "date"
-        else:
-            kind = "text"
-
-        default = field.get_default(call_default_factory=True)
-        spec: Dict[str, Any] = {
-            "name":     name,
-            "label":    name,
-            "kind":     kind,
-            "required": field.is_required(),
-            "default":  None if default is PydanticUndefined else _serialize_value(default),
-        }
-        if options:
-            opts = [_serialize_value(o) if not isinstance(o, dict) else o for o in options]
-            # 비필수 select에 기본값이 없으면 "미지정" 상태를 선택할 수 있게 빈 옵션 추가
-            if not spec["required"] and spec["default"] in (None, ""):
-                opts = [{"value": "", "label": "—"}, *opts]
-            spec["options"] = opts
-        if kind == "number":
-            spec["step"] = 1 if base is int else "any"
-        if field.description:
-            spec["hint"] = field.description
-        specs.append(spec)
-    return specs
-
-
-def _data_has_date(fetcher_cls) -> bool:
-    """반환 Data 모델에 날짜 필드가 있는지 — 가상 날짜 범위 파라미터 노출 판단."""
-    try:
-        from pydantic import BaseModel
-        dt = fetcher_cls.data_type
-        if not (isinstance(dt, type) and issubclass(dt, BaseModel)):
-            return False
-        fields = dt.model_fields
-        return any(k in fields for k in _DATE_KEYS) or any(k.endswith("_date") for k in fields)
-    except Exception:  # noqa: BLE001
-        return False
-
-
-def _data_fields(fetcher_cls) -> list[dict]:
-    """반환 Data 모델(pydantic)의 필드 목록 — 사용자 위젯의 매핑 화면이 쓴다.
-
-    kind: number | date | bool | text.  Data 모델이 extra 를 허용하면 실제 응답에는
-    여기 없는 필드가 더 올 수 있다 (매핑 화면은 샘플 조회로 보충한다).
-    """
-    import datetime as _dt
-    from typing import Union, get_args, get_origin
-    try:
-        from pydantic import BaseModel
-        dt = fetcher_cls.data_type
-        if not (isinstance(dt, type) and issubclass(dt, BaseModel)):
-            return []
-    except Exception:  # noqa: BLE001
-        return []
-
-    def unwrap(ann):
-        if get_origin(ann) is Union:
-            args = [a for a in get_args(ann) if a is not type(None)]
-            return args[0] if args else ann
-        return ann
-
-    out = []
-    for name, field in dt.model_fields.items():
-        base = unwrap(field.annotation)
-        if base is bool:
-            kind = "bool"
-        elif base in (int, float):
-            kind = "number"
-        elif base in (_dt.date, _dt.datetime) or name.endswith("_date") or name in _DATE_KEYS:
-            kind = "date"
-        else:
-            kind = "text"
-        out.append({"name": name, "kind": kind, "description": field.description or None})
-    return out
-
-
-_VIRTUAL_DATE_SPECS = [
-    {"name": "start_date", "label": "start_date", "kind": "date", "required": False,
-     "default": None, "hint": "표시 시작일 (미지정 시 전체)"},
-    {"name": "end_date", "label": "end_date", "kind": "date", "required": False,
-     "default": None, "hint": "표시 종료일 (미지정 시 전체)"},
-]
-
-
 @router.get("/{provider}/{model}/schema")
 async def get_model_schema(provider: str, model: str) -> Dict[str, Any]:
     """(provider, model) 쌍의 파라미터 폼 스키마.
@@ -308,19 +156,7 @@ async def get_model_schema(provider: str, model: str) -> Dict[str, Any]:
     if fetcher_cls is None:
         raise HTTPException(status_code=404, detail=f"Model '{model}' not found for provider '{provider}'")
 
-    params = _param_specs(fetcher_cls)
-    # 데이터에 날짜가 있는데 QP가 날짜 범위를 선언하지 않으면 가상 파라미터로 노출.
-    # 실제 필터링은 fetch_data의 _postprocess_dated_rows가 공통 수행한다.
-    names = {p["name"] for p in params}
-    if "start_date" not in names and "end_date" not in names and _data_has_date(fetcher_cls):
-        params = [*params, *_VIRTUAL_DATE_SPECS]
-    return {
-        "provider":       provider,
-        "model":          model,
-        "accepts_symbol": any(p["name"] in ("symbol", "ticker") for p in params),
-        "params":         params,
-        "fields":         _data_fields(fetcher_cls),
-    }
+    return {"provider": provider, "model": model, **model_schema(fetcher_cls)}
 
 
 @router.get("/")
@@ -361,19 +197,6 @@ async def list_providers() -> OBBject:
         except Exception:
             return False
 
-    def _param_choices(fetcher_cls) -> dict:
-        """파라미터 선택지. fetcher가 resolve_param_choices()(동적, 예: db의 기관 목록)나
-        param_choices(정적, 예: index→[sp500,…])를 선언하면 노출. 없으면 빈 dict."""
-        try:
-            fn = getattr(fetcher_cls, "resolve_param_choices", None)
-            if callable(fn):
-                pc = fn()
-                return dict(pc) if isinstance(pc, dict) else {}
-            pc = getattr(fetcher_cls, "param_choices", None)
-            return dict(pc) if isinstance(pc, dict) else {}
-        except Exception:
-            return {}
-
     results = []
     for name, p in sorted(ProviderRegistry.get_all().items()):
         if name in _EXCLUDE:
@@ -385,7 +208,7 @@ async def list_providers() -> OBBject:
                 "model": model_key,
                 "required_params": _required_params(fetcher_cls),
                 "accepts_symbol": _accepts_symbol(fetcher_cls),
-                "param_choices": _param_choices(fetcher_cls),
+                "param_choices": resolve_choices(fetcher_cls),
             })
         results.append({
             "provider":             name,

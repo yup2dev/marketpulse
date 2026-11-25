@@ -1,0 +1,18 @@
+{
+  "widget_id": "industry-summary",
+  "sort_seq": 450,
+  "name": "Industry Data Summary",
+  "description": "Latest value, YoY, MoM, 3-period average YoY, YTD or 1Y average, 1Y high/low",
+  "group_name": "Industry",
+  "view_type": "cards",
+  "title": "요약",
+  "endpoint": "/industry/summary?dataset={dataset}&series={series}",
+  "source": "$provider",
+  "empty_text": "데이터셋을 고르세요",
+  "size": {"w": 5, "h": 3, "min_w": 3, "min_h": 2},
+  "options": {"min": "120"},
+  "screens": [
+    {"screen": "*"},
+    {"screen": "/industry", "tab": "overview", "x": 5, "y": 7, "w": 5, "h": 3}
+  ]
+}

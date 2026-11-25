@@ -1,0 +1,26 @@
+{
+  "widget_id": "fear-greed",
+  "sort_seq": 100,
+  "name": "Fear & Greed",
+  "description": "Composite sentiment gauge (VIX · HY spread · 10Y)",
+  "group_name": "Macro",
+  "view_type": "gauge",
+  "title": "공포 · 탐욕 지수",
+  "endpoint": "/data/{provider}/sentiment_composite?date={date}",
+  "source": "$provider",
+  "source_note": "VIX · HY 스프레드 · 10Y 합성",
+  "transform": "fear_greed",
+  "empty_text": "심리 지표가 없어요",
+  "size": {"w": 5, "h": 6, "min_w": 3, "min_h": 4},
+  "params": [
+    {"param_name": "date", "label": "기준일"}
+  ],
+  "fields": [
+    {"field_name": "value", "field_role": "VALUE", "format": "text"}
+  ],
+  "options": {"label": "Fear & Greed", "provider": "fred"},
+  "screens": [
+    {"screen": "*"},
+    {"screen": "/macro", "tab": "overview", "x": 7, "y": 7, "w": 5, "h": 6}
+  ]
+}

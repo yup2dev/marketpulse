@@ -10,7 +10,9 @@ from app.backend.core.auth.security import create_access_token
 from app.backend.models.orm import (
     User, UserWidgetField, UserWidgetParam, UserWidgetPref, UserWidgetPrefScreen, UserWidgetScreen,
 )
-from app.backend.services.builtin_widget_seed import BUILTIN_WIDGETS
+from app.backend.services.builtin_widgets import load_specs
+
+BUILTIN_WIDGETS = load_specs()
 
 
 def _widget(**over):

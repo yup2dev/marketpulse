@@ -21,9 +21,13 @@ endpoint → 행 꺼내기(dataPath) → prepare → 실시간 시세 병합(quo
 | `user_widget_options` | 뷰 옵션 (이름 = 값). `extra.이름` 은 보조 요청, `tab.<탭>.이름` 은 그 탭만의 값 | `options` / `api.extra` / `tabs[].view·api·options·controls` |
 | `user_widget_screens` | 내놓을 화면(`*` = 전부) + 화면·탭의 기본 배치 위치 | 메뉴 · 기본 그리드 |
 
-1. 행을 넣는다. 새 DB 에 처음 들어갈 값은 `backend/services/builtin_widget_seed.py` 에 추가한다
-   (DB 에 그 `widget_id` 가 없을 때만 들어간다 — 이미 있는 행은 건드리지 않으니 DB 행을 고친다.
-   위젯을 빼려면 행을 지우지 말고 `use_yn=N`).
+1. 기본값 파일을 쓴다 — `backend/builtin_widgets/<widget_id>.json` (위젯 하나 = 파일 하나, 키 = 위 표의 컬럼 이름).
+   서버가 위젯 목록을 읽을 때 파일과 DB 를 맞춘다: 없는 위젯은 넣고, 파일이 바뀐 위젯은 고친다.
+   **위젯 정의를 바꾸려고 마이그레이션을 쓰지 않는다** — 파일만 고친다.
+   DB 를 직접 고친 행은 건드리지 않는다 (`user_widget_seeds` 의 지문으로 안다).
+   위젯을 빼려면 파일을 지우지 말고 `"use_yn": "N"`. 순서는 `sort_seq`.
+   DB → 파일 내보내기 · 파일대로 되돌리기: `python -m app.backend.scripts.builtin_widgets export|reset [id…]`
+   (규칙과 형식은 `backend/services/builtin_widgets.py` · `user_widget_service._sync_builtin`).
 2. 코드값은 `backend/services/user_widget_service.CODES` 가 기준이다
    (`SPEC_VIEW` · `SPEC_FIELD_ROLE` · `CELL_TYPE` · `TRANSFORM` · `TAB_FILTER`).
 3. 함수(정렬·펼치기·필터)는 행에 담을 수 없다. 새 함수가 필요할 때만 `widget/registry/builtinWidgets.js` 의
@@ -55,7 +59,7 @@ endpoint → 행 꺼내기(dataPath) → prepare → 실시간 시세 병합(quo
 ### 화면 단위 파라미터 그룹 — 새 화면은 이것으로 (OpenBB apps.json 의 groups)
 
 `shared` 는 위젯마다 옵션으로 적고 값이 **전역** 하나다. 새 화면(`/industry` 부터)은 화면 설정에 그룹을 선언한다 —
-DB `user_screen_groups` (시드: `services/builtin_widget_seed.py` `SCREEN_GROUPS`).
+DB `user_screen_groups` (기본 행: `backend/builtin_screen_groups.json`).
 
 | 칸 | 뜻 |
 |---|---|

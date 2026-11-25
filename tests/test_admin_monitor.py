@@ -119,11 +119,11 @@ def test_summary_and_sample_do_not_fail_without_proc():
 
 
 def test_monitor_widgets_are_seeded_for_the_admin_screen_only():
-    from app.backend.services.builtin_widget_seed import BUILTIN_WIDGETS
+    from app.backend.services.builtin_widgets import load_specs
 
-    ops = [w for w in BUILTIN_WIDGETS if w["widget_id"].startswith("ops-")]
+    ops = [w for w in load_specs() if w["widget_id"].startswith("ops-")]
     assert len(ops) == 5
     for w in ops:
         assert w["endpoint"].startswith("/admin/monitor/")
         # 다른 화면 메뉴('*')에 내놓지 않는다 — 관리자가 아니면 403 위젯만 생긴다
-        assert all(s[0] == "/admin" for s in w["screens"]), w["widget_id"]
+        assert all(s["screen"] == "/admin" for s in w["screens"]), w["widget_id"]

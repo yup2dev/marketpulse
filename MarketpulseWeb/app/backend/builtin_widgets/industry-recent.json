@@ -1,0 +1,32 @@
+{
+  "widget_id": "industry-recent",
+  "sort_seq": 460,
+  "name": "Industry Data — Last 12",
+  "description": "Last 12 periods of the selected dataset — table or chart",
+  "group_name": "Industry",
+  "view_type": "table",
+  "title": "최근 12개월",
+  "endpoint": "/industry/data?dataset={dataset}&series={series}&period=1y&rate=yoy&order=desc&limit=12",
+  "source": "$provider",
+  "empty_text": "데이터셋을 고르세요",
+  "size": {"w": 5, "h": 5, "min_w": 3, "min_h": 3},
+  "fields": [
+    {"field_name": "date", "field_role": "COLUMN", "format": "muted", "label": "기간", "width": 112},
+    {"field_name": "value", "field_role": "COLUMN", "format": "compact", "label": "값"},
+    {"field_name": "mom", "field_role": "COLUMN", "format": "change", "label": "직전 대비"},
+    {"field_name": "yoy", "field_role": "COLUMN", "format": "change", "label": "전년 대비"}
+  ],
+  "options": {
+    "fixed": "true",
+    "minWidth": "360",
+    "right": "yoy:전년 대비",
+    "rowHeight": "30",
+    "series": "value:값",
+    "views": "table:표,bar:차트",
+    "x": "date"
+  },
+  "screens": [
+    {"screen": "*"},
+    {"screen": "/industry", "tab": "overview", "x": 5, "y": 10, "w": 5, "h": 5}
+  ]
+}

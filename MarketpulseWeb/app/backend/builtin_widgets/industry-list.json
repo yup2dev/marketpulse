@@ -1,0 +1,23 @@
+{
+  "widget_id": "industry-list",
+  "sort_seq": 420,
+  "name": "Industries",
+  "description": "Industry list — click to pick an industry (datasets and related companies follow)",
+  "group_name": "Industry",
+  "view_type": "table",
+  "title": "산업",
+  "endpoint": "/industry",
+  "source": "kosis",
+  "source_note": "산업 분류 · 데이터셋 카탈로그",
+  "empty_text": "산업 목록이 없어요",
+  "size": {"w": 2, "h": 15, "min_w": 2, "min_h": 6},
+  "fields": [
+    {"field_name": "name", "field_role": "COLUMN", "format": "text", "label": "산업"},
+    {"field_name": "dataset_count", "field_role": "COLUMN", "format": "value_muted", "label": "데이터", "width": 56}
+  ],
+  "options": {"fixed": "true", "minWidth": "160", "rowHeight": "34"},
+  "screens": [
+    {"screen": "*"},
+    {"screen": "/industry", "tab": "overview", "x": 0, "y": 0, "w": 2, "h": 15}
+  ]
+}

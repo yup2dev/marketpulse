@@ -1,0 +1,25 @@
+{
+  "widget_id": "stock-holders",
+  "sort_seq": 180,
+  "name": "Top Holders",
+  "description": "Largest institutional holders by value",
+  "group_name": "Stock",
+  "view_type": "bars",
+  "title": "기관 보유",
+  "endpoint": "/data/{provider}/holders?symbol={symbol}",
+  "source": "$provider",
+  "source_note": "{asOf}",
+  "transform": "holders_top",
+  "default_symbol": "AAPL",
+  "empty_text": "{symbol} 기관 보유 데이터가 없어요",
+  "size": {"w": 4, "h": 7, "min_w": 3, "min_h": 4},
+  "fields": [
+    {"field_name": "name", "field_role": "LABEL", "format": "text"},
+    {"field_name": "value", "field_role": "VALUE", "format": "text"}
+  ],
+  "options": {"digits": "2", "format": "compact", "prefix": "$", "provider": "yahoo"},
+  "screens": [
+    {"screen": "*"},
+    {"screen": "/stock", "tab": "overview", "x": 8, "y": 1, "w": 4, "h": 7}
+  ]
+}

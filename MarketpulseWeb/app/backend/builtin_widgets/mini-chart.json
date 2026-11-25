@@ -1,0 +1,33 @@
+{
+  "widget_id": "mini-chart",
+  "sort_seq": 30,
+  "name": "Mini Chart",
+  "description": "Candles + volume for one symbol (1m · 5m · 15m · 1D)",
+  "view_type": "candles",
+  "title": "미니 차트",
+  "endpoint": "/stock/history/{symbol}?period={period}&interval={interval}",
+  "source": "yahoo",
+  "source_note": "{note}",
+  "transform": "bars_window",
+  "quote_key": "$symbol",
+  "default_symbol": "NVDA",
+  "empty_text": "{symbol} 차트 데이터가 없어요",
+  "size": {"w": 4, "h": 6, "min_w": 3, "min_h": 4},
+  "params": [
+    {
+      "param_name": "bar",
+      "label": "봉 간격",
+      "param_value": "5m",
+      "options": [
+        {"option_value": "1m", "label": "1분", "option_params": "period=1d&interval=1m&take=90&note=1분봉"},
+        {"option_value": "5m", "label": "5분", "option_params": "period=5d&interval=5m&session=true&note=5분봉"},
+        {"option_value": "15m", "label": "15분", "option_params": "period=5d&interval=15m&take=80&note=15분봉"},
+        {"option_value": "1d", "label": "일", "option_params": "period=6mo&interval=1d&take=90&note=일봉"}
+      ]
+    }
+  ],
+  "screens": [
+    {"screen": "*"},
+    {"screen": "/", "tab": "overview", "x": 8, "y": 3, "w": 4, "h": 6}
+  ]
+}

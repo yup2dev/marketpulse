@@ -1,0 +1,35 @@
+{
+  "widget_id": "stock-chart",
+  "sort_seq": 170,
+  "name": "Stock Chart",
+  "description": "Candles + volume with a 5-bar moving average (5m · 1D · 1W · 1M)",
+  "group_name": "Stock",
+  "view_type": "candles",
+  "title": "차트",
+  "endpoint": "/stock/history/{symbol}?period={period}&interval={interval}",
+  "source": "yahoo",
+  "source_note": "{note} · 이동평균 5",
+  "transform": "bars_window",
+  "quote_key": "$symbol",
+  "default_symbol": "AAPL",
+  "empty_text": "{symbol} 차트 데이터가 없어요",
+  "size": {"w": 8, "h": 7, "min_w": 4, "min_h": 4},
+  "params": [
+    {
+      "param_name": "bar",
+      "label": "봉 간격",
+      "param_value": "1d",
+      "options": [
+        {"option_value": "5m", "label": "5분", "option_params": "period=5d&interval=5m&session=true&note=5분봉"},
+        {"option_value": "1d", "label": "일", "option_params": "period=6mo&interval=1d&take=90&note=일봉"},
+        {"option_value": "1wk", "label": "주", "option_params": "period=2y&interval=1wk&take=90&note=주봉"},
+        {"option_value": "1mo", "label": "월", "option_params": "period=10y&interval=1mo&take=90&note=월봉"}
+      ]
+    }
+  ],
+  "options": {"headline": "false", "ma": "5"},
+  "screens": [
+    {"screen": "*"},
+    {"screen": "/stock", "tab": "overview", "x": 0, "y": 1, "w": 8, "h": 7}
+  ]
+}

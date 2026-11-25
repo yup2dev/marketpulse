@@ -1,0 +1,49 @@
+{
+  "widget_id": "bt-run-trades",
+  "sort_seq": 300,
+  "name": "Backtest Trades",
+  "description": "Each holding: added / removed, months held and return",
+  "group_name": "Backtest",
+  "view_type": "table",
+  "title": "거래 내역",
+  "endpoint": "/strategies/result?strategy={strategy}&start={bt_start}&end={bt_end}&benchmark={bt_bench}&cost={bt_cost}&rev={bt_rev}",
+  "source": "$provider",
+  "transform": "bt_trades",
+  "empty_text": "이 기간에 거래가 없어요",
+  "size": {"w": 7, "h": 6, "min_w": 4, "min_h": 3},
+  "params": [
+    {
+      "param_name": "window",
+      "label": "기간",
+      "param_value": "all",
+      "options": [
+        {"option_value": "all", "label": "전체", "option_params": "months=0"},
+        {"option_value": "5y", "label": "5Y", "option_params": "months=60"},
+        {"option_value": "3y", "label": "3Y", "option_params": "months=36"},
+        {"option_value": "1y", "label": "1Y", "option_params": "months=12"}
+      ]
+    }
+  ],
+  "fields": [
+    {"field_name": "symbol", "field_role": "COLUMN", "format": "text", "label": "종목", "width": 72},
+    {"field_name": "_entry", "field_role": "COLUMN", "format": "muted", "label": "편입일", "width": 96},
+    {"field_name": "entryPrice", "field_role": "COLUMN", "format": "number", "label": "편입가"},
+    {"field_name": "_exit", "field_role": "COLUMN", "format": "muted", "label": "편출일", "width": 96},
+    {"field_name": "exitPrice", "field_role": "COLUMN", "format": "number", "label": "편출가"},
+    {"field_name": "bars", "field_role": "COLUMN", "format": "number", "label": "보유 개월"},
+    {"field_name": "returnPct", "field_role": "COLUMN", "format": "change", "label": "수익률"},
+    {
+      "field_name": "_state",
+      "field_role": "COLUMN",
+      "format": "badge",
+      "label": "상태",
+      "width": 72,
+      "sub_field": "_tone"
+    }
+  ],
+  "options": {"minWidth": "560", "rowHeight": "36", "shared": "strategy,bt_start,bt_end,bt_bench,bt_cost,bt_rev"},
+  "screens": [
+    {"screen": "*"},
+    {"screen": "/backtest", "tab": "results", "x": 0, "y": 10, "w": 7, "h": 6}
+  ]
+}

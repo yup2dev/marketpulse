@@ -1,0 +1,45 @@
+{
+  "widget_id": "bt-compare",
+  "sort_seq": 320,
+  "name": "Strategy P&L",
+  "description": "Cumulative return of each strategy under the same period, benchmark and cost — pick which to overlay",
+  "group_name": "Backtest",
+  "view_type": "lines",
+  "title": "전략별 손익",
+  "endpoint": "/strategies/compare?start={bt_start}&end={bt_end}&benchmark={bt_bench}&cost={bt_cost}&rev={bt_rev}",
+  "source": "$provider",
+  "source_note": "비용 차감 후 · 전략마다 첫 달 = 0",
+  "transform": "bt_compare",
+  "empty_text": "전략 계산 재료(월별 패널)가 아직 없어요 — 로컬에서 build_quant.py 를 실행한 뒤 동기화해 주세요",
+  "size": {"w": 12, "h": 7, "min_w": 6, "min_h": 4},
+  "fields": [
+    {"field_name": "name", "field_role": "COLUMN", "format": "text", "label": "전략"},
+    {"field_name": "_kind", "field_role": "COLUMN", "format": "badge", "label": "점수", "width": 72, "sub_field": "_tone"},
+    {"field_name": "totalReturn", "field_role": "COLUMN", "format": "change", "label": "누적 수익률"},
+    {"field_name": "cagr", "field_role": "COLUMN", "format": "change", "label": "CAGR"},
+    {"field_name": "_sharpe", "field_role": "COLUMN", "format": "value", "label": "샤프"},
+    {"field_name": "maxDrawdown", "field_role": "COLUMN", "format": "change", "label": "최대 낙폭"},
+    {"field_name": "_vol", "field_role": "COLUMN", "format": "muted", "label": "변동성"},
+    {"field_name": "_turnover", "field_role": "COLUMN", "format": "muted", "label": "회전율"},
+    {"field_name": "_period", "field_role": "COLUMN", "format": "muted", "label": "기간", "width": 128}
+  ],
+  "tabs": [
+    {"tab_code": "pnl", "label": "누적 손익"},
+    {"tab_code": "table", "label": "성과 비교"}
+  ],
+  "options": {
+    "digits": "1",
+    "max": "6",
+    "shared": "strategy,bt_start,bt_end,bt_bench,bt_cost,bt_rev",
+    "tab.table.minWidth": "720",
+    "tab.table.rowHeight": "36",
+    "tab.table.transform": "bt_compare_table",
+    "tab.table.view": "table",
+    "unit": "%",
+    "x": "date"
+  },
+  "screens": [
+    {"screen": "*"},
+    {"screen": "/backtest", "tab": "results", "x": 0, "y": 16, "w": 12, "h": 7}
+  ]
+}

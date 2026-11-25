@@ -1,0 +1,46 @@
+{
+  "widget_id": "inst-holdings",
+  "sort_seq": 260,
+  "name": "Institution Holdings",
+  "description": "Top 13F positions of the selected filer with weight and share change",
+  "group_name": "Institutions",
+  "view_type": "table",
+  "endpoint": "/portfolio/13f/{institution}?limit=50",
+  "source": "$provider",
+  "transform": "inst_stocks",
+  "empty_text": "보유 종목이 없어요",
+  "size": {"w": 12, "h": 8, "min_w": 5, "min_h": 4},
+  "params": [
+    {
+      "param_name": "institution",
+      "label": "기관",
+      "param_value": "berkshire",
+      "options": [
+        {"option_value": "berkshire", "label": "Berkshire Hathaway"}
+      ]
+    }
+  ],
+  "fields": [
+    {"field_name": "rank", "field_role": "COLUMN", "format": "rank", "label": "순위", "width": 52},
+    {"field_name": "name", "field_role": "COLUMN", "format": "entity", "label": "종목"},
+    {"field_name": "value", "field_role": "COLUMN", "format": "money", "label": "보유가치"},
+    {"field_name": "weight", "field_role": "COLUMN", "format": "bar", "label": "비중", "width": 128},
+    {"field_name": "shares", "field_role": "COLUMN", "format": "compact", "label": "주식 수"},
+    {"field_name": "share_change_pct", "field_role": "COLUMN", "format": "pill", "label": "주식 수 변화"},
+    {"field_name": "_move", "field_role": "COLUMN", "format": "badge", "label": "매매", "width": 72, "sub_field": "_tone"}
+  ],
+  "tabs": [
+    {"tab_code": "stocks", "label": "상위 보유 종목"},
+    {"tab_code": "sold", "label": "청산", "empty_text": "이번 분기에 청산한 종목이 없어요"}
+  ],
+  "options": {
+    "minWidth": "680",
+    "optionsFrom.institution": "/portfolio/13f/institutions|key|name",
+    "shared": "institution",
+    "tab.sold.transform": "inst_sold"
+  },
+  "screens": [
+    {"screen": "*"},
+    {"screen": "/stock", "tab": "institutional", "x": 0, "y": 9, "w": 12, "h": 8}
+  ]
+}

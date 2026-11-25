@@ -1,0 +1,23 @@
+{
+  "widget_id": "industry-peers",
+  "sort_seq": 470,
+  "name": "Industry Companies",
+  "description": "Companies in the selected industry — latest daily close and change (as of each stock's last bar)",
+  "group_name": "Industry",
+  "view_type": "table",
+  "title": "관련 기업",
+  "endpoint": "/industry/companies?industry={industry}",
+  "source": "db",
+  "source_note": "종목 마스터 업종 · 일봉 적재 기준",
+  "empty_text": "이 산업에 연결된 종목이 없어요",
+  "size": {"w": 2, "h": 15, "min_w": 2, "min_h": 6},
+  "fields": [
+    {"field_name": "symbol", "field_role": "COLUMN", "format": "stock", "label": "종목", "sub_field": "name"},
+    {"field_name": "change_rate", "field_role": "COLUMN", "format": "change", "label": "등락", "width": 80}
+  ],
+  "options": {"fixed": "true", "minWidth": "180", "rowHeight": "42"},
+  "screens": [
+    {"screen": "*"},
+    {"screen": "/industry", "tab": "overview", "x": 10, "y": 0, "w": 2, "h": 15}
+  ]
+}

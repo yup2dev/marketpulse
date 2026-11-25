@@ -1,0 +1,19 @@
+{
+  "widget_id": "bt-run-summary",
+  "sort_seq": 270,
+  "name": "Backtest Summary",
+  "description": "Return, CAGR, Sharpe, drawdown, win rate vs the benchmark in one line",
+  "group_name": "Backtest",
+  "view_type": "kpis",
+  "title": "성과 요약",
+  "endpoint": "/strategies/result?strategy={strategy}&start={bt_start}&end={bt_end}&benchmark={bt_bench}&cost={bt_cost}&rev={bt_rev}",
+  "source": "$provider",
+  "transform": "bt_kpis",
+  "empty_text": "전략 계산 재료(월별 패널)가 아직 없어요 — 로컬에서 build_quant.py 를 실행한 뒤 동기화해 주세요",
+  "size": {"w": 12, "h": 1, "min_w": 6, "min_h": 1},
+  "options": {"shared": "strategy,bt_start,bt_end,bt_bench,bt_cost,bt_rev"},
+  "screens": [
+    {"screen": "*"},
+    {"screen": "/backtest", "tab": "results", "x": 0, "y": 2, "w": 12, "h": 1}
+  ]
+}

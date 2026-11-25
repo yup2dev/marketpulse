@@ -1,0 +1,44 @@
+{
+  "widget_id": "quant-ranking",
+  "sort_seq": 360,
+  "name": "Strategy Ranking",
+  "description": "Stocks ranked by the picked strategy's score for a month · top N to buy · next-month return for past months",
+  "group_name": "Quant",
+  "view_type": "table",
+  "title": "기준월 순위",
+  "endpoint": "/quant/ranking?universe={universe}&strategy={strategy}&as_of={quant_asof}",
+  "source": "$provider",
+  "source_note": "{strategy} · {asOf} 기준 · 상위 {topN} 매수{result}",
+  "transform": "quant_ranking",
+  "empty_text": "퀀트 산출물이 아직 적재되지 않았어요 — 로컬에서 build_quant.py 를 실행해 주세요",
+  "size": {"w": 5, "h": 6, "min_w": 4, "min_h": 3},
+  "params": [
+    {
+      "param_name": "universe",
+      "label": "유니버스",
+      "param_value": "sp500",
+      "options": [
+        {"option_value": "sp500", "label": "S&P 500"}
+      ]
+    }
+  ],
+  "fields": [
+    {"field_name": "rank", "field_role": "COLUMN", "format": "rank", "label": "#", "width": 44},
+    {"field_name": "symbol", "field_role": "COLUMN", "format": "stock", "label": "종목", "sub_field": "name"},
+    {"field_name": "_score", "field_role": "COLUMN", "format": "bar", "label": "점수", "width": 128, "sub_field": ""},
+    {"field_name": "_fwd", "field_role": "COLUMN", "format": "change", "label": "다음 달", "width": 72},
+    {
+      "field_name": "_signal",
+      "field_role": "COLUMN",
+      "format": "badge",
+      "label": "표시",
+      "width": 64,
+      "sub_field": "_tone"
+    }
+  ],
+  "options": {"highlight": "quant_step:rank", "minWidth": "440", "rowHeight": "36", "shared": "universe,strategy,quant_asof"},
+  "screens": [
+    {"screen": "*"},
+    {"screen": "/quantlib", "tab": "factors", "x": 7, "y": 7, "w": 5, "h": 6}
+  ]
+}

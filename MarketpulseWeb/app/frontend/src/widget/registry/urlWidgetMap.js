@@ -64,7 +64,7 @@ export const URL_WIDGET_MAP = {
   },
 
   // ─── 산업 (Industry) — 산업 → 데이터셋 → 차트 · 요약 · 최근 12개월 · 관련 기업 ─────────
-  // 위젯 · 배치 · 위젯 사이 파라미터 그룹(industry · dataset · series)은 모두 DB 행 (builtin_widget_seed)
+  // 위젯 · 배치 · 위젯 사이 파라미터 그룹(industry · dataset · series)은 모두 DB 행 (기본값 파일 backend/builtin_widgets · builtin_screen_groups.json)
   '/industry': {
     label: 'Industry',
     needsSymbol: false,
