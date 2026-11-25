@@ -108,7 +108,7 @@ DB `user_screen_groups` (기본 행: `backend/builtin_screen_groups.json`).
 | 뷰 | 용도 | 옵션 (자세한 건 각 파일 머리 주석) |
 |---|---|---|
 | `tiles` | 시세 타일 격자 | `symbol, label, series, columns` |
-| `table` | 표 (= `MpGrid`) | `columns[{ type, header, field, width, align, render, digits, sortable, hide }]`, `minWidth`, `rowHeight`, `fixed`(열 폭 고정 + 넘치면 …), `select`(행 클릭 → 화면 변수), 켜는 기능 `sortable` `searchable` `exportable` `columnPicker` `pageSize` `expand(row)` `onRowClick` `muteBy`(참인 행 흐리게) — type: `rank stock price change percent compact number date trend tag text muted value value_muted money pct pill bar badge entity link switch` (`switch` = 켜고 끄기, 보조 필드 = 꺼 둔 값 목록의 화면 변수) |
+| `table` | 표 (= `MpGrid`) | `columns[{ type, header, field, width, align, render, digits, sortable, hide }]` — **비우면 행의 칸으로 자동** (`autoColumns.js`: 날짜 이름→date, 숫자→number·compact, 13번째 칸부터 숨김 + 열 선택). 게이트웨이(`/data/{provider}/{model}`) 표 위젯은 endpoint + view_type 이면 되고, 바꿀 칸만 fields 로, `minWidth`, `rowHeight`, `fixed`(열 폭 고정 + 넘치면 …), `select`(행 클릭 → 화면 변수), 켜는 기능 `sortable` `searchable` `exportable` `columnPicker` `pageSize` `expand(row)` `onRowClick` `muteBy`(참인 행 흐리게) — type: `rank stock price change percent compact number date trend tag text muted value value_muted money pct pill bar badge entity link switch` (`switch` = 켜고 끄기, 보조 필드 = 꺼 둔 값 목록의 화면 변수) |
 | `candles` | 한 종목 캔들 + 거래량 | `headline`, `ma`(이동평균선 봉 수) — 등락률 기준은 `meta.prevClose` |
 | `treemap` | 넓이 = 크기, 색 = 등락률 | `value, label, change, group, link, heatMax` |
 | `list` | 시각 · 제목 · 꼬리표/값 | `time, title, sub, href, tag, tagSymbol, value, valueMuted, dot, rowHeight` |

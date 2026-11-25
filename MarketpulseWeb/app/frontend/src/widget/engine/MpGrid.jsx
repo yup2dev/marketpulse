@@ -6,6 +6,8 @@
  *                     <HoldingsGrid rows={rows} />                 (options 를 또 주면 그 값이 이긴다)
  *
  * options.columns: [{ type, header, field, … }]
+ *   비우면 행에서 만든다 (autoColumns) — 게이트웨이(/data/{provider}/{model}) 행은 표준 모델 칸이라
+ *   위젯 정의는 endpoint + view_type: 'table' 이면 된다. 머리글 · 형식을 바꿀 칸만 fields 로 적는다
  *   rank                                   1, 2, 3 …
  *   stock    symbol, name                  로고 + 이름 (종목 화면 링크)
  *   price    field, currency               통화 기호 붙은 가격 (currency = 통화 필드, 없으면 $)
@@ -70,6 +72,7 @@ import { Link, hrefFor } from './adapter';
 import { useSeries } from './data';
 import { fmtCompact, fmtDate, fmtNumber, fmtPct, fmtPrice, toneOf, read } from './format';
 import { MiniBar, Pill, StockLogo, Switch, TrendLine } from './views/parts';
+import { AUTO_MAX, autoColumns } from './autoColumns';
 
 const RIGHT = new Set(['price', 'change', 'percent', 'compact', 'number', 'trend', 'value', 'value_muted', 'money', 'pct', 'pill', 'bar']);
 const UNSORTABLE = new Set(['rank', 'trend', 'switch']);
@@ -276,13 +279,22 @@ function Pager({ page, pages, size, setPage, setSize, total, filtered }) {
 
 export default function MpGrid({ rows = EMPTY, ctx, options = {}, setParam }) {
   const {
-    columns: allColumns = EMPTY, minWidth = 600, rowHeight = 40, fixed = false, select,
+    columns: declared = EMPTY, minWidth = 600, rowHeight = 40, fixed = false, select,
     sortable = false, searchable = false, exportable = false, exportName = 'export', columnPicker = false,
     pageSize, expand, expanded: isOpen, onRowClick, empty = 'No data',
     rowKey, rowClassName, muteBy, footer, valign, scroll = true,
   } = options;
+  // 적은 컬럼이 없으면 행에서 만든다 (autoColumns) — 열이 많으면 열 선택을 켠다
+  const auto = !declared.length;
+  const allColumns = useMemo(() => (auto ? autoColumns(rows) : declared), [auto, declared, rows]);
+  const picker = columnPicker || (auto && allColumns.length > AUTO_MAX);
 
-  const [hidden, setHidden] = useState(() => new Set(allColumns.filter((c) => c.hide).map(colId)));
+  // 숨긴 열 — 사용자가 고르기 전(null)에는 열 정의의 hide 를 따른다 (행이 늦게 와도 자동 열의 hide 가 맞게)
+  const [picked, setHidden] = useState(null);
+  const hidden = useMemo(
+    () => picked ?? new Set(allColumns.filter((c) => c.hide).map(colId)),
+    [picked, allColumns],
+  );
   const [sort, setSort] = useState(null);          // { id, dir: 1 | -1 }
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
@@ -293,8 +305,8 @@ export default function MpGrid({ rows = EMPTY, ctx, options = {}, setParam }) {
     () => allColumns.filter((c, i) => !hidden.has(colId(c, i))),
     [allColumns, hidden],
   );
-  const toggle = (id) => setHidden((prev) => {
-    const next = new Set(prev);
+  const toggle = (id) => setHidden(() => {
+    const next = new Set(hidden);
     if (next.has(id)) next.delete(id); else next.add(id);
     return next;
   });
@@ -347,7 +359,7 @@ export default function MpGrid({ rows = EMPTY, ctx, options = {}, setParam }) {
   });
   const pad = (i) => (i === 0 && !toggles ? 'pl-4 pr-2' : i === columns.length - 1 ? 'pl-2 pr-4' : 'px-2');
   const span = columns.length + (toggles ? 1 : 0);
-  const toolbar = searchable || exportable || columnPicker;
+  const toolbar = searchable || exportable || picker;
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -356,7 +368,7 @@ export default function MpGrid({ rows = EMPTY, ctx, options = {}, setParam }) {
           search={search}
           setSearch={(v) => { setSearch(v); setPage(0); }}
           searchable={searchable}
-          picker={columnPicker}
+          picker={picker}
           columns={allColumns}
           hidden={hidden}
           toggle={toggle}
