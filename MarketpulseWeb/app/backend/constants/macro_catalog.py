@@ -1,6 +1,6 @@
 """거시 화면의 지표 목록 — 어느 FRED 모델 · 시리즈를 쓰는지 (데이터만).
 
-라우터(api/routes/macro.py)가 이 목록으로 command inputs(Fetch)를 만든다.
+라우터(commands/macro/router.py)가 이 목록으로 command inputs(Fetch)를 만든다.
 """
 
 # 주요 지표 — 키 → (fred 모델, 이름, 단위, 고정 파라미터)

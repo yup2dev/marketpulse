@@ -1,4 +1,4 @@
-"""계량 분석 command(commands/quant.py) — 서버에서 yfinance 를 직접 부르지 않고 시세를 사용자 Fetcher 로 위임.
+"""계량 분석 command(commands/quantitative/analysis.py) — 서버에서 yfinance 를 직접 부르지 않고 시세를 사용자 Fetcher 로 위임.
 
 계산은 웹 서버에서 하고, 시세(stock_price)만 QueryExecutor 를 거쳐 사용자 PC 로 내려가는지 본다.
 """
@@ -8,8 +8,8 @@ import numpy as np
 import pytest
 
 import data_fetcher.providers_init  # noqa: F401 — provider 등록
-from app.backend.api.routes import quantitative
-from app.backend.commands import quant
+from app.backend.commands.quantitative import router as quantitative
+from app.backend.commands.quantitative import analysis as quant
 from data_fetcher.query_executor import QueryExecutor, RemoteUnavailableError, current_user_id
 from data_fetcher.utils.registry import FetcherRegistry
 

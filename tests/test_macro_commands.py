@@ -7,9 +7,10 @@ from datetime import date
 
 import pytest
 
-from app.backend.commands import (
-    inflation as infl, labor, market_conditions as mc, regime,
-)
+from app.backend.commands.macro import inflation as infl
+from app.backend.commands.macro import labor
+from app.backend.commands.macro import conditions as mc
+from app.backend.commands.macro import regime
 from data_fetcher.query_executor import QueryExecutor
 from data_fetcher.utils.registry import FetcherRegistry
 

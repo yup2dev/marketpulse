@@ -113,7 +113,7 @@ def test_watchlist_items_get_names_from_stock_list(db_session):
 # ── 프로필 · 관계 · 섹터 ──────────────────────────────────────────────────────
 
 def test_company_profile_and_relations(db_session):
-    from app.backend.services.company_relations import get_company_relations
+    from app.backend.commands.stock.relations import get_company_relations
 
     _seed(db_session)
     db_session.add(MBS_IN_STK_RELATIONS(stk_cd="AAPL", related_cd="TSM", related_nm="TSMC",
@@ -177,7 +177,7 @@ def test_equity_screener_filters_and_percent(db_session):
 
 
 def test_screen_stocks_merges_prices_then_price_filters(db_session, monkeypatch):
-    from app.backend.services import screener_service as svc
+    from app.backend.commands.screener import screens as svc
 
     _seed(db_session)
 

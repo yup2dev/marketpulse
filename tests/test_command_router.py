@@ -142,9 +142,9 @@ def test_warnings_reach_the_response(calls):
     router = Router()
 
     @router.command(path="/w")
-    def warn():
+    def warn():                                   # 일반 command — 결과를 그대로 (OBBject 면 경고가 붙는다)
         add_warning("careful")
-        return [{"ok": True}]
+        return OBBject(results=[{"ok": True}])
 
     assert _client(router).get("/t/w").json()["warnings"] == ["careful"]
 

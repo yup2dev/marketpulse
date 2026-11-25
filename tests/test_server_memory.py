@@ -40,7 +40,7 @@ def test_lazy_module_loads_on_first_use_and_allows_patching():
 
 
 def test_packed_cache_round_trips_and_evicts():
-    from app.backend.services.quant_strategy_service import PackedCache
+    from app.backend.commands.strategies.engine import PackedCache
 
     c = PackedCache(2)
     c.put("a", {"x": [1.5, None, "s"]})

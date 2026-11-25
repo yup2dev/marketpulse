@@ -10,7 +10,7 @@ import pytest
 
 import data_fetcher.providers_init  # noqa: F401
 from data_fetcher.abstract_provider.abstract.provider import ProviderRegistry
-from app.backend.services.industry_seed import INDUSTRIES
+from app.backend.commands.industry.seed import INDUSTRIES
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 

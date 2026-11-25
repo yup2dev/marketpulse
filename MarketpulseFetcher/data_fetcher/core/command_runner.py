@@ -84,20 +84,29 @@ class CommandRunner:
     """command 실행 — 조회는 함수가 그대로, 가공은 inputs 조회 → 순수 함수."""
 
     @staticmethod
+    async def call(func: Callable, **params: Any) -> Any:
+        """async 함수는 그대로, 동기 함수는 스레드풀에서 — 무거운 계산(백테스트 등)이 이벤트 루프를 막지 않게."""
+        if inspect.iscoroutinefunction(func):
+            return await func(**params)
+        from starlette.concurrency import run_in_threadpool
+        result = await run_in_threadpool(lambda: func(**params))
+        return await result if inspect.isawaitable(result) else result
+
+    @staticmethod
     async def run(func: Callable, params: Dict[str, Any],
-                  inputs: Optional[Callable[..., Mapping[str, Fetch]]] = None) -> OBBject:
+                  inputs: Optional[Callable[..., Mapping[str, Fetch]]] = None) -> Any:
+        """inputs 가 있으면 조회 → 순수 함수 → OBBject. 없으면 함수 결과를 그대로 (OBBject · 응답 객체 · dict …)."""
         with WarningsCollector() as collected:
             if inputs is None:
-                result = func(**params)
-                provider = params.get("provider")
+                result = await CommandRunner.call(func, **params)
+                if not isinstance(result, OBBject):
+                    return result
+                obb = result
             else:
                 specs = inputs(**_split(inputs, params))
                 data = await fetch_inputs(specs)
-                result = func(data=data, **_split(func, params))
-                provider = ",".join(dict.fromkeys(s.provider for s in specs.values())) or None
-            if inspect.isawaitable(result):
-                result = await result
-            obb = to_obbject(result, provider)
+                result = await CommandRunner.call(func, data=data, **_split(func, params))
+                obb = to_obbject(result, ",".join(dict.fromkeys(s.provider for s in specs.values())) or None)
         if collected.warnings:
             obb.warnings = list(dict.fromkeys([*(obb.warnings or []), *collected.warnings]))
         return obb

@@ -58,7 +58,7 @@ def test_factor_ids_match_the_batch():
     """서버의 팩터 목록은 배치의 FACTORS 와 같아야 한다 (두 폴더는 서로 import 하지 않는다)."""
     from index_analyzer.quant.factors import FACTORS
     from index_analyzer.quant.panel import PROB_COLS
-    from app.backend.services.quant_strategy_service import FACTORS as SERVER_FACTORS, MODEL_IDS
+    from app.backend.commands.strategies.engine import FACTORS as SERVER_FACTORS, MODEL_IDS
 
     assert [f[:2] for f in SERVER_FACTORS] == [f[:2] for f in FACTORS]
     assert sorted(MODEL_IDS) == sorted(PROB_COLS)
@@ -135,7 +135,7 @@ def test_my_strategy_lifecycle(loaded):
 
 
 def test_compare_runs_every_strategy_under_the_same_conditions(loaded):
-    from app.backend.services import quant_strategy_service as svc
+    from app.backend.commands.strategies import engine as svc
 
     client = loaded
     mine = client.post("/api/strategies", json={"name": "추세만", "score_kind": "factor",
@@ -233,7 +233,7 @@ def test_concurrent_requests_read_the_panel_once(monkeypatch):
     import threading
     import time
 
-    from app.backend.services import quant_strategy_service as svc
+    from app.backend.commands.strategies import engine as svc
 
     reads = []
 

@@ -5,8 +5,8 @@ command(인플레이션 분해 · 모멘텀, 노동 임금, 신용 증가율)가
 """
 import pytest
 
-from app.backend.commands._series import pct_change_at, shift_month, yoy_at
-from app.backend.commands.inflation import momentum_from
+from app.backend.commands.macro.series import pct_change_at, shift_month, yoy_at
+from app.backend.commands.macro.inflation import momentum_from
 
 # 실제 FRED CPIAUCSL — 2025-10 은 셧다운으로 '.'
 _CPI = [("2026-09", "336.298"), ("2026-08", "334.131"), ("2026-07", "332.813"),

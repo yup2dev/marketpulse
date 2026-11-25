@@ -9,7 +9,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.backend.commands import fx as fx_cmd, macro as macro_cmd, stock as stock_cmd
+from app.backend.commands.macro import fx as fx_cmd
+from app.backend.commands.macro import indicators as macro_cmd
+from app.backend.commands.stock import overview as stock_cmd
 from app.backend.constants.macro_catalog import FX_PAIRS, INDICATORS, MACRO_SERIES
 from data_fetcher.query_executor import MissingCredentialsError, QueryExecutor
 
@@ -172,7 +174,7 @@ def test_route_corp_profits_and_forex_and_compare(auth_client, fake_qe):
 
 # ── 뉴스 감성 (#105 — polygon fetcher 에서 옮김) ─────────────────────────────
 
-from app.backend.commands import news_sentiment as news_cmd  # noqa: E402
+from app.backend.commands.stock import news_sentiment as news_cmd  # noqa: E402
 
 
 def test_news_sentiment_scores_titles_and_trend(auth_client, fake_qe):
@@ -193,7 +195,9 @@ def test_news_sentiment_scores_titles_and_trend(auth_client, fake_qe):
     assert out["trend"] == [{"date": "2026-09-01", "score": 45.0}]
 # ── 재무 분석 · 감성 · 포트폴리오 (#104 — fetcher 에서 옮김) ──────────────────
 
-from app.backend.commands import fundamentals as fund_cmd, portfolio as pf_cmd, sentiment as sent_cmd  # noqa: E402
+from app.backend.commands.stock import fundamentals as fund_cmd
+from app.backend.commands.portfolio import performance as pf_cmd
+from app.backend.commands.stock import social as sent_cmd  # noqa: E402
 
 
 def _year(y, ni, eq, rev=100.0):
@@ -311,7 +315,7 @@ def test_fund_performance_cumulative_from_first_shown_quarter():
 
 # ── 백테스트 파생 계열 · 종목 요약 (#114 5단계 — 위젯 transform 에서 옮김) ──────────
 
-from app.backend.commands import backtest as bt_cmd  # noqa: E402
+from app.backend.commands.strategies import views as bt_cmd  # noqa: E402
 
 
 def _equity(n=40):

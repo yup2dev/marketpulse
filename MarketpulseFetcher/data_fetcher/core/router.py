@@ -164,7 +164,7 @@ class Router:
             default_path = f"/{func.__name__}"
 
         self._commands.append(CommandSpec(
-            path=path or default_path, endpoint=endpoint, methods=list(methods or ["GET"]),
+            path=path if path is not None else default_path, endpoint=endpoint, methods=list(methods or ["GET"]),
             openapi_extra=extra, kwargs=kwargs,
         ))
         return func
@@ -212,9 +212,12 @@ class Router:
         async def endpoint(**kw: Any):
             return await CommandRunner.run(func, kw, inputs)
 
+        # 일반 command 는 함수의 반환 타입(예: OBBject[List[Row]])을 그대로 — 응답 스키마 · 검증에 쓰인다.
+        # 가공 command 의 함수는 행을 돌려주고 러너가 OBBject 로 감싸므로 반환 타입을 넘기지 않는다
+        ret = inspect.signature(func).return_annotation if inputs is None else inspect.Signature.empty
         endpoint.__name__ = func.__name__
         endpoint.__doc__ = func.__doc__
-        endpoint.__signature__ = inspect.Signature(params)
+        endpoint.__signature__ = inspect.Signature(params, return_annotation=ret)
         return endpoint
 
     def include_router(self, router: "Router", prefix: str = "") -> None:
@@ -231,8 +234,10 @@ class Router:
             endpoint = wrap(c.endpoint) if wrap else c.endpoint
             if wrap and hasattr(c.endpoint, "__signature__"):
                 endpoint.__signature__ = c.endpoint.__signature__
-            api.add_api_route(c.path, endpoint, methods=c.methods, response_model=None,
-                              openapi_extra=c.openapi_extra or None, **c.kwargs)
+            # response_model · status_code · summary 같은 FastAPI 옵션은 command 에 적은 그대로.
+            # response_model 을 적지 않으면 엔드포인트 반환 타입에서 (없으면 검증 없음)
+            api.add_api_route(c.path, endpoint, methods=c.methods,
+                              **{"openapi_extra": c.openapi_extra or None, **c.kwargs})
         return api
 
     @property

@@ -4,8 +4,8 @@ import pandas as pd
 import pytest
 
 import data_fetcher.providers_init  # noqa: F401 — provider 등록
-from app.backend.api.routes import quantitative
-from app.backend.commands.quant import closes_from_prices, correlation_matrix
+from app.backend.commands.quantitative import router as quantitative
+from app.backend.commands.quantitative.analysis import closes_from_prices, correlation_matrix
 from data_fetcher.query_executor import QueryExecutor, RemoteUnavailableError, current_user_id
 
 CORRELATION = next(c.endpoint for c in quantitative.router.commands if c.path == "/correlation")

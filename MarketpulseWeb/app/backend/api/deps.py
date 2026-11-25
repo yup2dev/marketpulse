@@ -23,17 +23,11 @@ from typing import Any
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 
-from data_fetcher.core.obbject import OBBject
 from data_fetcher.query_executor import (
     MissingCredentialsError, QueryExecutorError, RemoteUnavailableError,
 )
 from data_fetcher.utils.circuit_breaker import CircuitBreakerOpen
 from data_fetcher.utils.http_client import HTTPClientError
-
-
-def wrap_result(raw: Any, provider: str) -> OBBject:
-    """fetcher 결과 → OBBject. AnnotatedResult 처리는 OBBject.from_result 가 맡는다."""
-    return OBBject.from_result(raw, provider)
 
 
 # ── 날짜가 있는 행 목록 공통 처리 (게이트웨이·전용 라우트 공용) ──────────────────

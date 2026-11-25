@@ -39,7 +39,7 @@ from app.backend.core.pubsub import (
     CH_QUOTES, CH_STOCK_LIST,
     get_broker, is_redis_available,
 )
-from app.backend.services.ranking_service import get_live_quotes_subset
+from app.backend.commands.stock.ranking import get_live_quotes_subset
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -237,7 +237,7 @@ async def _build_kis_exchange_map() -> Dict[str, str]:
     """DB 유니버스(USD 종목)에서 표준심볼 → KIS 거래소코드 맵 구성.
     해외 종목 구독 키(DNASAAPL) 생성에 필요. 국내 종목은 불필요."""
     try:
-        from app.backend.services.stock_list_service import get_stock_list
+        from app.backend.commands.stock.universe import get_stock_list
         from app.backend.services._base import to_quote_symbol
         stocks = await get_stock_list()
     except Exception as e:
@@ -365,7 +365,7 @@ async def ws_quotes(
 
     # 연결 즉시 종목 리스트 전송
     try:
-        from app.backend.services.stock_list_service import get_stock_list
+        from app.backend.commands.stock.universe import get_stock_list
         stock_list = await get_stock_list()
         payload = {"type": "STOCK_LIST", "data": stock_list}
         await websocket.send_text(json.dumps(payload))

@@ -130,7 +130,7 @@ def _quarterly_rows(key, n):
 
 
 def test_fund_performance_period_maps_to_quarters(monkeypatch):
-    from app.backend.api.routes import portfolio
+    from app.backend.commands.portfolio import router as portfolio
 
     seen = {}
 

@@ -249,13 +249,24 @@ def test_analysis_in_place_only_shrinks():
     assert not ANALYSIS_IN_PLACE & ANALYSIS_TO_COMMAND
 
 
+# commands/<도메인>/ 안에서 provider 이름을 써도 되는 곳:
+#   router.py           inputs(Fetch) 선언 — 어느 provider · model 을 받을지 여기서 정한다
+#   DATA_ACCESS_MODULES 배치가 적재한 DB(db provider) · 실시간 랭킹 소스를 직접 읽는 모듈 (예전 services/)
+# 나머지(계산 모듈)는 provider 를 모른다 — 행을 받아 계산만 한다.
+DATA_ACCESS_MODULES = {
+    "industry/datasets.py", "industry/seed.py", "screener/screens.py",
+    "stock/ranking.py", "stock/relations.py", "stock/universe.py", "strategies/engine.py",
+}
+
+
 def test_commands_do_not_name_providers():
-    """command 는 provider 를 모른다 — 어떤 provider · model 을 받을지는 라우터의 inputs(Fetch)가 정한다."""
+    """계산 모듈은 provider 를 모른다 — 어떤 provider · model 을 받을지는 router.py 의 inputs(Fetch)가 정한다."""
     import data_fetcher.providers_init  # noqa: F401 — 등록된 provider 이름
     from data_fetcher.abstract_provider.abstract.provider import ProviderRegistry
 
     names = set(ProviderRegistry.list())
-    files = sorted(COMMANDS_DIR.rglob("*.py"))
+    files = sorted(p for p in COMMANDS_DIR.rglob("*.py")
+                   if p.name != "router.py" and p.relative_to(COMMANDS_DIR).as_posix() not in DATA_ACCESS_MODULES)
     assert files, "app/backend/commands/ 를 못 찾았다 — 경로가 바뀌었나?"
 
     violations = []
