@@ -9,8 +9,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from pydantic import BaseModel, Field
 
-from app.backend.commands._base import Rows, Source, fetch_rows
-from app.backend.commands._series import fetch_keyed, pct_change_at, points, shift_month, yoy_at
+from app.backend.commands._base import Rows
+from app.backend.commands._series import pct_change_at, points, yoy_at
 
 # ── CPI 구성요소 분해 ──────────────────────────────────────────────────────────
 #
@@ -63,31 +63,10 @@ def index_stats(rows: Rows) -> Optional[Dict[str, Any]]:
     return None
 
 
-def build_rows(index_rows: Dict[str, Rows]) -> List[DecompositionRow]:
-    out = []
-    for category, sid, weight in COMPONENTS:
-        st = index_stats(index_rows.get(sid, []))
-        yoy = st["yoy"] if st else None
-        out.append(DecompositionRow(
-            category=category, weight=weight, yoy_change=yoy,
-            contribution=round(weight * yoy / 100, 2) if yoy is not None else None,
-            series_id=sid, date=st["date"] if st else None,
-        ))
-    return out
-
-
-async def decomposition(series: Source, as_of: Optional[date] = None) -> Tuple[List[DecompositionRow], Dict[str, Any]]:
-    """as_of: 이 날짜 이전 마지막 발표월로 분해 (비우면 최신)."""
-    def spec(sid: str, limit: int) -> Dict[str, Any]:
-        return {"series_id": sid, "limit": limit, "sort_order": "desc", "end_date": as_of}
-
-    index_ids = [sid for _, sid, _ in COMPONENTS] + list(INDEX_SERIES.values())
-    specs = {sid: spec(sid, 14) for sid in index_ids}
-    specs.update({sid: spec(sid, 5) for sid in RATE_SERIES.values()})
-    data = await fetch_keyed(series, specs, "inflation_decomposition")
+def decomposition_from(data: Dict[str, Rows]) -> Tuple[List["DecompositionRow"], Dict[str, Any]]:
+    """{시리즈 id: 행} → (구성요소 행, 헤드라인 · 근원 · 기대인플레이션 메타데이터)."""
     if not any(data.get(sid) for _, sid, _ in COMPONENTS):
         raise ValueError("CPI component series unavailable")
-
     rows = build_rows(data)
     contribs = [r.contribution for r in rows if r.contribution is not None]
     rates = {}
@@ -102,6 +81,20 @@ async def decomposition(series: Source, as_of: Optional[date] = None) -> Tuple[L
         "weights_vintage": WEIGHTS_VINTAGE,
     }
     return rows, meta
+
+
+def build_rows(index_rows: Dict[str, Rows]) -> List[DecompositionRow]:
+    out = []
+    for category, sid, weight in COMPONENTS:
+        st = index_stats(index_rows.get(sid, []))
+        yoy = st["yoy"] if st else None
+        out.append(DecompositionRow(
+            category=category, weight=weight, yoy_change=yoy,
+            contribution=round(weight * yoy / 100, 2) if yoy is not None else None,
+            series_id=sid, date=st["date"] if st else None,
+        ))
+    return out
+
 
 
 # ── 모멘텀 ─────────────────────────────────────────────────────────────────────
@@ -130,12 +123,6 @@ def momentum_from(rows: Rows, start: Optional[Any] = None) -> List[MomentumPoint
         out.append(MomentumPoint(date=d, yoy_12m=round(y12, 2), yoy_6m=annualized(d, 6), yoy_3m=annualized(d, 3)))
     return out
 
-
-async def momentum(series: Source, start: Optional[date] = None, end: Optional[date] = None) -> List[MomentumPoint]:
-    lookback = shift_month(start.isoformat(), -13) if start else None     # 12개월 전 값이 있어야 첫 점이 나온다
-    rows = await fetch_rows(series.with_params(series_id=INDEX_SERIES["headline"], start_date=lookback,
-                                               end_date=end, sort_order="asc"))
-    return momentum_from(rows, start)
 
 
 # ── 섹터별 YoY ─────────────────────────────────────────────────────────────────
@@ -177,9 +164,3 @@ def sector_from(rows: Rows) -> List[SectorPoint]:
         fields = {k: round(v[d], 2) for k, v in by_key.items() if d in v}
         out.append(SectorPoint(date=d, **fields))
     return out
-
-
-async def sector(series: Source, start: Optional[date] = None, end: Optional[date] = None) -> List[SectorPoint]:
-    rows = await fetch_rows(series.with_params(series_id=",".join(SECTOR_SERIES.values()), units="pc1",
-                                               start_date=start, end_date=end, sort_order="asc"))
-    return sector_from(rows)

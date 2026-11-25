@@ -6,6 +6,8 @@ tests/test_app_boot.py 의 '모든 라우트 모듈이 등록됐는가' 검사�
 """
 from fastapi import FastAPI
 
+from app.backend.api.command_map import add_command_map
+
 from app.backend.api.routes import (
     stock, news, portfolio, macro,
     auth, user_portfolio, screener, alerts, export, watchlist, menu,
@@ -35,7 +37,8 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(screener.router,  prefix="/api",          tags=["screener"])
 
     # ── Macro / Economic ─────────────────────────────────────────────────────
-    app.include_router(macro.router,     prefix="/api/macro",    tags=["macro"])
+    # OpenBB 식 command 라우터 (data_fetcher.core.Router) — 오류 응답은 command_map 래퍼가 한 곳에서
+    add_command_map(app, [(macro.router, "/api/macro")])
 
     # ── Portfolio ─────────────────────────────────────────────────────────────
     app.include_router(portfolio.router,      prefix="/api/portfolio", tags=["portfolio"])

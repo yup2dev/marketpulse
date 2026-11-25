@@ -11,8 +11,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from pydantic import BaseModel, Field
 
-from app.backend.commands._base import Rows, Source, fetch_rows
-from app.backend.commands._series import fetch_keyed, in_range, nearest, points, shift_month
+from app.backend.commands._base import Rows
+from app.backend.commands._series import in_range, nearest, points, shift_month
 
 GDP_GROWTH = "A191RL1Q225SBEA"     # 실질 GDP 성장률 (분기, 연율 %)
 CPI = "CPIAUCSL"
@@ -81,16 +81,6 @@ def compute_regime(gdp: Rows, indpro_yoy: Rows, payroll_yoy: Rows, cpi_yoy: Rows
     )
 
 
-async def regime_current(series: Source) -> List[RegimeCurrent]:
-    recent = {"sort_order": "desc", "limit": 8}
-    data = await fetch_keyed(series, {
-        "gdp": {"series_id": GDP_GROWTH, **recent},
-        "indpro": {"series_id": "INDPRO", "units": "pc1", **recent},
-        "payroll": {"series_id": "PAYEMS", "units": "pc1", **recent},
-        "cpi": {"series_id": CPI, "units": "pc1", **recent},
-    }, "regime_current", required=("gdp", "cpi"))
-    return [compute_regime(data["gdp"], data["indpro"], data["payroll"], data["cpi"])]
-
 
 # ── 레짐 이력 ──────────────────────────────────────────────────────────────────
 
@@ -133,15 +123,6 @@ def regime_history_from(gdp: Rows, cpi_yoy: Rows, start: Optional[Any] = None,
     return history, transitions
 
 
-async def regime_history(series: Source, start: Optional[Any] = None,
-                         end: Optional[Any] = None) -> Tuple[List[RegimePoint], Dict[str, Any]]:
-    data = await fetch_keyed(series, {
-        "gdp": {"series_id": GDP_GROWTH, "sort_order": "asc"},
-        "cpi": {"series_id": CPI, "units": "pc1", "sort_order": "asc"},
-    }, "regime_history")
-    history, transitions = regime_history_from(data["gdp"], data["cpi"], start, end)
-    return history, {"transitions": transitions}
-
 
 # ── 필립스 곡선 ────────────────────────────────────────────────────────────────
 
@@ -159,13 +140,6 @@ def phillips_from(unrate: Rows, cpi_yoy: Rows, start: Optional[Any] = None,
     return [PhillipsPoint(date=d, unemployment=round(u, 1), inflation=round(nearest(cpi_in, d)[1], 1))
             for d, u in points(unrate) if in_range(d, start, end)]
 
-
-async def phillips_curve(series: Source, start: Optional[Any] = None, end: Optional[Any] = None) -> List[PhillipsPoint]:
-    data = await fetch_keyed(series, {
-        "unemployment": {"series_id": "UNRATE", "sort_order": "asc"},
-        "cpi": {"series_id": CPI, "units": "pc1", "sort_order": "asc"},
-    }, "phillips_curve")
-    return phillips_from(data["unemployment"], data["cpi"], start, end)
 
 
 # ── 연준 정책 기조 ─────────────────────────────────────────────────────────────
@@ -223,8 +197,3 @@ def compute_stance(rates: Rows, today: Optional[date] = None) -> List[StanceRow]
         ("Cut Prob", probs["cut"], "%"),
         ("Last Updated", current_date, ""),
     )]
-
-
-async def fed_policy_stance(policy_rate: Source) -> List[StanceRow]:
-    """policy_rate: 기준금리 행 {date, rate} 를 주는 출처 (예: interest_rate · federal_funds)."""
-    return compute_stance(await fetch_rows(policy_rate))

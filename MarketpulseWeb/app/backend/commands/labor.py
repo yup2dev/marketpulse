@@ -4,8 +4,8 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
-from app.backend.commands._base import Rows, Source
-from app.backend.commands._series import DashboardRow, fetch_keyed, points, yoy_at
+from app.backend.commands._base import Rows
+from app.backend.commands._series import DashboardRow, points, yoy_at
 
 # (키, 시리즈, 받을 관측 수) — 최신 기준. 실업률 · 고용은 직전 대비용 2개, 임금은 전년 대비를 날짜로 찾으려고 14개.
 LABOR_SERIES = [
@@ -84,14 +84,6 @@ def labor_rows(data: Dict[str, Rows]) -> List[DashboardRow]:
     return rows
 
 
-async def labor_dashboard(series: Source, as_of: Optional[date] = None) -> List[DashboardRow]:
-    """as_of: 이 날짜 이전 마지막 관측값으로 (비우면 최신)."""
-    data = await fetch_keyed(series, {
-        key: {"series_id": sid, "limit": n, "sort_order": "desc", "end_date": as_of}
-        for key, sid, n in LABOR_SERIES
-    }, "labor_dashboard")
-    return labor_rows(data)
-
 
 # ── 민간 · 정부 고용 ───────────────────────────────────────────────────────────
 
@@ -111,10 +103,3 @@ def jobs_from(private: Rows, government: Rows) -> List[JobsPoint]:
     base_p, base_g = p[dates[0]], g[dates[0]]
     return [JobsPoint(date=d, private=round(p[d] - base_p, 0), government=round(g[d] - base_g, 0),
                       private_level=round(p[d], 0), government_level=round(g[d], 0)) for d in dates]
-
-
-async def jobs_breakdown(series: Source, start: Optional[date] = None, end: Optional[date] = None) -> List[JobsPoint]:
-    rng = {"start_date": start, "end_date": end, "sort_order": "asc"}
-    data = await fetch_keyed(series, {"private": {"series_id": "USPRIV", **rng},
-                                      "government": {"series_id": "USGOVT", **rng}}, "jobs_breakdown")
-    return jobs_from(data["private"], data["government"])

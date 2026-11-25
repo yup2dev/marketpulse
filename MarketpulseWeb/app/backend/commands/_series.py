@@ -1,34 +1,15 @@
-"""시계열 command 공용 — 시리즈 여러 개를 키로 받아 오기 + 날짜 기준 변화율.
+"""시계열 command 공용 — 행 → (날짜, 값) 점 · 날짜 기준 변화율 · 대시보드 행.
 
-시리즈 하나는 Source(provider, "series", {series_id, units, limit, sort_order, …}) 로 부른다
-(provider 이름은 라우트가 정한다). 실패한 시리즈는 빈 목록으로 두고 경고만 남긴다 — 스냅샷은 있는 칸만 그린다.
+조회는 하지 않는다 — command 의 inputs 를 CommandRunner 가 받아 온다 (data_fetcher.core.command_runner).
 """
-import logging
 from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 from pydantic import BaseModel
 
-from app.backend.commands._base import Rows, Source, fetch_many
-
-log = logging.getLogger(__name__)
+from app.backend.commands._base import Rows
 
 Point = Tuple[str, float]
 
-
-async def fetch_keyed(series: Source, specs: Mapping[str, Mapping[str, Any]], label: str,
-                      required: Tuple[str, ...] = ()) -> Dict[str, Rows]:
-    """{키: 파라미터} → {키: 행}. 병렬로 받고, required 에 든 키가 실패하면 그 오류를 올린다."""
-    keys = list(specs)
-    found = await fetch_many([series.with_params(**specs[k]) for k in keys])
-    out: Dict[str, Rows] = {}
-    for key, rows in zip(keys, found):
-        if isinstance(rows, BaseException):
-            if key in required:
-                raise rows
-            log.warning("[%s] %s 조회 실패: %s", label, key, rows)
-            rows = []
-        out[key] = rows
-    return out
 
 
 def points(rows: Rows, newest_first: bool = False) -> List[Point]:

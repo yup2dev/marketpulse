@@ -44,32 +44,17 @@ def _run(coro):
 
 # ── macro ─────────────────────────────────────────────────────────────────────
 
-def test_indicator_overview_picks_latest_by_date_whatever_the_order(fake_qe):
+def test_indicator_overview_picks_latest_by_date_whatever_the_order():
     asc = [{"date": date(2026, 8, 1), "value": 4.0}, {"date": date(2026, 9, 1), "value": 5.0}]
-    fake_qe["handler"] = lambda p, m, params: asc if m == "gdp" else list(reversed(asc))
-    specs = [macro_cmd.IndicatorSpec("gdp", Source("x", "gdp"), "B$"),
-             macro_cmd.IndicatorSpec("rate", Source("x", "interest_rate"), "Percent")]
-    rows = {r.indicator: r for r in _run(macro_cmd.indicator_overview(specs))}
+    data = {"gdp": asc, "rate": list(reversed(asc)), "failed": []}
+    rows = {r.indicator: r for r in macro_cmd.indicator_overview(data, {"gdp": "B$", "rate": "Percent"})}
     assert rows["gdp"].value == 5.0 and rows["gdp"].change == pytest.approx(25.0)
     assert rows["rate"].value == 5.0 and rows["rate"].change == pytest.approx(25.0)    # 내림차순이어도 같다
-    assert rows["rate"].unit == "Percent"
+    assert rows["rate"].unit == "Percent" and "failed" not in rows                    # 못 받은 지표는 빠진다
 
 
-def test_indicator_overview_drops_failed_but_raises_when_all_fail(fake_qe):
-    fake_qe["handler"] = lambda p, m, params: (RuntimeError("down") if m == "bad"
-                                              else [{"date": date(2026, 9, 1), "value": 1.0}])
-    specs = [macro_cmd.IndicatorSpec("ok", Source("x", "ok"), "u"),
-             macro_cmd.IndicatorSpec("bad", Source("x", "bad"), "u")]
-    rows = _run(macro_cmd.indicator_overview(specs))
-    assert [r.indicator for r in rows] == ["ok"] and rows[0].change is None
-
-    fake_qe["handler"] = lambda p, m, params: MissingCredentialsError("x")
-    with pytest.raises(MissingCredentialsError):          # 키 미등록 → 424 안내가 화면까지
-        _run(macro_cmd.indicator_overview(specs))
-
-
-def test_series_overview_groups_by_series(fake_qe):
-    fake_qe["handler"] = lambda p, m, params: [
+def test_series_overview_groups_by_series():
+    rows = [
         {"date": date(2026, 10, 1), "value": 110.0, "series_id": "M2SL"},
         {"date": date(2026, 9, 1), "value": 100.0, "series_id": "M2SL"},
         {"date": date(2026, 11, 20), "value": 4.1, "series_id": "DGS10"},
@@ -77,10 +62,10 @@ def test_series_overview_groups_by_series(fake_qe):
     catalog = [macro_cmd.SeriesSpec("m2", "M2SL", "M2", "Money", "B$"),
                macro_cmd.SeriesSpec("t10", "DGS10", "10Y", "Rates", "Percent"),
                macro_cmd.SeriesSpec("none", "NOPE", "-", "-", "-")]
-    rows = {r.key: r for r in _run(macro_cmd.series_overview(Source("x", "series"), catalog))}
-    assert set(rows) == {"m2", "t10"}                      # 관측이 없는 시리즈는 빠진다
-    assert rows["m2"].value == 110.0 and rows["m2"].change == pytest.approx(10.0)
-    assert rows["t10"].change is None
+    out = {r.key: r for r in macro_cmd.series_overview(rows, catalog)}
+    assert set(out) == {"m2", "t10"}                      # 관측이 없는 시리즈는 빠진다
+    assert out["m2"].value == 110.0 and out["m2"].change == pytest.approx(10.0)
+    assert out["t10"].change is None
 
 
 def test_ratio_pct(fake_qe):
@@ -95,19 +80,16 @@ def test_ratio_pct(fake_qe):
 
 # ── fx ────────────────────────────────────────────────────────────────────────
 
-def test_latest_rates(fake_qe):
+def test_latest_rates():
     def bar(d, c):
-        return SimpleNamespace(model_dump=lambda: {"date": date(2026, 11, d), "close": c, "high": c + 1,
-                                                    "low": c - 1})
+        return {"date": date(2026, 11, d), "close": c, "high": c + 1, "low": c - 1}
 
-    fake_qe["handler"] = lambda p, m, params: (RuntimeError("limit") if params["from_currency"] == "GBP"
-                                              else [bar(20, 100.0), bar(21, 110.0)])
-    pairs = [fx_cmd.PairSpec(f"{b}/{q}", n, Source("x", "forex", {"from_currency": b, "to_currency": q}))
-             for b, q, n in FX_PAIRS]
-    rows = {r.pair: r for r in _run(fx_cmd.latest_rates(pairs))}
-    assert "GBP/USD" not in rows and len(rows) == 4        # 실패한 쌍만 빠진다
+    data = {"EUR/USD": [bar(20, 100.0), bar(21, 110.0)], "GBP/USD": []}
+    rows = {r.pair: r for r in fx_cmd.latest_rates(data, {"EUR/USD": "Euro"})}
+    assert list(rows) == ["EUR/USD"]                       # 못 받은 쌍은 빠진다
     eur = rows["EUR/USD"]
-    assert eur.rate == 110.0 and eur.date == date(2026, 11, 21) and eur.change == pytest.approx(10.0)
+    assert eur.name == "Euro" and eur.rate == 110.0 and eur.date == date(2026, 11, 21)
+    assert eur.change == pytest.approx(10.0)
 
 
 # ── stock ─────────────────────────────────────────────────────────────────────

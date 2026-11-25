@@ -246,12 +246,15 @@ def test_decomposition_route_needs_component_series(auth_client, series_calls):
     assert res.status_code >= 400                         # 구성요소가 하나도 없으면 오류
 
 
-def test_regime_current_needs_gdp_and_cpi(monkeypatch):
+def test_regime_current_needs_gdp_and_cpi(auth_client, monkeypatch):
+    """gdp · cpi 는 required — 실패하면 그 오류가 응답까지 (산업생산 · 고용은 빠져도 된다)."""
+    client, _ = auth_client
+
     async def fetch(provider, model, params, *a, **k):
         if params["series_id"] == "CPIAUCSL":
-            raise RuntimeError("down")
+            raise ValueError("cpi down")
         return []
 
     monkeypatch.setattr(QueryExecutor, "fetch", fetch)
-    with pytest.raises(RuntimeError):
-        asyncio.run(regime.regime_current(Source("x", "series")))
+    res = client.get("/api/macro/regime/current")
+    assert res.status_code == 400 and "cpi down" in res.text

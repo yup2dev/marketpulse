@@ -4,8 +4,8 @@ from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
-from app.backend.commands._base import Rows, Source
-from app.backend.commands._series import DashboardRow, fetch_keyed, points, yoy_at
+from app.backend.commands._base import Rows
+from app.backend.commands._series import DashboardRow, points, yoy_at
 
 # ── 금융 여건 ──────────────────────────────────────────────────────────────────
 
@@ -54,13 +54,6 @@ def conditions_rows(data: Dict[str, Rows]) -> List[DashboardRow]:
             rows.append(DashboardRow(section="Consumer Health", metric=label, value=round(last[key], 2), unit="%"))
     return rows
 
-
-async def financial_conditions(series: Source, as_of: Optional[date] = None) -> List[DashboardRow]:
-    data = await fetch_keyed(series, {
-        key: {"series_id": sid, "limit": n, "sort_order": "desc", "end_date": as_of}
-        for key, sid, n in CONDITIONS_SERIES
-    }, "financial_conditions")
-    return conditions_rows(data)
 
 
 # ── 공포 / 탐욕 ────────────────────────────────────────────────────────────────
@@ -125,13 +118,6 @@ def sentiment_rows(data: Dict[str, Rows]) -> List[DashboardRow]:
     return rows
 
 
-async def sentiment_composite(series: Source, as_of: Optional[date] = None) -> List[DashboardRow]:
-    data = await fetch_keyed(series, {
-        key: {"series_id": sid, "limit": n, "sort_order": "desc", "end_date": as_of}
-        for key, sid, n in (("vix", "VIXCLS", 1), ("hy", "BAMLH0A0HYM2", 1), ("dgs10", "DGS10", 20))
-    }, "sentiment_composite")
-    return sentiment_rows(data)
-
 
 class SentimentPoint(BaseModel):
     date: str
@@ -150,11 +136,3 @@ def sentiment_history_from(vix_rows: Rows, hy_rows: Rows) -> List[SentimentPoint
                                   hy_spread=round(h, 2) if h is not None else None,
                                   fear_greed_score=round(sum(scores) / len(scores), 1)))
     return out
-
-
-async def sentiment_history(series: Source, start: Optional[date] = None,
-                            end: Optional[date] = None) -> List[SentimentPoint]:
-    rng = {"start_date": start, "end_date": end, "sort_order": "asc"}
-    data = await fetch_keyed(series, {"vix": {"series_id": "VIXCLS", **rng},
-                                      "hy": {"series_id": "BAMLH0A0HYM2", **rng}}, "sentiment_history")
-    return sentiment_history_from(data["vix"], data["hy"])

@@ -1,26 +1,18 @@
 """거시 지표 분석 — 최신값 · 직전 대비 변화율, 두 시리즈의 비율(%).
 
-입력은 라우트가 넘긴 Source(어느 provider 의 어떤 모델) — 여기서는 받은 행으로 계산만 한다.
+순수 함수다 — 행을 받아 계산만 한다. 어느 provider · model 을 받을지는 라우터의 command inputs 가 정하고
+조회는 CommandRunner 가 한다.
 """
 from dataclasses import dataclass
 from datetime import date as dateType
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.backend.commands._base import (
-    Source, fetch_many, fetch_rows, latest_two, pct_change, raise_if_all_failed,
-)
+from app.backend.commands._base import Rows, Source, fetch_rows, latest_two, pct_change
 
 
 # ── 지표 여러 개의 최신값 ────────────────────────────────────────────────────────
-
-@dataclass(frozen=True)
-class IndicatorSpec:
-    key: str
-    source: Source
-    unit: str
-
 
 class IndicatorOverviewData(BaseModel):
     """지표 행의 최신 칸을 그대로 두고 indicator · unit · change 를 붙인다."""
@@ -31,19 +23,15 @@ class IndicatorOverviewData(BaseModel):
     change: Optional[float] = Field(default=None, description="직전 관측 대비 (%)")
 
 
-async def indicator_overview(specs: Sequence[IndicatorSpec]) -> List[IndicatorOverviewData]:
-    """지표마다 출처를 병렬로 불러 최신값과 직전 관측 대비 변화율. 실패한 지표만 빠진다."""
-    found = await fetch_many([s.source for s in specs])
-    raise_if_all_failed(found, "indicator_overview")
+def indicator_overview(data: Mapping[str, Rows], units: Mapping[str, str]) -> List[IndicatorOverviewData]:
+    """{지표 키: 행} → 지표마다 최신값과 직전 관측 대비 변화율. 행이 없는(실패한) 지표는 빠진다."""
     out = []
-    for spec, rows in zip(specs, found):
-        if isinstance(rows, BaseException):
-            continue
+    for key, rows in data.items():
         latest, prev = latest_two(rows)
         if latest is None:
             continue
         change = pct_change(latest.get("value"), prev.get("value")) if prev else None
-        out.append(IndicatorOverviewData(**{**latest, "indicator": spec.key, "unit": spec.unit, "change": change}))
+        out.append(IndicatorOverviewData(**{**latest, "indicator": key, "unit": units.get(key, ""), "change": change}))
     return out
 
 
@@ -68,13 +56,10 @@ class SeriesOverviewData(BaseModel):
     change: Optional[float] = Field(default=None, description="직전 관측 대비 (%)")
 
 
-async def series_overview(source: Source, catalog: Sequence[SeriesSpec]) -> List[SeriesOverviewData]:
-    """출처 하나가 여러 시리즈의 최근 관측을 돌려준다 (행마다 series_id) — 시리즈별 최신값 · 변화율.
-
-    관측이 없는 시리즈는 빠진다.
-    """
+def series_overview(rows: Rows, catalog: Sequence[SeriesSpec]) -> List[SeriesOverviewData]:
+    """여러 시리즈의 최근 관측(행마다 series_id) → 시리즈별 최신값 · 변화율. 관측이 없는 시리즈는 빠진다."""
     by_id: Dict[str, List[Dict[str, Any]]] = {}
-    for r in await fetch_rows(source):
+    for r in rows:
         by_id.setdefault(r.get("series_id"), []).append(r)
     out = []
     for spec in catalog:
@@ -89,22 +74,31 @@ async def series_overview(source: Source, catalog: Sequence[SeriesSpec]) -> List
     return out
 
 
-# ── 두 시리즈의 비율 ─────────────────────────────────────────────────────────────
+# ── 시계열 그대로 ───────────────────────────────────────────────────────────────
 
 class DatedValue(BaseModel):
     date: dateType = Field(description="관측일")
     value: Optional[float] = Field(default=None, description="값")
 
 
-async def ratio_pct(source: Source, numerator: str, denominator: str) -> List[DatedValue]:
-    """같은 날짜의 numerator ÷ denominator × 100 (소수 둘째 자리). 분모가 없는 날짜는 빠진다.
+def dated_values(rows: Rows, digits: Optional[int] = None) -> List[Dict[str, Any]]:
+    """행 → {date, value} (화면이 쓰는 두 칸만). digits 를 주면 반올림하고 값 없는 날은 뺀다."""
+    return [{"date": r["date"], "value": round(r["value"], digits) if digits is not None else r["value"]}
+            for r in rows if r.get("date") and (digits is None or r.get("value") is not None)]
 
-    source 는 두 시리즈를 함께 돌려준다 (행마다 series_id).
-    """
-    rows = await fetch_rows(source)
+
+# ── 두 시리즈의 비율 ─────────────────────────────────────────────────────────────
+
+def ratio_pct_from(rows: Rows, numerator: str, denominator: str) -> List[DatedValue]:
+    """같은 날짜의 numerator ÷ denominator × 100 (소수 둘째 자리). 분모가 없는 날짜는 빠진다 (행마다 series_id)."""
     den = {r["date"]: r["value"] for r in rows if r.get("series_id") == denominator and r.get("value")}
     return [
         DatedValue(date=r["date"], value=round(r["value"] / den[r["date"]] * 100, 2))
         for r in sorted(rows, key=lambda r: str(r["date"]))
         if r.get("series_id") == numerator and r.get("value") is not None and den.get(r["date"])
     ]
+
+
+async def ratio_pct(source: Source, numerator: str, denominator: str) -> List[DatedValue]:
+    """stock 라우트용 (아직 Router 로 옮기기 전) — 조회 후 ratio_pct_from."""
+    return ratio_pct_from(await fetch_rows(source), numerator, denominator)
