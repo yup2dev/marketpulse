@@ -1,4 +1,5 @@
 """Initial Claims Models"""
+import asyncio
 import logging
 from datetime import date as date_type
 from typing import Optional, Any, Dict, List
@@ -47,12 +48,17 @@ class FREDInitialClaimsFetcher(ApiFetcher[InitialClaimsQueryParams, InitialClaim
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any,
     ) -> List[Dict]:
-        return [d.model_dump() for d in await FREDGenericSeriesFetcher.fetch_data(dict(
-            series_id="ICSA",
-            start_date=query.start_date,
-            end_date=query.end_date,
-            sort_order="asc",
-        ), credentials)]
+        # ICSA(주간 신규 청구) + IC4WSA(4주 이동평균 — FRED 가 발표, 직접 계산하지 않는다)
+        claims, ma = await asyncio.gather(*[
+            FREDGenericSeriesFetcher.fetch_data(dict(
+                series_id=sid, start_date=query.start_date, end_date=query.end_date, sort_order="asc",
+            ), credentials)
+            for sid in ("ICSA", "IC4WSA")
+        ], return_exceptions=True)
+        if isinstance(claims, BaseException):
+            raise claims
+        ma_by_date = {} if isinstance(ma, BaseException) else {r.date: r.value for r in ma}
+        return [{**d.model_dump(), "ma": ma_by_date.get(d.date)} for d in claims]
 
     @staticmethod
     def transform_data(
@@ -60,20 +66,15 @@ class FREDInitialClaimsFetcher(ApiFetcher[InitialClaimsQueryParams, InitialClaim
         data: List[Dict],
         **kwargs: Any,
     ) -> List[InitialClaimsData]:
-        clean = [
-            {"date": o["date"], "value": float(o["value"])}
-            for o in data
-            if o.get("value") not in (None, ".", "")
-        ]
-
         results = []
-        for i, row in enumerate(clean):
+        for o in data:
+            if o.get("value") in (None, ".", ""):
+                continue
             point: Dict[str, Any] = {
-                "date": row["date"],
-                "claims": round(row["value"] / 1000, 1),  # → thousands
+                "date": o["date"],
+                "claims": round(float(o["value"]) / 1000, 1),  # → thousands
             }
-            if i >= 3:
-                ma = sum(c["value"] for c in clean[i - 3:i + 1]) / 4 / 1000
-                point["ma_4w"] = round(ma, 1)
+            if o.get("ma") is not None:
+                point["ma_4w"] = round(float(o["ma"]) / 1000, 1)
             results.append(InitialClaimsData(**point))
         return results

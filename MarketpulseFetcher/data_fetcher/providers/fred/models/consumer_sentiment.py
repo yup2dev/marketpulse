@@ -1,4 +1,5 @@
 """Consumer Sentiment Index (소비자 심리 지수) Standard Model"""
+import asyncio
 import logging
 from datetime import date as date_type, datetime, timedelta
 from typing import Optional, Any, Dict, List
@@ -11,6 +12,7 @@ from data_fetcher.abstract_provider.standard_models.fred_series import (
     FredSeriesData,
 )
 from data_fetcher.providers.fred.models.generic_series import FREDGenericSeriesFetcher
+from data_fetcher.providers.fred.utils.units import attach_units, with_units
 
 
 class ConsumerSentimentQueryParams(FredSeriesQueryParams):
@@ -71,6 +73,9 @@ class ConsumerSentimentData(FredSeriesData):
 
 log = logging.getLogger(__name__)
 
+# 파생 칸은 FRED 가 계산해 준다 (units — utils/units.py)
+_UNITS = {'change_from_previous': 'chg'}
+
 # FRED Consumer Sentiment Series IDs
 FRED_SERIES_MAP = {
     'preliminary': 'MMNRNJ',    # Consumer Sentiment Index (Preliminary)
@@ -105,13 +110,16 @@ class FREDConsumerSentimentFetcher(ApiFetcher[ConsumerSentimentQueryParams, Cons
         frequency = query.frequency.lower()
         series_id = FRED_SERIES_MAP.get(frequency, FRED_SERIES_MAP['final'])
 
-        return [d.model_dump() for d in await FREDGenericSeriesFetcher.fetch_data(dict(
-            series_id=series_id,
-            start_date=query.start_date,
-            end_date=query.end_date,
-            limit=400,
-            sort_order='desc',
-        ), credentials)]
+        return attach_units(await asyncio.gather(*[
+            FREDGenericSeriesFetcher.fetch_data(p, credentials)
+            for p in with_units(dict(
+                series_id=series_id,
+                start_date=query.start_date,
+                end_date=query.end_date,
+                limit=400,
+                sort_order='desc',
+            ), _UNITS)
+        ], return_exceptions=True), _UNITS)
 
     @staticmethod
     def transform_data(
@@ -119,12 +127,12 @@ class FREDConsumerSentimentFetcher(ApiFetcher[ConsumerSentimentQueryParams, Cons
         data: List[Dict[str, Any]],
         **kwargs: Any
     ) -> List[ConsumerSentimentData]:
-        observations = data or []
+        # 날짜 오름차순 (FRED 는 desc 로 받는다)
+        observations = sorted(data or [], key=lambda o: o.get('date') or '')
         frequency = query.frequency.lower()
         country = query.country
 
         cs_data_list = []
-        previous_value = None
 
         for obs in observations:
             try:
@@ -143,10 +151,7 @@ class FREDConsumerSentimentFetcher(ApiFetcher[ConsumerSentimentQueryParams, Cons
                     continue
 
 
-                # 전월 대비 변화 계산
-                change_from_previous = None
-                if previous_value is not None:
-                    change_from_previous = value - previous_value
+                change_from_previous = obs.get('change_from_previous')          # FRED units=chg
 
                 cs_obj = ConsumerSentimentData(
                     date=obs_date,
@@ -158,7 +163,6 @@ class FREDConsumerSentimentFetcher(ApiFetcher[ConsumerSentimentQueryParams, Cons
                 )
 
                 cs_data_list.append(cs_obj)
-                previous_value = value
 
             except (ValueError, KeyError) as e:
                 log.warning(f"Error parsing consumer sentiment observation {obs}: {e}")

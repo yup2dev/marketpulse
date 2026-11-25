@@ -1,4 +1,5 @@
 """GDP (Gross Domestic Product) Standard Model"""
+import asyncio
 import logging
 from datetime import date as date_type
 from typing import Optional, Any, Dict, List
@@ -11,6 +12,7 @@ from data_fetcher.abstract_provider.standard_models.fred_series import (
     FredSeriesData,
 )
 from data_fetcher.providers.fred.models.generic_series import FREDGenericSeriesFetcher
+from data_fetcher.providers.fred.utils.units import attach_units, with_units
 
 
 class GDPQueryParams(FredSeriesQueryParams):
@@ -104,6 +106,9 @@ class GDPPerCapitaData(FredSeriesData):
 
 log = logging.getLogger(__name__)
 
+# 파생 칸은 FRED 가 계산해 준다 (units — utils/units.py)
+_UNITS = {'growth_rate': 'pch'}
+
 # FRED GDP Series IDs
 FRED_SERIES_MAP = {
     'nominal': 'A191RA1Q225SBEA',      # Nominal GDP (Billions)
@@ -139,13 +144,16 @@ class FREDGDPFetcher(ApiFetcher[GDPQueryParams, GDPData]):
         frequency = query.frequency.lower()
         series_id = FRED_SERIES_MAP['real'] if frequency == 'quarterly' else FRED_SERIES_MAP['nominal']
 
-        return [d.model_dump() for d in await FREDGenericSeriesFetcher.fetch_data(dict(
-            series_id=series_id,
-            start_date=query.start_date,
-            end_date=query.end_date,
-            limit=400,
-            sort_order='desc',
-        ), credentials)]
+        return attach_units(await asyncio.gather(*[
+            FREDGenericSeriesFetcher.fetch_data(p, credentials)
+            for p in with_units(dict(
+                series_id=series_id,
+                start_date=query.start_date,
+                end_date=query.end_date,
+                limit=400,
+                sort_order='desc',
+            ), _UNITS)
+        ], return_exceptions=True), _UNITS)
 
     @staticmethod
     def transform_data(
@@ -170,7 +178,7 @@ class FREDGDPFetcher(ApiFetcher[GDPQueryParams, GDPData]):
                 value = float(value_str)
             except (TypeError, ValueError):
                 continue
-            clean.append({'date': date_str, 'value': value})
+            clean.append({'date': date_str, 'value': value, 'growth_rate': obs.get('growth_rate')})
 
         if query.start_date:
             sd = query.start_date.isoformat()
@@ -182,22 +190,13 @@ class FREDGDPFetcher(ApiFetcher[GDPQueryParams, GDPData]):
         clean.sort(key=lambda r: r['date'])
 
         gdp_data_list: List[GDPData] = []
-        previous_value = None
-
         for row in clean:
-            value = row['value']
-
-            growth_rate = None
-            if previous_value and previous_value != 0:
-                growth_rate = ((value - previous_value) / previous_value) * 100
-            previous_value = value
-
             payload = {
                 'date': row['date'],
-                'value': value,
+                'value': row['value'],
                 'country': country,
                 'unit': unit,
-                'growth_rate': growth_rate,
+                'growth_rate': row['growth_rate'],      # FRED units=pch (직전 관측 대비 %)
             }
             if is_real:
                 payload['is_real'] = True

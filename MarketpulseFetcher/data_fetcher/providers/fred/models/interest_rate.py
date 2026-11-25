@@ -1,4 +1,5 @@
 """Interest Rate Standard Model (금리)"""
+import asyncio
 import logging
 from datetime import date as date_type, datetime
 from typing import Optional, Any, Dict, List
@@ -11,6 +12,7 @@ from data_fetcher.abstract_provider.standard_models.fred_series import (
     FredSeriesData,
 )
 from data_fetcher.providers.fred.models.generic_series import FREDGenericSeriesFetcher
+from data_fetcher.providers.fred.utils.units import attach_units, with_units
 
 
 class InterestRateQueryParams(FredSeriesQueryParams):
@@ -43,15 +45,7 @@ class InterestRateData(FredSeriesData):
     )
     change_day: Optional[float] = Field(
         default=None,
-        description="전일 대비 변화 (베이시스 포인트)"
-    )
-    change_week: Optional[float] = Field(
-        default=None,
-        description="전주 대비 변화"
-    )
-    change_month: Optional[float] = Field(
-        default=None,
-        description="전월 대비 변화"
+        description="직전 관측 대비 변화 (베이시스 포인트, FRED units=chg). 일간 시리즈면 전일, 월간이면 전월"
     )
 
 
@@ -60,6 +54,9 @@ class InterestRateData(FredSeriesData):
 
 
 log = logging.getLogger(__name__)
+
+# 파생 칸은 FRED 가 계산해 준다 (units — utils/units.py)
+_UNITS = {'change_day': 'chg'}
 
 # FRED Interest Rate Series IDs
 FRED_SERIES_MAP = {
@@ -99,13 +96,16 @@ class FREDInterestRateFetcher(ApiFetcher[InterestRateQueryParams, InterestRateDa
         if rate_type not in FRED_SERIES_MAP:
             raise ValueError(f"Unsupported interest rate type: {rate_type}")
 
-        return [d.model_dump() for d in await FREDGenericSeriesFetcher.fetch_data(dict(
-            series_id=FRED_SERIES_MAP[rate_type],
-            start_date=query.start_date,
-            end_date=query.end_date,
-            limit=400,
-            sort_order='desc',
-        ), credentials)]
+        return attach_units(await asyncio.gather(*[
+            FREDGenericSeriesFetcher.fetch_data(p, credentials)
+            for p in with_units(dict(
+                series_id=FRED_SERIES_MAP[rate_type],
+                start_date=query.start_date,
+                end_date=query.end_date,
+                limit=400,
+                sort_order='desc',
+            ), _UNITS)
+        ], return_exceptions=True), _UNITS)
 
     @staticmethod
     def transform_data(
@@ -113,12 +113,11 @@ class FREDInterestRateFetcher(ApiFetcher[InterestRateQueryParams, InterestRateDa
         data: List[Dict[str, Any]],
         **kwargs: Any
     ) -> List[InterestRateData]:
-        observations = data or []
+        # 날짜 오름차순 (FRED 는 desc 로 받는다)
+        observations = sorted(data or [], key=lambda o: o.get('date') or '')
         rate_type = query.rate_type.lower()
 
         interest_data_list = []
-        previous_rate = None
-        previous_date = None
 
         for obs in observations:
             try:
@@ -137,32 +136,15 @@ class FREDInterestRateFetcher(ApiFetcher[InterestRateQueryParams, InterestRateDa
                     continue
 
 
-                # 변화 계산
-                change_day = None
-                change_week = None
-                change_month = None
-
-                if previous_rate is not None:
-                    change_day = (rate - previous_rate) * 100  # 베이시스 포인트
-
-                    # 주간, 월간 변화는 간단히 구현 (실제로는 5일, 30일 전 데이터 필요)
-                    if previous_date:
-                        day_diff = (obs_date - previous_date).days
-                        if day_diff >= 7:
-                            change_week = (rate - previous_rate) * 100
-                        if day_diff >= 30:
-                            change_month = (rate - previous_rate) * 100
-
-                previous_rate = rate
-                previous_date = obs_date
+                # 직전 관측 대비 — FRED units=chg (%p) 를 bp 로
+                chg = obs.get('change_day')
+                change_day = chg * 100 if chg is not None else None
 
                 interest_obj = InterestRateData(
                     date=obs_date,
                     rate=rate,
                     rate_type=rate_type,
                     change_day=change_day,
-                    change_week=change_week,
-                    change_month=change_month,
                 )
 
                 interest_data_list.append(interest_obj)

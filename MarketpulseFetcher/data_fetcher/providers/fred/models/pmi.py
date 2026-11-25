@@ -27,13 +27,14 @@ class PMIData(FredSeriesData):
 
 
 # ────────────────────────────────────────────────────────────────────────────
-# PMI Proxy Fetcher — CFNAI + Diffusion Index + Sahm Rule (3 FRED series merged).
+# PMI Proxy Fetcher — CFNAI (+3개월 평균) + Diffusion Index + Sahm Rule (FRED 시리즈 4개를 날짜로 모은다).
 
 
 log = logging.getLogger(__name__)
 
 _SERIES_MAP = {
     "cfnai": "CFNAI",
+    "cfnai_ma3": "CFNAIMA3",      # 3개월 이동평균 — FRED 가 발표하는 시리즈 (직접 계산하지 않는다)
     "diff":  "CFNAIDIFF",
     "sahm":  "SAHMCURRENT",
 }
@@ -75,38 +76,20 @@ class FREDPMIFetcher(ApiFetcher[PMIQueryParams, PMIData]):
         data: Dict[str, List[Dict]],
         **kwargs: Any,
     ) -> List[PMIData]:
-        # Build per-series value lookups
-        cfnai_vals = {
-            o["date"]: round(float(o["value"]), 4)
-            for o in data.get("cfnai", [])
-            if o.get("value") not in (None, ".", "")
+        # 시리즈별 날짜 → 값
+        vals = {
+            key: {
+                o["date"]: round(float(o["value"]), 4)
+                for o in data.get(key, [])
+                if o.get("value") not in (None, ".", "")
+            }
+            for key in _SERIES_MAP
         }
-        diff_vals = {
-            o["date"]: round(float(o["value"]), 4)
-            for o in data.get("diff", [])
-            if o.get("value") not in (None, ".", "")
-        }
-        sahm_vals = {
-            o["date"]: round(float(o["value"]), 4)
-            for o in data.get("sahm", [])
-            if o.get("value") not in (None, ".", "")
-        }
-
-        # 3-month moving average of CFNAI
-        cfnai_sorted = sorted(cfnai_vals.items())
-        ma3_vals: Dict[str, float] = {}
-        for i in range(2, len(cfnai_sorted)):
-            avg = round(sum(v for _, v in cfnai_sorted[i - 2:i + 1]) / 3, 4)
-            ma3_vals[cfnai_sorted[i][0]] = avg
-
-        all_dates = sorted(set(cfnai_vals) | set(diff_vals) | set(sahm_vals))
+        all_dates = sorted(set().union(*vals.values()))
         results = []
         for date_str in all_dates:
             row: Dict[str, Any] = {"date": date_str}
-            if date_str in cfnai_vals: row["cfnai"]     = cfnai_vals[date_str]
-            if date_str in ma3_vals:   row["cfnai_ma3"] = ma3_vals[date_str]
-            if date_str in diff_vals:  row["diff"]      = diff_vals[date_str]
-            if date_str in sahm_vals:  row["sahm"]      = sahm_vals[date_str]
+            row.update({key: v[date_str] for key, v in vals.items() if date_str in v})
             if len(row) > 1:
                 results.append(PMIData(**row))
         return results
