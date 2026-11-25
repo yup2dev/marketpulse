@@ -28,6 +28,9 @@ from data_fetcher.query_executor import (
 from data_fetcher.utils.circuit_breaker import CircuitBreakerOpen
 
 log = logging.getLogger(__name__)
+# 등록 (api/routers.py 자동 탐색)
+PREFIX = "/api/data"
+ORDER = 900                # /{provider}/{model} 가 넓게 받는다 — 다른 라우트 뒤에
 router = APIRouter()
 
 

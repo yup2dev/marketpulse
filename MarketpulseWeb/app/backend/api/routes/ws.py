@@ -42,6 +42,9 @@ from app.backend.core.pubsub import (
 from app.backend.services.ranking_service import get_live_quotes_subset
 
 log = logging.getLogger(__name__)
+# 등록 (api/routers.py 자동 탐색)
+PREFIX = ""                # /ws/* 와 /api/fetcher/status — 경로에 앞부분을 직접 적는다
+TAGS = ["websocket"]
 router = APIRouter()
 
 # 단일 워커 폴백 시 사용하는 폴링 간격

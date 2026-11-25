@@ -11,6 +11,8 @@ from data_fetcher.query_executor import QueryExecutor
 from app.backend.api.deps import route_handler
 
 log = logging.getLogger(__name__)
+# 등록 (api/routers.py 자동 탐색)
+PREFIX = "/api/quantitative"
 router = APIRouter()
 
 _TARGET = Literal["close", "open", "high", "low", "adj_close", "return"]

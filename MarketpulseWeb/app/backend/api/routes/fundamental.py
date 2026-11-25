@@ -17,6 +17,9 @@ from data_fetcher.core import OBBject, Query, CommandRouter
 
 log = logging.getLogger(__name__)
 
+# 등록 (api/routers.py 자동 탐색)
+PREFIX = "/api/v1"
+TAGS = ["equity-fundamental"]
 router = CommandRouter(
     prefix="/equity/fundamental",
     tags=["equity-fundamental"],

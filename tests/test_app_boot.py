@@ -1,7 +1,7 @@
 """앱 조립 스모크 — import 와 라우터 등록이 깨지지 않았는지 본다.
 
-CI 게이트의 1차 방어선이다. 라우트 파일 하나가 import 에러를 내거나 main.py 등록을
-빠뜨리면 여기서 걸린다 — 배포 후 500 으로 발견하는 것보다 훨씬 싸다.
+CI 게이트의 1차 방어선이다. 라우트 파일 하나가 import 에러를 내거나 등록에서
+빠지면 여기서 걸린다 (등록은 api/routers.py 의 자동 탐색) — 배포 후 500 으로 발견하는 것보다 훨씬 싸다.
 
 경로 목록은 `app.routes`(Starlette 내부 구조)가 아니라 **OpenAPI 스키마**에서 읽는다.
 fastapi 0.141 에서 라우터 구성이 바뀌어 `app.routes` 순회가 등록된 라우트를 보지
@@ -28,7 +28,7 @@ def test_app_imports_and_has_routes():
 def test_every_route_module_is_registered():
     """routes/ 의 모든 라우터 모듈이 실제로 app 에 등록됐는지 확인한다.
 
-    새 라우트 파일을 만들고 main.py 에 include_router 를 빠뜨리는 실수를 잡는다
+    자동 탐색이 모듈을 놓치는 경우(router 이름이 다르거나 감싼 객체를 못 푸는 등)를 잡는다
     (그런 엔드포인트는 조용히 404 가 되고, 보통 프론트에서야 발견된다).
     """
     import importlib
@@ -48,12 +48,27 @@ def test_every_route_module_is_registered():
         if not isinstance(router, APIRouter) or not router.routes:
             continue
         # 라우터의 경로 중 하나라도 app 에 등록된 경로의 suffix 로 나타나면 등록된 것으로 본다
-        # (main.py 가 prefix 를 붙여 등록하므로 정확 일치로는 판단할 수 없다)
+        # (등록할 때 PREFIX 를 붙이므로 정확 일치로는 판단할 수 없다)
         paths = [r.path for r in router.routes if getattr(r, "methods", None)]
         if paths and not any(any(p.endswith(rp) for p in registered) for rp in paths):
             missing.append(mod_info.name)
 
-    assert not missing, f"main.py 에 include_router 가 빠진 라우트 모듈: {missing}"
+    assert not missing, f"등록되지 않은 라우트 모듈: {missing}"
+
+
+def test_router_discovery_rules():
+    """자동 탐색 — 라우터 모듈은 전부 잡히고, 범용 게이트웨이(/api/data)는 맨 뒤에 붙는다."""
+    import pkgutil
+
+    import app.backend.api.routes as routes_pkg
+    from app.backend.api.routers import discover
+
+    mods = discover()
+    names = [m.name for m in mods]
+    on_disk = {i.name for i in pkgutil.iter_modules(routes_pkg.__path__) if not i.name.startswith("_")}
+    assert set(names) == on_disk, f"router 가 없는 모듈: {on_disk - set(names)}"
+    assert names[-1] == "data", "넓게 받는 /api/data/{provider}/{model} 가 다른 라우트보다 먼저 붙었다"
+    assert {m.name: m.prefix for m in mods}["ws"] == ""   # 웹소켓은 /api 밖
 
 
 def test_admin_endpoints_live_under_api_admin():

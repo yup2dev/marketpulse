@@ -1,77 +1,71 @@
-"""라우터 등록 — 앱이 서빙하는 모든 라우터를 한 곳에서 붙인다.
+"""라우터 등록 — routes/ 폴더를 훑어 router 가 있는 모듈을 전부 붙인다 (자동 탐색).
 
-main.py 에서 분리했다. 새 라우트 파일을 만들고 등록을 빠뜨리면 그 엔드포인트는
-조용히 404 가 되므로(보통 프론트에서야 발견된다), 등록 지점을 한 파일로 모아
-tests/test_app_boot.py 의 '모든 라우트 모듈이 등록됐는가' 검사와 짝을 이루게 한다.
+새 라우트 파일은 routes/ 에 두기만 하면 등록된다. 모듈이 정할 수 있는 값 (모두 선택):
+
+    router   APIRouter, 또는 .router 로 APIRouter 를 감싼 객체 (CommandRouter)
+    PREFIX   붙일 주소 앞부분 — 기본 "/api". 모듈 이름은 붙지 않는다: 대부분의 라우트가
+             APIRouter(prefix="/alerts") 처럼 자기 구간을 이미 갖고 있어서다.
+    TAGS     OpenAPI 태그 — 기본 [모듈 이름의 _ 를 - 로]
+    ORDER    등록 순서 — 기본 100, 작을수록 먼저. 경로가 겹치면 먼저 붙은 라우트가 이긴다.
+             {provider}/{model} 처럼 넓게 받는 범용 라우트는 크게 둬서 뒤로 보낸다.
+
+이름이 _ 로 시작하는 모듈은 건너뛴다. import 가 실패하면 앱이 뜨지 않는다 — 조용히 빠진
+엔드포인트는 404 가 되고 보통 프론트에서야 발견되므로, 경고로 넘기지 않는다.
+
+PyInstaller 로 백엔드를 묶게 되면 자동 탐색 모듈은 번들에서 빠진다 →
+hiddenimports=collect_submodules("app.backend.api.routes"). (지금 exe 는 Fetcher 만 묶는다.)
 """
-from fastapi import FastAPI
+import importlib
+import logging
+import pkgutil
+from typing import List, NamedTuple, Optional
 
-from app.backend.api.routes import (
-    stock, news, portfolio, macro,
-    auth, user_portfolio, screener, alerts, export, watchlist, menu,
-    quantlib, quantitative, notes, reports, copilot, backtest, fx, quant,
-)
-from app.backend.api.routes.admin import router as admin_router
-from app.backend.api.routes.workspace import router as workspace_router
-# fundamental 의 router 는 CommandRouter — APIRouter 를 `.router` 로 감싸고 있다.
-from app.backend.api.routes.fundamental import router as fundamental_command_router
-from app.backend.api.routes.providers import router as providers_router
-from app.backend.api.routes.ws import router as ws_router
-from app.backend.api.routes.data import router as data_router
-from app.backend.api.routes.keys import router as keys_router
-from app.backend.api.routes.ingest import router as ingest_router
-from app.backend.api.routes.concepts import router as concepts_router
-from app.backend.api.routes.user_widgets import router as user_widgets_router
-from app.backend.api.routes.strategies import router as strategies_router
-from app.backend.api.routes.quant_portfolios import router as quant_portfolios_router
-from app.backend.api.routes.industry import router as industry_router
+from fastapi import APIRouter, FastAPI
+
+from app.backend.api import routes as routes_pkg
+
+log = logging.getLogger(__name__)
+
+DEFAULT_PREFIX = "/api"
+DEFAULT_ORDER = 100
+
+
+class RouteModule(NamedTuple):
+    order: int
+    name: str
+    router: APIRouter
+    prefix: str
+    tags: List[str]
+
+
+def _api_router(obj) -> Optional[APIRouter]:
+    if isinstance(obj, APIRouter):
+        return obj
+    inner = getattr(obj, "router", None)   # CommandRouter 등
+    return inner if isinstance(inner, APIRouter) else None
+
+
+def discover() -> List[RouteModule]:
+    """routes/ 의 라우터 모듈 — 등록 순서 (ORDER, 이름) 로 정렬."""
+    found = []
+    for info in pkgutil.iter_modules(routes_pkg.__path__):
+        if info.name.startswith("_"):
+            continue
+        mod = importlib.import_module(f"{routes_pkg.__name__}.{info.name}")
+        router = _api_router(getattr(mod, "router", None))
+        if router is None:
+            continue
+        found.append(RouteModule(
+            order=getattr(mod, "ORDER", DEFAULT_ORDER),
+            name=info.name,
+            router=router,
+            prefix=getattr(mod, "PREFIX", DEFAULT_PREFIX),
+            tags=list(getattr(mod, "TAGS", [info.name.replace("_", "-")])),
+        ))
+    return sorted(found, key=lambda m: (m.order, m.name))
 
 
 def register_routers(app: FastAPI) -> None:
-    # ── Stock / Market ────────────────────────────────────────────────────────
-    app.include_router(stock.router,     prefix="/api/stock",    tags=["stock"])
-    app.include_router(news.router,      prefix="/api/news",     tags=["news"])
-    app.include_router(reports.router,   prefix="/api",          tags=["reports"])
-    app.include_router(screener.router,  prefix="/api",          tags=["screener"])
-
-    # ── Macro / Economic ─────────────────────────────────────────────────────
-    app.include_router(macro.router,     prefix="/api/macro",    tags=["macro"])
-
-    # ── Portfolio ─────────────────────────────────────────────────────────────
-    app.include_router(portfolio.router,      prefix="/api/portfolio", tags=["portfolio"])
-    app.include_router(user_portfolio.router, prefix="/api",           tags=["user-portfolio"])
-    app.include_router(fx.router,             prefix="/api",           tags=["fx"])
-
-    # ── User / Auth ───────────────────────────────────────────────────────────
-    app.include_router(auth.router,      prefix="/api", tags=["auth"])
-    app.include_router(alerts.router,    prefix="/api", tags=["alerts"])
-    app.include_router(watchlist.router, prefix="/api", tags=["watchlist"])
-    app.include_router(notes.router,     prefix="/api", tags=["notes"])
-    app.include_router(backtest.router,  prefix="/api", tags=["backtest"])
-    app.include_router(workspace_router, prefix="/api", tags=["workspace"])
-    app.include_router(user_widgets_router, prefix="/api", tags=["user-widgets"])
-
-    # ── Analysis ──────────────────────────────────────────────────────────────
-    app.include_router(fundamental_command_router.router, prefix="/api/v1",           tags=["equity-fundamental"])
-    app.include_router(quantlib.router,                   prefix="/api/quantlib",     tags=["quantlib"])
-    app.include_router(quantitative.router,               prefix="/api/quantitative", tags=["quantitative"])
-    app.include_router(quant.router,                      prefix="/api",              tags=["quant"])
-    app.include_router(strategies_router,                 prefix="/api",              tags=["strategies"])
-    app.include_router(quant_portfolios_router,           prefix="/api",              tags=["quant-portfolios"])
-    app.include_router(industry_router,                   prefix="/api",              tags=["industry"])
-
-    # ── Universal Data Gateway ───────────────────────────────────────────────
-    app.include_router(data_router,       prefix="/api/data", tags=["data"])
-    app.include_router(concepts_router,   prefix="/api",      tags=["concepts"])
-
-    # ── AI Copilot ────────────────────────────────────────────────────────────
-    app.include_router(copilot.router,    prefix="/api", tags=["copilot"])
-
-    # ── System ────────────────────────────────────────────────────────────────
-    app.include_router(export.router,     prefix="/api", tags=["export"])
-    app.include_router(menu.router,       prefix="/api", tags=["menu"])
-    app.include_router(providers_router,  prefix="/api", tags=["providers"])
-    app.include_router(keys_router,       prefix="/api", tags=["keys"])
-    app.include_router(ingest_router,     prefix="/api", tags=["ingest"])
-    app.include_router(admin_router,      prefix="/api", tags=["admin"])
-    app.include_router(ws_router,                        tags=["websocket"])
+    for m in discover():
+        app.include_router(m.router, prefix=m.prefix, tags=m.tags)
+        log.debug("router %s → %s%s", m.name, m.prefix, m.router.prefix)

@@ -9,6 +9,8 @@ from app.backend.services.macro_service import macro_service
 from app.backend.api.deps import route_handler, wrap_result
 
 log = logging.getLogger(__name__)
+# 등록 (api/routers.py 자동 탐색)
+PREFIX = "/api/macro"
 router = APIRouter()
 
 

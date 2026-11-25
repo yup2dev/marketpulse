@@ -12,6 +12,8 @@ from app.backend.core.auth.dependencies import get_current_active_user
 from app.backend.models.orm import User
 
 log = logging.getLogger(__name__)
+# 등록 (api/routers.py 자동 탐색)
+PREFIX = "/api/stock"
 router = APIRouter()
 
 

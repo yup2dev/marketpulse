@@ -9,6 +9,8 @@ from data_fetcher.query_executor import QueryExecutor
 from app.backend.api.deps import filter_dated_rows, resolve_date_range, route_handler
 from app.backend.core.db import get_db
 
+# 등록 (api/routers.py 자동 탐색)
+PREFIX = "/api/news"
 router = APIRouter()
 
 

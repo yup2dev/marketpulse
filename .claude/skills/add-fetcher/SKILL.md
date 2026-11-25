@@ -1,6 +1,6 @@
 ---
 name: add-fetcher
-description: data_fetcher에 새 데이터 소스(provider/model fetcher)를 추가할 때 사용. provider 디렉터리 배치 표준(model fetcher는 예외 없이 providers/<p>/models/) + 베이스 클래스 선택(ApiFetcher 선언형 / LibraryFetcher·yfinance / DbFetcher / ComputeFetcher / KIS형 다중자격증명) + TET 파이프라인 + standard model 상속 + provider 패키지 Provider 정의 · providers_init 등록 + OpenBB식 범용 series 조합 + 라우트 등록(api/routers.py)·인증 게이트 + 위젯 연결 + exe(Rust 런처 + 내장 Python) 번들 주의사항까지 안내한다. "fetcher 추가", "새 provider 붙이기", "새 지표/모델 추가", "yahoo/fmp/polygon 등에 모델 추가" 같은 요청에 사용.
+description: data_fetcher에 새 데이터 소스(provider/model fetcher)를 추가할 때 사용. provider 디렉터리 배치 표준(model fetcher는 예외 없이 providers/<p>/models/) + 베이스 클래스 선택(ApiFetcher 선언형 / LibraryFetcher·yfinance / DbFetcher / ComputeFetcher / KIS형 다중자격증명) + TET 파이프라인 + standard model 상속 + provider 패키지 Provider 정의 · providers_init 등록 + OpenBB식 범용 series 조합 + 라우트 등록(routes/ 자동 탐색)·인증 게이트 + 위젯 연결 + exe(Rust 런처 + 내장 Python) 번들 주의사항까지 안내한다. "fetcher 추가", "새 provider 붙이기", "새 지표/모델 추가", "yahoo/fmp/polygon 등에 모델 추가" 같은 요청에 사용.
 ---
 
 # Fetcher 추가 가이드
@@ -229,7 +229,7 @@ model별 TTL(초). 실시간 60 / 반-신선 300~600 / 일일 1800~3600. 같은 
 
 - 기본: 게이트웨이 `GET /api/data/<provider>/<category>?param=…` — 무코드. provider별 파라미터 폼은 `/api/data/{provider}/{model}/schema`가 자동 생성.
 - 전용 라우트가 필요하면 `MarketpulseWeb/app/backend/api/routes/<area>.py`에서 `QueryExecutor.fetch(...)` 호출 + **`provider: str = "<default>"` 쿼리 파라미터 노출**.
-- **새 라우트 파일을 만들었으면 `MarketpulseWeb/app/backend/api/routers.py`의 `register_routers()`에 `include_router` 를 추가한다.** 빠뜨리면 그 엔드포인트는 조용히 404가 되고 보통 프론트에서야 발견된다 — `tests/test_app_boot.py`가 이걸 잡으므로 `pytest` 로 먼저 확인할 수 있다. (등록 지점은 `main.py`가 아니다. main.py는 조립만 한다.)
+- **새 라우트 파일은 `MarketpulseWeb/app/backend/api/routes/` 에 두기만 하면 자동 등록된다** (`api/routers.py` 의 자동 탐색 — 모듈의 `router` 를 찾아 붙인다). 붙는 주소는 `PREFIX`(기본 `/api`) + `APIRouter(prefix="/my-area")` 이므로 라우터에 자기 구간 prefix 를 준다. 앞부분이 다르면 모듈에 `PREFIX = "/api/stock"` 처럼, `/{provider}/{model}` 처럼 넓게 받는 범용 라우트면 `ORDER = 900` 으로 뒤로 보낸다. 태그는 `TAGS`(기본 모듈 이름). `tests/test_app_boot.py` 가 등록 누락을 잡는다.
 - **인증 게이트는 deny-by-default다**(`MarketpulseWeb/app/backend/core/middleware/auth_gate.py`). `/api/` 아래 새 경로는 자동으로 Bearer 토큰을 요구하므로 별도 조치가 필요 없다. 반대로 **공개가 필요하면 그 파일의 `PUBLIC_PATHS`/`PUBLIC_PREFIXES`에 명시해야 한다** — 무심코 `/api/` 밖(루트)에 엔드포인트를 달면 `test_app_boot.py`가 실패한다(과거 무인증 노출 사고의 재발 방지).
 - `widgetEndpoints.js`에 위젯 추가(`category` 지정 시 provider 셀렉터 자동) + `urlWidgetMap.js` 화면 등록.
 - 프론트는 항상 `res.results`로 읽는다(OBBject 계약) — `.data` 참조 금지.
@@ -273,6 +273,6 @@ PYTHONPATH="MarketpulseFetcher" python -c "import data_fetcher.providers_init; f
 - [ ] 같은 category 내 입력 필드명 통일
 - [ ] 시계열 API면 범용 series fetcher 한 곳에서만 HTTP, 지표 모델은 그걸 조합 (§1-0) · utils/helpers.py 는 HTTP 없음
 - [ ] `providers/<p>/__init__.py` 의 `Provider(...)` fetcher_dict + (신규 provider) providers_init `PROVIDERS` 등록 (+ 취약 import는 fail-soft)
-- [ ] TTL / 라우트(`?provider=` 노출) + **새 라우트면 `api/routers.py` 등록** / widgetEndpoints + urlWidgetMap
+- [ ] TTL / 라우트(`?provider=` 노출) + **새 라우트면 `routes/` 에 두고 `APIRouter(prefix=…)` 확인 (자동 등록)** / widgetEndpoints + urlWidgetMap
 - [ ] 지연 import·자산 파일 → spec 반영 (hiddenimports / datas)
 - [ ] §8 검증 통과
