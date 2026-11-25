@@ -38,12 +38,8 @@ def test_build_rows_sorts_dedupes_and_computes_change():
 # ── fetcher: db provider fx_rate (배치 적재 테이블) ─────────────────────────────
 
 @pytest.fixture
-def fx_db(db_session, tmp_path, monkeypatch):
-    """fx_rate fetcher 가 테스트 DB(db_session 과 같은 파일)를 읽게 한다."""
-    import data_fetcher.providers_init  # noqa: F401
-    from data_fetcher.providers.database.models.fx_rate import DBFxRateFetcher
-
-    monkeypatch.setattr(DBFxRateFetcher, "db_path", str(tmp_path / "test.db"))
+def fx_db(db_session):
+    """fx_rate fetcher 도 db_session 과 같은 파일을 읽는다 (conftest)."""
     return db_session
 
 

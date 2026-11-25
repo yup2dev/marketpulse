@@ -7,6 +7,8 @@ architecture.md의 DB Provider 패턴(DBIndexConstituentsFetcher)을 따른다.
 import logging
 from typing import Any, Dict, List, Optional
 
+from pydantic import Field
+
 from data_fetcher.abstract_provider.abstract.base_fetchers import DbFetcher
 from data_fetcher.abstract_provider.standard_models import (
     StockListQueryParams,
@@ -16,19 +18,32 @@ from data_fetcher.abstract_provider.standard_models import (
 log = logging.getLogger(__name__)
 
 
+class DBStockListQueryParams(StockListQueryParams):
+    """마스터 테이블 필터 — 관심종목 · 산업 화면이 종목 몇 개 또는 한 섹터만 고를 때."""
+
+    symbols: Optional[str] = Field(default=None, description="종목 코드 (쉼표로 여러 개)")
+    country: Optional[str] = Field(default=None, description="국가 (예: US, KR)")
+    sector: Optional[str] = Field(default=None, description="섹터")
+    industry: Optional[str] = Field(default=None, description="산업")
+
+
+def _codes(text: Optional[str]) -> List[str]:
+    return [c.strip().upper() for c in (text or "").split(",") if c.strip()]
+
+
 # ── Fetcher ───────────────────────────────────────────────────────────────────
 
-class DBStockListFetcher(DbFetcher[StockListQueryParams, StockListData]):
+class DBStockListFetcher(DbFetcher[DBStockListQueryParams, StockListData]):
     """DB 종목 리스트 Fetcher — MBS_IN_STBD_MST 우선, MBS_IN_STK_STBD fallback"""
 
     @staticmethod
-    def transform_query(params: Dict[str, Any]) -> StockListQueryParams:
-        return StockListQueryParams(**params)
+    def transform_query(params: Dict[str, Any]) -> DBStockListQueryParams:
+        return DBStockListQueryParams(**params)
 
     @classmethod
     def extract_data(
         cls,
-        query: StockListQueryParams,
+        query: DBStockListQueryParams,
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any,
     ) -> List[Dict[str, Any]]:
@@ -45,8 +60,14 @@ class DBStockListFetcher(DbFetcher[StockListQueryParams, StockListData]):
                 q = session.query(MBS_IN_STBD_MST)
                 if query.active_only:
                     q = q.filter(MBS_IN_STBD_MST.is_active == True)  # noqa: E712
+                codes = _codes(query.symbols)
+                if codes:
+                    q = q.filter(MBS_IN_STBD_MST.ticker_cd.in_(codes))
+                for col in ("country", "sector", "industry"):
+                    if getattr(query, col):
+                        q = q.filter(getattr(MBS_IN_STBD_MST, col) == getattr(query, col))
                 rows = q.all()
-                if rows:
+                if rows or codes or query.country or query.sector or query.industry:
                     log.info(
                         "[DBStockListFetcher] mbs_in_stbd_mst: %d rows", len(rows)
                     )
@@ -93,7 +114,7 @@ class DBStockListFetcher(DbFetcher[StockListQueryParams, StockListData]):
 
     @staticmethod
     def transform_data(
-        query: StockListQueryParams,
+        query: DBStockListQueryParams,
         data: List[Dict[str, Any]],
         **kwargs: Any,
     ) -> List[StockListData]:
@@ -112,7 +133,8 @@ class DBStockListFetcher(DbFetcher[StockListQueryParams, StockListData]):
                         sector=item.get("sector") or "",
                         industry=item.get("industry") or "",
                         exchange=item.get("exchange") or "",
-                        is_active=bool(item.get("is_active", True)),
+                        country=item.get("country"),
+                        is_active=item.get("is_active") is not False,   # 비어 있으면 활성
                     )
                 )
             except Exception as exc:

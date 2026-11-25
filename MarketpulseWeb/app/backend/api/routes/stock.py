@@ -350,40 +350,10 @@ async def get_company_relations_route(symbol: str, provider: str = "db") -> OBBj
 
 @router.get("/sector-performance")
 @route_handler
-def get_sector_performance(provider: str = "db") -> OBBject:
-    from app.backend.core.db import get_db_sync
-    from app.backend.models.orm import MBS_IN_STK_PROFILE
-
-    db = get_db_sync()
-    try:
-        base_q = db.query(MBS_IN_STK_PROFILE).filter(MBS_IN_STK_PROFILE.sector.isnot(None))
-        sp500 = base_q.filter(MBS_IN_STK_PROFILE.in_sp500 == True).all()
-        profiles = sp500 if len(sp500) >= 50 else base_q.all()
-
-        sector_map: Dict[str, Any] = {}
-        for p in profiles:
-            s = p.sector or "Other"
-            if s not in sector_map:
-                sector_map[s] = {"sector": s, "stocks": [], "total_market_cap": 0}
-            mcap = float(p.market_cap) if p.market_cap else 0
-            sector_map[s]["stocks"].append({
-                "symbol": p.stk_cd,
-                "name": p.stk_nm,
-                "sector": s,
-                "industry": p.industry,
-                "market_cap": mcap,
-                "price": float(p.price) if p.price else None,
-            })
-            sector_map[s]["total_market_cap"] += mcap
-
-        sectors = sorted(sector_map.values(), key=lambda x: x["total_market_cap"], reverse=True)
-        for sec in sectors:
-            sec["count"] = len(sec["stocks"])
-            sec["stocks"] = sorted(sec["stocks"], key=lambda x: x["market_cap"], reverse=True)[:50]
-
-        return OBBject(results=sectors, provider=provider)
-    finally:
-        db.close()
+async def get_sector_performance(provider: str = "db") -> OBBject:
+    """섹터별 묶음 — db provider sector_performance (종목 프로필을 섹터로)."""
+    raw = await QueryExecutor.fetch("db", "sector_performance", {})
+    return OBBject.from_result(raw, provider)
 
 
 @router.get("/compare")

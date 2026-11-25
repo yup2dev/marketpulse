@@ -48,8 +48,15 @@ def debug_mode(monkeypatch):
 
 
 @pytest.fixture
-def db_session(tmp_path):
-    """테스트 전용 SQLite — 개발 DB(data/marketpulse.db)를 건드리지 않는다."""
+def db_session(tmp_path, monkeypatch):
+    """테스트 전용 SQLite — 개발 DB(data/marketpulse.db)를 건드리지 않는다.
+
+    db provider fetcher(DbFetcher)도 같은 파일을 읽게 한다 — 서비스가 배치 테이블을 fetcher 로 읽는다.
+    """
+    import data_fetcher.providers_init  # noqa: F401 — db provider 등록
+    from data_fetcher.abstract_provider.abstract.base_fetchers import DbFetcher
+
+    monkeypatch.setattr(DbFetcher, "db_path", str(tmp_path / "test.db"))
     engine = create_engine(f"sqlite:///{tmp_path / 'test.db'}")
     Base.metadata.create_all(bind=engine)
     session = sessionmaker(bind=engine)()

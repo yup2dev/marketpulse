@@ -9,7 +9,8 @@ import uuid
 
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
-from app.backend.models.orm import Watchlist, WatchlistItem, MBS_IN_STBD_MST
+from app.backend.models.orm import Watchlist, WatchlistItem
+from app.backend.services._base import rows_sync
 
 
 class WatchlistService:
@@ -252,15 +253,14 @@ class WatchlistService:
             WatchlistItem.watchlist_id == watchlist_id
         ).order_by(WatchlistItem.sort_order).all()
 
-        # 종목 정보 조인
+        # 종목 기본 정보 — 종목 마스터 (db provider stock_list)
+        codes = sorted({i.ticker_cd for i in items if i.ticker_cd})
+        masters = ({m.ticker_cd: m for m in rows_sync("db", "stock_list", symbols=",".join(codes), active_only=False)}
+                   if codes else {})
         result = []
         for item in items:
             item_dict = item.to_dict()
-
-            # 종목 기본 정보 추가
-            stock_info = db.query(MBS_IN_STBD_MST).filter(
-                MBS_IN_STBD_MST.ticker_cd == item.ticker_cd
-            ).first()
+            stock_info = masters.get((item.ticker_cd or "").upper())
 
             if stock_info:
                 item_dict['ticker_name'] = stock_info.ticker_nm
