@@ -1,10 +1,10 @@
-"""환율: 배치 행 생성 · 서버 환율 조회/환산 · /api/fx/rate · 포트폴리오 summary 환산."""
+"""환율: 배치 행 생성 · db provider fx_rate fetcher · /api/data/db/fx_rate · 포트폴리오 summary 환산."""
 from datetime import date
 from decimal import Decimal
 
 import pytest
 
-from app.backend.services.fx_service import FXRateNotFound, convert_fields, get_rate
+from data_fetcher.query_executor import QueryExecutor
 from index_analyzer.collectors.market.fx_rate import FXRateCollector
 from app.backend.models.orm import MBS_IN_FX_STBD, Holding, Portfolio
 
@@ -35,53 +35,56 @@ def test_build_rows_sorts_dedupes_and_computes_change():
     assert rows[1]["fx_cd"] == "USDKRW" and rows[1]["quote_curr"] == "KRW"
 
 
-# ── 서버: 환율 조회/환산 ─────────────────────────────────────────────────────
+# ── fetcher: db provider fx_rate (배치 적재 테이블) ─────────────────────────────
 
-def test_get_rate_latest_and_as_of(db_session):
-    _add_rate(db_session, date(2026, 11, 2), 1325.5)
-    _add_rate(db_session, date(2026, 11, 3), 1340.0, 1.09)
-
-    assert get_rate(db_session, "usd", "krw").rate == 1340.0
-    past = get_rate(db_session, "USD", "KRW", on_or_before=date(2026, 11, 2))
-    assert past.rate == 1325.5 and past.base_ymd == date(2026, 11, 2)
+@pytest.fixture
+def fx_db(db_session):
+    """fx_rate fetcher 도 db_session 과 같은 파일을 읽는다 (conftest)."""
+    return db_session
 
 
-def test_get_rate_inverse_and_identity(db_session):
-    _add_rate(db_session, date(2026, 11, 3), 1250.0, 25.0)
-    inv = get_rate(db_session, "KRW", "USD")
+def _fx(**params):
+    return QueryExecutor.fetch_sync("db", "fx_rate", params)
+
+
+def test_fx_rate_latest_and_as_of(fx_db):
+    _add_rate(fx_db, date(2026, 11, 2), 1325.5)
+    _add_rate(fx_db, date(2026, 11, 3), 1340.0, 1.09)
+
+    [fx] = _fx(base="usd", quote="krw")
+    assert fx.rate == 1340.0 and fx.change_percent == pytest.approx(1.09)
+    assert fx.base_currency == "USD" and fx.counter_currency == "KRW"
+    [past] = _fx(base="USD", quote="KRW", date="2026-11-02")
+    assert past.rate == 1325.5 and past.date == date(2026, 11, 2)
+
+
+def test_fx_rate_inverse_and_identity(fx_db):
+    _add_rate(fx_db, date(2026, 11, 3), 1250.0, 25.0)
+    [inv] = _fx(base="KRW", quote="USD")
     assert inv.inverted and inv.rate == pytest.approx(1 / 1250.0)
-    assert inv.change_rate == pytest.approx(-20.0)   # 1/(1+0.25) - 1
-    assert get_rate(db_session, "USD", "USD").rate == 1.0
+    assert inv.change_percent == pytest.approx(-20.0)   # 1/(1+0.25) - 1
+    assert _fx(base="USD", quote="USD")[0].rate == 1.0
 
 
-def test_get_rate_missing_raises(db_session):
-    with pytest.raises(FXRateNotFound):
-        get_rate(db_session, "USD", "JPY")
-
-
-def test_convert_fields_only_money(db_session):
-    _add_rate(db_session, date(2026, 11, 3), 1300.0)
-    fx = get_rate(db_session, "USD", "KRW")
-    out = convert_fields({"total_cost": 10.0, "total_return_pct": 5.0, "x": None},
-                         ("total_cost", "x"), fx)
-    assert out == {"total_cost": 13000.0, "total_return_pct": 5.0, "x": None}
+def test_fx_rate_missing_is_empty(fx_db):
+    assert _fx(base="USD", quote="JPY") == []
 
 
 # ── API ──────────────────────────────────────────────────────────────────────
 
-def test_fx_rate_endpoint(auth_client, db_session):
+def test_fx_rate_via_data_gateway(auth_client, fx_db):
     client, _ = auth_client
-    _add_rate(db_session, date(2026, 11, 3), 1340.0)
+    _add_rate(fx_db, date(2026, 11, 3), 1340.0)
 
-    res = client.get("/api/fx/rate?base=USD&quote=KRW")
+    res = client.get("/api/data/db/fx_rate?base=USD&quote=KRW")
     assert res.status_code == 200
     fx = res.json()["results"][0]
-    assert fx["rate"] == 1340.0 and fx["as_of"] == "2026-11-03"
+    assert fx["rate"] == 1340.0 and fx["date"] == "2026-11-03"
+    assert client.get("/api/data/db/fx_rate?base=USD&quote=JPY").json()["results"] == []
 
-    assert client.get("/api/fx/rate?base=USD&quote=JPY").status_code == 404
 
-
-def test_portfolio_summary_converted_on_server(auth_client, db_session):
+def test_portfolio_summary_converted_on_server(auth_client, fx_db):
+    db_session = fx_db
     client, user_id = auth_client
     _add_rate(db_session, date(2026, 11, 3), 1300.0)
     db_session.add(Portfolio(portfolio_id="p1", user_id=user_id, name="t", currency="USD"))

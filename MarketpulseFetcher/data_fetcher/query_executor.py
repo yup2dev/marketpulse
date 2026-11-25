@@ -143,12 +143,20 @@ _DEFAULT_TTL: Dict[str, int] = {
     "regime_current":               1800,  # snapshot — 월간/분기 지표
     "fed_policy_stance":            1800,
     "inflation_decomposition":      1800,
+    "indicator_overview":           3600,
+    "indicator_history":            3600,
+    "macro_series_overview":        3600,
+    "macro_series_history":         3600,
+    "corporate_profits_gdp":        3600,
+    "forex":                         900,
+    "forex_rates":                   300,
     # ── Yahoo quote (별칭 구분) ─────────────────────────────────────────────
     "quote":                          60,  # yahoo:quote (StockQuoteFetcher)
     # ── Mostly static (1h+) ─────────────────────────────────────────────────
     "company_info":           3600,
     "company_peers":          86400,  # 유사종목 — 거의 변하지 않음
     "key_metrics":            3600,
+    "compare":                 300,
     "management":             3600,
     "moat":                   3600,
     "swot":                   3600,
@@ -157,6 +165,7 @@ _DEFAULT_TTL: Dict[str, int] = {
     "income_statement":       3600,
     "index_constituents":     7200,
     "stock_list":             7200,
+    "stock_ranking":           300,  # 일별 시계열로 계산 — 적재는 하루 한 번
     "listing":               21600,  # universe (nasdaqtrader/krx) — 일 갱신, 6h 캐시
     "bond":                  21600,  # KR 국고채 벤치마크 (krx) — 일 갱신
     "institutional_holdings": 3600,

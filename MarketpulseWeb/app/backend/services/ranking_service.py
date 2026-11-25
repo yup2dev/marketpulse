@@ -1,7 +1,10 @@
 """
-Market Ranking Service
-YFinanceBatchQuotesFetcher → QueryExecutor 기반 실시간 랭킹.
-종목 유니버스는 stock_list_service에서 읽고, 실시간 가격은 배치 Fetcher로 조회.
+Market Ranking Service — 랭킹 소스 고르기 + 실시간 시세 캐시.
+
+랭킹 계산은 fetcher 가 한다: 기간 랭킹은 db stock_ranking(market · sort_by · limit), 국내 실시간은 kis ranking.
+여기 남는 것은 fetcher 가 갖지 않는 상태다 — 유니버스 전 종목 실시간 시세의 Redis SWR 캐시(웹소켓과 공유) ·
+1분 주기 프리워밍, 그리고 소스 선택 · 폴백 순서(국내 KIS → yahoo → db).
+정렬 · 시장 거르기 규칙은 표준 모델 하나(standard_models/stock_ranking.rank · in_market).
 """
 import asyncio
 import logging
@@ -9,6 +12,7 @@ from typing import List, Dict, Any, Optional, Tuple
 
 from app.backend.core.cache import cached
 from app.backend.services._base import cached_quotes, to_quote_symbol, unwrap
+from data_fetcher.abstract_provider.standard_models.stock_ranking import in_market, rank
 from data_fetcher.query_executor import QueryExecutor
 
 log = logging.getLogger(__name__)
@@ -68,19 +72,11 @@ async def _load_universe() -> List[Dict[str, str]]:
     ]
 
 
-def _filter_by_market(universe: List[Dict], market: str) -> List[Dict]:
-    if market == 'domestic':
-        return [u for u in universe if u.get('curr') == 'KRW']
-    if market == 'overseas':
-        return [u for u in universe if u.get('curr') != 'KRW']
-    return universe
-
-
 # ── 단일 소스 시세 캐시 ────────────────────────────────────────────────────────
 
 async def _live_universe_keys(market: str = 'all'):
     """(meta, symbols, full_key). base/WS가 동일 키를 쓰도록 단일화."""
-    universe = _filter_by_market(await _load_universe(), market)
+    universe = [u for u in await _load_universe() if in_market(u, market)]
     meta     = {u['stk_cd']: u for u in universe}
     symbols  = list(meta.keys())[:CANDIDATE_LIMIT]
     return meta, symbols, ','.join(sorted(symbols))
@@ -239,14 +235,14 @@ class RankingService:
         if market == 'domestic':
             kis = await _kis_domestic_ranking(sort_by, limit)
             if kis is not None:
-                return RankingService._sort_rows(kis, sort_by)[:limit], 'kis'
+                return rank(kis, sort_by)[:limit], 'kis'
 
         meta, _, full_key = await _live_universe_keys(market)
         if not meta:
             return [], 'yahoo'
 
         rows = _live_rows(meta, await _live_quotes_swr(full_key))
-        return RankingService._sort_rows(rows, sort_by)[:limit], 'yahoo'
+        return rank(rows, sort_by)[:limit], 'yahoo'
 
     @staticmethod
     async def _live_from(provider: str, market: str, sort_by: str, limit: int) -> Tuple[List[Dict[str, Any]], str]:
@@ -257,15 +253,14 @@ class RankingService:
             rows = await _kis_domestic_ranking(sort_by, limit)
             if rows is None:
                 raise LiveRankingError('kis', 'KIS 랭킹을 불러오지 못했어요 — Fetcher 와 KIS 키를 확인하세요')
-            return RankingService._sort_rows(rows, sort_by)[:limit], 'kis'
+            return rank(rows, sort_by)[:limit], 'kis'
         if provider == 'yahoo':
             meta, _, full_key = await _live_universe_keys(market)
             if not meta:
                 raise LiveRankingError('yahoo', '랭킹 유니버스를 불러오지 못했어요')
-            return RankingService._sort_rows(_live_rows(meta, await _live_quotes_swr(full_key)), sort_by)[:limit], 'yahoo'
+            return rank(_live_rows(meta, await _live_quotes_swr(full_key)), sort_by)[:limit], 'yahoo'
         if provider == 'db':
-            rows = _filter_rows_by_market(await _fetch_db_ranking('1d'), market)
-            return RankingService._sort_rows(rows, sort_by)[:limit], 'db'
+            return await _fetch_db_ranking('1d', market, sort_by, limit), 'db'
         raise LiveRankingError(provider, f"'{provider}' 는 실시간 랭킹을 제공하지 않습니다")
 
     @staticmethod
@@ -285,68 +280,34 @@ class RankingService:
         if market == 'domestic' and period in ('realtime', '1d'):
             kis = await _kis_domestic_ranking(sort_by, limit)
             if kis is not None:
-                return RankingService._sort_rows(kis, sort_by)[:limit], 'kis'
+                return rank(kis, sort_by)[:limit], 'kis'
 
         if period == 'realtime':
             return await RankingService.get_live_ranking(market, sort_by, limit)
 
-        rows = await _fetch_db_ranking(period)
-        rows = _filter_rows_by_market(rows, market)
-        return RankingService._sort_rows(rows, sort_by)[:limit], 'db'
-
-    @staticmethod
-    def _sort_rows(rows: List[Dict], sort_by: str) -> List[Dict]:
-        if sort_by == 'gainers':
-            return sorted(
-                [r for r in rows if (r.get('change_rate') or 0) > 0],
-                key=lambda r: r.get('change_rate') or 0, reverse=True,
-            )
-        if sort_by == 'losers':
-            return sorted(
-                [r for r in rows if (r.get('change_rate') or 0) < 0],
-                key=lambda r: r.get('change_rate') or 0,
-            )
-        if sort_by == 'volume':
-            return sorted(rows, key=lambda r: r.get('volume') or 0, reverse=True)
-        if sort_by == 'trade_value':
-            return sorted(rows, key=lambda r: r.get('trade_value') or 0, reverse=True)
-        return rows
+        return await _fetch_db_ranking(period, market, sort_by, limit), 'db'
 
 
-def _filter_rows_by_market(rows: List[Dict], market: str) -> List[Dict]:
-    if market == 'domestic':
-        return [r for r in rows if r.get('curr') == 'KRW']
-    if market == 'overseas':
-        return [r for r in rows if r.get('curr') != 'KRW']
-    return rows
 
-
-@cached(ttl=300)
-async def _fetch_db_ranking(period: str) -> List[Dict]:
-    """기간별 랭킹을 DB(mbs_in_stk_stbd 일별 시계열)에서 계산 (5m 캐시).
-
-    외부 API 호출 없이 DB만으로 응답한다. 적재 배치가 base_ymd별 종가를
-    누적해주면 1d~1y 모든 기간이 즉시 계산된다.
-    """
+async def _fetch_db_ranking(period: str, market: str, sort_by: str, limit: int) -> List[Dict]:
+    """기간 랭킹 — db stock_ranking (일별 시계열로 계산 · 거르기 · 정렬). 외부 API 호출 없음.
+    캐시는 QueryExecutor 의 모델 TTL. 실패하면 빈 목록 (위젯은 '데이터 없음')."""
     try:
         raw = await QueryExecutor.fetch(
-            provider='db',
-            model='stock_ranking',
-            params={'period': period},
+            provider='db', model='stock_ranking',
+            params={
+                'period': period,
+                'market': market if market in ('domestic', 'overseas') else 'all',
+                'sort_by': sort_by if sort_by in ('gainers', 'losers', 'volume', 'trade_value') else None,
+                'limit': limit,
+            },
         )
     except asyncio.CancelledError:
         return []
     except Exception as e:
         log.warning(f"[Ranking] DB ranking failed: {e}")
         return []
-
-    rows: List[Dict] = []
-    for item in unwrap(raw) or []:
-        d = item.model_dump() if hasattr(item, 'model_dump') else dict(item)
-        d.setdefault('volume', 0)
-        d.setdefault('trade_value', 0.0)
-        rows.append(d)
-    return rows
+    return [item.model_dump() if hasattr(item, 'model_dump') else dict(item) for item in unwrap(raw) or []]
 
 
 # ── 백그라운드 프리워밍 ───────────────────────────────────────────────────────
