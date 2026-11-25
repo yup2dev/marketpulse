@@ -128,23 +128,9 @@ ANALYSIS_TO_COMMAND = {
 }
 
 # 다른 fetcher 를 부르지 않고 받은 값으로 직접 분석하는 것 (호출 검사로는 안 잡힌다).
-#   A — 시리즈에 파생 칸(직전 · 전년 대비, 이동평균)을 붙이는 fred fetcher.
-#       (unemployment 는 보조 시리즈를 붙이기만 해 계산이 없다 — SERIES_COMPOSITION 에만 있다)
-#       증감률은 FRED units(pc1 · pch · chg)로 요청해 fetcher 에 남기고, 이동평균만 command 로 옮길 예정.
-#   C — 점수 · 비율 · 누적 계산. 점수(moat · scorecard · swot)는 command, 키워드 감성 점수는 배치 검토.
+# 점수(moat · scorecard · swot)는 command, 키워드 감성 점수(social)는 배치 검토, 나머지는 command.
+# (fred 파생 칸 11개는 FRED units(pch · pc1 · chg · ch1)와 FRED 이동평균 시리즈로 요청하게 바꿔 목록에서 지웠다)
 ANALYSIS_IN_PLACE = {
-    # A
-    "fred/models/consumer_sentiment.py",
-    "fred/models/cpi.py",
-    "fred/models/employment.py",
-    "fred/models/gdp.py",
-    "fred/models/housing_starts.py",
-    "fred/models/industrial_production.py",
-    "fred/models/initial_claims.py",
-    "fred/models/interest_rate.py",
-    "fred/models/nonfarm_payroll.py",
-    "fred/models/pmi.py",
-    "fred/models/retail_sales.py",
     # C
     "database/models/fund_performance.py",
     "fmp/models/revenue_segments.py",

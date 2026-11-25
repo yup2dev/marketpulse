@@ -1,4 +1,5 @@
 """Non-Farm Payroll (비농업 취업자) Standard Model"""
+import asyncio
 import logging
 from datetime import date as date_type, datetime, timedelta
 from typing import Optional, Any, Dict, List
@@ -11,6 +12,7 @@ from data_fetcher.abstract_provider.standard_models.fred_series import (
     FredSeriesData,
 )
 from data_fetcher.providers.fred.models.generic_series import FREDGenericSeriesFetcher
+from data_fetcher.providers.fred.utils.units import attach_units, with_units
 
 
 class NonfarmPayrollQueryParams(FredSeriesQueryParams):
@@ -83,6 +85,9 @@ class NonfarmPayrollData(FredSeriesData):
 
 log = logging.getLogger(__name__)
 
+# 파생 칸은 FRED 가 계산해 준다 (units — utils/units.py)
+_UNITS = {'month_over_month_change': 'chg'}
+
 # FRED Non-Farm Payroll Series IDs
 FRED_SERIES_MAP = {
     'total': 'PAYEMS',                     # Total Non-Farm Payroll
@@ -117,13 +122,16 @@ class FREDNonfarmPayrollFetcher(ApiFetcher[NonfarmPayrollQueryParams, NonfarmPay
             log.warning(f"Only US Non-Farm Payroll is supported via FRED, got {query.country}")
 
         sector = query.sector.lower()
-        observations = [d.model_dump() for d in await FREDGenericSeriesFetcher.fetch_data(dict(
-            series_id=FRED_SERIES_MAP.get(sector, FRED_SERIES_MAP['total']),
-            start_date=query.start_date,
-            end_date=query.end_date,
-            limit=400,
-            sort_order='desc',
-        ), credentials)]
+        observations = attach_units(await asyncio.gather(*[
+            FREDGenericSeriesFetcher.fetch_data(p, credentials)
+            for p in with_units(dict(
+                series_id=FRED_SERIES_MAP.get(sector, FRED_SERIES_MAP['total']),
+                start_date=query.start_date,
+                end_date=query.end_date,
+                limit=400,
+                sort_order='desc',
+            ), _UNITS)
+        ], return_exceptions=True), _UNITS)
 
         unemployment_map: Dict[str, float] = {}
         try:
@@ -152,12 +160,12 @@ class FREDNonfarmPayrollFetcher(ApiFetcher[NonfarmPayrollQueryParams, NonfarmPay
         data: List[Dict[str, Any]],
         **kwargs: Any
     ) -> List[NonfarmPayrollData]:
-        observations = data or []
+        # 날짜 오름차순 (FRED 는 desc 로 받는다)
+        observations = sorted(data or [], key=lambda o: o.get('date') or '')
         sector = query.sector.lower()
         country = query.country
 
         nfp_data_list = []
-        previous_value = None
 
         for obs in observations:
             try:
@@ -176,10 +184,7 @@ class FREDNonfarmPayrollFetcher(ApiFetcher[NonfarmPayrollQueryParams, NonfarmPay
                     continue
 
 
-                # 월간 변화 계산 (천 명 단위)
-                mom_change = None
-                if previous_value is not None:
-                    mom_change = value - previous_value
+                mom_change = obs.get('month_over_month_change')          # FRED units=chg (천 명)
 
                 # 실업률 값 (extract에서 행마다 병합됨)
                 unemployment_rate = obs.get('unemployment_rate')
@@ -195,7 +200,6 @@ class FREDNonfarmPayrollFetcher(ApiFetcher[NonfarmPayrollQueryParams, NonfarmPay
                 )
 
                 nfp_data_list.append(nfp_obj)
-                previous_value = value
 
             except (ValueError, KeyError) as e:
                 log.warning(f"Error parsing non-farm payroll observation {obs}: {e}")

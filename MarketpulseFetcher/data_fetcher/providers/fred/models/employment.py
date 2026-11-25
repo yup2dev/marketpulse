@@ -1,4 +1,5 @@
 """Employment Data Standard Model (고용 데이터)"""
+import asyncio
 import logging
 from datetime import date as date_type, datetime
 from typing import Optional, Any, Dict, List
@@ -11,6 +12,7 @@ from data_fetcher.abstract_provider.standard_models.fred_series import (
     FredSeriesData,
 )
 from data_fetcher.providers.fred.models.generic_series import FREDGenericSeriesFetcher
+from data_fetcher.providers.fred.utils.units import attach_units, with_units
 
 
 class EmploymentQueryParams(FredSeriesQueryParams):
@@ -70,6 +72,14 @@ class EmploymentData(FredSeriesData):
 
 log = logging.getLogger(__name__)
 
+
+def _int(v):
+    return int(round(v)) if v is not None else None
+
+
+# 파생 칸은 FRED 가 계산해 준다 (units — utils/units.py)
+_UNITS = {'change_month': 'chg', 'change_month_percent': 'pch', 'change_year': 'ch1'}
+
 # FRED Employment Series IDs
 FRED_SERIES_MAP = {
     'nonfarm_payroll': 'PAYEMS',                  # Total Nonfarm Payroll
@@ -104,13 +114,16 @@ class FREDEmploymentFetcher(ApiFetcher[EmploymentQueryParams, EmploymentData]):
         if employment_type not in FRED_SERIES_MAP:
             raise ValueError(f"Unsupported employment type: {employment_type}")
 
-        return [d.model_dump() for d in await FREDGenericSeriesFetcher.fetch_data(dict(
-            series_id=FRED_SERIES_MAP[employment_type],
-            start_date=query.start_date,
-            end_date=query.end_date,
-            limit=400,
-            sort_order='desc',
-        ), credentials)]
+        return attach_units(await asyncio.gather(*[
+            FREDGenericSeriesFetcher.fetch_data(p, credentials)
+            for p in with_units(dict(
+                series_id=FRED_SERIES_MAP[employment_type],
+                start_date=query.start_date,
+                end_date=query.end_date,
+                limit=400,
+                sort_order='desc',
+            ), _UNITS)
+        ], return_exceptions=True), _UNITS)
 
     @staticmethod
     def transform_data(
@@ -118,13 +131,12 @@ class FREDEmploymentFetcher(ApiFetcher[EmploymentQueryParams, EmploymentData]):
         data: List[Dict[str, Any]],
         **kwargs: Any
     ) -> List[EmploymentData]:
-        observations = data or []
+        # 날짜 오름차순 (FRED 는 desc 로 받는다)
+        observations = sorted(data or [], key=lambda o: o.get('date') or '')
         employment_type = query.employment_type.lower()
         country = query.country
 
         employment_data_list = []
-        previous_value = None
-        previous_date = None
 
         for obs in observations:
             try:
@@ -143,25 +155,10 @@ class FREDEmploymentFetcher(ApiFetcher[EmploymentQueryParams, EmploymentData]):
                     continue
 
 
-                # 변화 계산
-                change_month = None
-                change_month_percent = None
-                change_year = None
-
-                if previous_value is not None and previous_date:
-                    day_diff = (obs_date - previous_date).days
-
-                    # 월간 변화
-                    if day_diff >= 20:  # 약 1개월
-                        change_month = value - previous_value
-                        change_month_percent = (change_month / previous_value * 100) if previous_value > 0 else None
-
-                    # 연간 변화
-                    if day_diff >= 350:  # 약 1년
-                        change_year = value - previous_value
-
-                previous_value = value
-                previous_date = obs_date
+                # FRED units — chg(전월 대비) · pch(전월 대비 %) · ch1(전년 대비)
+                change_month = _int(obs.get('change_month'))
+                change_month_percent = obs.get('change_month_percent')
+                change_year = _int(obs.get('change_year'))
 
                 employment_obj = EmploymentData(
                     date=obs_date,

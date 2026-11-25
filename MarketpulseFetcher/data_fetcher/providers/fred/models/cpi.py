@@ -1,4 +1,5 @@
 """Consumer Price Index (CPI) Standard Model"""
+import asyncio
 import logging
 from datetime import date as date_type
 from typing import Optional, Any, Dict, List
@@ -11,6 +12,7 @@ from data_fetcher.abstract_provider.standard_models.fred_series import (
     FredSeriesData,
 )
 from data_fetcher.providers.fred.models.generic_series import FREDGenericSeriesFetcher
+from data_fetcher.providers.fred.utils.units import attach_units, with_units
 
 
 class CPIQueryParams(FredSeriesQueryParams):
@@ -80,6 +82,9 @@ class CoreCPIData(CPIData):
 
 log = logging.getLogger(__name__)
 
+# 파생 칸은 FRED 가 계산해 준다 (units — utils/units.py)
+_UNITS = {'change_month': 'pch', 'change_year': 'pc1'}
+
 # FRED CPI Series IDs
 FRED_SERIES_MAP = {
     'all_items': 'CPIAUCSL',              # Consumer Price Index - All Items
@@ -127,13 +132,16 @@ class FREDCPIFetcher(ApiFetcher[CPIQueryParams, CPIData]):
         series_key = FREDCPIFetcher.CATEGORY_MAP.get(category, 'all_items')
         series_id = FRED_SERIES_MAP[series_key]
 
-        return [d.model_dump() for d in await FREDGenericSeriesFetcher.fetch_data(dict(
-            series_id=series_id,
-            start_date=query.start_date,
-            end_date=query.end_date,
-            limit=400,
-            sort_order='desc',
-        ), credentials)]
+        return attach_units(await asyncio.gather(*[
+            FREDGenericSeriesFetcher.fetch_data(p, credentials)
+            for p in with_units(dict(
+                series_id=series_id,
+                start_date=query.start_date,
+                end_date=query.end_date,
+                limit=400,
+                sort_order='desc',
+            ), _UNITS)
+        ], return_exceptions=True), _UNITS)
 
     @staticmethod
     def transform_data(
@@ -158,7 +166,8 @@ class FREDCPIFetcher(ApiFetcher[CPIQueryParams, CPIData]):
                 value = float(value_str)
             except (TypeError, ValueError):
                 continue
-            clean.append({'date': date_str, 'value': value})
+            clean.append({'date': date_str, 'value': value,
+                          'change_month': obs.get('change_month'), 'change_year': obs.get('change_year')})
 
         # 사용자 지정 기간 필터링 (문자열 비교 가능: YYYY-MM-DD)
         if query.start_date:
@@ -170,35 +179,16 @@ class FREDCPIFetcher(ApiFetcher[CPIQueryParams, CPIData]):
 
         clean.sort(key=lambda r: r['date'])
 
-        # 변화율 계산
+        # 전월 · 전년 대비 변화율은 FRED units(pch · pc1)로 받은 값
         cpi_data_list: List[CPIData] = []
-        previous_value = None
-        previous_ym: Optional[tuple] = None
-
         for row in clean:
-            value = row['value']
-            y, m, _ = row['date'].split('-')
-            y, m = int(y), int(m)
-
-            change_month = None
-            change_year = None
-            if previous_value and previous_value != 0:
-                change_month = ((value - previous_value) / previous_value) * 100
-            if previous_ym and previous_value:
-                month_diff = (y - previous_ym[0]) * 12 + (m - previous_ym[1])
-                if month_diff >= 12:
-                    change_year = ((value - previous_value) / previous_value) * 100
-
-            previous_value = value
-            previous_ym = (y, m)
-
             payload = {
                 'date': row['date'],
-                'value': value,
+                'value': row['value'],
                 'country': country,
                 'category': category,
-                'change_month': change_month,
-                'change_year': change_year,
+                'change_month': row['change_month'],
+                'change_year': row['change_year'],
             }
             if is_core:
                 payload['is_core'] = True
