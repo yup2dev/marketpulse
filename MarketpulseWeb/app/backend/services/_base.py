@@ -14,6 +14,14 @@ from data_fetcher.query_executor import QueryExecutor, RemoteUnavailableError
 log = logging.getLogger(__name__)
 
 
+def rows_sync(provider: str, model: str, **params: Any) -> List[Any]:
+    """동기 코드(DB 세션을 쓰는 def 라우트 · 서비스)에서 fetcher 한 번 — 결과 행(표준 모델 객체) 목록.
+
+    배치 테이블은 서비스가 직접 읽지 않고 db provider fetcher 로 읽는다 (데이터 모양은 표준 모델 하나).
+    """
+    return list(OBBject.unwrap(QueryExecutor.fetch_sync(provider, model, params)) or [])
+
+
 _quote_locks: Dict[str, asyncio.Lock] = {}
 
 

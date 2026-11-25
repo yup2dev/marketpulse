@@ -26,7 +26,7 @@ from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from app.backend.services import quant_overlay as ov
-from app.backend.models.orm import MBS_IN_QUANT_PANEL, MBS_IN_STK_PROFILE, UserQuantStrategy, UserQuantStrategyFactor
+from app.backend.models.orm import MBS_IN_QUANT_PANEL, UserQuantStrategy, UserQuantStrategyFactor
 
 log = logging.getLogger(__name__)
 
@@ -908,11 +908,12 @@ def _compute_view(s: dict, panel: dict) -> dict:
     return _clean({"row": row, "curve": curve, "quantiles": quantiles, "spread": spread})
 
 
-def _profiles(db: Session, symbols) -> dict:
-    rows = (db.query(MBS_IN_STK_PROFILE.stk_cd, MBS_IN_STK_PROFILE.stk_nm, MBS_IN_STK_PROFILE.sector,
-                     MBS_IN_STK_PROFILE.market_cap)
-            .filter(MBS_IN_STK_PROFILE.stk_cd.in_(list(symbols))).all())
-    return {r.stk_cd: r for r in rows}
+def _profiles(symbols) -> dict:
+    """종목 프로필 (이름 · 섹터 · 시총) — db provider company_profile."""
+    from app.backend.services._base import rows_sync
+
+    codes = [str(c) for c in symbols]
+    return {p.symbol: p for p in rows_sync("db", "company_profile", symbol=",".join(codes))} if codes else {}
 
 
 def ranking(db: Session, user_id: str, universe: str, strategy_id: Optional[str],
@@ -950,9 +951,9 @@ def ranking(db: Session, user_id: str, universe: str, strategy_id: Optional[str]
     nxt = fwd.loc[d].reindex(sc.index)
     realized = bool(nxt.notna().any())   # 다음 달이 지났나 (이번 달이면 아직 모른다)
     head = sc.iloc[: top_n + RANK_EXTRA]
-    prof = _profiles(db, head.index)
+    prof = _profiles(head.index)
     rows = [{
-        "rank": i + 1, "symbol": sym, "name": getattr(prof.get(sym), "stk_nm", None),
+        "rank": i + 1, "symbol": sym, "name": getattr(prof.get(sym), "company_name", None),
         "score": float(v), "buy": i < top_n and not cash,
         "fwd": float(nxt[sym]) if realized and pd.notna(nxt[sym]) else None,
     } for i, (sym, v) in enumerate(head.items())]

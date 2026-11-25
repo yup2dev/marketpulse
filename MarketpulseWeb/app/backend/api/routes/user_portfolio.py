@@ -13,7 +13,6 @@ from app.backend.core.db import get_db
 from app.backend.core.auth.dependencies import get_current_active_user
 from app.backend.api.deps import filter_dated_rows, resolve_date_range
 from app.backend.services.user_portfolio_service import UserPortfolioService
-from app.backend.services.fx_service import FXRateNotFound, convert_fields, get_rate
 from data_fetcher.query_executor import QueryExecutor
 from data_fetcher.core.obbject import OBBject
 from app.backend.models.orm import User
@@ -339,14 +338,20 @@ def get_portfolio_summary(
     base = (summary.get("currency") or "USD").upper()
     target = (currency or base).upper()
     if target != base:
-        try:
-            fx = get_rate(db, base, target)
-        except FXRateNotFound as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-        summary = convert_fields(summary, _SUMMARY_MONEY_FIELDS, fx)
+        rows = QueryExecutor.fetch_sync("db", "fx_rate", {"base": base, "quote": target})
+        if not rows:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"{base}{target} 환율이 적재되어 있지 않습니다 (MarketpulseBatch/jobs/collect_fx.py 실행 필요)",
+            )
+        fx = rows[0]
+        summary = {**summary, **{
+            f: round(float(summary[f]) * fx.rate, 2)
+            for f in _SUMMARY_MONEY_FIELDS if summary.get(f) is not None
+        }}
         summary["currency"] = target
         summary["base_currency"] = base
-        summary["fx"] = fx.as_dict()
+        summary["fx"] = fx.model_dump(mode="json")
 
     return summary
 

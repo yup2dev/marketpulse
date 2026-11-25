@@ -7,7 +7,8 @@ from decimal import Decimal
 from datetime import datetime
 import uuid
 
-from app.backend.models.orm import Alert, AlertHistory, User, MBS_IN_STK_STBD
+from app.backend.models.orm import Alert, AlertHistory, User
+from app.backend.services._base import rows_sync
 
 
 class AlertService:
@@ -139,31 +140,31 @@ class AlertService:
 
         triggered_alerts = []
 
+        # 최신 가격 — 배치 적재 시세의 종목별 마지막 행 (db provider quote)
+        codes = sorted({a.ticker_cd for a in price_alerts if a.ticker_cd})
+        quotes = {q.symbol: q for q in rows_sync("db", "quote", symbol=",".join(codes))} if codes else {}
+
         for alert in price_alerts:
-            if not alert.ticker_cd:
+            latest_price = quotes.get((alert.ticker_cd or "").upper())
+            if latest_price is None or latest_price.last_price is None:
                 continue
 
-            # 최신 가격 조회
-            latest_price = db.query(MBS_IN_STK_STBD).filter(
-                MBS_IN_STK_STBD.stk_cd == alert.ticker_cd
-            ).order_by(MBS_IN_STK_STBD.base_ymd.desc()).first()
-
-            if not latest_price:
+            current_price = latest_price.last_price
+            threshold = float(alert.threshold_value) if alert.threshold_value is not None else None
+            if threshold is None:
                 continue
-
-            current_price = latest_price.close_price
             triggered = False
 
             # 조건 체크
             if alert.condition_type == "above":
-                if current_price >= alert.threshold_value:
+                if current_price >= threshold:
                     triggered = True
             elif alert.condition_type == "below":
-                if current_price <= alert.threshold_value:
+                if current_price <= threshold:
                     triggered = True
             elif alert.condition_type == "percent_change":
-                change_rate = latest_price.change_rate
-                if abs(change_rate) >= abs(alert.threshold_value):
+                change_rate = latest_price.change_percent
+                if change_rate is not None and abs(change_rate) >= abs(threshold):
                     triggered = True
 
             if triggered:

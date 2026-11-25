@@ -17,6 +17,8 @@ from typing import Any, Dict, List, Optional
 from data_fetcher.abstract_provider.standard_models.stock_ranking import (
     StockRankingQueryParams,
     StockRankingData,
+    in_market,
+    rank,
 )
 from data_fetcher.abstract_provider.abstract.base_fetchers import DbFetcher
 
@@ -126,8 +128,11 @@ class DBStockRankingFetcher(DbFetcher[DBStockRankingQueryParams, DBStockRankingD
         data: List[Dict[str, Any]],
         **kwargs: Any,
     ) -> List[DBStockRankingData]:
+        rows = rank((r for r in data or [] if in_market(r, query.market)), query.sort_by)
+        if query.limit:
+            rows = rows[:query.limit]
         results: List[DBStockRankingData] = []
-        for item in (data or []):
+        for item in rows:
             try:
                 results.append(DBStockRankingData(**item))
             except Exception as exc:

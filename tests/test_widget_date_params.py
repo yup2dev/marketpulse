@@ -136,11 +136,12 @@ def test_fund_performance_period_maps_to_quarters(monkeypatch):
 
     seen = {}
 
-    async def fake_perf(institution_key, quarters):
-        seen["quarters"] = quarters
-        return _quarterly_rows("period", quarters)
+    async def fake_fetch(provider, model, params):
+        assert (provider, model) == ("db", "fund_performance")
+        seen["quarters"] = params["quarters"]
+        return _quarterly_rows("period", params["quarters"])
 
-    monkeypatch.setattr(portfolio.portfolio_service, "get_fund_performance", fake_perf)
+    monkeypatch.setattr(portfolio.QueryExecutor, "fetch", fake_fetch)
     obb = asyncio.run(portfolio.get_fund_performance("berkshire", period="3y"))
     assert seen["quarters"] == 13
     assert all(r["period"] >= period_start("3y") for r in obb.results)
