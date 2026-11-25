@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException
 
 from app.backend.api.deps import filter_dated_rows, period_start
+from app.backend.commands.portfolio import rebase_cumulative
 
 from data_fetcher.core.obbject import OBBject
 from data_fetcher.query_executor import QueryExecutor
@@ -103,7 +104,7 @@ async def get_fund_performance(
         if start:
             rows = filter_dated_rows(rows, start, None, key="period")
         return OBBject(
-            results=rows,
+            results=rebase_cumulative(rows),     # 누적은 고른 기간의 첫 분기부터
             provider=provider,
             metadata={
                 "basis": "13f_holdings_derived",

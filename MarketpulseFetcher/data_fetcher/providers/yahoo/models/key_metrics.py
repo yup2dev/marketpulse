@@ -76,6 +76,11 @@ class YFinanceKeyMetricsData(KeyMetricsData):
     asset_turnover: Optional[float] = None
     inventory_turnover: Optional[float] = None
 
+    # Price · analyst (스코어카드 · SWOT command 가 쓴다)
+    current_price: Optional[float] = None
+    target_mean_price: Optional[float] = None
+    recommendation_mean: Optional[float] = None
+
     __alias_dict__ = {
         "pe_ratio": "trailingPE",
         "forward_pe": "forwardPE",
@@ -117,6 +122,9 @@ class YFinanceKeyMetricsData(KeyMetricsData):
         "interest_coverage": "interestCoverage",
         "asset_turnover": "assetTurnover",
         "inventory_turnover": "inventoryTurnover",
+        "current_price": "currentPrice",
+        "target_mean_price": "targetMeanPrice",
+        "recommendation_mean": "recommendationMean",
     }
 
 
@@ -148,4 +156,7 @@ class YFinanceKeyMetricsFetcher(YFinanceFetcher[YFinanceKeyMetricsQueryParams, Y
         data: Dict[str, Any],
         **kwargs: Any,
     ) -> List[YFinanceKeyMetricsData]:
-        return [YFinanceKeyMetricsData.model_validate({**(data or {}), "symbol": query.symbol})]
+        info = dict(data or {})
+        if info.get("currentPrice") is None:            # 장 마감 뒤 등 currentPrice 가 비면 정규장 가격
+            info["currentPrice"] = info.get("regularMarketPrice")
+        return [YFinanceKeyMetricsData.model_validate({**info, "symbol": query.symbol})]
