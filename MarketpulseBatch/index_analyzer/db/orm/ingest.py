@@ -853,6 +853,60 @@ class MBS_IN_QUANT_PANEL(Base):
     )
 
 
+class MBS_IN_STK_PERIOD_RTN(Base):
+    """입수 - 종목 기간별 수익률 (Market Ranking 1d ~ 1y).
+
+    적재: MarketpulseBatch/jobs/build_market_stats.py — 로컬 mbs_in_stk_stbd 일별 종가로 계산 → sync → /api/ingest.
+    서버는 조회 때 종가를 모아 계산하지 않고 이 행을 읽어 정렬만 한다 (512MB).
+    한 행 = 한 종목의 한 기간. change_rate 는 base_ymd 종가 vs ref_ymd 종가 (1d 는 상태판의 전일 대비).
+    """
+    __tablename__ = 'mbs_in_stk_period_rtn'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    stk_cd = Column(String(20), nullable=False, index=True)
+    period = Column(String(10), nullable=False, index=True)      # 1d · 1w · 1mo · 3mo · 6mo · 1y
+    stk_nm = Column(String(100))
+    sector = Column(String(100))
+    curr = Column(String(10))
+    base_ymd = Column(Date, nullable=False)                      # 그 종목의 최신 거래일
+    close_price = Column(DECIMAL(20, 4))
+    ref_ymd = Column(Date)                                       # 비교 기준일 (1d 는 비움)
+    ref_close = Column(DECIMAL(20, 4))
+    change_rate = Column(DECIMAL(12, 4))                         # %
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint('stk_cd', 'period', name='uq_stk_period_rtn'),
+    )
+
+
+class MBS_IN_SECTOR_PERF(Base):
+    """입수 - 섹터 성과 (섹터별 종목 수 · 시가총액 합 · 시총 순 종목 목록).
+
+    적재: MarketpulseBatch/jobs/build_market_stats.py — 로컬 mbs_in_stk_profile 을 섹터로 묶는다 → sync → /api/ingest.
+    universe: 'sp500'(S&P 500 편입 종목) · 'all'(프로필 전체). stocks 는 시총 큰 순 JSON 배열
+    ({symbol, name, sector, industry, market_cap, price}).
+    """
+    __tablename__ = 'mbs_in_sector_perf'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    universe = Column(String(30), nullable=False, index=True)
+    sector = Column(String(100), nullable=False)
+    stock_count = Column(Integer, nullable=False)
+    total_market_cap = Column(DECIMAL(24, 2))
+    stocks = Column(Text, nullable=False)
+    base_ymd = Column(Date, nullable=False)                      # 산출일
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint('universe', 'sector', name='uq_sector_perf'),
+    )
+
+
 __all__ = [
     "MBS_IN_STBD_MST",
     "MBS_IN_INDX_STBD",
@@ -874,4 +928,6 @@ __all__ = [
     "MBS_IN_RESEARCH_RPT",
     "MBS_IN_QUANT_SNAPSHOT",
     "MBS_IN_QUANT_PANEL",
+    "MBS_IN_STK_PERIOD_RTN",
+    "MBS_IN_SECTOR_PERF",
 ]
