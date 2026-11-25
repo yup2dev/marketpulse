@@ -143,6 +143,12 @@ _DEFAULT_TTL: Dict[str, int] = {
     "regime_current":               1800,  # snapshot — 월간/분기 지표
     "fed_policy_stance":            1800,
     "inflation_decomposition":      1800,
+    "indicator_overview":           3600,
+    "indicator_history":            3600,
+    "macro_series_overview":        3600,
+    "macro_series_history":         3600,
+    "forex":                         900,
+    "forex_rates":                   300,
     # ── Yahoo quote (별칭 구분) ─────────────────────────────────────────────
     "quote":                          60,  # yahoo:quote (StockQuoteFetcher)
     # ── Mostly static (1h+) ─────────────────────────────────────────────────
