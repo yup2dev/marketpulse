@@ -91,7 +91,7 @@ def test_backtest_latest_run_is_the_most_recent_full_run(auth_client):
 
 
 def test_backtest_validation_errors_still_surface(auth_client):
-    """route_handler 를 붙인 뒤에도 의도된 4xx 가 그대로 나와야 한다."""
+    """전역 예외 처리 아래에서도 의도된 4xx 가 그대로 나와야 한다."""
     client, _ = auth_client
 
     # 식별자 규칙 위반 (수식에서 참조되므로 소문자·밑줄만)

@@ -54,11 +54,11 @@ def test_stock_dividends_period_filters_and_skips_default_limit(monkeypatch):
         return rows
 
     monkeypatch.setattr(stock.QueryExecutor, "fetch", fake_fetch)
-    obb = asyncio.run(stock.get_dividends.__wrapped__("aapl", period="10y"))
+    obb = asyncio.run(stock.get_dividends("aapl", period="10y"))
     # 10년 ≈ 40건 — 예전 기본 20건 제한에 잘리지 않는다
     assert 39 <= len(obb.results) <= 41
     assert seen["start_date"] == period_start("10y")
-    obb = asyncio.run(stock.get_dividends.__wrapped__("aapl"))
+    obb = asyncio.run(stock.get_dividends("aapl"))
     assert len(obb.results) == 20
 
 
@@ -110,11 +110,11 @@ def test_financials_period_replaces_fixed_four_rows(monkeypatch):
         return _quarterly_rows("date", 30)
 
     monkeypatch.setattr(stock.QueryExecutor, "fetch", fake_fetch)
-    obb = asyncio.run(stock.get_financials.__wrapped__("aapl", freq="annual", period="3y"))
+    obb = asyncio.run(stock.get_financials("aapl", freq="annual", period="3y"))
     assert seen["freq"] == "annual"                      # 보고 주기는 그대로 freq
     assert 12 <= len(obb.results) <= 13                  # 3년 ≈ 12분기, 4건 제한 없음
     assert obb.results[0]["date"] >= obb.results[-1]["date"]
-    assert len(asyncio.run(stock.get_financials.__wrapped__("aapl")).results) == 4
+    assert len(asyncio.run(stock.get_financials("aapl")).results) == 4
 
 
 def test_earnings_period_widens_fetch_limit(monkeypatch):
@@ -127,7 +127,7 @@ def test_earnings_period_widens_fetch_limit(monkeypatch):
         return _quarterly_rows("date", params["limit"])
 
     monkeypatch.setattr(stock.QueryExecutor, "fetch", fake_fetch)
-    obb = asyncio.run(stock.get_earnings.__wrapped__("aapl", period="5y"))
+    obb = asyncio.run(stock.get_earnings("aapl", period="5y"))
     assert seen["limit"] == 40 and 20 <= len(obb.results) <= 21
 
 
@@ -159,6 +159,6 @@ def test_news_period_is_sent_and_filtered_by_published_utc(monkeypatch):
         return [{"published_utc": f"{(now - timedelta(days=d)).isoformat()}T12:00:00Z"} for d in (0, 3, 20)]
 
     monkeypatch.setattr(news.QueryExecutor, "fetch", fake_fetch)
-    obb = asyncio.run(news.get_news.__wrapped__(symbol="aapl", limit=10, period="1w"))
+    obb = asyncio.run(news.get_news(symbol="aapl", limit=10, period="1w"))
     assert seen["start_date"] == period_start("1w")
     assert len(obb.results) == 2

@@ -40,7 +40,7 @@ NOTE = "매크로 조건은 매달 말 그때까지의 지표 값으로 판단 �
 
 
 class OverlayError(ValueError):
-    """잘못된 매크로 조건 · 적재 안 된 지표 (route_handler 가 400 으로 바꾼다)."""
+    """잘못된 매크로 조건 · 적재 안 된 지표 (전역 예외 처리가 400 으로 바꾼다)."""
 
 
 def validate(raw) -> Optional[dict]:

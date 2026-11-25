@@ -4,14 +4,13 @@ RESTful endpoints for menu management
 
 응답은 프로젝트 표준인 OBBject(`{results, provider, metadata}`)로 통일한다.
 단건도 `results` 배열에 담고, 계층 조회는 루트 노드들을 `results` 에 담는다.
-에러 처리는 `route_handler` 가 맡는다 — 핸들러마다 있던 try/except 500 래핑을 걷어냈다.
+에러 처리는 전역 예외 처리(core/exception_handlers)가 맡는다 — 핸들러는 예외를 그냥 던진다.
 """
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
-from app.backend.api.deps import route_handler
 from app.backend.core.db import get_db
 from app.backend.core.auth.dependencies import require_admin
 from app.backend.services.menu_service import MenuService
@@ -54,7 +53,6 @@ class MenuUpdate(BaseModel):
 
 
 @router.get("/list")
-@route_handler
 def get_menu_list(
     pkg_type: str = Query('MARKETPULSE', description="Package type"),
     db: Session = Depends(get_db)
@@ -74,7 +72,6 @@ def get_menu_list(
 
 
 @router.get("/hierarchy")
-@route_handler
 def get_menu_hierarchy(
     pkg_type: str = Query('MARKETPULSE', description="Package type"),
     db: Session = Depends(get_db)
@@ -94,7 +91,6 @@ def get_menu_hierarchy(
 
 
 @router.get("/user/{user_type_cd}")
-@route_handler
 def get_menus_by_user_type(
     user_type_cd: Optional[str] = None,
     pkg_type: str = Query('MARKETPULSE', description="Package type"),
@@ -116,7 +112,6 @@ def get_menus_by_user_type(
 
 
 @router.get("/first-page")
-@route_handler
 def get_first_page(
     pkg_type: str = Query('MARKETPULSE', description="Package type"),
     db: Session = Depends(get_db)
@@ -139,7 +134,6 @@ def get_first_page(
 
 
 @router.get("/{menu_id}")
-@route_handler
 def get_menu_by_id(
     menu_id: str,
     db: Session = Depends(get_db)
@@ -161,7 +155,6 @@ def get_menu_by_id(
 
 
 @router.post("/create")
-@route_handler
 def create_menu(
     menu_data: MenuCreate,
     db: Session = Depends(get_db),
@@ -187,7 +180,6 @@ def create_menu(
 
 
 @router.put("/update/{menu_id}")
-@route_handler
 def update_menu(
     menu_id: str,
     menu_data: MenuUpdate,
@@ -216,7 +208,6 @@ def update_menu(
 
 
 @router.delete("/delete/{menu_id}")
-@route_handler
 def delete_menu(
     menu_id: str,
     db: Session = Depends(get_db),

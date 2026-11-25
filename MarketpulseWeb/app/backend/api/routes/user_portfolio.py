@@ -11,7 +11,7 @@ import asyncio
 
 from app.backend.core.db import get_db
 from app.backend.core.auth.dependencies import get_current_active_user
-from app.backend.api.deps import filter_dated_rows, resolve_date_range, route_handler
+from app.backend.api.deps import filter_dated_rows, resolve_date_range
 from app.backend.services.user_portfolio_service import UserPortfolioService
 from app.backend.services.fx_service import FXRateNotFound, convert_fields, get_rate
 from data_fetcher.query_executor import QueryExecutor
@@ -416,7 +416,6 @@ def get_portfolio_allocation(
 
 
 @router.get("/price-at-date")
-@route_handler
 async def get_price_at_date(
     ticker: str,
     date: str,

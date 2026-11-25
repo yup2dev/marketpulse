@@ -8,7 +8,6 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.backend.api.deps import route_handler
 from app.backend.core.auth.dependencies import get_current_user
 from app.backend.core.db import get_db
 from app.backend.models.orm import User
@@ -46,7 +45,6 @@ def list_datasets(
 
 
 @router.get("/industry/series", summary="데이터셋 계열")
-@route_handler
 def list_series(
     dataset: str = Query(..., description="데이터셋 ID"),
     _: User = Depends(get_current_user),
@@ -57,7 +55,6 @@ def list_series(
 
 
 @router.get("/industry/data", summary="데이터셋 데이터")
-@route_handler
 async def dataset_data(
     dataset: str = Query(..., description="데이터셋 ID"),
     series: Optional[str] = Query(None, description="계열 코드 — 비우거나 모르면 첫 계열"),
@@ -74,7 +71,6 @@ async def dataset_data(
 
 
 @router.get("/industry/summary", summary="데이터셋 요약 카드")
-@route_handler
 async def dataset_summary(
     dataset: str = Query(..., description="데이터셋 ID"),
     series: Optional[str] = Query(None, description="계열 코드 — 비우거나 모르면 첫 계열"),
@@ -87,7 +83,6 @@ async def dataset_summary(
 
 
 @router.get("/industry/companies", summary="산업 관련 기업")
-@route_handler
 def related_companies(
     industry: str = Query(..., description="산업 코드"),
     limit: int = Query(40, ge=1, le=200),

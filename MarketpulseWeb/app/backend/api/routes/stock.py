@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 
 from data_fetcher.core.obbject import OBBject
 from data_fetcher.query_executor import QueryExecutor
-from app.backend.api.deps import filter_dated_rows, resolve_date_range, route_handler, wrap_result
+from app.backend.api.deps import filter_dated_rows, resolve_date_range, wrap_result
 from app.backend.core.auth.dependencies import get_current_active_user
 from app.backend.models.orm import User
 
@@ -64,21 +64,18 @@ def _range_params(params: Dict[str, Any], start: Optional[str], end: Optional[st
 # ── Direct QueryExecutor → OBBject ────────────────────────────────────────────
 
 @router.get("/info/{symbol}")
-@route_handler
 async def get_company_info(symbol: str, provider: str = "yahoo") -> OBBject:
     raw = await QueryExecutor.fetch(provider, "company_info", {"symbol": symbol.upper()})
     return _wrap(raw, provider)
 
 
 @router.get("/metrics/{symbol}")
-@route_handler
 async def get_key_metrics(symbol: str, provider: str = "yahoo") -> OBBject:
     raw = await QueryExecutor.fetch(provider, "key_metrics", {"symbol": symbol.upper()})
     return _wrap(raw, provider)
 
 
 @router.get("/financials/{symbol}")
-@route_handler
 async def get_financials(
     symbol: str,
     provider: str = "yahoo",
@@ -95,7 +92,6 @@ async def get_financials(
 
 
 @router.get("/earnings/{symbol}")
-@route_handler
 async def get_earnings(
     symbol: str,
     provider: str = "polygon",
@@ -112,7 +108,6 @@ async def get_earnings(
 
 
 @router.get("/insider-trading/{symbol}")
-@route_handler
 async def get_insider_trading(
     symbol: str,
     provider: str = "yahoo",
@@ -134,28 +129,24 @@ async def get_insider_trading(
 
 
 @router.get("/insider-holders/{symbol}")
-@route_handler
 async def get_insider_holders(symbol: str, provider: str = "yahoo") -> OBBject:
     raw = await QueryExecutor.fetch(provider, "insider_holders", {"symbol": symbol.upper()})
     return _wrap(raw, provider)
 
 
 @router.get("/analyst/{symbol}")
-@route_handler
 async def get_analyst_data(symbol: str, provider: str = "fmp") -> OBBject:
     raw = await QueryExecutor.fetch(provider, "analyst_data", {"symbol": symbol.upper()})
     return _wrap(raw, provider)
 
 
 @router.get("/holders/{symbol}")
-@route_handler
 async def get_holders(symbol: str, provider: str = "yahoo") -> OBBject:
     raw = await QueryExecutor.fetch(provider, "holders", {"symbol": symbol.upper()})
     return _wrap(raw, provider)
 
 
 @router.get("/calendar/{symbol}")
-@route_handler
 async def get_calendar(
     symbol: str,
     provider: str = "yahoo",
@@ -172,7 +163,6 @@ async def get_calendar(
 
 
 @router.get("/dividends/{symbol}")
-@route_handler
 async def get_dividends(
     symbol: str,
     provider: str = "yahoo",
@@ -187,7 +177,6 @@ async def get_dividends(
 
 
 @router.get("/splits/{symbol}")
-@route_handler
 async def get_splits(
     symbol: str,
     provider: str = "yahoo",
@@ -202,7 +191,6 @@ async def get_splits(
 
 
 @router.get("/filings/{symbol}")
-@route_handler
 async def get_filings(
     symbol: str,
     provider: str = "yahoo",
@@ -217,7 +205,6 @@ async def get_filings(
 
 
 @router.get("/quarterly-pnl/{symbol}")
-@route_handler
 async def get_quarterly_pnl(symbol: str, provider: str = "yahoo", limit: int = 12) -> OBBject:
     raw = await QueryExecutor.fetch(
         provider, "quarterly_pnl", {"symbol": symbol.upper(), "limit": limit}
@@ -226,7 +213,6 @@ async def get_quarterly_pnl(symbol: str, provider: str = "yahoo", limit: int = 1
 
 
 @router.get("/revenue-segments/{symbol}")
-@route_handler
 async def get_revenue_segments(symbol: str, provider: str = "fmp", limit: int = 8) -> OBBject:
     raw = await QueryExecutor.fetch(
         provider, "revenue_segments", {"symbol": symbol.upper(), "limit": limit}
@@ -235,56 +221,48 @@ async def get_revenue_segments(symbol: str, provider: str = "fmp", limit: int = 
 
 
 @router.get("/estimates/{symbol}")
-@route_handler
 async def get_estimates(symbol: str, provider: str = "yahoo") -> OBBject:
     raw = await QueryExecutor.fetch(provider, "estimates", {"symbol": symbol.upper()})
     return _wrap(raw, provider)
 
 
 @router.get("/management/{symbol}")
-@route_handler
 async def get_management(symbol: str, provider: str = "yahoo") -> OBBject:
     raw = await QueryExecutor.fetch(provider, "management", {"symbol": symbol.upper()})
     return _wrap(raw, provider)
 
 
 @router.get("/moat/{symbol}")
-@route_handler
 async def get_moat_analysis(symbol: str, provider: str = "yahoo") -> OBBject:
     raw = await QueryExecutor.fetch(provider, "moat", {"symbol": symbol.upper()})
     return _wrap(raw, provider)
 
 
 @router.get("/swot/{symbol}")
-@route_handler
 async def get_swot(symbol: str, provider: str = "yahoo") -> OBBject:
     raw = await QueryExecutor.fetch(provider, "swot", {"symbol": symbol.upper()})
     return _wrap(raw, provider)
 
 
 @router.get("/sentiment/{symbol}")
-@route_handler
 async def get_stock_sentiment(symbol: str, provider: str = "polygon") -> OBBject:
     raw = await QueryExecutor.fetch(provider, "sentiment", {"symbol": symbol.upper()})
     return _wrap(raw, provider)
 
 
 @router.get("/reddit/{symbol}")
-@route_handler
 async def get_social_sentiment(symbol: str, provider: str = "social") -> OBBject:
     raw = await QueryExecutor.fetch(provider, "sentiment", {"symbol": symbol.upper()})
     return _wrap(raw, provider)
 
 
 @router.get("/scorecard/{symbol}")
-@route_handler
 async def get_scorecard(symbol: str, provider: str = "yahoo") -> OBBject:
     raw = await QueryExecutor.fetch(provider, "scorecard", {"symbol": symbol.upper()})
     return _wrap(raw, provider)
 
 
 @router.get("/quote/{symbol}")
-@route_handler
 async def get_stock_quote(symbol: str, provider: str = "yahoo") -> OBBject:
     raw = await QueryExecutor.fetch(provider, "quote", {"symbol": symbol.upper()})
     items = _unwrap(raw)
@@ -294,7 +272,6 @@ async def get_stock_quote(symbol: str, provider: str = "yahoo") -> OBBject:
 
 
 @router.get("/history/{symbol}")
-@route_handler
 async def get_stock_history(
     symbol: str,
     provider: str = "yahoo",
@@ -319,14 +296,12 @@ async def get_stock_history(
 
 
 @router.get("/orderbook/{symbol}")
-@route_handler
 async def get_stock_orderbook(symbol: str, provider: str = "polygon") -> OBBject:
     raw = await QueryExecutor.fetch(provider, "orderbook", {"symbol": symbol.upper()})
     return _wrap(raw, provider)
 
 
 @router.get("/search")
-@route_handler
 async def search_stocks(
     query: str = "",
     limit: int = 12,
@@ -341,7 +316,6 @@ async def search_stocks(
 
 
 @router.get("/relations/{symbol}")
-@route_handler
 async def get_company_relations_route(symbol: str, provider: str = "db") -> OBBject:
     from app.backend.services.company_relations import get_company_relations
     data = await get_company_relations(symbol.upper())
@@ -349,7 +323,6 @@ async def get_company_relations_route(symbol: str, provider: str = "db") -> OBBj
 
 
 @router.get("/sector-performance")
-@route_handler
 def get_sector_performance(provider: str = "db") -> OBBject:
     from app.backend.core.db import get_db_sync
     from app.backend.models.orm import MBS_IN_STK_PROFILE
@@ -387,7 +360,6 @@ def get_sector_performance(provider: str = "db") -> OBBject:
 
 
 @router.get("/compare")
-@route_handler
 async def compare_stocks(
     symbols: str = FQuery(..., description="Comma-separated symbols (2-4)"),
     provider: str = "yahoo",
@@ -470,7 +442,6 @@ async def _corp_profits_pct_gdp(start_date, end_date) -> List[Dict]:
 
 
 @router.get("/indicator/{indicator}")
-@route_handler
 async def get_indicator_history(
     indicator: str,
     period: str = "5y",

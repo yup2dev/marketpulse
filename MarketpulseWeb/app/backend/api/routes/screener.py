@@ -9,7 +9,6 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Dict, Any, Optional
 
-from app.backend.api.deps import route_handler
 from app.backend.core.db import get_db
 from app.backend.core.auth.dependencies import get_current_active_user, get_optional_user
 from app.backend.services.screener_service import ScreenerService
@@ -40,7 +39,6 @@ class SavedScreenerUpdate(BaseModel):
 
 
 @router.post("/screen")
-@route_handler
 async def screen_stocks(
     screen_request: ScreenRequest,
     current_user: Optional[User] = Depends(get_optional_user),
@@ -57,7 +55,6 @@ async def screen_stocks(
 
 
 @router.post("/save", status_code=status.HTTP_201_CREATED)
-@route_handler
 def save_screener(
     screener_data: SavedScreenerCreate,
     current_user: User = Depends(get_current_active_user),
@@ -79,7 +76,6 @@ def save_screener(
 
 
 @router.get("/saved")
-@route_handler
 def get_my_screeners(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
@@ -92,7 +88,6 @@ def get_my_screeners(
 
 
 @router.post("/saved/{screener_id}/run")
-@route_handler
 async def run_saved_screener(
     screener_id: str,
     limit: int = 100,
@@ -110,7 +105,6 @@ async def run_saved_screener(
 
 
 @router.put("/saved/{screener_id}")
-@route_handler
 def update_screener(
     screener_id: str,
     screener_data: SavedScreenerUpdate,
@@ -131,7 +125,6 @@ def update_screener(
 
 
 @router.delete("/saved/{screener_id}")
-@route_handler
 def delete_screener(
     screener_id: str,
     current_user: User = Depends(get_current_active_user),
@@ -152,14 +145,12 @@ def delete_screener(
 
 
 @router.get("/sectors")
-@route_handler
 def get_sectors():
     """사용 가능한 섹터 목록 조회"""
     return OBBject(results=ScreenerService.get_available_sectors(), provider=_PROVIDER)
 
 
 @router.get("/presets")
-@route_handler
 def get_screener_presets():
     """
     사전 정의된 스크리너 프리셋 목록 조회 (로그인 불필요)
@@ -169,7 +160,6 @@ def get_screener_presets():
 
 
 @router.get("/presets/{preset_id}")
-@route_handler
 def get_screener_preset(preset_id: str):
     """
     특정 프리셋 조회 (로그인 불필요)
@@ -186,7 +176,6 @@ def get_screener_preset(preset_id: str):
 
 
 @router.post("/presets/{preset_id}/run")
-@route_handler
 async def run_preset_screener(
     preset_id: str,
     limit: int = 100,

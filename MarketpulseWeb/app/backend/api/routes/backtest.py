@@ -21,7 +21,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.backend.api.deps import route_handler
 from app.backend.core.auth.dependencies import get_current_active_user
 from app.backend.core.db import get_db
 from data_fetcher.core.obbject import OBBject
@@ -105,7 +104,6 @@ def _get_item(db: Session, user_id: str, item_id: str) -> UserBacktestItem:
 # ── 정의(변수·이벤트·전략) ──────────────────────────────────────────────────────
 
 @router.get("/items")
-@route_handler
 def list_items(
     kind: Optional[Kind] = Query(None),
     db: Session = Depends(get_db),
@@ -119,7 +117,6 @@ def list_items(
 
 
 @router.post("/items")
-@route_handler
 def create_item(
     request: ItemRequest,
     db: Session = Depends(get_db),
@@ -150,7 +147,6 @@ def create_item(
 
 
 @router.put("/items/{item_id}")
-@route_handler
 def update_item(
     item_id: str,
     request: ItemUpdateRequest,
@@ -173,7 +169,6 @@ def update_item(
 
 
 @router.delete("/items/{item_id}")
-@route_handler
 def delete_item(
     item_id: str,
     db: Session = Depends(get_db),
@@ -188,7 +183,6 @@ def delete_item(
 # ── 실행 결과 ──────────────────────────────────────────────────────────────────
 
 @router.get("/runs")
-@route_handler
 def list_runs(
     strategy_id: Optional[str] = Query(None),
     db: Session = Depends(get_db),
@@ -202,7 +196,6 @@ def list_runs(
 
 
 @router.get("/runs/latest")
-@route_handler
 def get_latest_run(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
@@ -222,7 +215,6 @@ def get_latest_run(
 
 
 @router.get("/runs/{run_id}")
-@route_handler
 def get_run(
     run_id: str,
     db: Session = Depends(get_db),
@@ -238,7 +230,6 @@ def get_run(
 
 
 @router.post("/runs")
-@route_handler
 def save_run(
     request: RunRequest,
     db: Session = Depends(get_db),
@@ -264,7 +255,6 @@ def save_run(
 
 
 @router.delete("/runs/{run_id}")
-@route_handler
 def delete_run(
     run_id: str,
     db: Session = Depends(get_db),

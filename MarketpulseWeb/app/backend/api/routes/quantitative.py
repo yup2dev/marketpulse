@@ -8,7 +8,6 @@ from fastapi import APIRouter, Query
 from data_fetcher.core.obbject import OBBject
 from data_fetcher.core import OBBject
 from data_fetcher.query_executor import QueryExecutor
-from app.backend.api.deps import route_handler
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -38,7 +37,6 @@ def _wrap(data: dict, provider: str = "quantitative") -> OBBject:
 
 
 @router.get("/summary")
-@route_handler
 async def summary(
     symbol: str = Query(...),
     target: _TARGET = Query("close"),
@@ -51,7 +49,6 @@ async def summary(
 
 
 @router.get("/normality")
-@route_handler
 async def normality(
     symbol: str = Query(...),
     target: _TARGET = Query("close"),
@@ -64,7 +61,6 @@ async def normality(
 
 
 @router.get("/capm")
-@route_handler
 async def capm(
     symbol: str = Query(...),
     benchmark: str = Query("^GSPC"),
@@ -80,7 +76,6 @@ async def capm(
 
 
 @router.get("/rolling")
-@route_handler
 async def rolling(
     symbol: str = Query(...),
     metric: Literal["sharpe", "sortino", "stdev", "mean", "skew", "kurtosis", "quantile"] = Query("sharpe"),
@@ -104,7 +99,6 @@ async def rolling(
 
 
 @router.get("/unitroot")
-@route_handler
 async def unitroot(
     symbol: str = Query(...),
     target: _TARGET = Query("close"),
@@ -120,7 +114,6 @@ async def unitroot(
 
 
 @router.get("/correlation")
-@route_handler
 async def correlation(
     symbols: str = Query(..., description="Comma-separated ticker symbols (2-10)"),
     start_date: Optional[date_type] = Query(None),

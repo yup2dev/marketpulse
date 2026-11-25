@@ -14,7 +14,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.backend.api.deps import route_handler
 from app.backend.core.auth.dependencies import get_current_active_user
 from app.backend.core.db import get_db
 from app.backend.models.orm import User
@@ -48,14 +47,12 @@ def _own(fn):
 
 
 @router.get("")
-@route_handler
 def list_portfolios(db: Session = Depends(get_db), user: User = Depends(get_current_active_user)) -> OBBject:
     rows = svc.list_portfolios(db, str(user.user_id))
     return OBBject(results=[svc.to_dict(r) for r in rows], provider=PROVIDER, metadata=svc.catalog())
 
 
 @router.get("/universe")
-@route_handler
 def universe(universe: str = Query("sp500", max_length=30), db: Session = Depends(get_db),
              user: User = Depends(get_current_active_user)) -> OBBject:
     rows, meta = svc.universe_members(db, universe)
@@ -63,7 +60,6 @@ def universe(universe: str = Query("sp500", max_length=30), db: Session = Depend
 
 
 @router.post("")
-@route_handler
 def create_portfolio(body: PortfolioBody, db: Session = Depends(get_db),
                      user: User = Depends(get_current_active_user)) -> OBBject:
     row = svc.create_portfolio(db, str(user.user_id), body.model_dump())
@@ -71,7 +67,6 @@ def create_portfolio(body: PortfolioBody, db: Session = Depends(get_db),
 
 
 @router.put("/{portfolio_id}")
-@route_handler
 def update_portfolio(portfolio_id: str, body: PortfolioBody, db: Session = Depends(get_db),
                      user: User = Depends(get_current_active_user)) -> OBBject:
     row = _own(lambda: svc.update_portfolio(db, str(user.user_id), portfolio_id, body.model_dump()))
@@ -79,7 +74,6 @@ def update_portfolio(portfolio_id: str, body: PortfolioBody, db: Session = Depen
 
 
 @router.delete("/{portfolio_id}")
-@route_handler
 def delete_portfolio(portfolio_id: str, db: Session = Depends(get_db),
                      user: User = Depends(get_current_active_user)) -> OBBject:
     _own(lambda: svc.delete_portfolio(db, str(user.user_id), portfolio_id))

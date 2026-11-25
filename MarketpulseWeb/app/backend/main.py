@@ -4,6 +4,7 @@ FastAPI-based dashboard for financial data visualization
 
 이 파일은 앱을 '조립'만 한다. 내용은 아래로 나뉘어 있다:
   core/lifespan.py               기동/종료 (캐시·Pub/Sub·WS 스트림·워밍업 태스크)
+  core/exception_handlers.py     전역 예외 처리 (예외 → HTTP 상태 코드)
   core/middleware/auth_gate.py   인증 게이트(deny-by-default) + 공개 경로 목록
   api/routers.py                 라우터 등록
 """
@@ -20,6 +21,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.backend.core.config import settings
+from app.backend.core.exception_handlers import add_exception_handlers
 from app.backend.core.lifespan import lifespan
 from app.backend.core.middleware.auth_gate import AuthGateMiddleware
 from fastapi import Depends
@@ -35,6 +37,11 @@ app = FastAPI(
     # 요청 계측이 경로 템플릿을 알 수 있게 (core/middleware/request_metrics.py) — 모든 라우트에 붙는다
     dependencies=[Depends(capture_route)],
 )
+
+# ── Exception handlers ────────────────────────────────────────────────────────
+# 라우트가 던진 예외 → HTTP 응답
+# 500 을 만드는 미들웨어가 가장 안쪽이어야 CORS · 계측이 그 응답을 본다 → 다른 미들웨어보다 먼저.
+add_exception_handlers(app)
 
 # ── Middleware ────────────────────────────────────────────────────────────────
 # 등록 순서가 중요하다. Starlette은 나중에 add한 미들웨어가 더 바깥(outermost)이므로

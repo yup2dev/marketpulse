@@ -39,7 +39,7 @@ _RESULT_CACHE = qs.PackedCache(8)   # 압축 JSON — quant_strategy_service.Pac
 
 
 class PortfolioError(qs.StrategyError):
-    """잘못된 포트폴리오 정의 (route_handler 가 400 으로 바꾼다)."""
+    """잘못된 포트폴리오 정의 (전역 예외 처리가 400 으로 바꾼다)."""
 
 
 # ══ 정의 (DB 행) ═════════════════════════════════════════════════════════════════

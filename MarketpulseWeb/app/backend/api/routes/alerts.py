@@ -7,7 +7,6 @@ from pydantic import BaseModel
 from typing import Optional
 from decimal import Decimal
 
-from app.backend.api.deps import route_handler
 from data_fetcher.core import OBBject
 from app.backend.core.db import get_db
 from app.backend.core.auth.dependencies import get_current_active_user
@@ -37,7 +36,6 @@ class AlertUpdate(BaseModel):
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
-@route_handler
 def create_alert(
     alert_data: AlertCreate,
     current_user: User = Depends(get_current_active_user),
@@ -61,7 +59,6 @@ def create_alert(
 
 
 @router.get("/")
-@route_handler
 def get_my_alerts(
     is_active: Optional[bool] = None,
     current_user: User = Depends(get_current_active_user),
@@ -75,7 +72,6 @@ def get_my_alerts(
 
 
 @router.put("/{alert_id}")
-@route_handler
 def update_alert(
     alert_id: str,
     alert_data: AlertUpdate,
@@ -101,7 +97,6 @@ def update_alert(
 
 
 @router.post("/{alert_id}/toggle")
-@route_handler
 def toggle_alert(
     alert_id: str,
     current_user: User = Depends(get_current_active_user),
@@ -122,7 +117,6 @@ def toggle_alert(
 
 
 @router.delete("/{alert_id}")
-@route_handler
 def delete_alert(
     alert_id: str,
     current_user: User = Depends(get_current_active_user),
@@ -143,7 +137,6 @@ def delete_alert(
 
 
 @router.get("/history")
-@route_handler
 def get_alert_history(
     alert_id: Optional[str] = None,
     limit: int = 50,
@@ -165,7 +158,6 @@ def get_alert_history(
 
 
 @router.post("/{alert_id}/test")
-@route_handler
 def test_alert(
     alert_id: str,
     current_user: User = Depends(get_current_active_user),

@@ -8,14 +8,12 @@ from fastapi import APIRouter, Query
 from data_fetcher.core.obbject import OBBject
 from data_fetcher.core import OBBject
 from data_fetcher.query_executor import QueryExecutor
-from app.backend.api.deps import route_handler
 
 log = logging.getLogger(__name__)
 router = APIRouter()
 
 
 @router.get("/pricing/option")
-@route_handler
 async def price_option(
     option_type: Literal["call", "put"] = Query(...),
     spot: float = Query(..., gt=0),

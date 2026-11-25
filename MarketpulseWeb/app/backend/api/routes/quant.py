@@ -18,7 +18,6 @@ from typing import Literal, Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.backend.api.deps import route_handler
 from app.backend.core.auth.dependencies import get_current_active_user
 from app.backend.core.db import get_db
 from app.backend.models.orm import MBS_IN_QUANT_SNAPSHOT, User
@@ -32,7 +31,6 @@ BY_STRATEGY = ("factors", "factor_returns", "quantiles", "models")
 
 
 @router.get("/ranking")
-@route_handler
 def get_quant_ranking(
     universe: str = Query("sp500", max_length=30),
     strategy: Optional[str] = Query(None, max_length=50, description="전략 id — 비우면 첫 기본 제공 전략"),
@@ -56,7 +54,6 @@ def get_quant_ranking(
 
 
 @router.get("/{dataset}")
-@route_handler
 def get_quant_dataset(
     dataset: Dataset,
     universe: str = Query("sp500", max_length=30),

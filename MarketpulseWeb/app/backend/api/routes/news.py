@@ -6,14 +6,13 @@ from sqlalchemy.orm import Session
 
 from data_fetcher.core.obbject import OBBject
 from data_fetcher.query_executor import QueryExecutor
-from app.backend.api.deps import filter_dated_rows, resolve_date_range, route_handler
+from app.backend.api.deps import filter_dated_rows, resolve_date_range
 from app.backend.core.db import get_db
 
 router = APIRouter()
 
 
 @router.get("/")
-@route_handler
 async def get_news(
     symbol: Optional[str] = None,
     provider: str = "polygon",
@@ -38,7 +37,6 @@ async def get_news(
 
 
 @router.get("/events")
-@route_handler
 def get_news_events(
     symbol: Optional[str] = None,
     start_date: Optional[str] = None,

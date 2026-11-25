@@ -84,7 +84,7 @@ class FetcherClient:
         try:
             resp = await self._client.post("/fetch", json=payload)
         except httpx.RequestError as exc:
-            # 연결 실패는 '원격 미가용' — route_handler가 503으로 간결히 처리(트레이스백 X)
+            # 연결 실패는 '원격 미가용' — 전역 예외 처리가 503으로 간결히 처리(트레이스백 X)
             raise RemoteUnavailableError(
                 f"Fetcher 연결 실패 ({self.base_url}). 로컬 Fetcher 실행 여부를 확인하세요."
             ) from exc

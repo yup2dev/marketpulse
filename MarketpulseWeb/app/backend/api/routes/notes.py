@@ -12,7 +12,6 @@ from sqlalchemy.orm import Session
 from typing import Optional
 from pydantic import BaseModel
 
-from app.backend.api.deps import route_handler
 from app.backend.core.db import get_db
 from app.backend.core.auth.dependencies import get_current_active_user
 from data_fetcher.core import OBBject
@@ -39,7 +38,6 @@ class UpdateNoteRequest(BaseModel):
 
 
 @router.get("")
-@route_handler
 def get_notes(
     ticker_cd: Optional[str] = Query(None),
     db: Session = Depends(get_db),
@@ -53,7 +51,6 @@ def get_notes(
 
 
 @router.post("")
-@route_handler
 def create_note(
     request: CreateNoteRequest,
     db: Session = Depends(get_db),
@@ -74,7 +71,6 @@ def create_note(
 
 
 @router.put("/{note_id}")
-@route_handler
 def update_note(
     note_id: str,
     request: UpdateNoteRequest,
@@ -106,7 +102,6 @@ def update_note(
 
 
 @router.delete("/{note_id}")
-@route_handler
 def delete_note(
     note_id: str,
     db: Session = Depends(get_db),

@@ -119,7 +119,7 @@ def test_watchlist_crud_roundtrip(auth_client):
 
 
 def test_not_found_still_surfaces(auth_client):
-    """route_handler 를 붙인 뒤에도 의도된 404 가 그대로 나와야 한다."""
+    """전역 예외 처리 아래에서도 의도된 404 가 그대로 나와야 한다."""
     client, _ = auth_client
 
     assert client.get("/api/menu/does-not-exist").status_code == 404

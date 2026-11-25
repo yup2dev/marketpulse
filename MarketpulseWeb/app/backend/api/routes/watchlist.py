@@ -5,14 +5,13 @@ Watchlist API Routes
 응답은 프로젝트 표준인 OBBject(`{results, provider, metadata}`)로 통일한다.
 단건도 `results` 배열에 담고, 삭제/이동처럼 돌려줄 본문이 없으면 `results=[]` +
 `metadata` 에 대상 식별자를 담는다.
-에러 처리는 `route_handler` 가 맡는다 — 핸들러마다 있던 try/except 500 래핑을 걷어냈다.
+에러 처리는 전역 예외 처리(core/exception_handlers)가 맡는다 — 핸들러는 예외를 그냥 던진다.
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import BaseModel
 
-from app.backend.api.deps import route_handler
 from app.backend.core.db import get_db
 from app.backend.core.auth.dependencies import get_current_active_user
 from app.backend.services.watchlist_service import WatchlistService
@@ -61,7 +60,6 @@ class QuickAddRequest(BaseModel):
 # =============================================================================
 
 @router.get("/my-tickers")
-@route_handler
 def get_my_tickers(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
@@ -74,7 +72,6 @@ def get_my_tickers(
 
 
 @router.post("/quick-add")
-@route_handler
 def quick_add_ticker(
     request: QuickAddRequest,
     db: Session = Depends(get_db),
@@ -88,7 +85,6 @@ def quick_add_ticker(
 
 
 @router.delete("/quick-remove/{ticker_cd}")
-@route_handler
 def quick_remove_ticker(
     ticker_cd: str,
     db: Session = Depends(get_db),
@@ -106,7 +102,6 @@ def quick_remove_ticker(
 # =============================================================================
 
 @router.get("")
-@route_handler
 def get_watchlists(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
@@ -123,7 +118,6 @@ def get_watchlists(
 
 
 @router.post("")
-@route_handler
 def create_watchlist(
     request: CreateWatchlistRequest,
     db: Session = Depends(get_db),
@@ -149,7 +143,6 @@ def create_watchlist(
 
 
 @router.get("/{watchlist_id}")
-@route_handler
 def get_watchlist(
     watchlist_id: str,
     db: Session = Depends(get_db),
@@ -177,7 +170,6 @@ def get_watchlist(
 
 
 @router.put("/{watchlist_id}")
-@route_handler
 def update_watchlist(
     watchlist_id: str,
     request: UpdateWatchlistRequest,
@@ -213,7 +205,6 @@ def update_watchlist(
 
 
 @router.delete("/{watchlist_id}")
-@route_handler
 def delete_watchlist(
     watchlist_id: str,
     db: Session = Depends(get_db),
@@ -245,7 +236,6 @@ def delete_watchlist(
 # =============================================================================
 
 @router.get("/{watchlist_id}/items")
-@route_handler
 def get_watchlist_items(
     watchlist_id: str,
     db: Session = Depends(get_db),
@@ -266,7 +256,6 @@ def get_watchlist_items(
 
 
 @router.post("/{watchlist_id}/items")
-@route_handler
 def add_ticker_to_watchlist(
     watchlist_id: str,
     request: AddTickerRequest,
@@ -302,7 +291,6 @@ def add_ticker_to_watchlist(
 
 
 @router.delete("/{watchlist_id}/items/{ticker_cd}")
-@route_handler
 def remove_ticker_from_watchlist(
     watchlist_id: str,
     ticker_cd: str,
@@ -337,7 +325,6 @@ def remove_ticker_from_watchlist(
 
 
 @router.put("/{watchlist_id}/items/reorder")
-@route_handler
 def reorder_watchlist_items(
     watchlist_id: str,
     request: ReorderItemsRequest,

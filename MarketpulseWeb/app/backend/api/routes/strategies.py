@@ -19,7 +19,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.backend.api.deps import route_handler
 from app.backend.core.auth.dependencies import get_current_active_user
 from app.backend.core.db import get_db
 from app.backend.models.orm import User
@@ -60,7 +59,6 @@ def _errors(fn):
 
 
 @router.get("")
-@route_handler
 def list_strategies(db: Session = Depends(get_db), user: User = Depends(get_current_active_user)) -> OBBject:
     uid = str(user.user_id)
     rows = svc.list_strategies(db, uid)
@@ -73,7 +71,6 @@ def list_strategies(db: Session = Depends(get_db), user: User = Depends(get_curr
 
 
 @router.get("/result")
-@route_handler
 def strategy_result(
     strategy: Optional[str] = Query(None, description="전략 id — 비우면 첫 기본 제공 전략"),
     start: Optional[date] = Query(None),
@@ -92,7 +89,6 @@ def strategy_result(
 
 
 @router.get("/compare")
-@route_handler
 def strategy_compare(
     start: Optional[date] = Query(None),
     end: Optional[date] = Query(None),
@@ -107,7 +103,6 @@ def strategy_compare(
 
 
 @router.post("")
-@route_handler
 def create_strategy(body: StrategyBody, db: Session = Depends(get_db),
                     user: User = Depends(get_current_active_user)) -> OBBject:
     uid = str(user.user_id)
@@ -116,7 +111,6 @@ def create_strategy(body: StrategyBody, db: Session = Depends(get_db),
 
 
 @router.put("/{strategy_id}")
-@route_handler
 def update_strategy(strategy_id: str, body: StrategyBody, db: Session = Depends(get_db),
                     user: User = Depends(get_current_active_user)) -> OBBject:
     uid = str(user.user_id)
@@ -125,7 +119,6 @@ def update_strategy(strategy_id: str, body: StrategyBody, db: Session = Depends(
 
 
 @router.delete("/{strategy_id}")
-@route_handler
 def delete_strategy(strategy_id: str, db: Session = Depends(get_db),
                     user: User = Depends(get_current_active_user)) -> OBBject:
     _errors(lambda: svc.delete_strategy(db, str(user.user_id), strategy_id))

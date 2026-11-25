@@ -12,7 +12,6 @@ from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.backend.api.deps import route_handler
 from app.backend.core.auth.dependencies import get_current_active_user
 from app.backend.services import user_key_service
 from data_fetcher.core.obbject import OBBject
@@ -52,7 +51,6 @@ async def concept_countries(concept_id: str, user: User = Depends(get_current_ac
 
 
 @router.get("/concepts/{concept_id}", summary="데이터 개념 시계열 (provider 자동 선택)")
-@route_handler
 async def get_concept(
     concept_id: str,
     country: str = "USA",

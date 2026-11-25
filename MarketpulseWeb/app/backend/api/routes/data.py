@@ -18,7 +18,7 @@ from typing import Any, Dict
 from fastapi import APIRouter, HTTPException, Request
 
 from app.backend.api.deps import (
-    filter_dated_rows as _postprocess_dated_rows, missing_key_response, route_handler, wrap_result,
+    filter_dated_rows as _postprocess_dated_rows, wrap_result,
 )
 from app.backend.services.model_schema import model_schema, resolve_choices
 from data_fetcher.core.obbject import OBBject
@@ -71,7 +71,6 @@ def _qp_fields(fetcher_cls) -> dict:
 
 
 @router.get("/{provider}/{model}")
-@route_handler
 async def fetch_data(
     provider: str,
     model: str,
@@ -117,15 +116,14 @@ async def fetch_data(
 
     try:
         raw = await QueryExecutor.fetch(provider, model, params)
-    except MissingCredentialsError as e:
-        return missing_key_response(e)
-    except RemoteUnavailableError:
-        # Fetcher 워커 미접속 등 → route_handler 가 503 으로 바꾼다.
-        # 여기서 400 으로 뭉개면 위젯이 'Fetcher 실행' 안내 대신 일반 오류를 띄운다.
+    except (MissingCredentialsError, RemoteUnavailableError):
+        # 키 없음 424 · Fetcher 꺼짐 503 — 전역 예외 처리(core/exception_handlers)가 바꾼다.
+        # 아래에서 400 으로 뭉개면 위젯이 '키 등록' · 'Fetcher 실행' 안내 대신 일반 오류를 띄운다.
         raise
     except QueryExecutorError as e:
         if isinstance(e.__cause__, CircuitBreakerOpen):
-            raise   # 서킷 OPEN → route_handler 가 503 + Retry-After
+            raise   # 서킷 OPEN → 전역 예외 처리가 503 + Retry-After
+        # 게이트웨이만의 구분: 없는 provider/model 은 404, 그 밖의 조회 오류는 400 (전역 기본은 502)
         msg = str(e)
         if "not found" in msg.lower():
             raise HTTPException(status_code=404, detail=msg)
