@@ -23,7 +23,6 @@ export const SOURCE_LABELS = {
   bls:           'U.S. BLS',
   eia:           'U.S. EIA',
   wsj:           'WSJ',
-  whalewisdom:   'WhaleWisdom',
   tiingo:        'Tiingo',
   alphavantage:  'Alpha Vantage',
   social:        'Reddit · StockTwits',

@@ -17,15 +17,13 @@ from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
 from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.utils.cusip_mapper import cusip_to_ticker
 from data_fetcher.providers.sec.models.institutions_list import SECInstitutionsListFetcher
+from data_fetcher.providers.sec.utils.filings_13f import filing_index_url, list_13f_filings
 
 
-# ── QueryParams / Data (standard InstitutionalHoldings 경유; sec/whalewisdom 공유) ──
-# 아래 클래스들은 standard 모델을 그대로 재사용한다(이름 유지로 whalewisdom import 호환).
+# ── QueryParams / Data — standard InstitutionalHoldings 파라미터를 잇는다 ──
 from data_fetcher.abstract_provider.standard_models.institutions_list import InstitutionInfo
 from data_fetcher.abstract_provider.standard_models.institutional_holdings import (
     InstitutionalHoldingsQueryParams,
-    HoldingData,
-    InstitutionalHoldingsData,
 )
 
 log = logging.getLogger(__name__)
@@ -175,15 +173,43 @@ INSTITUTIONS = {
 }
 
 
-class SEC13FFetcher(ApiFetcher[InstitutionalHoldingsQueryParams, InstitutionalHoldingsData]):
-    """SEC 13F Holdings Fetcher using official SEC EDGAR data"""
+class SEC13FQueryParams(InstitutionalHoldingsQueryParams):
+    """13F 공시 하나(+ 직전 분기) — limit 은 쓰지 않는다 (원본 라인 전체를 돌려준다)."""
+
+    with_previous: bool = Field(default=True, description="직전 분기 공시도 같이 파싱")
+
+
+class SEC13FFilingData(BaseData):
+    """13F 공시 원본 — 신고 라인 그대로. 비중 · 분기 대비 증감 · 회전율 같은 분석은 하지 않는다.
+
+    분석은 로컬 배치(MarketpulseBatch/index_analyzer/collectors/institutional/analysis.py)가 한다.
+    holdings 한 줄: {cusip, symbol, name, value(달러), shares, share_type(SH·PRN), put_call}
+    summary_only 면 holdings 대신 summary(커버페이지 total_value · num_holdings).
+    """
+
+    institution_key: str
+    cik: Optional[str] = None
+    name: Optional[str] = None
+    manager: Optional[str] = None
+    report_period: Optional[str] = Field(default=None, description="보고 분기말 (YYYY-MM-DD)")
+    filing_date: Optional[str] = None
+    holdings: List[Dict[str, Any]] = Field(default_factory=list)
+    summary: Optional[Dict[str, Any]] = None
+    previous_report_period: Optional[str] = None
+    previous_filing_date: Optional[str] = None
+    previous_holdings: List[Dict[str, Any]] = Field(default_factory=list)
+    previous_summary: Optional[Dict[str, Any]] = None
+
+
+class SEC13FFetcher(ApiFetcher[SEC13FQueryParams, SEC13FFilingData]):
+    """SEC 13F 공시 파싱 — 최신(또는 지정 분기) 공시와 직전 분기 공시의 원본 라인."""
 
     require_credentials = False  # SEC data is free
 
     @staticmethod
-    def transform_query(params: Dict[str, Any]) -> InstitutionalHoldingsQueryParams:
+    def transform_query(params: Dict[str, Any]) -> SEC13FQueryParams:
         """Transform query parameters"""
-        return InstitutionalHoldingsQueryParams(**params)
+        return SEC13FQueryParams(**params)
 
     @staticmethod
     def _resolve_institution(institution_key: str) -> Dict[str, str]:
@@ -220,102 +246,44 @@ class SEC13FFetcher(ApiFetcher[InstitutionalHoldingsQueryParams, InstitutionalHo
 
     @staticmethod
     def extract_data(
-        query: InstitutionalHoldingsQueryParams,
+        query: SEC13FQueryParams,
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any
     ) -> Dict[str, Any]:
-        """
-        Extract 13F data from SEC EDGAR
-
-        Args:
-            query: Query parameters with institution_key
-            credentials: Not required for SEC data
-            **kwargs: Additional parameters
-
-        Returns:
-            Raw data dictionary with holdings and metadata
-        """
-        institution_key = query.institution_key
-
-        inst_info = SEC13FFetcher._resolve_institution(institution_key)
+        """지정 분기(없으면 최신) 13F-HR 과 그 직전 분기 공시를 파싱한다 (submissions API 로 고른다)."""
+        inst_info = SEC13FFetcher._resolve_institution(query.institution_key)
         cik = inst_info['cik']
-
-        log.info(f"Fetching 13F for {inst_info['name']} (CIK: {cik})")
-
-        # SEC EDGAR requires User-Agent
         headers = {
             'User-Agent': 'MarketPulse research@marketpulse.com',
             'Accept-Encoding': 'gzip, deflate',
             'Host': 'www.sec.gov'
         }
+        out: Dict[str, Any] = {'institution': inst_info, 'summary_only': query.summary_only}
 
-        try:
-            result = SEC13FFetcher._get_latest_filing(cik, headers)
-            if not result:
-                log.error(f"No 13F filing found for {inst_info['name']}")
-                return {'institution': inst_info, 'holdings': [], 'filing_date': None}
+        filings = list_13f_filings(cik, 80 if query.period else 2)
+        if query.period:
+            idx = next((i for i, f in enumerate(filings) if f['period'] == query.period), None)
+            if idx is None:
+                raise ValueError(f"{query.institution_key}: no 13F-HR for period {query.period}")
+            filings = filings[idx:]
+        picks = filings[:2 if query.with_previous else 1]
+        if not picks:
+            log.error(f"No 13F filings found for {inst_info['name']}")
+            return out
 
-            filing_url, date_from_list = result
-            log.info(f"Found filing at {filing_url}")
-
-            holdings, filing_date = SEC13FFetcher._parse_filing(filing_url, headers)
-            if not filing_date:
-                filing_date = date_from_list
-
-            return {
-                'institution': inst_info,
-                'holdings': holdings,
-                'filing_date': filing_date
-            }
-
-        except Exception as e:
-            log.error(f"Error fetching 13F data: {e}")
-            raise
-
-    @staticmethod
-    def _get_latest_filing(cik: str, headers: Dict) -> Optional[tuple]:
-        """Get (url, filing_date) of latest 13F-HR filing"""
-        results = SEC13FFetcher._get_filing_urls(cik, headers, count=1)
-        return results[0] if results else None
-
-    @staticmethod
-    def _get_filing_urls(cik: str, headers: Dict, count: int = 2) -> List[tuple]:
-        """Get URLs and filing dates of the most recent 13F-HR filings.
-
-        Returns:
-            List of (filing_url, filing_date) tuples, most recent first
-        """
-        url = "https://www.sec.gov/cgi-bin/browse-edgar"
-        params = {
-            'action': 'getcompany',
-            'CIK': cik,
-            'type': '13F-HR',
-            'dateb': '',
-            'owner': 'exclude',
-            'count': str(count)
-        }
-
-        results = []
-        try:
-            time.sleep(0.15)
-            response = requests.get(url, params=params, headers=headers, timeout=30)
-            response.raise_for_status()
-
-            soup = BeautifulSoup(response.text, 'html.parser')
-            for row in soup.find_all('tr')[1:]:
-                cols = row.find_all('td')
-                if len(cols) >= 4 and cols[0].text.strip() == '13F-HR':
-                    doc_link = cols[1].find('a')
-                    if doc_link:
-                        filing_date = cols[3].text.strip()  # 검색결과 페이지의 날짜 (신뢰도 높음)
-                        results.append(("https://www.sec.gov" + doc_link['href'], filing_date))
-                        if len(results) >= count:
-                            break
-
-        except Exception as e:
-            log.error(f"Error getting filing URLs: {e}")
-
-        return results
+        for prefix, f in zip(('', 'previous_'), picks):
+            if prefix:
+                time.sleep(0.2)
+            url = filing_index_url(cik, f['accession'])
+            if query.summary_only:
+                summary, parsed_date = SEC13FFetcher._parse_filing_summary(url, headers, f['filing_date'])
+                out[prefix + 'summary'] = summary
+            else:
+                holdings, parsed_date = SEC13FFetcher._parse_filing(url, headers, f['filing_date'])
+                out[prefix + 'holdings'] = holdings
+            out[prefix + 'filing_date'] = parsed_date or f['filing_date']
+            out[prefix + 'report_period'] = f['period']
+        return out
 
     @staticmethod
     def _extract_filing_date(soup: BeautifulSoup) -> Optional[str]:
@@ -555,70 +523,20 @@ class SEC13FFetcher(ApiFetcher[InstitutionalHoldingsQueryParams, InstitutionalHo
 
     @staticmethod
     def transform_data(
-        query: InstitutionalHoldingsQueryParams,
+        query: SEC13FQueryParams,
         data: Dict[str, Any],
         **kwargs: Any
-    ) -> List[InstitutionalHoldingsData]:
-        """
-        Transform raw SEC data to standardized model
-
-        Args:
-            query: Query parameters
-            data: Raw data from extract_data
-            **kwargs: Additional parameters
-
-        Returns:
-            List with single InstitutionalHoldingsData object
-        """
-        inst_info = data['institution']
-        holdings = data['holdings']
-        filing_date = data.get('filing_date', '2025-12-31')
-
-        if not holdings:
-            log.warning(f"No holdings found for {inst_info['name']}")
+    ) -> List[SEC13FFilingData]:
+        """원본 라인 그대로 — 계산하지 않는다."""
+        inst = data['institution']
+        if not data.get('filing_date'):
             return []
-
-        # Calculate total value
-        total_value = sum(h['value'] for h in holdings if h.get('share_type') == 'SH')
-
-        # Sort by value and get top holdings
-        holdings_sorted = sorted(holdings, key=lambda x: x['value'], reverse=True)
-
-        # Convert to HoldingData models
-        stock_holdings = []
-        for holding in holdings_sorted[:query.limit]:
-            if holding.get('share_type') == 'SH':  # Only common shares
-                weight = (holding['value'] / total_value * 100) if total_value > 0 else 0
-
-                stock_holdings.append(HoldingData(
-                    symbol=holding['symbol'] or holding['cusip'][:6],
-                    name=holding['name'],
-                    cusip=holding['cusip'],
-                    value=holding['value'],
-                    shares=holding['shares'],
-                    weight=round(weight, 2),
-                    share_type=holding['share_type']
-                ))
-
-        # Create portfolio data
-        portfolio = InstitutionalHoldingsData(
-            id=f"13f_{query.institution_key}",
-            institution_key=query.institution_key,
-            name=inst_info['name'],
-            manager=inst_info['manager'],
-            description=f"13F Holdings - {inst_info['name']}",
-            category='13f',
-            source='SEC EDGAR',
-            filing_date=filing_date or '2025-12-31',
-            period_end=filing_date or '2025-12-31',
-            total_value=total_value,
-            num_holdings=len([h for h in holdings if h.get('share_type') == 'SH']),
-            stocks=stock_holdings
-        )
-
-        log.info(f"Transformed {len(stock_holdings)} holdings for {inst_info['name']}")
-
-        return [portfolio]
+        keys = ('report_period', 'filing_date', 'holdings', 'summary', 'previous_report_period',
+                'previous_filing_date', 'previous_holdings', 'previous_summary')
+        return [SEC13FFilingData(
+            institution_key=query.institution_key, cik=inst.get('cik'), name=inst.get('name'),
+            manager=inst.get('manager'), **{k: data[k] for k in keys if data.get(k) is not None},
+        )]
 
     @staticmethod
     def get_institutions_list(use_dynamic: bool = True, limit: int = 100) -> List[InstitutionInfo]:
@@ -689,3 +607,62 @@ class SEC13FFetcher(ApiFetcher[InstitutionalHoldingsQueryParams, InstitutionalHo
             )
             for key, data in INSTITUTIONS.items()
         ]
+
+
+# ── 13F 공시 목록 · 기관 목록 ─────────────────────────────────────────────────
+
+class SEC13FFilingsQueryParams(BaseQueryParams):
+    institution_key: str = Field(description="기관 식별자 (featured 키 또는 CIK)")
+    limit: int = Field(default=8, ge=1, le=80, description="최근 몇 건")
+
+
+class SEC13FFilingInfo(BaseData):
+    accession: str
+    filing_date: str
+    period: str = Field(description="보고 분기말")
+
+
+class SEC13FFilingsFetcher(ApiFetcher[SEC13FFilingsQueryParams, SEC13FFilingInfo]):
+    """기관의 13F-HR 제출 목록 (최신순) — 분기 이력 · 추정 수익률을 만들 분기 고르기용."""
+
+    require_credentials = False
+
+    @staticmethod
+    def transform_query(params: Dict[str, Any]) -> SEC13FFilingsQueryParams:
+        return SEC13FFilingsQueryParams(**params)
+
+    @staticmethod
+    def extract_data(query: SEC13FFilingsQueryParams, credentials: Optional[Dict[str, str]] = None,
+                     **kwargs: Any) -> List[Dict[str, str]]:
+        cik = SEC13FFetcher._resolve_institution(query.institution_key)['cik']
+        return list_13f_filings(cik, query.limit)
+
+    @staticmethod
+    def transform_data(query: SEC13FFilingsQueryParams, data: List[Dict[str, str]],
+                       **kwargs: Any) -> List[SEC13FFilingInfo]:
+        return [SEC13FFilingInfo(**f) for f in data or [] if f.get('period')]
+
+
+class SEC13FInstitutionsQueryParams(BaseQueryParams):
+    use_dynamic: bool = Field(default=True, description="True: SEC 동적 목록(featured 는 slug 키로), False: featured 만")
+    limit: int = Field(default=100, description="최대 기관 수 (동적 목록)")
+
+
+class SEC13FInstitutionsFetcher(ApiFetcher[SEC13FInstitutionsQueryParams, InstitutionInfo]):
+    """13F 제출 기관 목록 — 동적 목록이 비거나 실패하면 featured 로 폴백."""
+
+    require_credentials = False
+
+    @staticmethod
+    def transform_query(params: Dict[str, Any]) -> SEC13FInstitutionsQueryParams:
+        return SEC13FInstitutionsQueryParams(**params)
+
+    @staticmethod
+    def extract_data(query: SEC13FInstitutionsQueryParams, credentials: Optional[Dict[str, str]] = None,
+                     **kwargs: Any) -> List[InstitutionInfo]:
+        return SEC13FFetcher.get_institutions_list(use_dynamic=query.use_dynamic, limit=query.limit)
+
+    @staticmethod
+    def transform_data(query: SEC13FInstitutionsQueryParams, data: List[InstitutionInfo],
+                       **kwargs: Any) -> List[InstitutionInfo]:
+        return data or []

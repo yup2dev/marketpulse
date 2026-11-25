@@ -28,7 +28,6 @@ from data_fetcher.providers.nasdaqtrader import nasdaqtrader_provider
 from data_fetcher.providers.nasdaq import nasdaq_provider
 from data_fetcher.providers.krx import krx_provider
 from data_fetcher.providers.kosis import kosis_provider
-from data_fetcher.providers.whalewisdom import whalewisdom_provider
 
 log = logging.getLogger(__name__)
 
@@ -76,7 +75,6 @@ PROVIDERS = [
     krx_provider,
     kosis_provider,
     kis_provider,
-    whalewisdom_provider,
     sec_provider,
     quantlib_provider,
     quantitative_provider,

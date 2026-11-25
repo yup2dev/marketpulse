@@ -12,6 +12,9 @@
 
 실행: MarketpulseBatch/jobs/collect_13f.py (daily_ingest.bat 가 주 1회 호출 — 13F는 분기 공시).
 QueryExecutor를 server_mode 없이 in-process(leaf)로 쓰므로 로컬에서 직접 파싱한다.
+
+fetcher(sec institutional_13f · 13f_filings · 13f_institutions)는 공시 원본만 주고,
+비중 · 분기 대비 · 회전율 · 추정 수익률 계산은 이 배치가 한다 (analysis.py).
 """
 import os
 import threading
@@ -20,6 +23,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List
 
 from ..base import Collector, Target, _to_dict
+from . import analysis
 from index_analyzer.utils.logger import get_logger
 from ...ingest.repository import (
     store_fund_performance,
@@ -66,26 +70,23 @@ def _rate_gate(min_interval: float = 0.25) -> None:
         _rate_last[0] = time.monotonic()
 
 
+def _get(obj: Any, key: str) -> Any:
+    return obj.get(key) if isinstance(obj, dict) else getattr(obj, key, None)
+
+
 def _serialize_holding(stock: Any) -> Dict[str, Any]:
-    """보유 종목 객체 → 저장 dict (portfolio_service._serialize 와 동일 필드)."""
-    d = {
-        "symbol": getattr(stock, "symbol", None),
-        "name":   getattr(stock, "name", None),
-        "cusip":  getattr(stock, "cusip", None),
-        "value":  getattr(stock, "value", None),
-        "shares": getattr(stock, "shares", None),
-        "weight": getattr(stock, "weight", None),
-    }
+    """보유 종목(dict · 객체) → 저장 dict (portfolio_service._serialize 와 동일 필드)."""
+    d = {f: _get(stock, f) for f in ("symbol", "name", "cusip", "value", "shares", "weight")}
     for f in ("prev_shares", "prev_value", "share_change", "share_change_pct",
               "value_change", "value_change_pct", "status"):
-        v = getattr(stock, f, None)
+        v = _get(stock, f)
         if v is not None:
             d[f] = v
     return d
 
 
 def _serialize_portfolio(p: Any) -> Dict[str, Any]:
-    """whalewisdom InstitutionalHoldingsData 객체 → 저장 dict.
+    """포트폴리오(analysis.portfolio 의 dict · 객체) → 저장 dict.
 
     portfolio_service.get_institution_portfolio 가 노출하는 shape와 동일하게 맞춘다
     (DB fetcher가 이 shape로 복원 → portfolio_service 직렬화 무수정).
@@ -96,17 +97,17 @@ def _serialize_portfolio(p: Any) -> Dict[str, Any]:
               "previous_filing_date", "previous_value", "value_change", "value_change_pct",
               "num_new_positions", "num_sold_out", "num_increased", "num_decreased",
               "turnover", "performance", "top_sectors"):
-        out[f] = getattr(p, f, None)
-    out["stocks"] = [_serialize_holding(s) for s in (getattr(p, "stocks", None) or [])]
-    out["sold_positions"] = [_serialize_holding(s) for s in (getattr(p, "sold_positions", None) or [])]
+        out[f] = _get(p, f)
+    out["stocks"] = [_serialize_holding(s) for s in (_get(p, "stocks") or [])]
+    out["sold_positions"] = [_serialize_holding(s) for s in (_get(p, "sold_positions") or [])]
     return out
 
 
 class Institutional13FCollector(Collector):
     """13F 기관 보유 수집기 (target 기반이 아니라 run() 커스텀)."""
 
-    provider = "whalewisdom"
-    model = "institutional_holdings"
+    provider = "sec"
+    model = "institutional_13f"
 
     def targets(self) -> List[Target]:  # 미사용 (run 오버라이드)
         return []
@@ -117,39 +118,67 @@ class Institutional13FCollector(Collector):
         res = QueryExecutor.fetch_sync(provider or self.provider, model, params, ttl=0)
         return res.result if hasattr(res, "result") else res
 
+    def _filing(self, key: str, **params) -> Dict[str, Any] | None:
+        rows = self._fetch_sync("institutional_13f", {"institution_key": key, **params})
+        return _to_dict(rows[0]) if rows else None
+
+    # ── 조회 + 분석 (적재 shape 의 dict) ────────────────────────────────────
+
+    def institutions(self, use_dynamic: bool = True, limit: int = 100) -> List[Dict[str, Any]]:
+        rows = self._fetch_sync("13f_institutions", {"use_dynamic": use_dynamic, "limit": limit})
+        return [_to_dict(r) for r in (rows or [])]
+
+    def summary(self, key: str) -> Dict[str, Any] | None:
+        """커버페이지만 — 이번 · 직전 분기 총가치 (AUM 스캔용)."""
+        raw = self._filing(key, summary_only=True)
+        return analysis.summary(raw, key) if raw else None
+
+    def portfolio(self, key: str, period: str | None = None, limit: int = 1000) -> Dict[str, Any] | None:
+        """이번(또는 period) · 직전 분기 공시 → 비중 · 분기 대비 · 매도 · 회전율 (적재 shape)."""
+        raw = self._filing(key, period=period)
+        port = analysis.portfolio(raw, key, limit) if raw else None
+        return _serialize_portfolio(port) if port else None
+
+    def performance(self, key: str, quarters: int = PERF_QUARTERS) -> List[Dict[str, Any]]:
+        """최근 quarters 분기 공시(직전 분기 없이 하나씩) → 분기 추정 수익률 (최신 분기 먼저)."""
+        filings = self._fetch_sync("13f_filings", {"institution_key": key, "limit": max(2, quarters)})
+        snapshots, name, manager = [], None, None
+        for f in filings or []:
+            period = _get(f, "period")
+            _rate_gate()
+            try:
+                raw = self._filing(key, period=period, with_previous=False)
+            except Exception as exc:  # noqa: BLE001 — 한 분기 실패가 전체를 죽이면 안 된다
+                log.warning("[13F] %s %s 파싱 실패: %s", key, period, exc)
+                continue
+            if raw and raw.get("holdings"):
+                name, manager = raw.get("name"), raw.get("manager")
+                snapshots.append({"period": period, "filing_date": raw.get("filing_date"),
+                                  "holdings": raw["holdings"]})
+        return analysis.fund_performance(snapshots, key, name, manager)
+
+    # ── 적재 ──────────────────────────────────────────────────────────────
+
     def _store_performance(self, key: str) -> int:
-        """기관의 13F 분기 추정 수익률을 산출(sec/fund_performance)해 교체 적재."""
-        rows = self._fetch_sync(
-            "fund_performance",
-            {"institution_key": key, "quarters": PERF_QUARTERS},
-            provider="sec",
-        )
-        return store_fund_performance(key, [_to_dict(r) for r in (rows or [])])
+        """기관의 13F 분기 추정 수익률을 산출해 교체 적재."""
+        return store_fund_performance(key, self.performance(key, PERF_QUARTERS))
 
     def _store_history(self, key: str) -> int:
         """최근 HIST_QUARTERS 분기 중 이력 테이블에 없는 분기만 파싱해 적재. 반환: 새로 적재한 분기 수."""
-        from data_fetcher.providers.sec.models.fund_performance import SECFundPerformanceFetcher
-        from data_fetcher.providers.sec.models.institutional_13f import SEC13FFetcher
-
-        cik = SEC13FFetcher._resolve_institution(key)["cik"]
         _rate_gate()
-        filings = SECFundPerformanceFetcher._list_13f_filings(cik, HIST_QUARTERS)
+        filings = self._fetch_sync("13f_filings", {"institution_key": key, "limit": HIST_QUARTERS})
         have = stored_institution_periods(key)
         added = 0
-        for f in filings:
-            period = f.get("period")
+        for f in filings or []:
+            period = _get(f, "period")
             if not period or period in have:
                 continue
             _rate_gate()
-            rows = self._fetch_sync(
-                "institutional_holdings",
-                {"institution_key": key, "limit": 1000, "summary_only": False, "period": period},
-            )
-            obj = (rows or [None])[0]
-            if obj is None or not (getattr(obj, "stocks", None) or []):
+            port = self.portfolio(key, period=period)
+            if not port or not port.get("stocks"):
                 log.warning("[13F] %s %s: 보유내역 없음 — 이력 건너뜀", key, period)
                 continue
-            store_institution_history(key, period, _serialize_portfolio(obj))
+            store_institution_history(key, period, port)
             added += 1
         return added
 
@@ -157,12 +186,8 @@ class Institutional13FCollector(Collector):
         """summary_only 조회로 기관의 13F 총가치(AUM 근사)만 싸게 가져온다."""
         _rate_gate()
         try:
-            rows = self._fetch_sync(
-                "institutional_holdings",
-                {"institution_key": key, "summary_only": True, "limit": 1},
-            )
-            obj = (rows or [None])[0]
-            return float(getattr(obj, "total_value", 0) or 0) if obj is not None else 0.0
+            s = self.summary(key)
+            return float((s or {}).get("total_value") or 0)
         except Exception:  # noqa: BLE001
             return 0.0
 
@@ -176,11 +201,9 @@ class Institutional13FCollector(Collector):
         # 1) 전체 기관 목록(동적) 적재 → 실패 시 featured 폴백
         insts: List[Dict[str, Any]] = []
         try:
-            rows = self._fetch_sync("institutions_list", {"use_dynamic": True, "limit": 100000})
-            insts = [_to_dict(r) for r in (rows or [])]
+            insts = self.institutions(use_dynamic=True, limit=100000)
             if not insts:
-                rows = self._fetch_sync("institutions_list", {"use_dynamic": False, "limit": 100})
-                insts = [_to_dict(r) for r in (rows or [])]
+                insts = self.institutions(use_dynamic=False, limit=100)
             summary["institutions"] = store_institutions_list(insts)
             log.info("[13F] institutions_list 적재: %d", summary["institutions"])
         except Exception as exc:  # noqa: BLE001
@@ -210,18 +233,14 @@ class Institutional13FCollector(Collector):
         # 3) 대상 포트폴리오 전체 파싱 + 적재 (플레이스홀더/빈 공시는 스킵)
         for key in target_keys:
             try:
-                rows = self._fetch_sync(
-                    "institutional_holdings",
-                    {"institution_key": key, "limit": 1000, "summary_only": False},
-                )
-                obj = (rows or [None])[0]
-                if obj is None:
+                port = self.portfolio(key)
+                if port is None:
                     summary["errors"].append(f"{key}: empty")
                     continue
-                if not (getattr(obj, "stocks", None) or []):
+                if not port.get("stocks"):
                     summary["errors"].append(f"{key}: no holdings")
                     continue
-                store_institution_portfolio(key, _serialize_portfolio(obj))
+                store_institution_portfolio(key, port)
                 summary["portfolios"].append(key)
             except Exception as exc:  # noqa: BLE001
                 log.error("[13F] %s 수집 실패: %s", key, exc, exc_info=True)

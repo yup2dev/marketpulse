@@ -1,6 +1,8 @@
 """SEC Provider"""
 from data_fetcher.abstract_provider.abstract.provider import Provider
-from data_fetcher.providers.sec.models.institutional_13f import SEC13FFetcher
+from data_fetcher.providers.sec.models.institutional_13f import (
+    SEC13FFetcher, SEC13FFilingsFetcher, SEC13FInstitutionsFetcher,
+)
 from data_fetcher.providers.sec.models.institutions_list import SECInstitutionsListFetcher
 from data_fetcher.providers.sec.models.balance_sheet import SecBalanceSheetFetcher
 from data_fetcher.providers.sec.models.balance_sheet_growth import SecBalanceSheetGrowthFetcher
@@ -13,7 +15,6 @@ from data_fetcher.providers.sec.models.equity_ftd import SecEquityFtdFetcher
 from data_fetcher.providers.sec.models.equity_search import SecEquitySearchFetcher
 from data_fetcher.providers.sec.models.financials import SecFinancialsFetcher
 from data_fetcher.providers.sec.models.form_13FHR import SecForm13FHRFetcher
-from data_fetcher.providers.sec.models.fund_performance import SECFundPerformanceFetcher
 from data_fetcher.providers.sec.models.htm_file import SecHtmFileFetcher
 from data_fetcher.providers.sec.models.income_statement import SecIncomeStatementFetcher
 from data_fetcher.providers.sec.models.income_statement_growth import SecIncomeStatementGrowthFetcher
@@ -42,7 +43,8 @@ sec_provider = Provider(
         "insider_trading": SecInsiderTradingFetcher,
         "institutional_13f": SEC13FFetcher,
         "institutions_list": SECInstitutionsListFetcher,
-        "fund_performance": SECFundPerformanceFetcher,
+        "13f_filings": SEC13FFilingsFetcher,
+        "13f_institutions": SEC13FInstitutionsFetcher,
         "financials": SecFinancialsFetcher,
         "balance_sheet": SecBalanceSheetFetcher,
         "balance_sheet_growth": SecBalanceSheetGrowthFetcher,

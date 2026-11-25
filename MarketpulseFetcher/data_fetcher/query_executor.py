@@ -165,6 +165,8 @@ _DEFAULT_TTL: Dict[str, int] = {
     "institutions_summary":   3600,  # 배치 적재 요약 — 일 1회 sync 로만 바뀐다
     "institutions_list":      7200,
     "institutional_13f":      7200,
+    "13f_institutions":       7200,
+    "13f_filings":           21600,
     # 분기 공시 기반 + 다중 분기 파싱(요청당 N개 필링) — 길게 잡는다
     "fund_performance":      21600,
     # ── No cache — computed on-the-fly ──────────────────────────────────────
@@ -440,10 +442,8 @@ class QueryExecutor:
     # 로컬 배치·Fetcher(_server_mode=False)에서는 그대로 직접 실행한다.
     _local_only_models: frozenset = frozenset({
         ("sec", "institutional_13f"),
-        ("sec", "fund_performance"),
         ("sec", "institutions_list"),
-        ("whalewisdom", "institutional_holdings"),
-        ("whalewisdom", "institutions_list"),
+        ("sec", "13f_institutions"),
     })
 
     # 백엔드(웹 서버) 프로세스 여부 — configure(server_mode=True)로 켠다.

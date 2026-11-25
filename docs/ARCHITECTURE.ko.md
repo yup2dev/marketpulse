@@ -84,7 +84,7 @@ command 가 provider 이름을 문자열로 쓰거나 `data_fetcher.providers` �
 
 | # | 조건 | 처리 |
 |---|------|------|
-| 1 | **로컬 실행 필수** — provider 가 `yahoo` 이거나, 13F 원본 파싱 모델(`sec/institutional_13f`·`fund_performance`·`institutions_list`, `whalewisdom/institutional_holdings`·`institutions_list`) **이고** 위임 transport 가 설정됨 | 요청한 **그 사용자의** PC Fetcher 로만 위임. 서버 직접 호출로 폴백하지 않는다. 워커가 없거나 사용자 컨텍스트가 없으면(배경 작업) 오류 |
+| 1 | **로컬 실행 필수** — provider 가 `yahoo` 이거나, 13F 원본 파싱 모델(`sec/institutional_13f`·`institutions_list`·`13f_institutions`) **이고** 위임 transport 가 설정됨 | 요청한 **그 사용자의** PC Fetcher 로만 위임. 서버 직접 호출로 폴백하지 않는다. 워커가 없거나 사용자 컨텍스트가 없으면(배경 작업) 오류 |
 | 2 | 13F 원본 파싱 모델인데 위임 transport 가 없는 **서버** | 실행 거부 — 작은 운영 서버에서 파싱하면 메모리로 죽는다. 화면은 배치가 적재한 DB(`/api/portfolio/13f`)를 읽는다 |
 | 3 | **키가 필요한 provider** (FRED·FMP·Polygon·AlphaVantage·KIS·ECOS …) + 로그인 사용자 | 서버가 직접 호출하되 **그 사용자가 등록한 키**(DB, Fernet 복호화)로 호출. 키가 없으면 운영자 키로 폴백하지 않고 오류 |
 | 4 | 키가 필요한 provider + 사용자 컨텍스트 없음 (서버 배경 작업·배치) | 환경변수의 운영자 키로 호출 |

@@ -95,7 +95,7 @@ class FMPThingFetcher(ApiFetcher[FMPThingQueryParams, FMPThingData]):
 | bls · eia | `utils/helpers.py` | `series` fetcher 로 HTTP 이동 (bls 는 이미 series 모델 있음), helpers 는 순수 함수만 |
 | alphavantage · wsj · nasdaq | 모델마다 각자 | 범용 요청 fetcher + 모델 조합 |
 | tiingo · social · nasdaqtrader · bond · krx | 모델 1~2개 | 모델이 늘 때 같이 — 지금은 그대로 둬도 됨 |
-| yahoo · kis · database · quantlib · quantitative · whalewisdom | 라이브러리 · DB · 계산 · 전용 클라이언트 | 해당 없음 (HTTP 를 직접 하지 않거나 rest.py/stream.py 인프라) |
+| yahoo · kis · database · quantlib · quantitative | 라이브러리 · DB · 계산 · 전용 클라이언트 | 해당 없음 (HTTP 를 직접 하지 않거나 rest.py/stream.py 인프라) |
 
 바꾸지 않기로 한 것 (비용 > 이득): 키 필드 이름 `<p>_api_key` 통일(저장된 사용자 키 마이그레이션 필요),
 모델 키 · 표준 모델을 OpenBB 이름으로(`/api/data` 주소 · 위젯 · DB 위젯 행 · concepts 전부 영향).

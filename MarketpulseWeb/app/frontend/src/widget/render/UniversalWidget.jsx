@@ -63,13 +63,13 @@ function getByPath(obj, path) {
 }
 
 // 서버 부하 가중치(낮을수록 우선). db=로컬 0, 공개/키 API=낮음,
-// sec·whalewisdom=서버 인프로세스 스크래핑/XBRL 파싱(무겁고 OOM 유발) → 높음.
+// sec=서버 인프로세스 스크래핑/XBRL 파싱(무겁고 OOM 유발) → 높음.
 const PROVIDER_LOAD = {
   db: 0, database: 0,
   fred: 20, bls: 20, eia: 20, oecd: 20, imf: 20, nasdaqtrader: 20, krx: 20,
   fmp: 25, polygon: 25, alphavantage: 25, tiingo: 25,
   yahoo: 30, social: 35, kis: 35, wsj: 35,
-  sec: 70, whalewisdom: 75,
+  sec: 70,
 };
 
 // 기본 provider 선택: ① db 우선 ② 설정키(usable=configured) 우선 ③ 서버 부하 적은 것 우선.
