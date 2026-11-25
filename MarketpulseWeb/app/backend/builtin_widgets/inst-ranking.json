@@ -6,7 +6,7 @@
   "group_name": "Institutions",
   "view_type": "table",
   "title": "기관 순위",
-  "endpoint": "/portfolio/13f/summaries",
+  "endpoint": "/data/db/institutions_summary",
   "source": "$provider",
   "source_note": "13F · 일 배치 적재",
   "transform": "inst_rank",

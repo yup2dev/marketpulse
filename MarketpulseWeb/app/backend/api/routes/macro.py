@@ -1,18 +1,18 @@
 """Macro Economic API — OpenBB 식 command 라우터 (/api/macro).
 
-  - 조회 command  : @router.command(model=...) 본문 한 줄 — provider 선택지 · 파라미터는 ProviderInterface 가 채운다
+  - 단순 조회는 여기 두지 않는다 — 게이트웨이 /api/data/{provider}/{model} (수익률 곡선 · PMI · 경제 캘린더 …)
   - 가공 command  : @router.command(inputs=...) — inputs 가 받을 모델을 정하고 CommandRunner 가 병렬로 조회한 뒤
                     commands/ 의 순수 함수(rows → 결과)에 넘긴다. 함수 안에서는 조회하지 않는다
   - 오류 응답(424 키 없음 · 503 Fetcher 미접속)은 등록할 때 씌우는 API 래퍼가 한 곳에서 맞춘다 (api/command_map.py)
 
-경로는 예전 그대로다 (기본 위젯 · 프론트가 쓴다).
+가공 command 경로는 예전 그대로다 (기본 위젯 · 프론트가 쓴다).
 """
 from datetime import date as date_type
 from typing import Dict, Optional
 
 from fastapi import HTTPException
 
-from data_fetcher.core import Fetch, OBBject, Query, Router
+from data_fetcher.core import Fetch, OBBject, Router
 from data_fetcher.utils.helpers import parse_period_to_dates
 from app.backend.commands import (
     fx, inflation, labor, macro, market_conditions as conditions, regime,
@@ -34,62 +34,6 @@ def series(**params) -> Fetch:
 def _range(period: str) -> Dict[str, date_type]:
     start, end = parse_period_to_dates(period)
     return {"start_date": start, "end_date": end}
-
-
-# ══ 조회 command — FRED · Nasdaq · FMP · Alpha Vantage 모델 그대로 ═══════════════════
-
-@router.command(model="yield_curve", path="/yield-curve", defaults={"provider": FRED})
-async def yield_curve(cc, provider_choices, standard_params, extra_params) -> OBBject:
-    """미국채 수익률 곡선 (만기별 최신)."""
-    return await OBBject.from_query(Query(**locals()))
-
-
-@router.command(model="yield_curve_history", path="/yield-curve/history", defaults={"provider": FRED, "period": "5y"})
-async def yield_curve_history(cc, provider_choices, standard_params, extra_params) -> OBBject:
-    return await OBBject.from_query(Query(**locals()))
-
-
-@router.command(model="initial_claims", path="/overview/initial-claims", defaults={"provider": FRED, "period": "2y"})
-async def initial_claims(cc, provider_choices, standard_params, extra_params) -> OBBject:
-    return await OBBject.from_query(Query(**locals()))
-
-
-@router.command(model="pmi", path="/business-cycle/pmi", defaults={"provider": FRED, "period": "5y"})
-async def pmi(cc, provider_choices, standard_params, extra_params) -> OBBject:
-    return await OBBject.from_query(Query(**locals()))
-
-
-@router.command(model="fed_balance_sheet", path="/fed-balance-sheet", defaults={"provider": FRED, "period": "10y"})
-async def fed_balance_sheet(cc, provider_choices, standard_params, extra_params) -> OBBject:
-    return await OBBject.from_query(Query(**locals()))
-
-
-@router.command(model="real_rates", path="/real-rates", defaults={"provider": FRED, "period": "5y"})
-async def real_rates(cc, provider_choices, standard_params, extra_params) -> OBBject:
-    return await OBBject.from_query(Query(**locals()))
-
-
-@router.command(model="gdp", path="/overview/gdp-forecast",
-                defaults={"provider": FRED, "frequency": "quarterly", "period": "1y"})
-async def gdp_forecast(cc, provider_choices, standard_params, extra_params) -> OBBject:
-    return await OBBject.from_query(Query(**locals()))
-
-
-@router.command(model="forex", path="/forex/history",
-                defaults={"provider": "alphavantage", "interval": "daily", "period": "1y"})
-async def forex_history(cc, provider_choices, standard_params, extra_params) -> OBBject:
-    return await OBBject.from_query(Query(**locals()))
-
-
-@router.command(model="economic_calendar", path="/economic-calendar", defaults={"provider": "nasdaq"})
-async def economic_calendar(cc, provider_choices, standard_params, extra_params) -> OBBject:
-    """일자별 경제 이벤트 (발표 일정 · 예상 · 실제). /api/data/nasdaq/economic_calendar 와 같은 데이터."""
-    return await OBBject.from_query(Query(**locals()))
-
-
-@router.command(model="bond_prices", path="/bonds", defaults={"provider": "fmp"})
-async def bonds(cc, provider_choices, standard_params, extra_params) -> OBBject:
-    return await OBBject.from_query(Query(**locals()))
 
 
 # ══ 가공 command — inputs 조회 → 순수 함수 ═════════════════════════════════════════

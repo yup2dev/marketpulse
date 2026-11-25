@@ -8,13 +8,18 @@ import numpy as np
 import pytest
 
 import data_fetcher.providers_init  # noqa: F401 — provider 등록
+from app.backend.api.routes import quantitative
 from app.backend.commands import quant
-from app.backend.commands._base import Source
 from data_fetcher.query_executor import QueryExecutor, RemoteUnavailableError, current_user_id
 from data_fetcher.utils.registry import FetcherRegistry
 
 prices_to_frame, series_from_frame = quant.prices_to_frame, quant.series_from_frame
-PRICES = Source("yahoo", "stock_price")
+ENDPOINTS = {c.path: c.endpoint for c in quantitative.router.commands}
+RANGE = {"start_date": date(2025, 1, 1), "end_date": date(2025, 10, 27)}
+
+
+def _call(path, **kw):
+    return ENDPOINTS[path](**kw)
 
 
 def _walk(seed: int, n: int = 300, start: float = 100.0):
@@ -66,12 +71,13 @@ def server_remote(monkeypatch):
 
 
 CASES = [
-    ("summary",   lambda: quant.summary(PRICES, "AAPL", "close", "2025-01-01", "2025-10-27"),              ["AAPL"]),
-    ("normality", lambda: quant.normality(PRICES, "AAPL", "return", "2025-01-01", "2025-10-27"),           ["AAPL"]),
-    ("rolling",   lambda: quant.rolling(PRICES, "AAPL", "sharpe", 21, "return", start="2025-01-01",
-                                        end="2025-10-27"),                                                  ["AAPL"]),
-    ("unitroot",  lambda: quant.unitroot(PRICES, "AAPL", "close", "c", "2025-01-01", "2025-10-27"),        ["AAPL"]),
-    ("capm",      lambda: quant.capm(PRICES, "AAPL", "^GSPC", 0.04, "2025-01-01", "2025-10-27"),            ["AAPL", "^GSPC"]),
+    ("summary",   lambda: _call("/summary", symbol="AAPL", target="close", **RANGE),                   ["AAPL"]),
+    ("normality", lambda: _call("/normality", symbol="AAPL", target="return", **RANGE),                ["AAPL"]),
+    ("rolling",   lambda: _call("/rolling", symbol="AAPL", metric="sharpe", window=21, target="return",
+                                risk_free_rate=0.04, quantile_pct=0.5, **RANGE),                         ["AAPL"]),
+    ("unitroot",  lambda: _call("/unitroot", symbol="AAPL", target="close", regression="c", **RANGE),  ["AAPL"]),
+    ("capm",      lambda: _call("/capm", symbol="AAPL", benchmark="^GSPC", risk_free_rate=0.04, **RANGE),
+     ["AAPL", "^GSPC"]),
 ]
 
 
@@ -79,8 +85,8 @@ CASES = [
 @pytest.mark.parametrize("name,run,symbols", CASES, ids=[c[0] for c in CASES])
 async def test_quant_command_delegates_prices(server_remote, name, run, symbols):
     remote = server_remote()
-    rows = await run()
-    assert rows and rows[0].model_dump(), f"{name}: empty result"
+    obb = await run()
+    assert obb.results and obb.results[0], f"{name}: empty result"
 
     assert {(p, m) for p, m, _ in remote.calls} == {("yahoo", "stock_price")}
     assert sorted(c[2]["symbol"] for c in remote.calls) == sorted(symbols)
@@ -94,7 +100,7 @@ async def test_quant_command_delegates_prices(server_remote, name, run, symbols)
 async def test_quant_command_fetcher_offline_propagates(server_remote):
     server_remote(exc=RemoteUnavailableError("fetcher offline"))
     with pytest.raises(RemoteUnavailableError):
-        await quant.summary(PRICES, "AAPL")
+        await _call("/summary", symbol="AAPL", target="close", start_date=None, end_date=None)
 
 
 def test_quantitative_provider_is_gone():

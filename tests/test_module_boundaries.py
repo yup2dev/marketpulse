@@ -250,7 +250,7 @@ def test_analysis_in_place_only_shrinks():
 
 
 def test_commands_do_not_name_providers():
-    """command 는 provider 를 모른다 — 어떤 provider · model 을 부를지는 라우트가 Source 로 넘긴다."""
+    """command 는 provider 를 모른다 — 어떤 provider · model 을 받을지는 라우터의 inputs(Fetch)가 정한다."""
     import data_fetcher.providers_init  # noqa: F401 — 등록된 provider 이름
     from data_fetcher.abstract_provider.abstract.provider import ProviderRegistry
 

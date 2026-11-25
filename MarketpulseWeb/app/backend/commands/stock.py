@@ -1,4 +1,4 @@
-"""종목 비교 — 종목마다 시세(quote) + 주요 지표(key_metrics) 두 모델을 한 행으로 합친다.
+"""종목 비교 — 종목마다 시세(quote) + 주요 지표(key_metrics) 두 모델을 한 행으로 합친다 (순수 함수).
 
 칸 이름은 표준 모델(quote · key_metrics)의 것이라 어느 provider 로 받아도 같은 조합이다.
 """
@@ -6,7 +6,6 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
-from app.backend.commands._base import Source, fetch_many, raise_if_all_failed
 
 MIN_SYMBOLS, MAX_SYMBOLS = 2, 4
 
@@ -44,22 +43,20 @@ def _first(rows: Any) -> Dict[str, Any]:
     return rows[0] if isinstance(rows, list) and rows else {}
 
 
-async def compare(symbols: str, quote: Source, metrics: Source) -> List[CompareData]:
-    """종목 × (quote, key_metrics) 를 한 번에 병렬로. 한 종목이 실패하면 그 행만 error, 전부 실패면 오류."""
-    codes = parse_symbols(symbols)
-    sources = [src.with_params(symbol=s) for s in codes for src in (quote, metrics)]
-    found = await fetch_many(sources)
-    raise_if_all_failed(found, "compare")
+def compare_from(codes: List[str], data: Dict[str, Any]) -> List[CompareData]:
+    """종목 × (quote, key_metrics) 행 → 종목마다 한 행. 둘 중 하나라도 못 받은 종목은 error 행.
 
+    data 키는 "{종목}:quote" · "{종목}:metrics".
+    """
     out = []
-    for i, sym in enumerate(codes):
-        q, m = found[2 * i], found[2 * i + 1]
-        if isinstance(q, BaseException) or isinstance(m, BaseException):
+    for sym in codes:
+        q, m = data.get(f"{sym}:quote") or [], data.get(f"{sym}:metrics") or []
+        if not q or not m:
             out.append(CompareData(symbol=sym, error="Failed to fetch data"))
             continue
         q, m = _first(q), _first(m)
         out.append(CompareData(
-            symbol=sym, name=m.get("symbol", sym), price=q.get("price"), change=q.get("change"),
+            symbol=sym, name=q.get("name") or sym, price=q.get("last_price", q.get("price")), change=q.get("change"),
             change_percent=q.get("change_percent"), market_cap=m.get("market_cap"), volume=q.get("volume"),
             pe_ratio=m.get("pe_ratio"), eps=m.get("eps_trailing"), beta=m.get("beta"),
             dividend_yield=m.get("dividend_yield"), roe=m.get("roe"), roa=m.get("roa"),

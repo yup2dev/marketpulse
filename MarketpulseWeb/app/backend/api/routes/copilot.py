@@ -55,15 +55,12 @@ _ALLOWED_PREFIXES = (
     "/api/stock/",
     "/api/data/",
     "/api/macro/",
-    "/api/news",
     "/api/portfolio/",
     "/api/user-portfolio/",
     "/api/screener/presets",
     "/api/screener/sectors",
     "/api/providers",
     "/api/quantitative/",
-    "/api/quantlib/",
-    "/api/v1/",
     "/api/reports",
 )
 
@@ -86,7 +83,7 @@ Always respond in the same language the user writes in (usually Korean).
 
 ## get_data — internal REST API catalog (GET only, path starts with /api)
 
-### Universal Data Gateway (preferred for raw data)
+### Universal Data Gateway — ALL raw data (no other raw-data routes exist)
 - /api/data/{provider}/{model}?param=value — e.g.:
   - /api/data/yahoo/quote?symbol=AAPL — realtime quote
   - /api/data/yahoo/stock_price?symbol=AAPL&period=1y — OHLCV history
@@ -98,27 +95,29 @@ Always respond in the same language the user writes in (usually Korean).
   - /api/data/fmp/gainers, /api/data/fmp/losers, /api/data/fmp/most_actives
   - /api/data/fred/gdp?period=5y, /api/data/fred/cpi?period=5y, /api/data/fred/unemployment?period=5y
   - /api/data/fred/yield_curve, /api/data/fred/yield_curve_history?period=5y
-  - /api/macro/overview/inflation-momentum?period=3y, /api/data/fred/pmi?period=5y
+  - /api/data/fred/pmi?period=5y, /api/data/yahoo/dividends?symbol=AAPL&period=5y, /api/data/yahoo/splits?symbol=AAPL
+  - /api/data/polygon/earnings?symbol=AAPL&period=3y, /api/data/yahoo/insider_trading?symbol=AAPL, /api/data/yahoo/holders?symbol=AAPL
+  - /api/data/yahoo/management?symbol=AAPL, /api/data/yahoo/filings?symbol=AAPL, /api/data/yahoo/key_metrics?symbol=AAPL
+  - /api/data/polygon/news?symbol=AAPL&limit=20&period=1mo — financial news (live provider feed)
+  - /api/data/db/news_events?symbol=AAPL&start_date=&end_date=&limit=100 — crawled news events mapped to stocks
+    (date, title, summary, sentiment_score, price_impact) from the internal news pipeline; use for overlaying events on price charts
+  - /api/data/db/institutions_list?use_dynamic=false — featured 13F institutions; /api/data/db/institutions_summary — all 13F summaries
+  - /api/data/quantlib/pricing?option_type=call&spot=100&strike=100&expiry=YYYY-MM-DD&volatility=0.2 — option pricing
   - /api/data/fred/fed_balance_sheet?period=10y, /api/data/fred/real_rates?period=5y
-  - /api/macro/labor/dashboard, /api/macro/financial-conditions, /api/macro/sentiment/composite (?date= 기준일)
-  - /api/macro/overview/jobs-breakdown?period=5y, /api/data/fred/initial_claims?period=2y, /api/macro/inflation/sector-history?period=5y
+  - /api/data/fred/initial_claims?period=2y
   - /api/data/nasdaq/economic_calendar?date=YYYY-MM-DD&country=united+states — economic events (actual/consensus/previous, impact)
   - /api/data/nasdaq/earnings_calendar?date=YYYY-MM-DD — earnings schedule (market cap, EPS forecast, report time)
 - /api/providers — lists every provider and which data models each supports (use for discovery when unsure).
 
-### Stock endpoints
-- /api/stock/dividends/{symbol}, /api/stock/splits/{symbol}, /api/stock/filings/{symbol}
-- /api/stock/earnings/{symbol}, /api/stock/insider-trading/{symbol}, /api/stock/holders/{symbol}
-- /api/stock/management/{symbol}, /api/stock/swot/{symbol}, /api/stock/moat/{symbol}
-- /api/stock/scorecard/{symbol}, /api/stock/sentiment/{symbol}, /api/stock/financials/{symbol}
+### Analysis commands (computed from the raw data above)
+- /api/stock/moat|swot|scorecard|quarterly-pnl|revenue-segments|sentiment|reddit/{symbol}, /api/stock/compare?symbols=AAPL,MSFT
+- /api/stock/indicator/{GDP|CPI|FISCAL_BALANCE|CORP_PROFITS_GDP|...}?period=5y
 - /api/stock/ranking?market=all&sort_by=gainers&period=1d&limit=50
-
-### Other
-- /api/news?symbol=AAPL&limit=20 — financial news (live provider feed)
-- /api/news/events?symbol=AAPL&start_date=&end_date=&limit=100 — crawled news events mapped to stocks
-  (date, title, summary, sentiment_score, price_impact) from the internal news pipeline; use for overlaying events on price charts
-- /api/portfolio/13f/institutions?use_dynamic=false — 20 featured 13F institutions
-- /api/portfolio/13f/{institution_key} — holdings of one institution (berkshire, ark, bridgewater, ...)
+- /api/macro/indicators/overview, /api/macro/fred/series, /api/macro/forex/rates
+- /api/macro/regime/current|history, /api/macro/fed-policy/stance, /api/macro/labor/history (Phillips curve)
+- /api/macro/labor/dashboard, /api/macro/financial-conditions, /api/macro/sentiment/composite (?date= as-of)
+- /api/macro/inflation/decomposition|sector-history, /api/macro/overview/inflation-momentum|jobs-breakdown, /api/macro/sentiment/history
+- /api/portfolio/13f/{institution_key} — holdings of one institution (berkshire, ark, bridgewater, ...), /api/portfolio/13f/{key}/performance
 - /api/user-portfolio/portfolios — the user's own portfolios (then /{id}/holdings, /{id}/transactions, /{id}/summary)
 - /api/quantitative/summary|normality|capm|rolling|unitroot?symbol=AAPL&target=close&start_date=...&end_date=...
 
@@ -145,7 +144,7 @@ switch to another provider for the same model (error messages include a hint lis
   rows=[{"period": "2024", "aapl_revenue": 391.0, "msft_revenue": 245.1}, ...] →
   create_dataset_widget(title="AAPL vs MSFT Revenue", rows=..., chart={"type": "bar", "x_key": "period", "y_keys": ["aapl_revenue", "msft_revenue"]}).
 - Example: "TSLA 주가에 뉴스 이벤트 표시해줘" → get_data /api/data/yahoo/stock_price?symbol=TSLA&period=3mo
-  AND /api/news/events?symbol=TSLA (fallback: /api/news?symbol=TSLA) → rows=[{"date": "2026-07-01", "close": 251.2}, ...] →
+  AND /api/data/db/news_events?symbol=TSLA (fallback: /api/data/polygon/news?symbol=TSLA) → rows=[{"date": "2026-07-01", "close": 251.2}, ...] →
   chart={"type": "line", "x_key": "date", "y_keys": ["close"], "annotations": [{"x": "2026-06-25", "label": "Robotaxi launch"}]}.
   Annotation x dates MUST exist in rows (snap each event to the nearest trading day).
 
@@ -181,7 +180,7 @@ ANTHROPIC_TOOLS = [
             "properties": {
                 "path": {
                     "type": "string",
-                    "description": "API path, e.g. /api/data/yahoo/quote or /api/stock/dividends/AAPL",
+                    "description": "API path, e.g. /api/data/yahoo/quote?symbol=AAPL or /api/stock/moat/AAPL",
                 },
                 "params": {
                     "type": "object",
@@ -269,7 +268,7 @@ GEMINI_TOOL_DECLS = [
             "properties": {
                 "path": {
                     "type": "STRING",
-                    "description": "API path, e.g. /api/data/yahoo/quote or /api/stock/dividends/AAPL",
+                    "description": "API path, e.g. /api/data/yahoo/quote?symbol=AAPL or /api/stock/moat/AAPL",
                 },
                 "params": {
                     "type": "STRING",

@@ -327,7 +327,7 @@ def test_builtin_widgets_are_rows_seeded_on_first_read(auth_client, db_session, 
     assert ranking["fields"][2]["quote_field"] == "price"
 
     chart = widgets["mini-chart"]
-    assert chart["endpoint"] == "/stock/history/{symbol}?period={period}&interval={interval}"
+    assert chart["endpoint"] == "/data/yahoo/stock_price?symbol={symbol}&period={period}&interval={interval}"
     five = next(o for o in chart["params"][0]["options"] if o["value"] == "5m")
     assert five["params"] == {"period": "5d", "interval": "5m", "session": "true", "note": "5분봉"}
 

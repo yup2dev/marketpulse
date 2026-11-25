@@ -41,7 +41,7 @@
       ]
     }
   ],
-  "options": {"series": "/stock/history/{symbol}?period=2d&interval=5m"},
+  "options": {"series": "/data/yahoo/stock_price?symbol={symbol}&period=2d&interval=5m"},
   "screens": [
     {"screen": "*"},
     {"screen": "/", "tab": "overview", "x": 0, "y": 0, "w": 8, "h": 3}

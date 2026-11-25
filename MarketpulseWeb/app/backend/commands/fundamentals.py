@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
-from app.backend.commands._base import Rows, Source, fetch_rows
+from app.backend.commands._base import Rows
 
 BILLION = 1e9
 
@@ -81,10 +81,6 @@ def moat_from_rows(symbol: str, rows: Rows) -> MoatData:
     return MoatData(symbol=symbol, history=history, moat_score=score, moat_type=moat_type)
 
 
-async def moat(symbol: str, financials: Source) -> List[MoatData]:
-    rows = await fetch_rows(financials.with_params(symbol=symbol, period="annual"))
-    return [moat_from_rows(symbol, rows)]
-
 
 # ── 분기 손익 ──────────────────────────────────────────────────────────────────
 
@@ -137,10 +133,6 @@ def quarterly_pnl_from_rows(symbol: str, rows: Rows, limit: int) -> QuarterlyPnL
         latest=history[-1].model_dump() if history else {},
     )
 
-
-async def quarterly_pnl(symbol: str, financials: Source, limit: int = 12) -> List[QuarterlyPnLData]:
-    rows = await fetch_rows(financials.with_params(symbol=symbol, period="quarterly"))
-    return [quarterly_pnl_from_rows(symbol, rows, limit)]
 
 
 # ── 투자 스코어카드 ────────────────────────────────────────────────────────────
@@ -229,13 +221,6 @@ def scorecard_from_metrics(symbol: str, m: Dict[str, Any]) -> ScorecardData:
     )
 
 
-async def _metrics(symbol: str, key_metrics: Source) -> Dict[str, Any]:
-    rows = await fetch_rows(key_metrics.with_params(symbol=symbol))
-    return rows[0] if rows else {}
-
-
-async def scorecard(symbol: str, key_metrics: Source) -> List[ScorecardData]:
-    return [scorecard_from_metrics(symbol, await _metrics(symbol, key_metrics))]
 
 
 # ── SWOT ──────────────────────────────────────────────────────────────────────
@@ -317,9 +302,6 @@ def swot_from_metrics(symbol: str, m: Dict[str, Any]) -> SwotData:
     return out
 
 
-async def swot(symbol: str, key_metrics: Source) -> List[SwotData]:
-    return [swot_from_metrics(symbol, await _metrics(symbol, key_metrics))]
-
 
 # ── 매출 세그먼트 전년 대비 ────────────────────────────────────────────────────
 
@@ -336,12 +318,3 @@ def add_segment_yoy(row: Dict[str, Any]) -> Dict[str, Any]:
     return row
 
 
-async def revenue_segments(symbol: str, segments: Source, limit: int = 8) -> Rows:
-    rows = await fetch_rows(segments.with_params(symbol=symbol, limit=limit))
-    return [add_segment_yoy(r) for r in rows]
-
-
-__all__ = [
-    "moat", "moat_from_rows", "quarterly_pnl", "quarterly_pnl_from_rows", "scorecard",
-    "scorecard_from_metrics", "swot", "swot_from_metrics", "revenue_segments", "add_segment_yoy",
-]

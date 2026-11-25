@@ -1,12 +1,10 @@
 """계량 분석 — 기술 통계 · 정규성 검정 · CAPM · 롤링 지표 · 단위근(ADF) · 상관행렬.
 
-입력은 일봉 시세(stock_price 표준 모델) 하나뿐이다. 어느 provider 로 받을지는 라우트가 Source 로 넘긴다 —
-서버에서는 yahoo 가 사용자 PC Fetcher 로 위임되고(서버 IP 로 yfinance 를 부르지 않는다), 꺼져 있으면
-RemoteUnavailableError 가 그대로 올라가 503 이 된다. 시세 캐시는 stock_price 모델 TTL 이 맡는다.
+순수 함수다 — 입력은 일봉 시세(stock_price 표준 모델) 행. 시세 조회는 라우터의 command inputs 를 CommandRunner 가
+한다 (서버에서는 yahoo 가 사용자 PC Fetcher 로 위임되고, 꺼져 있으면 503). 시세 캐시는 stock_price 모델 TTL.
 
 scipy · statsmodels 는 무거워서(+35MB · +65MB) 처음 쓸 때 import 한다.
 """
-import asyncio
 from datetime import date as date_type, datetime, timedelta
 from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple
 
@@ -14,7 +12,7 @@ import numpy as np
 import pandas as pd
 from pydantic import BaseModel, Field
 
-from app.backend.commands._base import Rows, Source, fetch_rows
+from app.backend.commands._base import Rows
 
 Target = Literal["close", "open", "high", "low", "adj_close", "return"]
 _PRICE_COLS = ("open", "high", "low", "close", "adj_close")
@@ -65,13 +63,6 @@ def price_params(symbol: str, start: Any = None, end: Any = None) -> Dict[str, A
             "end_date": (e + timedelta(days=1)).strftime("%Y-%m-%d"), "interval": "1d"}
 
 
-async def load_series(prices: Source, symbol: str, target: str, start: Any = None,
-                      end: Any = None) -> Tuple[pd.Series, pd.Series]:
-    rows = await fetch_rows(prices.with_params(**price_params(symbol, start, end)))
-    if not rows:
-        raise ValueError(f"No price data for {symbol}")
-    return series_from_frame(prices_to_frame(rows), symbol, target)
-
 
 def to_returns(series: pd.Series) -> pd.Series:
     """이미 수익률(절댓값 < 1)이면 그대로, 아니면 일간 수익률로."""
@@ -110,10 +101,6 @@ def summarize(symbol: str, target: str, series: pd.Series) -> SummaryData:
         skew=float(stats.skew(x, bias=False)), kurtosis=float(stats.kurtosis(x, fisher=True, bias=False)),
     )
 
-
-async def summary(prices: Source, symbol: str, target: str = "close", start: Any = None, end: Any = None) -> List[SummaryData]:
-    series, _ = await load_series(prices, symbol, target, start, end)
-    return [summarize(symbol, target, series)]
 
 
 # ── 정규성 검정 ───────────────────────────────────────────────────────────────
@@ -154,11 +141,6 @@ def normality_tests(x: np.ndarray) -> List[NormalityTest]:
                                  normal=p is not None and p >= ALPHA))
     return out
 
-
-async def normality(prices: Source, symbol: str, target: str = "close", start: Any = None, end: Any = None) -> List[NormalityData]:
-    series, _ = await load_series(prices, symbol, target, start, end)
-    x = series.values.astype(float)
-    return [NormalityData(symbol=symbol, target=target, n=int(len(x)), tests=normality_tests(x))]
 
 
 # ── CAPM ──────────────────────────────────────────────────────────────────────
@@ -203,12 +185,6 @@ def capm_from_returns(symbol: str, benchmark: str, asset: pd.Series, market: pd.
     )
 
 
-async def capm(prices: Source, symbol: str, benchmark: str = "^GSPC", risk_free_rate: float = 0.04,
-               start: Any = None, end: Any = None) -> List[CAPMData]:
-    (_, asset), (_, market) = await asyncio.gather(
-        load_series(prices, symbol, "close", start, end), load_series(prices, benchmark, "close", start, end))
-    return [capm_from_returns(symbol, benchmark, asset, market, risk_free_rate)]
-
 
 # ── 롤링 지표 ─────────────────────────────────────────────────────────────────
 
@@ -243,19 +219,6 @@ def rolling_metric(data: pd.Series, metric: str, window: int, rf_annual: float =
     return calc[metric]()
 
 
-async def rolling(prices: Source, symbol: str, metric: str = "sharpe", window: int = 21, target: str = "return",
-                  risk_free_rate: float = 0.04, quantile_pct: float = 0.5,
-                  start: Any = None, end: Any = None) -> List[RollingData]:
-    series, returns = await load_series(prices, symbol, target, start, end)
-    # 샤프 · 소르티노는 언제나 수익률로, 나머지는 고른 대상으로
-    data = (returns if target != "return" else to_returns(series)) if metric in ("sharpe", "sortino") else series
-    if len(data) <= window:
-        raise ValueError(f"window ({window}) must be < data length ({len(data)})")
-    out = rolling_metric(data, metric, window, risk_free_rate, quantile_pct).dropna()
-    return [RollingData(symbol=symbol, target=target, metric=metric, window=window,
-                        points=[RollingPoint(date=i.date(), value=None if pd.isna(v) else float(v))
-                                for i, v in out.items()])]
-
 
 # ── 단위근 (ADF) ──────────────────────────────────────────────────────────────
 
@@ -285,11 +248,6 @@ def adf(symbol: str, target: str, series: pd.Series, regression: str = "c") -> U
         critical_5pct=float(crit["5%"]), critical_10pct=float(crit["10%"]), stationary=bool(p < 0.05),
     )
 
-
-async def unitroot(prices: Source, symbol: str, target: str = "close", regression: str = "c",
-                   start: Any = None, end: Any = None) -> List[UnitRootData]:
-    series, _ = await load_series(prices, symbol, target, start, end)
-    return [adf(symbol, target, series, regression)]
 
 
 # ── 상관행렬 ──────────────────────────────────────────────────────────────────
@@ -326,19 +284,25 @@ def normalize_symbols(symbols: Any) -> List[str]:
     return list(dict.fromkeys(s.strip().upper() for s in raw if s and s.strip()))
 
 
-async def correlation(prices: Source, symbols: Sequence[str], period: str = "1y",
-                      start: Any = None, end: Any = None) -> List[CorrelationData]:
-    def params(sym: str) -> Dict[str, Any]:
-        # interval 명시: 미지정 시 2y 이상은 주봉으로 바뀐다 (yahoo 기본값)
-        p: Dict[str, Any] = {"symbol": sym, "period": period, "interval": "1d"}
-        if start:
-            p["start_date"] = str(start)
-        if end:
-            p["end_date"] = str(end)
-        return p
+def series_from_rows(rows: Rows, symbol: str, target: str) -> Tuple[pd.Series, pd.Series]:
+    """stock_price 행 → (분석 대상 시계열, 일간 수익률)."""
+    if not rows:
+        raise ValueError(f"No price data for {symbol}")
+    return series_from_frame(prices_to_frame(rows), symbol, target)
 
-    tickers = normalize_symbols(symbols)
-    found = await asyncio.gather(*[fetch_rows(prices.with_params(**params(s))) for s in tickers])
-    closes = {sym: closes_from_prices(rows) for sym, rows in zip(tickers, found)}
-    result = correlation_matrix(closes)
-    return [CorrelationData(**result, missing=[s for s, c in closes.items() if not c])]
+
+def rolling_from(symbol: str, target: str, series: pd.Series, returns: pd.Series, metric: str, window: int,
+                 risk_free_rate: float = 0.04, quantile_pct: float = 0.5) -> RollingData:
+    """샤프 · 소르티노는 언제나 수익률로, 나머지는 고른 대상으로."""
+    data = (returns if target != "return" else to_returns(series)) if metric in ("sharpe", "sortino") else series
+    if len(data) <= window:
+        raise ValueError(f"window ({window}) must be < data length ({len(data)})")
+    out = rolling_metric(data, metric, window, risk_free_rate, quantile_pct).dropna()
+    return RollingData(symbol=symbol, target=target, metric=metric, window=window,
+                       points=[RollingPoint(date=i.date(), value=None if pd.isna(v) else float(v)) for i, v in out.items()])
+
+
+def correlation_from(data: Dict[str, Rows]) -> CorrelationData:
+    """{종목: 시세 행} → 상관행렬. 시세가 없는 종목은 missing."""
+    closes = {sym: closes_from_prices(rows) for sym, rows in data.items()}
+    return CorrelationData(**correlation_matrix(closes), missing=[s for s, c in closes.items() if not c])

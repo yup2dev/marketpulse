@@ -14,9 +14,9 @@
   "empty_text": "{symbol} 지표를 불러오지 못했어요",
   "size": {"w": 12, "h": 1, "min_w": 6, "min_h": 1},
   "options": {
-    "extra.dividends": "/stock/dividends/{symbol}?period=2y",
-    "extra.history": "/stock/history/{symbol}?period=1y&interval=1d",
-    "extra.quote": "/stock/quote/{symbol}",
+    "extra.dividends": "/data/yahoo/dividends?symbol={symbol}&period=2y",
+    "extra.history": "/data/yahoo/stock_price?symbol={symbol}&period=1y&interval=1d",
+    "extra.quote": "/data/yahoo/quote?symbol={symbol}",
     "provider": "yahoo"
   },
   "screens": [

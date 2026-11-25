@@ -40,24 +40,55 @@ def test_filter_uses_requested_key_and_sorts_newest_first():
     assert [r["filing_date"] for r in out] == ["2026-03-02", "2026-01-10"]
 
 
-def test_stock_dividends_period_filters_and_skips_default_limit(monkeypatch):
-    from app.backend.api.routes import stock
+@pytest.fixture
+def gateway(auth_client, monkeypatch):
+    """게이트웨이 /api/data 를 가짜 QueryExecutor 로 — (client, 받은 파라미터, 돌려줄 행)."""
+    from data_fetcher.query_executor import QueryExecutor
+    client, _ = auth_client
+    box = {"seen": {}, "rows": []}
 
+    async def fake_fetch(provider, model, params, *a, **k):
+        box["seen"] = dict(params, _provider=provider, _model=model)
+        return box["rows"](params) if callable(box["rows"]) else box["rows"]
+
+    monkeypatch.setattr(QueryExecutor, "fetch", fake_fetch)
+    return client, box
+
+
+def test_gateway_period_sends_dates_and_filters_newest_first(gateway):
+    client, box = gateway
     today = date.today()
-    rows = [{"date": (today - timedelta(days=90 * i)).isoformat(), "amount": 0.25} for i in range(60)]
-    seen = {}
+    box["rows"] = [{"date": (today - timedelta(days=90 * i)).isoformat(), "dividend": 0.25} for i in range(60)]
+    body = client.get("/api/data/yahoo/dividends", params={"symbol": "aapl", "period": "10y"}).json()
+    assert box["seen"]["symbol"] == "AAPL"                       # 예전 /api/stock 라우트처럼 대문자
+    assert box["seen"]["start_date"] and "period" not in box["seen"]
+    assert 39 <= len(body["results"]) <= 41                      # 10년 ≈ 40건, 기본 건수 제한 없음
+    assert body["results"][0]["date"] == today.isoformat()       # 오늘 행도 남는다 (끝 = 오늘)
 
-    async def fake_fetch(provider, model, params):
-        seen.update(params)
-        return rows
 
-    monkeypatch.setattr(stock.QueryExecutor, "fetch", fake_fetch)
-    obb = asyncio.run(stock.get_dividends.__wrapped__("aapl", period="10y"))
-    # 10년 ≈ 40건 — 예전 기본 20건 제한에 잘리지 않는다
-    assert 39 <= len(obb.results) <= 41
-    assert seen["start_date"] == period_start("10y")
-    obb = asyncio.run(stock.get_dividends.__wrapped__("aapl"))
-    assert len(obb.results) == 20
+def test_gateway_keeps_model_own_period(gateway):
+    """stock_price 처럼 모델이 period 를 직접 받으면 날짜로 바꾸지 않는다."""
+    client, box = gateway
+    box["rows"] = [{"date": "2026-01-02", "close": 1.0}]
+    client.get("/api/data/yahoo/stock_price", params={"symbol": "aapl", "period": "1mo", "interval": "1d"})
+    assert box["seen"]["period"] == "1mo" and "start_date" not in box["seen"]
+
+
+def test_gateway_ignores_provider_query_param(gateway):
+    client, box = gateway
+    box["rows"] = []
+    assert client.get("/api/data/yahoo/quote", params={"symbol": "x", "provider": "kis"}).status_code == 200
+    assert box["seen"]["_provider"] == "yahoo"
+
+
+def test_news_period_is_sent_and_filtered_by_published_utc(gateway):
+    client, box = gateway
+    now = date.today()
+    box["rows"] = [{"title": str(d), "published_utc": f"{(now - timedelta(days=d)).isoformat()}T12:00:00Z"}
+                   for d in (0, 3, 20)]
+    body = client.get("/api/data/polygon/news", params={"symbol": "aapl", "limit": 10, "period": "1w"}).json()
+    assert box["seen"]["start_date"]
+    assert [r["title"] for r in body["results"]] == ["0", "3"]
 
 
 # ── FRED 스냅샷 기준일 ────────────────────────────────────────────────────────
@@ -94,35 +125,8 @@ def _quarterly_rows(key, n):
     return [{key: (today - timedelta(days=91 * i)).isoformat(), "v": i} for i in range(n)]
 
 
-def test_financials_period_replaces_fixed_four_rows(monkeypatch):
-    from app.backend.api.routes import stock
-
-    seen = {}
-
-    async def fake_fetch(provider, model, params):
-        seen.update(params)
-        return _quarterly_rows("date", 30)
-
-    monkeypatch.setattr(stock.QueryExecutor, "fetch", fake_fetch)
-    obb = asyncio.run(stock.get_financials.__wrapped__("aapl", freq="annual", period="3y"))
-    assert seen["freq"] == "annual"                      # 보고 주기는 그대로 freq
-    assert 12 <= len(obb.results) <= 13                  # 3년 ≈ 12분기, 4건 제한 없음
-    assert obb.results[0]["date"] >= obb.results[-1]["date"]
-    assert len(asyncio.run(stock.get_financials.__wrapped__("aapl")).results) == 4
 
 
-def test_earnings_period_widens_fetch_limit(monkeypatch):
-    from app.backend.api.routes import stock
-
-    seen = {}
-
-    async def fake_fetch(provider, model, params):
-        seen.update(params)
-        return _quarterly_rows("date", params["limit"])
-
-    monkeypatch.setattr(stock.QueryExecutor, "fetch", fake_fetch)
-    obb = asyncio.run(stock.get_earnings.__wrapped__("aapl", period="5y"))
-    assert seen["limit"] == 40 and 20 <= len(obb.results) <= 21
 
 
 def test_fund_performance_period_maps_to_quarters(monkeypatch):
@@ -142,18 +146,3 @@ def test_fund_performance_period_maps_to_quarters(monkeypatch):
     asyncio.run(portfolio.get_fund_performance("berkshire"))
     assert seen["quarters"] == 8                         # 기간 없으면 예전 기본값
 
-
-def test_news_period_is_sent_and_filtered_by_published_utc(monkeypatch):
-    from app.backend.api.routes import news
-
-    seen = {}
-    now = date.today()
-
-    async def fake_fetch(provider, model, params):
-        seen.update(params)
-        return [{"published_utc": f"{(now - timedelta(days=d)).isoformat()}T12:00:00Z"} for d in (0, 3, 20)]
-
-    monkeypatch.setattr(news.QueryExecutor, "fetch", fake_fetch)
-    obb = asyncio.run(news.get_news.__wrapped__(symbol="aapl", limit=10, period="1w"))
-    assert seen["start_date"] == period_start("1w")
-    assert len(obb.results) == 2

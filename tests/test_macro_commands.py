@@ -10,7 +10,6 @@ import pytest
 from app.backend.commands import (
     inflation as infl, labor, market_conditions as mc, regime,
 )
-from app.backend.commands._base import Source
 from data_fetcher.query_executor import QueryExecutor
 from data_fetcher.utils.registry import FetcherRegistry
 

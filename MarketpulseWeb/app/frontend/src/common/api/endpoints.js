@@ -209,7 +209,7 @@ export const newsAPI = {
     const qs = new URLSearchParams({ limit: String(limit) });
     if (symbol) qs.set('symbol', symbol);
     if (period && period !== 'max') qs.set('period', period);
-    return apiClient.get(`${API_BASE}/news?${qs}`);
+    return apiClient.get(`${API_BASE}/data/polygon/news?${qs}`);
   },
 };
 

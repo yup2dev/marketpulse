@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.backend.commands._base import Rows, Source, fetch_rows, latest_two, pct_change
+from app.backend.commands._base import Rows, latest_two, pct_change
 
 
 # ── 지표 여러 개의 최신값 ────────────────────────────────────────────────────────
@@ -97,8 +97,3 @@ def ratio_pct_from(rows: Rows, numerator: str, denominator: str) -> List[DatedVa
         for r in sorted(rows, key=lambda r: str(r["date"]))
         if r.get("series_id") == numerator and r.get("value") is not None and den.get(r["date"])
     ]
-
-
-async def ratio_pct(source: Source, numerator: str, denominator: str) -> List[DatedValue]:
-    """stock 라우트용 (아직 Router 로 옮기기 전) — 조회 후 ratio_pct_from."""
-    return ratio_pct_from(await fetch_rows(source), numerator, denominator)

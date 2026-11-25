@@ -8,7 +8,7 @@ from typing import Any, Dict, List
 
 from pydantic import BaseModel, Field
 
-from app.backend.commands._base import Rows, Source, fetch_rows
+from app.backend.commands._base import Rows
 
 POSITIVE_WORDS = ("beat", "surge", "rally", "gain", "rise", "up", "growth", "profit", "record", "strong",
                   "bullish", "upgrade", "buy")
@@ -62,8 +62,3 @@ def news_sentiment_from(symbol: str, articles: Rows) -> NewsSentimentData:
             by_day[str(i["published_at"])[:10]].append(i["sentiment_score"])
     trend = [{"date": d, "score": round(sum(s) / len(s), 1)} for d, s in sorted(by_day.items())]
     return NewsSentimentData(symbol=symbol, news=items, aggregate={**counts, "overall_score": overall}, trend=trend)
-
-
-async def news_sentiment(symbol: str, news: Source) -> List[NewsSentimentData]:
-    rows = await fetch_rows(news.with_params(symbol=symbol, limit=MAX_ARTICLES))
-    return [news_sentiment_from(symbol, rows)]

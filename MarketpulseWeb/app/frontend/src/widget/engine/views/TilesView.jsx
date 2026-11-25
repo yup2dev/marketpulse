@@ -4,7 +4,7 @@
  * options:
  *   symbol   'sym'     행에서 심볼 필드
  *   label    'name'    행에서 이름 필드
- *   series   '/stock/history/{symbol}?period=2d&interval=5m'   타일마다 받는 분봉 — 마지막 거래일만 그린다
+ *   series   '/data/yahoo/stock_price?symbol={symbol}&period=2d&interval=5m'   타일마다 받는 분봉 — 마지막 거래일만 그린다
  *   columns  4         넓을 때 열 수 (좁아지면 2 → 1)
  *
  * 현재가·등락률은 실시간 시세가 있으면 그 값, 없으면 분봉의 마지막 값과 전일 종가로 계산한다.

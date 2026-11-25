@@ -10,7 +10,7 @@ Universal Data Gateway
     GET /api/data/fred/gdp?period=5y&frequency=quarterly
     GET /api/data/yahoo/quote?symbol=AAPL
     GET /api/data/fmp/income_statement?symbol=AAPL
-    GET /api/data/polygon/news?ticker=TSLA&limit=20
+    GET /api/data/polygon/news?symbol=TSLA&limit=20
 """
 import logging
 from typing import Any, Dict
@@ -57,6 +57,9 @@ async def fetch_data(provider: str, model: str, request: Request) -> OBBject:
     if ProviderInterface.fetcher(model, provider) is None:
         raise HTTPException(status_code=404, detail=f"Model '{model}' not found for provider '{provider}'")
     params: Dict[str, Any] = {k: _coerce(v) for k, v in request.query_params.items()}
+    params.pop("provider", None)                       # provider 는 경로가 정한다
+    if isinstance(params.get("symbol"), str):
+        params["symbol"] = params["symbol"].upper()
 
     # 위젯 계층이 늘 넣는 symbol/ticker — 모델이 받지 않으면 뺀다 (BaseQueryParams 가 extra 를 허용해서
     # 그대로 두면 잘못된 파라미터로 fetcher 가 깨진다. 예: 기관 계열)

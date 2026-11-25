@@ -5,7 +5,7 @@
   "description": "Market-cap treemap colored by change",
   "view_type": "treemap",
   "title": "섹터 히트맵",
-  "endpoint": "/stock/sector-performance",
+  "endpoint": "/data/db/sector_performance",
   "source": "$provider",
   "source_note": "시가총액 기준",
   "transform": "flatten_sectors",

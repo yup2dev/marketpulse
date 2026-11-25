@@ -1,379 +1,106 @@
-"""Stock API Routes — OBBject pattern"""
+"""Stock API (/api/stock) — 가공 command + DB · 캐시 · 실시간 라우트.
+
+단순 조회(시세 · 이력 · 배당 · 재무제표 · 공시 …)는 여기 두지 않는다 — 게이트웨이 /api/data/{provider}/{model} 로.
+  - commands : @router.command(inputs=...) — inputs 를 CommandRunner 가 조회하고 commands/ 순수 함수가 가공
+  - extra    : provider 조회가 아닌 것 (심볼 검색 캐시 · 기업 관계 서비스 · 랭킹 WS/Redis)
+"""
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query as FQuery
 from fastapi.responses import JSONResponse
 
-from data_fetcher.core.obbject import OBBject
-from data_fetcher.query_executor import QueryExecutor
-from app.backend.api.deps import filter_dated_rows, resolve_date_range, route_handler, wrap_result
-from app.backend.commands import news_sentiment as news_sentiment_cmd
-from app.backend.commands import fundamentals as fundamentals_cmd, sentiment as sentiment_cmd
-from app.backend.commands._base import Source
+from data_fetcher.core import Fetch, OBBject, Router
+from data_fetcher.utils.helpers import parse_period_to_dates
+from app.backend.api.deps import route_handler
+from app.backend.commands import (
+    fundamentals, macro, news_sentiment, sentiment, stock as stock_cmd,
+)
 from app.backend.core.auth.dependencies import get_current_active_user
 from app.backend.models.orm import User
 
 log = logging.getLogger(__name__)
-router = APIRouter()
-
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-def _unwrap(raw: Any) -> List[Any]:
-    return OBBject.unwrap(raw) or []
-
-
-_wrap = wrap_result
-
-
-def _wrap_one(data: Any, provider: str) -> OBBject:
-    """단일 객체(스냅샷)를 1행 OBBject로 감싼다."""
-    return wrap_result(data, provider)
-
-
-def _dated_events(
-    raw: Any, provider: str, start: Optional[str], end: Optional[str],
-    limit: Optional[int], default_limit: int, key: Optional[str] = None,
-) -> OBBject:
-    """이벤트 목록(배당·분할·공시·내부자 거래) 공통 마무리: 기간 필터 → 최신순 → 건수 제한.
-
-    기간을 주면 기간이 범위를 정하므로 limit 은 명시했을 때만 자른다
-    (10Y 배당 40건이 기본 20건에 잘리지 않게). 기간이 없으면 예전처럼 default_limit.
-    """
-    obb = wrap_result(raw, provider)
-    rows = filter_dated_rows(obb.results, start, end, key=key)
-    cap = limit if limit is not None else (None if (start or end) else default_limit)
-    obb.results = rows[:cap] if cap else rows
-    return obb
-
-
-def _range_params(params: Dict[str, Any], start: Optional[str], end: Optional[str]) -> Dict[str, Any]:
-    """fetcher QP 가 start_date/end_date 를 선언한 모델(dividends·insider_trading)에 범위를 넘긴다."""
-    if start:
-        params["start_date"] = start
-    if end:
-        params["end_date"] = end
-    return params
-
-
-# ── Direct QueryExecutor → OBBject ────────────────────────────────────────────
-
-@router.get("/info/{symbol}")
-@route_handler
-async def get_company_info(symbol: str, provider: str = "yahoo") -> OBBject:
-    raw = await QueryExecutor.fetch(provider, "company_info", {"symbol": symbol.upper()})
-    return _wrap(raw, provider)
-
-
-@router.get("/metrics/{symbol}")
-@route_handler
-async def get_key_metrics(symbol: str, provider: str = "yahoo") -> OBBject:
-    raw = await QueryExecutor.fetch(provider, "key_metrics", {"symbol": symbol.upper()})
-    return _wrap(raw, provider)
-
-
-@router.get("/financials/{symbol}")
-@route_handler
-async def get_financials(
-    symbol: str,
-    provider: str = "yahoo",
-    freq: str = "quarterly",
-    limit: Optional[int] = None,
-    period: Optional[str] = None,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-) -> OBBject:
-    # period = 조회 기간(1y·5y…). 보고 주기(annual/quarterly)는 freq — 이름이 겹쳐 헷갈리지 않게 분리.
-    start, end = resolve_date_range(period, start_date, end_date)
-    raw = await QueryExecutor.fetch(provider, "financials", {"symbol": symbol.upper(), "freq": freq})
-    return _dated_events(raw, provider, start, end, limit, 4)
-
-
-@router.get("/earnings/{symbol}")
-@route_handler
-async def get_earnings(
-    symbol: str,
-    provider: str = "polygon",
-    limit: Optional[int] = None,
-    period: Optional[str] = None,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-) -> OBBject:
-    start, end = resolve_date_range(period, start_date, end_date)
-    # 기간 조회면 분기 실적을 넉넉히(최대 40분기 = 10년) 받아 기간으로 자른다
-    fetch_limit = limit or (40 if (start or end) else 8)
-    raw = await QueryExecutor.fetch(provider, "earnings", {"symbol": symbol.upper(), "limit": fetch_limit})
-    return _dated_events(raw, provider, start, end, limit, 8)
-
-
-@router.get("/insider-trading/{symbol}")
-@route_handler
-async def get_insider_trading(
-    symbol: str,
-    provider: str = "yahoo",
-    limit: Optional[int] = None,
-    period: Optional[str] = None,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-) -> OBBject:
-    # insider_trading: yahoo·polygon·sec 멀티프로바이더(표준 InsiderTradingData 공유).
-    # 과거 yahoo 전용 insider_trading_summary 대신 공용 키로 디스패치해 provider 셀렉터를 지원.
-    # 프론트는 셀렉터로 ?provider= 를 주입(기본값은 db>설정키>저부하 규칙). 라우트 기본값은 형제 라우트와 동일하게 yahoo.
-    # 기간은 거래일 기준(공시일은 거래 후 며칠 뒤라 기간 경계에서 어긋난다).
-    start, end = resolve_date_range(period, start_date, end_date)
-    # 기간 조회면 fetcher 쪽 건수를 넉넉히 받아 기간으로 자른다
-    fetch_limit = limit or (200 if (start or end) else 50)
-    params = _range_params({"symbol": symbol.upper(), "limit": fetch_limit}, start, end)
-    raw = await QueryExecutor.fetch(provider, "insider_trading", params)
-    return _dated_events(raw, provider, start, end, limit, 50, key="transaction_date")
-
-
-@router.get("/insider-holders/{symbol}")
-@route_handler
-async def get_insider_holders(symbol: str, provider: str = "yahoo") -> OBBject:
-    raw = await QueryExecutor.fetch(provider, "insider_holders", {"symbol": symbol.upper()})
-    return _wrap(raw, provider)
-
-
-@router.get("/analyst/{symbol}")
-@route_handler
-async def get_analyst_data(symbol: str, provider: str = "fmp") -> OBBject:
-    raw = await QueryExecutor.fetch(provider, "analyst_data", {"symbol": symbol.upper()})
-    return _wrap(raw, provider)
-
-
-@router.get("/holders/{symbol}")
-@route_handler
-async def get_holders(symbol: str, provider: str = "yahoo") -> OBBject:
-    raw = await QueryExecutor.fetch(provider, "holders", {"symbol": symbol.upper()})
-    return _wrap(raw, provider)
-
-
-@router.get("/calendar/{symbol}")
-@route_handler
-async def get_calendar(
-    symbol: str,
-    provider: str = "yahoo",
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-) -> OBBject:
-    params: Dict[str, Any] = {"symbol": symbol.upper()}
-    if start_date:
-        params["start_date"] = start_date
-    if end_date:
-        params["end_date"] = end_date
-    raw = await QueryExecutor.fetch(provider, "calendar", params)
-    return _wrap(raw, provider)
-
-
-@router.get("/dividends/{symbol}")
-@route_handler
-async def get_dividends(
-    symbol: str,
-    provider: str = "yahoo",
-    limit: Optional[int] = None,
-    period: Optional[str] = None,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-) -> OBBject:
-    start, end = resolve_date_range(period, start_date, end_date)
-    raw = await QueryExecutor.fetch(provider, "dividends", _range_params({"symbol": symbol.upper()}, start, end))
-    return _dated_events(raw, provider, start, end, limit, 20)
-
-
-@router.get("/splits/{symbol}")
-@route_handler
-async def get_splits(
-    symbol: str,
-    provider: str = "yahoo",
-    limit: Optional[int] = None,
-    period: Optional[str] = None,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-) -> OBBject:
-    start, end = resolve_date_range(period, start_date, end_date)
-    raw = await QueryExecutor.fetch(provider, "splits", {"symbol": symbol.upper()})
-    return _dated_events(raw, provider, start, end, limit, 20)
-
-
-@router.get("/filings/{symbol}")
-@route_handler
-async def get_filings(
-    symbol: str,
-    provider: str = "yahoo",
-    limit: Optional[int] = None,
-    period: Optional[str] = None,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-) -> OBBject:
-    start, end = resolve_date_range(period, start_date, end_date)
-    raw = await QueryExecutor.fetch(provider, "filings", {"symbol": symbol.upper()})
-    return _dated_events(raw, provider, start, end, limit, 20)
-
-
-@router.get("/quarterly-pnl/{symbol}")
-@route_handler
-async def get_quarterly_pnl(symbol: str, provider: str = "yahoo", limit: int = 12) -> OBBject:
-    """분기 손익 + 이익률 · 전년 동기 대비 매출 — 분기 재무제표(financials)를 command 가 가공."""
-    rows = await fundamentals_cmd.quarterly_pnl(symbol.upper(), Source(provider, "financials"), limit)
-    return _wrap(rows, provider)
-
-
-@router.get("/revenue-segments/{symbol}")
-@route_handler
-async def get_revenue_segments(symbol: str, provider: str = "fmp", limit: int = 8) -> OBBject:
-    """제품 · 지역별 매출 — 세그먼트별 전년 대비(yoy)는 command 가 채운다."""
-    rows = await fundamentals_cmd.revenue_segments(symbol.upper(), Source(provider, "revenue_segments"), limit)
-    return _wrap(rows, provider)
-
-
-@router.get("/estimates/{symbol}")
-@route_handler
-async def get_estimates(symbol: str, provider: str = "yahoo") -> OBBject:
-    raw = await QueryExecutor.fetch(provider, "estimates", {"symbol": symbol.upper()})
-    return _wrap(raw, provider)
-
-
-@router.get("/management/{symbol}")
-@route_handler
-async def get_management(symbol: str, provider: str = "yahoo") -> OBBject:
-    raw = await QueryExecutor.fetch(provider, "management", {"symbol": symbol.upper()})
-    return _wrap(raw, provider)
-
-
-@router.get("/moat/{symbol}")
-@route_handler
-async def get_moat_analysis(symbol: str, provider: str = "yahoo") -> OBBject:
-    """경제적 해자 — 연간 재무제표(financials)로 command 가 수익성 · 점수를 낸다."""
-    rows = await fundamentals_cmd.moat(symbol.upper(), Source(provider, "financials"))
-    return _wrap(rows, provider)
-
-
-@router.get("/swot/{symbol}")
-@route_handler
-async def get_swot(symbol: str, provider: str = "yahoo") -> OBBject:
-    """SWOT — 주요 지표(key_metrics)를 command 가 문턱값으로 나눈다."""
-    rows = await fundamentals_cmd.swot(symbol.upper(), Source(provider, "key_metrics"))
-    return _wrap(rows, provider)
-
-
-@router.get("/sentiment/{symbol}")
-@route_handler
-async def get_stock_sentiment(symbol: str, provider: str = "polygon") -> OBBject:
-    """종목 뉴스(news)의 제목 키워드 감성 — command 가 분류 · 추이를 낸다."""
-    rows = await news_sentiment_cmd.news_sentiment(symbol.upper(), Source(provider, "news"))
-    return _wrap(rows, provider)
-
-
-@router.get("/reddit/{symbol}")
-@route_handler
-async def get_social_sentiment(symbol: str, provider: str = "social") -> OBBject:
-    """StockTwits · Reddit 글 — 글 분류 · 강세/약세 비율은 command 가 낸다."""
-    rows = await sentiment_cmd.social(symbol.upper(), Source(provider, "sentiment"))
-    return _wrap(rows, provider)
-
-
-@router.get("/scorecard/{symbol}")
-@route_handler
-async def get_scorecard(symbol: str, provider: str = "yahoo") -> OBBject:
-    """투자 스코어카드 — 주요 지표(key_metrics)로 command 가 범주별 점수 · 등급을 낸다."""
-    rows = await fundamentals_cmd.scorecard(symbol.upper(), Source(provider, "key_metrics"))
-    return _wrap(rows, provider)
-
-
-@router.get("/quote/{symbol}")
-@route_handler
-async def get_stock_quote(symbol: str, provider: str = "yahoo") -> OBBject:
-    raw = await QueryExecutor.fetch(provider, "quote", {"symbol": symbol.upper()})
-    items = _unwrap(raw)
-    if not items:
-        raise HTTPException(status_code=404, detail=f"Stock {symbol} not found")
-    return _wrap(raw, provider)
-
-
-@router.get("/history/{symbol}")
-@route_handler
-async def get_stock_history(
-    symbol: str,
-    provider: str = "yahoo",
-    period: Optional[str] = None,
-    interval: Optional[str] = None,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-) -> OBBject:
-    params: Dict[str, Any] = {"symbol": symbol.upper()}
-    if start_date and end_date:
-        params["start_date"] = start_date
-        params["end_date"]   = end_date
-        params["interval"]   = interval or "1d"
-    else:
-        params["period"]   = period or "1mo"
-        if interval:
-            params["interval"] = interval
-    raw = await QueryExecutor.fetch(provider, "stock_price", params)
-    if not _unwrap(raw):
-        raise HTTPException(status_code=404, detail=f"No history for {symbol}")
-    return _wrap(raw, provider)
-
-
-@router.get("/orderbook/{symbol}")
-@route_handler
-async def get_stock_orderbook(symbol: str, provider: str = "polygon") -> OBBject:
-    raw = await QueryExecutor.fetch(provider, "orderbook", {"symbol": symbol.upper()})
-    return _wrap(raw, provider)
-
-
-@router.get("/search")
-@route_handler
-async def search_stocks(
-    query: str = "",
-    limit: int = 12,
-) -> OBBject:
-    """종목 자동완성 — DB 유니버스(KR+US 전체) 기반 인메모리 검색. 외부 API 호출 없음."""
-    from app.backend.services.symbol_cache import get_symbol_cache
-
-    cache = get_symbol_cache()
-    await cache.ensure_loaded()
-    hits = cache.search(query.upper(), limit=limit)
-    return OBBject(results=hits, provider="db")
-
-
-@router.get("/relations/{symbol}")
-@route_handler
-async def get_company_relations_route(symbol: str, provider: str = "db") -> OBBject:
-    from app.backend.services.company_relations import get_company_relations
-    data = await get_company_relations(symbol.upper())
-    return _wrap_one(data, provider)
-
-
-@router.get("/sector-performance")
-@route_handler
-async def get_sector_performance(provider: str = "db") -> OBBject:
-    """섹터별 묶음 — db provider sector_performance (종목 프로필을 섹터로)."""
-    raw = await QueryExecutor.fetch("db", "sector_performance", {})
-    return OBBject.from_result(raw, provider)
-
-
-@router.get("/compare")
-@route_handler
-async def compare_stocks(
-    symbols: str = FQuery(..., description="Comma-separated symbols (2-4)"),
-) -> OBBject:
-    """종목 2~4개 비교 — 시세(quote) + 주요 지표(key_metrics) 를 command 가 한 행으로.
-
-    yahoo 는 서버에서 부르지 않고 사용자 PC Fetcher 로 위임된다 — 종목 × 2 모델이 병렬로 내려가고,
-    quote · key_metrics 캐시는 다른 위젯과 같이 쓴다.
-    """
-    from app.backend.commands import stock as stock_cmd
-    from app.backend.commands._base import Source
-
-    rows = await stock_cmd.compare(symbols, Source("yahoo", "quote"), Source("yahoo", "key_metrics"))
-    return _wrap(rows, "yahoo")
+router = Router(prefix="", tags=["stock"], description="Stock analysis commands.")
+extra = APIRouter()
 
+
+# ══ 가공 command ═══════════════════════════════════════════════════════════════
+
+# ── 재무 분석 — 해자 · 분기 손익 · 스코어카드 · SWOT · 세그먼트 ─────────────────────
+
+@router.command(path="/moat/{symbol}", inputs=lambda symbol, provider="yahoo": {
+    "rows": Fetch(provider, "financials", {"symbol": symbol.upper(), "period": "annual"}, required=True)})
+def moat(data, symbol: str):
+    """경제적 해자 — 연간 재무제표로 연도별 수익성 · ROE 15% 이상인 해 수로 판정."""
+    return [fundamentals.moat_from_rows(symbol.upper(), data["rows"])]
+
+
+@router.command(path="/quarterly-pnl/{symbol}", inputs=lambda symbol, provider="yahoo": {
+    "rows": Fetch(provider, "financials", {"symbol": symbol.upper(), "period": "quarterly"}, required=True)})
+def quarterly_pnl(data, symbol: str, limit: int = 12):
+    """분기 손익 + 이익률 · 전년 동기 대비 매출."""
+    return [fundamentals.quarterly_pnl_from_rows(symbol.upper(), data["rows"], limit)]
+
+
+def _metrics(symbol: str, provider: str = "yahoo"):
+    return {"m": Fetch(provider, "key_metrics", {"symbol": symbol.upper()}, required=True)}
+
+
+@router.command(path="/scorecard/{symbol}", inputs=_metrics)
+def scorecard(data, symbol: str):
+    """투자 스코어카드 — 주요 지표로 범주별 점수 · 등급."""
+    return [fundamentals.scorecard_from_metrics(symbol.upper(), (data["m"] or [{}])[0])]
+
+
+@router.command(path="/swot/{symbol}", inputs=_metrics)
+def swot(data, symbol: str):
+    """SWOT — 주요 지표를 문턱값으로 강점 · 약점 · 기회 · 위협에."""
+    return [fundamentals.swot_from_metrics(symbol.upper(), (data["m"] or [{}])[0])]
+
+
+@router.command(path="/revenue-segments/{symbol}", inputs=lambda symbol, provider="fmp", limit=8: {
+    "rows": Fetch(provider, "revenue_segments", {"symbol": symbol.upper(), "limit": limit}, required=True)})
+def revenue_segments(data):
+    """제품 · 지역별 매출 + 세그먼트별 전년 대비."""
+    return [fundamentals.add_segment_yoy(r) for r in data["rows"]]
+
+
+# ── 감성 ──────────────────────────────────────────────────────────────────────
+
+@router.command(path="/sentiment/{symbol}", inputs=lambda symbol, provider="polygon": {
+    "news": Fetch(provider, "news", {"symbol": symbol.upper(), "limit": news_sentiment.MAX_ARTICLES}, required=True)})
+def news_sentiment_cmd(data, symbol: str):
+    """종목 뉴스 제목 키워드 감성 + 날짜별 추이."""
+    return [news_sentiment.news_sentiment_from(symbol.upper(), data["news"])]
+
+
+@router.command(path="/reddit/{symbol}", inputs=lambda symbol, provider="social": {
+    "rows": Fetch(provider, "sentiment", {"symbol": symbol.upper()}, required=True)})
+def social_sentiment(data):
+    """StockTwits · Reddit — 글 분류 · 강세/약세 비율."""
+    return [sentiment.score_social(r) for r in data["rows"]]
+
+
+# ── 비교 ──────────────────────────────────────────────────────────────────────
+
+def _compare_inputs(symbols: str = FQuery(..., description="Comma-separated symbols (2-4)")):
+    out = {}
+    for s in stock_cmd.parse_symbols(symbols):
+        out[f"{s}:quote"] = Fetch("yahoo", "quote", {"symbol": s})
+        out[f"{s}:metrics"] = Fetch("yahoo", "key_metrics", {"symbol": s})
+    return out
+
+
+@router.command(path="/compare", inputs=_compare_inputs)
+def compare(data, symbols: str):
+    """종목 2~4개 — 시세 + 주요 지표를 한 행으로 (yahoo 는 사용자 PC Fetcher 로 위임, 캐시는 다른 위젯과 공유)."""
+    return stock_cmd.compare_from(stock_cmd.parse_symbols(symbols), data)
+
+
+# ── 거시 지표 (종목 차트 비교용) ──────────────────────────────────────────────
 
 # 지표 키 → fred 모델 (+ 고정 파라미터)
-_INDICATOR_MAP: Dict[str, tuple] = {
+INDICATOR_MAP: Dict[str, tuple] = {
     "GDP":                   ("gdp",                  {}),
     "UNEMPLOYMENT":          ("unemployment",          {}),
     "CPI":                   ("cpi",                  {}),
@@ -384,47 +111,57 @@ _INDICATOR_MAP: Dict[str, tuple] = {
     "NONFARM_PAYROLL":       ("nonfarm_payroll",       {}),
     "HOUSING_STARTS":        ("housing_starts",        {}),
     "INDUSTRIAL_PRODUCTION": ("industrial_production", {}),
-    # 섹터별 수지: 연방 재정수지 %GDP (연간, 적자는 음수)
-    "FISCAL_BALANCE":        ("series",                {"series_id": "FYFSGDA188S"}),
+    "FISCAL_BALANCE":        ("series",                {"series_id": "FYFSGDA188S"}),   # 연방 재정수지 %GDP
 }
-
-# 두 시리즈의 비율(%) — command 가 계산. 지표 키 → (분자 series id, 분모 series id)
-_RATIO_MAP: Dict[str, tuple] = {
-    # 세후 기업이익 %GDP — 재정수지 %GDP 와 같은 축
-    "CORP_PROFITS_GDP":      ("CPATAX", "GDP"),
+# 두 시리즈의 비율(%) — 지표 키 → (분자, 분모 series id)
+RATIO_MAP: Dict[str, tuple] = {
+    "CORP_PROFITS_GDP": ("CPATAX", "GDP"),     # 세후 기업이익 %GDP
 }
 
 
-@router.get("/indicator/{indicator}")
-@route_handler
-async def get_indicator_history(indicator: str, period: str = "5y") -> OBBject:
-    from data_fetcher.utils.helpers import parse_period_to_dates
-
+def _indicator_inputs(indicator: str, period: str = "5y"):
     key = indicator.upper()
-    if key not in _INDICATOR_MAP and key not in _RATIO_MAP:
-        valid = ", ".join([*_INDICATOR_MAP, *_RATIO_MAP])
-        raise HTTPException(status_code=400, detail=f"Invalid indicator. Valid: {valid}")
-    start_date, end_date = parse_period_to_dates(period)
+    if key not in INDICATOR_MAP and key not in RATIO_MAP:
+        raise HTTPException(status_code=400, detail=f"Invalid indicator. Valid: {', '.join([*INDICATOR_MAP, *RATIO_MAP])}")
+    start, end = parse_period_to_dates(period)
+    rng = {"start_date": start, "end_date": end}
+    if key in RATIO_MAP:
+        num, den = RATIO_MAP[key]
+        return {"rows": Fetch("fred", "series", {"series_id": f"{num},{den}", **rng}, required=True)}
+    model, params = INDICATOR_MAP[key]
+    return {"rows": Fetch("fred", model, {**params, **rng}, required=True)}
 
-    if key in _RATIO_MAP:
-        from app.backend.commands import macro as macro_cmd
-        from app.backend.commands._base import Source
 
-        num, den = _RATIO_MAP[key]
-        rows = await macro_cmd.ratio_pct(Source("fred", "series", {
-            "series_id": f"{num},{den}", "start_date": start_date, "end_date": end_date}), num, den)
-        if not rows:
-            raise HTTPException(status_code=404, detail=f"No data for {indicator}")
-        return _wrap(rows, "fred")
-
-    model, base_params = _INDICATOR_MAP[key]
-    raw = await QueryExecutor.fetch("fred", model, {**base_params, "start_date": start_date, "end_date": end_date})
-    if not _unwrap(raw):
+@router.command(path="/indicator/{indicator}", inputs=_indicator_inputs)
+def indicator_history(data, indicator: str):
+    key = indicator.upper()
+    rows = macro.ratio_pct_from(data["rows"], *RATIO_MAP[key]) if key in RATIO_MAP else data["rows"]
+    if not rows:
         raise HTTPException(status_code=404, detail=f"No data for {indicator}")
-    return _wrap(raw, "fred")
+    return rows
 
 
-@router.get("/ranking/live")
+# ══ provider 조회가 아닌 것 ════════════════════════════════════════════════════
+
+@extra.get("/search")
+@route_handler
+async def search_stocks(query: str = "", limit: int = 12) -> OBBject:
+    """종목 자동완성 — DB 유니버스(KR+US 전체) 기반 인메모리 검색. 외부 API 호출 없음."""
+    from app.backend.services.symbol_cache import get_symbol_cache
+
+    cache = get_symbol_cache()
+    await cache.ensure_loaded()
+    return OBBject(results=cache.search(query.upper(), limit=limit), provider="db")
+
+
+@extra.get("/relations/{symbol}")
+@route_handler
+async def get_company_relations_route(symbol: str, provider: str = "db") -> OBBject:
+    from app.backend.services.company_relations import get_company_relations
+    return OBBject.from_result(await get_company_relations(symbol.upper()), provider)
+
+
+@extra.get("/ranking/live")
 async def get_live_stock_ranking(
     market: str = FQuery("all", description="all | domestic | overseas"),
     sort_by: str = FQuery("gainers", description="gainers | losers | volume | trade_value"),
@@ -466,7 +203,7 @@ async def get_live_stock_ranking(
     return OBBject(results=results, provider=source, metadata={"candidates": candidates})
 
 
-@router.get("/ranking")
+@extra.get("/ranking")
 async def get_stock_ranking(
     market: str = FQuery("all", description="all | domestic | overseas"),
     sort_by: str = FQuery("gainers", description="gainers | losers | volume | trade_value"),
@@ -474,7 +211,5 @@ async def get_stock_ranking(
     limit: int = FQuery(50, ge=1, le=200),
 ) -> OBBject:
     from app.backend.services.ranking_service import RankingService
-    results, source = await RankingService.get_ranking(
-        market=market, sort_by=sort_by, period=period, limit=limit
-    )
+    results, source = await RankingService.get_ranking(market=market, sort_by=sort_by, period=period, limit=limit)
     return OBBject(results=results, provider=source)

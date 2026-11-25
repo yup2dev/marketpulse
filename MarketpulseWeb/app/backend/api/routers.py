@@ -9,14 +9,13 @@ from fastapi import FastAPI
 from app.backend.api.command_map import add_command_map
 
 from app.backend.api.routes import (
-    stock, news, portfolio, macro,
+    stock, portfolio, macro,
     auth, user_portfolio, screener, alerts, export, watchlist, menu,
-    quantlib, quantitative, notes, reports, copilot, backtest, quant,
+    quantitative, notes, reports, copilot, backtest, quant,
 )
 from app.backend.api.routes.admin import router as admin_router
 from app.backend.api.routes.workspace import router as workspace_router
 # fundamental 의 router 는 CommandRouter — APIRouter 를 `.router` 로 감싸고 있다.
-from app.backend.api.routes.fundamental import router as fundamental_command_router
 from app.backend.api.routes.providers import router as providers_router
 from app.backend.api.routes.ws import router as ws_router
 from app.backend.api.routes.data import router as data_router
@@ -31,14 +30,17 @@ from app.backend.api.routes.industry import router as industry_router
 
 def register_routers(app: FastAPI) -> None:
     # ── Stock / Market ────────────────────────────────────────────────────────
-    app.include_router(stock.router,     prefix="/api/stock",    tags=["stock"])
-    app.include_router(news.router,      prefix="/api/news",     tags=["news"])
     app.include_router(reports.router,   prefix="/api",          tags=["reports"])
     app.include_router(screener.router,  prefix="/api",          tags=["screener"])
 
     # ── Macro / Economic ─────────────────────────────────────────────────────
     # OpenBB 식 command 라우터 (data_fetcher.core.Router) — 오류 응답은 command_map 래퍼가 한 곳에서
-    add_command_map(app, [(macro.router, "/api/macro")])
+    add_command_map(app, [
+        (macro.router, "/api/macro"),
+        (stock.router, "/api/stock"),
+        (quantitative.router, "/api/quantitative"),
+    ])
+    app.include_router(stock.extra, prefix="/api/stock", tags=["stock"])
 
     # ── Portfolio ─────────────────────────────────────────────────────────────
     app.include_router(portfolio.router,      prefix="/api/portfolio", tags=["portfolio"])
@@ -54,9 +56,6 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(user_widgets_router, prefix="/api", tags=["user-widgets"])
 
     # ── Analysis ──────────────────────────────────────────────────────────────
-    app.include_router(fundamental_command_router.router, prefix="/api/v1",           tags=["equity-fundamental"])
-    app.include_router(quantlib.router,                   prefix="/api/quantlib",     tags=["quantlib"])
-    app.include_router(quantitative.router,               prefix="/api/quantitative", tags=["quantitative"])
     app.include_router(quant.router,                      prefix="/api",              tags=["quant"])
     app.include_router(strategies_router,                 prefix="/api",              tags=["strategies"])
     app.include_router(quant_portfolios_router,           prefix="/api",              tags=["quant-portfolios"])

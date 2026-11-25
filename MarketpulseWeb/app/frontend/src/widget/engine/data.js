@@ -1,7 +1,7 @@
 /**
  * 데이터 계층 — 스펙의 endpoint 문자열을 요청으로 바꾼다.
  *
- *   fill('/stock/history/{symbol}?period={period}', params)   {이름} 자리 채우기
+ *   fill('/data/yahoo/stock_price?symbol={symbol}&period={period}', params)   {이름} 자리 채우기
  *   useApi(path, { refresh })                                 위젯의 주 요청 (자동 새로고침)
  *   useSeries(symbols, template)                              심볼마다 한 번씩 (스파크라인) — 캐시 + 동시 요청 제한
  *   useExtra({ favorites: '/watchlist/my-tickers' })          보조 요청 — transform·filter 의 ctx.extra 로 간다

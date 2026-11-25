@@ -4,11 +4,16 @@ import pandas as pd
 import pytest
 
 import data_fetcher.providers_init  # noqa: F401 — provider 등록
-from app.backend.commands._base import Source
-from app.backend.commands.quant import closes_from_prices, correlation, correlation_matrix
+from app.backend.api.routes import quantitative
+from app.backend.commands.quant import closes_from_prices, correlation_matrix
 from data_fetcher.query_executor import QueryExecutor, RemoteUnavailableError, current_user_id
 
-PRICES = Source("yahoo", "stock_price")
+CORRELATION = next(c.endpoint for c in quantitative.router.commands if c.path == "/correlation")
+
+
+def correlation(symbols, period="1y"):
+    return CORRELATION(symbols=symbols if isinstance(symbols, str) else ",".join(symbols), period=period,
+                       start_date=None, end_date=None)
 
 DATES = [f"2026-01-{d:02d}" for d in range(1, 11)]
 A = [100, 101, 103, 102, 105, 107, 106, 108, 110, 111]
@@ -79,10 +84,10 @@ def server_qe(monkeypatch):
 async def test_server_delegates_prices_to_user_fetcher(server_qe):
     remote = server_qe(_PriceRemote({"AAPL": A, "MSFT": B, "XOM": C}))
 
-    row = (await correlation(PRICES, "aapl,MSFT,xom,AAPL", period="2y"))[0]
+    row = (await correlation("aapl,MSFT,xom,AAPL", period="2y")).results[0]
 
-    assert row.labels == ["AAPL", "MSFT", "XOM"]            # 정규화 + 중복 제거
-    assert row.rows == len(DATES) - 1 and row.missing == []
+    assert row["labels"] == ["AAPL", "MSFT", "XOM"]            # 정규화 + 중복 제거
+    assert row["rows"] == len(DATES) - 1 and row["missing"] == []
     # 계산은 서버에서, 시세만 위임 — 위임된 건 전부 yahoo stock_price 일봉
     assert {(p, m) for p, m, _ in remote.calls} == {("yahoo", "stock_price")}
     assert sorted(c[2]["symbol"] for c in remote.calls) == ["AAPL", "MSFT", "XOM"]
@@ -93,4 +98,4 @@ async def test_server_delegates_prices_to_user_fetcher(server_qe):
 async def test_server_fetcher_offline_propagates(server_qe):
     server_qe(_PriceRemote({}, exc=RemoteUnavailableError("fetcher offline")))
     with pytest.raises(RemoteUnavailableError):
-        await correlation(PRICES, ["AAPL", "MSFT"])
+        await correlation(["AAPL", "MSFT"])

@@ -4,7 +4,7 @@
   "name": "Breaking News",
   "description": "One-line headlines · watchlist news",
   "view_type": "list",
-  "endpoint": "/news?limit=50&period=1w",
+  "endpoint": "/data/polygon/news?limit=50&period=1w",
   "source": "polygon",
   "transform": "news_rows",
   "refresh_sec": 120,

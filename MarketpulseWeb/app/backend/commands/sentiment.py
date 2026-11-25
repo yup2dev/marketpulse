@@ -6,7 +6,7 @@ Reddit 글은 제목 키워드로 나누고, 둘을 합쳐 비율을 낸다. 계
 """
 from typing import Any, Dict, List
 
-from app.backend.commands._base import Rows, Source, fetch_rows
+from app.backend.commands._base import Rows
 
 POSITIVE_WORDS = ("beat", "bull", "buy", "moon", "surge", "gain")
 NEGATIVE_WORDS = ("bear", "sell", "dump", "crash", "loss", "miss")
@@ -36,7 +36,3 @@ def score_social(row: Dict[str, Any]) -> Dict[str, Any]:
     posts = [{**p, "sentiment": classify_title(p.get("title", ""))} for p in row.get("reddit_posts") or []]
     labels = [m.get("sentiment", "neutral") for m in row.get("stocktwits_messages") or []] + [p["sentiment"] for p in posts]
     return {**row, "reddit_posts": posts, "aggregate": aggregate(labels)}
-
-
-async def social(symbol: str, src: Source) -> Rows:
-    return [score_social(r) for r in await fetch_rows(src.with_params(symbol=symbol))]

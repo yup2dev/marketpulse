@@ -26,49 +26,6 @@ async def _db_rows(model: str, params: Dict[str, Any]) -> List[Dict[str, Any]]:
     return OBBject.from_result(raw, "db").results
 
 
-@router.get("/13f/institutions")
-async def get_13f_institutions(
-    use_dynamic: bool = True,
-    limit: int = 1000,
-    loaded_only: bool = True,
-    with_performance: bool = False,
-    provider: str = "sec",
-) -> OBBject:
-    try:
-        institutions = await _db_rows("institutions_list", {
-            "use_dynamic": use_dynamic, "limit": limit, "loaded_only": loaded_only,
-            "with_performance": with_performance,
-        })
-        return OBBject(
-            results=institutions,
-            provider=provider,
-            metadata={
-                "source": "dynamic" if use_dynamic else "featured",
-                "loaded_only": loaded_only,
-            },
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/13f/summaries")
-async def get_13f_summaries(
-    period: Optional[str] = None,
-    provider: str = "db",
-) -> OBBject:
-    """전 기관 13F 요약 일괄 조회 (보유 종목 목록 없음).
-
-    요약은 일 배치가 계산·적재한 값 그대로다. period: 보고 분기말(YYYY-MM-DD) — 비우면 최신.
-    `/13f/{institution_key}` 보다 먼저 선언해야 'summaries' 가 기관 키로 잡히지 않는다.
-    """
-    try:
-        rows = await _db_rows("institutions_summary", {"period": period})
-        return OBBject(results=rows, provider=provider)
-    except Exception as e:
-        log.error(f"Error fetching 13F summaries: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @router.get("/13f/{institution_key}/performance")
 async def get_fund_performance(
     institution_key: str,

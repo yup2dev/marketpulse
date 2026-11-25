@@ -10,7 +10,6 @@ from types import SimpleNamespace
 import pytest
 
 from app.backend.commands import fx as fx_cmd, macro as macro_cmd, stock as stock_cmd
-from app.backend.commands._base import Source
 from app.backend.constants.macro_catalog import FX_PAIRS, INDICATORS, MACRO_SERIES
 from data_fetcher.query_executor import MissingCredentialsError, QueryExecutor
 
@@ -74,7 +73,7 @@ def test_ratio_pct(fake_qe):
         {"date": date(2026, 4, 1), "value": 30000.0, "series_id": "GDP"},
         {"date": date(2026, 7, 1), "value": 3300.0, "series_id": "CPATAX"},     # 분모 없는 분기는 빠진다
     ]
-    rows = _run(macro_cmd.ratio_pct(Source("x", "series"), "CPATAX", "GDP"))
+    rows = macro_cmd.ratio_pct_from(fake_qe["handler"](None, None, None), "CPATAX", "GDP")
     assert [(r.date, r.value) for r in rows] == [(date(2026, 4, 1), 10.0)]
 
 
@@ -94,28 +93,29 @@ def test_latest_rates():
 
 # ── stock ─────────────────────────────────────────────────────────────────────
 
-def test_compare_rows_and_partial_failure(fake_qe):
+def test_compare_rows_and_partial_failure(auth_client, fake_qe):
+    client, _ = auth_client
+
     def handler(p, m, params):
         if params["symbol"] == "BAD":
             return RuntimeError("down")
         if m == "quote":
-            return [{"price": 10.0, "change_percent": 1.5, "volume": 100}]
+            return [{"last_price": 10.0, "change_percent": 1.5, "volume": 100}]
         return [{"symbol": params["symbol"], "pe_ratio": 20.0, "net_margin": 0.3, "week_52_high": 12.0}]
 
     fake_qe["handler"] = handler
-    rows = _run(stock_cmd.compare("aapl,bad", Source("x", "quote"), Source("x", "key_metrics")))
-    assert rows[0].symbol == "AAPL" and rows[0].price == 10.0 and rows[0].profit_margin == 0.3
-    assert rows[1].symbol == "BAD" and rows[1].error
+    rows = client.get("/api/stock/compare", params={"symbols": "aapl,bad"}).json()["results"]
+    assert rows[0]["symbol"] == "AAPL" and rows[0]["price"] == 10.0 and rows[0]["profit_margin"] == 0.3
+    assert rows[1]["symbol"] == "BAD" and rows[1]["error"]
     assert len(fake_qe["calls"]) == 4                      # 종목 2 × 모델 2
-
-    with pytest.raises(ValueError):
-        _run(stock_cmd.compare("AAPL", Source("x", "quote"), Source("x", "key_metrics")))       # 2~4개
+    assert client.get("/api/stock/compare", params={"symbols": "AAPL"}).status_code == 400    # 2~4개
 
 
-def test_compare_raises_when_every_symbol_fails(fake_qe):
-    fake_qe["handler"] = lambda p, m, params: RuntimeError("worker offline")
-    with pytest.raises(RuntimeError):                      # Fetcher 미접속 → 503 안내가 화면까지
-        _run(stock_cmd.compare("A,B", Source("x", "quote"), Source("x", "key_metrics")))
+def test_compare_raises_when_every_symbol_fails(auth_client, fake_qe):
+    client, _ = auth_client
+    fake_qe["handler"] = lambda p, m, params: MissingCredentialsError("yahoo")
+    r = client.get("/api/stock/compare", params={"symbols": "A,B"})
+    assert r.status_code == 424                            # 전부 실패 → 첫 오류 그대로 (키 · Fetcher 안내)
 
 
 # ── 라우트 — 어느 provider · model 을 몇 번 부르나 ─────────────────────────────────
@@ -175,21 +175,22 @@ def test_route_corp_profits_and_forex_and_compare(auth_client, fake_qe):
 from app.backend.commands import news_sentiment as news_cmd  # noqa: E402
 
 
-def test_news_sentiment_scores_titles_and_trend(fake_qe):
+def test_news_sentiment_scores_titles_and_trend(auth_client, fake_qe):
     from datetime import datetime, timezone
+    client, _ = auth_client
     fake_qe["handler"] = lambda p, m, params: [
         {"title": "Apple beats estimates, stock surges", "published_utc": datetime(2026, 9, 1, 13, tzinfo=timezone.utc),
          "publisher_name": "X", "article_url": "u1"},
         {"title": "Analyst downgrade on weak demand", "published_utc": datetime(2026, 9, 1, 15, tzinfo=timezone.utc)},
         {"title": "Apple event today", "published_utc": None, "publisher": "Y"},
     ]
-    out = _run(news_cmd.news_sentiment("AAPL", Source("x", "news")))[0]
+    out = client.get("/api/stock/sentiment/aapl", params={"provider": "x"}).json()["results"][0]
     assert fake_qe["calls"] == [("x", "news", {"symbol": "AAPL", "limit": 50})]
-    assert [n["sentiment"] for n in out.news] == ["positive", "negative", "neutral"]
-    assert [n["sentiment_score"] for n in out.news] == [70, 20, 50]   # downgrade 에 down 도 걸린다
-    assert out.news[0]["published_at"].startswith("2026-09-01T13") and out.news[2]["source"] == "Y"
-    assert out.aggregate == {"positive": 1, "negative": 1, "neutral": 1, "overall_score": 50}
-    assert out.trend == [{"date": "2026-09-01", "score": 45.0}]
+    assert [n["sentiment"] for n in out["news"]] == ["positive", "negative", "neutral"]
+    assert [n["sentiment_score"] for n in out["news"]] == [70, 20, 50]   # downgrade 에 down 도 걸린다
+    assert out["news"][0]["published_at"].startswith("2026-09-01T13") and out["news"][2]["source"] == "Y"
+    assert out["aggregate"] == {"positive": 1, "negative": 1, "neutral": 1, "overall_score": 50}
+    assert out["trend"] == [{"date": "2026-09-01", "score": 45.0}]
 # ── 재무 분석 · 감성 · 포트폴리오 (#104 — fetcher 에서 옮김) ──────────────────
 
 from app.backend.commands import fundamentals as fund_cmd, portfolio as pf_cmd, sentiment as sent_cmd  # noqa: E402
@@ -201,33 +202,35 @@ def _year(y, ni, eq, rev=100.0):
             "operating_cash_flow": 30.0, "capital_expenditure": -10.0}
 
 
-def test_moat_counts_high_roe_years_whatever_the_order(fake_qe):
+def test_moat_counts_high_roe_years_whatever_the_order(auth_client, fake_qe):
+    client, _ = auth_client
     years = [_year(2016 + i, 20.0, 100.0) for i in range(8)]          # ROE 20% × 8년 → Wide
     fake_qe["handler"] = lambda p, m, params: list(reversed(years))
-    out = _run(fund_cmd.moat("AAPL", Source("x", "financials")))[0]
+    out = client.get("/api/stock/moat/aapl", params={"provider": "x"}).json()["results"][0]
     assert fake_qe["calls"] == [("x", "financials", {"symbol": "AAPL", "period": "annual"})]
-    assert out.moat_type == "Wide" and out.moat_score == 100
-    assert [h.year for h in out.history][:2] == ["2016", "2017"]
-    h = out.history[0]
-    assert (h.roe, h.roic, h.gross_margin, h.op_margin, h.fcf_margin) == (20.0, 13.3, 40.0, 20.0, 20.0)
+    assert out["moat_type"] == "Wide" and out["moat_score"] == 100
+    assert [h["year"] for h in out["history"]][:2] == ["2016", "2017"]
+    h = out["history"][0]
+    assert (h["roe"], h["roic"], h["gross_margin"], h["op_margin"], h["fcf_margin"]) == (20.0, 13.3, 40.0, 20.0, 20.0)
 
     narrow = [_year(2016 + i, 20.0 if i < 4 else 1.0, 100.0) for i in range(8)]
     assert fund_cmd.moat_from_rows("X", narrow).moat_type == "Narrow"
     assert fund_cmd.moat_from_rows("X", []).moat_type == "No Moat"
 
 
-def test_quarterly_pnl_margins_and_yoy(fake_qe):
+def test_quarterly_pnl_margins_and_yoy(auth_client, fake_qe):
+    client, _ = auth_client
     qs = [{"date": date(2025, 3 * i + 3, 28) if i < 3 else date(2026, 3 * (i - 3) + 3, 28),
            "revenue": (100 + 10 * i) * 1e9, "gross_profit": 50e9, "operating_income": 25e9,
            "net_income": None, "cost_of_revenue": 50e9}
           for i in range(5)]
     fake_qe["handler"] = lambda p, m, params: qs
-    out = _run(fund_cmd.quarterly_pnl("AAPL", Source("x", "financials"), limit=12))[0]
+    out = client.get("/api/stock/quarterly-pnl/aapl", params={"provider": "x"}).json()["results"][0]
     assert fake_qe["calls"][0][2]["period"] == "quarterly"
-    assert out.history[0].revenue == 100.0 and out.history[0].gross_margin == 50.0
-    assert out.history[0].net_margin is None
-    assert out.yoy_revenue == {out.history[4].date: 40.0}          # 140 vs 100
-    assert out.latest["revenue"] == 140.0
+    assert out["history"][0]["revenue"] == 100.0 and out["history"][0]["gross_margin"] == 50.0
+    assert out["history"][0]["net_margin"] is None
+    assert out["yoy_revenue"] == {out["history"][4]["date"]: 40.0}          # 140 vs 100
+    assert out["latest"]["revenue"] == 140.0
     assert len(fund_cmd.quarterly_pnl_from_rows("X", qs, 2).history) == 2
 
 
@@ -239,15 +242,16 @@ _METRICS = {"roe": 0.30, "roa": 0.12, "operating_margin": 0.30, "net_margin": 0.
             "beta": 1.6, "market_cap": 200e9}
 
 
-def test_scorecard_from_key_metrics(fake_qe):
+def test_scorecard_from_key_metrics(auth_client, fake_qe):
+    client, _ = auth_client
     fake_qe["handler"] = lambda p, m, params: [_METRICS]
-    out = _run(fund_cmd.scorecard("AAPL", Source("x", "key_metrics")))[0]
+    out = client.get("/api/stock/scorecard/aapl", params={"provider": "x"}).json()["results"][0]
     assert fake_qe["calls"] == [("x", "key_metrics", {"symbol": "AAPL"})]
-    c = out.categories
+    c = out["categories"]
     assert (c["fundamentals"]["score"], c["growth"]["score"], c["technical"]["score"]) == (100, 100, 100)
     assert c["valuation"]["score"] == 50                   # 50·0.4 + 50·0.3 + 50·0.3
     assert c["sentiment"]["score"] == 100                  # 추천 1.0 + 상승 여력 30%
-    assert out.overall_score == 90 and out.investment_grade == "Strong Buy"
+    assert out["overall_score"] == 90 and out["investment_grade"] == "Strong Buy"
     assert c["sentiment"]["detail"]["Price Upside"] == "+30.0%"
 
     empty = fund_cmd.scorecard_from_metrics("X", {})
@@ -269,24 +273,27 @@ def test_swot_buckets(fake_qe):
     assert labels(bad.threats) == {"Leverage Risk"}
 
 
-def test_revenue_segments_yoy(fake_qe):
+def test_revenue_segments_yoy(auth_client, fake_qe):
+    client, _ = auth_client
     row = {"symbol": "AAPL", "product": {"segments": ["iPhone", "Mac"], "history": [
         {"date": "2024", "iPhone": 200.0, "Mac": None}, {"date": "2025", "iPhone": 220.0, "Mac": 30.0}]},
         "geo": None}
     fake_qe["handler"] = lambda p, m, params: [row]
-    out = _run(fund_cmd.revenue_segments("AAPL", Source("x", "revenue_segments"), 8))[0]
+    out = client.get("/api/stock/revenue-segments/aapl", params={"provider": "x"}).json()["results"][0]
     assert fake_qe["calls"][0][2] == {"symbol": "AAPL", "limit": 8}
     assert out["product"]["yoy"] == {"iPhone": 10.0, "Mac": None}
 
 
-def test_social_classifies_reddit_and_aggregates(fake_qe):
+def test_social_classifies_reddit_and_aggregates(auth_client, fake_qe):
+    client, _ = auth_client
     fake_qe["handler"] = lambda p, m, params: [{
         "symbol": "TSLA",
         "stocktwits_messages": [{"sentiment": "bullish"}, {"sentiment": "bearish"}, {"sentiment": "neutral"}],
         "reddit_posts": [{"title": "Time to BUY, it will surge"}, {"title": "crash incoming"}, {"title": "hm"},
                          {"title": "bull case"}],
     }]
-    out = _run(sent_cmd.social("TSLA", Source("x", "sentiment")))[0]
+    out = client.get("/api/stock/reddit/tsla").json()["results"][0]
+    assert fake_qe["calls"][0][:2] == ("social", "sentiment")
     assert [p["sentiment"] for p in out["reddit_posts"]] == ["positive", "negative", "neutral", "positive"]
     assert out["aggregate"] == {"bullish_pct": 42.9, "bearish_pct": 28.6, "neutral_pct": 28.6, "message_volume": 7}
     assert sent_cmd.aggregate([])["bullish_pct"] == 0

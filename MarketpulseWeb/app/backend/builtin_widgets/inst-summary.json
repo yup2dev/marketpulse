@@ -21,7 +21,7 @@
       ]
     }
   ],
-  "options": {"optionsFrom.institution": "/portfolio/13f/institutions|key|name", "shared": "institution"},
+  "options": {"optionsFrom.institution": "/data/db/institutions_list|key|name", "shared": "institution"},
   "screens": [
     {"screen": "*"},
     {"screen": "/stock", "tab": "institutional", "x": 0, "y": 0, "w": 12, "h": 1}

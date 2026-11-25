@@ -10,7 +10,7 @@ import enum
 from typing import Any, Dict, List, Literal, Union, get_args, get_origin
 
 # 날짜로 보는 응답 필드 이름 — 날짜 범위 후처리(api/deps.filter_dated_rows)도 이 목록을 쓴다
-DATE_KEYS = ("date", "period_ending", "filing_date", "report_date", "datetime", "timestamp")
+DATE_KEYS = ("date", "period_ending", "filing_date", "report_date", "datetime", "timestamp", "published_utc")
 
 # 데이터에 날짜가 있는데 QueryParams 가 날짜 범위를 선언하지 않으면 붙이는 가상 파라미터.
 # 실제 필터링은 /api/data 의 날짜 후처리가 한다.

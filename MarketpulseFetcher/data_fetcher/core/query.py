@@ -12,7 +12,9 @@ execute 는 QueryExecutor 한 곳으로 간다 — 서버에서는 provider 에 
 """
 from __future__ import annotations
 
+import re
 from contextvars import ContextVar
+from datetime import date as _date
 from typing import Any, Dict, List, Mapping, Optional, Union
 
 from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
@@ -22,6 +24,7 @@ from data_fetcher.query_executor import QueryExecutor
 _command_model: ContextVar[str] = ContextVar("command_model", default="")
 
 DEFAULT_PROVIDER = "fmp"
+_PERIOD_TOKEN = re.compile(r"^(\d+(d|w|wk|mo|m|y)|max|ytd)$")   # 기간 토큰 — annual · quarterly 같은 모델 값과 구분
 
 
 def _as_dict(v: Any) -> Dict[str, Any]:
@@ -81,8 +84,10 @@ class Query:
             fields = ProviderInterface.field_names(self.model, self.provider)
         except Exception:  # noqa: BLE001
             fields = None
-        if fields is not None and "period" in fields:
-            return params                       # financials 의 annual · quarterly 처럼 모델 고유 period
+        # 모델이 period 를 직접 받거나(stock_price · financials 의 annual/quarterly), 받는 칸을 모르거나,
+        # 값이 기간 토큰(1y · 6mo · max …)이 아니면 그대로 넘긴다
+        if fields is None or "period" in fields or not _PERIOD_TOKEN.match(str(params["period"]).strip().lower()):
+            return params
         return period_to_dates(params, self.model, self.provider)
 
     async def execute(self) -> Union[List[Any], AnnotatedResult]:
@@ -92,14 +97,33 @@ class Query:
         return f"Query(model={self.model!r}, provider={self.provider!r}, params={self.params!r})"
 
 
-def period_to_dates(params: Dict[str, Any], model: str, provider: str) -> Dict[str, Any]:
-    """period → start_date · end_date. 날짜를 문자열로 선언한 모델(예: dividends)에는 YYYY-MM-DD 로 넘긴다."""
-    from data_fetcher.utils.helpers import parse_period_to_dates
+_UNIT_DAYS = {"d": 1, "w": 7, "wk": 7, "mo": 30, "m": 30, "y": 365}
 
+
+def period_start(period: str) -> Optional[_date]:
+    """기간 토큰(5d · 1w · 6mo · 1y · ytd · max) → 시작일. 끝은 늘 오늘이다.
+
+    (utils.helpers.parse_period_to_dates 는 끝을 '오늘 −3일'로 잡고 1w 를 모른다 — 날짜 후처리가 최근 며칠
+    행(뉴스 · 배당)을 잘라내서 기간 토큰 해석은 여기 한 곳에 둔다.)
+    """
+    p = str(period).strip().lower()
+    today = _date.today()
+    if p == "max":
+        return today.replace(year=today.year - 50)
+    if p == "ytd":
+        return today.replace(month=1, day=1)
+    m = re.fullmatch(r"(\d+)(d|w|wk|mo|m|y)", p)
+    if not m:
+        raise ValueError(f"Unsupported period: {period}")
+    from datetime import timedelta
+    return today - timedelta(days=_UNIT_DAYS[m.group(2)] * int(m.group(1)))
+
+
+def period_to_dates(params: Dict[str, Any], model: str, provider: str) -> Dict[str, Any]:
+    """period → start_date · end_date(오늘). 날짜를 문자열로 선언한 모델(예: dividends)에는 YYYY-MM-DD 로 넘긴다."""
     params = dict(params)
-    start, end = parse_period_to_dates(str(params.pop("period")))
-    params["start_date"] = start
-    params.setdefault("end_date", end)          # 끝 날짜를 직접 준 요청은 그 날짜까지
+    params["start_date"] = period_start(params.pop("period"))
+    params.setdefault("end_date", _date.today())    # 끝 날짜를 직접 준 요청은 그 날짜까지
     try:
         from data_fetcher.utils.registry import FetcherRegistry
         qp = FetcherRegistry.get(model, provider).query_params_type

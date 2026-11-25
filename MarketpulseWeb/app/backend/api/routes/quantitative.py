@@ -1,113 +1,91 @@
-"""Quantitative Analysis API Routes — OBBject pattern
+"""Quantitative Analysis (/api/quantitative) — 시세 inputs → commands/quant 순수 함수.
 
-계산은 command(app/backend/commands/quant.py), 시세는 PRICES 출처 하나 — 서버에서는 yahoo 가 사용자 PC
-Fetcher 로 위임된다(꺼져 있으면 503). 응답은 단건이라 results 는 1개짜리 배열 (프론트는 results.0 을 읽는다).
+시세는 yahoo stock_price — 서버에서는 사용자 PC Fetcher 로 위임된다 (꺼져 있으면 503).
+응답은 단건이라 results 는 1개짜리 배열 (프론트는 results.0 을 읽는다).
 """
-import logging
 from datetime import date as date_type
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Query
+from fastapi import Query
 
-from data_fetcher.core import OBBject
-from app.backend.api.deps import route_handler
-from app.backend.commands import quant as quant_cmd
-from app.backend.commands._base import Source
+from data_fetcher.core import Fetch, Router
+from app.backend.commands import quant
 
-log = logging.getLogger(__name__)
-router = APIRouter()
+router = Router(prefix="", tags=["quantitative"], description="Quantitative analysis.")
 
-_TARGET = Literal["close", "open", "high", "low", "adj_close", "return"]
-PRICES = Source("yahoo", "stock_price")
+Target = Literal["close", "open", "high", "low", "adj_close", "return"]
+PRICE_PROVIDER = "yahoo"
 
 
-def _wrap(rows, provider: str) -> OBBject:
-    return OBBject(results=[r.model_dump(mode="json") for r in rows][:1] or [{}], provider=provider)
+def prices(symbol: str, start=None, end=None) -> Fetch:
+    return Fetch(PRICE_PROVIDER, "stock_price", quant.price_params(symbol.upper(), start, end), required=True)
 
 
-@router.get("/summary")
-@route_handler
-async def summary(
-    symbol: str = Query(...),
-    target: _TARGET = Query("close"),
-    start_date: Optional[date_type] = Query(None),
-    end_date: Optional[date_type] = Query(None),
-    provider: str = "quantitative",
-):
-    return _wrap(await quant_cmd.summary(PRICES, symbol.upper(), target, start_date, end_date), provider)
+def _one(symbol: str = Query(...), start_date: Optional[date_type] = Query(None),
+         end_date: Optional[date_type] = Query(None)):
+    return {"prices": prices(symbol, start_date, end_date)}
 
 
-@router.get("/normality")
-@route_handler
-async def normality(
-    symbol: str = Query(...),
-    target: _TARGET = Query("close"),
-    start_date: Optional[date_type] = Query(None),
-    end_date: Optional[date_type] = Query(None),
-    provider: str = "quantitative",
-):
-    return _wrap(await quant_cmd.normality(PRICES, symbol.upper(), target, start_date, end_date), provider)
+@router.command(path="/summary", inputs=_one)
+def summary(data, symbol: str, target: Target = "close"):
+    series, _ = quant.series_from_rows(data["prices"], symbol.upper(), target)
+    return [quant.summarize(symbol.upper(), target, series)]
 
 
-@router.get("/capm")
-@route_handler
-async def capm(
-    symbol: str = Query(...),
-    benchmark: str = Query("^GSPC"),
-    risk_free_rate: float = Query(0.04),
-    start_date: Optional[date_type] = Query(None),
-    end_date: Optional[date_type] = Query(None),
-    provider: str = "quantitative",
-):
-    rows = await quant_cmd.capm(PRICES, symbol.upper(), benchmark.upper(), risk_free_rate, start_date, end_date)
-    return _wrap(rows, provider)
+@router.command(path="/normality", inputs=_one)
+def normality(data, symbol: str, target: Target = "close"):
+    series, _ = quant.series_from_rows(data["prices"], symbol.upper(), target)
+    x = series.values.astype(float)
+    return [quant.NormalityData(symbol=symbol.upper(), target=target, n=int(len(x)), tests=quant.normality_tests(x))]
 
 
-@router.get("/rolling")
-@route_handler
-async def rolling(
-    symbol: str = Query(...),
-    metric: Literal["sharpe", "sortino", "stdev", "mean", "skew", "kurtosis", "quantile"] = Query("sharpe"),
+def _capm_inputs(symbol: str = Query(...), benchmark: str = "^GSPC", start_date: Optional[date_type] = None,
+                 end_date: Optional[date_type] = None):
+    return {"asset": prices(symbol, start_date, end_date), "market": prices(benchmark, start_date, end_date)}
+
+
+@router.command(path="/capm", inputs=_capm_inputs)
+def capm(data, symbol: str, benchmark: str = "^GSPC", risk_free_rate: float = 0.04):
+    _, asset = quant.series_from_rows(data["asset"], symbol.upper(), "close")
+    _, market = quant.series_from_rows(data["market"], benchmark.upper(), "close")
+    return [quant.capm_from_returns(symbol.upper(), benchmark.upper(), asset, market, risk_free_rate)]
+
+
+@router.command(path="/rolling", inputs=_one)
+def rolling(
+    data,
+    symbol: str,
+    metric: Literal["sharpe", "sortino", "stdev", "mean", "skew", "kurtosis", "quantile"] = "sharpe",
     window: int = Query(21, ge=2),
-    target: _TARGET = Query("return"),
-    risk_free_rate: float = Query(0.04),
+    target: Target = "return",
+    risk_free_rate: float = 0.04,
     quantile_pct: float = Query(0.5, ge=0.0, le=1.0),
-    start_date: Optional[date_type] = Query(None),
-    end_date: Optional[date_type] = Query(None),
-    provider: str = "quantitative",
 ):
-    rows = await quant_cmd.rolling(PRICES, symbol.upper(), metric, window, target, risk_free_rate, quantile_pct,
-                                   start_date, end_date)
-    return _wrap(rows, provider)
+    series, returns = quant.series_from_rows(data["prices"], symbol.upper(), target)
+    return [quant.rolling_from(symbol.upper(), target, series, returns, metric, window, risk_free_rate, quantile_pct)]
 
 
-@router.get("/unitroot")
-@route_handler
-async def unitroot(
-    symbol: str = Query(...),
-    target: _TARGET = Query("close"),
-    regression: Literal["c", "ct", "ctt", "n"] = Query("c"),
-    start_date: Optional[date_type] = Query(None),
-    end_date: Optional[date_type] = Query(None),
-    provider: str = "quantitative",
-):
-    return _wrap(await quant_cmd.unitroot(PRICES, symbol.upper(), target, regression, start_date, end_date), provider)
+@router.command(path="/unitroot", inputs=_one)
+def unitroot(data, symbol: str, target: Target = "close", regression: Literal["c", "ct", "ctt", "n"] = "c"):
+    series, _ = quant.series_from_rows(data["prices"], symbol.upper(), target)
+    return [quant.adf(symbol.upper(), target, series, regression)]
 
 
-@router.get("/correlation")
-@route_handler
-async def correlation(
-    symbols: str = Query(..., description="Comma-separated ticker symbols (2-10)"),
-    start_date: Optional[date_type] = Query(None),
-    end_date: Optional[date_type] = Query(None),
-    period: str = Query("1y"),
-    provider: str = "quantitative",
-) -> dict:
-    """종목 간 일간수익률 상관행렬 — 프론트 CorrelationWidget 이 results[0] = {labels, matrix, rows} 를 읽는다."""
-    tickers = quant_cmd.normalize_symbols(symbols)
+def _correlation_inputs(symbols: str = Query(..., description="Comma-separated ticker symbols (2-10)"),
+                        period: str = "1y", start_date: Optional[date_type] = None,
+                        end_date: Optional[date_type] = None):
+    tickers = quant.normalize_symbols(symbols)
     if len(tickers) < 2:
         raise ValueError("At least 2 symbols required")
     if len(tickers) > 10:
         raise ValueError("Maximum 10 symbols allowed")
+    # interval 명시: 미지정 시 2y 이상은 주봉으로 바뀐다 (yahoo 기본값)
+    rng = {k: str(v) for k, v in (("start_date", start_date), ("end_date", end_date)) if v}
+    return {s: Fetch(PRICE_PROVIDER, "stock_price", {"symbol": s, "period": period, "interval": "1d", **rng})
+            for s in tickers}
 
-    return _wrap(await quant_cmd.correlation(PRICES, tickers, period, start_date, end_date), provider)
+
+@router.command(path="/correlation", inputs=_correlation_inputs)
+def correlation(data):
+    """종목 간 일간수익률 상관행렬 — 프론트 CorrelationWidget 이 results[0] = {labels, matrix, rows} 를 읽는다."""
+    return [quant.correlation_from(data)]
