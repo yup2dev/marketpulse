@@ -8,6 +8,8 @@ from fastapi.responses import JSONResponse
 from data_fetcher.core.obbject import OBBject
 from data_fetcher.query_executor import QueryExecutor
 from app.backend.api.deps import filter_dated_rows, resolve_date_range, route_handler, wrap_result
+from app.backend.commands import news_sentiment as news_sentiment_cmd
+from app.backend.commands._base import Source
 from app.backend.core.auth.dependencies import get_current_active_user
 from app.backend.models.orm import User
 
@@ -258,8 +260,9 @@ async def get_swot(symbol: str, provider: str = "yahoo") -> OBBject:
 @router.get("/sentiment/{symbol}")
 @route_handler
 async def get_stock_sentiment(symbol: str, provider: str = "polygon") -> OBBject:
-    raw = await QueryExecutor.fetch(provider, "sentiment", {"symbol": symbol.upper()})
-    return _wrap(raw, provider)
+    """종목 뉴스(news)의 제목 키워드 감성 — command 가 분류 · 추이를 낸다."""
+    rows = await news_sentiment_cmd.news_sentiment(symbol.upper(), Source(provider, "news"))
+    return _wrap(rows, provider)
 
 
 @router.get("/reddit/{symbol}")

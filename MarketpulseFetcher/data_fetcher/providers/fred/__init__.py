@@ -15,21 +15,8 @@ from data_fetcher.providers.fred.models.fed_balance_sheet import FREDFedBalanceS
 from data_fetcher.providers.fred.models.real_rates import FREDRealRatesFetcher
 from data_fetcher.providers.fred.models.pmi import FREDPMIFetcher
 from data_fetcher.providers.fred.models.yield_curve import FREDYieldCurveFetcher
-from data_fetcher.providers.fred.models.inflation_momentum import FREDInflationMomentumFetcher
 from data_fetcher.providers.fred.models.yield_curve_history import FREDYieldCurveHistoryFetcher
 from data_fetcher.providers.fred.models.initial_claims import FREDInitialClaimsFetcher
-from data_fetcher.providers.fred.models.jobs_breakdown import FREDJobsBreakdownFetcher
-from data_fetcher.providers.fred.models.financial_conditions_history import FREDFinancialConditionsHistoryFetcher
-from data_fetcher.providers.fred.models.sentiment_history import FREDSentimentHistoryFetcher
-from data_fetcher.providers.fred.models.inflation_sector import FREDInflationSectorFetcher
-from data_fetcher.providers.fred.models.regime_history import FREDRegimeHistoryFetcher
-from data_fetcher.providers.fred.models.phillips_curve import FREDPhillipsCurveFetcher
-from data_fetcher.providers.fred.models.financial_conditions import FREDFinancialConditionsFetcher
-from data_fetcher.providers.fred.models.sentiment_composite import FREDSentimentCompositeFetcher
-from data_fetcher.providers.fred.models.labor_dashboard import FREDLaborDashboardFetcher
-from data_fetcher.providers.fred.models.fed_policy_stance import FREDFedPolicyStanceFetcher
-from data_fetcher.providers.fred.models.inflation_decomposition import FREDInflationDecompositionFetcher
-from data_fetcher.providers.fred.models.regime_current import FREDRegimeCurrentFetcher
 
 
 fred_provider = Provider(
@@ -53,21 +40,8 @@ fred_provider = Provider(
         "real_rates":           FREDRealRatesFetcher,
         "pmi":                  FREDPMIFetcher,
         "yield_curve":          FREDYieldCurveFetcher,
-        "inflation_momentum":           FREDInflationMomentumFetcher,
         "yield_curve_history":          FREDYieldCurveHistoryFetcher,
         "initial_claims":               FREDInitialClaimsFetcher,
-        "jobs_breakdown":               FREDJobsBreakdownFetcher,
-        "financial_conditions_history": FREDFinancialConditionsHistoryFetcher,
-        "sentiment_history":            FREDSentimentHistoryFetcher,
-        "inflation_sector":             FREDInflationSectorFetcher,
-        "regime_history":               FREDRegimeHistoryFetcher,
-        "regime_current":               FREDRegimeCurrentFetcher,
-        "fed_policy_stance":            FREDFedPolicyStanceFetcher,
-        "inflation_decomposition":      FREDInflationDecompositionFetcher,
-        "phillips_curve":               FREDPhillipsCurveFetcher,
-        "financial_conditions":         FREDFinancialConditionsFetcher,
-        "sentiment_composite":          FREDSentimentCompositeFetcher,
-        "labor_dashboard":              FREDLaborDashboardFetcher,
     },
     metadata={
         "rate_limit": "120 requests/minute",

@@ -47,9 +47,7 @@ defusedxml~=0.7.1
 
 # ==============================================================================
 # 선택 provider — 없으면 providers_init 이 try/except 로 해당 provider 만 건너뛴다.
-# (exe 는 용량 때문에 sqlalchemy/scipy/statsmodels 를 뺀다. 여기서는 아직 전부 설치)
+# (exe 는 용량 때문에 sqlalchemy 를 뺀다. 여기서는 전부 설치)
 # ==============================================================================
 sqlalchemy>=2.0.0              # database provider (적재 DB 조회)
 QuantLib>=1.42                 # quantlib provider
-scipy~=1.16.1                  # quantitative provider
-statsmodels>=0.14              # quantitative provider

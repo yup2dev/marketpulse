@@ -6,7 +6,7 @@
   "group_name": "Macro",
   "view_type": "donut",
   "title": "CPI 구성",
-  "endpoint": "/data/{provider}/inflation_decomposition?date={date}",
+  "endpoint": "/macro/inflation/decomposition?date={date}",
   "source": "$provider",
   "source_note": "{asOf} · 전년 대비",
   "transform": "cpi_breakdown",

@@ -186,3 +186,25 @@ def test_route_corp_profits_and_forex_and_compare(auth_client, fake_qe):
     client.get("/api/stock/compare", params={"symbols": "AAPL,MSFT,NVDA"})
     assert sorted((p, m) for p, m, _ in fake_qe["calls"]) == sorted(
         [("yahoo", "key_metrics")] * 3 + [("yahoo", "quote")] * 3)
+
+
+# ── 뉴스 감성 (#105 — polygon fetcher 에서 옮김) ─────────────────────────────
+
+from app.backend.commands import news_sentiment as news_cmd  # noqa: E402
+
+
+def test_news_sentiment_scores_titles_and_trend(fake_qe):
+    from datetime import datetime, timezone
+    fake_qe["handler"] = lambda p, m, params: [
+        {"title": "Apple beats estimates, stock surges", "published_utc": datetime(2026, 9, 1, 13, tzinfo=timezone.utc),
+         "publisher_name": "X", "article_url": "u1"},
+        {"title": "Analyst downgrade on weak demand", "published_utc": datetime(2026, 9, 1, 15, tzinfo=timezone.utc)},
+        {"title": "Apple event today", "published_utc": None, "publisher": "Y"},
+    ]
+    out = _run(news_cmd.news_sentiment("AAPL", Source("x", "news")))[0]
+    assert fake_qe["calls"] == [("x", "news", {"symbol": "AAPL", "limit": 50})]
+    assert [n["sentiment"] for n in out.news] == ["positive", "negative", "neutral"]
+    assert [n["sentiment_score"] for n in out.news] == [70, 20, 50]   # downgrade 에 down 도 걸린다
+    assert out.news[0]["published_at"].startswith("2026-09-01T13") and out.news[2]["source"] == "Y"
+    assert out.aggregate == {"positive": 1, "negative": 1, "neutral": 1, "overall_score": 50}
+    assert out.trend == [{"date": "2026-09-01", "score": 45.0}]

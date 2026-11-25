@@ -6,7 +6,7 @@
   "group_name": "Macro",
   "view_type": "gauge",
   "title": "공포 · 탐욕 지수",
-  "endpoint": "/data/{provider}/sentiment_composite?date={date}",
+  "endpoint": "/macro/sentiment/composite?date={date}",
   "source": "$provider",
   "source_note": "VIX · HY 스프레드 · 10Y 합성",
   "transform": "fear_greed",

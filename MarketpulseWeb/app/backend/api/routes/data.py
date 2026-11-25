@@ -166,13 +166,13 @@ async def list_providers() -> OBBject:
     각 model 항목에 required_params 포함 — 프론트엔드가 필수 파라미터 유무를
     미리 확인하여 symbol 자동 주입 여부를 결정하는 데 사용.
 
-    제외: 복잡한 파라미터 폼이 필요한 provider (quantlib, quantitative) →
+    제외: 복잡한 파라미터 폼이 필요한 provider (quantlib) →
           이미 WIDGET_ENDPOINTS에 전용 params 폼으로 등록되어 있음.
     """
     from pydantic import BaseModel
     from data_fetcher.abstract_provider.abstract.provider import ProviderRegistry
     # 복잡한 계산 provider는 Data 탭이 아닌 Widgets Library 탭에서만 사용
-    _EXCLUDE = frozenset({'quantlib', 'quantitative'})
+    _EXCLUDE = frozenset({'quantlib'})
 
     def _required_params(fetcher_cls) -> list[str]:
         """Fetcher의 QueryParams 중 기본값 없는 필수 필드 이름 반환."""

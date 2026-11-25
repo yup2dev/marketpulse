@@ -1,40 +1,28 @@
-"""Quantitative Analysis API Routes — OBBject pattern"""
+"""Quantitative Analysis API Routes — OBBject pattern
+
+계산은 command(app/backend/commands/quant.py), 시세는 PRICES 출처 하나 — 서버에서는 yahoo 가 사용자 PC
+Fetcher 로 위임된다(꺼져 있으면 503). 응답은 단건이라 results 는 1개짜리 배열 (프론트는 results.0 을 읽는다).
+"""
 import logging
 from datetime import date as date_type
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Query
 
-from data_fetcher.core.obbject import OBBject
 from data_fetcher.core import OBBject
-from data_fetcher.query_executor import QueryExecutor
 from app.backend.api.deps import route_handler
+from app.backend.commands import quant as quant_cmd
+from app.backend.commands._base import Source
 
 log = logging.getLogger(__name__)
 router = APIRouter()
 
 _TARGET = Literal["close", "open", "high", "low", "adj_close", "return"]
+PRICES = Source("yahoo", "stock_price")
 
 
-def _common(symbol: str, target: _TARGET, start_date, end_date):
-    p = {"symbol": symbol.upper(), "target": target}
-    if start_date:
-        p["start_date"] = start_date
-    if end_date:
-        p["end_date"] = end_date
-    return p
-
-
-def _first_dict(raw) -> dict:
-    """fetcher 결과(리스트)에서 첫 번째 항목을 dict로 반환 — 프론트는 dataPath: 'results.0' 으로 읽는다."""
-    items = OBBject.unwrap(raw) or []
-    item = items[0] if items else None
-    return item.model_dump(mode="json") if item else {}
-
-
-def _wrap(data: dict, provider: str = "quantitative") -> OBBject:
-    """프로젝트 표준 OBBject 로 래핑 — 단건이라 results 는 1개짜리 배열."""
-    return OBBject(results=[data], provider=provider)
+def _wrap(rows, provider: str) -> OBBject:
+    return OBBject(results=[r.model_dump(mode="json") for r in rows][:1] or [{}], provider=provider)
 
 
 @router.get("/summary")
@@ -46,8 +34,7 @@ async def summary(
     end_date: Optional[date_type] = Query(None),
     provider: str = "quantitative",
 ):
-    raw = await QueryExecutor.fetch("quantitative", "summary", _common(symbol, target, start_date, end_date))
-    return _wrap(_first_dict(raw), provider)
+    return _wrap(await quant_cmd.summary(PRICES, symbol.upper(), target, start_date, end_date), provider)
 
 
 @router.get("/normality")
@@ -59,8 +46,7 @@ async def normality(
     end_date: Optional[date_type] = Query(None),
     provider: str = "quantitative",
 ):
-    raw = await QueryExecutor.fetch("quantitative", "normality", _common(symbol, target, start_date, end_date))
-    return _wrap(_first_dict(raw), provider)
+    return _wrap(await quant_cmd.normality(PRICES, symbol.upper(), target, start_date, end_date), provider)
 
 
 @router.get("/capm")
@@ -73,10 +59,8 @@ async def capm(
     end_date: Optional[date_type] = Query(None),
     provider: str = "quantitative",
 ):
-    params = _common(symbol, "close", start_date, end_date)
-    params.update({"benchmark": benchmark.upper(), "risk_free_rate": risk_free_rate})
-    raw = await QueryExecutor.fetch("quantitative", "capm", params)
-    return _wrap(_first_dict(raw), provider)
+    rows = await quant_cmd.capm(PRICES, symbol.upper(), benchmark.upper(), risk_free_rate, start_date, end_date)
+    return _wrap(rows, provider)
 
 
 @router.get("/rolling")
@@ -92,15 +76,9 @@ async def rolling(
     end_date: Optional[date_type] = Query(None),
     provider: str = "quantitative",
 ):
-    params = _common(symbol, target, start_date, end_date)
-    params.update({
-        "metric": metric,
-        "window": window,
-        "risk_free_rate": risk_free_rate,
-        "quantile_pct": quantile_pct,
-    })
-    raw = await QueryExecutor.fetch("quantitative", "rolling", params)
-    return _wrap(_first_dict(raw), provider)
+    rows = await quant_cmd.rolling(PRICES, symbol.upper(), metric, window, target, risk_free_rate, quantile_pct,
+                                   start_date, end_date)
+    return _wrap(rows, provider)
 
 
 @router.get("/unitroot")
@@ -113,10 +91,7 @@ async def unitroot(
     end_date: Optional[date_type] = Query(None),
     provider: str = "quantitative",
 ):
-    params = _common(symbol, target, start_date, end_date)
-    params["regression"] = regression
-    raw = await QueryExecutor.fetch("quantitative", "unitroot", params)
-    return _wrap(_first_dict(raw), provider)
+    return _wrap(await quant_cmd.unitroot(PRICES, symbol.upper(), target, regression, start_date, end_date), provider)
 
 
 @router.get("/correlation")
@@ -128,22 +103,11 @@ async def correlation(
     period: str = Query("1y"),
     provider: str = "quantitative",
 ) -> dict:
-    """종목 간 일간수익률 상관행렬 — 계산은 quantitative:correlation fetcher.
-
-    fetcher가 시세를 yahoo provider(QueryExecutor)로 받으므로 배포 환경에선 사용자
-    Fetcher(exe)로 위임된다. Fetcher 미실행 시 RemoteUnavailableError → 503.
-    응답은 프론트 CorrelationWidget이 읽는 results[0] = {labels, matrix, rows}.
-    """
-    tickers = list(dict.fromkeys(s.strip().upper() for s in symbols.split(",") if s.strip()))
+    """종목 간 일간수익률 상관행렬 — 프론트 CorrelationWidget 이 results[0] = {labels, matrix, rows} 를 읽는다."""
+    tickers = quant_cmd.normalize_symbols(symbols)
     if len(tickers) < 2:
         raise ValueError("At least 2 symbols required")
     if len(tickers) > 10:
         raise ValueError("Maximum 10 symbols allowed")
 
-    params = {"symbols": tickers, "period": period}
-    if start_date:
-        params["start_date"] = start_date
-    if end_date:
-        params["end_date"] = end_date
-    raw = await QueryExecutor.fetch("quantitative", "correlation", params)
-    return _wrap(_first_dict(raw), provider)
+    return _wrap(await quant_cmd.correlation(PRICES, tickers, period, start_date, end_date), provider)

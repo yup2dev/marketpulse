@@ -44,16 +44,11 @@ try:
 except ImportError:
     kis_provider = None
 
-# quantlib / quantitative: scipy · QuantLib
+# quantlib: QuantLib
 try:
     from data_fetcher.providers.quantlib import quantlib_provider
 except ImportError:
     quantlib_provider = None
-
-try:
-    from data_fetcher.providers.quantitative import quantitative_provider
-except ImportError:
-    quantitative_provider = None
 
 
 PROVIDERS = [
@@ -77,7 +72,6 @@ PROVIDERS = [
     kis_provider,
     sec_provider,
     quantlib_provider,
-    quantitative_provider,
 ]
 
 

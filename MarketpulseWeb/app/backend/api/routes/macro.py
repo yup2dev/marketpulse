@@ -1,10 +1,11 @@
 """Macro Economic API Routes — OBBject pattern
 
-단순 조회(지표 · 시리즈 이력, regime · yield_curve 같은 fred 모델)는 QueryExecutor 를 바로 부른다.
+단순 조회(지표 · 시리즈 이력, yield_curve 같은 fred 모델)는 QueryExecutor 를 바로 부른다.
 최신값 · 변화율처럼 받은 뒤에 계산하는 것은 command(app/backend/commands/)가 한다 — 라우트는 어느 provider ·
 model 을 쓸지 Source 로 넘기고 결과를 감싸기만 한다. 캐시는 출처마다 QueryExecutor 의 모델별 TTL.
 """
 import logging
+from datetime import date as date_type
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query as FQuery
@@ -13,12 +14,17 @@ from data_fetcher.core.obbject import OBBject
 from data_fetcher.query_executor import QueryExecutor
 from data_fetcher.utils.helpers import parse_period_to_dates
 from app.backend.api.deps import route_handler, wrap_result
-from app.backend.commands import fx as fx_cmd, macro as macro_cmd
+from app.backend.commands import (
+    fx as fx_cmd, inflation as inflation_cmd, labor as labor_cmd, macro as macro_cmd,
+    market_conditions as conditions_cmd, regime as regime_cmd,
+)
 from app.backend.commands._base import Source, fetch_rows
 from app.backend.constants.macro_catalog import FX_PAIRS, INDICATORS, MACRO_SERIES
 
 log = logging.getLogger(__name__)
 router = APIRouter()
+
+FRED_SERIES = Source("fred", "series")     # FRED 시리즈 하나 — command 가 series_id · units 를 붙여 부른다
 
 
 async def _fetch(provider: str, model: str, params: Optional[Dict[str, Any]] = None,
@@ -147,25 +153,7 @@ async def get_macro_categories() -> OBBject:
     return OBBject(results=categories, provider="static")
 
 
-# ── FRED 모델 그대로 (스냅샷 · 시계열) ─────────────────────────────────────────
-
-@router.get("/regime/current")
-@route_handler
-async def get_current_regime() -> OBBject:
-    return await _fetch("fred", "regime_current")
-
-
-@router.get("/regime/history")
-@route_handler
-async def get_regime_history(period: str = "5y") -> OBBject:
-    return await _fetch("fred", "regime_history", period=period)
-
-
-@router.get("/fed-policy/stance")
-@route_handler
-async def get_fed_policy_stance() -> OBBject:
-    return await _fetch("fred", "fed_policy_stance")
-
+# ── FRED 모델 그대로 (시계열) ─────────────────────────────────────────────────
 
 @router.get("/yield-curve")
 @route_handler
@@ -179,70 +167,10 @@ async def get_yield_curve_history(period: str = "5y") -> OBBject:
     return await _fetch("fred", "yield_curve_history", period=period)
 
 
-@router.get("/inflation/decomposition")
-@route_handler
-async def get_inflation_decomposition() -> OBBject:
-    return await _fetch("fred", "inflation_decomposition")
-
-
-@router.get("/inflation/sector-history")
-@route_handler
-async def get_inflation_sector_history(period: str = "5y") -> OBBject:
-    return await _fetch("fred", "inflation_sector", period=period)
-
-
-@router.get("/labor/dashboard")
-@route_handler
-async def get_labor_dashboard() -> OBBject:
-    return await _fetch("fred", "labor_dashboard")
-
-
-@router.get("/labor/history")
-@route_handler
-async def get_labor_history(period: str = "5y") -> OBBject:
-    return await _fetch("fred", "phillips_curve", period=period)
-
-
-@router.get("/financial-conditions")
-@route_handler
-async def get_financial_conditions() -> OBBject:
-    return await _fetch("fred", "financial_conditions")
-
-
-@router.get("/financial-conditions/history")
-@route_handler
-async def get_financial_conditions_history(period: str = "5y") -> OBBject:
-    return await _fetch("fred", "financial_conditions_history", period=period)
-
-
-@router.get("/sentiment/composite")
-@route_handler
-async def get_sentiment_composite() -> OBBject:
-    return await _fetch("fred", "sentiment_composite")
-
-
-@router.get("/sentiment/history")
-@route_handler
-async def get_sentiment_history(period: str = "5y") -> OBBject:
-    return await _fetch("fred", "sentiment_history", period=period)
-
-
-@router.get("/overview/inflation-momentum")
-@route_handler
-async def get_inflation_momentum(period: str = "3y") -> OBBject:
-    return await _fetch("fred", "inflation_momentum", period=period)
-
-
 @router.get("/overview/initial-claims")
 @route_handler
 async def get_initial_claims(period: str = "2y") -> OBBject:
     return await _fetch("fred", "initial_claims", period=period)
-
-
-@router.get("/overview/jobs-breakdown")
-@route_handler
-async def get_jobs_breakdown(period: str = "5y") -> OBBject:
-    return await _fetch("fred", "jobs_breakdown", period=period)
 
 
 @router.get("/business-cycle/pmi")
@@ -267,6 +195,98 @@ async def get_real_rates(period: str = "5y") -> OBBject:
 @route_handler
 async def get_gdp_forecast(period: str = "1y") -> OBBject:
     return await _fetch("fred", "gdp", {"frequency": "quarterly"}, period)
+
+
+@router.get("/financial-conditions/history")
+@route_handler
+async def get_financial_conditions_history(period: str = "5y") -> OBBject:
+    """Chicago Fed NFCI 시계열 — 계산 없이 시리즈 그대로."""
+    start, end = parse_period_to_dates(period)
+    rows = await fetch_rows(FRED_SERIES.with_params(series_id="NFCI", start_date=start, end_date=end, sort_order="asc"))
+    return wrap_result(_dated_values(rows, 4), "fred")
+
+
+# ── 분석 (command) — 스냅샷은 date(기준일, 비우면 최신), 시계열은 period ─────────────
+# FRED 시리즈를 받아 command 가 계산한다. 증감률은 가능한 곳은 FRED units(pc1)로 받는다.
+
+def _range(period: str):
+    return parse_period_to_dates(period)
+
+
+@router.get("/regime/current")
+@route_handler
+async def get_current_regime() -> OBBject:
+    return wrap_result(await regime_cmd.regime_current(FRED_SERIES), "fred")
+
+
+@router.get("/regime/history")
+@route_handler
+async def get_regime_history(period: str = "5y") -> OBBject:
+    rows, meta = await regime_cmd.regime_history(FRED_SERIES, *_range(period))
+    return OBBject.from_result(rows, "fred", metadata=meta)
+
+
+@router.get("/fed-policy/stance")
+@route_handler
+async def get_fed_policy_stance() -> OBBject:
+    rate = Source("fred", "interest_rate", {"rate_type": "federal_funds"})
+    return wrap_result(await regime_cmd.fed_policy_stance(rate), "fred")
+
+
+@router.get("/labor/history")
+@route_handler
+async def get_labor_history(period: str = "5y") -> OBBject:
+    """필립스 곡선 — 실업률 vs CPI YoY."""
+    return wrap_result(await regime_cmd.phillips_curve(FRED_SERIES, *_range(period)), "fred")
+
+
+@router.get("/inflation/decomposition")
+@route_handler
+async def get_inflation_decomposition(date: Optional[date_type] = None) -> OBBject:
+    rows, meta = await inflation_cmd.decomposition(FRED_SERIES, date)
+    return OBBject.from_result(rows, "fred", metadata=meta)
+
+
+@router.get("/inflation/sector-history")
+@route_handler
+async def get_inflation_sector_history(period: str = "5y") -> OBBject:
+    return wrap_result(await inflation_cmd.sector(FRED_SERIES, *_range(period)), "fred")
+
+
+@router.get("/overview/inflation-momentum")
+@route_handler
+async def get_inflation_momentum(period: str = "3y") -> OBBject:
+    return wrap_result(await inflation_cmd.momentum(FRED_SERIES, *_range(period)), "fred")
+
+
+@router.get("/labor/dashboard")
+@route_handler
+async def get_labor_dashboard(date: Optional[date_type] = None) -> OBBject:
+    return wrap_result(await labor_cmd.labor_dashboard(FRED_SERIES, date), "fred")
+
+
+@router.get("/overview/jobs-breakdown")
+@route_handler
+async def get_jobs_breakdown(period: str = "5y") -> OBBject:
+    return wrap_result(await labor_cmd.jobs_breakdown(FRED_SERIES, *_range(period)), "fred")
+
+
+@router.get("/financial-conditions")
+@route_handler
+async def get_financial_conditions(date: Optional[date_type] = None) -> OBBject:
+    return wrap_result(await conditions_cmd.financial_conditions(FRED_SERIES, date), "fred")
+
+
+@router.get("/sentiment/composite")
+@route_handler
+async def get_sentiment_composite(date: Optional[date_type] = None) -> OBBject:
+    return wrap_result(await conditions_cmd.sentiment_composite(FRED_SERIES, date), "fred")
+
+
+@router.get("/sentiment/history")
+@route_handler
+async def get_sentiment_history(period: str = "5y") -> OBBject:
+    return wrap_result(await conditions_cmd.sentiment_history(FRED_SERIES, *_range(period)), "fred")
 
 
 # ── Economic Calendar ─────────────────────────────────────────────────────────

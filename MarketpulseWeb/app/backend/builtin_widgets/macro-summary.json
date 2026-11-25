@@ -6,7 +6,7 @@
   "group_name": "Macro",
   "view_type": "stats",
   "title": "주요 지표",
-  "endpoint": "/data/{provider}/inflation_decomposition?date={date}",
+  "endpoint": "/macro/inflation/decomposition?date={date}",
   "source": "$provider",
   "transform": "macro_kpis",
   "empty_text": "지표를 불러오지 못했어요",
@@ -15,8 +15,8 @@
     {"param_name": "date", "label": "기준일"}
   ],
   "options": {
-    "extra.labor": "/data/{provider}/labor_dashboard?date={date}",
-    "extra.sentiment": "/data/{provider}/sentiment_composite?date={date}",
+    "extra.labor": "/macro/labor/dashboard?date={date}",
+    "extra.sentiment": "/macro/sentiment/composite?date={date}",
     "extra.yields": "/data/{provider}/yield_curve?date={date}",
     "provider": "fred"
   },

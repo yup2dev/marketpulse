@@ -21,7 +21,7 @@ _PROVIDER_GROUP_FALLBACK: Dict[str, str] = {
     "yahoo": "stock", "fmp": "stock", "polygon": "stock", "alphavantage": "stock",
     "tiingo": "stock", "sec": "stock", "wsj": "stock",
     "kis": "stock", "krx": "stock", "nasdaqtrader": "stock", "database": "stock", "db": "stock", "social": "stock",
-    "quantitative": "quant", "quantlib": "quant",
+    "quantlib": "quant",
 }
 
 

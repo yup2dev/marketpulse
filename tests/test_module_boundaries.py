@@ -96,32 +96,10 @@ SERIES_COMPOSITION = {
     "sec/utils/parse_13f.py",
 }
 
-# fetcher 안에서 분석(파생 지표 · 점수 · 여러 모델 조합)을 하는 것 — regime, phillips_curve,
-# sentiment_composite, labor_dashboard, financial_conditions, inflation_*, quantitative/ 등.
-# 도메인별로 command 로 옮기면서 지울 예정.
-ANALYSIS_TO_COMMAND = {
-    "fred/models/fed_policy_stance.py",
-    "fred/models/financial_conditions.py",
-    "fred/models/financial_conditions_history.py",
-    "fred/models/inflation_decomposition.py",
-    "fred/models/inflation_momentum.py",
-    "fred/models/inflation_sector.py",
-    "fred/models/jobs_breakdown.py",
-    "fred/models/labor_dashboard.py",
-    "fred/models/phillips_curve.py",
-    "fred/models/regime_current.py",
-    "fred/models/regime_history.py",
-    "fred/models/sentiment_composite.py",
-    "fred/models/sentiment_history.py",
-    "polygon/models/sentiment.py",
-    "quantitative/models/correlation.py",
-    "quantitative/utils/prices.py",          # yahoo 시세를 QueryExecutor 로 — 아래 quantitative 모델이 이걸 쓴다
-    "quantitative/models/capm.py",
-    "quantitative/models/normality.py",
-    "quantitative/models/rolling.py",
-    "quantitative/models/summary.py",
-    "quantitative/models/unitroot.py",
-}
+# fetcher 안에서 분석(파생 지표 · 점수 · 여러 모델 조합)을 하던 것 — 비었다 (#105).
+# fred 분석 13개 → commands/regime · inflation · labor · market_conditions, polygon 뉴스 감성 → news_sentiment,
+# quantitative provider 7개 → commands/quant. 새로 넣지 않는다.
+ANALYSIS_TO_COMMAND: set = set()
 
 # 다른 fetcher 를 부르지 않고 받은 값으로 직접 분석하는 것 (호출 검사로는 안 잡힌다).
 # 점수(moat · scorecard · swot)는 command, 키워드 감성 점수(social)는 배치 검토, 나머지는 command.

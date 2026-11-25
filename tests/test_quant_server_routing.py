@@ -1,7 +1,6 @@
-"""quantitative 단일종목 모델 — 서버에서 yfinance를 직접 부르지 않고 시세를 사용자 Fetcher로 위임.
+"""계량 분석 command(commands/quant.py) — 서버에서 yfinance 를 직접 부르지 않고 시세를 사용자 Fetcher 로 위임.
 
-quantitative provider는 웹 서버에서 실행된다. 시세 로딩(utils.prices.aload_series)이
-QueryExecutor yahoo 경유인지, 결과가 정상 계산되는지 확인한다.
+계산은 웹 서버에서 하고, 시세(stock_price)만 QueryExecutor 를 거쳐 사용자 PC 로 내려가는지 본다.
 """
 from datetime import date, timedelta
 
@@ -9,8 +8,13 @@ import numpy as np
 import pytest
 
 import data_fetcher.providers_init  # noqa: F401 — provider 등록
+from app.backend.commands import quant
+from app.backend.commands._base import Source
 from data_fetcher.query_executor import QueryExecutor, RemoteUnavailableError, current_user_id
-from data_fetcher.providers.quantitative.utils.prices import prices_to_frame, series_from_frame
+from data_fetcher.utils.registry import FetcherRegistry
+
+prices_to_frame, series_from_frame = quant.prices_to_frame, quant.series_from_frame
+PRICES = Source("yahoo", "stock_price")
 
 
 def _walk(seed: int, n: int = 300, start: float = 100.0):
@@ -62,22 +66,21 @@ def server_remote(monkeypatch):
 
 
 CASES = [
-    ("summary",   {"symbol": "AAPL", "target": "close"},                       ["AAPL"]),
-    ("normality", {"symbol": "AAPL", "target": "return"},                      ["AAPL"]),
-    ("rolling",   {"symbol": "AAPL", "target": "return", "metric": "sharpe"},  ["AAPL"]),
-    ("unitroot",  {"symbol": "AAPL", "target": "close"},                       ["AAPL"]),
-    ("capm",      {"symbol": "AAPL", "benchmark": "^GSPC"},                    ["AAPL", "^GSPC"]),
+    ("summary",   lambda: quant.summary(PRICES, "AAPL", "close", "2025-01-01", "2025-10-27"),              ["AAPL"]),
+    ("normality", lambda: quant.normality(PRICES, "AAPL", "return", "2025-01-01", "2025-10-27"),           ["AAPL"]),
+    ("rolling",   lambda: quant.rolling(PRICES, "AAPL", "sharpe", 21, "return", start="2025-01-01",
+                                        end="2025-10-27"),                                                  ["AAPL"]),
+    ("unitroot",  lambda: quant.unitroot(PRICES, "AAPL", "close", "c", "2025-01-01", "2025-10-27"),        ["AAPL"]),
+    ("capm",      lambda: quant.capm(PRICES, "AAPL", "^GSPC", 0.04, "2025-01-01", "2025-10-27"),            ["AAPL", "^GSPC"]),
 ]
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("model,params,symbols", CASES, ids=[c[0] for c in CASES])
-async def test_quant_model_delegates_prices(server_remote, model, params, symbols):
+@pytest.mark.parametrize("name,run,symbols", CASES, ids=[c[0] for c in CASES])
+async def test_quant_command_delegates_prices(server_remote, name, run, symbols):
     remote = server_remote()
-    params = {**params, "start_date": "2025-01-01", "end_date": "2025-10-27"}
-
-    raw = await QueryExecutor.fetch("quantitative", model, params)
-    assert getattr(raw, "result", raw), f"{model}: empty result"
+    rows = await run()
+    assert rows and rows[0].model_dump(), f"{name}: empty result"
 
     assert {(p, m) for p, m, _ in remote.calls} == {("yahoo", "stock_price")}
     assert sorted(c[2]["symbol"] for c in remote.calls) == sorted(symbols)
@@ -88,10 +91,23 @@ async def test_quant_model_delegates_prices(server_remote, model, params, symbol
 
 
 @pytest.mark.asyncio
-async def test_quant_model_fetcher_offline_propagates(server_remote):
+async def test_quant_command_fetcher_offline_propagates(server_remote):
     server_remote(exc=RemoteUnavailableError("fetcher offline"))
     with pytest.raises(RemoteUnavailableError):
-        await QueryExecutor.fetch("quantitative", "summary", {"symbol": "AAPL"})
+        await quant.summary(PRICES, "AAPL")
+
+
+def test_quantitative_provider_is_gone():
+    assert FetcherRegistry.list_providers("capm") == []
+
+
+def test_rolling_metrics_shapes():
+    import pandas as pd
+    r = pd.Series(np.random.default_rng(0).normal(0.001, 0.01, 60))
+    for m in ("sharpe", "sortino", "stdev", "mean", "skew", "kurtosis", "quantile"):
+        assert quant.rolling_metric(r, m, 21).dropna().size == 40
+    with pytest.raises(ValueError):
+        quant.rolling_metric(r, "nope", 21)
 
 
 def test_series_from_frame_targets():

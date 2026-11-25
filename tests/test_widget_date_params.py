@@ -6,9 +6,7 @@ import pytest
 
 import data_fetcher.providers_init  # noqa: F401
 from app.backend.api.deps import filter_dated_rows, period_start, resolve_date_range
-from data_fetcher.providers.fred.models import (
-    financial_conditions, inflation_decomposition, labor_dashboard, sentiment_composite, yield_curve,
-)
+from data_fetcher.providers.fred.models import yield_curve
 
 
 # ── 이벤트 목록 기간 ──────────────────────────────────────────────────────────
@@ -66,11 +64,7 @@ def test_stock_dividends_period_filters_and_skips_default_limit(monkeypatch):
 
 @pytest.mark.parametrize("fetcher_cls,qp_cls", [
     (yield_curve.FREDYieldCurveFetcher, yield_curve.FREDYieldCurveQueryParams),
-    (labor_dashboard.FREDLaborDashboardFetcher, labor_dashboard.DashboardQueryParams),
-    (financial_conditions.FREDFinancialConditionsFetcher, financial_conditions.DashboardQueryParams),
-    (sentiment_composite.FREDSentimentCompositeFetcher, sentiment_composite.DashboardQueryParams),
-    (inflation_decomposition.FREDInflationDecompositionFetcher, inflation_decomposition.InflationDecompositionQueryParams),
-])
+])     # 노동 · 금융 여건 · 심리 · CPI 분해 스냅샷은 command — tests/test_macro_commands.py 가 기준일을 본다
 def test_as_of_date_caps_every_fred_request(monkeypatch, fetcher_cls, qp_cls):
     """FRED HTTP 는 FREDGenericSeriesFetcher 한 곳 — 거기서 나가는 요청마다 observation_end 를 본다."""
     ends = []

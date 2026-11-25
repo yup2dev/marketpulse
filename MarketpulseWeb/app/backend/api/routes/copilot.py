@@ -98,10 +98,10 @@ Always respond in the same language the user writes in (usually Korean).
   - /api/data/fmp/gainers, /api/data/fmp/losers, /api/data/fmp/most_actives
   - /api/data/fred/gdp?period=5y, /api/data/fred/cpi?period=5y, /api/data/fred/unemployment?period=5y
   - /api/data/fred/yield_curve, /api/data/fred/yield_curve_history?period=5y
-  - /api/data/fred/inflation_momentum?period=3y, /api/data/fred/pmi?period=5y
+  - /api/macro/overview/inflation-momentum?period=3y, /api/data/fred/pmi?period=5y
   - /api/data/fred/fed_balance_sheet?period=10y, /api/data/fred/real_rates?period=5y
-  - /api/data/fred/labor_dashboard, /api/data/fred/financial_conditions, /api/data/fred/sentiment_composite
-  - /api/data/fred/jobs_breakdown?period=5y, /api/data/fred/initial_claims?period=2y, /api/data/fred/inflation_sector?period=5y
+  - /api/macro/labor/dashboard, /api/macro/financial-conditions, /api/macro/sentiment/composite (?date= 기준일)
+  - /api/macro/overview/jobs-breakdown?period=5y, /api/data/fred/initial_claims?period=2y, /api/macro/inflation/sector-history?period=5y
   - /api/data/nasdaq/economic_calendar?date=YYYY-MM-DD&country=united+states — economic events (actual/consensus/previous, impact)
   - /api/data/nasdaq/earnings_calendar?date=YYYY-MM-DD — earnings schedule (market cap, EPS forecast, report time)
 - /api/providers — lists every provider and which data models each supports (use for discovery when unsure).
