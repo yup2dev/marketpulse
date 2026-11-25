@@ -44,8 +44,10 @@ from app.backend.models.orm.ingest import (
     MBS_IN_INSTI_PORT_HIST,
     MBS_IN_QUANT_PANEL,
     MBS_IN_QUANT_SNAPSHOT,
+    MBS_IN_SECTOR_PERF,
     MBS_IN_RESEARCH_RPT,
     MBS_IN_STBD_MST,
+    MBS_IN_STK_PERIOD_RTN,
     MBS_IN_STK_PROFILE,
     MBS_IN_STK_RELATIONS,
     MBS_IN_STK_STBD,
@@ -76,6 +78,9 @@ _TABLES: Dict[str, Dict[str, Any]] = {
     "mbs_in_research_rpt":      {"model": MBS_IN_RESEARCH_RPT,      "conflict": ["report_id"]},
     "mbs_in_quant_snapshot":    {"model": MBS_IN_QUANT_SNAPSHOT,    "conflict": ["universe", "dataset"]},
     "mbs_in_quant_panel":       {"model": MBS_IN_QUANT_PANEL,       "conflict": ["universe", "base_ymd", "stk_cd"]},
+    # 배치가 미리 계산한 집계 — 서버는 읽기만 (build_market_stats)
+    "mbs_in_stk_period_rtn":    {"model": MBS_IN_STK_PERIOD_RTN,    "conflict": ["stk_cd", "period"]},
+    "mbs_in_sector_perf":       {"model": MBS_IN_SECTOR_PERF,       "conflict": ["universe", "sector"]},
 }
 
 _MAX_ROWS_PER_REQUEST = 5000

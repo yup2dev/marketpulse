@@ -1,7 +1,9 @@
-"""DB Sector Performance Fetcher — 종목 프로필(MBS_IN_STK_PROFILE)을 섹터로 묶는다.
+"""DB Sector Performance Fetcher — 배치(build_market_stats)가 미리 묶어 둔 mbs_in_sector_perf 를 읽는다.
 
-S&P 500 편입 종목이 50개 이상 적재돼 있으면 그것만, 아니면 프로필 전체. 섹터는 시가총액 합 큰 순.
+S&P 500 묶음(universe 'sp500')이 있으면 그것, 없으면 프로필 전체('all'). 섹터는 시가총액 합 큰 순,
+종목은 적재된 시총 순 목록에서 top 개. 묶음 계산은 로컬 배치(MarketpulseBatch/index_analyzer/market_stats.py).
 """
+import json
 from typing import Any, Dict, List, Optional
 
 from data_fetcher.abstract_provider.abstract.base_fetchers import DbFetcher
@@ -9,7 +11,9 @@ from data_fetcher.abstract_provider.standard_models.sector_performance import (
     SectorPerformanceData,
     SectorPerformanceQueryParams,
 )
-from data_fetcher.providers.database.schema import MBS_IN_STK_PROFILE
+from data_fetcher.providers.database.schema import MBS_IN_SECTOR_PERF
+
+_UNIVERSES = ("sp500", "all")   # 앞에 있는 것이 우선
 
 
 class DBSectorPerformanceFetcher(DbFetcher[SectorPerformanceQueryParams, List[SectorPerformanceData]]):
@@ -21,28 +25,20 @@ class DBSectorPerformanceFetcher(DbFetcher[SectorPerformanceQueryParams, List[Se
     @classmethod
     def extract_data(cls, query: SectorPerformanceQueryParams,
                      credentials: Optional[Dict[str, str]] = None, **kwargs: Any) -> List[Dict[str, Any]]:
+        t = MBS_IN_SECTOR_PERF
         with cls.db_session(**kwargs) as session:
-            base = session.query(MBS_IN_STK_PROFILE).filter(MBS_IN_STK_PROFILE.sector.isnot(None))
-            sp500 = base.filter(MBS_IN_STK_PROFILE.in_sp500 == True).all()  # noqa: E712
-            rows = sp500 if len(sp500) >= 50 else base.all()
-            return [
-                {"symbol": p.stk_cd, "name": p.stk_nm, "sector": p.sector or "Other", "industry": p.industry,
-                 "market_cap": float(p.market_cap) if p.market_cap else 0,
-                 "price": float(p.price) if p.price else None}
-                for p in rows
-            ]
+            for universe in _UNIVERSES:
+                rows = session.query(t).filter(t.universe == universe).all()
+                if rows:
+                    return [
+                        {"sector": r.sector, "count": r.stock_count,
+                         "total_market_cap": float(r.total_market_cap or 0), "stocks": json.loads(r.stocks or "[]")}
+                        for r in rows
+                    ]
+        return []
 
     @staticmethod
     def transform_data(query: SectorPerformanceQueryParams, data: List[Dict[str, Any]],
                        **kwargs: Any) -> List[SectorPerformanceData]:
-        groups: Dict[str, List[Dict[str, Any]]] = {}
-        for s in data or []:
-            groups.setdefault(s["sector"], []).append(s)
-        out = [
-            SectorPerformanceData(
-                sector=sector, count=len(stocks), total_market_cap=sum(s["market_cap"] for s in stocks),
-                stocks=sorted(stocks, key=lambda s: s["market_cap"], reverse=True)[:query.top],
-            )
-            for sector, stocks in groups.items()
-        ]
+        out = [SectorPerformanceData(**{**g, "stocks": g["stocks"][:query.top]}) for g in data or []]
         return sorted(out, key=lambda g: g.total_market_cap, reverse=True)

@@ -527,3 +527,35 @@ __all__ = [
     "MBS_IN_QUANT_SNAPSHOT",
     "MBS_IN_QUANT_PANEL",
 ]
+
+
+class MBS_IN_STK_PERIOD_RTN(Base):
+    """종목 기간별 수익률 — 배치(build_market_stats)가 일별 종가로 계산해 적재. 서버는 읽어 정렬만 한다."""
+
+    __tablename__ = 'mbs_in_stk_period_rtn'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    stk_cd = Column(String(20), nullable=False, index=True)
+    period = Column(String(10), nullable=False, index=True)
+    stk_nm = Column(String(100))
+    sector = Column(String(100))
+    curr = Column(String(10))
+    base_ymd = Column(Date, nullable=False)
+    close_price = Column(DECIMAL(20, 4))
+    ref_ymd = Column(Date)
+    ref_close = Column(DECIMAL(20, 4))
+    change_rate = Column(DECIMAL(12, 4))
+
+
+class MBS_IN_SECTOR_PERF(Base):
+    """섹터 성과 — 배치(build_market_stats)가 종목 프로필을 섹터로 묶어 적재. stocks 는 시총 순 JSON 배열."""
+
+    __tablename__ = 'mbs_in_sector_perf'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    universe = Column(String(30), nullable=False, index=True)
+    sector = Column(String(100), nullable=False)
+    stock_count = Column(Integer, nullable=False)
+    total_market_cap = Column(DECIMAL(24, 2))
+    stocks = Column(Text, nullable=False)
+    base_ymd = Column(Date, nullable=False)

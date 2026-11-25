@@ -59,6 +59,9 @@ TABLES: Dict[str, Dict[str, Any]] = {
     "mbs_in_quant_snapshot":    {},
     # 월별 패널 — build_quant 가 통째로 다시 계산하므로(예전 달의 표본 밖 확률도 바뀐다) 증분 없이 전체 upsert
     "mbs_in_quant_panel":       {},
+    # build_market_stats 가 매일 통째로 다시 계산 — 전체 upsert (종목 × 기간 · 섹터 수만큼이라 작다)
+    "mbs_in_stk_period_rtn":    {},
+    "mbs_in_sector_perf":       {},
 }
 
 _DROP_COLS = {"id", "created_at", "updated_at"}

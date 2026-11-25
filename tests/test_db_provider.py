@@ -10,8 +10,8 @@ from decimal import Decimal
 import pytest
 
 from app.backend.models.orm import (
-    MBS_IN_ARTICLE, MBS_IN_FINANCIAL_METRICS, MBS_IN_QUANT_SNAPSHOT, MBS_IN_STBD_MST, MBS_IN_STK_PROFILE,
-    MBS_IN_STK_RELATIONS, MBS_IN_STK_STBD, MBS_PROC_ARTICLE,
+    MBS_IN_ARTICLE, MBS_IN_FINANCIAL_METRICS, MBS_IN_QUANT_SNAPSHOT, MBS_IN_SECTOR_PERF, MBS_IN_STBD_MST,
+    MBS_IN_STK_PERIOD_RTN, MBS_IN_STK_PROFILE, MBS_IN_STK_RELATIONS, MBS_IN_STK_STBD, MBS_PROC_ARTICLE,
 )
 from app.backend.services._base import rows_sync
 from data_fetcher.core.obbject import OBBject
@@ -45,6 +45,15 @@ def _seed(db):
         MBS_IN_FINANCIAL_METRICS(stk_cd="MSFT", pe_ratio=Decimal("35"), roe=Decimal("0.30"),
                                  base_ymd=date(2026, 9, 30), fiscal_period="Q3"),
     ])
+    db.commit()
+
+
+def _build_stats(db):
+    """로컬 배치(build_market_stats)가 하는 계산을 같은 DB 에 — 서버 fetcher 는 그 결과만 읽는다."""
+    from index_analyzer import market_stats
+
+    db.bulk_insert_mappings(MBS_IN_STK_PERIOD_RTN, market_stats.period_returns(db))
+    db.bulk_insert_mappings(MBS_IN_SECTOR_PERF, market_stats.sector_performance(db))
     db.commit()
 
 
@@ -121,6 +130,8 @@ def test_company_profile_and_relations(db_session):
 
 def test_sector_performance_groups_profiles(db_session):
     _seed(db_session)
+    assert rows_sync("db", "sector_performance") == []   # 배치가 아직 안 돌았으면 비어 있다 (서버는 계산하지 않는다)
+    _build_stats(db_session)
     [tech] = rows_sync("db", "sector_performance")       # S&P 500 편입이 50개 미만 → 프로필 전체
     assert tech.sector == "Technology" and tech.count == 2
     assert tech.total_market_cap == 5.5e12
@@ -188,8 +199,30 @@ def test_stock_ranking_market_sort_limit(db_session):
         db_session.add(MBS_IN_STK_STBD(stk_cd=cd, stk_nm=cd, curr=curr, close_price=Decimal("10"),
                                        change_rate=Decimal(str(chg)), base_ymd=date(2026, 11, 21)))
     db_session.commit()
+    _build_stats(db_session)
     gainers = rows_sync("db", "stock_ranking", period="1d", sort_by="gainers")
     assert [r.stk_cd for r in gainers] == ["CCC", "AAA", "DDD"]          # 내린 종목은 빠진다
     us = rows_sync("db", "stock_ranking", period="1d", market="overseas", sort_by="gainers", limit=1)
     assert [r.stk_cd for r in us] == ["AAA"]
     assert [r.stk_cd for r in rows_sync("db", "stock_ranking", period="1d", sort_by="losers")] == ["BBB"]
+
+
+def test_stock_ranking_periods_from_batch_table(db_session):
+    """1w ~ 1y 는 배치가 계산한 값 — 자기 최신일 - N일 이하의 가장 최근 종가, 없으면 첫 거래일 종가."""
+    for d, close in ((date(2026, 10, 1), "100"), (date(2026, 11, 13), "150"), (date(2026, 11, 21), "165")):
+        db_session.add(MBS_IN_STK_STBD(stk_cd="AAA", stk_nm="A", curr="USD", close_price=Decimal(close),
+                                       change_rate=Decimal("1"), base_ymd=d))
+    db_session.add(MBS_IN_STK_STBD(stk_cd="NEW", stk_nm="N", curr="USD", close_price=Decimal("10"),
+                                   change_rate=Decimal("0"), base_ymd=date(2026, 11, 21)))    # 하루치뿐
+    db_session.commit()
+    _build_stats(db_session)
+
+    def chg(period):
+        return {r.stk_cd: r.change_rate for r in rows_sync("db", "stock_ranking", period=period)}
+
+    assert chg("1w")["AAA"] == pytest.approx(10.0)       # 165 vs 11-13 의 150
+    assert chg("1mo")["AAA"] == pytest.approx(65.0)      # 11-21 - 30일 이하 → 10-01 의 100
+    assert chg("1y")["AAA"] == pytest.approx(65.0)       # 1년 전이 없으면 첫 거래일
+    assert chg("1w")["NEW"] is None and chg("1d")["NEW"] == 0.0
+    ref = db_session.query(MBS_IN_STK_PERIOD_RTN).filter_by(stk_cd="AAA", period="1w").one()
+    assert ref.ref_ymd == date(2026, 11, 13)
