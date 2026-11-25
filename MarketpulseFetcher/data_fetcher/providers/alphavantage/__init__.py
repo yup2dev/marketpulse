@@ -16,7 +16,6 @@ from data_fetcher.providers.alphavantage.models.crypto import (
     CryptoData,
     AlphaVantageCryptoFetcher,
 )
-from data_fetcher.providers.alphavantage.models.forex_rates import AlphaVantageForexRatesFetcher
 from data_fetcher.providers.alphavantage.models.forex import (
     ForexQueryParams,
     ForexData,
@@ -49,7 +48,6 @@ alphavantage_provider = Provider(
         "quote": AlphaVantageQuoteFetcher,
         "timeseries": AlphaVantageTimeseriesFetcher,
         "forex": AlphaVantageForexFetcher,
-        "forex_rates": AlphaVantageForexRatesFetcher,
         # yahoo와 같은 model 키 — standard CompanyProfile 공유로 provider 셀렉터 전환 가능
         "company_info": AlphaVantageCompanyOverviewFetcher,
         "crypto": AlphaVantageCryptoFetcher,

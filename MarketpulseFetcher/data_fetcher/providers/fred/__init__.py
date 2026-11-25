@@ -30,10 +30,6 @@ from data_fetcher.providers.fred.models.labor_dashboard import FREDLaborDashboar
 from data_fetcher.providers.fred.models.fed_policy_stance import FREDFedPolicyStanceFetcher
 from data_fetcher.providers.fred.models.inflation_decomposition import FREDInflationDecompositionFetcher
 from data_fetcher.providers.fred.models.regime_current import FREDRegimeCurrentFetcher
-from data_fetcher.providers.fred.models.indicators import (
-    FREDIndicatorHistoryFetcher, FREDIndicatorOverviewFetcher,
-    FREDMacroSeriesHistoryFetcher, FREDMacroSeriesOverviewFetcher, FREDCorporateProfitsGDPFetcher,
-)
 
 
 fred_provider = Provider(
@@ -72,11 +68,6 @@ fred_provider = Provider(
         "financial_conditions":         FREDFinancialConditionsFetcher,
         "sentiment_composite":          FREDSentimentCompositeFetcher,
         "labor_dashboard":              FREDLaborDashboardFetcher,
-        "indicator_overview":           FREDIndicatorOverviewFetcher,
-        "indicator_history":            FREDIndicatorHistoryFetcher,
-        "macro_series_overview":        FREDMacroSeriesOverviewFetcher,
-        "macro_series_history":         FREDMacroSeriesHistoryFetcher,
-        "corporate_profits_gdp":        FREDCorporateProfitsGDPFetcher,
     },
     metadata={
         "rate_limit": "120 requests/minute",

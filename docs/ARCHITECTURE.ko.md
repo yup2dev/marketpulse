@@ -45,12 +45,38 @@ README 의 요약판에서 다루지 않은 동작 규칙·분기 조건·운영
 ```
 
 - **라우트는 두 종류다.** `/api/data/{provider}/{model}` 은 범용 게이트웨이로, `providers_init.py` 에 등록된
-  fetcher 를 그대로 노출한다 (fetcher 를 추가해도 라우트를 고칠 필요가 없다). 여러 fetcher 를 조합하거나
-  DB 를 읽는 화면은 전용 라우트(`/api/stock/*`, `/api/macro/*`, `/api/portfolio/*` …)가 서비스 계층을 거친다.
+  fetcher 를 그대로 노출한다 (fetcher 를 추가해도 라우트를 고칠 필요가 없다). 화면 전용 라우트
+  (`/api/stock/*`, `/api/macro/*`, `/api/portfolio/*` …)는 단순 조회면 `QueryExecutor` 를 바로 부르고,
+  받은 뒤에 계산이 있으면 command 를 부른다 (아래 [fetcher 와 command](#fetcher-와-command--가공을-어디에-두나)).
 - **캐시는 백엔드에만 있다.** 값은 TTL×2 동안, 신선도 플래그는 TTL 동안 보관한다. 플래그만 만료되면 옛 값을
   즉시 돌려주고 뒤에서 갱신한다. TTL 은 모델별로 다르다 (시세 30~60초, 뉴스 5분, 재무 30분 … `query_executor.py`
   의 `_DEFAULT_TTL`). Redis 가 없으면 인메모리로 동작한다.
 - **서킷브레이커**는 provider 단위다. 열려 있으면 stale 값이라도 돌려주고, 없으면 503 + `Retry-After`.
+
+### fetcher 와 command — 가공을 어디에 두나
+
+구분하는 질문은 하나다: **"provider 를 바꾸면 이 코드도 바뀌어야 하나?"** 바뀌어야 하면 fetcher, 아니면 command.
+
+| fetcher 에 둔다 (provider 마다 다른 것) | command 에 둔다 (provider 가 바뀌어도 같은 계산) |
+|---|---|
+| 필드 이름 바꾸기 (`regularMarketPrice → price`) | 파생 지표 — 금리차, 전년 대비, 비율 (기업이익 %GDP) |
+| 단위 · 타입 · 날짜 형식 통일 | 최신값 · 직전 대비 변화율 |
+| 페이지 넘김, 그 provider 만의 특이한 응답 | 여러 종목 · 여러 모델 조합 (종목 비교 = quote + key_metrics) |
+| 요청 파라미터로 거르기 | 성과 계산, 점수, 백테스트 |
+
+- `db` provider 로 배치 테이블을 읽는 것은 fetcher 다 — DB 도 출처 하나이고, 배치가 계산해 둔 값은 원자료다.
+  무거운 집계(기간별 수익률 · 섹터 성과)는 조회 때 계산하지 않고 배치가 테이블로 미리 만든다 (서버 512MB).
+- command 는 `MarketpulseWeb/app/backend/commands/` 에 있다. `QueryExecutor` 로 표준 모델 데이터를 받아 계산하고
+  출력 모델로 돌려준다. **provider 이름을 모른다** — 어느 provider · model 을 부를지는 라우트가 `Source` 로 넘긴다.
+- 분석이 없는 단순 조회(지표 이력, db 테이블 읽기)는 command 를 만들지 않고 라우트가 `QueryExecutor` 를 바로 부른다.
+- 출처가 여러 개면 command 가 `asyncio.gather` 로 병렬로 부르고, 캐시는 출처마다 모델 TTL 로 걸린다. 전부 실패하면
+  첫 오류를 그대로 올려 424(키 미등록) · 503(Fetcher 미접속) 안내가 화면까지 간다. yahoo 처럼 로컬 위임되는
+  provider 는 출처 수만큼 `/ws/fetcher` 왕복이 생긴다 (종목 비교: 종목 × 2).
+
+`tests/test_module_boundaries.py` 가 검사한다 — fetcher 안에서 `QueryExecutor` 나 다른 fetcher 를 부르면 실패,
+command 가 provider 이름을 문자열로 쓰거나 `data_fetcher.providers` 를 import 하면 실패. 이 규칙 이전의 위반은
+테스트 안 허용 목록 두 개(`SERIES_COMPOSITION` — HTTP 헬퍼로 바꿀 것, `ANALYSIS_TO_COMMAND` — command · 배치로
+옮길 것)에 있고, 목록은 줄기만 한다 (정리됐는데 남아 있으면 실패).
 
 ### 분기 처리 — 어디서 실행되는가
 
@@ -142,7 +168,9 @@ marketpulse/
 │       ├── backend/               # FastAPI (패키지 app.backend)
 │       │   ├── main.py            # 조립만: core/lifespan + auth_gate + api/routers
 │       │   ├── api/routes/        # auth, keys, data, concepts, stock, macro, portfolio, ingest, ws ...
-│       │   ├── services/          # 비즈니스 로직 (user_key_service, auth_service ...)
+│       │   ├── commands/          # 분석 command — 표준 모델을 받아 계산 (provider 이름을 모른다)
+│       │   ├── services/          # 사용자 · 인증 · 위젯 · 카탈로그 등 상태를 가진 로직
+│       │   ├── builtin_widgets/   # 기본 위젯 정의 (파일 하나 = 위젯 하나, 마이그레이션 없이 파일만 고친다)
 │       │   ├── models/            # 웹 ORM — 스키마 주인 (alembic 이 이 metadata 를 본다)
 │       │   └── core/              # config, db, lifespan, middleware, cache,
 │       │                          #   fetcher_pool · fetcher_ws_transport · fetcher_client (위임)

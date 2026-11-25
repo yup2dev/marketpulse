@@ -50,3 +50,143 @@ def test_no_cross_module_imports(folder):
 def test_common_package_is_gone():
     """marketpulse_common 을 다시 만들지 않는다 — 공유가 필요하면 계약(ingest)으로."""
     assert not (ROOT / "MarketpulseCommon").exists()
+
+
+# ── fetcher ↔ command 경계 ─────────────────────────────────────────────────────
+#
+# fetcher 는 provider 하나의 응답을 표준 모델로 맞추기만 한다 (필드 이름 · 단위 · 날짜 · 페이지 넘김).
+# 파생 지표 · 여러 모델 조합 · 점수 같은 분석은 백엔드 command(app/backend/commands/)가 한다.
+# 기준: "provider 를 바꾸면 이 코드도 바뀌어야 하나?" — 바뀌어야 하면 fetcher, 아니면 command.
+#
+# 그래서 fetcher 안에서 QueryExecutor 나 다른 fetcher 를 부르면 실패한다.
+# 아래 두 목록은 이 규칙 이전에 있던 위반이다. 새로 늘리지 않고, 정리하면서 지운다 (줄기만 한다).
+
+PROVIDERS_DIR = ROOT / "MarketpulseFetcher/data_fetcher/providers"
+COMMANDS_DIR = ROOT / "MarketpulseWeb/app/backend/commands"
+
+# FREDGenericSeriesFetcher / KOSIS series 같은 같은 provider 의 기본 fetcher 를 재사용하는 fetcher.
+# 다음 브랜치에서 fred_series() 같은 HTTP 헬퍼로 바꾸면서 목록에서 지울 예정.
+# (sec 의 filings 목록 · 기관 목록 재사용도 같은 방식으로 정리한다)
+SERIES_COMPOSITION = {
+    "fred/models/consumer_sentiment.py",
+    "fred/models/cpi.py",
+    "fred/models/employment.py",
+    "fred/models/fed_balance_sheet.py",
+    "fred/models/gdp.py",
+    "fred/models/housing_starts.py",
+    "fred/models/industrial_production.py",
+    "fred/models/initial_claims.py",
+    "fred/models/interest_rate.py",
+    "fred/models/nonfarm_payroll.py",
+    "fred/models/pmi.py",
+    "fred/models/retail_sales.py",
+    "fred/models/unemployment.py",
+    "kosis/models/capacity_utilization.py",
+    "kosis/models/ict_exports.py",
+    "kosis/models/mining_manufacturing_index.py",
+    "kosis/models/product_trade.py",
+    "sec/models/institutional_13f.py",
+    "sec/models/management_discussion_analysis.py",
+    "sec/utils/form4.py",
+    "sec/utils/parse_13f.py",
+}
+
+# fetcher 안에서 분석(파생 지표 · 점수 · 여러 모델 조합)을 하는 것 — regime, phillips_curve,
+# sentiment_composite, labor_dashboard, financial_conditions, inflation_*, quantitative/ 등.
+# 도메인별로 command 로 옮기면서 지울 예정.
+ANALYSIS_TO_COMMAND = {
+    "fred/models/fed_policy_stance.py",
+    "fred/models/financial_conditions.py",
+    "fred/models/financial_conditions_history.py",
+    "fred/models/inflation_decomposition.py",
+    "fred/models/inflation_momentum.py",
+    "fred/models/inflation_sector.py",
+    "fred/models/jobs_breakdown.py",
+    "fred/models/labor_dashboard.py",
+    "fred/models/phillips_curve.py",
+    "fred/models/real_rates.py",
+    "fred/models/regime_current.py",
+    "fred/models/regime_history.py",
+    "fred/models/sentiment_composite.py",
+    "fred/models/sentiment_history.py",
+    "fred/models/yield_curve.py",
+    "fred/models/yield_curve_history.py",
+    "polygon/models/sentiment.py",
+    "quantitative/models/correlation.py",
+    "quantitative/utils/prices.py",
+    # 13F 는 서버에서 파싱하지 않는다 — 이 셋은 command 가 아니라 로컬 배치(적재 테이블)로 옮긴다
+    "sec/models/fund_performance.py",
+    "whalewisdom/models/institutional_holdings.py",
+    "whalewisdom/models/institutions_list.py",
+}
+
+_FETCH_METHODS = {"fetch_data", "afetch_data", "aextract_data", "extract_data"}
+
+
+def _fetcher_calls(path: Path):
+    """fetcher 파일 안에서 QueryExecutor · 다른 fetcher 를 부르는 곳 (줄, 설명)."""
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    own_classes = {n.name for n in ast.walk(tree) if isinstance(n, ast.ClassDef)}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and node.id == "QueryExecutor":
+            yield node.lineno, "QueryExecutor"
+        elif isinstance(node, ast.ImportFrom) and (node.module or "").startswith("data_fetcher.providers."):
+            if ".models." in node.module:
+                for alias in node.names:
+                    if alias.name.endswith("Fetcher"):
+                        yield node.lineno, f"import {alias.name}"
+        elif (isinstance(node, ast.Attribute) and node.attr in _FETCH_METHODS
+              and isinstance(node.value, ast.Name) and node.value.id.endswith("Fetcher")
+              and node.value.id not in own_classes):
+            yield node.lineno, f"{node.value.id}.{node.attr}"
+
+
+def _provider_files():
+    # provider 패키지 __init__.py 는 등록하느라 fetcher 를 import 한다 — 검사 대상이 아니다
+    return sorted(p for p in PROVIDERS_DIR.rglob("*.py") if p.name != "__init__.py")
+
+
+def test_fetcher_does_not_call_query_executor_or_other_fetchers():
+    allowed = SERIES_COMPOSITION | ANALYSIS_TO_COMMAND
+    violations = []
+    for p in _provider_files():
+        rel = p.relative_to(PROVIDERS_DIR).as_posix()
+        if rel in allowed:
+            continue
+        violations += [f"{rel}:{line} → {what}" for line, what in _fetcher_calls(p)]
+    assert not violations, (
+        "fetcher 안에서 QueryExecutor · 다른 fetcher 호출 — 분석 · 조합은 app/backend/commands/ 로:\n"
+        + "\n".join(violations)
+    )
+
+
+def test_allowlists_only_shrink():
+    """정리된 파일이 목록에 남아 있으면 실패 — 지운 위반은 목록에서도 지운다."""
+    stale = sorted(
+        rel for rel in SERIES_COMPOSITION | ANALYSIS_TO_COMMAND
+        if not (PROVIDERS_DIR / rel).exists() or not list(_fetcher_calls(PROVIDERS_DIR / rel))
+    )
+    assert not stale, "더 이상 위반이 아닌데 허용 목록에 남아 있다 — 목록에서 지울 것:\n" + "\n".join(stale)
+    assert not SERIES_COMPOSITION & ANALYSIS_TO_COMMAND
+
+
+def test_commands_do_not_name_providers():
+    """command 는 provider 를 모른다 — 어떤 provider · model 을 부를지는 라우트가 Source 로 넘긴다."""
+    import data_fetcher.providers_init  # noqa: F401 — 등록된 provider 이름
+    from data_fetcher.abstract_provider.abstract.provider import ProviderRegistry
+
+    names = set(ProviderRegistry.list())
+    files = sorted(COMMANDS_DIR.rglob("*.py"))
+    assert files, "app/backend/commands/ 를 못 찾았다 — 경로가 바뀌었나?"
+
+    violations = []
+    for p in files:
+        tree = ast.parse(p.read_text(encoding="utf-8"), filename=str(p))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Constant) and isinstance(node.value, str) and node.value in names:
+                violations.append(f"{p.relative_to(ROOT)}:{node.lineno} → '{node.value}'")
+            elif isinstance(node, (ast.Import, ast.ImportFrom)):
+                mods = [a.name for a in node.names] if isinstance(node, ast.Import) else [node.module or ""]
+                violations += [f"{p.relative_to(ROOT)}:{node.lineno} → import {m}"
+                               for m in mods if m.startswith("data_fetcher.providers")]
+    assert not violations, "command 가 provider 를 직접 쓴다:\n" + "\n".join(violations)

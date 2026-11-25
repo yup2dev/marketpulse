@@ -354,9 +354,16 @@ async def get_sector_performance(provider: str = "db") -> OBBject:
 async def compare_stocks(
     symbols: str = FQuery(..., description="Comma-separated symbols (2-4)"),
 ) -> OBBject:
-    """종목 2~4개 비교 — yahoo compare (시세 + 주요 지표)."""
-    raw = await QueryExecutor.fetch("yahoo", "compare", {"symbols": symbols})
-    return _wrap(raw, "yahoo")
+    """종목 2~4개 비교 — 시세(quote) + 주요 지표(key_metrics) 를 command 가 한 행으로.
+
+    yahoo 는 서버에서 부르지 않고 사용자 PC Fetcher 로 위임된다 — 종목 × 2 모델이 병렬로 내려가고,
+    quote · key_metrics 캐시는 다른 위젯과 같이 쓴다.
+    """
+    from app.backend.commands import stock as stock_cmd
+    from app.backend.commands._base import Source
+
+    rows = await stock_cmd.compare(symbols, Source("yahoo", "quote"), Source("yahoo", "key_metrics"))
+    return _wrap(rows, "yahoo")
 
 
 # 지표 키 → fred 모델 (+ 고정 파라미터)
@@ -373,8 +380,12 @@ _INDICATOR_MAP: Dict[str, tuple] = {
     "INDUSTRIAL_PRODUCTION": ("industrial_production", {}),
     # 섹터별 수지: 연방 재정수지 %GDP (연간, 적자는 음수)
     "FISCAL_BALANCE":        ("series",                {"series_id": "FYFSGDA188S"}),
+}
+
+# 두 시리즈의 비율(%) — command 가 계산. 지표 키 → (분자 series id, 분모 series id)
+_RATIO_MAP: Dict[str, tuple] = {
     # 세후 기업이익 %GDP — 재정수지 %GDP 와 같은 축
-    "CORP_PROFITS_GDP":      ("corporate_profits_gdp", {}),
+    "CORP_PROFITS_GDP":      ("CPATAX", "GDP"),
 }
 
 
@@ -383,11 +394,24 @@ _INDICATOR_MAP: Dict[str, tuple] = {
 async def get_indicator_history(indicator: str, period: str = "5y") -> OBBject:
     from data_fetcher.utils.helpers import parse_period_to_dates
 
-    entry = _INDICATOR_MAP.get(indicator.upper())
-    if not entry:
-        raise HTTPException(status_code=400, detail=f"Invalid indicator. Valid: {', '.join(_INDICATOR_MAP)}")
-    model, base_params = entry
+    key = indicator.upper()
+    if key not in _INDICATOR_MAP and key not in _RATIO_MAP:
+        valid = ", ".join([*_INDICATOR_MAP, *_RATIO_MAP])
+        raise HTTPException(status_code=400, detail=f"Invalid indicator. Valid: {valid}")
     start_date, end_date = parse_period_to_dates(period)
+
+    if key in _RATIO_MAP:
+        from app.backend.commands import macro as macro_cmd
+        from app.backend.commands._base import Source
+
+        num, den = _RATIO_MAP[key]
+        rows = await macro_cmd.ratio_pct(Source("fred", "series", {
+            "series_id": f"{num},{den}", "start_date": start_date, "end_date": end_date}), num, den)
+        if not rows:
+            raise HTTPException(status_code=404, detail=f"No data for {indicator}")
+        return _wrap(rows, "fred")
+
+    model, base_params = _INDICATOR_MAP[key]
     raw = await QueryExecutor.fetch("fred", model, {**base_params, "start_date": start_date, "end_date": end_date})
     if not _unwrap(raw):
         raise HTTPException(status_code=404, detail=f"No data for {indicator}")
