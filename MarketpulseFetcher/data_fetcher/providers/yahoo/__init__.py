@@ -8,16 +8,12 @@ from data_fetcher.providers.yahoo.models.company_info import YFinanceCompanyInfo
 from data_fetcher.providers.yahoo.models.financials import YFinanceFinancialsFetcher
 from data_fetcher.providers.yahoo.models.balance_sheet import YFinanceBalanceSheetFetcher
 from data_fetcher.providers.yahoo.models.key_metrics import YFinanceKeyMetricsFetcher
-from data_fetcher.providers.yahoo.models.quarterly_pnl import YFinanceQuarterlyPnLFetcher
 from data_fetcher.providers.yahoo.models.holders import YFinanceHoldersFetcher
 from data_fetcher.providers.yahoo.models.calendar import YFinanceCalendarFetcher
 from data_fetcher.providers.yahoo.models.splits import YFinanceSplitsFetcher
 from data_fetcher.providers.yahoo.models.filings import YFinanceFilingsFetcher
 from data_fetcher.providers.yahoo.models.estimates import YFinanceEstimatesFetcher
 from data_fetcher.providers.yahoo.models.management import YFinanceManagementFetcher
-from data_fetcher.providers.yahoo.models.moat import YFinanceMoatFetcher
-from data_fetcher.providers.yahoo.models.swot import YFinanceSWOTFetcher
-from data_fetcher.providers.yahoo.models.scorecard import YFinanceScorecardFetcher
 from data_fetcher.providers.yahoo.models.insider_trading import (
     YFinanceInsiderTradingFetcher,
     YFinanceInsiderHoldersFetcher,
@@ -41,16 +37,12 @@ yahoo_provider = Provider(
         "financials": YFinanceFinancialsFetcher,
         "balance_sheet": YFinanceBalanceSheetFetcher,
         "key_metrics": YFinanceKeyMetricsFetcher,
-        "quarterly_pnl": YFinanceQuarterlyPnLFetcher,
         "holders": YFinanceHoldersFetcher,
         "calendar": YFinanceCalendarFetcher,
         "splits": YFinanceSplitsFetcher,
         "filings": YFinanceFilingsFetcher,
         "estimates": YFinanceEstimatesFetcher,
         "management": YFinanceManagementFetcher,
-        "moat": YFinanceMoatFetcher,
-        "swot": YFinanceSWOTFetcher,
-        "scorecard": YFinanceScorecardFetcher,
         "insider_trading": YFinanceInsiderTradingFetcher,
         "insider_trading_summary": YFinanceInsiderTradingSummaryFetcher,
         "insider_holders": YFinanceInsiderHoldersFetcher,

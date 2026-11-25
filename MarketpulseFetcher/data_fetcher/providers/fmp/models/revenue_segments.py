@@ -66,14 +66,8 @@ def _normalize(raw: List[Dict], limit: int) -> Optional[FMPSegmentData]:
         history.append(row)
 
     latest = history[-1] if history else {}
-    prior  = history[-2] if len(history) >= 2 else {}
-    yoy: Dict[str, Optional[float]] = {}
-    for seg in segments:
-        cur = latest.get(seg)
-        prv = prior.get(seg)
-        yoy[seg] = round((cur - prv) / abs(prv) * 100, 1) if (cur is not None and prv and prv != 0) else None
 
-    return FMPSegmentData(segments=segments, history=history, latest=latest, yoy=yoy)
+    return FMPSegmentData(segments=segments, history=history, latest=latest)
 
 
 # ── Fetcher ───────────────────────────────────────────────────────────────────

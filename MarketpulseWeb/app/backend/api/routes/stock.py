@@ -8,6 +8,8 @@ from fastapi.responses import JSONResponse
 from data_fetcher.core.obbject import OBBject
 from data_fetcher.query_executor import QueryExecutor
 from app.backend.api.deps import filter_dated_rows, resolve_date_range, route_handler, wrap_result
+from app.backend.commands import fundamentals as fundamentals_cmd, sentiment as sentiment_cmd
+from app.backend.commands._base import Source
 from app.backend.core.auth.dependencies import get_current_active_user
 from app.backend.models.orm import User
 
@@ -212,19 +214,17 @@ async def get_filings(
 @router.get("/quarterly-pnl/{symbol}")
 @route_handler
 async def get_quarterly_pnl(symbol: str, provider: str = "yahoo", limit: int = 12) -> OBBject:
-    raw = await QueryExecutor.fetch(
-        provider, "quarterly_pnl", {"symbol": symbol.upper(), "limit": limit}
-    )
-    return _wrap(raw, provider)
+    """분기 손익 + 이익률 · 전년 동기 대비 매출 — 분기 재무제표(financials)를 command 가 가공."""
+    rows = await fundamentals_cmd.quarterly_pnl(symbol.upper(), Source(provider, "financials"), limit)
+    return _wrap(rows, provider)
 
 
 @router.get("/revenue-segments/{symbol}")
 @route_handler
 async def get_revenue_segments(symbol: str, provider: str = "fmp", limit: int = 8) -> OBBject:
-    raw = await QueryExecutor.fetch(
-        provider, "revenue_segments", {"symbol": symbol.upper(), "limit": limit}
-    )
-    return _wrap(raw, provider)
+    """제품 · 지역별 매출 — 세그먼트별 전년 대비(yoy)는 command 가 채운다."""
+    rows = await fundamentals_cmd.revenue_segments(symbol.upper(), Source(provider, "revenue_segments"), limit)
+    return _wrap(rows, provider)
 
 
 @router.get("/estimates/{symbol}")
@@ -244,15 +244,17 @@ async def get_management(symbol: str, provider: str = "yahoo") -> OBBject:
 @router.get("/moat/{symbol}")
 @route_handler
 async def get_moat_analysis(symbol: str, provider: str = "yahoo") -> OBBject:
-    raw = await QueryExecutor.fetch(provider, "moat", {"symbol": symbol.upper()})
-    return _wrap(raw, provider)
+    """경제적 해자 — 연간 재무제표(financials)로 command 가 수익성 · 점수를 낸다."""
+    rows = await fundamentals_cmd.moat(symbol.upper(), Source(provider, "financials"))
+    return _wrap(rows, provider)
 
 
 @router.get("/swot/{symbol}")
 @route_handler
 async def get_swot(symbol: str, provider: str = "yahoo") -> OBBject:
-    raw = await QueryExecutor.fetch(provider, "swot", {"symbol": symbol.upper()})
-    return _wrap(raw, provider)
+    """SWOT — 주요 지표(key_metrics)를 command 가 문턱값으로 나눈다."""
+    rows = await fundamentals_cmd.swot(symbol.upper(), Source(provider, "key_metrics"))
+    return _wrap(rows, provider)
 
 
 @router.get("/sentiment/{symbol}")
@@ -265,15 +267,17 @@ async def get_stock_sentiment(symbol: str, provider: str = "polygon") -> OBBject
 @router.get("/reddit/{symbol}")
 @route_handler
 async def get_social_sentiment(symbol: str, provider: str = "social") -> OBBject:
-    raw = await QueryExecutor.fetch(provider, "sentiment", {"symbol": symbol.upper()})
-    return _wrap(raw, provider)
+    """StockTwits · Reddit 글 — 글 분류 · 강세/약세 비율은 command 가 낸다."""
+    rows = await sentiment_cmd.social(symbol.upper(), Source(provider, "sentiment"))
+    return _wrap(rows, provider)
 
 
 @router.get("/scorecard/{symbol}")
 @route_handler
 async def get_scorecard(symbol: str, provider: str = "yahoo") -> OBBject:
-    raw = await QueryExecutor.fetch(provider, "scorecard", {"symbol": symbol.upper()})
-    return _wrap(raw, provider)
+    """투자 스코어카드 — 주요 지표(key_metrics)로 command 가 범주별 점수 · 등급을 낸다."""
+    rows = await fundamentals_cmd.scorecard(symbol.upper(), Source(provider, "key_metrics"))
+    return _wrap(rows, provider)
 
 
 @router.get("/quote/{symbol}")

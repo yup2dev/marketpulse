@@ -95,7 +95,6 @@ _DEFAULT_TTL: Dict[str, int] = {
     # ── Daily (30-60min) ────────────────────────────────────────────────────
     "financials":             1800,
     "balance_sheet":          1800,
-    "quarterly_pnl":          1800,
     "estimates":              1800,
     "analyst_data":           1800,
     "analyst_estimates":      1800,
@@ -151,9 +150,6 @@ _DEFAULT_TTL: Dict[str, int] = {
     "company_peers":          86400,  # 유사종목 — 거의 변하지 않음
     "key_metrics":            3600,
     "management":             3600,
-    "moat":                   3600,
-    "swot":                   3600,
-    "scorecard":              3600,
     "company_profile":        3600,
     "income_statement":       3600,
     "index_constituents":     7200,

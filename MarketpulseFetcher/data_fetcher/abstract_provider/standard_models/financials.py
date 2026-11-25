@@ -31,6 +31,8 @@ class FinancialsData(BaseData):
     operating_expenses: Optional[float] = Field(default=None, description="영업비용")
     operating_income: Optional[float] = Field(default=None, description="영업이익")
     net_income: Optional[float] = Field(default=None, description="당기순이익")
+    research_and_development: Optional[float] = Field(default=None, description="연구개발비")
+    selling_general_admin: Optional[float] = Field(default=None, description="판매관리비")
     ebitda: Optional[float] = Field(default=None, description="EBITDA")
     eps: Optional[float] = Field(default=None, description="기본 EPS")
     eps_diluted: Optional[float] = Field(default=None, description="희석 EPS")

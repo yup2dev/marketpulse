@@ -124,19 +124,10 @@ ANALYSIS_TO_COMMAND = {
 }
 
 # 다른 fetcher 를 부르지 않고 받은 값으로 직접 분석하는 것 (호출 검사로는 안 잡힌다).
-# 점수(moat · scorecard · swot)는 command, 키워드 감성 점수(social)는 배치 검토, 나머지는 command.
-# (fred 파생 칸 11개는 FRED units(pch · pc1 · chg · ch1)와 FRED 이동평균 시리즈로 요청하게 바꿔 목록에서 지웠다)
-ANALYSIS_IN_PLACE = {
-    # C
-    "database/models/fund_performance.py",
-    "fmp/models/revenue_segments.py",
-    "social/models/sentiment.py",
-    "yahoo/models/dividends.py",
-    "yahoo/models/moat.py",
-    "yahoo/models/quarterly_pnl.py",
-    "yahoo/models/scorecard.py",
-    "yahoo/models/swot.py",
-}
+# (fred 파생 칸 11개는 FRED units(pch · pc1 · chg · ch1)와 FRED 이동평균 시리즈로 요청하게 바꿔 목록에서 지웠고,
+#  yahoo 해자 · 스코어카드 · SWOT · 분기 손익, fmp 세그먼트 전년 대비, 소셜 감성 비율, db 펀드 누적 수익률은
+#  commands/fundamentals · sentiment · portfolio 로 옮겼다 — #104)
+ANALYSIS_IN_PLACE: set = set()
 
 _FETCH_METHODS = {"fetch_data", "afetch_data", "aextract_data", "extract_data"}
 

@@ -31,9 +31,6 @@ class SocialSentimentData(StockSentimentData):
 
 log = logging.getLogger(__name__)
 
-_POS_W = ['beat', 'bull', 'buy', 'moon', 'surge', 'gain']
-_NEG_W = ['bear', 'sell', 'dump', 'crash', 'loss', 'miss']
-
 
 class SocialSentimentFetcher(ApiFetcher[SocialSentimentQueryParams, SocialSentimentData]):
 
@@ -99,19 +96,13 @@ class SocialSentimentFetcher(ApiFetcher[SocialSentimentQueryParams, SocialSentim
                         if search_data:
                             for post in search_data.get('data', {}).get('children', []):
                                 d = post.get('data', {})
-                                title = d.get('title', '')
-                                tl = title.lower()
-                                ps = sum(1 for w in _POS_W if w in tl)
-                                ns = sum(1 for w in _NEG_W if w in tl)
-                                sentiment = 'positive' if ps > ns else ('negative' if ns > ps else 'neutral')
                                 created = datetime.datetime.fromtimestamp(d.get('created_utc', 0)).isoformat()
                                 reddit_posts.append({
                                     'subreddit': sub,
-                                    'title': title,
+                                    'title': d.get('title', ''),
                                     'score': d.get('score', 0),
                                     'num_comments': d.get('num_comments', 0),
                                     'created_utc': created,
-                                    'sentiment': sentiment,
                                     'url': f"https://reddit.com{d.get('permalink', '')}",
                                 })
             except Exception as e:
@@ -130,25 +121,11 @@ class SocialSentimentFetcher(ApiFetcher[SocialSentimentQueryParams, SocialSentim
         data: Dict[str, Any],
         **kwargs: Any,
     ) -> List[SocialSentimentData]:
-        stocktwits_messages = data.get('stocktwits_messages', [])
-        reddit_posts = data.get('reddit_posts', [])
-        reddit_configured = data.get('reddit_configured', False)
-
-        all_sentiments = [m['sentiment'] for m in stocktwits_messages] + [p['sentiment'] for p in reddit_posts]
-        bullish = sum(1 for s in all_sentiments if s in ('bullish', 'positive'))
-        bearish = sum(1 for s in all_sentiments if s in ('bearish', 'negative'))
-        neutral_count = len(all_sentiments) - bullish - bearish
-        total = len(all_sentiments)
-
+        # StockTwits 의 bullish/bearish 는 작성자가 단 표시라 그대로 둔다.
+        # Reddit 글 분류 · 종합 비율(aggregate)은 백엔드 command(commands/sentiment.py)가 채운다.
         return [SocialSentimentData(
             symbol=data['symbol'],
-            stocktwits_messages=stocktwits_messages,
-            reddit_posts=reddit_posts,
-            aggregate={
-                'bullish_pct': round(bullish / total * 100, 1) if total else 0,
-                'bearish_pct': round(bearish / total * 100, 1) if total else 0,
-                'neutral_pct': round(neutral_count / total * 100, 1) if total else 0,
-                'message_volume': total,
-            },
-            has_reddit=reddit_configured,
+            stocktwits_messages=data.get('stocktwits_messages', []),
+            reddit_posts=data.get('reddit_posts', []),
+            has_reddit=data.get('reddit_configured', False),
         )]
