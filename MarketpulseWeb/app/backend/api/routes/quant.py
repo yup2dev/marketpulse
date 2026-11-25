@@ -2,7 +2,7 @@
 Quant API — 팩터 성과 · 모델 검증 · 시장 국면 · 종목 시그널 · 이번 달 순위.
 
 학습은 서버에서 하지 않는다. 로컬 배치(MarketpulseBatch/jobs/build_quant.py)가 학습·검증한 결과를
-`mbs_in_quant_snapshot` 에 적재하고, 여기서는 그 행을 읽어 그대로 내보낸다 (작은 운영 서버에서
+`mbs_in_quant_snapshot` 에 적재하고, 여기서는 db provider quant_snapshot 으로 읽어 그대로 내보낸다 (작은 운영 서버에서
 모델을 돌리지 않기 위해서다). 적재 전이면 빈 결과다 — 오류가 아니다.
 
 예외: `strategy=` 로 전략을 고르면 (퀀트 메인) 팩터 표의 합성 줄 · 비중, 롱숏 곡선의 합성, 분위 수익률을
@@ -11,7 +11,6 @@ Quant API — 팩터 성과 · 모델 검증 · 시장 국면 · 종목 시그�
 
 핸들러는 `def`(동기)다 — DB 만 읽는다.
 """
-import json
 from datetime import date
 from typing import Literal, Optional
 
@@ -21,9 +20,10 @@ from sqlalchemy.orm import Session
 from app.backend.api.deps import route_handler
 from app.backend.core.auth.dependencies import get_current_active_user
 from app.backend.core.db import get_db
-from app.backend.models.orm import MBS_IN_QUANT_SNAPSHOT, User
+from app.backend.models.orm import User
 from app.backend.services import quant_strategy_service as strategies
 from data_fetcher.core.obbject import OBBject
+from data_fetcher.query_executor import QueryExecutor
 
 router = APIRouter(prefix="/quant", tags=["quant"])
 
@@ -64,22 +64,14 @@ def get_quant_dataset(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_active_user),
 ) -> OBBject:
-    row = (
-        db.query(MBS_IN_QUANT_SNAPSHOT)
-        .filter(MBS_IN_QUANT_SNAPSHOT.universe == universe, MBS_IN_QUANT_SNAPSHOT.dataset == dataset)
-        .first()
-    )
-    if not row:
+    raw = QueryExecutor.fetch_sync("db", "quant_snapshot", {"dataset": dataset, "universe": universe})
+    meta = OBBject.metadata_of(raw)
+    rows = OBBject.from_result(raw, "db").results
+    if not meta.get("loaded"):
         return OBBject(results=[], provider="db", metadata={"universe": universe, "loaded": False})
-    meta = json.loads(row.meta) if row.meta else {}
-    rows = json.loads(row.payload)
     if strategy and dataset in BY_STRATEGY:
         rows, meta = _by_strategy(db, str(user.user_id), universe, strategy, dataset, rows, meta)
-    return OBBject(
-        results=rows,
-        provider="db",
-        metadata={**meta, "universe": universe, "as_of": row.base_ymd.isoformat(), "loaded": True},
-    )
+    return OBBject(results=rows, provider="db", metadata=meta)
 
 
 def _by_strategy(db, user_id, universe, strategy_id, dataset, rows, meta):

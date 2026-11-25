@@ -36,9 +36,9 @@ export const portfolioAPI = {
   refreshPrices:   (id)          => apiClient.post(`${UP}/portfolios/${id}/refresh-prices`),
   getPriceAtDate:  (ticker, date)=>
     apiClient.get(`${UP}/price-at-date?ticker=${encodeURIComponent(ticker)}&date=${date}`),
-  // 일일 배치 환율 (서버 DB) — 응답 OBBject: results[0] = {rate, as_of, ...}
+  // 일일 배치 환율 (db provider fx_rate) — 응답 OBBject: results[0] = {date, base_currency, counter_currency, rate, ...}
   getFxRate:       (base = 'USD', quote = 'KRW') =>
-    apiClient.get(`${API_BASE}/fx/rate?base=${base}&quote=${quote}`),
+    apiClient.get(`${API_BASE}/data/db/fx_rate?base=${base}&quote=${quote}`),
 };
 
 // ─── API Keys API ─────────────────────────────────────────────────────────────

@@ -1,11 +1,8 @@
 """
-종목 스크리너 서비스 — DB 유니버스 + yfinance 실시간 가격
-- 유니버스: mbs_in_stk_stbd (종목 목록)
-- 정적 메타: mbs_in_stk_profile (market_cap, beta, sector, industry)
-- 재무지표: mbs_in_financial_metrics (pe, roe, roa 등)
-- 실시간 가격/등락률/거래량: yfinance 배치 다운로드
+종목 스크리너 서비스 — db provider equity_screener + yfinance 실시간 가격
+- 유니버스 · 프로필 · 재무지표 · 재무 조건: db provider equity_screener (fetcher)
+- 실시간 가격/등락률/거래량: yfinance 배치 다운로드 → 가격 조건은 여기서 건다
 """
-import asyncio
 import json
 import logging
 import uuid
@@ -13,111 +10,42 @@ from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
-from app.backend.core.cache import cached
 from app.backend.services._base import cached_quotes, to_quote_symbol
+from data_fetcher.core.obbject import OBBject
+from data_fetcher.query_executor import QueryExecutor
 
 log = logging.getLogger(__name__)
 
 SCREENER_CANDIDATE_LIMIT = 500
 
+# 가격 조건 — 시세를 붙인 뒤에 건다 (나머지는 equity_screener 의 파라미터)
+PRICE_KEYS = ('price_min', 'price_max', 'change_rate_min', 'change_rate_max',
+              'change_pct_min', 'change_pct_max', 'volume_min', 'volume_max')
 
-# ── DB 유니버스 로딩 ──────────────────────────────────────────────────────────
 
-@cached(ttl=3600)
-async def _load_screener_universe() -> List[Dict]:
-    """
-    종목 유니버스 조인 (1h 캐시).
-    - 기본 종목 목록: stocks:all Redis 캐시 (DB 직접 쿼리 제거)
-    - 프로필/재무지표: mbs_in_stk_profile + mbs_in_financial_metrics (DB)
-    Returns: [{stk_cd, stk_nm, curr, sector, industry, exchange,
-               market_cap, beta, pe_ratio, pb_ratio, roe, roa, profit_margin}, ...]
-    """
-    # 1. 기본 종목 목록 — stocks:all 캐시에서 로딩
-    from app.backend.services.stock_list_service import get_stock_list
-    stock_list = await get_stock_list()
-    base: Dict[str, Dict] = {
-        s['ticker_cd']: {
-            'stk_cd':   s['ticker_cd'],
-            'stk_nm':   s.get('ticker_nm') or s['ticker_cd'],
-            'curr':     s.get('curr') or 'USD',
-            'sector':   s.get('sector') or '',
-            'industry': s.get('industry') or '',
-            'exchange': s.get('exchange') or '',
+def _screener_params(filters: Dict[str, Any]) -> Dict[str, Any]:
+    """화면 필터 → equity_screener 파라미터. 섹터 목록은 쉼표 글로."""
+    params = {k: v for k, v in filters.items() if k not in PRICE_KEYS and v not in (None, '', [])}
+    if isinstance(params.get('sector'), list):
+        params['sector'] = ','.join(params['sector'])
+    params['limit'] = SCREENER_CANDIDATE_LIMIT
+    return params
+
+
+async def _candidates(filters: Dict[str, Any]) -> List[Dict]:
+    """db provider equity_screener — 재무 조건을 통과한 종목 (시세 조회용 심볼로 정규화, 기존 응답 칸 이름)."""
+    raw = await QueryExecutor.fetch("db", "equity_screener", _screener_params(filters))
+    return [
+        {
+            'stk_cd': to_quote_symbol(r.symbol, r.exchange or '', r.currency or ''),
+            'stk_nm': r.name or r.symbol, 'curr': r.currency or 'USD',
+            'sector': r.sector or '', 'industry': r.industry or '', 'exchange': r.exchange or '',
+            'market_cap': r.market_cap, 'beta': r.beta, 'pe_ratio': r.pe_ratio, 'pb_ratio': r.pb_ratio,
+            'roe': r.roe, 'roa': r.roa, 'profit_margin': r.profit_margin,
+            'debt_to_equity': r.debt_to_equity, 'current_ratio': r.current_ratio, 'quick_ratio': r.quick_ratio,
         }
-        for s in stock_list
-        if s.get('ticker_cd') and s.get('asset_type', 'stock') == 'stock'
-    }
-
-    if not base:
-        log.warning("[Screener] stocks:all cache empty — universe will be empty")
-        return []
-
-    log.info("[Screener] Base universe from cache: %d symbols", len(base))
-
-    # 2. 프로필 + 재무지표 — DB에서만 로딩 (기본 목록 쿼리 제거)
-    def _query_enrichment():
-        from app.backend.core.db import get_db_sync
-        from app.backend.models.orm import MBS_IN_STK_PROFILE, MBS_IN_FINANCIAL_METRICS
-
-        db = get_db_sync()
-        try:
-            profiles: Dict[str, Any] = {
-                p.stk_cd: p
-                for p in db.query(MBS_IN_STK_PROFILE).all()
-            }
-            metrics: Dict[str, Any] = {}
-            for m in (
-                db.query(MBS_IN_FINANCIAL_METRICS)
-                .order_by(
-                    MBS_IN_FINANCIAL_METRICS.stk_cd,
-                    MBS_IN_FINANCIAL_METRICS.base_ymd.desc(),
-                )
-                .all()
-            ):
-                if m.stk_cd not in metrics:
-                    metrics[m.stk_cd] = m
-            return profiles, metrics
-        finally:
-            db.close()
-
-    try:
-        profiles, metrics = await asyncio.to_thread(_query_enrichment)
-    except Exception as e:
-        log.warning("[Screener] profile/metrics DB load failed: %s", e)
-        profiles, metrics = {}, {}
-
-    # 3. 조인 — 캐시 base에 profile/metrics 병합
-    # (DB 조인은 원시 코드 기준, 출력 stk_cd만 시세 조회용으로 정규화 — KR: 005930 → 005930.KS)
-    # roe/roa/profit_margin은 DB에 소수(0.32=32%)로 저장 — 필터/표시가 %값을 쓰므로 ×100 변환.
-    def _pct(v):
-        return float(v) * 100 if v is not None else None
-
-    result = []
-    for raw_cd, b in base.items():
-        p = profiles.get(raw_cd)
-        m = metrics.get(raw_cd)
-        stk_cd = to_quote_symbol(raw_cd, b['exchange'], b['curr'])
-        result.append({
-            'stk_cd':          stk_cd,
-            'stk_nm':          (p.stk_nm if p else b['stk_nm']) or stk_cd,
-            'curr':            (p.currency if p else b['curr']) or 'USD',
-            'sector':          (p.sector if p else b['sector']) or '',
-            'industry':        (p.industry if p else b['industry']) or '',
-            'exchange':        (p.exchange if p else b['exchange']) or '',
-            'market_cap':      float(p.market_cap)      if p and p.market_cap      else None,
-            'beta':            float(p.beta)            if p and p.beta            else None,
-            'pe_ratio':        float(m.pe_ratio)        if m and m.pe_ratio        else None,
-            'pb_ratio':        float(m.pb_ratio)        if m and m.pb_ratio        else None,
-            'roe':             _pct(m.roe)              if m else None,
-            'roa':             _pct(m.roa)              if m else None,
-            'profit_margin':   _pct(m.profit_margin)    if m else None,
-            'debt_to_equity':  float(m.debt_to_equity)  if m and m.debt_to_equity  else None,
-            'current_ratio':   float(m.current_ratio)   if m and m.current_ratio   else None,
-            'quick_ratio':     float(m.quick_ratio)     if m and m.quick_ratio     else None,
-        })
-
-    log.info("[Screener] Universe ready: %d symbols", len(result))
-    return result
+        for r in OBBject.unwrap(raw) or []
+    ]
 
 
 # ── yfinance 배치 가격 조회 (청크 동시 + single-flight + 캐시) ─────────────────
@@ -139,115 +67,25 @@ async def _yf_screener_quotes(symbols_key: str) -> Dict[str, Dict]:
     }
 
 
-# ── 필터 적용 ─────────────────────────────────────────────────────────────────
+# ── 가격 조건 (시세를 붙인 뒤) ────────────────────────────────────────────────
 
-def _apply_filters(rows: List[Dict], filters: Dict[str, Any]) -> List[Dict]:
-    result = rows
-    f = filters
-
-    def _n(row, key):
+def _apply_price_filters(rows: List[Dict], f: Dict[str, Any]) -> List[Dict]:
+    def within(row, key, lo, hi):
         v = row.get(key)
-        return float(v) if v is not None else None
+        if lo is None and hi is None:
+            return True
+        if v is None:
+            return False
+        return (lo is None or float(v) >= lo) and (hi is None or float(v) <= hi)
 
-    # 시장 / 통화
-    if f.get('market') == 'domestic':
-        result = [r for r in result if r.get('curr') == 'KRW']
-    elif f.get('market') == 'overseas':
-        result = [r for r in result if r.get('curr') != 'KRW']
-
-    # 섹터
-    if f.get('sector'):
-        sectors = f['sector'] if isinstance(f['sector'], list) else [f['sector']]
-        sectors_lower = [s.lower() for s in sectors]
-        result = [r for r in result if (r.get('sector') or '').lower() in sectors_lower]
-
-    # 업종
-    if f.get('industry'):
-        result = [r for r in result if (r.get('industry') or '').lower() == f['industry'].lower()]
-
-    # 거래소
-    if f.get('exchange'):
-        result = [r for r in result if (r.get('exchange') or '').upper() == f['exchange'].upper()]
-
-    # 시가총액
-    if f.get('market_cap_min') is not None:
-        result = [r for r in result if _n(r, 'market_cap') is not None and _n(r, 'market_cap') >= f['market_cap_min']]
-    if f.get('market_cap_max') is not None:
-        result = [r for r in result if _n(r, 'market_cap') is not None and _n(r, 'market_cap') <= f['market_cap_max']]
-
-    # 현재가
-    if f.get('price_min') is not None:
-        result = [r for r in result if _n(r, 'close_price') is not None and _n(r, 'close_price') >= f['price_min']]
-    if f.get('price_max') is not None:
-        result = [r for r in result if _n(r, 'close_price') is not None and _n(r, 'close_price') <= f['price_max']]
-
-    # 등락률
-    for key in ('change_rate_min', 'change_pct_min'):
-        if f.get(key) is not None:
-            result = [r for r in result if _n(r, 'change_rate') is not None and _n(r, 'change_rate') >= f[key]]
-    for key in ('change_rate_max', 'change_pct_max'):
-        if f.get(key) is not None:
-            result = [r for r in result if _n(r, 'change_rate') is not None and _n(r, 'change_rate') <= f[key]]
-
-    # 거래량
-    if f.get('volume_min') is not None:
-        result = [r for r in result if _n(r, 'volume') is not None and _n(r, 'volume') >= f['volume_min']]
-
-    # Beta
-    if f.get('beta_min') is not None:
-        result = [r for r in result if _n(r, 'beta') is not None and _n(r, 'beta') >= f['beta_min']]
-    if f.get('beta_max') is not None:
-        result = [r for r in result if _n(r, 'beta') is not None and _n(r, 'beta') <= f['beta_max']]
-
-    # PER
-    if f.get('pe_ratio_min') is not None:
-        result = [r for r in result if _n(r, 'pe_ratio') is not None and _n(r, 'pe_ratio') >= f['pe_ratio_min']]
-    if f.get('pe_ratio_max') is not None:
-        result = [r for r in result if _n(r, 'pe_ratio') is not None and _n(r, 'pe_ratio') <= f['pe_ratio_max']]
-
-    # PBR
-    if f.get('pb_ratio_min') is not None:
-        result = [r for r in result if _n(r, 'pb_ratio') is not None and _n(r, 'pb_ratio') >= f['pb_ratio_min']]
-    if f.get('pb_ratio_max') is not None:
-        result = [r for r in result if _n(r, 'pb_ratio') is not None and _n(r, 'pb_ratio') <= f['pb_ratio_max']]
-
-    # ROE
-    if f.get('roe_min') is not None:
-        result = [r for r in result if _n(r, 'roe') is not None and _n(r, 'roe') >= f['roe_min']]
-    if f.get('roe_max') is not None:
-        result = [r for r in result if _n(r, 'roe') is not None and _n(r, 'roe') <= f['roe_max']]
-
-    # ROA
-    if f.get('roa_min') is not None:
-        result = [r for r in result if _n(r, 'roa') is not None and _n(r, 'roa') >= f['roa_min']]
-    if f.get('roa_max') is not None:
-        result = [r for r in result if _n(r, 'roa') is not None and _n(r, 'roa') <= f['roa_max']]
-
-    # 순이익률
-    if f.get('profit_margin_min') is not None:
-        result = [r for r in result if _n(r, 'profit_margin') is not None and _n(r, 'profit_margin') >= f['profit_margin_min']]
-    if f.get('profit_margin_max') is not None:
-        result = [r for r in result if _n(r, 'profit_margin') is not None and _n(r, 'profit_margin') <= f['profit_margin_max']]
-
-    # 부채비율 D/E
-    if f.get('debt_to_equity_min') is not None:
-        result = [r for r in result if _n(r, 'debt_to_equity') is not None and _n(r, 'debt_to_equity') >= f['debt_to_equity_min']]
-    if f.get('debt_to_equity_max') is not None:
-        result = [r for r in result if _n(r, 'debt_to_equity') is not None and _n(r, 'debt_to_equity') <= f['debt_to_equity_max']]
-
-    # 유동비율
-    if f.get('current_ratio_min') is not None:
-        result = [r for r in result if _n(r, 'current_ratio') is not None and _n(r, 'current_ratio') >= f['current_ratio_min']]
-    if f.get('current_ratio_max') is not None:
-        result = [r for r in result if _n(r, 'current_ratio') is not None and _n(r, 'current_ratio') <= f['current_ratio_max']]
-
-    # 당좌비율
-    if f.get('quick_ratio_min') is not None:
-        result = [r for r in result if _n(r, 'quick_ratio') is not None and _n(r, 'quick_ratio') >= f['quick_ratio_min']]
-    if f.get('quick_ratio_max') is not None:
-        result = [r for r in result if _n(r, 'quick_ratio') is not None and _n(r, 'quick_ratio') <= f['quick_ratio_max']]
-
-    return result
+    lo_chg = next((f[k] for k in ('change_rate_min', 'change_pct_min') if f.get(k) is not None), None)
+    hi_chg = next((f[k] for k in ('change_rate_max', 'change_pct_max') if f.get(k) is not None), None)
+    return [
+        r for r in rows
+        if within(r, 'close_price', f.get('price_min'), f.get('price_max'))
+        and within(r, 'change_rate', lo_chg, hi_chg)
+        and within(r, 'volume', f.get('volume_min'), f.get('volume_max'))
+    ]
 
 
 # ── ScreenerService ───────────────────────────────────────────────────────────
@@ -315,15 +153,8 @@ class ScreenerService:
 
     @staticmethod
     async def screen_stocks(filters: Dict[str, Any], limit: int = 100) -> List[Dict]:
-        """DB 유니버스 + yfinance 가격 기반 스크리닝."""
-        universe = await _load_screener_universe()
-        if not universe:
-            return []
-
-        # DB 필터 조건으로 후보를 미리 줄여 yfinance 호출 수 최소화
-        candidates = _apply_filters(universe, filters)
-        candidates = candidates[:SCREENER_CANDIDATE_LIMIT]
-
+        """db provider equity_screener + yfinance 가격 기반 스크리닝."""
+        candidates = await _candidates(filters)
         if not candidates:
             return []
 
@@ -333,16 +164,10 @@ class ScreenerService:
 
         # 가격 데이터 병합 — 시세 미확보 종목도 유지(가격 필드 None).
         # 로컬 Fetcher 미실행으로 yahoo 시세가 전부 비어도 DB 조건 결과는 반환한다.
-        # (가격 기반 필터를 걸면 _apply_filters가 None 행을 자연히 걸러낸다)
+        # (가격 기반 필터를 걸면 None 행은 걸러진다)
         rows = [{'close_price': None, 'change_rate': None, 'volume': None,
                  **c, **(prices.get(c['stk_cd']) or {})} for c in candidates]
-
-        # 가격 기반 필터 재적용 (price_min/max, change_rate, volume)
-        rows = _apply_filters(rows, {
-            k: v for k, v in filters.items()
-            if k in ('price_min', 'price_max', 'change_rate_min', 'change_rate_max',
-                     'change_pct_min', 'change_pct_max', 'volume_min', 'volume_max')
-        })
+        rows = _apply_price_filters(rows, filters)
 
         return rows[:limit]
 

@@ -300,28 +300,19 @@ async def dataset_summary(db: Session, dataset_id: str, series: Optional[str] = 
 
 
 def related_companies(db: Session, industry: str, limit: int = 40) -> List[IndustryCompany]:
-    """산업의 업종(industry_sectors)에 속한 종목 — 종목 마스터 + 종목마다 가장 최근 일봉의 종가 · 등락률."""
-    from sqlalchemy import func, or_
-
-    from app.backend.models.orm import MBS_IN_STBD_MST, MBS_IN_STK_STBD
+    """산업의 업종(industry_sectors)에 속한 종목 — 종목 마스터 + 종목마다 가장 최근 일봉의 종가 · 등락률.
+    둘 다 db provider fetcher (stock_list · quote) 로 읽는다."""
+    from app.backend.services._base import rows_sync
 
     _seed_missing(db)
     sectors = db.query(IndustrySector).filter(IndustrySector.industry_code == industry).all()
     stocks = []
     for s in sectors:
-        col = MBS_IN_STBD_MST.industry if s.match_field == "industry" else MBS_IN_STBD_MST.sector
-        stocks += (db.query(MBS_IN_STBD_MST)
-                   .filter(MBS_IN_STBD_MST.country == s.market, col == s.sector_name)
-                   .filter(or_(MBS_IN_STBD_MST.is_active.is_(None), MBS_IN_STBD_MST.is_active == True))  # noqa: E712
-                   .all())
-    codes = list({m.ticker_cd for m in stocks})
-    latest = {}
-    if codes:
-        last = (db.query(MBS_IN_STK_STBD.stk_cd, func.max(MBS_IN_STK_STBD.base_ymd).label("d"))
-                .filter(MBS_IN_STK_STBD.stk_cd.in_(codes)).group_by(MBS_IN_STK_STBD.stk_cd).subquery())
-        rows = (db.query(MBS_IN_STK_STBD)
-                .join(last, (MBS_IN_STK_STBD.stk_cd == last.c.stk_cd) & (MBS_IN_STK_STBD.base_ymd == last.c.d)).all())
-        latest = {r.stk_cd: r for r in rows}
+        by = {"industry" if s.match_field == "industry" else "sector": s.sector_name}
+        stocks += [m for m in rows_sync("db", "stock_list", country=s.market, active_only=False, **by)
+                   if m.is_active]
+    codes = sorted({m.ticker_cd for m in stocks})
+    latest = {q.symbol: q for q in rows_sync("db", "quote", symbol=",".join(codes))} if codes else {}
     seen, out = set(), []
     for m in stocks:
         if m.ticker_cd in seen:
@@ -331,9 +322,9 @@ def related_companies(db: Session, industry: str, limit: int = 40) -> List[Indus
         out.append(IndustryCompany(
             symbol=m.ticker_cd, name=m.ticker_nm, market=m.country,
             sector=m.industry if m.country == "US" else m.sector,
-            close=float(p.close_price) if p is not None and p.close_price is not None else None,
-            change_rate=float(p.change_rate) if p is not None and p.change_rate is not None else None,
-            as_of=p.base_ymd.isoformat() if p is not None and p.base_ymd else None,
+            close=p.last_price if p is not None else None,
+            change_rate=p.change_percent if p is not None else None,
+            as_of=p.date.isoformat() if p is not None and p.date else None,
         ))
     # 시세가 있는 종목 먼저 (KR → US), 그다음 이름순
     out.sort(key=lambda c: (c.close is None, c.market != "KR", c.name or c.symbol))

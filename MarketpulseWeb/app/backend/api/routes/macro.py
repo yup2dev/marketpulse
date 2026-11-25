@@ -1,11 +1,17 @@
-"""Macro Economic API Routes — OBBject pattern"""
+"""Macro Economic API Routes — OBBject pattern
+
+가공은 fetcher 가 한다 (fred indicator_overview · indicator_history · macro_series_* · regime · … ,
+alphavantage forex_rates · forex). 라우트는 기간(period)을 날짜로 바꿔 넘기고 결과를 감싸기만 한다.
+캐시는 QueryExecutor 의 모델별 TTL.
+"""
 import logging
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Query as FQuery
 
 from data_fetcher.core.obbject import OBBject
-from app.backend.services.macro_service import macro_service
+from data_fetcher.query_executor import QueryExecutor
+from data_fetcher.utils.helpers import parse_period_to_dates
 from app.backend.api.deps import route_handler, wrap_result
 
 log = logging.getLogger(__name__)
@@ -14,94 +20,72 @@ PREFIX = "/api/macro"
 router = APIRouter()
 
 
-def _wrap(data: Any, provider: str = "fred") -> OBBject:
-    return wrap_result(data, provider)
-
-
+async def _fetch(provider: str, model: str, params: Optional[Dict[str, Any]] = None,
+                 period: Optional[str] = None) -> OBBject:
+    p = {k: v for k, v in (params or {}).items() if v is not None}
+    if period:
+        p["start_date"], p["end_date"] = parse_period_to_dates(period)
+    return wrap_result(await QueryExecutor.fetch(provider, model, p), provider)
 
 
 # ── Economic Indicators ───────────────────────────────────────────────────────
 
 @router.get("/indicators/overview")
 @route_handler
-async def get_indicators_overview(provider: str = "fred") -> OBBject:
-    data = await macro_service.get_economic_indicators_overview()
-    return _wrap(data, provider)
+async def get_indicators_overview() -> OBBject:
+    return await _fetch("fred", "indicator_overview")
 
 
 @router.get("/indicators/{indicator_key}/history")
 @route_handler
-async def get_indicator_history(
-    indicator_key: str,
-    period: str = "5y",
-    provider: str = "fred",
-) -> OBBject:
-    data = await macro_service.get_indicator_history(indicator_key, period)
-    return _wrap(data, provider)
+async def get_indicator_history(indicator_key: str, period: str = "5y") -> OBBject:
+    return await _fetch("fred", "indicator_history", {"indicator": indicator_key}, period)
 
 
 # ── FRED Series ───────────────────────────────────────────────────────────────
 
 @router.get("/fred/series")
 @route_handler
-async def list_fred_series(provider: str = "fred", date: Optional[str] = None) -> OBBject:
+async def list_fred_series(date: Optional[str] = None) -> OBBject:
     # date = 기준일(As of). 비우면 최신 관측값.
-    data = await macro_service.get_all_fred_series_overview(as_of=date)
-    return _wrap(data, provider)
+    return await _fetch("fred", "macro_series_overview", {"as_of": date})
 
 
 @router.get("/fred/series/{series_key}")
 @route_handler
-async def get_fred_series_data(
-    series_key: str,
-    period: str = "5y",
-    provider: str = "fred",
-) -> OBBject:
-    data = await macro_service.get_fred_series_data(series_key, period)
-    return _wrap(data, provider)
+async def get_fred_series_data(series_key: str, period: str = "5y") -> OBBject:
+    return await _fetch("fred", "macro_series_history", {"series": series_key}, period)
 
 
 # ── Forex ─────────────────────────────────────────────────────────────────────
 
 @router.get("/forex/rates")
 @route_handler
-async def get_forex_rates(provider: str = "yahoo") -> OBBject:
-    data = await macro_service.get_forex_rates()
-    return _wrap(data, provider)
+async def get_forex_rates() -> OBBject:
+    return await _fetch("alphavantage", "forex_rates")
 
 
 @router.get("/forex/history")
 @route_handler
-async def get_forex_history(
-    from_currency: str,
-    to_currency: str,
-    period: str = "1y",
-    provider: str = "yahoo",
-) -> OBBject:
-    data = await macro_service.get_forex_history(
-        from_currency.upper(), to_currency.upper(), period
-    )
-    return _wrap(data, provider)
+async def get_forex_history(from_currency: str, to_currency: str, period: str = "1y") -> OBBject:
+    start, _ = parse_period_to_dates(period)
+    return await _fetch("alphavantage", "forex", {
+        "from_currency": from_currency.upper(), "to_currency": to_currency.upper(),
+        "interval": "daily", "start_date": start.isoformat(),
+    })
 
 
 # ── Commodities ───────────────────────────────────────────────────────────────
+# 금 · 은 시리즈가 FRED 에서 내려가 비율을 계산할 수 없다 — 빈 결과 (화면 호환용으로 주소만 남긴다)
 
 @router.get("/commodities/ratios")
-@route_handler
-async def get_commodity_ratios(provider: str = "yahoo") -> OBBject:
-    data = await macro_service.get_commodity_ratios()
-    return _wrap(data, provider)
+async def get_commodity_ratios() -> OBBject:
+    return OBBject(results=[], provider="fred")
 
 
 @router.get("/commodities/ratios/{ratio_type}")
-@route_handler
-async def get_ratio_history(
-    ratio_type: str,
-    period: str = "5y",
-    provider: str = "yahoo",
-) -> OBBject:
-    data = await macro_service.get_ratio_history(ratio_type, period)
-    return _wrap(data, provider)
+async def get_ratio_history(ratio_type: str, period: str = "5y") -> OBBject:
+    return OBBject(results=[], provider="fred")
 
 
 # ── Categories (static) ───────────────────────────────────────────────────────
@@ -134,162 +118,126 @@ async def get_macro_categories() -> OBBject:
     return OBBject(results=categories, provider="static")
 
 
-# ── Economic Regime ───────────────────────────────────────────────────────────
+# ── FRED 모델 그대로 (스냅샷 · 시계열) ─────────────────────────────────────────
 
 @router.get("/regime/current")
 @route_handler
-async def get_current_regime(provider: str = "fred") -> OBBject:
-    data = await macro_service.get_current_regime()
-    return _wrap(data, provider)
+async def get_current_regime() -> OBBject:
+    return await _fetch("fred", "regime_current")
 
 
 @router.get("/regime/history")
 @route_handler
-async def get_regime_history(period: str = "5y", provider: str = "fred") -> OBBject:
-    data = await macro_service.get_regime_history(period)
-    return _wrap(data, provider)
+async def get_regime_history(period: str = "5y") -> OBBject:
+    return await _fetch("fred", "regime_history", period=period)
 
-
-# ── Fed Policy ────────────────────────────────────────────────────────────────
 
 @router.get("/fed-policy/stance")
 @route_handler
-async def get_fed_policy_stance(provider: str = "fred") -> OBBject:
-    data = await macro_service.get_fed_policy_stance()
-    return _wrap(data, provider)
+async def get_fed_policy_stance() -> OBBject:
+    return await _fetch("fred", "fed_policy_stance")
 
-
-# ── Yield Curve ───────────────────────────────────────────────────────────────
 
 @router.get("/yield-curve")
 @route_handler
-async def get_yield_curve(provider: str = "fred") -> OBBject:
-    data = await macro_service.get_yield_curve()
-    return _wrap(data, provider)
+async def get_yield_curve() -> OBBject:
+    return await _fetch("fred", "yield_curve")
 
 
 @router.get("/yield-curve/history")
 @route_handler
-async def get_yield_curve_history(period: str = "5y", provider: str = "fred") -> OBBject:
-    data = await macro_service.get_yield_curve_history(period)
-    return _wrap(data, provider)
+async def get_yield_curve_history(period: str = "5y") -> OBBject:
+    return await _fetch("fred", "yield_curve_history", period=period)
 
-
-# ── Inflation ─────────────────────────────────────────────────────────────────
 
 @router.get("/inflation/decomposition")
 @route_handler
-async def get_inflation_decomposition(provider: str = "fred") -> OBBject:
-    data = await macro_service.get_inflation_decomposition()
-    return _wrap(data, provider)
+async def get_inflation_decomposition() -> OBBject:
+    return await _fetch("fred", "inflation_decomposition")
 
 
 @router.get("/inflation/sector-history")
 @route_handler
-async def get_inflation_sector_history(period: str = "5y", provider: str = "fred") -> OBBject:
-    data = await macro_service.get_inflation_sector_history(period)
-    return _wrap(data, provider)
+async def get_inflation_sector_history(period: str = "5y") -> OBBject:
+    return await _fetch("fred", "inflation_sector", period=period)
 
-
-# ── Labor Market ──────────────────────────────────────────────────────────────
 
 @router.get("/labor/dashboard")
 @route_handler
-async def get_labor_dashboard(provider: str = "fred") -> OBBject:
-    data = await macro_service.get_labor_dashboard()
-    return _wrap(data, provider)
+async def get_labor_dashboard() -> OBBject:
+    return await _fetch("fred", "labor_dashboard")
 
 
 @router.get("/labor/history")
 @route_handler
-async def get_labor_history(period: str = "5y", provider: str = "fred") -> OBBject:
-    data = await macro_service.get_labor_history(period)
-    return _wrap(data, provider)
+async def get_labor_history(period: str = "5y") -> OBBject:
+    return await _fetch("fred", "phillips_curve", period=period)
 
-
-# ── Financial Conditions ──────────────────────────────────────────────────────
 
 @router.get("/financial-conditions")
 @route_handler
-async def get_financial_conditions(provider: str = "fred") -> OBBject:
-    data = await macro_service.get_financial_conditions()
-    return _wrap(data, provider)
+async def get_financial_conditions() -> OBBject:
+    return await _fetch("fred", "financial_conditions")
 
 
 @router.get("/financial-conditions/history")
 @route_handler
-async def get_financial_conditions_history(period: str = "5y", provider: str = "fred") -> OBBject:
-    data = await macro_service.get_financial_conditions_history(period)
-    return _wrap(data, provider)
+async def get_financial_conditions_history(period: str = "5y") -> OBBject:
+    return await _fetch("fred", "financial_conditions_history", period=period)
 
-
-# ── Sentiment ─────────────────────────────────────────────────────────────────
 
 @router.get("/sentiment/composite")
 @route_handler
-async def get_sentiment_composite(provider: str = "fred") -> OBBject:
-    data = await macro_service.get_sentiment_composite()
-    return _wrap(data, provider)
+async def get_sentiment_composite() -> OBBject:
+    return await _fetch("fred", "sentiment_composite")
 
 
 @router.get("/sentiment/history")
 @route_handler
-async def get_sentiment_history(period: str = "5y", provider: str = "fred") -> OBBject:
-    data = await macro_service.get_sentiment_history(period)
-    return _wrap(data, provider)
-
-
-# ── Overview ──────────────────────────────────────────────────────────────────
-
-@router.get("/overview/gdp-forecast")
-@route_handler
-async def get_gdp_forecast(period: str = "1y", provider: str = "fred") -> OBBject:
-    data = await macro_service.get_gdp_forecast_data(period)
-    return _wrap(data, provider)
+async def get_sentiment_history(period: str = "5y") -> OBBject:
+    return await _fetch("fred", "sentiment_history", period=period)
 
 
 @router.get("/overview/inflation-momentum")
 @route_handler
-async def get_inflation_momentum(period: str = "3y", provider: str = "fred") -> OBBject:
-    data = await macro_service.get_inflation_momentum_data(period)
-    return _wrap(data, provider)
+async def get_inflation_momentum(period: str = "3y") -> OBBject:
+    return await _fetch("fred", "inflation_momentum", period=period)
 
 
 @router.get("/overview/initial-claims")
 @route_handler
-async def get_initial_claims(period: str = "2y", provider: str = "fred") -> OBBject:
-    data = await macro_service.get_initial_claims_data(period)
-    return _wrap(data, provider)
+async def get_initial_claims(period: str = "2y") -> OBBject:
+    return await _fetch("fred", "initial_claims", period=period)
 
 
 @router.get("/overview/jobs-breakdown")
 @route_handler
-async def get_jobs_breakdown(period: str = "5y", provider: str = "fred") -> OBBject:
-    data = await macro_service.get_jobs_breakdown_data(period)
-    return _wrap(data, provider)
+async def get_jobs_breakdown(period: str = "5y") -> OBBject:
+    return await _fetch("fred", "jobs_breakdown", period=period)
 
-
-# ── Business Cycle ────────────────────────────────────────────────────────────
 
 @router.get("/business-cycle/pmi")
 @route_handler
-async def get_pmi_data(period: str = "5y", provider: str = "fred") -> OBBject:
-    data = await macro_service.get_pmi_data(period)
-    return _wrap(data, provider)
+async def get_pmi_data(period: str = "5y") -> OBBject:
+    return await _fetch("fred", "pmi", period=period)
 
 
 @router.get("/fed-balance-sheet")
 @route_handler
-async def get_fed_balance_sheet(period: str = "10y", provider: str = "fred") -> OBBject:
-    data = await macro_service.get_fed_balance_sheet(period)
-    return _wrap(data, provider)
+async def get_fed_balance_sheet(period: str = "10y") -> OBBject:
+    return await _fetch("fred", "fed_balance_sheet", period=period)
 
 
 @router.get("/real-rates")
 @route_handler
-async def get_real_rates(period: str = "5y", provider: str = "fred") -> OBBject:
-    data = await macro_service.get_real_rates(period)
-    return _wrap(data, provider)
+async def get_real_rates(period: str = "5y") -> OBBject:
+    return await _fetch("fred", "real_rates", period=period)
+
+
+@router.get("/overview/gdp-forecast")
+@route_handler
+async def get_gdp_forecast(period: str = "1y") -> OBBject:
+    return await _fetch("fred", "gdp", {"frequency": "quarterly"}, period)
 
 
 # ── Economic Calendar ─────────────────────────────────────────────────────────
@@ -299,20 +247,13 @@ async def get_real_rates(period: str = "5y", provider: str = "fred") -> OBBject:
 async def get_economic_calendar(
     date: Optional[str] = None,
     country: Optional[str] = None,
-    provider: str = "nasdaq",
 ) -> OBBject:
     """일자별 경제 이벤트 (Nasdaq 공개 캘린더 API — 라이브 데이터).
 
     구 버전은 정적 지표 목록을 반환했으나 실제 발표 일정/값으로 교체됨.
     /api/data/nasdaq/economic_calendar 와 동일 데이터 (하위호환용 별칭 라우트).
     """
-    from data_fetcher.query_executor import QueryExecutor
-
-    params = {"date": date, "country": country}
-    data = await QueryExecutor.fetch(
-        "nasdaq", "economic_calendar", {k: v for k, v in params.items() if v},
-    )
-    return _wrap(data, provider)
+    return await _fetch("nasdaq", "economic_calendar", {"date": date or None, "country": country or None})
 
 
 # ── Bonds ─────────────────────────────────────────────────────────────────────
@@ -334,13 +275,11 @@ async def get_bond_prices(
     ytm_min: Optional[float] = FQuery(default=None),
     ytm_max: Optional[float] = FQuery(default=None),
     limit: int = FQuery(default=100, ge=1, le=1000),
-    provider: str = "fmp",
 ) -> OBBject:
-    data = await macro_service.get_bond_prices(
-        country=country, issuer_name=issuer_name, isin=isin, lei=lei,
-        currency=currency, coupon_min=coupon_min, coupon_max=coupon_max,
-        issued_amount_min=issued_amount_min, issued_amount_max=issued_amount_max,
-        maturity_date_min=maturity_date_min, maturity_date_max=maturity_date_max,
-        ytm_min=ytm_min, ytm_max=ytm_max, limit=limit,
-    )
-    return _wrap(data, provider)
+    return await _fetch("fmp", "bond_prices", {
+        "country": country, "issuer_name": issuer_name, "isin": isin, "lei": lei,
+        "currency": currency, "coupon_min": coupon_min, "coupon_max": coupon_max,
+        "issued_amount_min": issued_amount_min, "issued_amount_max": issued_amount_max,
+        "maturity_date_min": maturity_date_min, "maturity_date_max": maturity_date_max,
+        "ytm_min": ytm_min, "ytm_max": ytm_max, "limit": limit,
+    })

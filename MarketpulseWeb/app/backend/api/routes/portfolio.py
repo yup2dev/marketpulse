@@ -1,4 +1,9 @@
-"""Portfolio API Routes — OBBject pattern"""
+"""Portfolio API Routes — OBBject pattern
+
+기관 13F 는 로컬 배치가 파싱 · 산출해 적재한 값(db provider)만 읽는다 — 서버는 13F 원본을 파싱하지 않는다
+(온디맨드 스크래핑이 이벤트 루프를 막고 작은 운영 인스턴스를 OOM 으로 죽였다). 미적재면 404.
+응답 행은 fetcher 의 표준 모델 그대로다.
+"""
 import logging
 from datetime import date
 from typing import Any, Dict, List, Optional
@@ -8,7 +13,7 @@ from fastapi import APIRouter, HTTPException
 from app.backend.api.deps import filter_dated_rows, period_start
 
 from data_fetcher.core.obbject import OBBject
-from app.backend.services.portfolio_service import portfolio_service
+from data_fetcher.query_executor import QueryExecutor
 
 log = logging.getLogger(__name__)
 # 등록 (api/routers.py 자동 탐색)
@@ -16,10 +21,10 @@ PREFIX = "/api/portfolio"
 router = APIRouter()
 
 
-def _wrap(data: Any, provider: str = "sec") -> OBBject:
-    if isinstance(data, list):
-        return OBBject(results=data, provider=provider)
-    return OBBject(results=[data] if data is not None else [], provider=provider)
+async def _db_rows(model: str, params: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """db provider 조회 → 직렬화된 행."""
+    raw = await QueryExecutor.fetch("db", model, {k: v for k, v in params.items() if v is not None})
+    return OBBject.from_result(raw, "db").results
 
 
 @router.get("/13f/institutions")
@@ -31,10 +36,10 @@ async def get_13f_institutions(
     provider: str = "sec",
 ) -> OBBject:
     try:
-        institutions = await portfolio_service.get_institutions_list(
-            use_dynamic=use_dynamic, limit=limit, loaded_only=loaded_only,
-            with_performance=with_performance,
-        )
+        institutions = await _db_rows("institutions_list", {
+            "use_dynamic": use_dynamic, "limit": limit, "loaded_only": loaded_only,
+            "with_performance": with_performance,
+        })
         return OBBject(
             results=institutions,
             provider=provider,
@@ -58,7 +63,7 @@ async def get_13f_summaries(
     `/13f/{institution_key}` 보다 먼저 선언해야 'summaries' 가 기관 키로 잡히지 않는다.
     """
     try:
-        rows = await portfolio_service.get_portfolio_summaries(period=period)
+        rows = await _db_rows("institutions_summary", {"period": period})
         return OBBject(results=rows, provider=provider)
     except Exception as e:
         log.error(f"Error fetching 13F summaries: {e}")
@@ -93,9 +98,10 @@ async def get_fund_performance(
         else:
             quarters = 8
     try:
-        rows = await portfolio_service.get_fund_performance(
-            institution_key=institution_key, quarters=quarters
-        )
+        rows = await _db_rows("fund_performance", {"institution_key": institution_key, "quarters": quarters})
+        if not rows:
+            raise ValueError(f"'{institution_key}' 추정 수익률이 적재돼 있지 않습니다"
+                             f"(배치 미적재 또는 13F 제출 2개 분기 미만).")
         if start:
             rows = filter_dated_rows(rows, start, None, key="period")
         return OBBject(
@@ -126,10 +132,14 @@ async def get_13f_portfolio(
 ) -> OBBject:
     """period: 보고 분기말(YYYY-MM-DD) — 비우면 최신. 선택지는 응답의 available_periods."""
     try:
-        data = await portfolio_service.get_institution_portfolio(
-            institution_key=institution_key, limit=limit, summary_only=summary_only, period=period,
-        )
-        return OBBject(results=[data], provider=provider)
+        rows = await _db_rows("institutional_holdings", {
+            "institution_key": institution_key, "limit": limit, "summary_only": summary_only, "period": period,
+        })
+        if not rows:
+            if period:
+                raise ValueError(f"No 13F filing for {period} loaded for '{institution_key}'")
+            raise ValueError(f"'{institution_key}' 13F 데이터가 적재돼 있지 않습니다 (배치 미적재).")
+        return OBBject(results=rows[:1], provider=provider)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
