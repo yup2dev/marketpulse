@@ -2,13 +2,14 @@
 
 GET /api/v1/coverage → [{path, model, providers, params: [{name, required, providers}]}]
 
-앱에 붙은 라우트 중 openapi_extra["model"] 이 있는 것을 읽는다 — 라우트 파일이 따로 적어 둘 필요가 없다.
+앱의 OpenAPI 스키마에서 "model" 이 붙은 operation 을 읽는다 (CommandRouter 가 openapi_extra 로 단다) —
+라우트 파일이 따로 적어 둘 필요가 없다. app.routes 를 훑지 않는다: fastapi 0.14x 에서 include 된 라우트가
+app.routes 에 보이지 않는다 (tests/test_app_boot.py 참고). OpenAPI 는 버전을 넘어 같은 공개 계약이다.
 params[].providers 가 비면 모든 provider 가 받는 표준 파라미터다.
 """
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, Request
-from fastapi.routing import APIRoute
 
 from data_fetcher.core.interface import model_spec
 
@@ -18,19 +19,19 @@ TAGS = ["commands"]
 router = APIRouter()
 
 
-def command_routes(routes) -> List[Dict[str, Any]]:
+def command_routes(openapi: Dict[str, Any]) -> List[Dict[str, Any]]:
     out = []
-    for r in routes:
-        model = (getattr(r, "openapi_extra", None) or {}).get("model") if isinstance(r, APIRoute) else None
+    for path, ops in (openapi.get("paths") or {}).items():
+        model = (ops.get("get") or {}).get("model")
         if not model:
             continue
         try:
             spec = model_spec(model)
         except KeyError:   # 파라미터를 직접 적은 옛 command 가 없는 모델을 가리키는 경우
-            out.append({"path": r.path, "model": model, "providers": [], "params": []})
+            out.append({"path": path, "model": model, "providers": [], "params": []})
             continue
         out.append({
-            "path": r.path,
+            "path": path,
             "model": spec.model,
             "providers": list(spec.providers),
             "params": [
@@ -43,4 +44,4 @@ def command_routes(routes) -> List[Dict[str, Any]]:
 
 @router.get("/coverage")
 async def coverage(request: Request) -> List[Dict[str, Any]]:
-    return command_routes(request.app.routes)
+    return command_routes(request.app.openapi())

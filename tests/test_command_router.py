@@ -175,7 +175,7 @@ def test_coverage_lists_generated_routes():
     from app.backend.api.routes.coverage import command_routes
     from app.backend.main import app
 
-    rows = {r["path"]: r for r in command_routes(app.routes)}
+    rows = {r["path"]: r for r in command_routes(app.openapi())}
     row = rows["/api/v1/equity/fundamental/income-statement"]
     assert row["model"] == "income_statement"
     assert row["providers"] == list(model_spec("income_statement").providers)
