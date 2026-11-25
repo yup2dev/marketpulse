@@ -34,4 +34,6 @@ redis>=5.0.0
 pypdf>=4.0.0                   # 리서치 보고서 PDF 임포트 텍스트 추출 (/api/reports/upload)
 openpyxl>=3.1.0                # 엑셀 내보내기
 reportlab>=4.0.0               # PDF 내보내기
+scipy~=1.16.1                  # 계량 분석 command (/api/quantitative — 처음 쓸 때 import)
+statsmodels>=0.14              # 계량 분석 command — ADF 단위근
 anthropic>=0.116.0             # AI Copilot (/api/copilot/chat) — Claude tool-use 스트리밍

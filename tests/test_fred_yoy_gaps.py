@@ -1,15 +1,12 @@
-"""FRED 결측월('.')을 지나는 YoY — 날짜 매칭인지 (위치 기준이면 13개월 변화가 된다)."""
+"""FRED 결측월('.')을 지나는 YoY — 날짜 매칭인지 (위치 기준이면 13개월 변화가 된다).
+
+레짐 이력 · 필립스 곡선은 CPI YoY 를 FRED units=pc1 로 받으므로 계산이 없다. 지수로 계산하는
+command(인플레이션 분해 · 모멘텀, 노동 임금, 신용 증가율)가 쓰는 날짜 헬퍼를 여기서 본다.
+"""
 import pytest
 
-from data_fetcher.providers.fred.models.phillips_curve import (
-    FREDPhillipsCurveFetcher,
-    PhillipsCurveQueryParams,
-)
-from data_fetcher.providers.fred.models.regime_history import (
-    FREDRegimeHistoryFetcher,
-    RegimeHistoryQueryParams,
-)
-from data_fetcher.providers.fred.utils.yoy import pct_change_at, shift_month, yoy_at
+from app.backend.commands.macro.series import pct_change_at, shift_month, yoy_at
+from app.backend.commands.macro.inflation import momentum_from
 
 # 실제 FRED CPIAUCSL — 2025-10 은 셧다운으로 '.'
 _CPI = [("2026-09", "336.298"), ("2026-08", "334.131"), ("2026-07", "332.813"),
@@ -39,16 +36,7 @@ def test_yoy_at_missing_points():
     assert yoy_at({"2026-09-01": 1.0, "2025-09-01": 0.0}, "2026-09-01") is None
 
 
-def test_regime_history_cpi_yoy_crosses_gap():
-    q = RegimeHistoryQueryParams()
-    data = {"gdp": [{"date": "2026-09-01", "value": "2.0"}], "cpi": CPI_OBS}
-    row = FREDRegimeHistoryFetcher.transform_data(q, data).result[0]
-    assert row.cpi_yoy == pytest.approx(round(TRUE_YOY_2026_09, 2))
-    assert row.cpi_yoy != pytest.approx(round(WRONG_13M, 2))
-
-
-def test_phillips_curve_inflation_crosses_gap():
-    q = PhillipsCurveQueryParams()
-    data = {"unemployment": [{"date": "2026-09-01", "value": "4.3"}], "cpi": CPI_OBS}
-    row = FREDPhillipsCurveFetcher.transform_data(q, data)[0]
-    assert row.inflation == pytest.approx(round(TRUE_YOY_2026_09, 1))   # 3.7 (전엔 4.0)
+def test_momentum_crosses_gap():
+    row = {p.date: p for p in momentum_from(CPI_OBS)}["2026-09-01"]
+    assert row.yoy_12m == pytest.approx(round(TRUE_YOY_2026_09, 2))
+    assert row.yoy_12m != pytest.approx(round(WRONG_13M, 2))

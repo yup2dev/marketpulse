@@ -5,7 +5,7 @@ Industry Catalog Models — 산업 화면의 산업 → 데이터셋 → 계열 
 계열(차트 위 칩) = 그 모델을 부를 때 덧붙일 파라미터 (예: category=semiconductor, measure=inventory).
 파라미터는 user_widget_param_options.option_params 와 같은 쿼리스트링 형식이다.
 
-기본 제공 행은 services/industry_seed.py — 서비스가 처음 읽을 때 DB 에 없는 행만 넣는다
+기본 제공 행은 commands/industry/seed.py — 서비스가 처음 읽을 때 DB 에 없는 행만 넣는다
 (화면 그룹 기본 행 builtin_screen_groups.json 과 같은 방식). 이미 있는 행은 건드리지 않으니 고칠 때는 DB 행을 고친다.
 """
 from datetime import datetime

@@ -6,42 +6,49 @@ tests/test_app_boot.py 의 '모든 라우트 모듈이 등록됐는가' 검사�
 """
 from fastapi import FastAPI
 
-from app.backend.api.routes import (
-    stock, news, portfolio, macro,
-    auth, user_portfolio, screener, alerts, export, watchlist, menu,
-    quantlib, quantitative, notes, reports, copilot, backtest, quant,
-)
+from app.backend.api.command_map import add_command_map
+
+# 데이터 도메인 — commands/<도메인>/router.py (@router.command 선언) + 로직 모듈
+from app.backend.commands.concepts import router as concepts
+from app.backend.commands.industry import router as industry
+from app.backend.commands.macro import router as macro
+from app.backend.commands.portfolio import router as portfolio
+from app.backend.commands.quant import router as quant
+from app.backend.commands.quant_portfolios import router as quant_portfolios
+from app.backend.commands.quantitative import router as quantitative
+from app.backend.commands.screener import router as screener
+from app.backend.commands.stock import router as stock
+from app.backend.commands.strategies import router as strategies
+
+# 앱 기능 — 사용자 · 인증 · 설정 · 시스템 (api/routes)
+from app.backend.api.routes import auth, user_portfolio, alerts, export, watchlist, menu, notes, reports, copilot, backtest
 from app.backend.api.routes.admin import router as admin_router
 from app.backend.api.routes.workspace import router as workspace_router
-# fundamental 의 router 는 CommandRouter — APIRouter 를 `.router` 로 감싸고 있다.
-from app.backend.api.routes.fundamental import router as fundamental_command_router
 from app.backend.api.routes.providers import router as providers_router
 from app.backend.api.routes.ws import router as ws_router
 from app.backend.api.routes.data import router as data_router
 from app.backend.api.routes.keys import router as keys_router
 from app.backend.api.routes.ingest import router as ingest_router
-from app.backend.api.routes.concepts import router as concepts_router
 from app.backend.api.routes.user_widgets import router as user_widgets_router
-from app.backend.api.routes.strategies import router as strategies_router
-from app.backend.api.routes.quant_portfolios import router as quant_portfolios_router
-from app.backend.api.routes.industry import router as industry_router
 
 
 def register_routers(app: FastAPI) -> None:
-    # ── Stock / Market ────────────────────────────────────────────────────────
-    app.include_router(stock.router,     prefix="/api/stock",    tags=["stock"])
-    app.include_router(news.router,      prefix="/api/news",     tags=["news"])
-    app.include_router(reports.router,   prefix="/api",          tags=["reports"])
-    app.include_router(screener.router,  prefix="/api",          tags=["screener"])
+    # ── 데이터 — 단순 조회는 게이트웨이, 가공은 command (오류 응답은 command_map 래퍼가 한 곳에서) ──
+    app.include_router(data_router, prefix="/api/data", tags=["data"])
+    add_command_map(app, [
+        (macro.router, "/api/macro"),
+        (stock.router, "/api/stock"),
+        (quantitative.router, "/api/quantitative"),
+        (portfolio.router, "/api/portfolio"),
+        (quant.router, "/api"),
+        (strategies.router, "/api"),
+        (quant_portfolios.router, "/api"),
+        (industry.router, "/api"),
+        (concepts.router, "/api"),
+        (screener.router, "/api"),
+    ])
 
-    # ── Macro / Economic ─────────────────────────────────────────────────────
-    app.include_router(macro.router,     prefix="/api/macro",    tags=["macro"])
-
-    # ── Portfolio ─────────────────────────────────────────────────────────────
-    app.include_router(portfolio.router,      prefix="/api/portfolio", tags=["portfolio"])
-    app.include_router(user_portfolio.router, prefix="/api",           tags=["user-portfolio"])
-
-    # ── User / Auth ───────────────────────────────────────────────────────────
+    # ── 사용자 · 인증 ─────────────────────────────────────────────────────────
     app.include_router(auth.router,      prefix="/api", tags=["auth"])
     app.include_router(alerts.router,    prefix="/api", tags=["alerts"])
     app.include_router(watchlist.router, prefix="/api", tags=["watchlist"])
@@ -49,19 +56,8 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(backtest.router,  prefix="/api", tags=["backtest"])
     app.include_router(workspace_router, prefix="/api", tags=["workspace"])
     app.include_router(user_widgets_router, prefix="/api", tags=["user-widgets"])
-
-    # ── Analysis ──────────────────────────────────────────────────────────────
-    app.include_router(fundamental_command_router.router, prefix="/api/v1",           tags=["equity-fundamental"])
-    app.include_router(quantlib.router,                   prefix="/api/quantlib",     tags=["quantlib"])
-    app.include_router(quantitative.router,               prefix="/api/quantitative", tags=["quantitative"])
-    app.include_router(quant.router,                      prefix="/api",              tags=["quant"])
-    app.include_router(strategies_router,                 prefix="/api",              tags=["strategies"])
-    app.include_router(quant_portfolios_router,           prefix="/api",              tags=["quant-portfolios"])
-    app.include_router(industry_router,                   prefix="/api",              tags=["industry"])
-
-    # ── Universal Data Gateway ───────────────────────────────────────────────
-    app.include_router(data_router,       prefix="/api/data", tags=["data"])
-    app.include_router(concepts_router,   prefix="/api",      tags=["concepts"])
+    app.include_router(user_portfolio.router, prefix="/api", tags=["user-portfolio"])
+    app.include_router(reports.router,   prefix="/api", tags=["reports"])
 
     # ── AI Copilot ────────────────────────────────────────────────────────────
     app.include_router(copilot.router,    prefix="/api", tags=["copilot"])

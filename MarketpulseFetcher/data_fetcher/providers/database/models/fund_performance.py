@@ -74,12 +74,6 @@ class DBFundPerformanceFetcher(DbFetcher[FundPerformanceQueryParams, FundPerform
         data: List[Dict[str, Any]],
         **kwargs: Any,
     ) -> List[FundPerformanceData]:
-        # 적재된 cumulative_return_pct 는 배치 산출 구간 기준 — 조회 구간으로 다시 누적한다.
-        cumulative = 1.0
-        for row in reversed(data or []):  # 오래된 분기 → 최신 분기
-            if row.get("return_pct") is None:
-                row["cumulative_return_pct"] = None
-                continue
-            cumulative *= 1 + row["return_pct"] / 100
-            row["cumulative_return_pct"] = round((cumulative - 1) * 100, 2)
+        # 적재된 cumulative_return_pct 는 배치 산출 구간 기준이다 — 조회 구간 누적은 command 가 다시 계산한다
+        # (app/backend/commands/portfolio.py).
         return [FundPerformanceData.model_validate(r) for r in (data or [])]

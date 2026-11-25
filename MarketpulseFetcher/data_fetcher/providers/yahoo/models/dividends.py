@@ -6,8 +6,6 @@ from typing import Optional, Any, Dict, List
 from data_fetcher.utils.lazy_import import lazy
 
 yf = lazy("yfinance")   # 처음 쓸 때 import — 서버 기동 메모리 (utils/lazy_import.py)
-from pydantic import Field
-
 from data_fetcher.abstract_provider.abstract.base_fetchers import YFinanceFetcher
 from data_fetcher.abstract_provider.standard_models import DividendsQueryParams, DividendData
 
@@ -17,10 +15,7 @@ class YFinanceDividendsQueryParams(DividendsQueryParams):
 
 
 class YFinanceDividendData(DividendData):
-    yoy_growth: Optional[float] = Field(
-        default=None,
-        description="전년 대비 배당 성장률 (%)"
-    )
+    pass
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -52,7 +47,7 @@ class YFinanceDividendsFetcher(YFinanceFetcher[YFinanceDividendsQueryParams, YFi
             credentials: 사용 안함
 
         Returns:
-            배당 데이터 및 주가 정보
+            배당 지급 내역
         """
         try:
             ticker = yf.Ticker(query.symbol)
@@ -78,12 +73,8 @@ class YFinanceDividendsFetcher(YFinanceFetcher[YFinanceDividendsQueryParams, YFi
                     (dividends_index_naive <= end_date)
                 ]
 
-            # 주가 데이터도 함께 조회 (배당 수익률 계산용)
-            hist = ticker.history(start=start_date, end=end_date)
-
             return {
                 'dividends': dividends,
-                'history': hist,
                 'symbol': query.symbol
             }
 
@@ -102,13 +93,12 @@ class YFinanceDividendsFetcher(YFinanceFetcher[YFinanceDividendsQueryParams, YFi
 
         Args:
             query: 쿼리 파라미터
-            data: 배당 및 주가 데이터
+            data: 배당 지급 내역
 
         Returns:
             YFinanceDividendData 리스트
         """
         dividends = data['dividends']
-        history = data['history']
         symbol = data['symbol']
 
         if dividends.empty:
@@ -116,46 +106,13 @@ class YFinanceDividendsFetcher(YFinanceFetcher[YFinanceDividendsQueryParams, YFi
             return []
 
         result = []
-        prev_year_div = {}
-
         for idx, dividend_amount in dividends.items():
             try:
-                div_date = idx.date()
-
-                # 해당 날짜의 주가 찾기
-                dividend_yield = None
-                if not history.empty:
-                    # 가장 가까운 날짜의 주가 찾기
-                    time_diff = abs(history.index - idx)
-                    closest_idx = time_diff.argmin()
-                    closest_price = history.iloc[closest_idx]
-
-                    close_price = float(closest_price['Close'])
-                    if close_price > 0:
-                        dividend_yield = (float(dividend_amount) / close_price) * 100
-
-                # 전년 대비 성장률
-                year = div_date.year
-                quarter = (div_date.month - 1) // 3
-                yoy_growth = None
-
-                if (year - 1, quarter) in prev_year_div:
-                    prev_div = prev_year_div[(year - 1, quarter)]
-                    if prev_div > 0:
-                        yoy_growth = ((float(dividend_amount) - prev_div) / prev_div) * 100
-
-                prev_year_div[(year, quarter)] = float(dividend_amount)
-
-                dividend_data = YFinanceDividendData(
+                result.append(YFinanceDividendData(
                     symbol=symbol,
-                    date=div_date,
+                    date=idx.date(),
                     dividend=float(dividend_amount),
-                    dividend_yield=dividend_yield,
-                    yoy_growth=yoy_growth
-                )
-
-                result.append(dividend_data)
-
+                ))
             except (ValueError, KeyError) as e:
                 log.warning(f"Error parsing dividend data for {idx}: {e}")
                 continue

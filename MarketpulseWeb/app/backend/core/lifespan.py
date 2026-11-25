@@ -62,7 +62,7 @@ async def lifespan(app: FastAPI):
     from app.backend.services.data_catalog import sync_on_startup
     await asyncio.to_thread(sync_on_startup)
 
-    from app.backend.services.symbol_cache import get_symbol_cache
+    from app.backend.commands.stock.symbols import get_symbol_cache
     await get_symbol_cache().ensure_loaded()
 
     from app.backend.core.cache import cache
@@ -94,10 +94,10 @@ async def lifespan(app: FastAPI):
     from app.backend.api.routes.ws import kis_stream_loop
     kis_task = asyncio.create_task(kis_stream_loop(env=os.getenv("KIS_ENV", "real")))
 
-    from app.backend.services.ranking_service import warmup_ranking_loop
+    from app.backend.commands.stock.ranking import warmup_ranking_loop
     warmup_task = asyncio.create_task(warmup_ranking_loop())
 
-    from app.backend.services.stock_list_service import refresh_cache, stock_list_warmup_loop
+    from app.backend.commands.stock.universe import refresh_cache, stock_list_warmup_loop
     await refresh_cache()
     stock_list_task = asyncio.create_task(stock_list_warmup_loop())
 

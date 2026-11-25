@@ -62,8 +62,8 @@ const MACROS = [
   { id: 'DEXKOUS', name: '원/달러 환율', src: 'FRED · DEXKOUS', format: (v) => Number(v).toLocaleString('en-US', { maximumFractionDigits: 1 }) },
 ];
 const EVENTS = [
-  { id: 'earn', letter: 'E', label: '실적 발표', desc: '분기 실적', path: '/stock/earnings/{symbol}?period=3y', on: true },
-  { id: 'div', letter: 'D', label: '배당락', desc: '분기 배당', path: '/stock/dividends/{symbol}?period=3y', on: false },
+  { id: 'earn', letter: 'E', label: '실적 발표', desc: '분기 실적', path: '/data/polygon/earnings?symbol={symbol}&period=3y&limit=40', on: true },
+  { id: 'div', letter: 'D', label: '배당락', desc: '분기 배당', path: '/data/yahoo/dividends?symbol={symbol}&period=3y', on: false },
 ];
 const MAX_COMPARE = 3;
 const defaults = (list) => Object.fromEntries(list.map((x) => [x.id, x.on]));
@@ -158,7 +158,7 @@ export default function ChartStudioWidget({ symbol: pageSymbol, onRemove }) {
   const daily = iv === '1d' || iv === '1wk';
   const others = compare.filter((s) => s !== symbol).slice(0, MAX_COMPARE);
   const symbols = [symbol, ...others];
-  const barPath = (s) => `/stock/history/${encodeURIComponent(s)}?period=${interval.period}&interval=${interval.id}`;
+  const barPath = (s) => `/data/yahoo/stock_price?symbol=${encodeURIComponent(s)}&period=${interval.period}&interval=${interval.id}`;
   const macroDef = MACROS.find((m) => m.id === macroId);
   const macroPath = macroDef ? `/data/fred/series?series_id=${macroDef.id}&period=${iv === '1wk' ? '10y' : '5y'}` : null;
   const eventPaths = daily ? EVENTS.filter((e) => evOn[e.id]).map((e) => e.path.replace('{symbol}', encodeURIComponent(symbol))) : [];

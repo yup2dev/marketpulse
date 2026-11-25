@@ -5,7 +5,7 @@
   "description": "Key labor metrics · weekly initial claims with 4-week average",
   "group_name": "Macro",
   "view_type": "kv",
-  "endpoint": "/data/{provider}/labor_dashboard?date={date}",
+  "endpoint": "/macro/labor/dashboard?date={date}",
   "source": "$provider",
   "transform": "labor_summary",
   "empty_text": "고용 데이터가 없어요",

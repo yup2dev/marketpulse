@@ -53,7 +53,7 @@
     },
     {"field_name": "sector", "field_role": "COLUMN", "format": "tag", "label": "산업", "width": 112}
   ],
-  "options": {"keepProvider": "true", "series": "/stock/history/{symbol}?period=1d&interval=5m"},
+  "options": {"keepProvider": "true", "series": "/data/yahoo/stock_price?symbol={symbol}&period=1d&interval=5m"},
   "screens": [
     {"screen": "*"},
     {"screen": "/", "tab": "overview", "x": 0, "y": 3, "w": 8, "h": 6}

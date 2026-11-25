@@ -34,7 +34,7 @@
   ],
   "options": {
     "digits": "1",
-    "optionsFrom.institution": "/portfolio/13f/institutions|key|name",
+    "optionsFrom.institution": "/data/db/institutions_list|key|name",
     "shared": "institution",
     "tab.table.minWidth": "0",
     "tab.table.rowHeight": "32",

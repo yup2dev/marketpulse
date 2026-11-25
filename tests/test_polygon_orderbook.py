@@ -97,10 +97,10 @@ def test_route_uses_user_key_not_operator_env(auth_client, monkeypatch):
     monkeypatch.setattr(QueryExecutor, "_credential_resolver",
                         staticmethod(lambda provider, uid: keys.get(uid)))
 
-    res = client.get("/api/stock/orderbook/AAPL")
+    res = client.get("/api/data/polygon/orderbook?symbol=aapl")
     assert res.status_code >= 400 and seen == []          # 키 미등록 → 운영자 키 폴백 없음
 
     keys[user_id] = {"api_key": "USERKEY"}
-    res = client.get("/api/stock/orderbook/AAPL")
+    res = client.get("/api/data/polygon/orderbook?symbol=aapl")
     assert res.status_code == 200 and seen == ["USERKEY"]
     assert res.json()["results"][0]["asks"][0] == {"price": 100.02, "size": 5}

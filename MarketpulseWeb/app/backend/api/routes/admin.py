@@ -52,7 +52,7 @@ async def cache_invalidate(prefix: str):
 
 @router.post("/cache/refresh", summary="심볼 마스터 재적재")
 async def cache_refresh_stocks():
-    from app.backend.services.stock_list_service import refresh_cache
+    from app.backend.commands.stock.universe import refresh_cache
     count = await refresh_cache()
     return {"status": "ok", "count": count}
 

@@ -98,6 +98,8 @@ class YFinanceFinancialsFetcher(YFinanceFetcher[YFinanceFinancialsQueryParams, Y
                     operating_expenses=safe_get(income_stmt, 'Operating Expense', date_col),
                     operating_income=safe_get(income_stmt, 'Operating Income', date_col),
                     net_income=safe_get(income_stmt, 'Net Income', date_col),
+                    research_and_development=safe_get(income_stmt, 'Research And Development', date_col),
+                    selling_general_admin=safe_get(income_stmt, 'Selling General And Administration', date_col),
                     ebitda=safe_get(income_stmt, 'EBITDA', date_col),
                     eps=safe_get(income_stmt, 'Basic EPS', date_col),
                     eps_diluted=safe_get(income_stmt, 'Diluted EPS', date_col),

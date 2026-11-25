@@ -5,7 +5,6 @@
 #
 # 일부러 뺀 것 (providers_init 이 try/except 로 건너뛰므로 해당 provider 만 비활성):
 #   sqlalchemy        — database provider 는 WebServer(DB) 전용
-#   scipy/statsmodels — quantitative provider (용량 ~100MB)
 #   pykrx             — KR 국고채(선택, matplotlib 을 끌고 온다)
 #   pystray/Pillow    — 트레이는 Rust 런처가 그린다
 

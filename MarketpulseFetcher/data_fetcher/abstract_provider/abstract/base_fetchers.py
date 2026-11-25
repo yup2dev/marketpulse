@@ -160,7 +160,7 @@ class DbFetcher(Fetcher[Q, R]):
 # ── ComputeFetcher ────────────────────────────────────────────────────────────
 
 class ComputeFetcher(Fetcher[Q, R]):
-    """순수 로컬 계산 fetcher — 네트워크·credentials 없음 (quantitative/quantlib)."""
+    """순수 로컬 계산 fetcher — 네트워크·credentials 없음 (quantlib)."""
 
     _intermediate_base = True
     require_credentials = False

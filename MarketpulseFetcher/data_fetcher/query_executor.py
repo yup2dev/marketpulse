@@ -95,7 +95,6 @@ _DEFAULT_TTL: Dict[str, int] = {
     # ── Daily (30-60min) ────────────────────────────────────────────────────
     "financials":             1800,
     "balance_sheet":          1800,
-    "quarterly_pnl":          1800,
     "estimates":              1800,
     "analyst_data":           1800,
     "analyst_estimates":      1800,
@@ -129,20 +128,7 @@ _DEFAULT_TTL: Dict[str, int] = {
     "pmi":                          3600,
     "yield_curve":                  1800,  # snapshot — intraday 변동
     "yield_curve_history":          3600,
-    "inflation_momentum":           3600,
-    "inflation_sector":             3600,
     "initial_claims":               3600,
-    "jobs_breakdown":               3600,
-    "phillips_curve":               7200,  # 분기별 GDP 기반 — 느리게 변함
-    "regime_history":               7200,
-    "financial_conditions_history": 3600,
-    "financial_conditions":         1800,  # snapshot — 크레딧 스프레드 일중 변동
-    "sentiment_composite":          1800,  # snapshot — VIX 일중 변동
-    "sentiment_history":            3600,
-    "labor_dashboard":              1800,  # snapshot — 다수 현재값
-    "regime_current":               1800,  # snapshot — 월간/분기 지표
-    "fed_policy_stance":            1800,
-    "inflation_decomposition":      1800,
     "forex":                         900,
     # ── Yahoo quote (별칭 구분) ─────────────────────────────────────────────
     "quote":                          60,  # yahoo:quote (StockQuoteFetcher)
@@ -151,9 +137,6 @@ _DEFAULT_TTL: Dict[str, int] = {
     "company_peers":          86400,  # 유사종목 — 거의 변하지 않음
     "key_metrics":            3600,
     "management":             3600,
-    "moat":                   3600,
-    "swot":                   3600,
-    "scorecard":              3600,
     "company_profile":        3600,
     "income_statement":       3600,
     "index_constituents":     7200,
@@ -170,12 +153,6 @@ _DEFAULT_TTL: Dict[str, int] = {
     # 분기 공시 기반 + 다중 분기 파싱(요청당 N개 필링) — 길게 잡는다
     "fund_performance":      21600,
     # ── No cache — computed on-the-fly ──────────────────────────────────────
-    "capm":                      0,
-    "rolling":                   0,
-    "normality":                 0,
-    "unitroot":                  0,
-    "correlation":               0,  # 입력 시세(yahoo stock_price)가 캐시됨
-    "summary":                   0,
     "pricing":                   0,
 }
 

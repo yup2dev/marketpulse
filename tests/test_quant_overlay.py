@@ -63,7 +63,7 @@ def _check_states(run, series):
 
 def test_macro_ids_match_the_batch():
     from index_analyzer.quant.macro import MACRO_IDS
-    from app.backend.services.quant_overlay import MACRO_IDS as SERVER
+    from app.backend.commands.strategies.overlay import MACRO_IDS as SERVER
 
     assert SERVER == MACRO_IDS and all(m.startswith("^") for m in MACRO_IDS)
 

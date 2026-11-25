@@ -5,7 +5,7 @@
   "description": "Candles + volume for one symbol (1m · 5m · 15m · 1D)",
   "view_type": "candles",
   "title": "미니 차트",
-  "endpoint": "/stock/history/{symbol}?period={period}&interval={interval}",
+  "endpoint": "/data/yahoo/stock_price?symbol={symbol}&period={period}&interval={interval}",
   "source": "yahoo",
   "source_note": "{note}",
   "transform": "bars_window",

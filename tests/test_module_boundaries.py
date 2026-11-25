@@ -96,47 +96,16 @@ SERIES_COMPOSITION = {
     "sec/utils/parse_13f.py",
 }
 
-# fetcher 안에서 분석(파생 지표 · 점수 · 여러 모델 조합)을 하는 것 — regime, phillips_curve,
-# sentiment_composite, labor_dashboard, financial_conditions, inflation_*, quantitative/ 등.
-# 도메인별로 command 로 옮기면서 지울 예정.
-ANALYSIS_TO_COMMAND = {
-    "fred/models/fed_policy_stance.py",
-    "fred/models/financial_conditions.py",
-    "fred/models/financial_conditions_history.py",
-    "fred/models/inflation_decomposition.py",
-    "fred/models/inflation_momentum.py",
-    "fred/models/inflation_sector.py",
-    "fred/models/jobs_breakdown.py",
-    "fred/models/labor_dashboard.py",
-    "fred/models/phillips_curve.py",
-    "fred/models/regime_current.py",
-    "fred/models/regime_history.py",
-    "fred/models/sentiment_composite.py",
-    "fred/models/sentiment_history.py",
-    "polygon/models/sentiment.py",
-    "quantitative/models/correlation.py",
-    "quantitative/utils/prices.py",          # yahoo 시세를 QueryExecutor 로 — 아래 quantitative 모델이 이걸 쓴다
-    "quantitative/models/capm.py",
-    "quantitative/models/normality.py",
-    "quantitative/models/rolling.py",
-    "quantitative/models/summary.py",
-    "quantitative/models/unitroot.py",
-}
+# fetcher 안에서 분석(파생 지표 · 점수 · 여러 모델 조합)을 하던 것 — 비었다 (#105).
+# fred 분석 13개 → commands/regime · inflation · labor · market_conditions, polygon 뉴스 감성 → news_sentiment,
+# quantitative provider 7개 → commands/quant. 새로 넣지 않는다.
+ANALYSIS_TO_COMMAND: set = set()
 
 # 다른 fetcher 를 부르지 않고 받은 값으로 직접 분석하는 것 (호출 검사로는 안 잡힌다).
-# 점수(moat · scorecard · swot)는 command, 키워드 감성 점수(social)는 배치 검토, 나머지는 command.
-# (fred 파생 칸 11개는 FRED units(pch · pc1 · chg · ch1)와 FRED 이동평균 시리즈로 요청하게 바꿔 목록에서 지웠다)
-ANALYSIS_IN_PLACE = {
-    # C
-    "database/models/fund_performance.py",
-    "fmp/models/revenue_segments.py",
-    "social/models/sentiment.py",
-    "yahoo/models/dividends.py",
-    "yahoo/models/moat.py",
-    "yahoo/models/quarterly_pnl.py",
-    "yahoo/models/scorecard.py",
-    "yahoo/models/swot.py",
-}
+# (fred 파생 칸 11개는 FRED units(pch · pc1 · chg · ch1)와 FRED 이동평균 시리즈로 요청하게 바꿔 목록에서 지웠고,
+#  yahoo 해자 · 스코어카드 · SWOT · 분기 손익, fmp 세그먼트 전년 대비, 소셜 감성 비율, db 펀드 누적 수익률은
+#  commands/fundamentals · sentiment · portfolio 로 옮겼다 — #104)
+ANALYSIS_IN_PLACE: set = set()
 
 _FETCH_METHODS = {"fetch_data", "afetch_data", "aextract_data", "extract_data"}
 
@@ -280,13 +249,24 @@ def test_analysis_in_place_only_shrinks():
     assert not ANALYSIS_IN_PLACE & ANALYSIS_TO_COMMAND
 
 
+# commands/<도메인>/ 안에서 provider 이름을 써도 되는 곳:
+#   router.py           inputs(Fetch) 선언 — 어느 provider · model 을 받을지 여기서 정한다
+#   DATA_ACCESS_MODULES 배치가 적재한 DB(db provider) · 실시간 랭킹 소스를 직접 읽는 모듈 (예전 services/)
+# 나머지(계산 모듈)는 provider 를 모른다 — 행을 받아 계산만 한다.
+DATA_ACCESS_MODULES = {
+    "industry/datasets.py", "industry/seed.py", "screener/screens.py",
+    "stock/ranking.py", "stock/relations.py", "stock/universe.py", "strategies/engine.py",
+}
+
+
 def test_commands_do_not_name_providers():
-    """command 는 provider 를 모른다 — 어떤 provider · model 을 부를지는 라우트가 Source 로 넘긴다."""
+    """계산 모듈은 provider 를 모른다 — 어떤 provider · model 을 받을지는 router.py 의 inputs(Fetch)가 정한다."""
     import data_fetcher.providers_init  # noqa: F401 — 등록된 provider 이름
     from data_fetcher.abstract_provider.abstract.provider import ProviderRegistry
 
     names = set(ProviderRegistry.list())
-    files = sorted(COMMANDS_DIR.rglob("*.py"))
+    files = sorted(p for p in COMMANDS_DIR.rglob("*.py")
+                   if p.name != "router.py" and p.relative_to(COMMANDS_DIR).as_posix() not in DATA_ACCESS_MODULES)
     assert files, "app/backend/commands/ 를 못 찾았다 — 경로가 바뀌었나?"
 
     violations = []

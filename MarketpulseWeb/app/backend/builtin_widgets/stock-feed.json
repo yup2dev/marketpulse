@@ -22,7 +22,7 @@
     {"tab_code": "news", "label": "뉴스", "filter": "feed_news", "empty_text": "{symbol} 뉴스가 없어요"},
     {"tab_code": "filings", "label": "공시", "filter": "feed_filings", "empty_text": "{symbol} 공시가 없어요"}
   ],
-  "options": {"extra.news": "/news/?symbol={symbol}&limit=30&period=1mo", "rowHeight": "40"},
+  "options": {"extra.news": "/data/polygon/news?symbol={symbol}&limit=30&period=1mo", "rowHeight": "40"},
   "screens": [
     {"screen": "*"},
     {"screen": "/stock", "tab": "overview", "x": 0, "y": 8, "w": 8, "h": 5}
