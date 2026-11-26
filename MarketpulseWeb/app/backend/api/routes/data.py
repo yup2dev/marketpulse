@@ -25,6 +25,7 @@ from data_fetcher.query_executor import QueryExecutorError
 from app.backend.core.execution import MissingCredentialsError, RemoteUnavailableError
 from app.backend.core.execution.circuit_breaker import CircuitBreakerOpen
 from app.backend.core.config import settings
+from app.backend.core.execution import routes as exec_routes
 from app.backend.core.execution.context import current_user_id
 from app.backend.services import widget_sources
 
@@ -59,9 +60,10 @@ async def fetch_data(provider: str, model: str, request: Request) -> OBBject:
     """
     if ProviderInterface.fetcher(model, provider) is None:
         raise HTTPException(status_code=404, detail=f"Model '{model}' not found for provider '{provider}'")
-    # 위젯에 등록된 데이터만 — 지금은 log 모드(허용 밖 호출을 기록만). enforce 면 404 api_not_registered
-    await asyncio.to_thread(widget_sources.check_data_call, provider, model, current_user_id.get(),
-                            settings.WIDGET_API_GATE)
+    # 위젯에 등록된 데이터만 — local fetcher(사용자 PC)는 enforce(404 api_not_registered), 서버 fetcher 는 log
+    gate = (settings.WIDGET_API_GATE_LOCAL if exec_routes.target_of(provider, model) == "local"
+            else settings.WIDGET_API_GATE)
+    await asyncio.to_thread(widget_sources.check_data_call, provider, model, current_user_id.get(), gate)
     params: Dict[str, Any] = {k: _coerce(v) for k, v in request.query_params.items()}
     params.pop("provider", None)                       # provider 는 경로가 정한다
     if isinstance(params.get("symbol"), str):

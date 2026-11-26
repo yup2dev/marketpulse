@@ -57,6 +57,8 @@ README 의 요약판에서 다루지 않은 동작 규칙·분기 조건·운영
   즉시 돌려주고 뒤에서 갱신한다. TTL 은 모델별로 다르다 (시세 30~60초, 뉴스 5분, 재무 30분 … `query_executor.py`
   의 `_DEFAULT_TTL`). Redis 가 없으면 인메모리로 동작한다.
 - **서킷브레이커**는 provider 단위다. 열려 있으면 stale 값이라도 돌려주고, 없으면 503 + `Retry-After`.
+- **적재 데이터(db provider) 캐시** — 모델별 TTL 에 더해, 배치 적재(`POST /api/ingest/{table}`)가 끝나면 db provider
+  캐시(`qe:db:*`)를 통째로 비운다 (`ServerExecutor.invalidate_provider`). 적재 직후 화면이 옛 값을 보이지 않게.
 
 ### fetcher 와 command — 가공을 어디에 두나
 
@@ -196,8 +198,9 @@ endpoint (`{provider}` 자리면 그 모델을 주는 모든 provider), 화면�
 `CODE_WIDGET_SOURCES` 에 적은 쌍. command · concepts endpoint 는 데이터 API 출처가 아니다.
 
 - **호출 허용** — `/api/data/{provider}/{model}` 은 기본 위젯 + 코드 위젯 + 요청 사용자 위젯의 출처에 있는 쌍만 허용한다.
-  `WIDGET_API_GATE` = `off` · `log`(기본 — 허용 밖 호출을 `[widget-gate]` 로그로만) · `enforce`(404 `api_not_registered`).
-  지금은 log 다 — 등록 없이 부르는 화면(동적 위젯 · copilot)을 운영 로그로 모은 뒤 enforce 로 바꾼다.
+  모드는 `off` · `log`(허용 밖 호출을 `[widget-gate]` 로그로만) · `enforce`(404 `api_not_registered`)이고 fetcher 의 target 별로 둔다:
+  **`WIDGET_API_GATE_LOCAL=enforce`** — 사용자 PC 를 쓰는 local fetcher(yahoo · 13F)는 위젯에 등록된 것만 부른다.
+  `WIDGET_API_GATE=log` — 서버 fetcher 는 아직 기록만 한다 (동적 위젯 · copilot 호출을 운영 로그로 모은 뒤 enforce 로).
   프론트 코드에 적힌 `/data/<provider>/<model>` 은 기본 위젯 · 코드 위젯 출처 안에 있어야 한다 (`tests/test_widget_gate.py`).
 - **저장 시 확인** — 사용자 위젯은 등록된 fetcher 의 (provider, model) 로만 저장된다 (`user_widget_service._validate`).
 - **참조 검사** — `data_catalog.find_broken_widgets`(관리자 `GET /api/admin/data-catalog/broken-widgets`)가 위젯이 쓰는

@@ -122,6 +122,14 @@ class ServerExecutor:
     # ── 캐시 ──────────────────────────────────────────────────────────────────
 
     @classmethod
+    async def invalidate_provider(cls, provider: str) -> int:
+        """provider 의 캐시 전부 무효화 — 원천이 바뀐 걸 알 때 (예: 배치 적재가 끝난 db provider). 지운 수."""
+        invalidate = getattr(cls._cache, "invalidate_prefix", None)
+        if invalidate is None:
+            return 0
+        return await invalidate(f"qe:{provider}:")
+
+    @classmethod
     def _cache_key(cls, provider: str, model: str, params: Dict[str, Any]) -> str:
         return f"qe:{provider}:{model}:{json.dumps(params, sort_keys=True, default=str)}"
 

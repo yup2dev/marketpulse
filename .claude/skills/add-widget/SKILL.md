@@ -67,9 +67,10 @@ description: 대시보드 위젯을 추가/수정할 때 사용. widgetEndpoints
 `data/{provider}/{model}` 형태의 type은 등록 없이 렌더된다 (예: `data/fred/cpi`).
 파라미터 폼은 `/api/data/{provider}/{model}/schema`로 자동 생성. 임시 확인·copilot add_widget용 — 정식 위젯은 A로 등록해라.
 
-**데이터 API 호출 허용** — 서버는 `/api/data` 호출을 기본 위젯 + 그 사용자의 위젯에 등록된 (provider, model) 만 허용하도록
-준비돼 있다 (`WIDGET_API_GATE`, 지금은 log — 허용 밖 호출을 로그로만). enforce 가 되면 등록 없는 동적 위젯 · 하드코딩 경로는
-404 `api_not_registered` 가 된다. 그래서 **위젯 코드에 `/data/<provider>/<model>` 을 새로 적지 않는다** — 기본 위젯
+**데이터 API 호출 허용** — 서버는 `/api/data` 호출을 기본 위젯 + 코드 위젯 + 그 사용자의 위젯에 등록된 (provider, model) 만
+허용한다. **local fetcher(yahoo · 13F)는 이미 막는다**(`WIDGET_API_GATE_LOCAL=enforce` — 404 `api_not_registered`),
+서버 fetcher 는 아직 기록만(`WIDGET_API_GATE=log`). 그래서 등록 없는 동적 위젯으로 yahoo 데이터를 띄우면 404 가 난다 —
+정식 위젯(A)이나 기본 위젯 정의로 등록해야 한다. 그래서 **위젯 코드에 `/data/<provider>/<model>` 을 새로 적지 않는다** — 기본 위젯
 정의(`builtin_widgets/*.json`)의 endpoint 로 둔다. 화면을 코드로 그리는 위젯(D. component)이 데이터 API 를
 직접 불러야 하면 그 (provider, model) 을 서버 `services/widget_sources.CODE_WIDGET_SOURCES` 에 위젯 id 로 적는다.
 `tests/test_widget_gate.py` 가 프론트 코드의 `/data` 경로와 이 선언을 대조한다.

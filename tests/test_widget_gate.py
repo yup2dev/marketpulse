@@ -172,3 +172,25 @@ def test_broken_builtin_widget_endpoint_is_reported(db_session):
     by_id = {w["widget_id"]: w for w in data_catalog.find_broken_widgets(db_session)["widgets"]}
     assert ok.widget_id not in by_id and cmd.widget_id not in by_id
     assert by_id[gone.widget_id]["problems"][0]["kind"] == "api"
+
+
+# ── 기본 설정: local fetcher 는 enforce, 서버 fetcher 는 log ─────────────────
+
+def test_default_gate_blocks_unregistered_local_fetcher_only(auth_client, db_session, monkeypatch):
+    """사용자 PC 를 쓰는 local fetcher(yahoo · 13F)만 막는다 — 서버 fetcher 는 아직 기록만."""
+    from app.backend.core.config import settings
+
+    from app.backend.core.config import Settings
+
+    client, _uid = auth_client
+    defaults = (Settings.model_fields["WIDGET_API_GATE"].default, Settings.model_fields["WIDGET_API_GATE_LOCAL"].default)
+    assert defaults == ("log", "enforce")                                   # 운영 기본값
+    monkeypatch.setattr(settings, "WIDGET_API_GATE", defaults[0])            # conftest 가 끈 것을 기본값으로
+    monkeypatch.setattr(settings, "WIDGET_API_GATE_LOCAL", defaults[1])
+    monkeypatch.setattr(widget_sources, "_default_db", lambda: _NoClose(db_session))
+
+    r = client.get("/api/data/yahoo/quote", params={"symbol": "AAPL"})       # local · 어느 위젯에도 없음
+    assert r.status_code == 404 and r.json()["code"] == "api_not_registered"
+
+    # server fetcher 는 위젯에 없어도 log — 막지 않는다 (HTTP 로 부르면 실제 조회가 나가므로 게이트만 본다)
+    _check(db_session, "fmp", "quote", _uid, settings.WIDGET_API_GATE)

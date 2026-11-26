@@ -99,9 +99,11 @@ class Settings(BaseSettings):
     # 실행 위치는 fetcher 의 target 이 정한다 (긴급 전환은 data_model_routes — core/execution/routes.py).
     FETCHER_REMOTE_ENABLED: bool = True              # False면 위임 없이 모두 서버에서 (개발 PC 한 대)
     EXEC_CACHE_LOCAL_RESULTS: bool = True            # 로컬 전용 조회 결과도 서버 캐시에 둔다 (사용자 구분 없는 키)
-    # 데이터 API(/api/data) 호출 허용 — 기본 위젯 + 요청 사용자의 위젯에 등록된 (provider, model) 만.
-    #   off · log(허용 밖 호출을 로그로만 — 기본) · enforce(404 api_not_registered). services/widget_sources.py
-    WIDGET_API_GATE: str = "log"
+    # 데이터 API(/api/data) 호출 허용 — 기본 위젯 + 코드 위젯 + 요청 사용자의 위젯에 등록된 (provider, model) 만.
+    #   off · log(허용 밖 호출을 로그로만) · enforce(404 api_not_registered). services/widget_sources.py
+    # 사용자 PC 를 쓰는 local fetcher(yahoo · 13F)는 막고, 서버 fetcher 는 아직 기록만 한다.
+    WIDGET_API_GATE: str = "log"              # target="server" fetcher
+    WIDGET_API_GATE_LOCAL: str = "enforce"    # target="local" fetcher
     FETCHER_URL: str = "http://127.0.0.1:8765"        # Fetcher REST 주소 (HTTP/pull 모드)
     FETCHER_TOKEN: str = ""                            # Fetcher와 공유하는 인증 토큰
     FETCHER_TIMEOUT: float = 90.0   # batch_quotes 등 수백 종목 일괄 조회는 30s를 초과할 수 있음

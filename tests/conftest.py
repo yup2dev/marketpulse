@@ -23,6 +23,17 @@ from app.backend.models.all_models import Base
 from app.backend.models.orm import User
 
 
+@pytest.fixture(autouse=True)
+def _widget_gate_off(monkeypatch):
+    """위젯 데이터 API 허용 차단은 테스트에서 기본으로 끈다.
+
+    켜 두면 게이트가 개발 DB(data/marketpulse.db)의 위젯 행을 읽어, 그 DB 내용에 따라 결과가 달라진다.
+    차단 자체는 tests/test_widget_gate.py 가 테스트 DB 로 켜서 본다.
+    """
+    monkeypatch.setattr(settings, "WIDGET_API_GATE", "off")
+    monkeypatch.setattr(settings, "WIDGET_API_GATE_LOCAL", "off")
+
+
 @pytest.fixture(scope="session")
 def client() -> TestClient:
     """lifespan 을 실행하지 않는 TestClient (startup 부작용 없음)."""
