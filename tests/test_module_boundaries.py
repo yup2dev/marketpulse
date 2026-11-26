@@ -82,26 +82,10 @@ def test_common_package_is_gone():
 PROVIDERS_DIR = ROOT / "MarketpulseFetcher/data_fetcher/providers"
 COMMANDS_DIR = ROOT / "MarketpulseWeb/app/backend/commands"
 
-# FREDGenericSeriesFetcher / KOSIS series 같은 같은 provider 의 기본 fetcher 를 재사용하는 fetcher.
-# 다음 브랜치에서 fred_series() 같은 HTTP 헬퍼로 바꾸면서 목록에서 지울 예정.
+# KOSIS series 같은 같은 provider 의 기본 fetcher 를 재사용하는 fetcher.
+# fred 는 utils/series.fred_series() HTTP 헬퍼로 바꿔 목록에서 지웠다. 남은 것도 같은 방식으로 정리한다.
 # (sec 의 filings 목록 · 기관 목록 재사용도 같은 방식으로 정리한다)
 SERIES_COMPOSITION = {
-    "api/fred/models/consumer_sentiment.py",
-    "api/fred/models/cpi.py",
-    "api/fred/models/employment.py",
-    "api/fred/models/fed_balance_sheet.py",
-    "api/fred/models/gdp.py",
-    "api/fred/models/housing_starts.py",
-    "api/fred/models/industrial_production.py",
-    "api/fred/models/initial_claims.py",
-    "api/fred/models/interest_rate.py",
-    "api/fred/models/nonfarm_payroll.py",
-    "api/fred/models/pmi.py",
-    "api/fred/models/retail_sales.py",
-    "api/fred/models/real_rates.py",            # 여러 시리즈를 날짜로 모으기만 (계산 없음)
-    "api/fred/models/yield_curve.py",
-    "api/fred/models/yield_curve_history.py",
-    "api/fred/models/unemployment.py",
     "api/kosis/models/capacity_utilization.py",
     "api/kosis/models/ict_exports.py",
     "api/kosis/models/mining_manufacturing_index.py",

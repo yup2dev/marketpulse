@@ -10,7 +10,7 @@ from data_fetcher.abstract_provider.standard_models.fred_series import (
     FredSeriesQueryParams,
     FredSeriesData,
 )
-from data_fetcher.providers.api.fred.models.generic_series import FREDGenericSeriesFetcher
+from data_fetcher.providers.api.fred.utils.series import fred_series
 
 
 class FedBalanceSheetQueryParams(FredSeriesQueryParams):
@@ -52,7 +52,7 @@ class FREDFedBalanceSheetFetcher(ApiFetcher[FedBalanceSheetQueryParams, FedBalan
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any,
     ) -> List[Dict[str, Any]]:
-        return [d.model_dump() for d in await FREDGenericSeriesFetcher.fetch_data(dict(
+        return [d.model_dump() for d in await fred_series(dict(
             series_id=_SERIES_ID,
             start_date=query.start_date,
             end_date=query.end_date,

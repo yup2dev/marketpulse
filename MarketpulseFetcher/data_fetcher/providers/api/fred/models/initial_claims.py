@@ -11,7 +11,7 @@ from data_fetcher.abstract_provider.standard_models.fred_series import (
     FredSeriesQueryParams,
     FredSeriesData,
 )
-from data_fetcher.providers.api.fred.models.generic_series import FREDGenericSeriesFetcher
+from data_fetcher.providers.api.fred.utils.series import fred_series
 
 
 class InitialClaimsQueryParams(FredSeriesQueryParams):
@@ -50,7 +50,7 @@ class FREDInitialClaimsFetcher(ApiFetcher[InitialClaimsQueryParams, InitialClaim
     ) -> List[Dict]:
         # ICSA(주간 신규 청구) + IC4WSA(4주 이동평균 — FRED 가 발표, 직접 계산하지 않는다)
         claims, ma = await asyncio.gather(*[
-            FREDGenericSeriesFetcher.fetch_data(dict(
+            fred_series(dict(
                 series_id=sid, start_date=query.start_date, end_date=query.end_date, sort_order="asc",
             ), credentials)
             for sid in ("ICSA", "IC4WSA")

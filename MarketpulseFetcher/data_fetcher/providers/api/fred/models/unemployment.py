@@ -10,7 +10,7 @@ from data_fetcher.abstract_provider.standard_models.unemployment import (
     UnemploymentQueryParams as BaseUnemploymentQueryParams,
     UnemploymentData as BaseUnemploymentData,
 )
-from data_fetcher.providers.api.fred.models.generic_series import FREDGenericSeriesFetcher
+from data_fetcher.providers.api.fred.utils.series import fred_series
 
 
 class FredUnemploymentQueryParams(BaseUnemploymentQueryParams):
@@ -65,7 +65,7 @@ class FREDUnemploymentFetcher(ApiFetcher[FredUnemploymentQueryParams, FredUnempl
     """
     FRED (Federal Reserve Economic Data) Unemployment Rate Fetcher
 
-    Uses FREDGenericSeriesFetcher (the only FRED HTTP call) for observations.
+    Uses fred_series (utils/series.py — the only FRED HTTP call) for observations.
     """
 
     api_name = "FRED"
@@ -88,7 +88,7 @@ class FREDUnemploymentFetcher(ApiFetcher[FredUnemploymentQueryParams, FredUnempl
         age_group = getattr(query, 'age_group', 'all').lower()
         series_key = AGE_GROUP_MAP.get(age_group, 'total')
 
-        observations = [d.model_dump() for d in await FREDGenericSeriesFetcher.fetch_data(dict(
+        observations = [d.model_dump() for d in await fred_series(dict(
             series_id=FRED_SERIES_MAP[series_key],
             start_date=query.start_date,
             end_date=query.end_date,
@@ -104,7 +104,7 @@ class FREDUnemploymentFetcher(ApiFetcher[FredUnemploymentQueryParams, FredUnempl
         }
         for key, sid in labor_series.items():
             try:
-                aux_obs = [d.model_dump() for d in await FREDGenericSeriesFetcher.fetch_data(dict(
+                aux_obs = [d.model_dump() for d in await fred_series(dict(
                     series_id=sid,
                     start_date=query.start_date,
                     end_date=query.end_date,

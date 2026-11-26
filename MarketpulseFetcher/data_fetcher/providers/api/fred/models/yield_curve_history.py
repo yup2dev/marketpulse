@@ -8,7 +8,7 @@ from data_fetcher.abstract_provider.standard_models.yield_curve import (
     YieldCurveQueryParams,
     YieldCurveHistoryData,
 )
-from data_fetcher.providers.api.fred.models.generic_series import FREDGenericSeriesFetcher
+from data_fetcher.providers.api.fred.utils.series import fred_series
 
 
 class YieldCurveHistoryQueryParams(YieldCurveQueryParams):
@@ -52,7 +52,7 @@ class FREDYieldCurveHistoryFetcher(ApiFetcher[YieldCurveHistoryQueryParams, Yiel
         raw: Dict[str, List[Dict]] = {}
         for key, series_id in _SERIES_MAP.items():
             try:
-                raw[key] = [d.model_dump() for d in await FREDGenericSeriesFetcher.fetch_data(dict(
+                raw[key] = [d.model_dump() for d in await fred_series(dict(
                     series_id=series_id,
                     start_date=query.start_date,
                     end_date=query.end_date,

@@ -97,7 +97,7 @@ def test_news_period_is_sent_and_filtered_by_published_utc(gateway):
     (yield_curve.FREDYieldCurveFetcher, yield_curve.FREDYieldCurveQueryParams),
 ])     # 노동 · 금융 여건 · 심리 · CPI 분해 스냅샷은 command — tests/test_macro_commands.py 가 기준일을 본다
 def test_as_of_date_caps_every_fred_request(monkeypatch, fetcher_cls, qp_cls):
-    """FRED HTTP 는 FREDGenericSeriesFetcher 한 곳 — 거기서 나가는 요청마다 observation_end 를 본다."""
+    """FRED HTTP 는 utils/series.py 한 곳 — 거기서 나가는 요청마다 observation_end 를 본다."""
     ends = []
 
     async def fake_request(url, params=None, **kwargs):
@@ -108,7 +108,7 @@ def test_as_of_date_caps_every_fred_request(monkeypatch, fetcher_cls, qp_cls):
         return None
 
     monkeypatch.setattr("data_fetcher.utils.provider_helpers.amake_json_request", fake_request)
-    monkeypatch.setattr("data_fetcher.providers.api.fred.models.generic_series.asyncio.sleep", no_sleep)
+    monkeypatch.setattr("data_fetcher.providers.api.fred.utils.series.asyncio.sleep", no_sleep)
     monkeypatch.setenv("FRED_API_KEY", "test")
     asyncio.run(fetcher_cls.aextract_data(qp_cls(date="2020-03-16"), credentials={"fred_api_key": "test"}))
     assert ends and all(e == "2020-03-16" for e in ends)

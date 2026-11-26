@@ -11,7 +11,7 @@ from data_fetcher.abstract_provider.standard_models.fred_series import (
     FredSeriesQueryParams,
     FredSeriesData,
 )
-from data_fetcher.providers.api.fred.models.generic_series import FREDGenericSeriesFetcher
+from data_fetcher.providers.api.fred.utils.series import fred_series
 from data_fetcher.providers.api.fred.utils.units import attach_units, with_units
 
 
@@ -93,7 +93,7 @@ class FREDIndustrialProductionFetcher(ApiFetcher[IndustrialProductionQueryParams
     """
     FRED Industrial Production Index Fetcher
 
-    Uses FREDGenericSeriesFetcher (the only FRED HTTP call) for observations.
+    Uses fred_series (utils/series.py — the only FRED HTTP call) for observations.
     """
 
     api_name = "FRED"
@@ -117,7 +117,7 @@ class FREDIndustrialProductionFetcher(ApiFetcher[IndustrialProductionQueryParams
         series_id = FRED_SERIES_MAP.get(category, FRED_SERIES_MAP['total'])
 
         return attach_units(await asyncio.gather(*[
-            FREDGenericSeriesFetcher.fetch_data(p, credentials)
+            fred_series(p, credentials)
             for p in with_units(dict(
                 series_id=series_id,
                 start_date=query.start_date,

@@ -10,7 +10,7 @@ from data_fetcher.abstract_provider.standard_models.yield_curve import (
     YieldCurveQueryParams,
     YieldCurveData,
 )
-from data_fetcher.providers.api.fred.models.generic_series import FREDGenericSeriesFetcher
+from data_fetcher.providers.api.fred.utils.series import fred_series
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -58,7 +58,7 @@ class FREDYieldCurveFetcher(ApiFetcher[FREDYieldCurveQueryParams, YieldCurveData
         rows = []
         for mat in _MATURITIES:
             try:
-                obs = [d.model_dump() for d in await FREDGenericSeriesFetcher.fetch_data(dict(
+                obs = [d.model_dump() for d in await fred_series(dict(
                     series_id=mat["series"],
                     limit=1,
                     sort_order="desc",

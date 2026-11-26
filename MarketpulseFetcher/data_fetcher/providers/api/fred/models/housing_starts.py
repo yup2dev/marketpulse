@@ -11,7 +11,7 @@ from data_fetcher.abstract_provider.standard_models.fred_series import (
     FredSeriesQueryParams,
     FredSeriesData,
 )
-from data_fetcher.providers.api.fred.models.generic_series import FREDGenericSeriesFetcher
+from data_fetcher.providers.api.fred.utils.series import fred_series
 from data_fetcher.providers.api.fred.utils.units import attach_units, with_units
 
 
@@ -92,7 +92,7 @@ class FREDHousingStartsFetcher(ApiFetcher[HousingStartsQueryParams, HousingStart
     """
     FRED Housing Starts Fetcher
 
-    Uses FREDGenericSeriesFetcher (the only FRED HTTP call) for observations.
+    Uses fred_series (utils/series.py — the only FRED HTTP call) for observations.
     """
 
     api_name = "FRED"
@@ -113,7 +113,7 @@ class FREDHousingStartsFetcher(ApiFetcher[HousingStartsQueryParams, HousingStart
             log.warning(f"Only US Housing Starts is supported via FRED, got {query.country}")
 
         observations = attach_units(await asyncio.gather(*[
-            FREDGenericSeriesFetcher.fetch_data(p, credentials)
+            fred_series(p, credentials)
             for p in with_units(dict(
                 series_id=FRED_SERIES_MAP['total'],
                 start_date=query.start_date,
@@ -125,7 +125,7 @@ class FREDHousingStartsFetcher(ApiFetcher[HousingStartsQueryParams, HousingStart
 
         permits_map: Dict[str, float] = {}
         try:
-            permits_obs = [d.model_dump() for d in await FREDGenericSeriesFetcher.fetch_data(dict(
+            permits_obs = [d.model_dump() for d in await fred_series(dict(
                 series_id=FRED_SERIES_MAP['permits'],
                 start_date=query.start_date,
                 end_date=query.end_date,
