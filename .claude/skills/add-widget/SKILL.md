@@ -70,7 +70,9 @@ description: 대시보드 위젯을 추가/수정할 때 사용. widgetEndpoints
 **데이터 API 호출 허용** — 서버는 `/api/data` 호출을 기본 위젯 + 그 사용자의 위젯에 등록된 (provider, model) 만 허용하도록
 준비돼 있다 (`WIDGET_API_GATE`, 지금은 log — 허용 밖 호출을 로그로만). enforce 가 되면 등록 없는 동적 위젯 · 하드코딩 경로는
 404 `api_not_registered` 가 된다. 그래서 **위젯 코드에 `/data/<provider>/<model>` 을 새로 적지 않는다** — 기본 위젯
-정의(`builtin_widgets/*.json`)의 endpoint 로 둔다. `tests/test_widget_gate.py` 가 새 하드코딩 경로를 잡는다.
+정의(`builtin_widgets/*.json`)의 endpoint 로 둔다. 화면을 코드로 그리는 위젯(D. component)이 데이터 API 를
+직접 불러야 하면 그 (provider, model) 을 서버 `services/widget_sources.CODE_WIDGET_SOURCES` 에 위젯 id 로 적는다.
+`tests/test_widget_gate.py` 가 프론트 코드의 `/data` 경로와 이 선언을 대조한다.
 
 ## C. providerViews — provider별 body 오버라이드
 

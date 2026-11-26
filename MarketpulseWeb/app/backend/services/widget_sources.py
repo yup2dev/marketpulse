@@ -4,6 +4,7 @@
 호출 허용 확인 · 참조 검사는 위젯 종류를 몰라도 이 목록만 본다.
 
     사용자 정의 위젯   provider · model 칸
+    코드 위젯          화면을 코드로 그리는 위젯(widgetEndpoints.js 의 component)이 부르는 데이터 — CODE_WIDGET_SOURCES
     기본 제공 위젯     endpoint 가 /data/{provider}/{model} 이면 그 쌍. provider 자리가 '{provider}' 면 헤더의
                       provider 선택이므로 그 모델을 주는 모든 provider. 그 밖의 endpoint(command · concepts · admin …)는
                       데이터 API(/api/data) 호출이 아니라 출처가 없다.
@@ -14,7 +15,7 @@
     off      확인하지 않는다
     log      허용 밖 호출을 로그로만 남긴다 (기본 — 어떤 화면이 등록 없이 부르는지 운영에서 모으는 단계)
     enforce  허용 밖 호출을 404 api_not_registered 로 막는다
-허용 = 기본 제공 위젯(use_yn Y) + 요청 사용자의 위젯(use_yn Y) 의 출처.
+허용 = 기본 제공 위젯(use_yn Y) + 코드 위젯 + 요청 사용자의 위젯(use_yn Y) 의 출처.
 """
 import logging
 import re
@@ -27,6 +28,22 @@ Pair = Tuple[str, str]
 
 DATA_ENDPOINT = re.compile(r"^/data/([^/?]+)/([^/?]+)")
 PROVIDER_SLOT = "{provider}"
+
+
+# 코드 위젯이 부르는 데이터 API — 위젯 id → 출처. 정의 행이 없는 위젯이라 여기 적는다.
+# 위젯 코드에 /data/<provider>/<model> 을 적으면 여기에도 적어야 한다 (tests/test_widget_gate.py 가 대조).
+CODE_WIDGET_SOURCES: Dict[str, Set[Pair]] = {
+    "chart-studio": {
+        ("yahoo", "stock_price"),    # 봉 · 비교 종목
+        ("fred", "series"),          # 거시 지표 겹쳐 그리기
+        ("polygon", "earnings"),     # 실적 발표 표시
+        ("yahoo", "dividends"),      # 배당락 표시
+    },
+}
+
+
+def code_widget_pairs() -> Set[Pair]:
+    return set().union(*CODE_WIDGET_SOURCES.values()) if CODE_WIDGET_SOURCES else set()
 
 
 class ApiNotRegisteredError(LookupError):
@@ -97,7 +114,7 @@ def allowed_pairs(db, user_id: Optional[str]) -> Set[Pair]:
         mine = _collect(db.query(UserWidget).filter(UserWidget.user_id == user_id, UserWidget.use_yn == "Y"))
         with _LOCK:
             _by_user[user_id] = mine
-    return builtin | mine
+    return builtin | code_widget_pairs() | mine
 
 
 def _default_db():

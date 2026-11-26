@@ -192,12 +192,13 @@ local fetcher 를 배포 없이 서버로 돌리는 **긴급 전환**만 담는�
 위젯 정의는 DB 행(`user_widgets` 계열)이다. 기본 위젯(`user_id` NULL)은 `builtin_widgets/*.json` 이 원본이고,
 일반 사용자도 위젯을 만든다. 위젯 종류마다 정의 모양이 달라 **데이터 출처((provider, model))는
 `services/widget_sources.py` 한 곳에서 계산한다** — 사용자 위젯은 `provider`·`model` 칸, 기본 위젯은 `/data/{provider}/{model}`
-endpoint (`{provider}` 자리면 그 모델을 주는 모든 provider), command · concepts endpoint 는 데이터 API 출처가 아니다.
+endpoint (`{provider}` 자리면 그 모델을 주는 모든 provider), 화면을 코드로 그리는 위젯(chart-studio 등)은
+`CODE_WIDGET_SOURCES` 에 적은 쌍. command · concepts endpoint 는 데이터 API 출처가 아니다.
 
-- **호출 허용** — `/api/data/{provider}/{model}` 은 기본 위젯 + 요청 사용자 위젯의 출처에 있는 쌍만 허용한다.
+- **호출 허용** — `/api/data/{provider}/{model}` 은 기본 위젯 + 코드 위젯 + 요청 사용자 위젯의 출처에 있는 쌍만 허용한다.
   `WIDGET_API_GATE` = `off` · `log`(기본 — 허용 밖 호출을 `[widget-gate]` 로그로만) · `enforce`(404 `api_not_registered`).
-  지금은 log 다 — 등록 없이 부르는 화면(동적 위젯 · copilot · 하드코딩 경로)을 운영 로그로 모은 뒤 enforce 로 바꾼다.
-  하드코딩 경로는 `tests/test_widget_gate.py` 의 목록에만 둘 수 있고 목록은 줄기만 한다.
+  지금은 log 다 — 등록 없이 부르는 화면(동적 위젯 · copilot)을 운영 로그로 모은 뒤 enforce 로 바꾼다.
+  프론트 코드에 적힌 `/data/<provider>/<model>` 은 기본 위젯 · 코드 위젯 출처 안에 있어야 한다 (`tests/test_widget_gate.py`).
 - **저장 시 확인** — 사용자 위젯은 등록된 fetcher 의 (provider, model) 로만 저장된다 (`user_widget_service._validate`).
 - **참조 검사** — `data_catalog.find_broken_widgets`(관리자 `GET /api/admin/data-catalog/broken-widgets`)가 위젯이 쓰는
   API · 필드 · 파라미터가 카탈로그에 아직 있는지 본다 (기본 위젯은 endpoint 의 API). 기본 위젯 파일의 `/data` endpoint 가

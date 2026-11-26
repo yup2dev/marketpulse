@@ -78,12 +78,14 @@ class _NoClose:
 
 def test_allowed_is_builtin_plus_own_widgets(db_session):
     _uw(db_session, endpoint="/data/polygon/news?limit=50")                         # 기본 위젯
-    _uw(db_session, user_id="u1", provider="fred", model="series")                  # u1 의 위젯
+    _uw(db_session, user_id="u1", provider="oecd", model="unemployment")            # u1 의 위젯
     _uw(db_session, user_id="u2", provider="fmp", model="quote")                    # 남의 위젯
     _uw(db_session, user_id="u1", provider="bls", model="series", use_yn="N")       # 꺼 둔 위젯
 
-    assert widget_sources.allowed_pairs(db_session, "u1") == {("polygon", "news"), ("fred", "series")}
-    _check(db_session, "fred", "series", "u1", "enforce")
+    code = widget_sources.code_widget_pairs()                                       # 코드 위젯(chart-studio …)
+    assert widget_sources.allowed_pairs(db_session, "u1") == {("polygon", "news"), ("oecd", "unemployment")} | code
+    _check(db_session, "oecd", "unemployment", "u1", "enforce")
+    _check(db_session, "fred", "series", "u1", "enforce")                           # chart-studio 거시 겹침
     _check(db_session, "polygon", "news", "u1", "enforce")
     for provider, model in [("fmp", "quote"), ("bls", "series")]:
         with pytest.raises(ApiNotRegisteredError):
@@ -107,13 +109,13 @@ def test_log_mode_only_logs_and_off_skips(db_session, monkeypatch):
 
 def test_saving_a_widget_refreshes_the_allowed_set(auth_client, db_session):
     client, uid = auth_client
-    assert ("fred", "series") not in widget_sources.allowed_pairs(db_session, uid)
+    assert ("bls", "series") not in widget_sources.allowed_pairs(db_session, uid)
     r = client.post("/api/user-widgets", json={
-        "name": "CPI", "provider": "fred", "model": "series", "view_type": "table",
-        "params": [{"param_name": "series_id", "bind_type": "FIXED", "param_value": "CPIAUCSL"}],
+        "name": "CPI", "provider": "bls", "model": "series", "view_type": "table",
+        "params": [{"param_name": "symbol", "bind_type": "FIXED", "param_value": "CUUR0000SA0"}],
     })
     assert r.status_code in (200, 201), r.text
-    assert ("fred", "series") in widget_sources.allowed_pairs(db_session, uid)
+    assert ("bls", "series") in widget_sources.allowed_pairs(db_session, uid)
 
 
 def test_gateway_returns_404_api_not_registered_in_enforce(auth_client, db_session, monkeypatch):
@@ -128,19 +130,14 @@ def test_gateway_returns_404_api_not_registered_in_enforce(auth_client, db_sessi
 
 # ── 위젯 코드에 직접 적힌 데이터 경로 ─────────────────────────────────────────
 
-# 기본 위젯 출처에 없는데 위젯 코드가 직접 부르는 것 — 정의 행으로 옮기면 지운다 (늘리지 않는다).
-# enforce 로 바꾸기 전에 비워야 한다.
-HARDCODED_UNREGISTERED = {
-    ("polygon", "earnings"),     # ChartStudioWidget — 실적 발표 표시
-    ("fred", "series"),          # ChartStudioWidget — 거시 지표 겹쳐 그리기
-    ("db", "fx_rate"),           # common/api/endpoints.js — 환율 변환 (위젯이 아닌 공용 호출)
-}
+# 기본 위젯 · 코드 위젯 출처에 없는데 프론트 코드가 직접 부르는 것 — 늘리지 않는다 (enforce 면 404 가 된다).
+HARDCODED_UNREGISTERED: set = set()
 
 _LITERAL = re.compile(r"/data/([a-z0-9_]+)/([a-z0-9_]+)")
 
 
 def test_hardcoded_data_paths_only_shrink():
-    builtin = set()
+    builtin = widget_sources.code_widget_pairs()
     for spec in load_specs():
         builtin |= endpoint_sources(spec.get("endpoint"))
     found = set()
@@ -151,6 +148,13 @@ def test_hardcoded_data_paths_only_shrink():
     unregistered = found - builtin
     assert unregistered <= HARDCODED_UNREGISTERED, f"새로 하드코딩된 데이터 경로 — 기본 위젯 정의로: {unregistered - HARDCODED_UNREGISTERED}"
     assert HARDCODED_UNREGISTERED <= unregistered, f"정리된 경로는 목록에서 지운다: {HARDCODED_UNREGISTERED - unregistered}"
+
+
+def test_code_widget_sources_are_registered_and_allowed(db_session):
+    for widget, pairs in widget_sources.CODE_WIDGET_SOURCES.items():
+        for provider, model in pairs:
+            assert provider in widget_sources.providers_of(model), f"{widget}: {provider}/{model}"
+    assert widget_sources.code_widget_pairs() <= widget_sources.allowed_pairs(db_session, "anyone")
 
 
 # ── 참조 검사 — 기본 위젯 endpoint 의 데이터 API ─────────────────────────────
