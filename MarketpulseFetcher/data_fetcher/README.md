@@ -18,8 +18,9 @@ rows = await QueryExecutor().execute("fred", "gdp", {"start_date": "2020-01-01"}
 `get_provider` → `get_fetcher` → `filter_credentials` → 파라미터 거르기 → `fetcher.fetch_data()`.
 캐시 · 실행 위치(로컬 전용 / 서버) · 사용자 키 · 서킷브레이커는 **없다** — 그건 부르는 쪽의 일이다:
 
-- 웹 서버: `MarketpulseWeb/app/backend/core/execution` (ServerExecutor) — 실행 위치는 DB 표 `data_model_routes`
-- 사용자 PC Fetcher: `server/runner.py` (이 PC 의 키 + 작은 TTL 캐시)
+- 웹 서버: `MarketpulseWeb/app/backend/core/execution` (ServerExecutor) — fetcher 의 `target` 으로 위임을 정한다
+  (긴급 전환만 DB 표 `data_model_routes`)
+- 사용자 PC Fetcher: `server/runner.py` (이 PC 의 키 + 작은 TTL 캐시) — `target="local"` fetcher 만 실행
 - 배치: 그대로 `QueryExecutor().execute`
 
 app 계층(`MarketpulseWeb/app/backend/platform/` — Router · Query · CommandRunner · ProviderInterface · OBBject · concepts, OpenBB `openbb_core.app`)의 `Query.execute` 는

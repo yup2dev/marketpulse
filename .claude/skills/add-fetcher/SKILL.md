@@ -10,7 +10,7 @@ provider가 달라도 같은 `category`(model)는 **동일 standard model을 상
 UniversalWidget의 provider 셀렉터가 shape-safe하게 동작한다.
 
 ```
-요청 → (웹 서버) ServerExecutor.fetch → 실행 위치 표(data_model_routes) → 서버면 QueryExecutor().execute(provider, model, params)
+요청 → (웹 서버) ServerExecutor.fetch → fetcher.target (local 이면 PC Fetcher 위임) → 서버면 QueryExecutor().execute(provider, model, params)
         └→ ProviderRegistry.get(provider).fetcher_dict[model]
             └→ Fetcher.fetch_data():
                  transform_query(params)  → ProviderQueryParams (← 표준 QueryParams 상속)
@@ -283,11 +283,22 @@ PYTHONPATH="MarketpulseFetcher" python -c "import data_fetcher.providers_init; f
 - [ ] `providers/api/<p>/__init__.py`(DB 는 `providers/db/__init__.py`) 의 `Provider(...)` fetcher_dict + (신규 provider) providers_init `PROVIDERS` 등록 (+ 취약 import는 fail-soft)
 - [ ] TTL / 라우트(`?provider=` 노출) + **새 라우트면 `api/routers.py` 등록** / widgetEndpoints + urlWidgetMap
 - [ ] 지연 import·자산 파일 → spec 반영 (hiddenimports / datas)
+- [ ] 실행 위치: 서버에서 못 도는 것만 `target = "local"` (기본 server · DbFetcher 는 server 고정) — 아래 '실행 위치'
 - [ ] §8 검증 통과
 
-## 실행 위치 (로컬 전용 / 서버)
+## 실행 위치 — `target` (서버 / 사용자 PC)
 
-fetcher 에 "어디서 실행되는지"를 적지 않는다 (OpenBB 처럼 fetcher 는 모른다). 새 (provider, model) 은 웹 서버가 기동할 때
-DB 표 `data_model_routes` 에 행이 생긴다 — 같은 provider 의 다른 행이 모두 로컬 전용이면 Y, 아니면 N.
-서버 IP 에서 막히는 스크래핑 · 메모리를 많이 쓰는 파싱이면 관리자 API `PUT /api/admin/data-routes/{provider}/{model}`
-`{"local": true}` 로 로컬 전용으로 바꾼다 (사용자 PC Fetcher 로 위임, 꺼져 있으면 503).
+fetcher 클래스에 `target` 을 선언한다. 기본은 `"server"` 라 대부분은 적을 게 없다.
+
+```python
+class MyFetcher(ApiFetcher[Q, D]):
+    target = "local"   # 서버 IP 에서 막히는 스크래핑 · 메모리를 많이 쓰는 파싱일 때만
+```
+
+- 값은 `"server"` | `"local"` 둘뿐이다 (다른 값이면 클래스 정의 시점에 오류). DB 는 위치가 아니라 출처라 `DbFetcher` 로 구분하고 server 고정이다.
+- `YFinanceFetcher` 를 상속하면 이미 `"local"` 이다 (yfinance 는 서버 IP 에서 막힌다).
+- `local` 은 웹 서버가 그 사용자의 PC Fetcher 로 위임한다 (꺼져 있으면 503, 서버가 대신 실행하지 않는다).
+  PC Fetcher(`server/runner.py`)는 `target="local"` fetcher 만 실행한다 — exe 에 코드가 다 들어 있어도 server fetcher 는 거부한다.
+- `server → local` 로 바꾸면 **exe 를 다시 배포**해야 한다 (사용자 PC 에 그 fetcher 가 local 로 있어야 하므로).
+- 운영 중 local fetcher 를 서버에서 돌려야 하면(서버 IP 차단이 풀림 · PC Worker 장애) 코드 수정 없이 관리자 API
+  `PUT /api/admin/data-routes/{provider}/{model}` `{"local": false}` 로 긴급 전환한다 (해제는 `true`). server → local 은 이 API 로 할 수 없다.

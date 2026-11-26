@@ -11,6 +11,9 @@ from data_fetcher.abstract_provider.abstract.annotated_result import AnnotatedRe
 Q = TypeVar("Q", bound=BaseModel)
 R = TypeVar("R")
 
+# Fetcher.target 값 — 실행 위치는 이 둘뿐이다 (DB 는 위치가 아니라 데이터 출처 — DbFetcher 로 구분)
+TARGETS = frozenset({"server", "local"})
+
 
 class classproperty:
     """Class property decorator for type inspection"""
@@ -65,6 +68,11 @@ class Fetcher(Generic[Q, R]):
 
     require_credentials: bool = True
 
+    # 기본 실행 위치 — "server"(기본) | "local"(사용자 PC Fetcher 에서 실행).
+    # local 은 "서버에서도 돌 수 있지만 운영상 이유(서버 IP 차단 · 서버 자원 · 무거운 원본 파싱)로 PC 에서 돌린다"는 뜻.
+    # fetcher 는 선언만 한다 — 위임 판단은 웹 서버 실행 계층이, 실행 제한은 PC Worker 가 이 값을 읽어 한다.
+    target: str = "server"
+
     @staticmethod
     def transform_query(params: dict[str, Any]) -> Q:
         """Transform the params to the provider-specific query."""
@@ -98,6 +106,8 @@ class Fetcher(Generic[Q, R]):
         #  서브클래스의 sync extract_data 오버라이드를 덮어쓰지 않도록)
         if "aextract_data" in cls.__dict__:
             setattr(cls, "extract_data", cls.__dict__["aextract_data"])
+        if cls.target not in TARGETS:
+            raise ValueError(f"{cls.__name__}.target 은 {sorted(TARGETS)} 중 하나: {cls.target!r}")
         # 추상 중간 베이스(ApiFetcher 등)는 구현 검사 면제
         if cls.__dict__.get("_intermediate_base", False):
             return

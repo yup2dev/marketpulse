@@ -131,12 +131,20 @@ class DbFetcher(Fetcher[Q, R]):
 
     ``with cls.db_session(**kwargs) as session:`` 로 세션을 얻는다.
     경로 우선순위: kwargs["db_path"] → cls.db_path → index_analyzer 기본 DB.
+
+    실행 위치는 서버 고정(target="server") — 하위 클래스가 바꾸면 클래스 정의 시점에 오류.
     """
 
     _intermediate_base = True
     require_credentials = False
+    target = "server"
 
     db_path: ClassVar[Optional[str]] = None
+
+    def __init_subclass__(cls, *args: Any, **kwargs: Any) -> None:
+        super().__init_subclass__(*args, **kwargs)
+        if cls.target != "server":
+            raise TypeError(f"{cls.__name__}: DbFetcher 는 서버에서만 실행한다 (target='server' 고정)")
 
     @classmethod
     def _resolve_db_path(cls, **kwargs: Any) -> str:
@@ -178,10 +186,14 @@ class LibraryFetcher(Fetcher[Q, R]):
 
 
 class YFinanceFetcher(LibraryFetcher[Q, R]):
-    """yfinance 래퍼 공통 베이스."""
+    """yfinance 래퍼 공통 베이스.
+
+    yfinance 는 비공식 스크래핑이라 서버 고정 IP 에서 막힌다 — 사용자 PC Fetcher 에서 실행(target="local").
+    """
 
     _intermediate_base = True
     library_name = "yfinance"
+    target = "local"
 
     @staticmethod
     def get_ticker(symbol: str):

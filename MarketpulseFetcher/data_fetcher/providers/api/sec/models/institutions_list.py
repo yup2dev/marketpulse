@@ -34,6 +34,7 @@ class SECInstitutionsListFetcher(ApiFetcher[SECInstitutionsListQueryParams, Inst
     """Fetcher for getting list of institutions that file 13F reports"""
 
     require_credentials = False
+    target = "local"           # 13F 원본 파싱은 메모리를 크게 써 운영 서버 대신 사용자 PC 에서
 
     # Cache for institutions list (refreshed periodically)
     _cache = None

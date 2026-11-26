@@ -1,7 +1,7 @@
 """ServerExecutor — 웹 서버의 조회 실행 한 곳. fetcher 패키지의 QueryExecutor(순수 실행)를 감싼다.
 
     [1] 캐시 — Fresh HIT 즉시 / Stale HIT 즉시 + 백그라운드 갱신(SWR) / MISS 는 single-flight 로 한 번만
-    [2] 실행 위치 — routes.is_local(provider, model) (DB 표 data_model_routes)
+    [2] 실행 위치 — routes.is_local(provider, model) (fetcher target, data_model_routes 는 긴급 전환만)
           Y  로그인 사용자의 PC Fetcher 로 위임 (transport). 위임할 수 없으면 RemoteUnavailableError(503) —
              서버 실행으로 넘기지 않는다
           N  서버에서 직접: 사용자 키(키 필요 provider) → 서킷브레이커 → QueryExecutor().execute

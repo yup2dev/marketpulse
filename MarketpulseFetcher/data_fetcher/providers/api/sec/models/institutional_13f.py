@@ -205,6 +205,7 @@ class SEC13FFetcher(ApiFetcher[SEC13FQueryParams, SEC13FFilingData]):
     """SEC 13F 공시 파싱 — 최신(또는 지정 분기) 공시와 직전 분기 공시의 원본 라인."""
 
     require_credentials = False  # SEC data is free
+    target = "local"           # 13F 원본 파싱은 메모리를 크게 써 운영 서버 대신 사용자 PC 에서
 
     @staticmethod
     def transform_query(params: Dict[str, Any]) -> SEC13FQueryParams:
@@ -652,6 +653,7 @@ class SEC13FInstitutionsFetcher(ApiFetcher[SEC13FInstitutionsQueryParams, Instit
     """13F 제출 기관 목록 — 동적 목록이 비거나 실패하면 featured 로 폴백."""
 
     require_credentials = False
+    target = "local"           # 13F 원본 파싱은 메모리를 크게 써 운영 서버 대신 사용자 PC 에서
 
     @staticmethod
     def transform_query(params: Dict[str, Any]) -> SEC13FInstitutionsQueryParams:

@@ -71,8 +71,8 @@ async def lifespan(app: FastAPI):
     await cache.init(redis_url=settings.REDIS_URL if settings.QUEUE_ENABLED else None)
     fetcher_client = _build_fetcher_client()
 
-    # 실행 위치 표(data_model_routes) — 등록된 (provider, model) 행을 맞추고 메모리로 읽는다
-    await asyncio.to_thread(exec_routes.sync_and_load)
+    # 실행 위치 — fetcher target 이 정한다. data_model_routes 는 긴급 전환만 (뜻 없는 행 정리 후 메모리로)
+    await asyncio.to_thread(exec_routes.cleanup_and_load)
 
     # key-only provider(Class B)를 서버에서 '요청 사용자의 키'로 호출하기 위한 해석기.
     # current_user_id별로 DB에 저장된 사용자 키를 복호화해 반환한다.

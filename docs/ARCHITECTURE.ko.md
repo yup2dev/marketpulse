@@ -81,19 +81,23 @@ command 가 provider 이름을 문자열로 쓰거나 `data_fetcher.providers` �
 ### 분기 처리 — 어디서 실행되는가
 
 분기는 웹 서버의 실행 계층 한 곳(`app/backend/core/execution/executor.py` 의 `ServerExecutor._upstream`)에 있다.
-fetcher 패키지는 이걸 모른다 — OpenBB 처럼 순수 실행(`QueryExecutor().execute`)만 한다.
-**어느 조회를 어디서 돌릴지는 코드가 아니라 DB 표 `data_model_routes` ((provider, model) 마다 `local_yn`)가 정한다.**
+fetcher 는 순수 실행(`QueryExecutor().execute`)만 하고, 실행 위치는 **선언만** 한다.
+**어느 조회를 어디서 돌릴지는 fetcher 의 `target`(`"server"` 기본 / `"local"`)이 정한다.** DB 표 `data_model_routes` 는
+local fetcher 를 배포 없이 서버로 돌리는 **긴급 전환**만 담는다 (평소 비어 있다).
 
 | # | 조건 | 처리 |
 |---|------|------|
-| 1 | `local_yn = Y` (로컬 전용) **이고** 위임 transport 가 설정됨 | 요청한 **그 사용자의** PC Fetcher 로만 위임. 서버 직접 호출로 넘기지 않는다. 워커가 없거나 사용자 컨텍스트가 없으면(배경 작업) 503 |
-| 2 | `local_yn = N` + **키가 필요한 provider** + 로그인 사용자 | 서버가 직접 호출하되 **그 사용자가 등록한 키**(DB, Fernet 복호화)로. 키가 없으면 운영자 키로 넘기지 않고 424 |
-| 3 | `local_yn = N` + 키가 필요한 provider + 사용자 컨텍스트 없음 (서버 배경 작업) | 환경변수의 운영자 키로 호출 |
-| 4 | `local_yn = N` 그 밖 — 무키 공개 API, 적재 DB(`db`), 계산 | 서버가 직접 실행 |
+| 1 | `target = "local"` (긴급 전환 아님) **이고** 위임 transport 가 설정됨 | 요청한 **그 사용자의** PC Fetcher 로만 위임. 서버 직접 호출로 넘기지 않는다. 워커가 없거나 사용자 컨텍스트가 없으면(배경 작업) 503 |
+| 2 | 서버 실행 + **키가 필요한 provider** + 로그인 사용자 | 서버가 직접 호출하되 **그 사용자가 등록한 키**(DB, Fernet 복호화)로. 키가 없으면 운영자 키로 넘기지 않고 424 |
+| 3 | 서버 실행 + 키가 필요한 provider + 사용자 컨텍스트 없음 (서버 배경 작업) | 환경변수의 운영자 키로 호출 |
+| 4 | 서버 실행 그 밖 — 무키 공개 API, 적재 DB(`db`), 계산 | 서버가 직접 실행 |
 
-- 표의 행은 기동할 때 `core/execution/routes.sync_routes` 가 등록된 (provider, model) 마다 넣는다. 처음 값은
-  예전 규칙 그대로(yahoo 전부 · SEC 13F 원본 파싱 3개 = Y, 나머지 N)이고, 새 모델은 같은 provider 의 다른 행을 따른다.
-  그 뒤로는 표가 주인이다 — 관리자 API `PUT /api/admin/data-routes/{provider}/{model}` 로 바꾸면 바로 적용된다.
+- `target="local"`: `YFinanceFetcher`(yahoo 전부 — 서버 IP 차단), SEC 13F 원본 파싱 3개(서버 메모리). 나머지는 server.
+  `DbFetcher` 는 server 고정이다 (바꾸면 클래스 정의 시점에 오류).
+- 긴급 전환: 관리자 API `PUT /api/admin/data-routes/{provider}/{model}` `{"local": false}` (해제는 `true`) — 바로 적용된다.
+  server → local 은 거부한다(400). PC 에서 돌리려면 fetcher 의 `target` 을 바꾸고 exe 를 다시 배포한다.
+  기동할 때 `core/execution/routes.cleanup` 이 기본값과 같아 뜻이 없는 행을 지운다.
+- exe 에는 data_fetcher 코드가 전부 들어가지만 PC Fetcher(`server/runner.py`)는 `target="local"` fetcher 만 실행한다.
 - 위임 transport 가 없으면(`FETCHER_REMOTE_ENABLED=false`, 개발 PC 한 대) 표와 무관하게 모두 서버에서 실행한다.
 - 로컬 전용 결과도 서버 캐시에 둘지는 `EXEC_CACHE_LOCAL_RESULTS` (기본 true — 예전과 같음).
 - Fetcher exe 와 배치는 순수 `QueryExecutor` 를 그대로 쓴다 — 위임의 끝(leaf)이라 표를 읽지 않는다.
@@ -129,7 +133,7 @@ fetcher 패키지는 이걸 모른다 — OpenBB 처럼 순수 실행(`QueryExec
 | 어디서 | 어떻게 | 무엇을 |
 |--------|--------|--------|
 | **서버 프로세스** | `core/execution.ServerExecutor` 가 순수 `QueryExecutor` 를 감싼다 (`ServerExecutor.configure(cache, remote, credential_resolver)`, `execution.install()` 로 Query 의 실행기 자리에) | 실행 위치 판단(DB 표) · 캐시 · 사용자 키 · 서킷브레이커 · 서버 실행 |
-| **사용자 PC (exe)** | Rust 런처가 내장 Python 으로 `data_fetcher.app` 실행. `127.0.0.1:8765` REST + `/ws/fetcher` 워커 → `server/runner.py` (순수 `QueryExecutor` + 이 PC 의 키) | 로컬 전용(`local_yn=Y`) 조회 — 지금은 yahoo 와 13F 원본 파싱 |
+| **사용자 PC (exe)** | Rust 런처가 내장 Python 으로 `data_fetcher.app` 실행. `127.0.0.1:8765` REST + `/ws/fetcher` 워커 → `server/runner.py` (순수 `QueryExecutor` + 이 PC 의 키) | `target="local"` fetcher 조회만 — 지금은 yahoo 와 13F 원본 파싱 |
 | **배치 프로세스** | 수집기가 순수 `QueryExecutor().execute(...)` 를 직접 호출 | 적재용 원천 데이터 수집 (yahoo·SEC 13F·FMP …) |
 
 **사용자 PC Fetcher 가 워커풀에 붙는 과정**
@@ -138,7 +142,7 @@ fetcher 패키지는 이걸 모른다 — OpenBB 처럼 순수 실행(`QueryExec
 2. 웹앱이 로그인·토큰 갱신 때마다 access token 을 `POST http://127.0.0.1:8765/user-token` 으로 넘긴다
    (`common/api/localFetcher.js`). Fetcher 가 꺼져 있으면 조용히 무시된다.
 3. Fetcher 가 그 토큰으로 `wss://…/ws/fetcher?token=…` 에 접속한다. 서버는 토큰의 user_id 로 워커를 등록한다.
-4. 그 사용자의 요청 중 로컬 전용(`data_model_routes.local_yn = Y`)인 것만 이 연결로 내려가고, Fetcher 가 실행해 결과를 돌려준다.
+4. 그 사용자의 요청 중 `target="local"`(긴급 전환 아님)인 것만 이 연결로 내려가고, Fetcher 가 실행해 결과를 돌려준다.
    캐시는 서버에 남으므로 같은 조회가 반복되면 PC 까지 내려가지 않는다.
 
 토큰이 바뀌면(재로그인·다른 계정) Fetcher 가 파일 변경을 감지해 재접속한다 — 재시작이 필요 없다.
