@@ -210,10 +210,9 @@ async def get_form_4_urls(
 ):
     """Get the form 4 URLs for a symbol."""
     # pylint: disable=import-outside-toplevel
-    from data_fetcher.providers.api.sec.models.company_filings import SecCompanyFilingsFetcher
+    from data_fetcher.providers.api.sec.utils.filings import sec_company_filings
 
-    fetcher = SecCompanyFilingsFetcher()
-    form_4 = await fetcher.fetch_data(
+    form_4 = await sec_company_filings(
         dict(
             symbol=symbol,
             form_type="4",

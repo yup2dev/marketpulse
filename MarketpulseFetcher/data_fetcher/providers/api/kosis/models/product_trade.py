@@ -15,7 +15,7 @@ from data_fetcher.abstract_provider.standard_models.kosis_series import (
     KosisSeriesQueryParams,
 )
 from data_fetcher.abstract_provider.abstract.annotated_result import metadata_of_result, unwrap_result
-from data_fetcher.providers.api.kosis.models.series import KOSISSeriesFetcher
+from data_fetcher.providers.api.kosis.utils.series import kosis_series
 from data_fetcher.providers.api.kosis.utils.helpers import (
     PRD_SE_CHOICES,
     PRODUCT_TRADE_CATEGORIES,
@@ -94,7 +94,7 @@ class KOSISProductTradeFetcher(ApiFetcher[KOSISProductTradeQueryParams, KOSISPro
         credentials: Optional[Dict[str, str]] = None,
         **kwargs: Any,
     ) -> Dict[str, Any]:
-        """Extract data — 품목 코드를 '+' 로 이어 KOSISSeriesFetcher 한 번."""
+        """Extract data — 품목 코드를 '+' 로 이어 kosis_series 한 번."""
         org_id, tbl_id = PRODUCT_TRADE_TABLE
         item_query = dict(
             org_id=org_id,
@@ -105,7 +105,7 @@ class KOSISProductTradeFetcher(ApiFetcher[KOSISProductTradeQueryParams, KOSISPro
             start_date=lookback_start(query.start_date),   # 증감률용 1년 앞부터
             end_date=query.end_date,
         )
-        temp = await KOSISSeriesFetcher.fetch_data(item_query, credentials)
+        temp = await kosis_series(item_query, credentials)
         return {"data": [d.model_dump() for d in unwrap_result(temp)], "metadata": metadata_of_result(temp)}
 
     @staticmethod

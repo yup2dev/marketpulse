@@ -16,7 +16,7 @@ from pydantic import Field
 from data_fetcher.abstract_provider.abstract import BaseQueryParams, BaseData
 from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.utils.cusip_mapper import cusip_to_ticker
-from data_fetcher.providers.api.sec.models.institutions_list import SECInstitutionsListFetcher
+from data_fetcher.providers.api.sec.utils.institutions import sec_institutions
 from data_fetcher.providers.api.sec.utils.filings_13f import filing_index_url, list_13f_filings
 
 
@@ -566,15 +566,9 @@ class SEC13FFetcher(ApiFetcher[SEC13FQueryParams, SEC13FFilingData]):
 
         try:
             # Fetch dynamically from SEC.
-            # NOTE: SECInstitutionsListFetcher의 transform_query/extract_data/
-            # transform_data는 전부 동기(requests)다. fetch_data_sync는 이를
-            # asyncio.run으로 감싸므로, 비동기 요청 핸들러(uvicorn, 실행 중인
-            # 이벤트 루프) 안에서 호출되면 "asyncio.run() cannot be called from a
-            # running event loop"로 항상 실패한다. 동기 파이프라인을 직접 호출한다.
+            # sec_institutions 는 동기(requests)다 — 실행 중인 이벤트 루프 안에서도 그대로 부른다.
             log.info(f"Fetching institutions list dynamically (limit={limit})")
-            _q = SECInstitutionsListFetcher.transform_query({'limit': limit})
-            _raw = SECInstitutionsListFetcher.extract_data(_q, credentials=None)
-            institutions_list = SECInstitutionsListFetcher.transform_data(_q, _raw)
+            institutions_list = sec_institutions(limit)
 
             # Create a mapping of CIK to hardcoded key for known institutions
             cik_to_key = {data['cik']: key for key, data in INSTITUTIONS.items()}

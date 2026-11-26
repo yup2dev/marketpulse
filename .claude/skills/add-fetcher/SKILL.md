@@ -69,10 +69,11 @@ MarketpulseFetcher/data_fetcher/providers/api/<p>/      (DB 는 providers/db/)
   __init__.py          ← fetcher import + `<p>_provider = Provider(...)` 정의 (providers_init 은 모으기만)
   models/              ← model fetcher 전부. 파일명은 주 category 키 (snake_case)
     __init__.py
-    series.py          ← (시계열 API) 범용 series fetcher — 이 provider 의 HTTP 를 하는 유일한 곳
+    series.py          ← (시계열 API) 범용 series fetcher — HTTP 는 utils/series.py 에 맡긴다
     <model>.py
   utils/
     helpers.py         ← 상수 · 지표별 코드 맵 · 순수 함수 (HTTP 없음. OpenBB fred_helpers.py 처럼)
+    series.py          ← (시계열 API) HTTP 헬퍼 — 이 provider 의 HTTP 를 하는 유일한 곳 (fred_series · kosis_series)
   assets/              ← 동봉 데이터 파일 (imf_cache.pkl.gz 등)
   rest.py / stream.py / client.py   ← provider 인프라 (kis 처럼 필요할 때만)
 ```
@@ -86,21 +87,25 @@ gainers/losers/most_actives 를, yahoo `insider_trading.py` 는 거래·보유·
 아니라 **출처**로 갈린 규칙이라 처음 보는 사람이 예측할 수 없었다(`bls`는 `models/`인데
 `fred`는 최상위인 이유를 코드만 봐서는 알 수 없다). 한 provider가 양쪽을 동시에 쓰는 일도 생겼다.
 
-## 1-0. 흐름 — OpenBB 처럼 "범용 series fetcher + 지표 모델 조합"
+## 1-0. 흐름 — HTTP 헬퍼 + 지표 모델
 
-시계열 API(fred · kosis …)는 OpenBB `openbb_fred` 와 같은 흐름을 따른다:
+시계열 API(fred · kosis …)와 여러 모델이 같은 원천을 쓰는 provider(sec 공시 목록 · 13F 기관 목록)는 이 흐름을 따른다:
 
 ```
 지표 모델 (cpi · mining_manufacturing_index …)
   transform_query   자기 파라미터 검증 (category · measure · 기간)
   aextract_data     helpers 의 코드 맵으로 series_id/통계표 코드를 만든 뒤
-                    await <P>SeriesFetcher.fetch_data(dict(...), credentials)     ← HTTP 는 여기 안에서만
+                    await <p>_series(dict(...), credentials)     ← utils/series.py 의 HTTP 헬퍼 (다른 fetcher 를 부르지 않는다)
   transform_data    지표에 맞게 정규화 (category 키 · 단위 환산 · yoy/mom) → AnnotatedResult(result, metadata)
 ```
 
-- **HTTP · 오류 코드 · 호출 간격(Semaphore + sleep) · 로그는 범용 series fetcher 한 곳**에 둔다 (`api/fred/models/generic_series.py`, `api/kosis/models/series.py`).
-  helper 클래스에 HTTP 를 두지 않는다 — 원본 해석(시점 문자열 · 콤마 · 통계부호 · 전각 단위)이 지표마다 중복되기 때문.
-- 여러 계열은 범용 fetcher 가 한 번에 받는다 (fred: `series_id="A,B"` 병렬 요청 · kosis: 코드 `'+'` 로 이어 요청 1번).
+- **HTTP · 오류 코드 · 호출 간격(Semaphore + sleep) · 로그 · 원본 해석은 provider 의 HTTP 헬퍼 한 곳**에 둔다
+  (`api/fred/utils/series.py` 의 `fred_series`, `api/kosis/utils/series.py` 의 `kosis_series`,
+  `api/sec/utils/filings.py` 의 `sec_company_filings`, `api/sec/utils/institutions.py` 의 `sec_institutions`).
+  범용 series fetcher 도 지표 모델도 이 헬퍼를 부른다. **fetcher 안에서 다른 fetcher(`XFetcher.fetch_data`)를 부르지 않는다**
+  — `tests/test_module_boundaries.py` 가 실패시킨다 (허용 목록 `SERIES_COMPOSITION` 은 비었다).
+  헬퍼는 모델 클래스를 함수 안에서 import 한다 (models → utils 순환 import 방지).
+- 여러 계열은 헬퍼가 한 번에 받는다 (fred: `series_id="A,B"` 병렬 요청 · kosis: 코드 `'+'` 로 이어 요청 1번).
 - 빈 결과는 `EmptyDataError` 대신 빈 목록 — 게이트웨이가 예외를 400 으로 바꿔 위젯이 '오류'를 띄우므로 (OpenBB 와 다른 점).
 - 안쪽 호출은 QueryExecutor 를 거치지 않는다 — 캐시 · 서킷브레이커는 바깥 지표 모델 단위로 걸린다.
 - 테스트는 `data_fetcher.utils.provider_helpers.amake_json_request` 한 곳을 대체하면 전 경로가 검증된다 (`tests/test_kosis_provider.py`).
@@ -279,7 +284,7 @@ PYTHONPATH="MarketpulseFetcher" python -c "import data_fetcher.providers_init; f
 - [ ] standard model(신규 시) + `__init__.py` export
 - [ ] provider fetcher: 표준 상속 + TET + 제네릭 subscript
 - [ ] 같은 category 내 입력 필드명 통일
-- [ ] 시계열 API면 범용 series fetcher 한 곳에서만 HTTP, 지표 모델은 그걸 조합 (§1-0) · utils/helpers.py 는 HTTP 없음
+- [ ] 시계열 API면 HTTP 는 utils/series.py 헬퍼 한 곳, 지표 모델은 헬퍼를 조합 — 다른 fetcher 를 부르지 않는다 (§1-0) · utils/helpers.py 는 HTTP 없음
 - [ ] `providers/api/<p>/__init__.py`(DB 는 `providers/db/__init__.py`) 의 `Provider(...)` fetcher_dict + (신규 provider) providers_init `PROVIDERS` 등록 (+ 취약 import는 fail-soft)
 - [ ] TTL / 라우트(`?provider=` 노출) + **새 라우트면 `api/routers.py` 등록** / widgetEndpoints + urlWidgetMap
 - [ ] 지연 import·자산 파일 → spec 반영 (hiddenimports / datas)

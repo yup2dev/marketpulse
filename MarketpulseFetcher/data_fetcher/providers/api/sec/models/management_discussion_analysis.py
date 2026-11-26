@@ -73,7 +73,7 @@ class SecManagementDiscussionAnalysisFetcher(
         from aiohttp_client_cache.session import CachedSession
         from data_fetcher.utils.provider_settings import get_user_cache_directory
         from data_fetcher.utils.provider_helpers import amake_request
-        from data_fetcher.providers.api.sec.models.company_filings import SecCompanyFilingsFetcher
+        from data_fetcher.providers.api.sec.utils.filings import sec_company_filings
         from data_fetcher.providers.api.sec.utils.helpers import SEC_HEADERS, sec_callback
         from pandas import offsets, to_datetime
 
@@ -121,7 +121,7 @@ class SecManagementDiscussionAnalysisFetcher(
         if (
             query.symbol == "BLK" and query.calendar_year and query.calendar_year < 2025
         ) or query.symbol.isnumeric():
-            filings = await SecCompanyFilingsFetcher.fetch_data(
+            filings = await sec_company_filings(
                 {
                     "cik": "0001364742" if query.symbol == "BLK" else query.symbol,
                     "form_type": _form_types,
@@ -131,7 +131,7 @@ class SecManagementDiscussionAnalysisFetcher(
             )
 
         else:
-            filings = await SecCompanyFilingsFetcher.fetch_data(
+            filings = await sec_company_filings(
                 {
                     "symbol": query.symbol,
                     "form_type": _form_types,
@@ -166,7 +166,7 @@ class SecManagementDiscussionAnalysisFetcher(
             # may be older than a 6-K that contains quarterly MD&A.
             # Check whether a newer 6-K with an MD&A exhibit exists.
             if target_filing and _is_foreign_issuer:
-                _6k_recent = await SecCompanyFilingsFetcher.fetch_data(
+                _6k_recent = await sec_company_filings(
                     {
                         "symbol": query.symbol if not query.symbol.isnumeric() else "",
                         "cik": query.symbol if query.symbol.isnumeric() else "",
@@ -269,7 +269,7 @@ class SecManagementDiscussionAnalysisFetcher(
             # the latest 10-K/10-Q.  This covers the gap between
             # the earnings announcement and the formal 10-K/Q filing.
             if target_filing and not _is_foreign_issuer:
-                _8k_recent = await SecCompanyFilingsFetcher.fetch_data(
+                _8k_recent = await sec_company_filings(
                     {
                         "symbol": query.symbol if not query.symbol.isnumeric() else "",
                         "cik": query.symbol if query.symbol.isnumeric() else "",
@@ -426,7 +426,7 @@ class SecManagementDiscussionAnalysisFetcher(
             and calendar_year
             and calendar_period
         ):
-            _6k_filings = await SecCompanyFilingsFetcher.fetch_data(
+            _6k_filings = await sec_company_filings(
                 {
                     "symbol": query.symbol if not query.symbol.isnumeric() else "",
                     "cik": query.symbol if query.symbol.isnumeric() else "",
@@ -527,7 +527,7 @@ class SecManagementDiscussionAnalysisFetcher(
             and calendar_year
             and calendar_period
         ):
-            _8k_filings = await SecCompanyFilingsFetcher.fetch_data(
+            _8k_filings = await sec_company_filings(
                 {
                     "symbol": query.symbol if not query.symbol.isnumeric() else "",
                     "cik": query.symbol if query.symbol.isnumeric() else "",

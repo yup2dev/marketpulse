@@ -42,7 +42,7 @@ data_fetcher/
 │   └── db/                  # 중앙 DB provider (이름 "db") — api/<p>/ 와 같은 구성
 │   (provider 폴더 구성)
 │   ├── __init__.py          # <p>_provider = Provider(...) 정의 (OpenBB openbb_<p>/__init__.py 와 같음)
-│   ├── models/<model>.py    # model fetcher (예외 없이 여기). 시계열 API면 series.py 가 HTTP 하는 유일한 곳
+│   ├── models/<model>.py    # model fetcher (예외 없이 여기)
 │   ├── utils/helpers.py     # 상수 · 코드 맵 · 순수 함수 (HTTP 없음)
 │   └── assets/              # 동봉 데이터 파일
 ├── core/                    # model_schema(위젯 폼 스키마), warnings — 웹 계층(OBBject · Router 등)은 app/backend/platform/
@@ -72,18 +72,19 @@ class FMPThingFetcher(ApiFetcher[FMPThingQueryParams, FMPThingData]):
 `QueryParams`/`Data`는 `standard_models/<model>.py`를 상속한다. 등록은 `providers/api/<p>/__init__.py`(DB 는 `providers/db/__init__.py`) 의
 `Provider(...)` fetcher_dict (새 provider 면 `providers_init.py` 의 `PROVIDERS` 에도).
 
-## 흐름 — OpenBB 식 (fred · kosis 적용)
+## 흐름 — HTTP 헬퍼 + 지표 모델 (fred · kosis · sec 적용)
 
 ```
 지표 모델 (cpi · mining_manufacturing_index …)
-  aextract_data   helpers 코드 맵 → await <P>SeriesFetcher.fetch_data(dict(...), credentials)   ← HTTP 는 여기 안에서만
+  aextract_data   helpers 코드 맵 → await <p>_series(dict(...), credentials)   ← utils/series.py HTTP 헬퍼 (다른 fetcher 를 부르지 않는다)
   transform_data  지표 정규화 (category 키 · 단위 · yoy/mom) → AnnotatedResult(result, metadata)
 라우트 · 서비스
   OBBject.from_result(raw, provider)   응답 (AnnotatedResult 풀기 · metadata 보존 · 직렬화)
   OBBject.unwrap(raw) / metadata_of    모델 객체 그대로 계산할 때
 ```
 
-- HTTP · 오류 코드 · 호출 간격(Semaphore + sleep) · 로그는 범용 series fetcher 한 곳 (`fred/models/generic_series.py`, `kosis/models/series.py`).
+- HTTP · 오류 코드 · 호출 간격(Semaphore + sleep) · 로그는 provider 의 HTTP 헬퍼 한 곳 (`fred/utils/series.py`, `kosis/utils/series.py`,
+  `sec/utils/filings.py` · `sec/utils/institutions.py`). 범용 series fetcher 와 지표 모델이 모두 그걸 쓴다.
 - `utils/helpers.py` 에는 HTTP 를 두지 않는다 (OpenBB `fred_helpers.py` 처럼 상수 · 코드 맵 · 순수 함수).
 - 라우트 · 서비스 · provider 는 `isinstance(raw, AnnotatedResult)` 를 직접 쓰지 않는다 — `tests/test_response_envelope.py` 가 막는다.
 

@@ -21,10 +21,9 @@ def date_to_quarter_end(date: str) -> str:
 async def get_13f_candidates(symbol: str | None = None, cik: str | None = None):
     """Get the 13F-HR filings for a given symbol or CIK."""
     # pylint: disable=import-outside-toplevel
-    from data_fetcher.providers.api.sec.models.company_filings import SecCompanyFilingsFetcher
+    from data_fetcher.providers.api.sec.utils.filings import sec_company_filings
     from pandas import DataFrame, to_datetime
 
-    fetcher = SecCompanyFilingsFetcher()
     params: dict[str, Any] = {}
     if cik is not None:
         params["cik"] = str(cik)
@@ -35,7 +34,7 @@ async def get_13f_candidates(symbol: str | None = None, cik: str | None = None):
 
     params["use_cache"] = False
     params["form_type"] = "13F-HR"
-    filings = await fetcher.fetch_data(params, {})
+    filings = await sec_company_filings(params, {})
     filings = [d.model_dump() for d in filings]  # type: ignore
     if len(filings) == 0:
         raise OpenBBError(f"No 13F-HR filings found for {symbol if symbol else cik}.")

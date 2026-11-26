@@ -82,20 +82,9 @@ def test_common_package_is_gone():
 PROVIDERS_DIR = ROOT / "MarketpulseFetcher/data_fetcher/providers"
 COMMANDS_DIR = ROOT / "MarketpulseWeb/app/backend/commands"
 
-# KOSIS series 같은 같은 provider 의 기본 fetcher 를 재사용하는 fetcher.
-# fred 는 utils/series.fred_series() HTTP 헬퍼로 바꿔 목록에서 지웠다. 남은 것도 같은 방식으로 정리한다.
-# (sec 의 filings 목록 · 기관 목록 재사용도 같은 방식으로 정리한다)
-SERIES_COMPOSITION = {
-    "api/kosis/models/capacity_utilization.py",
-    "api/kosis/models/ict_exports.py",
-    "api/kosis/models/mining_manufacturing_index.py",
-    "api/kosis/models/product_trade.py",
-    "api/sec/models/insider_trading.py",          # sec/utils/form4 를 거쳐 filings 목록
-    "api/sec/models/institutional_13f.py",
-    "api/sec/models/management_discussion_analysis.py",
-    "api/sec/utils/form4.py",
-    "api/sec/utils/parse_13f.py",
-}
+# 같은 provider 의 기본 fetcher 를 재사용하던 fetcher — 비었다. fred · kosis · sec 는 HTTP 를 provider 의
+# utils 헬퍼(fred_series · kosis_series · sec_company_filings · sec_institutions)로 옮겼다. 새로 넣지 않는다.
+SERIES_COMPOSITION: set = set()
 
 # fetcher 안에서 분석(파생 지표 · 점수 · 여러 모델 조합)을 하던 것 — 비었다 (#105).
 # fred 분석 13개 → commands/regime · inflation · labor · market_conditions, polygon 뉴스 감성 → news_sentiment,

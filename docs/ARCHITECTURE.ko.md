@@ -80,8 +80,8 @@ README 의 요약판에서 다루지 않은 동작 규칙·분기 조건·운영
 
 `tests/test_module_boundaries.py` 가 검사한다 — fetcher 안에서 `QueryExecutor` 나 다른 fetcher 를 부르면 실패,
 command 가 provider 이름을 문자열로 쓰거나 `data_fetcher.providers` 를 import 하면 실패. 이 규칙 이전의 위반은
-테스트 안 허용 목록 두 개(`SERIES_COMPOSITION` — HTTP 헬퍼로 바꿀 것, `ANALYSIS_TO_COMMAND` — command · 배치로
-옮길 것)에 있고, 목록은 줄기만 한다 (정리됐는데 남아 있으면 실패).
+테스트 안 허용 목록 두 개(`SERIES_COMPOSITION` · `ANALYSIS_TO_COMMAND`)에 있었고 둘 다 비었다 — 같은 원천을 여러 모델이
+쓰면 provider 의 HTTP 헬퍼(`utils/series.py` 등)를 부른다. 목록은 줄기만 한다 (새로 넣지 않는다).
 
 ### 분기 처리 — 어디서 실행되는가
 
