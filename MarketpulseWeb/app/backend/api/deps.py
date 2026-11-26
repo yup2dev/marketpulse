@@ -10,10 +10,14 @@ API Route Utilities
     async def my_endpoint(...):
         return await service.do_something(...)
 
-처리 규칙:
-    - HTTPException          → 그대로 재전달 (의도적인 404/400 등)
-    - ValueError             → 400 Bad Request
-    - 그 외 Exception        → 500 Internal Server Error + 로깅 (exc_info=True)
+처리 규칙 — 모든 오류 응답은 {detail, code, provider?} (exception_response):
+    - HTTPException          → 그 상태 그대로 + code (404 not_found · 400 bad_param …)
+    - ValueError             → 400 bad_param
+    - EmptyDataError         → 200 + 빈 results + warnings (오류가 아니다)
+    - 키 미등록              → 424 missing_key
+    - PC Fetcher             → 503 fetcher_offline · fetcher_timeout · fetcher_outdated / 서킷 503 circuit_open
+    - 외부 API               → 402 upstream_subscription · 429 upstream_limit · 502 upstream_denied · upstream_error
+    - 그 외 Exception        → 500 internal_error + 로깅 (exc_info=True)
 """
 import asyncio
 import logging
@@ -24,7 +28,9 @@ from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 
 from data_fetcher.query_executor import QueryExecutorError
+from data_fetcher.utils.provider_errors import EmptyDataError, UnauthorizedError
 from app.backend.core.execution import MissingCredentialsError, RemoteUnavailableError
+from app.backend.core.execution.errors import FetcherOutdatedError, FetcherTimeoutError
 from app.backend.core.execution.circuit_breaker import CircuitBreakerOpen
 from data_fetcher.utils.http_client import HTTPClientError
 
@@ -114,57 +120,91 @@ def _find_cause(e: Exception, types: tuple) -> Exception | None:
     return None
 
 
+# ── 오류 응답 — 모든 오류는 {detail, code, provider?} ─────────────────────────────
+# 위젯은 code 로 분기한다 (code 가 없던 시절의 응답은 status 로 — 프론트 common/widget/helpers.js).
+# 401 · 403 은 provider 오류에 쓰지 않는다: apiClient 가 그 둘을 세션 만료로 보고 refresh · 로그아웃한다.
+
+_HTTP_CODES = {400: "bad_param", 403: "forbidden", 404: "not_found", 409: "conflict", 422: "bad_param"}
+
+
+def error_response(status: int, code: str, detail: Any, provider: str | None = None,
+                   headers: dict | None = None) -> JSONResponse:
+    body: dict = {"detail": detail, "code": code}
+    if provider:
+        body["provider"] = provider
+    return JSONResponse(status_code=status, content=body, headers=headers)
+
+
 def missing_key_response(err: MissingCredentialsError) -> JSONResponse:
-    """사용자 키 미등록 → 424 + code/provider. 프론트는 이 code로 '키 등록' 안내를 띄운다.
-
-    401/403 을 쓰지 않는 이유: apiClient 가 그 둘을 세션 만료로 보고 refresh·로그아웃한다.
-    """
-    return JSONResponse(
-        status_code=424,
-        content={"detail": str(err), "code": "missing_key", "provider": err.provider},
-    )
+    """사용자 키 미등록 → 424 + code/provider. 프론트는 이 code로 '키 등록' 안내를 띄운다."""
+    return error_response(424, "missing_key", str(err), provider=err.provider)
 
 
-def _query_executor_response(e: Exception, log, name: str):
-    """QueryExecutorError 계열 → 간결한 로그(트레이스백 X) + 적절한 상태코드. 해당 없으면 None."""
+def empty_response(err: Exception) -> JSONResponse:
+    """조회는 됐고 결과가 없다 — 오류가 아니다. 200 + 빈 results + warnings (OBBject 모양)."""
+    message = getattr(err, "message", None) or str(err) or "No results found."
+    return JSONResponse(status_code=200, content={"results": [], "provider": None, "warnings": [message],
+                                                  "metadata": {}})
+
+
+def _upstream_response(err: HTTPClientError) -> JSONResponse:
+    sc = getattr(err, "status_code", None)
+    if sc == 402:
+        return error_response(402, "upstream_subscription", "API subscription required for this data source")
+    if sc == 429:
+        return error_response(429, "upstream_limit", "External API rate limit exceeded")
+    if sc in (401, 403):
+        return error_response(502, "upstream_denied", "External API access denied — check the API key and plan")
+    return error_response(502, "upstream_error", str(err))
+
+
+def exception_response(e: Exception, log, name: str) -> JSONResponse:
+    """라우트에서 올라온 예외 → 오류 응답 한 곳. 코드표는 docs/ARCHITECTURE.ko.md '오류 응답'."""
+    if isinstance(e, HTTPException):                       # 라우트가 일부러 던진 404 · 400 등
+        return error_response(e.status_code, _HTTP_CODES.get(e.status_code, "error"), e.detail,
+                              headers=getattr(e, "headers", None))
+    if isinstance(e, ValueError):
+        return error_response(400, "bad_param", str(e))
+
+    empty = _find_cause(e, (EmptyDataError,))
+    if empty is not None:
+        log.info(f"[{name}] empty: {empty}")
+        return empty_response(empty)
     missing = _find_cause(e, (MissingCredentialsError,))
     if missing is not None:
         log.info(f"[{name}] {missing}")
         return missing_key_response(missing)
-    # 원격(Fetcher/워커) 미가용 → 503
-    unavailable = _find_cause(e, (RemoteUnavailableError,))
-    if unavailable is not None:
-        log.warning(f"[{name}] {unavailable}")
-        return JSONResponse(status_code=503, content={"detail": str(unavailable)})
-    # 그 외 조회 오류(자격증명 누락·provider/model 오류 등) → 간결 로그 + 502
+    cb_err = _find_cause(e, (CircuitBreakerOpen,))
+    if cb_err is not None:
+        log.warning(f"[{name}] {e}")
+        return error_response(503, "circuit_open", str(cb_err), provider=getattr(cb_err, "provider", None),
+                              headers={"Retry-After": str(int(cb_err.retry_after) + 1)})
+    for exc_type, code in ((FetcherOutdatedError, "fetcher_outdated"), (FetcherTimeoutError, "fetcher_timeout"),
+                           (RemoteUnavailableError, "fetcher_offline")):
+        remote = _find_cause(e, (exc_type,))
+        if remote is not None:
+            log.warning(f"[{name}] {remote}")
+            return error_response(503, code, str(remote))
+    http_err = _find_cause(e, (HTTPClientError,))
+    if http_err is not None:
+        log.warning(f"[{name}] external API error: {e}")
+        return _upstream_response(http_err)
+    denied = _find_cause(e, (UnauthorizedError,))
+    if denied is not None:
+        log.warning(f"[{name}] external API denied: {denied}")
+        return error_response(502, "upstream_denied", str(denied))
     qe = _find_cause(e, (QueryExecutorError,))
     if qe is not None:
         log.warning(f"[{name}] {qe}")
-        return JSONResponse(status_code=502, content={"detail": str(qe)})
-    return None
-
-
-def _http_client_response(e: Exception):
-    """HTTPClientError → 외부 API 에러에 맞는 JSONResponse 반환. 해당 없으면 None."""
-    err = e if isinstance(e, HTTPClientError) else (
-        e.__cause__ if isinstance(e.__cause__, HTTPClientError) else None
-    )
-    if err is None:
-        return None
-    sc = getattr(err, 'status_code', None)
-    if sc == 402:
-        return JSONResponse(status_code=402, content={"detail": "API subscription required for this data source"})
-    if sc == 429:
-        return JSONResponse(status_code=429, content={"detail": "External API rate limit exceeded"})
-    if sc in (401, 403):
-        return JSONResponse(status_code=403, content={"detail": "External API access denied"})
-    return JSONResponse(status_code=502, content={"detail": str(err)})
+        return error_response(502, "upstream_error", str(qe))
+    log.error(f"[{name}] {e}", exc_info=True)
+    return error_response(500, "internal_error", str(e))
 
 
 def route_handler(func):
     """
     라우트 핸들러에 공통 에러 처리를 적용하는 데코레이터.
-    async / sync 함수 모두 지원합니다.
+    async / sync 함수 모두 지원합니다. 예외는 exception_response 가 {detail, code} 응답으로 바꾼다.
     """
     log = logging.getLogger(func.__module__)
 
@@ -173,59 +213,14 @@ def route_handler(func):
         async def async_wrapper(*args, **kwargs):
             try:
                 return await func(*args, **kwargs)
-            except HTTPException:
-                raise
-            except ValueError as e:
-                raise HTTPException(status_code=400, detail=str(e))
-            except Exception as e:
-                cb_err = e if isinstance(e, CircuitBreakerOpen) else (
-                    e.__cause__ if isinstance(e.__cause__, CircuitBreakerOpen) else None
-                )
-                if cb_err is not None:
-                    log.warning(f"[{func.__name__}] {e}")
-                    return JSONResponse(
-                        status_code=503,
-                        content={"detail": str(cb_err)},
-                        headers={"Retry-After": str(int(cb_err.retry_after) + 1)},
-                    )
-                http_resp = _http_client_response(e)
-                if http_resp is not None:
-                    log.warning(f"[{func.__name__}] external API error: {e}")
-                    return http_resp
-                qe_resp = _query_executor_response(e, log, func.__name__)
-                if qe_resp is not None:
-                    return qe_resp
-                log.error(f"[{func.__name__}] {e}", exc_info=True)
-                raise HTTPException(status_code=500, detail=str(e))
+            except Exception as e:  # noqa: BLE001 — 전부 응답으로 바꾼다
+                return exception_response(e, log, func.__name__)
         return async_wrapper
 
-    else:
-        @wraps(func)
-        def sync_wrapper(*args, **kwargs):
-            try:
-                return func(*args, **kwargs)
-            except HTTPException:
-                raise
-            except ValueError as e:
-                raise HTTPException(status_code=400, detail=str(e))
-            except Exception as e:
-                cb_err = e if isinstance(e, CircuitBreakerOpen) else (
-                    e.__cause__ if isinstance(e.__cause__, CircuitBreakerOpen) else None
-                )
-                if cb_err is not None:
-                    log.warning(f"[{func.__name__}] {e}")
-                    return JSONResponse(
-                        status_code=503,
-                        content={"detail": str(cb_err)},
-                        headers={"Retry-After": str(int(cb_err.retry_after) + 1)},
-                    )
-                http_resp = _http_client_response(e)
-                if http_resp is not None:
-                    log.warning(f"[{func.__name__}] external API error: {e}")
-                    return http_resp
-                qe_resp = _query_executor_response(e, log, func.__name__)
-                if qe_resp is not None:
-                    return qe_resp
-                log.error(f"[{func.__name__}] {e}", exc_info=True)
-                raise HTTPException(status_code=500, detail=str(e))
-        return sync_wrapper
+    @wraps(func)
+    def sync_wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:  # noqa: BLE001
+            return exception_response(e, log, func.__name__)
+    return sync_wrapper

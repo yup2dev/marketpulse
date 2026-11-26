@@ -10,6 +10,7 @@ import json
 from typing import Any, Dict, List, Optional, Tuple
 
 from data_fetcher.query_executor import QueryExecutor, QueryExecutorError
+from data_fetcher.utils.provider_errors import EmptyDataError
 from data_fetcher.server.cache import MemoryCache
 
 _executor = QueryExecutor()
@@ -35,7 +36,15 @@ def _ensure_local(provider: str, model: str) -> None:
 
 
 async def run(provider: str, model: str, params: Optional[Dict[str, Any]] = None, ttl: Optional[int] = None) -> Any:
+    """조회 결과. 결과가 비면(EmptyDataError) 빈 목록 — 오류로 보내면 서버에서 '조회 실패'가 된다."""
     _ensure_local(provider, model)
+    try:
+        return await _run(provider, model, params, ttl)
+    except EmptyDataError:
+        return []
+
+
+async def _run(provider: str, model: str, params: Optional[Dict[str, Any]], ttl: Optional[int]) -> Any:
     params = dict(params or {})
     if not ttl or ttl <= 0:
         return await _executor.execute(provider, model, params)

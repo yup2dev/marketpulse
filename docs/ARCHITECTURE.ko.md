@@ -110,19 +110,27 @@ local fetcher 를 배포 없이 서버로 돌리는 **긴급 전환**만 담는�
 | `true` | `true` | **운영 구성.** 사용자 PC 의 Fetcher 가 `/ws/fetcher` 로 먼저 접속(outbound)해 워커풀에 합류하고, 서버는 그 연결로 요청을 내려보낸다. NAT·방화벽 뒤 PC 도 된다 |
 | `true` | `false` | 서버가 `FETCHER_URL`(기본 `http://127.0.0.1:8765`)의 Fetcher REST `/fetch` 를 호출. 서버와 Fetcher 가 같은 PC 에 있을 때 |
 
-**실패했을 때 프론트가 받는 것** — 위젯은 `stateFromError()` 로 안내 화면을 고른다:
+**오류 응답** — 모든 오류는 `{detail, code, provider?}` 이고, 한 곳(`api/deps.exception_response`, `route_handler`)에서
+만든다. 위젯은 `code` 로 안내 화면을 고른다 (`stateFromError()` · `errorMessage()`). `code` 가 없는 옛 응답만 HTTP 상태로 본다.
 
-| 상황 | 응답 | 위젯 표시 |
-|------|------|-----------|
-| 사용자가 그 provider 의 키를 등록하지 않음 | `424` + `code: "missing_key"`, `provider` | "키 등록" 안내 (`/settings`) |
-| Fetcher 워커 미접속·타임아웃 / 13F 파싱 모델을 서버에서 호출 | `503` | "Fetcher 실행" 안내 |
-| 서킷브레이커 OPEN (stale 값도 없음) | `503` + `Retry-After` | 〃 |
-| 토큰 만료·미인증 | `401` | refresh 시도 → 실패 시 `/login` |
-| 그 밖의 조회 오류 | `502` (외부 API 오류는 그 상태코드에 맞춰 변환) | 오류 메시지 |
+| code | HTTP | 언제 | 위젯 표시 |
+|------|------|------|-----------|
+| (세션) | `401` | access token 만료·무효 — 세션 인증 전용 | refresh 시도 → 실패 시 `/login` |
+| `missing_key` | `424` (+ `provider`) | 사용자가 그 provider 의 키를 등록하지 않음 | "키 등록" 안내 (`/settings`) |
+| (빈 결과) | `200` | `EmptyDataError` — 조회는 됐고 결과 없음. `results: []` + `warnings` | 빈 상태 |
+| `fetcher_offline` | `503` | local fetcher 인데 그 사용자의 Fetcher 미접속 · 로그인 없음 | "Fetcher 실행" 안내 |
+| `fetcher_timeout` | `503` | Fetcher 가 제한 시간 안에 응답하지 않음 | 지연 안내 + 재시도 |
+| `fetcher_outdated` | `503` | Fetcher exe 가 이 (provider, model) 을 실행할 수 없는 버전 (hello 기준) | 업데이트 안내 |
+| `circuit_open` | `503` + `Retry-After` | provider 서킷브레이커 OPEN (stale 값도 없음) | 잠시 후 재시도 |
+| `upstream_denied` | `502` | 외부 API 가 401·403 으로 거부 (키·권한) | 키·권한 확인 안내 |
+| `upstream_subscription` | `402` | 외부 API 구독 필요 | 구독 필요 안내 |
+| `upstream_limit` | `429` | 외부 API 호출 한도 초과 | 잠시 후 재시도 |
+| `upstream_error` | `502` | 그 밖의 외부 · 조회 오류 | 오류 메시지 |
+| `bad_param` · `not_found` | `400` · `404` | 잘못된 파라미터 / 없는 provider · model | 오류 메시지 |
+| `internal_error` | `500` | 예상하지 못한 오류 (로그에 traceback) | 오류 메시지 |
 
-키 미등록에 401/403 을 쓰지 않는 이유는 `apiClient` 가 그 둘을 세션 만료로 보고 로그아웃시키기 때문이다.
-범용 게이트웨이(`/api/data/*`)는 "그 밖의 조회 오류"만 `404`(provider·model 없음) / `400` 으로 내려주고,
-424·503 은 전용 라우트와 같다.
+401·403 을 provider 오류에 쓰지 않는 이유는 `apiClient` 가 그 둘을 세션 만료로 보고 refresh · 로그아웃시키기 때문이다
+(외부 API 의 401·403 은 `502 upstream_denied` 로 바꾼다). PC Fetcher 에서 결과가 비면 오류가 아니라 빈 목록을 보낸다.
 
 **provider 를 고르는 분기**도 있다. 같은 지표를 여러 provider 가 제공하면(`/api/concepts/{concept}`),
 그 국가를 지원하는 구현 중 사용자가 쓸 수 있는 것(무키이거나 키 등록됨)을 순서대로 고른다. 전부 키가 없으면

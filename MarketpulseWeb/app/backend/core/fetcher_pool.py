@@ -40,6 +40,10 @@ class FetcherWorkerUnavailable(FetcherPoolError):
     """해당 사용자의 워커 없음 / 응답 시간 초과 / 연결 끊김 → 503 (폴백 없음)."""
 
 
+class FetcherWorkerTimeout(FetcherWorkerUnavailable):
+    """워커가 제한 시간 안에 응답하지 않음 → 503 (미접속과 구분)."""
+
+
 class FetcherWorkerOutdated(FetcherWorkerUnavailable):
     """워커는 있으나 요청한 fetcher 를 실행할 수 없는 버전 — exe 업데이트 필요 (503)."""
 
@@ -179,7 +183,7 @@ class FetcherWorkerPool:
             return await asyncio.wait_for(fut, timeout=timeout)
         except asyncio.TimeoutError as exc:
             worker.pending.pop(req_id, None)
-            raise FetcherWorkerUnavailable("Fetcher 워커 응답 시간 초과") from exc
+            raise FetcherWorkerTimeout("Fetcher 워커 응답 시간 초과") from exc
 
     async def fetch(
         self,

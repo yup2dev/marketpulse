@@ -21,7 +21,7 @@ import httpx
 
 from data_fetcher.abstract_provider.abstract.annotated_result import AnnotatedResult
 from data_fetcher.query_executor import QueryExecutorError
-from app.backend.core.execution.errors import RemoteUnavailableError
+from app.backend.core.execution.errors import FetcherTimeoutError, RemoteUnavailableError
 
 log = logging.getLogger(__name__)
 
@@ -84,6 +84,8 @@ class FetcherClient:
         }
         try:
             resp = await self._client.post("/fetch", json=payload)
+        except httpx.TimeoutException as exc:
+            raise FetcherTimeoutError(f"Fetcher 응답 시간 초과 ({provider}:{model})") from exc
         except httpx.RequestError as exc:
             # 연결 실패는 '원격 미가용' — route_handler가 503으로 간결히 처리(트레이스백 X)
             raise RemoteUnavailableError(

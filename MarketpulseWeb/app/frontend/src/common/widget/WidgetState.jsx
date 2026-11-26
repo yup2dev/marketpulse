@@ -7,19 +7,23 @@
  *   empty        결과 0건 (조건을 바꾸면 나올 수 있음)
  *   error        요청 실패 — message 는 사람이 읽을 문장만, 내부 주소는 숨긴다
  *   missing-key  provider API 키 미등록 → /settings
- *   fetcher-off  로컬 Fetcher 가 꺼져 있음 (서버 503)
+ *   fetcher-off       로컬 Fetcher 가 꺼져 있음 (503 fetcher_offline)
+ *   fetcher-slow      로컬 Fetcher 응답 시간 초과 (503 fetcher_timeout) — 재시도
+ *   fetcher-outdated  로컬 Fetcher 가 이 데이터를 실행할 수 없는 버전 (503 fetcher_outdated) — 업데이트
  *   idle         아직 실행 전 (예: 'Run backtest' 를 누르기 전)
  *
  * 오류 객체를 kind 로 바꾸는 건 helpers.js 의 stateFromError() — 위젯은 이걸 거쳐 넘긴다.
  */
 import { Link } from 'react-router-dom';
-import { AlertTriangle, Inbox, KeyRound, PlugZap, MousePointerClick } from 'lucide-react';
+import { AlertTriangle, Download, Hourglass, Inbox, KeyRound, PlugZap, MousePointerClick } from 'lucide-react';
 
 const KINDS = {
   empty:         { Icon: Inbox,             tone: 'text-gray-500',  title: 'No data' },
   error:         { Icon: AlertTriangle,     tone: 'text-red-400',   title: 'Could not load data' },
   'missing-key': { Icon: KeyRound,          tone: 'text-amber-400', title: 'API key needed' },
   'fetcher-off': { Icon: PlugZap,           tone: 'text-amber-400', title: 'Fetcher is not running' },
+  'fetcher-slow': { Icon: Hourglass,        tone: 'text-amber-400', title: 'Fetcher is not responding' },
+  'fetcher-outdated': { Icon: Download,     tone: 'text-amber-400', title: 'Fetcher update needed' },
   idle:          { Icon: MousePointerClick, tone: 'text-gray-500',  title: 'Nothing to show yet' },
 };
 
@@ -62,6 +66,12 @@ export default function WidgetState({
   }
   if (kind === 'fetcher-off') {
     body = body || 'Start the MarketPulse Fetcher on this PC, then retry.';
+  }
+  if (kind === 'fetcher-slow') {
+    body = body || 'The Fetcher on this PC took too long. Retry in a moment.';
+  }
+  if (kind === 'fetcher-outdated') {
+    body = body || 'Update the MarketPulse Fetcher on this PC to load this data.';
   }
 
   return (

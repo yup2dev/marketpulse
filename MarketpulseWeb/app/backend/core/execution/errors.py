@@ -23,3 +23,7 @@ class FetcherOutdatedError(RemoteUnavailableError):
 
     hello 의 fetchers 에 없거나 메시지 프로토콜 버전이 다를 때. 서버 직접 실행으로 넘기지 않는다.
     """
+
+
+class FetcherTimeoutError(RemoteUnavailableError):
+    """사용자 PC Fetcher 가 제한 시간 안에 응답하지 않음 (503 fetcher_timeout — 미접속과 구분해 재시도 안내)."""

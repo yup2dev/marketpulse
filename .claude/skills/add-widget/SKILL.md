@@ -59,6 +59,7 @@ description: 대시보드 위젯을 추가/수정할 때 사용. widgetEndpoints
 규칙:
 - **endpoint는 두 종류**: 전용 라우트(`/stock/…/{symbol}`) 또는 범용 게이트웨이(`/data/<provider>/<model>?period={period}`). 게이트웨이면 백엔드 코드 0줄.
 - **`category`를 지정하면** UniversalWidget이 `/api/providers`에서 그 category 지원 provider를 조회해 2개 이상일 때 헤더 셀렉터를 띄우고 `?provider=`를 주입한다. 기본 provider 자동선택은 ① db ② 키 설정됨 ③ 서버 부하 낮음 순 (`PROVIDER_LOAD`).
+- **오류 계약**: 오류 응답은 `{detail, code, provider?}` — 안내 화면은 `stateFromError(err)`, 문구는 `errorMessage(err)` (code 로 분기). 빈 결과는 오류가 아니라 200 + 빈 `results` + `warnings`.
 - **응답 계약**: 프론트는 항상 OBBject `res.results`로 읽고 **`apiClient`** 사용. 옛 `.data` 참조·생 `fetch()`가 "조용한 빈 위젯"의 단골 원인.
 
 ## B. 동적 위젯 — 등록 없이
@@ -101,7 +102,7 @@ API fetch 이외의 상태(portfolioData 등)가 필요할 때만:
 | 켜고 끄는 필터 | `ChipToggle` |
 | 드롭다운 | `Select` (브라우저 기본 `<select>` 금지) |
 | 기간 | `PeriodSelect` + `periods.js` 프리셋 — 기간 목록을 위젯에 직접 적지 않는다. 표기 `1D 1W 1M … 10Y` |
-| 로딩·0건·오류·키 없음·Fetcher 꺼짐 | `BaseWidget state={stateFromError(err)}` 또는 `<WidgetState kind=… />` |
+| 로딩·0건·오류·키 없음·Fetcher 꺼짐·응답 지연·업데이트 필요 | `BaseWidget state={stateFromError(err)}` 또는 `<WidgetState kind=… />` — 서버 오류 `code`(missing_key · fetcher_offline · fetcher_timeout · fetcher_outdated …)로 고른다. 위젯에서 `err.status` 로 직접 분기하지 않는다 |
 | 폼 입력칸 | `ParamField` |
 | 보기 전환(표/차트형) | `BaseWidget view/viewOptions/onViewChange` + `buildViewOptions()` |
 
