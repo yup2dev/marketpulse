@@ -146,7 +146,7 @@ class Collector(ABC):
         """수집 대상 (예: KR이면 [KOSPI, KOSDAQ] 시장 파라미터)."""
 
     async def fetch(self, t: TargetDTO) -> list[RawDataDTO]:   # 공통 — QueryExecutor 위임
-        return await QueryExecutor.fetch(self.provider, self.model, t.params)  # creds 불필요(무료)
+        return await QueryExecutor().execute(self.provider, self.model, t.params)  # creds 불필요(무료)
 
     @abstractmethod
     def store(self, index_cd: str, rows: list[RawDataDTO]) -> StoreResult:
@@ -162,7 +162,7 @@ class Collector(ABC):
 [scheduler] universe_kr_job (매일 새벽)
   → KRUniverseCollector.run()
       targets() : [ {market:"KOSPI"}, {market:"KOSDAQ"} ]
-      fetch()   : QueryExecutor.fetch("krx", "listing", {market})        (무료, 키 없음)
+      fetch()   : QueryExecutor().execute("krx", "listing", {market})    (무료, 키 없음)
       store()   : repository.upsert(MBS_IN_STBD_MST, MBS_IN_INDX_MEMBER) (bulk, batch_id)
   → 폐지 종목은 is_current=False / is_active=False 처리(소프트 만료)
 ──────────────────────────────────────────────────────────────────────
@@ -213,7 +213,7 @@ IN(크롤) ──▶ stream:new_articles ──▶ PROC(감정·티커추출·�
 [frontend] GET /api/stock/AAPL/quote
 [backend]
    creds = decrypt(UserApiKey[user, "fmp"])
-   result = await QueryExecutor.fetch("fmp", "quote", {"symbol":"AAPL"}, credentials=creds)
+   result = await QueryExecutor().execute("fmp", "quote", {"symbol":"AAPL"}, credentials=creds)
             │
             ├─ [1] qe:fmp:quote:{"symbol":"AAPL"}  Fresh HIT → 즉시 반환 (외부 0회)
             ├─ [2] Stale HIT → 즉시 반환 + 백그라운드 SWR 갱신

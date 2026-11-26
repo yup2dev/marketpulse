@@ -10,7 +10,7 @@ provider가 달라도 같은 `category`(model)는 **동일 standard model을 상
 UniversalWidget의 provider 셀렉터가 shape-safe하게 동작한다.
 
 ```
-요청 → QueryExecutor.fetch(provider, model, params)
+요청 → (웹 서버) ServerExecutor.fetch → 실행 위치 표(data_model_routes) → 서버면 QueryExecutor().execute(provider, model, params)
         └→ ProviderRegistry.get(provider).fetcher_dict[model]
             └→ Fetcher.fetch_data():
                  transform_query(params)  → ProviderQueryParams (← 표준 QueryParams 상속)
@@ -228,7 +228,7 @@ model별 TTL(초). 실시간 60 / 반-신선 300~600 / 일일 1800~3600. 같은 
 ## 6. 라우트 + 프론트 위젯
 
 - 기본: 게이트웨이 `GET /api/data/<provider>/<category>?param=…` — 무코드. provider별 파라미터 폼은 `/api/data/{provider}/{model}/schema`가 자동 생성.
-- 전용 라우트가 필요하면 `MarketpulseWeb/app/backend/api/routes/<area>.py`에서 `QueryExecutor.fetch(...)` 호출 + **`provider: str = "<default>"` 쿼리 파라미터 노출**.
+- 전용 라우트가 필요하면 `MarketpulseWeb/app/backend/api/routes/<area>.py`에서 `ServerExecutor.fetch(...)`(app.backend.core.execution) 호출 + **`provider: str = "<default>"` 쿼리 파라미터 노출**.
 - **새 라우트 파일을 만들었으면 `MarketpulseWeb/app/backend/api/routers.py`의 `register_routers()`에 `include_router` 를 추가한다.** 빠뜨리면 그 엔드포인트는 조용히 404가 되고 보통 프론트에서야 발견된다 — `tests/test_app_boot.py`가 이걸 잡으므로 `pytest` 로 먼저 확인할 수 있다. (등록 지점은 `main.py`가 아니다. main.py는 조립만 한다.)
 - **인증 게이트는 deny-by-default다**(`MarketpulseWeb/app/backend/core/middleware/auth_gate.py`). `/api/` 아래 새 경로는 자동으로 Bearer 토큰을 요구하므로 별도 조치가 필요 없다. 반대로 **공개가 필요하면 그 파일의 `PUBLIC_PATHS`/`PUBLIC_PREFIXES`에 명시해야 한다** — 무심코 `/api/` 밖(루트)에 엔드포인트를 달면 `test_app_boot.py`가 실패한다(과거 무인증 노출 사고의 재발 방지).
 - `widgetEndpoints.js`에 위젯 추가(`category` 지정 시 provider 셀렉터 자동) + `urlWidgetMap.js` 화면 등록.
@@ -276,3 +276,10 @@ PYTHONPATH="MarketpulseFetcher" python -c "import data_fetcher.providers_init; f
 - [ ] TTL / 라우트(`?provider=` 노출) + **새 라우트면 `api/routers.py` 등록** / widgetEndpoints + urlWidgetMap
 - [ ] 지연 import·자산 파일 → spec 반영 (hiddenimports / datas)
 - [ ] §8 검증 통과
+
+## 실행 위치 (로컬 전용 / 서버)
+
+fetcher 에 "어디서 실행되는지"를 적지 않는다 (OpenBB 처럼 fetcher 는 모른다). 새 (provider, model) 은 웹 서버가 기동할 때
+DB 표 `data_model_routes` 에 행이 생긴다 — 같은 provider 의 다른 행이 모두 로컬 전용이면 Y, 아니면 N.
+서버 IP 에서 막히는 스크래핑 · 메모리를 많이 쓰는 파싱이면 관리자 API `PUT /api/admin/data-routes/{provider}/{model}`
+`{"local": true}` 로 로컬 전용으로 바꾼다 (사용자 PC Fetcher 로 위임, 꺼져 있으면 503).
