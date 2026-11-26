@@ -304,4 +304,23 @@ def find_broken_widgets(db: Session) -> dict:
         if problems:
             out.append({"widget_id": w.widget_id, "user_id": w.user_id, "name": w.name,
                         "provider": w.provider, "model": w.model, "problems": problems})
+
+    # 기본 제공 위젯 — endpoint 가 데이터 API(/data/{provider}/{model})를 가리키면 그 API 가 아직 있는지.
+    # (응답 필드는 transform 이 다듬은 뒤의 이름이라 카탈로그와 대조하지 않는다. 출처 해석: widget_sources)
+    from app.backend.services.widget_sources import DATA_ENDPOINT, PROVIDER_SLOT, endpoint_sources
+
+    builtins = (db.query(UserWidget).filter(UserWidget.user_id.is_(None), UserWidget.endpoint.isnot(None))
+                .order_by(UserWidget.widget_id.asc()).all())
+    for w in builtins:
+        m = DATA_ENDPOINT.match(w.endpoint.strip())
+        if not m:
+            continue
+        provider, model = m.group(1), m.group(2)
+        wanted = endpoint_sources(w.endpoint) if provider == PROVIDER_SLOT else {(provider, model)}
+        live = [pair for pair in wanted if pairs.get(pair) == "Y"]
+        if not live:
+            out.append({"widget_id": w.widget_id, "user_id": None, "name": w.name,
+                        "provider": provider, "model": model,
+                        "problems": [{"kind": "api", "name": f"{provider}/{model}", "level": "error",
+                                      "reason": "기본 위젯 endpoint 의 데이터 API 가 카탈로그에 없음"}]})
     return {"synced": True, "widgets": out}

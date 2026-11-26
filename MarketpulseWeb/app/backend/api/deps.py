@@ -17,6 +17,7 @@ API Route Utilities
     - 키 미등록              → 424 missing_key
     - PC Fetcher             → 503 fetcher_offline · fetcher_timeout · fetcher_outdated / 서킷 503 circuit_open
     - 외부 API               → 402 upstream_subscription · 429 upstream_limit · 502 upstream_denied · upstream_error
+    - 위젯에 없는 데이터 API → 404 api_not_registered (WIDGET_API_GATE=enforce 일 때)
     - 그 외 Exception        → 500 internal_error + 로깅 (exc_info=True)
 """
 import asyncio
@@ -31,6 +32,7 @@ from data_fetcher.query_executor import QueryExecutorError
 from data_fetcher.utils.provider_errors import EmptyDataError, UnauthorizedError
 from app.backend.core.execution import MissingCredentialsError, RemoteUnavailableError
 from app.backend.core.execution.errors import FetcherOutdatedError, FetcherTimeoutError
+from app.backend.services.widget_sources import ApiNotRegisteredError
 from app.backend.core.execution.circuit_breaker import CircuitBreakerOpen
 from data_fetcher.utils.http_client import HTTPClientError
 
@@ -165,6 +167,8 @@ def exception_response(e: Exception, log, name: str) -> JSONResponse:
                               headers=getattr(e, "headers", None))
     if isinstance(e, ValueError):
         return error_response(400, "bad_param", str(e))
+    if isinstance(e, ApiNotRegisteredError):              # 위젯에 등록되지 않은 데이터 API (WIDGET_API_GATE=enforce)
+        return error_response(404, "api_not_registered", str(e))
 
     empty = _find_cause(e, (EmptyDataError,))
     if empty is not None:
