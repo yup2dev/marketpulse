@@ -31,10 +31,10 @@ async def _load_from_db() -> List[Dict]:
     Fetcher 실패 시 정적 fallback 유니버스로 대체.
     """
     try:
-        from data_fetcher.query_executor import QueryExecutor
+        from app.backend.core.execution import ServerExecutor
         from data_fetcher.core.obbject import OBBject
         
-        raw = await QueryExecutor.fetch(
+        raw = await ServerExecutor.fetch(
             provider="db",
             model="stock_list",
             params={"active_only": True},

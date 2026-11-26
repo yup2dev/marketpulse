@@ -27,7 +27,7 @@ async def maybe_coroutine(func, **kwargs):
 
     동기 extract_data(requests·yfinance·pykrx·SQLite 등)를 이벤트 루프에서 바로 부르면
     호출이 끝날 때까지 같은 루프의 모든 요청이 멈춘다(웹 서버에서 치명적).
-    asyncio.to_thread는 contextvars를 복사하므로 current_user_id 등은 그대로 전달된다.
+    asyncio.to_thread는 contextvars를 복사하므로 부르는 쪽이 넣어 둔 요청 범위 값은 그대로 전달된다.
     """
     if inspect.iscoroutinefunction(func):
         return await func(**kwargs)

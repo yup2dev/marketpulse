@@ -66,9 +66,13 @@ async def lifespan(app: FastAPI):
     await get_symbol_cache().ensure_loaded()
 
     from app.backend.core.cache import cache
-    from data_fetcher.query_executor import QueryExecutor
+    from app.backend.core.execution import ServerExecutor
+    from app.backend.core.execution import routes as exec_routes
     await cache.init(redis_url=settings.REDIS_URL if settings.QUEUE_ENABLED else None)
     fetcher_client = _build_fetcher_client()
+
+    # 실행 위치 표(data_model_routes) — 등록된 (provider, model) 행을 맞추고 메모리로 읽는다
+    await asyncio.to_thread(exec_routes.sync_and_load)
 
     # key-only provider(Class B)를 서버에서 '요청 사용자의 키'로 호출하기 위한 해석기.
     # current_user_id별로 DB에 저장된 사용자 키를 복호화해 반환한다.
@@ -76,10 +80,9 @@ async def lifespan(app: FastAPI):
         from app.backend.services.user_key_service import get_credentials
         return get_credentials(user_id, provider)
 
-    # server_mode: 13F 원본 파싱 모델(_local_only_models)을 이 서버 프로세스에서 실행하지 않는다.
-    QueryExecutor.configure(
+    ServerExecutor.configure(
         cache=cache, remote=fetcher_client, credential_resolver=_credential_resolver,
-        server_mode=True,
+        cache_local_results=settings.EXEC_CACHE_LOCAL_RESULTS,
     )
 
     # ── Redis Pub/Sub (멀티워커 WS fan-out) ──────────────────────────────────

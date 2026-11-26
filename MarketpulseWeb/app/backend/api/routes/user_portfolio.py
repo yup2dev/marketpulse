@@ -13,8 +13,7 @@ from app.backend.core.db import get_db
 from app.backend.core.auth.dependencies import get_current_active_user
 from app.backend.api.deps import filter_dated_rows, resolve_date_range, route_handler
 from app.backend.services.user_portfolio_service import UserPortfolioService
-from data_fetcher.query_executor import QueryExecutor
-from data_fetcher.query_executor import QueryExecutor
+from app.backend.core.execution import ServerExecutor, fetch_blocking
 from data_fetcher.core.obbject import OBBject
 from app.backend.models.orm import User
 
@@ -339,7 +338,7 @@ def get_portfolio_summary(
     base = (summary.get("currency") or "USD").upper()
     target = (currency or base).upper()
     if target != base:
-        rows = QueryExecutor.fetch_sync("db", "fx_rate", {"base": base, "quote": target})
+        rows = fetch_blocking("db", "fx_rate", {"base": base, "quote": target})
         if not rows:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -439,7 +438,7 @@ async def get_price_at_date(
     start = (target_date - timedelta(days=7)).strftime('%Y-%m-%d')
     end   = (target_date + timedelta(days=2)).strftime('%Y-%m-%d')
 
-    raw = await QueryExecutor.fetch("yahoo", "stock_price", {
+    raw = await ServerExecutor.fetch("yahoo", "stock_price", {
         "symbol": ticker, "start_date": start, "end_date": end, "interval": "1d",
     })
     history = OBBject.unwrap(raw) or []
@@ -499,7 +498,7 @@ async def refresh_holding_prices(
 
     async def fetch_price(ticker):
         try:
-            raw = await QueryExecutor.fetch("yahoo", "quote", {"symbol": ticker})
+            raw = await ServerExecutor.fetch("yahoo", "quote", {"symbol": ticker})
             items = OBBject.unwrap(raw) or []
             if not items:
                 return (ticker, None, None)

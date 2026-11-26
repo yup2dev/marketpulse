@@ -10,7 +10,7 @@ import uuid
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from app.backend.models.orm import Watchlist, WatchlistItem
-from app.backend.services._base import rows_sync
+from app.backend.core.execution import rows_blocking
 
 
 class WatchlistService:
@@ -255,7 +255,7 @@ class WatchlistService:
 
         # 종목 기본 정보 — 종목 마스터 (db provider stock_list)
         codes = sorted({i.ticker_cd for i in items if i.ticker_cd})
-        masters = ({m.ticker_cd: m for m in rows_sync("db", "stock_list", symbols=",".join(codes), active_only=False)}
+        masters = ({m.ticker_cd: m for m in rows_blocking("db", "stock_list", symbols=",".join(codes), active_only=False)}
                    if codes else {})
         result = []
         for item in items:

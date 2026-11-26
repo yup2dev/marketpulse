@@ -211,8 +211,9 @@ async def fetch_concept(
     provider: Optional[str] = None,
     is_available: Callable[[str], bool] = lambda p: True,
 ) -> Dict[str, Any]:
-    """개념 시계열 조회. 반환: {rows, provider, concept, country, candidates}."""
-    from data_fetcher.query_executor import QueryExecutor
+    """개념 시계열 조회. 반환: {rows, provider, concept, country, candidates}.
+    조회는 app 계층의 Query 로 — 어떤 실행기(서버 · 로컬)가 받을지는 ProviderInterface 가 정한다."""
+    from data_fetcher.core.query import Query
 
     concept = CONCEPTS.get(concept_id)
     if concept is None:
@@ -229,7 +230,7 @@ async def fetch_concept(
     params["start_date"] = (_shift_year(start) if impl.yoy else start).isoformat()
     params["end_date"] = end.isoformat()
 
-    raw = await QueryExecutor.fetch(impl.provider, impl.model, params)
+    raw = await Query(_model=impl.model, provider=impl.provider, **params).execute()
     lo, hi = start.isoformat(), end.isoformat()
     rows = [r for r in normalize(impl, raw) if lo <= r["date"] <= hi]
     return {

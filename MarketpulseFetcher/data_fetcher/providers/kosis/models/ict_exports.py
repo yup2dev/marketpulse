@@ -14,7 +14,7 @@ from data_fetcher.abstract_provider.standard_models.kosis_series import (
     KosisSeriesData,
     KosisSeriesQueryParams,
 )
-from data_fetcher.core.obbject import OBBject
+from data_fetcher.abstract_provider.abstract.annotated_result import metadata_of_result, unwrap_result
 from data_fetcher.providers.kosis.models.series import KOSISSeriesFetcher
 from data_fetcher.providers.kosis.utils.helpers import (
     ICT_EXPORTS_CATEGORIES,
@@ -91,7 +91,7 @@ class KOSISIctExportsFetcher(ApiFetcher[KOSISIctExportsQueryParams, KOSISIctExpo
             end_date=query.end_date,
         )
         temp = await KOSISSeriesFetcher.fetch_data(item_query, credentials)
-        return {"data": [d.model_dump() for d in OBBject.unwrap(temp)], "metadata": OBBject.metadata_of(temp)}
+        return {"data": [d.model_dump() for d in unwrap_result(temp)], "metadata": metadata_of_result(temp)}
 
     @staticmethod
     def transform_data(

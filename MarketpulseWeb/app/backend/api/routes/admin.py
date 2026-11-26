@@ -20,6 +20,8 @@
     DELETE /api/admin/widget-types/{type_code}          쓰는 위젯이 있으면 409
     POST   /api/admin/data-catalog/sync                 데이터 카탈로그를 Fetcher 등록 정보와 다시 맞춤
     GET    /api/admin/data-catalog/broken-widgets       빠진 API · 필드 · 파라미터를 쓰는 위젯
+    GET    /api/admin/data-routes                       (provider, model) 실행 위치 Y/N 목록
+    PUT    /api/admin/data-routes/{provider}/{model}    실행 위치 바꾸기 {local: true|false}
     GET    /api/admin/monitor/{dataset}                 운영 모니터링 (/admin 화면 위젯)
            summary · system · traffic · endpoints · inflight · slow
 """
@@ -61,13 +63,13 @@ async def cache_refresh_stocks():
 
 @router.get("/circuit-breakers", summary="provider 서킷브레이커 상태 조회")
 async def circuit_breaker_stats():
-    from data_fetcher.utils.circuit_breaker import all_stats
+    from app.backend.core.execution.circuit_breaker import all_stats
     return all_stats()
 
 
 @router.post("/circuit-breakers/{provider}/reset", summary="서킷브레이커 수동 리셋")
 async def circuit_breaker_reset(provider: str):
-    from data_fetcher.utils.circuit_breaker import reset
+    from app.backend.core.execution.circuit_breaker import reset
     reset(provider)
     return {"status": "reset", "provider": provider}
 
@@ -167,3 +169,35 @@ def sync_data_catalog(db: Session = Depends(get_db)):
 def broken_widgets(db: Session = Depends(get_db)):
     from app.backend.services.data_catalog import find_broken_widgets
     return find_broken_widgets(db)
+
+
+# ── 실행 위치 (data_model_routes) ─────────────────────────────────────────────
+# (provider, model) 를 사용자 PC Fetcher 에서만 돌릴지(Y) 서버에서 돌릴지(N). 바꾸면 바로 적용된다 (메모리도 함께).
+
+class RouteBody(BaseModel):
+    local: bool = Field(description="True = 로컬 전용 (PC Fetcher 위임), False = 서버 실행")
+
+
+@router.get("/data-routes", summary="실행 위치 목록")
+def list_data_routes(provider: Optional[str] = None, db: Session = Depends(get_db)):
+    from app.backend.models.orm import DataModelRoute
+
+    q = db.query(DataModelRoute)
+    if provider:
+        q = q.filter(DataModelRoute.provider == provider)
+    return [
+        {"provider": r.provider, "model": r.model, "local_yn": r.local_yn,
+         "updated_at": r.updated_at.isoformat() if r.updated_at else None, "updated_by": r.updated_by}
+        for r in q.order_by(DataModelRoute.provider, DataModelRoute.model)
+    ]
+
+
+@router.put("/data-routes/{provider}/{model}", summary="실행 위치 바꾸기")
+def set_data_route(provider: str, model: str, body: RouteBody, db: Session = Depends(get_db),
+                   admin=Depends(require_admin)):
+    from app.backend.core.execution import routes
+
+    if (provider, model) not in set(routes.registered_pairs()):
+        raise HTTPException(status_code=404, detail=f"'{provider}/{model}' 는 등록된 fetcher 가 아니다")
+    routes.set_route(db, provider, model, body.local, user_id=str(getattr(admin, "user_id", "")) or None)
+    return {"provider": provider, "model": model, "local_yn": "Y" if body.local else "N"}

@@ -5,7 +5,7 @@
 **서버 전체가 멈춘다.** `def` 로 두면 FastAPI 가 스레드풀에서 돌려 루프를 막지 않는다.
 
 전환에서 실제로 깨질 수 있는 지점은 딱 하나다 — **contextvar 전파**.
-AuthGateMiddleware 가 `current_user_id` contextvar 를 설정하고, QueryExecutor 가
+AuthGateMiddleware 가 `current_user_id` contextvar 를 설정하고, ServerExecutor 가
 그 값으로 '이 사용자의 Fetcher 워커'에 위임한다. 스레드풀로 넘어가면서 값이 사라지면
 데이터 조회가 조용히 user_id=None 으로 떨어진다. 그래서 여기서 명시적으로 검증한다.
 """
@@ -119,9 +119,9 @@ def test_notes_endpoint_works(auth_client):
 def test_user_context_survives_threadpool(auth_client):
     """`def` 핸들러(스레드풀)에서도 current_user_id 가 보여야 한다.
 
-    사라지면 QueryExecutor 가 사용자 Fetcher 워커로 위임하지 못하고 조용히 실패한다.
+    사라지면 ServerExecutor 가 사용자 Fetcher 워커로 위임하지 못하고 조용히 실패한다.
     """
-    from data_fetcher.query_executor import current_user_id
+    from app.backend.core.execution.context import current_user_id
 
     client, user_id = auth_client
     seen = {}

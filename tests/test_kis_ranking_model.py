@@ -8,7 +8,7 @@ from data_fetcher.abstract_provider.standard_models.stock_ranking import (
     StockRankingQueryParams,
 )
 from data_fetcher.providers.kis.models import ranking as kis
-from data_fetcher.query_executor import QueryExecutor
+from app.backend.core.execution import ServerExecutor
 
 ROW = {"stk_cd": "005930", "stk_nm": "삼성전자", "curr": "KRW", "sector": "",
        "close_price": 71000.0, "change_rate": 2.31, "volume": 1234567, "trade_value": 8.7e10}
@@ -55,10 +55,10 @@ async def test_fetch_via_query_executor(monkeypatch):
         return [ROW]
 
     monkeypatch.setattr(kis, "fetch_kis_ranking", fake)
-    monkeypatch.setattr(QueryExecutor, "_cache", _NoCache())
-    monkeypatch.setattr(QueryExecutor, "_inflight", {})
-    monkeypatch.setattr(QueryExecutor, "_swr_pending", set())
-    raw = await QueryExecutor.fetch("kis", "ranking", {"sort_by": "losers", "limit": 5},
+    monkeypatch.setattr(ServerExecutor, "_cache", _NoCache())
+    monkeypatch.setattr(ServerExecutor, "_inflight", {})
+    monkeypatch.setattr(ServerExecutor, "_swr_pending", set())
+    raw = await ServerExecutor.fetch("kis", "ranking", {"sort_by": "losers", "limit": 5},
                                     credentials={"appkey": "a", "appsecret": "s"})
     rows = getattr(raw, "result", raw)
     assert rows[0].stk_cd == "005930"

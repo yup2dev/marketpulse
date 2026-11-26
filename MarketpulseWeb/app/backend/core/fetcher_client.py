@@ -3,9 +3,9 @@ FetcherClient — 배포 WebServer(app.backend) → 로컬 Fetcher(exe) REST 위
 
 데이터 흐름:  Frontend ──▶ Backend ──▶ Fetcher(exe) `/fetch` ──▶ 외부 provider
 
-QueryExecutor에 RemoteTransport로 주입된다. 캐시 MISS 시 백엔드가 provider를
+실행 계층(core/execution.ServerExecutor)에 RemoteTransport로 주입된다. 캐시 MISS 시 백엔드가 provider를
 직접 호출하는 대신 이 클라이언트가 Fetcher REST `/fetch`로 조회를 넘긴다.
-캐시/SWR/single-flight는 백엔드 QueryExecutor에 그대로 남는다.
+캐시/SWR/single-flight는 백엔드 실행 계층에 그대로 남는다.
 
 Fetcher 응답({data, metadata})의 각 행은 DotDict로 복원해, Pydantic 모델을
 받던 기존 서비스 코드(`item.symbol` / `item['symbol']`)가 그대로 동작하게 한다.
@@ -20,7 +20,8 @@ from typing import Any, Dict, List, Optional
 import httpx
 
 from data_fetcher.abstract_provider.abstract.annotated_result import AnnotatedResult
-from data_fetcher.query_executor import QueryExecutorError, RemoteUnavailableError
+from data_fetcher.query_executor import QueryExecutorError
+from app.backend.core.execution.errors import RemoteUnavailableError
 
 log = logging.getLogger(__name__)
 
@@ -79,7 +80,7 @@ class FetcherClient:
             "provider": provider,
             "model": model,
             "params": _json_safe(params),  # date/datetime/Decimal → str/float
-            "ttl": 0,  # QueryExecutor가 이미 캐싱 — Fetcher 측 중복 방지
+            "ttl": 0,  # 서버 실행 계층이 이미 캐싱 — Fetcher 측 중복 방지
         }
         try:
             resp = await self._client.post("/fetch", json=payload)

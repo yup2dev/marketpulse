@@ -42,8 +42,8 @@ def test_filter_uses_requested_key_and_sorts_newest_first():
 
 @pytest.fixture
 def gateway(auth_client, monkeypatch):
-    """게이트웨이 /api/data 를 가짜 QueryExecutor 로 — (client, 받은 파라미터, 돌려줄 행)."""
-    from data_fetcher.query_executor import QueryExecutor
+    """게이트웨이 /api/data 를 가짜 ServerExecutor 로 — (client, 받은 파라미터, 돌려줄 행)."""
+    from app.backend.core.execution import ServerExecutor
     client, _ = auth_client
     box = {"seen": {}, "rows": []}
 
@@ -51,7 +51,7 @@ def gateway(auth_client, monkeypatch):
         box["seen"] = dict(params, _provider=provider, _model=model)
         return box["rows"](params) if callable(box["rows"]) else box["rows"]
 
-    monkeypatch.setattr(QueryExecutor, "fetch", fake_fetch)
+    monkeypatch.setattr(ServerExecutor, "fetch", fake_fetch)
     return client, box
 
 
@@ -139,7 +139,7 @@ def test_fund_performance_period_maps_to_quarters(monkeypatch):
         seen["quarters"] = params["quarters"]
         return _quarterly_rows("period", params["quarters"])
 
-    monkeypatch.setattr(portfolio.QueryExecutor, "fetch", fake_fetch)
+    monkeypatch.setattr(portfolio.ServerExecutor, "fetch", fake_fetch)
     obb = asyncio.run(portfolio.get_fund_performance("berkshire", period="3y"))
     assert seen["quarters"] == 13
     assert all(r["period"] >= period_start("3y") for r in obb.results)

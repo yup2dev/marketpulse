@@ -238,7 +238,7 @@ async def _build_kis_exchange_map() -> Dict[str, str]:
     해외 종목 구독 키(DNASAAPL) 생성에 필요. 국내 종목은 불필요."""
     try:
         from app.backend.commands.stock.universe import get_stock_list
-        from app.backend.services._base import to_quote_symbol
+        from app.backend.commands._base import to_quote_symbol
         stocks = await get_stock_list()
     except Exception as e:
         log.warning("[ws] KIS exchange_map 구성 실패: %s", e)

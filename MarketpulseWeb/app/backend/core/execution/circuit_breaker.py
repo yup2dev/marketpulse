@@ -8,7 +8,7 @@ Provider별 서킷브레이커
 
 설계 원칙:
     - 순수 asyncio (외부 의존 없음)
-    - data_fetcher 레이어에 위치 — app.backend를 import하지 않음
+    - 서버 실행 계층(core/execution)의 일 — fetcher 패키지는 서킷브레이커를 모른다 (OpenBB 와 같다)
     - provider 이름을 키로 하는 프로세스 전역 레지스트리
 
 사용법:

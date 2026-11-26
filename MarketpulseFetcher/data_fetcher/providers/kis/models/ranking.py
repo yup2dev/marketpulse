@@ -147,8 +147,8 @@ def _normalize(o: Dict[str, Any]) -> Dict[str, Any]:
 
 
 # ── QueryExecutor provider 진입점 ───────────────────────────────────────────────
-# 백엔드(WebServer)는 RemoteTransport로 'kis' 조회를 Fetcher(exe)에 위임하고,
-# Fetcher가 보유한 자격증명(appkey/appsecret)으로 실제 KIS REST를 호출한다.
+# 자격증명(appkey/appsecret)은 실행하는 쪽이 넘긴다 — 서버면 사용자/운영자 키, PC Fetcher 면 그 PC 의 키.
+# 어디서 실행할지는 이 fetcher 가 모른다 (웹 서버의 실행 위치 표 data_model_routes 가 정한다).
 
 class KISRankingQueryParams(StockRankingQueryParams):
     """KIS 실시간 순위 파라미터 — 기간은 당일(period='1d') 고정, 정렬은 KIS 서버가 한다."""

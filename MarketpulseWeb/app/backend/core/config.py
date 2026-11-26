@@ -95,10 +95,10 @@ class Settings(BaseSettings):
     QUEUE_ENABLED: bool = False
     SCHEDULER_ENABLED: bool = False
 
-    # Fetcher(exe) 위임 — 서버에서 돌리면 안 되는 조회(yahoo, 13F 원본 파싱 모델)만 Fetcher로 넘긴다.
-    # 나머지(키 기반·무키 API·DB·계산)는 설정과 무관하게 서버가 직접 호출한다.
-    # 대상 목록: QueryExecutor._remote_only_providers / _local_only_models
-    FETCHER_REMOTE_ENABLED: bool = True              # False면 위임 없이 서버가 yahoo까지 직접 호출
+    # Fetcher(exe) 위임 — 로컬 전용(local_yn=Y)인 (provider, model) 만 사용자 PC Fetcher 로 넘긴다.
+    # 어느 조회가 로컬 전용인지는 DB 표 data_model_routes 가 정한다 (core/execution/routes.py).
+    FETCHER_REMOTE_ENABLED: bool = True              # False면 위임 없이 모두 서버에서 (개발 PC 한 대)
+    EXEC_CACHE_LOCAL_RESULTS: bool = True            # 로컬 전용 조회 결과도 서버 캐시에 둔다 (사용자 구분 없는 키)
     FETCHER_URL: str = "http://127.0.0.1:8765"        # Fetcher REST 주소 (HTTP/pull 모드)
     FETCHER_TOKEN: str = ""                            # Fetcher와 공유하는 인증 토큰
     FETCHER_TIMEOUT: float = 90.0   # batch_quotes 등 수백 종목 일괄 조회는 30s를 초과할 수 있음

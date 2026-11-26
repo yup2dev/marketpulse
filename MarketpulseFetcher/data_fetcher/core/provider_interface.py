@@ -5,6 +5,9 @@ OpenBB 와 같은 나눔:
   - extra 파라미터    : provider 별 QueryParams 가 더 선언한 칸 — 그 provider 를 골랐을 때만 넘긴다 (Query 가 거른다)
 
 모델 키는 OpenBB 의 표준 모델 이름 대신 provider fetcher_dict 키(yield_curve · series …)를 쓴다.
+
+create_executor() — Query 가 조회를 맡길 실행기 (OpenBB 와 같은 자리). 기본은 순수 QueryExecutor.
+웹 서버는 기동할 때 set_executor 로 자기 실행 계층(캐시 · 실행 위치 · 사용자 키)을 끼운다 — 이 패키지는 그걸 모른다.
 """
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -45,8 +48,25 @@ def _standard_type(qp: Type[BaseModel]) -> Type[BaseModel]:
     return qp
 
 
+_executor = None   # set_executor 로 끼운 실행기 — execute(provider_name, model_name, params, credentials, **kw)
+
+
 class ProviderInterface:
     """모델 → provider 목록 · 표준/추가 파라미터. 등록이 끝난 뒤 처음 물을 때 만들고 캐시한다."""
+
+    @staticmethod
+    def create_executor():
+        """Query 가 쓸 실행기 (OpenBB ProviderInterface.create_executor)."""
+        if _executor is not None:
+            return _executor
+        from data_fetcher.query_executor import QueryExecutor
+        return QueryExecutor()
+
+    @staticmethod
+    def set_executor(executor) -> None:
+        """실행기를 바꿔 끼운다 — None 이면 순수 QueryExecutor 로."""
+        global _executor
+        _executor = executor
 
     @staticmethod
     @lru_cache(maxsize=None)

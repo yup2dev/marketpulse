@@ -14,7 +14,7 @@ from fastapi import HTTPException
 from app.backend.api.deps import filter_dated_rows, period_start
 from app.backend.commands.portfolio.performance import rebase_cumulative
 
-from data_fetcher.query_executor import QueryExecutor
+from app.backend.core.execution import ServerExecutor
 
 log = logging.getLogger(__name__)
 router = Router()
@@ -22,7 +22,7 @@ router = Router()
 
 async def _db_rows(model: str, params: Dict[str, Any]) -> List[Dict[str, Any]]:
     """db provider 조회 → 직렬화된 행."""
-    raw = await QueryExecutor.fetch("db", model, {k: v for k, v in params.items() if v is not None})
+    raw = await ServerExecutor.fetch("db", model, {k: v for k, v in params.items() if v is not None})
     return OBBject.from_result(raw, "db").results
 
 

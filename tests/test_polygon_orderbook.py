@@ -1,9 +1,9 @@
-"""polygon:orderbook — 호가 집계 · snapshot 폴백 · QueryExecutor 경유(사용자 키) 확인."""
+"""polygon:orderbook — 호가 집계 · snapshot 폴백 · ServerExecutor 경유(사용자 키) 확인."""
 import pytest
 
 import data_fetcher.providers_init  # noqa: F401 — provider 등록
 from data_fetcher.providers.polygon.models import orderbook as ob
-from data_fetcher.query_executor import QueryExecutor
+from app.backend.core.execution import ServerExecutor
 
 QUOTES = [  # 최신순
     {"bid_price": 100.004, "bid_size": 3, "ask_price": 100.02, "ask_size": 5},
@@ -49,9 +49,9 @@ def http(monkeypatch):
             return snapshot
 
         monkeypatch.setattr(ob, "amake_request", fake)
-        monkeypatch.setattr(QueryExecutor, "_cache", _NoCache())
-        monkeypatch.setattr(QueryExecutor, "_inflight", {})
-        monkeypatch.setattr(QueryExecutor, "_swr_pending", set())
+        monkeypatch.setattr(ServerExecutor, "_cache", _NoCache())
+        monkeypatch.setattr(ServerExecutor, "_inflight", {})
+        monkeypatch.setattr(ServerExecutor, "_swr_pending", set())
         return calls
 
     return _setup
@@ -60,7 +60,7 @@ def http(monkeypatch):
 @pytest.mark.asyncio
 async def test_fetch_via_query_executor_uses_given_key(http):
     calls = http(quotes_resp={"results": QUOTES})
-    raw = await QueryExecutor.fetch("polygon", "orderbook", {"symbol": "aapl"},
+    raw = await ServerExecutor.fetch("polygon", "orderbook", {"symbol": "aapl"},
                                     credentials={"api_key": "user-key"})
     row = getattr(raw, "result", raw)[0]
     assert row.symbol == "AAPL" and row.source == "quotes"
@@ -72,7 +72,7 @@ async def test_fetch_via_query_executor_uses_given_key(http):
 async def test_falls_back_to_snapshot(http):
     calls = http(quotes_exc=RuntimeError("403 not authorized"),
                  snapshot={"ticker": {"lastQuote": {"p": 5.0, "s": 1, "P": 5.1, "S": 2}}})
-    raw = await QueryExecutor.fetch("polygon", "orderbook", {"symbol": "XYZ"},
+    raw = await ServerExecutor.fetch("polygon", "orderbook", {"symbol": "XYZ"},
                                     credentials={"api_key": "k"})
     row = getattr(raw, "result", raw)[0]
     assert row.source == "snapshot" and row.best_ask == 5.1
@@ -89,12 +89,12 @@ def test_route_uses_user_key_not_operator_env(auth_client, monkeypatch):
         return {"results": QUOTES}
 
     monkeypatch.setattr(ob, "amake_request", fake)
-    monkeypatch.setattr(QueryExecutor, "_cache", _NoCache())
-    monkeypatch.setattr(QueryExecutor, "_inflight", {})
-    monkeypatch.setattr(QueryExecutor, "_swr_pending", set())
+    monkeypatch.setattr(ServerExecutor, "_cache", _NoCache())
+    monkeypatch.setattr(ServerExecutor, "_inflight", {})
+    monkeypatch.setattr(ServerExecutor, "_swr_pending", set())
     monkeypatch.setenv("POLYGON_API_KEY", "OPERATOR")
     keys = {}
-    monkeypatch.setattr(QueryExecutor, "_credential_resolver",
+    monkeypatch.setattr(ServerExecutor, "_credential_resolver",
                         staticmethod(lambda provider, uid: keys.get(uid)))
 
     res = client.get("/api/data/polygon/orderbook?symbol=aapl")

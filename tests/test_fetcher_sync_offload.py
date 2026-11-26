@@ -8,7 +8,7 @@ import pytest
 from data_fetcher.abstract_provider.abstract.base_fetchers import ApiFetcher
 from data_fetcher.abstract_provider.abstract.data import BaseData
 from data_fetcher.abstract_provider.abstract.query_params import BaseQueryParams
-from data_fetcher.query_executor import current_user_id
+from app.backend.core.execution.context import current_user_id
 
 
 class _Q(BaseQueryParams):

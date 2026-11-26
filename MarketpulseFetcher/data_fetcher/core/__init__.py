@@ -7,14 +7,13 @@ from data_fetcher.core.obbject import OBBject
 from data_fetcher.core.query import Query, _command_model
 from data_fetcher.core.command_runner import CommandRunner, Fetch
 from data_fetcher.core.provider_interface import ProviderInterface
-from data_fetcher.core.router import CommandRouter, Router
+from data_fetcher.core.router import Router
 from data_fetcher.core.warnings import WarningsCollector, add_warning
 
 __all__ = [
     "OBBject",
     "Query",
     "Router",
-    "CommandRouter",
     "CommandRunner",
     "Fetch",
     "ProviderInterface",

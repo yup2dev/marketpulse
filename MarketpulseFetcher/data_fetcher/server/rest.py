@@ -32,9 +32,9 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Response
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
-from data_fetcher.query_executor import QueryExecutor, QueryExecutorError
+from data_fetcher.query_executor import QueryExecutorError
+from data_fetcher.server import runner
 from data_fetcher.server.auth import get_or_create_token
-from data_fetcher.server.cache import MemoryCache
 from data_fetcher.server.keystore import KeyStore
 from data_fetcher import __version__
 from data_fetcher.server.serialize import serialize_result
@@ -60,7 +60,7 @@ class FetchRequest(BaseModel):
     provider: str
     model: str
     params: Dict[str, Any] = {}
-    ttl: Optional[int] = None  # None → 모델별 기본 TTL, 0 → 캐시 안 함
+    ttl: Optional[int] = None  # 초 — 주면 이 PC 에서 그만큼 캐시 (서버가 이미 캐시하므로 보통 0)
 
 
 class KeyRequest(BaseModel):
@@ -176,8 +176,7 @@ def create_app(
     # ── 상태 객체 ─────────────────────────────────────────────────────────────
     keystore = KeyStore()
     app.state.keystore = keystore  # WS 워커(keys_* 위임 처리)가 같은 인스턴스를 공유
-    if enable_cache:
-        QueryExecutor.configure(cache=MemoryCache())
+    app.state.enable_cache = enable_cache
 
     # ── 키 관리 UI (tray "API 키 설정" 클릭 시 열리는 페이지) ────────────────
     def _ui_html() -> str:
@@ -255,12 +254,8 @@ def create_app(
     async def fetch(req: FetchRequest) -> Dict[str, Any]:
         """provider/model/params로 raw 데이터를 조회해 반환."""
         try:
-            raw = await QueryExecutor.fetch(
-                provider=req.provider,
-                model=req.model,
-                params=req.params,
-                ttl=req.ttl,
-            )
+            raw = await runner.run(req.provider, req.model, req.params,
+                                   ttl=req.ttl if app.state.enable_cache else 0)
         except QueryExecutorError as exc:
             # provider/model 미존재, 자격증명 누락, 서킷 OPEN 등
             raise HTTPException(status_code=400, detail=str(exc)) from exc

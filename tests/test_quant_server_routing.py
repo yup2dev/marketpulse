@@ -1,6 +1,6 @@
 """계량 분석 command(commands/quantitative/analysis.py) — 서버에서 yfinance 를 직접 부르지 않고 시세를 사용자 Fetcher 로 위임.
 
-계산은 웹 서버에서 하고, 시세(stock_price)만 QueryExecutor 를 거쳐 사용자 PC 로 내려가는지 본다.
+계산은 웹 서버에서 하고, 시세(stock_price)만 ServerExecutor 를 거쳐 사용자 PC 로 내려가는지 본다.
 """
 from datetime import date, timedelta
 
@@ -10,7 +10,7 @@ import pytest
 import data_fetcher.providers_init  # noqa: F401 — provider 등록
 from app.backend.commands.quantitative import router as quantitative
 from app.backend.commands.quantitative import analysis as quant
-from data_fetcher.query_executor import QueryExecutor, RemoteUnavailableError, current_user_id
+from app.backend.core.execution import RemoteUnavailableError, ServerExecutor, current_user_id
 from data_fetcher.utils.registry import FetcherRegistry
 
 prices_to_frame, series_from_frame = quant.prices_to_frame, quant.series_from_frame
@@ -56,11 +56,10 @@ class _PriceRemote:
 def server_remote(monkeypatch):
     def _setup(exc=None):
         remote = _PriceRemote(exc)
-        monkeypatch.setattr(QueryExecutor, "_cache", _NoCache())
-        monkeypatch.setattr(QueryExecutor, "_inflight", {})
-        monkeypatch.setattr(QueryExecutor, "_swr_pending", set())
-        monkeypatch.setattr(QueryExecutor, "_remote", remote)
-        monkeypatch.setattr(QueryExecutor, "_server_mode", True)
+        monkeypatch.setattr(ServerExecutor, "_cache", _NoCache())
+        monkeypatch.setattr(ServerExecutor, "_inflight", {})
+        monkeypatch.setattr(ServerExecutor, "_swr_pending", set())
+        monkeypatch.setattr(ServerExecutor, "_remote", remote)
         import yfinance
         monkeypatch.setattr(yfinance, "Ticker", lambda *a, **k: pytest.fail("server called yfinance"))
         monkeypatch.setattr(yfinance, "download", lambda *a, **k: pytest.fail("server called yfinance"))

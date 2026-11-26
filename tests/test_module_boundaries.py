@@ -255,7 +255,7 @@ def test_analysis_in_place_only_shrinks():
 # 나머지(계산 모듈)는 provider 를 모른다 — 행을 받아 계산만 한다.
 DATA_ACCESS_MODULES = {
     "industry/datasets.py", "industry/seed.py", "screener/screens.py",
-    "stock/ranking.py", "stock/relations.py", "stock/universe.py", "strategies/engine.py",
+    "stock/quotes.py", "stock/ranking.py", "stock/relations.py", "stock/universe.py", "strategies/engine.py",
 }
 
 

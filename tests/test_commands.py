@@ -1,6 +1,6 @@
 """분석 command — 거시 지표 최신값 · 시리즈 변화율 · 비율, 환율, 종목 비교.
 
-QueryExecutor.fetch 를 바꿔 네트워크 없이 본다. 라우트를 거치는 테스트는 어느 provider · model 을
+ServerExecutor.fetch 를 바꿔 네트워크 없이 본다. 라우트를 거치는 테스트는 어느 provider · model 을
 몇 번 부르는지(호출 횟수)도 확인한다 — command 로 옮기면서 호출이 늘어나는 곳이 있어서다.
 """
 import asyncio
@@ -13,7 +13,7 @@ from app.backend.commands.macro import fx as fx_cmd
 from app.backend.commands.macro import indicators as macro_cmd
 from app.backend.commands.stock import overview as stock_cmd
 from app.backend.constants.macro_catalog import FX_PAIRS, INDICATORS, MACRO_SERIES
-from data_fetcher.query_executor import MissingCredentialsError, QueryExecutor
+from app.backend.core.execution import MissingCredentialsError, ServerExecutor
 
 
 class _Row(dict):
@@ -23,7 +23,7 @@ class _Row(dict):
 
 @pytest.fixture
 def fake_qe(monkeypatch):
-    """QueryExecutor.fetch 대체 — handler(provider, model, params) 가 행 목록을 돌려준다."""
+    """ServerExecutor.fetch 대체 — handler(provider, model, params) 가 행 목록을 돌려준다."""
     calls = []
     box = {"handler": lambda p, m, params: []}
 
@@ -34,7 +34,7 @@ def fake_qe(monkeypatch):
             raise out
         return [_Row(r) if isinstance(r, dict) else r for r in out]
 
-    monkeypatch.setattr(QueryExecutor, "fetch", fetch)
+    monkeypatch.setattr(ServerExecutor, "fetch", fetch)
     box["calls"] = calls
     return box
 

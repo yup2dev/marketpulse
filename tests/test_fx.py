@@ -4,7 +4,7 @@ from decimal import Decimal
 
 import pytest
 
-from data_fetcher.query_executor import QueryExecutor
+from app.backend.core.execution import fetch_blocking
 from index_analyzer.collectors.market.fx_rate import FXRateCollector
 from app.backend.models.orm import MBS_IN_FX_STBD, Holding, Portfolio
 
@@ -44,7 +44,7 @@ def fx_db(db_session):
 
 
 def _fx(**params):
-    return QueryExecutor.fetch_sync("db", "fx_rate", params)
+    return fetch_blocking("db", "fx_rate", params)
 
 
 def test_fx_rate_latest_and_as_of(fx_db):

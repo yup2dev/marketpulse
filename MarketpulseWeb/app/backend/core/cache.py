@@ -22,7 +22,7 @@ from typing import Any, Callable, Optional
 log = logging.getLogger(__name__)
 
 # 스키마 변경 시 이 값을 올리면 기존 캐시 전체 무효화.
-# QueryExecutor._cache_key, @cached 데코레이터 모두 이 prefix를 사용한다.
+# ServerExecutor._cache_key(core/execution), @cached 데코레이터 모두 이 prefix를 사용한다.
 CACHE_VERSION: int = 1
 
 
