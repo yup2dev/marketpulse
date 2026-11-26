@@ -95,6 +95,7 @@ class OBBject(BaseModel, Generic[T]):
 
         실행 중 발생한 경고는 WarningsCollector 로 자동 수집되어
         응답의 warnings 필드에 포함됩니다.
+        실행 정보(cached · duration_ms · row_count · executed_at)는 metadata 에 넣는다.
 
         Args:
             query: 실행할 Query 객체
@@ -102,13 +103,17 @@ class OBBject(BaseModel, Generic[T]):
         Returns:
             OBBject 인스턴스
         """
-        with WarningsCollector() as wc:
+        from app.backend.core.execution.context import ExecutionLog
+
+        with WarningsCollector() as wc, ExecutionLog() as runs:
             raw = await query.execute()
             collected_warnings = wc.warnings
 
-        return cls.from_result(
+        obb = cls.from_result(
             raw,
             query.provider,
             metadata={"model": query.model, "params": query.params},
             warnings=collected_warnings,
         )
+        obb.metadata.update(runs.metadata(len(obb.results)))
+        return obb

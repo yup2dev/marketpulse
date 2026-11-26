@@ -81,6 +81,7 @@ async def fetch_data(provider: str, model: str, request: Request) -> OBBject:
     # 위젯의 기간 선택이 동작한다
     norm = query.normalized_params()
     obb.results = _postprocess_dated_rows(obb.results, norm.get("start_date"), norm.get("end_date"))
+    obb.metadata["row_count"] = len(obb.results)       # 날짜 범위로 거른 뒤의 행 수
     obb.metadata.pop("params", None)
     return obb
 

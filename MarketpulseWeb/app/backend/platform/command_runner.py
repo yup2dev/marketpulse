@@ -95,8 +95,11 @@ class CommandRunner:
     @staticmethod
     async def run(func: Callable, params: Dict[str, Any],
                   inputs: Optional[Callable[..., Mapping[str, Fetch]]] = None) -> Any:
-        """inputs 가 있으면 조회 → 순수 함수 → OBBject. 없으면 함수 결과를 그대로 (OBBject · 응답 객체 · dict …)."""
-        with WarningsCollector() as collected:
+        """inputs 가 있으면 조회 → 순수 함수 → OBBject. 없으면 함수 결과를 그대로 (OBBject · 응답 객체 · dict …).
+        OBBject 면 실행 정보(cached · duration_ms · row_count · executed_at)를 metadata 에 넣는다."""
+        from app.backend.core.execution.context import ExecutionLog
+
+        with WarningsCollector() as collected, ExecutionLog() as runs:
             if inputs is None:
                 result = await CommandRunner.call(func, **params)
                 if not isinstance(result, OBBject):
@@ -109,6 +112,10 @@ class CommandRunner:
                 obb = to_obbject(result, ",".join(dict.fromkeys(s.provider for s in specs.values())) or None)
         if collected.warnings:
             obb.warnings = list(dict.fromkeys([*(obb.warnings or []), *collected.warnings]))
+        rows = obb.results
+        count = len(rows) if isinstance(rows, list) else (1 if rows else 0)   # OBBject[T] 는 목록이 아닐 수도
+        for k, v in runs.metadata(count).items():
+            obb.metadata.setdefault(k, v)                 # command 가 직접 넣은 값은 두고
         return obb
 
 

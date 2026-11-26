@@ -22,7 +22,7 @@ from data_fetcher.query_executor import QueryExecutor, QueryExecutorError
 
 from app.backend.core.execution import routes
 from app.backend.core.execution.circuit_breaker import CircuitBreakerOpen, get_circuit_breaker
-from app.backend.core.execution.context import current_user_id
+from app.backend.core.execution.context import current_user_id, record_execution
 from app.backend.core.execution.errors import MissingCredentialsError, RemoteUnavailableError
 from app.backend.core.execution.revalidate import revalidate
 from app.backend.core.execution.ttl import DEFAULT_TTL
@@ -173,10 +173,19 @@ class ServerExecutor:
         **kwargs: Any,
     ) -> Union[List[Any], AnnotatedResult]:
         """조회 한 번. ttl: None 이면 모델 기본 TTL, 0 이면 캐시 안 함."""
+        result, cached = await cls._fetch(provider, model, params, credentials, ttl, **kwargs)
+        record_execution(provider, model, cached=cached,
+                         executed_at="local" if cls.runs_locally(provider, model) else "server")
+        return result
+
+    @classmethod
+    async def _fetch(cls, provider: str, model: str, params: Dict[str, Any],
+                     credentials: Optional[Dict[str, str]], ttl: Optional[int], **kwargs: Any):
+        """(결과, 캐시에서 왔는가)."""
         effective_ttl = cls._ttl(provider, model, ttl)
         if not (cls._cache and effective_ttl > 0):
             try:
-                return await cls._upstream(provider, model, params, credentials, **kwargs)
+                return await cls._upstream(provider, model, params, credentials, **kwargs), False
             except CircuitBreakerOpen as e:
                 raise QueryExecutorError(str(e)) from e
 
@@ -184,29 +193,29 @@ class ServerExecutor:
         if await cls._cache.get(f"{key}:f") is not None:
             val = await cls._cache.get(key)
             if val is not None:
-                return val
+                return val, True
         stale = await cls._cache.get(key)
         if stale is not None:
             if key not in cls._swr_pending:
                 cls._swr_pending.add(key)
                 asyncio.create_task(cls._swr_refresh(key, provider, model, params, credentials, effective_ttl, **kwargs))
-            return stale
+            return stale, True
 
         async with cls._lock(key):
             if await cls._cache.get(f"{key}:f") is not None:
                 val = await cls._cache.get(key)
                 if val is not None:
-                    return val
+                    return val, True
             try:
                 result = await cls._upstream(provider, model, params, credentials, **kwargs)
             except CircuitBreakerOpen as e:
                 stale = await cls._cache.get(key)
                 if stale is not None:
                     log.warning("[exec] Circuit OPEN for %s — serving stale cache", provider)
-                    return stale
+                    return stale, True
                 raise QueryExecutorError(str(e)) from e
             await cls._write_cache(key, result, effective_ttl)
-            return result
+            return result, False
 
 
 async def fetch(provider: str, model: str, params: Optional[Dict[str, Any]] = None, **kwargs: Any) -> Any:

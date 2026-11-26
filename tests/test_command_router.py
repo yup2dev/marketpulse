@@ -116,7 +116,8 @@ def test_inputs_command_fetches_then_calls_pure_function(calls):
         return [{"keys": sorted(data), "label": label}], {"n": n}
 
     body = _client(router).get("/t/x", params={"date": "2026-01-31", "n": 3, "label": "hi"}).json()
-    assert body["results"] == [{"keys": ["a", "b"], "label": "hi"}] and body["metadata"] == {"n": 3}
+    assert body["results"] == [{"keys": ["a", "b"], "label": "hi"}] and body["metadata"]["n"] == 3
+    assert {"cached", "duration_ms", "row_count", "executed_at"} <= set(body["metadata"])   # 실행 정보
     assert body["provider"] == "fred"
     a = next(p for _, _, p in calls["calls"] if p["series_id"] == "A")
     assert a["end_date"] == date(2026, 1, 31) and a["limit"] == 3

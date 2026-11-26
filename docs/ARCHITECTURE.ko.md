@@ -41,8 +41,13 @@ README 의 요약판에서 다루지 않은 동작 규칙·분기 조건·운영
                                    │        사용자 PC Fetcher 로 위임          서버가 직접 호출
                                    │        (/ws/fetcher 워커)               (사용자 키 · 서킷브레이커)
                                    ▼
-                          OBBject { results, provider, warnings … }  ← 프론트는 `res.results` 를 읽는다
+                          OBBject { results, provider, warnings, metadata }  ← 프론트는 `res.results` 를 읽는다
 ```
+
+- **응답 metadata 의 실행 정보** — `cached`(모든 조회가 캐시에서) · `duration_ms` · `row_count` · `executed_at`
+  (`server` | `local` | `mixed`). `ServerExecutor.fetch` 가 조회마다 남기고(`core/execution/context.record_execution`)
+  `OBBject.from_query` · `CommandRunner.run` 이 모아 넣는다. `executed_at` 은 fetcher 의 target 이 아니라 실제로 실행한 곳이다
+  (긴급 전환 중이면 local fetcher 도 `server`).
 
 - **라우트는 두 종류다.** `/api/data/{provider}/{model}` 은 범용 게이트웨이로, `providers_init.py` 에 등록된
   fetcher 를 그대로 노출한다 (fetcher 를 추가해도 라우트를 고칠 필요가 없다). 화면 전용 라우트

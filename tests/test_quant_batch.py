@@ -120,7 +120,7 @@ def test_quant_api_serves_the_loaded_snapshot(auth_client, db_session):
     db_session.commit()
     body = client.get("/api/quant/factors").json()
     assert body["provider"] == "db" and body["results"] == [{"id": "mom_12_1", "ic": 0.04}]
-    assert body["metadata"] == {"members": 500, "universe": "sp500", "as_of": "2026-10-30", "loaded": True}
+    assert {"members": 500, "universe": "sp500", "as_of": "2026-10-30", "loaded": True}.items() <= body["metadata"].items()
     assert client.get("/api/quant/unknown").status_code == 422
 
 
