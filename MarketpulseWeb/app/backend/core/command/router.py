@@ -30,8 +30,8 @@ from typing import Any, Callable, Dict, List, Literal, Mapping, Optional, Union,
 
 from fastapi import APIRouter
 
-from data_fetcher.core.command_runner import CommandRunner, Fetch
-from data_fetcher.core.query import _command_model
+from app.backend.core.command.command_runner import CommandRunner, Fetch
+from app.backend.core.command.query import _command_model
 
 _OPENBB_ARGS = ("cc", "provider_choices", "standard_params", "extra_params")
 _SCALARS = (str, int, float, bool, date_type)
@@ -81,7 +81,7 @@ class SignatureInspector:
     @staticmethod
     def model_signature(model: str, defaults: Mapping[str, Any]) -> tuple:
         """(파라미터 목록, 표준 칸 이름, 추가 칸 이름) — ProviderInterface 에서."""
-        from data_fetcher.core.provider_interface import ProviderInterface
+        from app.backend.core.command.provider_interface import ProviderInterface
 
         mp = ProviderInterface.params(model)
         params = [_param("provider", Literal[tuple(mp.providers)], defaults.get("provider", mp.providers[0]))]

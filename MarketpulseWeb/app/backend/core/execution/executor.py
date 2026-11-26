@@ -7,7 +7,7 @@
           N  서버에서 직접: 사용자 키(키 필요 provider) → 서킷브레이커 → QueryExecutor().execute
     [3] 결과 캐시 저장 (value: TTL×2, freshness flag: TTL)
 
-app 계층(data_fetcher.core)의 Query 는 ProviderInterface.create_executor() 로 이 객체를 받는다 (OpenBB 의 executor 자리).
+command 계층(core/command)의 Query 는 ProviderInterface.create_executor() 로 이 객체를 받는다 (OpenBB 의 executor 자리).
 commands · 서비스 · 웹소켓 라우트도 같은 곳(ServerExecutor.fetch)을 부른다 — 어디서 도는지는 여기서만 안다.
 
 위임 transport 가 없으면(FETCHER_REMOTE_ENABLED=False — 개발 PC 한 대에서 서버 · Fetcher 를 같이 돌릴 때) 모두 서버에서 실행.
@@ -234,6 +234,6 @@ def fetch_blocking(provider: str, model: str, params: Optional[Dict[str, Any]] =
 
 def rows_blocking(provider: str, model: str, **params: Any) -> List[Any]:
     """fetch_blocking 의 결과 행(표준 모델 객체) 목록."""
-    from data_fetcher.core.obbject import OBBject
+    from app.backend.core.command.obbject import OBBject
 
     return list(OBBject.unwrap(fetch_blocking(provider, model, params)) or [])

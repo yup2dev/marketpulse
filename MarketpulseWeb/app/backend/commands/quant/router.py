@@ -14,7 +14,7 @@ Quant API — 팩터 성과 · 모델 검증 · 시장 국면 · 종목 시그�
 from datetime import date
 from typing import Literal, Optional
 
-from data_fetcher.core import OBBject, Router
+from app.backend.core.command import OBBject, Router
 from fastapi import Depends, Query
 from sqlalchemy.orm import Session
 

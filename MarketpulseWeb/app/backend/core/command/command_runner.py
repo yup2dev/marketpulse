@@ -16,9 +16,9 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Mapping, Optional
 
-from data_fetcher.core.obbject import OBBject
-from data_fetcher.core.query import Query
-from data_fetcher.core.warnings import WarningsCollector, add_warning
+from app.backend.core.command.obbject import OBBject
+from app.backend.core.command.query import Query
+from data_fetcher.utils.warnings import WarningsCollector, add_warning
 
 log = logging.getLogger(__name__)
 

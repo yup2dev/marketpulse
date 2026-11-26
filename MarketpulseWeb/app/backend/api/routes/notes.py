@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from app.backend.api.deps import route_handler
 from app.backend.core.db import get_db
 from app.backend.core.auth.dependencies import get_current_active_user
-from data_fetcher.core import OBBject
+from app.backend.core.command import OBBject
 from app.backend.models.orm import User, UserNote
 
 router = APIRouter(prefix="/notes", tags=["notes"])

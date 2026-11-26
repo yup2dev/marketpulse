@@ -12,10 +12,10 @@ from pydantic import BaseModel, Field
 from typing_extensions import TypeVar
 
 from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
-from data_fetcher.core.warnings import WarningsCollector
+from data_fetcher.utils.warnings import WarningsCollector
 
 if TYPE_CHECKING:
-    from data_fetcher.core.query import Query
+    from app.backend.core.command.query import Query
 
 # results 의 타입. 지정하지 않으면 List[Any] — 기존 `-> OBBject` 라우트의 OpenAPI 스키마가 그대로다.
 # 라우트가 `-> OBBject[List[Row]]` 로 적으면 results 가 Row 목록으로 검증되고 스키마에 Row 가 나온다.

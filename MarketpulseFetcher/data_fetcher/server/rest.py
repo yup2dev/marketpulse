@@ -1,9 +1,9 @@
 """
 Fetcher 로컬 REST 서버 — FastAPI 앱 팩토리.
 
-브라우저(같은 PC)가 localhost로 직접 호출한다. API 키를 보유하고 외부
-provider를 조회해 raw 데이터를 반환한다. 브라우저는 그 raw를 외부 WebServer
-/api/calc 로 전달해 계산/가공을 맡긴다.
+브라우저(같은 PC)는 관리 엔드포인트(/health · /user-token · /shutdown)만 부른다.
+/fetch 는 웹 서버가 부른다 — 서버와 Fetcher 가 같은 PC 에서 도는 pull 모드(FETCHER_WORKER_MODE=False).
+운영 경로는 ws_worker(웹 서버 /ws/fetcher) 다.
 
 인증:
     /fetch, /keys* 는 외부 provider API 키를 다루는 민감한 엔드포인트이므로

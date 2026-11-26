@@ -16,7 +16,7 @@
 from datetime import date
 from typing import List, Optional
 
-from data_fetcher.core import OBBject, Router
+from app.backend.core.command import OBBject, Router
 from fastapi import Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session

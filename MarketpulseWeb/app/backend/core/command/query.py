@@ -55,8 +55,8 @@ class Query:
         """고른 provider 가 받지 않는 추가 파라미터는 빼고 경고 (OpenBB filter_extra_params)."""
         if not extra or not self.model:
             return extra
-        from data_fetcher.core.provider_interface import ProviderInterface
-        from data_fetcher.core.warnings import add_warning
+        from app.backend.core.command.provider_interface import ProviderInterface
+        from data_fetcher.utils.warnings import add_warning
         try:
             accepted = ProviderInterface.field_names(self.model, self.provider)
             info = ProviderInterface.params(self.model).extra
@@ -78,7 +78,7 @@ class Query:
         params = {k: v for k, v in self.params.items() if v is not None}
         if "period" not in params or "start_date" in params:
             return params
-        from data_fetcher.core.provider_interface import ProviderInterface
+        from app.backend.core.command.provider_interface import ProviderInterface
         try:
             fields = ProviderInterface.field_names(self.model, self.provider)
         except Exception:  # noqa: BLE001
@@ -90,7 +90,7 @@ class Query:
         return period_to_dates(params, self.model, self.provider)
 
     async def execute(self) -> Union[List[Any], AnnotatedResult]:
-        from data_fetcher.core.provider_interface import ProviderInterface
+        from app.backend.core.command.provider_interface import ProviderInterface
         return await ProviderInterface.create_executor().execute(
             provider_name=self.provider, model_name=self.model, params=self.normalized_params())
 

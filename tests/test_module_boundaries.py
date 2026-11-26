@@ -297,3 +297,28 @@ def test_analysis_detectors_catch_known_shapes():
     found = {w for _, w in _analysis_traces(hand)}
     assert {"직전 대비", "sum(...)/n", "*= (누적)", "점수 자르기", "a / b * 100 (비중)"} <= found
     assert not list(_analysis_traces(ast.parse("x = row['value']\ny = float(v) * 100")))
+
+
+# ── command 계층은 웹에만 ─────────────────────────────────────────────────────
+#
+# Router · CommandRunner · Query · OBBject · ProviderInterface 는 웹 서버만 쓰는 command 계층이다
+# (아키텍처 가이드 v9.1 A7 — OpenBB 의 openbb_core.app 자리). fetcher 패키지에 다시 생기면
+# PC Fetcher exe 에 쓰지 않는 코드가 실리고, "fetcher = provider 응답을 표준 모델로 맞추는 곳" 이 흐려진다.
+
+COMMAND_LAYER_NAMES = {"Router", "CommandRunner", "Query", "OBBject", "ProviderInterface"}
+
+
+def test_command_layer_lives_in_web_only():
+    base = ROOT / "MarketpulseFetcher/data_fetcher"
+    assert not (base / "core").exists(), "data_fetcher/core 를 다시 만들지 않는다 — command 계층은 app/backend/core/command"
+    hits = []
+    for p in base.rglob("*.py"):
+        if "__pycache__" in p.parts:
+            continue
+        tree = ast.parse(p.read_text(encoding="utf-8"), filename=str(p))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef) and node.name in COMMAND_LAYER_NAMES:
+                hits.append(f"{p.relative_to(ROOT)}:{node.lineno} class {node.name}")
+            if isinstance(node, ast.ImportFrom) and node.module == "fastapi" and any(a.name == "APIRouter" for a in node.names):
+                hits.append(f"{p.relative_to(ROOT)}:{node.lineno} fastapi.APIRouter")
+    assert not hits, "command 계층이 fetcher 안에 있다:\n" + "\n".join(hits)

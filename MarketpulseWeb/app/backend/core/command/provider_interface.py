@@ -111,7 +111,7 @@ class ProviderInterface:
     @staticmethod
     def schema(model: str, provider: str, dynamic: bool = True) -> Optional[dict]:
         """(provider, model) 의 파라미터 폼 스펙 + 응답 필드 (위젯 · 사용자 위젯 · 데이터 카탈로그가 쓴다)."""
-        from data_fetcher.core.model_schema import model_schema
+        from data_fetcher.utils.model_schema import model_schema
         fetcher_cls = ProviderInterface.fetcher(model, provider)
         return model_schema(fetcher_cls, dynamic=dynamic) if fetcher_cls else None
 

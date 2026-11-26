@@ -8,7 +8,7 @@ from typing import Literal, Optional
 
 from fastapi import Query
 
-from data_fetcher.core import Fetch, Router
+from app.backend.core.command import Fetch, Router
 from app.backend.commands.quantitative import analysis as quant
 
 router = Router(prefix="", tags=["quantitative"], description="Quantitative analysis.")

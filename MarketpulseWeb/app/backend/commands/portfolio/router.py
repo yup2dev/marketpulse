@@ -8,7 +8,7 @@ import logging
 from datetime import date
 from typing import Any, Dict, List, Optional
 
-from data_fetcher.core import OBBject, Router
+from app.backend.core.command import OBBject, Router
 from fastapi import HTTPException
 
 from app.backend.api.deps import filter_dated_rows, period_start

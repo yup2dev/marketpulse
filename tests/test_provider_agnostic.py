@@ -12,7 +12,8 @@ from datetime import date
 import pytest
 
 from data_fetcher.abstract_provider.abstract.provider import Provider
-from data_fetcher.concepts import CONCEPTS, ConceptError, ConceptImpl, choose_impl, normalize
+from data_fetcher.concepts import CONCEPTS, ConceptError, ConceptImpl, choose_impl
+from app.backend.commands.concepts.fetch import normalize
 from data_fetcher.providers.declarative import build_provider
 from data_fetcher.providers.declarative.loader import parse_period, period_str
 from data_fetcher.query_executor import QueryExecutorError

@@ -204,7 +204,7 @@ marketpulse/
 하지 않고, 각자 ORM·DB 엔진·로거·경로를 따로 갖는다. Fetcher 는 Web·Batch 를 import 하지 않는다
 (`tests/test_module_boundaries.py` 가 검사). 캐시 · 실행 위치 · 사용자 키 · 서킷브레이커는 Fetcher 가 아니라 서버의
 실행 계층(`app/backend/core/execution`)에 있다 — Fetcher 패키지는 이걸 모른다 (`tests/test_execution_routing.py` 가 검사).
-서버는 기동할 때 `execution.install()` 로 app 계층(`data_fetcher.core.Query`)의 실행기 자리에 `ServerExecutor` 를 끼운다.
+서버는 기동할 때 `execution.install()` 로 command 계층(`app.backend.core.command.Query`)의 실행기 자리에 `ServerExecutor` 를 끼운다.
 
 Web 과 Batch 가 맞춰야 하는 건 코드가 아니라 **`/api/ingest` 요청 형식**이다. 배치는 로컬 DB 에 적재하고
 `jobs/sync_db_to_cloud.py` 가 HTTP 로 웹에 보낸다. 같은 테이블을 양쪽이 따로 정의하므로, 컬럼이

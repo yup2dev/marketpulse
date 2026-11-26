@@ -18,8 +18,8 @@ from typing import Any, Dict
 from fastapi import APIRouter, HTTPException, Request
 
 from app.backend.api.deps import filter_dated_rows as _postprocess_dated_rows, route_handler
-from data_fetcher.core import OBBject, ProviderInterface, Query
-from data_fetcher.core.model_schema import resolve_choices
+from app.backend.core.command import OBBject, ProviderInterface, Query
+from data_fetcher.utils.model_schema import resolve_choices
 from data_fetcher.query_executor import QueryExecutorError
 from app.backend.core.execution import MissingCredentialsError, RemoteUnavailableError
 from app.backend.core.execution.circuit_breaker import CircuitBreakerOpen

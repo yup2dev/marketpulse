@@ -31,7 +31,7 @@ from app.backend.services.user_widget_service import (
     BuiltinWidgetService, ScreenGroupService, UserWidgetError, UserWidgetService, WidgetPrefService,
     get_codes, serialize,
 )
-from data_fetcher.core.obbject import OBBject
+from app.backend.core.command.obbject import OBBject
 
 router = APIRouter(prefix="/user-widgets", tags=["user-widgets"])
 

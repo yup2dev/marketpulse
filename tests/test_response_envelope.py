@@ -131,7 +131,7 @@ def test_not_found_still_surfaces(auth_client):
 
 from data_fetcher.abstract_provider.abstract.annotated_result import AnnotatedResult  # noqa: E402
 from data_fetcher.abstract_provider.abstract.data import BaseData  # noqa: E402
-from data_fetcher.core.obbject import OBBject  # noqa: E402
+from app.backend.core.command.obbject import OBBject  # noqa: E402
 
 
 class _Row(BaseData):
@@ -173,7 +173,10 @@ def test_no_annotated_result_isinstance_outside_obbject():
     providers = backend.parents[2] / "MarketpulseFetcher" / "data_fetcher" / "providers"
     assert any(providers.glob("*/models/*.py")), f"provider 디렉터리를 못 찾음: {providers}"
     offenders = []
+    obbject = backend / "core" / "command" / "obbject.py"   # 예외: OBBject 자신
     for path in sorted([*backend.rglob("*.py"), *providers.rglob("*.py")]):
+        if path == obbject:
+            continue
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if (isinstance(node, ast.Call) and getattr(node.func, "id", None) == "isinstance"

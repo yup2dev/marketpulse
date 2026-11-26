@@ -10,7 +10,7 @@ provider 를 지정하지 않으면 그 국가를 지원하는 구현 중 사용
 from datetime import date
 from typing import Any, Dict, Optional
 
-from data_fetcher.core import OBBject, Router
+from app.backend.core.command import OBBject, Router
 from fastapi import Depends, HTTPException
 
 from app.backend.core.auth.dependencies import get_current_active_user
@@ -60,7 +60,7 @@ async def get_concept(
     provider: Optional[str] = None,
     user: User = Depends(get_current_active_user),
 ) -> OBBject:
-    from data_fetcher.concepts import ConceptError, fetch_concept
+    from app.backend.commands.concepts.fetch import ConceptError, fetch_concept
 
     if period and not start_date:
         from data_fetcher.utils.helpers import parse_period_to_dates

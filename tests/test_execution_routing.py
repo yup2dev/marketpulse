@@ -120,8 +120,8 @@ def test_local_results_can_skip_the_server_cache(monkeypatch, executor, as_user)
 
 
 def test_query_goes_through_the_server_executor(executor, as_user):
-    from data_fetcher.core import Query
-    from data_fetcher.core.provider_interface import ProviderInterface
+    from app.backend.core.command import Query
+    from app.backend.core.command.provider_interface import ProviderInterface
 
     assert isinstance(ProviderInterface.create_executor(), ServerExecutor)
     remote = _Remote()
@@ -212,17 +212,3 @@ def test_pure_executor_has_openbb_shape():
         assert not hasattr(QueryExecutor, name), name
 
 
-def test_provider_layer_does_not_import_app_layer():
-    """OpenBB 처럼 provider 계층(fetcher · 순수 실행기)은 app 계층(data_fetcher.core)을 모른다 — 의존은 app → provider."""
-    pkg = ROOT / "MarketpulseFetcher" / "data_fetcher"
-    layer = [pkg / "query_executor.py", *(pkg / "abstract_provider").rglob("*.py"),
-             *(pkg / "providers").rglob("*.py"), *(pkg / "utils").rglob("*.py")]
-    hits = []
-    for p in layer:
-        if "__pycache__" in p.parts:
-            continue
-        for node in ast.walk(ast.parse(p.read_text(encoding="utf-8"))):
-            mods = ([a.name for a in node.names] if isinstance(node, ast.Import)
-                    else [node.module or ""] if isinstance(node, ast.ImportFrom) else [])
-            hits += [f"{p.relative_to(ROOT)} → {m}" for m in mods if m.startswith("data_fetcher.core")]
-    assert not hits, "provider 계층이 app 계층을 import 한다:\n" + "\n".join(hits)

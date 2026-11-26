@@ -12,7 +12,7 @@ from typing import Dict, Optional
 
 from fastapi import HTTPException
 
-from data_fetcher.core import Fetch, OBBject, Router
+from app.backend.core.command import Fetch, OBBject, Router
 from data_fetcher.utils.helpers import parse_period_to_dates
 from app.backend.commands.macro import fx
 from app.backend.commands.macro import inflation

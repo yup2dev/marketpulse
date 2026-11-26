@@ -8,7 +8,7 @@
 import logging
 from typing import Any, List
 
-from data_fetcher.core.obbject import OBBject
+from app.backend.core.command.obbject import OBBject
 from app.backend.core.execution import RemoteUnavailableError, ServerExecutor
 
 log = logging.getLogger(__name__)

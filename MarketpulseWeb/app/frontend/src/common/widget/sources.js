@@ -12,6 +12,7 @@ export const SOURCE_LABELS = {
   polygon:       'Polygon.io',
   fmp:           'Financial Modeling Prep',
   sec:           'SEC EDGAR',
+  whalewisdom:   'WhaleWisdom',
   nasdaq:        'Nasdaq',
   nasdaqtrader:  'Nasdaq Trader',
   kis:           'Korea Investment & Securities (KIS)',

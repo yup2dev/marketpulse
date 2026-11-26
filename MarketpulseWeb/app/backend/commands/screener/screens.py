@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.backend.commands._base import to_quote_symbol
 from app.backend.commands.stock.quotes import cached_quotes
-from data_fetcher.core.obbject import OBBject
+from app.backend.core.command.obbject import OBBject
 from app.backend.core.execution import ServerExecutor
 
 log = logging.getLogger(__name__)

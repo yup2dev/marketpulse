@@ -1,4 +1,4 @@
-"""조회 결과 직렬화 — QueryExecutor 반환값을 브라우저로 보낼 JSON-safe 봉투로 변환."""
+"""조회 결과 직렬화 — QueryExecutor 반환값을 웹 서버로 보낼 JSON-safe 봉투로 변환."""
 from __future__ import annotations
 
 from typing import Any, Dict
@@ -18,7 +18,7 @@ def _row(obj: Any) -> Any:
 def serialize_result(raw: Any) -> Dict[str, Any]:
     """List[BaseModel] / AnnotatedResult / scalar → {"data", "metadata"}.
 
-    브라우저는 이 봉투를 받아 그대로 외부 WebServer /api/calc 로 전달할 수 있다.
+    웹 서버(fetcher_ws_transport · fetcher_client)가 이 봉투를 받는다.
     """
     if isinstance(raw, AnnotatedResult):
         result = raw.result
