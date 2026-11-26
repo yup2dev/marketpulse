@@ -36,9 +36,6 @@ export const portfolioAPI = {
   refreshPrices:   (id)          => apiClient.post(`${UP}/portfolios/${id}/refresh-prices`),
   getPriceAtDate:  (ticker, date)=>
     apiClient.get(`${UP}/price-at-date?ticker=${encodeURIComponent(ticker)}&date=${date}`),
-  // 일일 배치 환율 (db provider fx_rate) — 응답 OBBject: results[0] = {date, base_currency, counter_currency, rate, ...}
-  getFxRate:       (base = 'USD', quote = 'KRW') =>
-    apiClient.get(`${API_BASE}/data/db/fx_rate?base=${base}&quote=${quote}`),
 };
 
 // ─── API Keys API ─────────────────────────────────────────────────────────────
@@ -134,7 +131,9 @@ export const schemaAPI = {
       required: p.required_yn === 'Y',
       default: p.default_value,
       options: p.choices || undefined,
-      hint: p.hint,
+      // 쉼표로 여러 값을 받는 파라미터 (QueryParams multiple_items_allowed)
+      hint: p.multiple_yn === 'Y' ? [p.hint, '쉼표로 여러 개'].filter(Boolean).join(' — ') : p.hint,
+      multiple: p.multiple_yn === 'Y',
       dynamic: p.dynamic_yn === 'Y',
     }));
     if (params.some((p) => p.dynamic)) {
@@ -146,7 +145,12 @@ export const schemaAPI = {
     return {
       accepts_symbol: params.some((p) => p.name === 'symbol' || p.name === 'ticker'),
       params,
-      fields: entry.fields.map((f) => ({ name: f.field_name, kind: f.kind, description: f.description })),
+      // 화면 표시 힌트 (Data 필드 json_schema_extra — 위젯 초안의 컬럼 형식 · 숨김)
+      fields: entry.fields.map((f) => ({
+        name: f.field_name, kind: f.kind, description: f.description,
+        unit: f.unit || undefined, multiply: f.multiply ?? undefined,
+        prefix: f.prefix || undefined, suffix: f.suffix || undefined, hidden: f.hidden_yn === 'Y',
+      })),
       source: 'catalog',
     };
   },

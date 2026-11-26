@@ -14,7 +14,7 @@ from app.backend.core.auth.dependencies import get_current_active_user
 from app.backend.api.deps import filter_dated_rows, resolve_date_range, route_handler
 from app.backend.services.user_portfolio_service import UserPortfolioService
 from app.backend.core.execution import ServerExecutor, fetch_blocking
-from data_fetcher.core.obbject import OBBject
+from app.backend.platform.obbject import OBBject
 from app.backend.models.orm import User
 
 router = APIRouter(prefix="/user-portfolio", tags=["User Portfolio"])

@@ -47,6 +47,23 @@ def test_no_cross_module_imports(folder):
     assert not violations, "모듈 경계 위반:\n" + "\n".join(violations)
 
 
+# 웹 API 레이어는 MarketpulseWeb/app/backend/platform/ 에 있다. PC exe 에 들어가는 fetcher 패키지에는 두지 않는다.
+WEB_ONLY_CLASSES = {"OBBject", "Query", "Router", "CommandRunner", "Fetch", "ProviderInterface", "Concept"}
+
+
+def test_fetcher_does_not_define_web_layer():
+    """data_fetcher 안에 OBBject · Router · CommandRunner 같은 웹 레이어 클래스를 다시 만들지 않는다."""
+    base = ROOT / "MarketpulseFetcher/data_fetcher"
+    violations = [
+        f"{p.relative_to(ROOT)}:{node.lineno} → class {node.name}"
+        for p in base.rglob("*.py")
+        for node in ast.walk(ast.parse(p.read_text(encoding="utf-8"), filename=str(p)))
+        if isinstance(node, ast.ClassDef) and node.name in WEB_ONLY_CLASSES
+    ]
+    assert not violations, "웹 레이어는 app/backend/platform/ 에:\n" + "\n".join(violations)
+    assert (ROOT / "MarketpulseWeb/app/backend/platform/obbject.py").exists()
+
+
 def test_common_package_is_gone():
     """marketpulse_common 을 다시 만들지 않는다 — 공유가 필요하면 계약(ingest)으로."""
     assert not (ROOT / "MarketpulseCommon").exists()
@@ -65,36 +82,9 @@ def test_common_package_is_gone():
 PROVIDERS_DIR = ROOT / "MarketpulseFetcher/data_fetcher/providers"
 COMMANDS_DIR = ROOT / "MarketpulseWeb/app/backend/commands"
 
-# FREDGenericSeriesFetcher / KOSIS series 같은 같은 provider 의 기본 fetcher 를 재사용하는 fetcher.
-# 다음 브랜치에서 fred_series() 같은 HTTP 헬퍼로 바꾸면서 목록에서 지울 예정.
-# (sec 의 filings 목록 · 기관 목록 재사용도 같은 방식으로 정리한다)
-SERIES_COMPOSITION = {
-    "fred/models/consumer_sentiment.py",
-    "fred/models/cpi.py",
-    "fred/models/employment.py",
-    "fred/models/fed_balance_sheet.py",
-    "fred/models/gdp.py",
-    "fred/models/housing_starts.py",
-    "fred/models/industrial_production.py",
-    "fred/models/initial_claims.py",
-    "fred/models/interest_rate.py",
-    "fred/models/nonfarm_payroll.py",
-    "fred/models/pmi.py",
-    "fred/models/retail_sales.py",
-    "fred/models/real_rates.py",            # 여러 시리즈를 날짜로 모으기만 (계산 없음)
-    "fred/models/yield_curve.py",
-    "fred/models/yield_curve_history.py",
-    "fred/models/unemployment.py",
-    "kosis/models/capacity_utilization.py",
-    "kosis/models/ict_exports.py",
-    "kosis/models/mining_manufacturing_index.py",
-    "kosis/models/product_trade.py",
-    "sec/models/insider_trading.py",          # sec/utils/form4 를 거쳐 filings 목록
-    "sec/models/institutional_13f.py",
-    "sec/models/management_discussion_analysis.py",
-    "sec/utils/form4.py",
-    "sec/utils/parse_13f.py",
-}
+# 같은 provider 의 기본 fetcher 를 재사용하던 fetcher — 비었다. fred · kosis · sec 는 HTTP 를 provider 의
+# utils 헬퍼(fred_series · kosis_series · sec_company_filings · sec_institutions)로 옮겼다. 새로 넣지 않는다.
+SERIES_COMPOSITION: set = set()
 
 # fetcher 안에서 분석(파생 지표 · 점수 · 여러 모델 조합)을 하던 것 — 비었다 (#105).
 # fred 분석 13개 → commands/regime · inflation · labor · market_conditions, polygon 뉴스 감성 → news_sentiment,

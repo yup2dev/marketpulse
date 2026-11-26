@@ -43,7 +43,8 @@ class EquityQuoteData(BaseData):
 
     # 변동
     change: Optional[float] = Field(default=None, description="등락폭")
-    change_percent: Optional[float] = Field(default=None, description="등락률 (%)")
+    change_percent: Optional[float] = Field(default=None, description="등락률 (%)",
+                                            json_schema_extra={"x-unit_measurement": "percent"})
 
     # 거래량
     volume: Optional[int] = Field(default=None, description="거래량")
@@ -54,7 +55,8 @@ class EquityQuoteData(BaseData):
     week_52_low: Optional[float] = Field(default=None, description="52주 최저가")
 
     # 시장 정보
-    market_cap: Optional[float] = Field(default=None, description="시가총액")
+    market_cap: Optional[float] = Field(default=None, description="시가총액",
+                                        json_schema_extra={"x-unit_measurement": "currency"})
     exchange: Optional[str] = Field(default=None, description="거래소")
     currency: Optional[str] = Field(default="USD", description="통화")
 

@@ -30,12 +30,12 @@ CASH_FLOW_NEW = (
 )
 
 TARGET_DIRS = [
-    DF / "providers" / "wsj",
-    DF / "providers" / "bls",
-    DF / "providers" / "eia",
-    DF / "providers" / "oecd",
-    DF / "providers" / "imf",
-    DF / "providers" / "sec" / "openbb",
+    DF / "providers" / "api" / "wsj",
+    DF / "providers" / "api" / "bls",
+    DF / "providers" / "api" / "eia",
+    DF / "providers" / "api" / "oecd",
+    DF / "providers" / "api" / "imf",
+    DF / "providers" / "api" / "sec" / "openbb",
     STD,  # 평면 이동된 표준모델 포함
 ]
 EXTRA_FILES = [DF / "query_executor.py"]

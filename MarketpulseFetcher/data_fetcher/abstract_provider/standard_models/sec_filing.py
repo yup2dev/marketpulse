@@ -294,7 +294,7 @@ class SecBaseFiling(BaseData):  # pylint: disable=too-many-instance-attributes
         """Initialize the Filing class."""
         # pylint: disable=import-outside-toplevel
         from data_fetcher.utils.provider_helpers import run_async
-        from data_fetcher.providers.sec.utils.helpers import cik_map
+        from data_fetcher.providers.api.sec.utils.helpers import cik_map
 
         super().__init__()
 
@@ -348,8 +348,8 @@ class SecBaseFiling(BaseData):  # pylint: disable=too-many-instance-attributes
         from aiohttp_client_cache.session import CachedSession
         from data_fetcher.utils.provider_settings import get_user_cache_directory
         from data_fetcher.utils.provider_helpers import amake_request
-        from data_fetcher.providers.sec.utils.definitions import SEC_HEADERS
-        from data_fetcher.providers.sec.utils.helpers import sec_callback
+        from data_fetcher.providers.api.sec.utils.definitions import SEC_HEADERS
+        from data_fetcher.providers.api.sec.utils.helpers import sec_callback
 
         response: dict | list | str | None = None
         if use_cache is True:

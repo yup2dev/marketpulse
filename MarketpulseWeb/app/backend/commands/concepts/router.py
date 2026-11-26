@@ -5,12 +5,12 @@
 
 provider 를 지정하지 않으면 그 국가를 지원하는 구현 중 사용 가능한(키 보유 또는 무키) 첫 구현을
 쓴다. 전부 키가 없으면 첫 구현으로 호출해 424(missing_key) 를 돌려 '키 등록' 안내가 뜨게 한다.
-정의는 data_fetcher.concepts.CONCEPTS.
+정의는 app.backend.platform.concepts.CONCEPTS.
 """
 from datetime import date
 from typing import Any, Dict, Optional
 
-from data_fetcher.core import OBBject, Router
+from app.backend.platform import OBBject, Router
 from fastapi import Depends, HTTPException
 
 from app.backend.core.auth.dependencies import get_current_active_user
@@ -22,7 +22,7 @@ router = Router()
 
 @router.command(path="/concepts", methods=["GET"], summary="데이터 개념 목록 + 내 사용 가능 provider")
 async def list_concepts(user: User = Depends(get_current_active_user)) -> OBBject:
-    from data_fetcher.concepts import concept_catalog
+    from app.backend.platform.concepts import concept_catalog
 
     is_available = user_key_service.availability(str(user.user_id))
     rows = []
@@ -33,7 +33,7 @@ async def list_concepts(user: User = Depends(get_current_active_user)) -> OBBjec
 
 @router.command(path="/concepts/{concept_id}/countries", methods=["GET"], summary="개념이 지원하는 국가 (위젯 국가 셀렉터)")
 async def concept_countries(concept_id: str, user: User = Depends(get_current_active_user)) -> OBBject:
-    from data_fetcher.concepts import COUNTRY_LABELS, CONCEPTS
+    from app.backend.platform.concepts import COUNTRY_LABELS, CONCEPTS
 
     concept = CONCEPTS.get(concept_id)
     if concept is None:
@@ -60,7 +60,7 @@ async def get_concept(
     provider: Optional[str] = None,
     user: User = Depends(get_current_active_user),
 ) -> OBBject:
-    from data_fetcher.concepts import ConceptError, fetch_concept
+    from app.backend.platform.concepts import ConceptError, fetch_concept
 
     if period and not start_date:
         from data_fetcher.utils.helpers import parse_period_to_dates

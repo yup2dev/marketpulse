@@ -9,44 +9,44 @@ import logging
 
 from data_fetcher.abstract_provider.abstract.provider import ProviderRegistry
 
-from data_fetcher.providers.fred import fred_provider
-from data_fetcher.providers.yahoo import yahoo_provider
-from data_fetcher.providers.alphavantage import alphavantage_provider
-from data_fetcher.providers.fmp import fmp_provider
-from data_fetcher.providers.polygon import polygon_provider
-from data_fetcher.providers.tiingo import tiingo_provider
+from data_fetcher.providers.api.fred import fred_provider
+from data_fetcher.providers.api.yahoo import yahoo_provider
+from data_fetcher.providers.api.alphavantage import alphavantage_provider
+from data_fetcher.providers.api.fmp import fmp_provider
+from data_fetcher.providers.api.polygon import polygon_provider
+from data_fetcher.providers.api.tiingo import tiingo_provider
 # OpenBB 이식 provider (MACRO/STOCK) — Provider.metadata["group"] 로 분류 (providers API 가 노출)
-from data_fetcher.providers.wsj import wsj_provider
-from data_fetcher.providers.bls import bls_provider
-from data_fetcher.providers.eia import eia_provider
-from data_fetcher.providers.oecd import oecd_provider
-from data_fetcher.providers.imf import imf_provider
-from data_fetcher.providers.sec import sec_provider
-from data_fetcher.providers.social import social_provider
+from data_fetcher.providers.api.wsj import wsj_provider
+from data_fetcher.providers.api.bls import bls_provider
+from data_fetcher.providers.api.eia import eia_provider
+from data_fetcher.providers.api.oecd import oecd_provider
+from data_fetcher.providers.api.imf import imf_provider
+from data_fetcher.providers.api.sec import sec_provider
+from data_fetcher.providers.api.social import social_provider
 # 무료 · 공개 universe / 캘린더
-from data_fetcher.providers.nasdaqtrader import nasdaqtrader_provider
-from data_fetcher.providers.nasdaq import nasdaq_provider
-from data_fetcher.providers.krx import krx_provider
-from data_fetcher.providers.kosis import kosis_provider
+from data_fetcher.providers.api.nasdaqtrader import nasdaqtrader_provider
+from data_fetcher.providers.api.nasdaq import nasdaq_provider
+from data_fetcher.providers.api.krx import krx_provider
+from data_fetcher.providers.api.kosis import kosis_provider
 
 log = logging.getLogger(__name__)
 
 # ── 선택적 의존성 provider — 의존성이 없는 환경(Fetcher exe 등)에서는 조용히 건너뛴다 ──────────
 # database: sqlalchemy (WebServer/DB 환경에서만)
 try:
-    from data_fetcher.providers.database import db_provider
+    from data_fetcher.providers.db import db_provider
 except ImportError:
     db_provider = None
 
 # kis: httpx
 try:
-    from data_fetcher.providers.kis import kis_provider
+    from data_fetcher.providers.api.kis import kis_provider
 except ImportError:
     kis_provider = None
 
 # quantlib: QuantLib
 try:
-    from data_fetcher.providers.quantlib import quantlib_provider
+    from data_fetcher.providers.api.quantlib import quantlib_provider
 except ImportError:
     quantlib_provider = None
 
@@ -82,7 +82,7 @@ def register_all_providers():
             ProviderRegistry.register(provider)
 
     # 선언형 provider (providers/declarative/specs/*.json — 코드 없이 JSON 스펙만으로 추가)
-    from data_fetcher.providers.declarative import register_declarative_providers
+    from data_fetcher.providers.api.declarative import register_declarative_providers
     register_declarative_providers()
 
     log.info(f"Registered {len(ProviderRegistry.list())} providers")

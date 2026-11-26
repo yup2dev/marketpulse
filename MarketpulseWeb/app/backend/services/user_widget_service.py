@@ -23,7 +23,7 @@ from app.backend.models.orm import (
     UserWidgetParamOption, UserWidgetPref, UserWidgetPrefScreen, UserWidgetScreen, UserWidgetSeed, UserWidgetTab,
     UserWidgetTabItem, WidgetType,
 )
-from app.backend.services import builtin_widgets
+from app.backend.services import builtin_widgets, widget_sources
 
 log = logging.getLogger(__name__)
 
@@ -486,6 +486,7 @@ class UserWidgetService:
         db.add(w)
         db.commit()
         db.refresh(w)
+        widget_sources.invalidate(user_id)             # 데이터 API 허용 집합이 바뀐다
         return w
 
     @staticmethod
@@ -530,6 +531,7 @@ class UserWidgetService:
 
         db.commit()
         db.refresh(w)
+        widget_sources.invalidate(user_id)
         return w
 
     @staticmethod
@@ -539,6 +541,7 @@ class UserWidgetService:
             return False
         db.delete(w)
         db.commit()
+        widget_sources.invalidate(user_id)
         return True
 
 
@@ -694,6 +697,7 @@ def _apply_sync(db: Session, specs: dict, want: dict, todo: List[str], force: se
             seed.seed_hash = want[wid]
     db.commit()
     if changed:
+        widget_sources.invalidate()                     # 기본 위젯 출처가 바뀌었다
         log.info("[widgets] 기본 위젯을 파일대로 맞췄어요: %s", ", ".join(changed))
     return changed
 

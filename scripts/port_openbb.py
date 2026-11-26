@@ -2,12 +2,12 @@
 
 OpenBB 소스 파일을 복사하면서 import 경로만 기계적으로 치환한다:
   openbb_core      -> data_fetcher._obb
-  openbb_us_eia    -> data_fetcher.providers.eia
-  openbb_imf       -> data_fetcher.providers.imf
-  openbb_oecd      -> data_fetcher.providers.oecd
-  openbb_bls       -> data_fetcher.providers.bls
-  openbb_wsj       -> data_fetcher.providers.wsj
-  openbb_sec       -> data_fetcher.providers.sec
+  openbb_us_eia    -> data_fetcher.providers.api.eia
+  openbb_imf       -> data_fetcher.providers.api.imf
+  openbb_oecd      -> data_fetcher.providers.api.oecd
+  openbb_bls       -> data_fetcher.providers.api.bls
+  openbb_wsj       -> data_fetcher.providers.api.wsj
+  openbb_sec       -> data_fetcher.providers.api.sec
 
 사용:
   python scripts/port_openbb.py <provider>   # eia|imf|oecd|bls|wsj|sec
@@ -21,12 +21,12 @@ OPENBB = Path(r"C:\Users\pro\PycharmProjects\OpenBB\openbb_platform")
 DST_ROOT = Path(__file__).resolve().parents[1] / "MarketpulseFetcher" / "data_fetcher"
 
 PKG_MAP = {
-    "openbb_us_eia": "data_fetcher.providers.eia",
-    "openbb_imf": "data_fetcher.providers.imf",
-    "openbb_oecd": "data_fetcher.providers.oecd",
-    "openbb_bls": "data_fetcher.providers.bls",
-    "openbb_wsj": "data_fetcher.providers.wsj",
-    "openbb_sec": "data_fetcher.providers.sec.openbb",
+    "openbb_us_eia": "data_fetcher.providers.api.eia",
+    "openbb_imf": "data_fetcher.providers.api.imf",
+    "openbb_oecd": "data_fetcher.providers.api.oecd",
+    "openbb_bls": "data_fetcher.providers.api.bls",
+    "openbb_wsj": "data_fetcher.providers.api.wsj",
+    "openbb_sec": "data_fetcher.providers.api.sec.openbb",
     "openbb_core": "data_fetcher._obb",
 }
 

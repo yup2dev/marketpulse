@@ -16,7 +16,7 @@ from app.backend.api.deps import route_handler
 from app.backend.core.db import get_db
 from app.backend.core.auth.dependencies import get_current_active_user
 from app.backend.services.watchlist_service import WatchlistService
-from data_fetcher.core import OBBject
+from app.backend.platform import OBBject
 from app.backend.models.orm import User
 
 router = APIRouter(prefix="/watchlist", tags=["watchlist"])

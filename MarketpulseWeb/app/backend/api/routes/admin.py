@@ -20,8 +20,8 @@
     DELETE /api/admin/widget-types/{type_code}          쓰는 위젯이 있으면 409
     POST   /api/admin/data-catalog/sync                 데이터 카탈로그를 Fetcher 등록 정보와 다시 맞춤
     GET    /api/admin/data-catalog/broken-widgets       빠진 API · 필드 · 파라미터를 쓰는 위젯
-    GET    /api/admin/data-routes                       (provider, model) 실행 위치 Y/N 목록
-    PUT    /api/admin/data-routes/{provider}/{model}    실행 위치 바꾸기 {local: true|false}
+    GET    /api/admin/data-routes                       (provider, model) 실행 위치 — fetcher target · 긴급 전환
+    PUT    /api/admin/data-routes/{provider}/{model}    local fetcher 서버 긴급 전환 {local: false} / 해제 {local: true}
     GET    /api/admin/monitor/{dataset}                 운영 모니터링 (/admin 화면 위젯)
            summary · system · traffic · endpoints · inflight · slow
 """
@@ -171,33 +171,31 @@ def broken_widgets(db: Session = Depends(get_db)):
     return find_broken_widgets(db)
 
 
-# ── 실행 위치 (data_model_routes) ─────────────────────────────────────────────
-# (provider, model) 를 사용자 PC Fetcher 에서만 돌릴지(Y) 서버에서 돌릴지(N). 바꾸면 바로 적용된다 (메모리도 함께).
+# ── 실행 위치 (fetcher target + data_model_routes 긴급 전환) ────────────────────
+# 실행 위치는 fetcher 의 target 이 정한다. 여기서는 target="local" fetcher 를 서버로 긴급 전환하거나 해제만 한다.
+# server → local 은 할 수 없다 (PC Worker 는 local fetcher 만 실행). 바꾸면 바로 적용된다 (메모리도 함께).
 
 class RouteBody(BaseModel):
-    local: bool = Field(description="True = 로컬 전용 (PC Fetcher 위임), False = 서버 실행")
+    local: bool = Field(description="False = 서버로 긴급 전환, True = 전환 해제 (target='local' fetcher 만)")
 
 
 @router.get("/data-routes", summary="실행 위치 목록")
 def list_data_routes(provider: Optional[str] = None, db: Session = Depends(get_db)):
-    from app.backend.models.orm import DataModelRoute
+    from app.backend.core.execution import routes
 
-    q = db.query(DataModelRoute)
-    if provider:
-        q = q.filter(DataModelRoute.provider == provider)
-    return [
-        {"provider": r.provider, "model": r.model, "local_yn": r.local_yn,
-         "updated_at": r.updated_at.isoformat() if r.updated_at else None, "updated_by": r.updated_by}
-        for r in q.order_by(DataModelRoute.provider, DataModelRoute.model)
-    ]
+    return routes.view(db, provider)
 
 
-@router.put("/data-routes/{provider}/{model}", summary="실행 위치 바꾸기")
+@router.put("/data-routes/{provider}/{model}", summary="긴급 전환 · 해제")
 def set_data_route(provider: str, model: str, body: RouteBody, db: Session = Depends(get_db),
                    admin=Depends(require_admin)):
     from app.backend.core.execution import routes
 
-    if (provider, model) not in set(routes.registered_pairs()):
+    try:
+        routes.set_route(db, provider, model, body.local, user_id=str(getattr(admin, "user_id", "")) or None)
+    except KeyError:
         raise HTTPException(status_code=404, detail=f"'{provider}/{model}' 는 등록된 fetcher 가 아니다")
-    routes.set_route(db, provider, model, body.local, user_id=str(getattr(admin, "user_id", "")) or None)
-    return {"provider": provider, "model": model, "local_yn": "Y" if body.local else "N"}
+    except routes.RouteError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"provider": provider, "model": model, "target": routes.target_of(provider, model),
+            "local": routes.is_local(provider, model)}

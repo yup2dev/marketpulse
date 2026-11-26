@@ -1,13 +1,13 @@
 """ServerExecutor — 웹 서버의 조회 실행 한 곳. fetcher 패키지의 QueryExecutor(순수 실행)를 감싼다.
 
     [1] 캐시 — Fresh HIT 즉시 / Stale HIT 즉시 + 백그라운드 갱신(SWR) / MISS 는 single-flight 로 한 번만
-    [2] 실행 위치 — routes.is_local(provider, model) (DB 표 data_model_routes)
-          Y  로그인 사용자의 PC Fetcher 로 위임 (transport). 위임할 수 없으면 RemoteUnavailableError(503) —
-             서버 실행으로 넘기지 않는다
-          N  서버에서 직접: 사용자 키(키 필요 provider) → 서킷브레이커 → QueryExecutor().execute
+    [2] 실행 위치 — routes.is_local(provider, model) (fetcher target, data_model_routes 는 긴급 전환만)
+          local   로그인 사용자의 PC Fetcher 로 위임 (transport). 위임할 수 없으면 RemoteUnavailableError(503) —
+                  서버 실행으로 넘기지 않는다. 받은 행은 fetcher 의 data_type 으로 재검증한다 (revalidate.py)
+          server  서버에서 직접: 사용자 키(키 필요 provider) → 서킷브레이커 → QueryExecutor().execute
     [3] 결과 캐시 저장 (value: TTL×2, freshness flag: TTL)
 
-app 계층(data_fetcher.core)의 Query 는 ProviderInterface.create_executor() 로 이 객체를 받는다 (OpenBB 의 executor 자리).
+app 계층(app.backend.platform)의 Query 는 ProviderInterface.create_executor() 로 이 객체를 받는다 (OpenBB 의 executor 자리).
 commands · 서비스 · 웹소켓 라우트도 같은 곳(ServerExecutor.fetch)을 부른다 — 어디서 도는지는 여기서만 안다.
 
 위임 transport 가 없으면(FETCHER_REMOTE_ENABLED=False — 개발 PC 한 대에서 서버 · Fetcher 를 같이 돌릴 때) 모두 서버에서 실행.
@@ -22,8 +22,9 @@ from data_fetcher.query_executor import QueryExecutor, QueryExecutorError
 
 from app.backend.core.execution import routes
 from app.backend.core.execution.circuit_breaker import CircuitBreakerOpen, get_circuit_breaker
-from app.backend.core.execution.context import current_user_id
+from app.backend.core.execution.context import current_user_id, record_execution
 from app.backend.core.execution.errors import MissingCredentialsError, RemoteUnavailableError
+from app.backend.core.execution.revalidate import revalidate
 from app.backend.core.execution.ttl import DEFAULT_TTL
 
 log = logging.getLogger(__name__)
@@ -103,7 +104,8 @@ class ServerExecutor:
             if not user_id:
                 raise RemoteUnavailableError(
                     f"'{provider}' 데이터는 로그인 후 데스크톱 Fetcher로 조회됩니다. 로그인하고 Fetcher를 실행하세요.")
-            return await cls._remote.fetch(provider, model, params, credentials, **kwargs)
+            raw = await cls._remote.fetch(provider, model, params, credentials, **kwargs)
+            return revalidate(provider, model, raw)       # JSON 으로 잃은 타입 복원 — 서버 실행과 같은 Data 타입
 
         # 서버 실행 — 키 필요 provider 는 요청 사용자의 키 (없으면 운영자 키로 넘기지 않고 오류),
         # 요청이 없으면(배경 작업) 운영자 키(env — 순수 실행기가 읽는다)
@@ -118,6 +120,14 @@ class ServerExecutor:
             return await cls._executor.execute(provider, model, params, credentials, **kwargs)
 
     # ── 캐시 ──────────────────────────────────────────────────────────────────
+
+    @classmethod
+    async def invalidate_provider(cls, provider: str) -> int:
+        """provider 의 캐시 전부 무효화 — 원천이 바뀐 걸 알 때 (예: 배치 적재가 끝난 db provider). 지운 수."""
+        invalidate = getattr(cls._cache, "invalidate_prefix", None)
+        if invalidate is None:
+            return 0
+        return await invalidate(f"qe:{provider}:")
 
     @classmethod
     def _cache_key(cls, provider: str, model: str, params: Dict[str, Any]) -> str:
@@ -171,10 +181,19 @@ class ServerExecutor:
         **kwargs: Any,
     ) -> Union[List[Any], AnnotatedResult]:
         """조회 한 번. ttl: None 이면 모델 기본 TTL, 0 이면 캐시 안 함."""
+        result, cached = await cls._fetch(provider, model, params, credentials, ttl, **kwargs)
+        record_execution(provider, model, cached=cached,
+                         executed_at="local" if cls.runs_locally(provider, model) else "server")
+        return result
+
+    @classmethod
+    async def _fetch(cls, provider: str, model: str, params: Dict[str, Any],
+                     credentials: Optional[Dict[str, str]], ttl: Optional[int], **kwargs: Any):
+        """(결과, 캐시에서 왔는가)."""
         effective_ttl = cls._ttl(provider, model, ttl)
         if not (cls._cache and effective_ttl > 0):
             try:
-                return await cls._upstream(provider, model, params, credentials, **kwargs)
+                return await cls._upstream(provider, model, params, credentials, **kwargs), False
             except CircuitBreakerOpen as e:
                 raise QueryExecutorError(str(e)) from e
 
@@ -182,29 +201,29 @@ class ServerExecutor:
         if await cls._cache.get(f"{key}:f") is not None:
             val = await cls._cache.get(key)
             if val is not None:
-                return val
+                return val, True
         stale = await cls._cache.get(key)
         if stale is not None:
             if key not in cls._swr_pending:
                 cls._swr_pending.add(key)
                 asyncio.create_task(cls._swr_refresh(key, provider, model, params, credentials, effective_ttl, **kwargs))
-            return stale
+            return stale, True
 
         async with cls._lock(key):
             if await cls._cache.get(f"{key}:f") is not None:
                 val = await cls._cache.get(key)
                 if val is not None:
-                    return val
+                    return val, True
             try:
                 result = await cls._upstream(provider, model, params, credentials, **kwargs)
             except CircuitBreakerOpen as e:
                 stale = await cls._cache.get(key)
                 if stale is not None:
                     log.warning("[exec] Circuit OPEN for %s — serving stale cache", provider)
-                    return stale
+                    return stale, True
                 raise QueryExecutorError(str(e)) from e
             await cls._write_cache(key, result, effective_ttl)
-            return result
+            return result, False
 
 
 async def fetch(provider: str, model: str, params: Optional[Dict[str, Any]] = None, **kwargs: Any) -> Any:
@@ -234,6 +253,6 @@ def fetch_blocking(provider: str, model: str, params: Optional[Dict[str, Any]] =
 
 def rows_blocking(provider: str, model: str, **params: Any) -> List[Any]:
     """fetch_blocking 의 결과 행(표준 모델 객체) 목록."""
-    from data_fetcher.core.obbject import OBBject
+    from app.backend.platform.obbject import OBBject
 
     return list(OBBject.unwrap(fetch_blocking(provider, model, params)) or [])

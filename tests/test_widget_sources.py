@@ -88,13 +88,15 @@ def test_every_provider_has_a_source_label():
     labels_js = (WIDGET_COMMON / "sources.js").read_text(encoding="utf-8")
     labels = set(re.findall(r"^\s+(\w+):\s+'", labels_js, re.M))
 
-    providers = {p.name for p in PROVIDERS.iterdir() if p.is_dir() and not p.name.startswith("_")}
+    # providers/api/<provider>/ 폴더 이름 + providers/db/ (provider "db")
+    providers = {p.name for p in (PROVIDERS / "api").iterdir() if p.is_dir() and not p.name.startswith("_")}
+    providers.add("db")
     providers -= {"declarative"}   # JSON 스펙 provider 들은 각자 이름(ecos 등)으로 답한다
     for py in ROUTES.glob("*.py"):
         text = py.read_text(encoding="utf-8")
         providers |= set(re.findall(r'provider(?:: str)? ?= ?"([a-z_]+)"', text))
         providers |= set(re.findall(r'_PROVIDER = "([a-z_]+)"', text))
-    for spec in (PROVIDERS / "declarative" / "specs").glob("*.json"):
+    for spec in (PROVIDERS / "api" / "declarative" / "specs").glob("*.json"):
         providers.add(spec.stem.split(".")[0])
 
     missing = sorted(providers - labels - NON_DATA_PROVIDERS)

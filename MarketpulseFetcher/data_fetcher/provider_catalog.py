@@ -64,7 +64,7 @@ _FIELD_LABELS = {"api_key": "API Key", "appkey": "App Key", "appsecret": "App Se
 
 
 def _spec_for(name: str) -> Optional[Dict[str, Any]]:
-    from data_fetcher.providers.declarative.loader import load_specs
+    from data_fetcher.providers.api.declarative.loader import load_specs
 
     return next((s for s in load_specs() if s.get("name") == name), None)
 
@@ -89,7 +89,7 @@ def key_test_for(name: str) -> Optional[Dict[str, Any]]:
     test = provider_info(name).get("key_test")
     if not test:
         return None
-    from data_fetcher.providers.declarative.loader import resolve_date
+    from data_fetcher.providers.api.declarative.loader import resolve_date
 
     params = {
         k: (resolve_date(v).isoformat() if isinstance(v, str) and (v == "today" or v.startswith("-")) else v)
@@ -102,17 +102,14 @@ def credential_fields(credentials: List[str]) -> List[Dict[str, str]]:
     return [{"key": c, "label": _FIELD_LABELS.get(c, c.replace("_", " ").title())} for c in credentials]
 
 
-def provider_catalog() -> List[Dict[str, Any]]:
-    """등록된 모든 provider의 카탈로그 (키 필드 · 모델 · 이 provider가 구현하는 개념)."""
-    from data_fetcher.abstract_provider.abstract.provider import ProviderRegistry
-    from data_fetcher.concepts import CONCEPTS
+def provider_catalog(concepts_by_provider: Optional[Dict[str, List[str]]] = None) -> List[Dict[str, Any]]:
+    """등록된 모든 provider의 카탈로그 (키 필드 · 모델 · 이 provider가 구현하는 개념).
 
-    concepts_by_provider: Dict[str, List[str]] = {}
-    for c in CONCEPTS.values():
-        for impl in c.impls:
-            ids = concepts_by_provider.setdefault(impl.provider, [])
-            if c.id not in ids:
-                ids.append(c.id)
+    개념 정의(concepts)는 웹 계층(app.backend.platform.concepts)에 있으므로 호출하는 쪽이 provider별 개념 id 를 넘긴다.
+    """
+    from data_fetcher.abstract_provider.abstract.provider import ProviderRegistry
+
+    concepts_by_provider = concepts_by_provider or {}
 
     out = []
     for name, prov in sorted(ProviderRegistry.get_all().items()):

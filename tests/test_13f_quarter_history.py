@@ -8,8 +8,8 @@ import data_fetcher.providers_init  # noqa: F401
 from data_fetcher.abstract_provider.standard_models.institutional_holdings import (
     InstitutionalHoldingsQueryParams,
 )
-from data_fetcher.providers.database import schema as fs
-from data_fetcher.providers.database.models.institutional_holdings import DBInstitutionalHoldingsFetcher
+from data_fetcher.providers.db import schema as fs
+from data_fetcher.providers.db.models.institutional_holdings import DBInstitutionalHoldingsFetcher
 
 
 def _fetcher_db(tmp_path):
@@ -59,7 +59,7 @@ _FILINGS = [
 
 def _fake_sec(monkeypatch):
     """SEC 호출 없이 — 공시 목록 · 파싱을 바꾸고, 어느 인덱스 URL 을 파싱했는지 기록한다."""
-    from data_fetcher.providers.sec.models import institutional_13f as m
+    from data_fetcher.providers.api.sec.models import institutional_13f as m
 
     parsed = []
     monkeypatch.setattr(m, "list_13f_filings", lambda cik, limit: _FILINGS[:limit])

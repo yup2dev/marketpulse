@@ -14,7 +14,7 @@ from app.backend.models.orm import (
     MBS_IN_STK_PERIOD_RTN, MBS_IN_STK_PROFILE, MBS_IN_STK_RELATIONS, MBS_IN_STK_STBD, MBS_PROC_ARTICLE,
 )
 from app.backend.core.execution import rows_blocking as rows_sync
-from data_fetcher.core.obbject import OBBject
+from app.backend.platform.obbject import OBBject
 from app.backend.core.execution import fetch_blocking
 
 

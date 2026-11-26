@@ -1,11 +1,13 @@
 """WSFetcherTransport — '현재 사용자'의 PC Fetcher(WS 워커)로 위임하는 RemoteTransport.
 
-실행 계층(ServerExecutor)은 로컬 전용(data_model_routes Y) 조회만 RemoteTransport.fetch(provider, model, params,
+실행 계층(ServerExecutor)은 target="local" 조회만 RemoteTransport.fetch(provider, model, params,
 credentials)로 넘긴다. 이 트랜스포트가 요청 범위 contextvar(current_user_id)를 읽어
 '그 사용자의 워커'로 라우팅한다(사용자별 키 사용).
 
 예외 매핑:
-  - 워커 없음/타임아웃/끊김(FetcherWorkerUnavailable) → RemoteUnavailableError
+  - 워커는 있으나 실행할 수 없는 버전(FetcherWorkerOutdated) → FetcherOutdatedError (503, exe 업데이트 안내)
+  - 워커 응답 시간 초과(FetcherWorkerTimeout) → FetcherTimeoutError (503, 재시도 안내)
+  - 워커 없음/끊김(FetcherWorkerUnavailable) → RemoteUnavailableError
     → 그대로 전파되어 503 (백엔드 직접 호출로 폴백하지 않는다).
   - 워커 실행 실패(FetcherRemoteError, 예: 사용자 키 미설정) → QueryExecutorError로 전파
     → 폴백하지 않고 '기존과 동일한 오류'를 사용자에게 보인다.
@@ -18,13 +20,15 @@ from typing import Any, Dict, Optional
 from app.backend.core.fetcher_client import _json_safe, _restore
 from app.backend.core.fetcher_pool import (
     FetcherRemoteError,
+    FetcherWorkerOutdated,
+    FetcherWorkerTimeout,
     FetcherWorkerUnavailable,
     fetcher_pool,
 )
 from data_fetcher.abstract_provider.abstract.annotated_result import AnnotatedResult
 from data_fetcher.query_executor import QueryExecutorError
 from app.backend.core.execution.context import current_user_id
-from app.backend.core.execution.errors import RemoteUnavailableError
+from app.backend.core.execution.errors import FetcherOutdatedError, FetcherTimeoutError, RemoteUnavailableError
 
 log = logging.getLogger(__name__)
 
@@ -48,6 +52,10 @@ class WSFetcherTransport:
             msg = await fetcher_pool.fetch(
                 user_id, provider, model, _json_safe(params), timeout=self.timeout
             )
+        except FetcherWorkerOutdated as exc:
+            raise FetcherOutdatedError(str(exc)) from exc
+        except FetcherWorkerTimeout as exc:
+            raise FetcherTimeoutError(str(exc)) from exc
         except FetcherWorkerUnavailable as exc:
             # 워커 미접속 — 폴백 없이 503 으로 올라간다 ('Fetcher 실행' 안내)
             raise RemoteUnavailableError(str(exc)) from exc

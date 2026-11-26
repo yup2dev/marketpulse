@@ -141,7 +141,7 @@ class TickerExtractor:
     def _init_minimal_tickers(self):
         """DB 로드 실패 시 FMP API에서 가장 활발한 종목 로드"""
         try:
-            from data_fetcher.providers.fmp.models.gainers import FMPMostActivesFetcher
+            from data_fetcher.providers.api.fmp.models.gainers import FMPMostActivesFetcher
 
             import asyncio
             loop = asyncio.new_event_loop()

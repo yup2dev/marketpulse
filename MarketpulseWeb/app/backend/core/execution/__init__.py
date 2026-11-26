@@ -1,9 +1,10 @@
 """웹 서버의 조회 실행 계층 — 어디서 실행할지(로컬 전용 / 서버) · 캐시 · 사용자 키 · 서킷브레이커.
 
     executor.py         ServerExecutor — 조회 한 곳. Query(app 계층) · commands · 서비스 · 웹소켓이 모두 여기로
-    routes.py           (provider, model) 실행 위치 — DB 표 data_model_routes (Y 로컬 전용 / N 서버)
+    routes.py           (provider, model) 실행 위치 — fetcher target (local / server), data_model_routes 는 긴급 전환
     context.py          요청 사용자 (current_user_id)
-    errors.py           MissingCredentialsError(424) · RemoteUnavailableError(503)
+    errors.py           MissingCredentialsError(424) · RemoteUnavailableError(503) · FetcherOutdatedError(503)
+    revalidate.py       PC Fetcher 결과를 fetcher data_type 으로 재검증 (Partial + 격리)
     circuit_breaker.py  provider 별 서킷브레이커
     ttl.py              모델별 캐시 TTL
 
@@ -24,6 +25,6 @@ __all__ = [
 
 def install() -> None:
     """Query.execute 가 ServerExecutor 를 쓰게 한다 (앱 import 때 한 번)."""
-    from data_fetcher.core.provider_interface import ProviderInterface
+    from app.backend.platform.provider_interface import ProviderInterface
 
     ProviderInterface.set_executor(ServerExecutor())

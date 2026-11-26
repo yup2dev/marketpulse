@@ -1,6 +1,6 @@
 """KOSIS provider — 통계청 국가통계포털 통계표 시계열 (providers/kosis, OpenBB fred 구조).
 
-HTTP 는 models/series.py 의 KOSISSeriesFetcher 한 곳 — 지표 모델은 그걸 부른다.
+HTTP 는 utils/series.py 한 곳 — 범용 KOSISSeriesFetcher 와 지표 모델(kosis_series)이 그걸 쓴다.
 네트워크는 쓰지 않는다 — provider_helpers.amake_json_request 를 대체한다.
 응답 모양은 개발가이드(통계자료 출력변수 · 1.4 에러메시지)를 따른다:
   정상 = 행 배열 [{PRD_DE, DT, ITM_ID, ITM_NM, C1, C1_NM, UNIT_NM, ...}], 오류 = {"err": "30", "errMsg": "..."}.
@@ -10,12 +10,12 @@ from datetime import date
 import pytest
 
 from data_fetcher.abstract_provider.abstract.annotated_result import AnnotatedResult
-from data_fetcher.providers.kosis.models.capacity_utilization import KOSISCapacityUtilizationFetcher
-from data_fetcher.providers.kosis.models.ict_exports import KOSISIctExportsFetcher
-from data_fetcher.providers.kosis.models.mining_manufacturing_index import KOSISMiningManufacturingIndexFetcher
-from data_fetcher.providers.kosis.models.product_trade import KOSISProductTradeFetcher
-from data_fetcher.providers.kosis.models.series import KOSISSeriesFetcher
-from data_fetcher.providers.kosis.utils.helpers import add_changes, from_period, to_period
+from data_fetcher.providers.api.kosis.models.capacity_utilization import KOSISCapacityUtilizationFetcher
+from data_fetcher.providers.api.kosis.models.ict_exports import KOSISIctExportsFetcher
+from data_fetcher.providers.api.kosis.models.mining_manufacturing_index import KOSISMiningManufacturingIndexFetcher
+from data_fetcher.providers.api.kosis.models.product_trade import KOSISProductTradeFetcher
+from data_fetcher.providers.api.kosis.models.series import KOSISSeriesFetcher
+from data_fetcher.providers.api.kosis.utils.helpers import add_changes, from_period, to_period
 from data_fetcher.utils.api_keys import CredentialsError
 from data_fetcher.utils.http_client import RateLimitError
 
@@ -27,7 +27,7 @@ def _no_throttle(monkeypatch):
     """호출 간격(sleep 0.3s)은 테스트에서 건너뛴다."""
     async def no_sleep(_):
         return None
-    monkeypatch.setattr("data_fetcher.providers.kosis.models.series.asyncio.sleep", no_sleep)
+    monkeypatch.setattr("data_fetcher.providers.api.kosis.utils.series.asyncio.sleep", no_sleep)
 
 
 def _patch(monkeypatch, response, seen=None):

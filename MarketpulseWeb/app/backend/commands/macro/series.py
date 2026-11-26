@@ -1,6 +1,6 @@
 """시계열 command 공용 — 행 → (날짜, 값) 점 · 날짜 기준 변화율 · 대시보드 행.
 
-조회는 하지 않는다 — command 의 inputs 를 CommandRunner 가 받아 온다 (data_fetcher.core.command_runner).
+조회는 하지 않는다 — command 의 inputs 를 CommandRunner 가 받아 온다 (app.backend.platform.command_runner).
 """
 from typing import Any, List, Mapping, Optional, Tuple
 

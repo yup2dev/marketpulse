@@ -1,6 +1,6 @@
 ---
 name: add-fetcher
-description: data_fetcher에 새 데이터 소스(provider/model fetcher)를 추가할 때 사용. provider 디렉터리 배치 표준(model fetcher는 예외 없이 providers/<p>/models/) + 베이스 클래스 선택(ApiFetcher 선언형 / LibraryFetcher·yfinance / DbFetcher / ComputeFetcher / KIS형 다중자격증명) + TET 파이프라인 + standard model 상속 + provider 패키지 Provider 정의 · providers_init 등록 + OpenBB식 범용 series 조합 + 라우트 등록(api/routers.py)·인증 게이트 + 위젯 연결 + exe(Rust 런처 + 내장 Python) 번들 주의사항까지 안내한다. "fetcher 추가", "새 provider 붙이기", "새 지표/모델 추가", "yahoo/fmp/polygon 등에 모델 추가" 같은 요청에 사용.
+description: data_fetcher에 새 데이터 소스(provider/model fetcher)를 추가할 때 사용. provider 디렉터리 배치 표준(model fetcher는 예외 없이 providers/api/<p>/models/ · DB 는 providers/db/models/) + 베이스 클래스 선택(ApiFetcher 선언형 / LibraryFetcher·yfinance / DbFetcher / ComputeFetcher / KIS형 다중자격증명) + TET 파이프라인 + standard model 상속 + provider 패키지 Provider 정의 · providers_init 등록 + OpenBB식 범용 series 조합 + 라우트 등록(api/routers.py)·인증 게이트 + 위젯 연결 + exe(Rust 런처 + 내장 Python) 번들 주의사항까지 안내한다. "fetcher 추가", "새 provider 붙이기", "새 지표/모델 추가", "yahoo/fmp/polygon 등에 모델 추가" 같은 요청에 사용.
 ---
 
 # Fetcher 추가 가이드
@@ -10,7 +10,7 @@ provider가 달라도 같은 `category`(model)는 **동일 standard model을 상
 UniversalWidget의 provider 셀렉터가 shape-safe하게 동작한다.
 
 ```
-요청 → (웹 서버) ServerExecutor.fetch → 실행 위치 표(data_model_routes) → 서버면 QueryExecutor().execute(provider, model, params)
+요청 → (웹 서버) ServerExecutor.fetch → fetcher.target (local 이면 PC Fetcher 위임) → 서버면 QueryExecutor().execute(provider, model, params)
         └→ ProviderRegistry.get(provider).fetcher_dict[model]
             └→ Fetcher.fetch_data():
                  transform_query(params)  → ProviderQueryParams (← 표준 QueryParams 상속)
@@ -21,8 +21,8 @@ UniversalWidget의 provider 셀렉터가 shape-safe하게 동작한다.
 핵심 파일:
 - 유형별 베이스: `MarketpulseFetcher/data_fetcher/abstract_provider/abstract/base_fetchers.py`
 - 표준 모델: `MarketpulseFetcher/data_fetcher/abstract_provider/standard_models/<model>.py` (+ `__init__.py` export)
-- provider fetcher: `MarketpulseFetcher/data_fetcher/providers/<provider>/…` (구조는 아래 §1)
-- provider 정의: `providers/<p>/__init__.py` 의 `<p>_provider = Provider(...)` (OpenBB `openbb_<p>/__init__.py` 와 같음)
+- provider fetcher: 외부 API 는 `MarketpulseFetcher/data_fetcher/providers/api/<provider>/…`, 중앙 DB 는 `providers/db/…` (구조는 아래 §1)
+- provider 정의: `providers/api/<p>/__init__.py` 의 `<p>_provider = Provider(...)` (OpenBB `openbb_<p>/__init__.py` 와 같음)
 - 등록: `MarketpulseFetcher/data_fetcher/providers_init.py` — 패키지의 `<p>_provider` 를 import 해 `PROVIDERS` 에 넣기만 한다 / 캐시 TTL: `query_executor.py`의 `_DEFAULT_TTL`
 - 라우트: 범용 게이트웨이 `MarketpulseWeb/app/backend/api/routes/data.py`(무코드) 또는 전용 `routes/<area>.py`
 - 프론트: `MarketpulseWeb/app/frontend/src/widget/registry/widgetEndpoints.js` + `urlWidgetMap.js`
@@ -38,16 +38,16 @@ UniversalWidget의 provider 셀렉터가 shape-safe하게 동작한다.
 ## 0-1. 새 provider 는 코드 provider 로 (JSON 스펙 provider 는 기존 유지용)
 
 **새 데이터 소스는 단순 REST API 라도 §1 이후의 코드 provider 양식으로 만든다** — standard model 선언 →
-`providers/<p>/models/` fetcher(TET) → `providers/<p>/__init__.py` 의 `Provider(...)` → providers_init 등록,
+`providers/api/<p>/models/` fetcher(TET) → `providers/api/<p>/__init__.py` 의 `Provider(...)` → providers_init 등록,
 이름 규칙까지 다른 provider 와 똑같이. 같은 성격의 기존 provider(시계열 통계면 fred · kosis)를 먼저 읽고
 파일 배치 · 클래스명 · 등록 지점을 그대로 맞춘다.
 
-`providers/declarative/specs/*.json`(JSON 스펙 provider, 실례 `ecos.json`)은 이미 있는 것을 유지하기 위한 경로다.
+`providers/api/declarative/specs/*.json`(JSON 스펙 provider, 실례 `ecos.json`)은 이미 있는 것을 유지하기 위한 경로다.
 새 provider 를 이걸로 만들지 않는다 (KOSIS 를 JSON 스펙으로 만들었다가 "기존 fetcher 양식을 따르라"로 되돌린 전례).
 
 ## 0-2. 매크로 지표면 개념(concept)에 매핑
 
-CPI·실업률·정책금리처럼 **여러 provider가 같은 것을 제공하는 지표**는 `data_fetcher/concepts.py`
+CPI·실업률·정책금리처럼 **여러 provider가 같은 것을 제공하는 지표**는 `MarketpulseWeb/app/backend/platform/concepts.py`
 의 `CONCEPTS` 에 `ConceptImpl(provider, model, countries, params, scale, yoy)` 를 추가한다.
 `/api/concepts/{id}` 가 국가와 '내 키' 기준으로 구현을 골라 같은 단위(%)로 정규화해 준다 —
 위젯(`conceptWidget(...)`)은 provider 를 모른다. 구현 순서 = 우선순위(국가 전용 원천 → 국제기구).
@@ -58,17 +58,22 @@ CPI·실업률·정책금리처럼 **여러 provider가 같은 것을 제공하�
 
 ## 1. provider 디렉터리 배치 (모든 provider 동일)
 
-**model fetcher는 예외 없이 `models/` 안에 둔다.** provider 최상위에는 인프라 파일만 남긴다.
+**`providers/` 는 데이터 출처로 나눈다** — 외부 API 는 `providers/api/<p>/`(폴더 이름 = provider 이름), 중앙 DB 는 `providers/db/`(provider 이름 `db`).
+DB fetcher 를 원본 provider 폴더(예: `api/yahoo/`)에 넣지 않는다 — 같은 표준 모델에 `yahoo` 와 `db` 를 함께 달 수 있게.
+실행 위치(서버 / 사용자 PC)는 폴더가 아니라 실행 계층이 정한다 (아래 '실행 위치').
+
+**model fetcher는 예외 없이 `models/` 안에 둔다.** provider 최상위에는 인프라 파일만 남긴다. api · db 모두 같은 구성이다.
 
 ```
-MarketpulseFetcher/data_fetcher/providers/<p>/
+MarketpulseFetcher/data_fetcher/providers/api/<p>/      (DB 는 providers/db/)
   __init__.py          ← fetcher import + `<p>_provider = Provider(...)` 정의 (providers_init 은 모으기만)
   models/              ← model fetcher 전부. 파일명은 주 category 키 (snake_case)
     __init__.py
-    series.py          ← (시계열 API) 범용 series fetcher — 이 provider 의 HTTP 를 하는 유일한 곳
+    series.py          ← (시계열 API) 범용 series fetcher — HTTP 는 utils/series.py 에 맡긴다
     <model>.py
   utils/
     helpers.py         ← 상수 · 지표별 코드 맵 · 순수 함수 (HTTP 없음. OpenBB fred_helpers.py 처럼)
+    series.py          ← (시계열 API) HTTP 헬퍼 — 이 provider 의 HTTP 를 하는 유일한 곳 (fred_series · kosis_series)
   assets/              ← 동봉 데이터 파일 (imf_cache.pkl.gz 등)
   rest.py / stream.py / client.py   ← provider 인프라 (kis 처럼 필요할 때만)
 ```
@@ -82,21 +87,25 @@ gainers/losers/most_actives 를, yahoo `insider_trading.py` 는 거래·보유·
 아니라 **출처**로 갈린 규칙이라 처음 보는 사람이 예측할 수 없었다(`bls`는 `models/`인데
 `fred`는 최상위인 이유를 코드만 봐서는 알 수 없다). 한 provider가 양쪽을 동시에 쓰는 일도 생겼다.
 
-## 1-0. 흐름 — OpenBB 처럼 "범용 series fetcher + 지표 모델 조합"
+## 1-0. 흐름 — HTTP 헬퍼 + 지표 모델
 
-시계열 API(fred · kosis …)는 OpenBB `openbb_fred` 와 같은 흐름을 따른다:
+시계열 API(fred · kosis …)와 여러 모델이 같은 원천을 쓰는 provider(sec 공시 목록 · 13F 기관 목록)는 이 흐름을 따른다:
 
 ```
 지표 모델 (cpi · mining_manufacturing_index …)
   transform_query   자기 파라미터 검증 (category · measure · 기간)
   aextract_data     helpers 의 코드 맵으로 series_id/통계표 코드를 만든 뒤
-                    await <P>SeriesFetcher.fetch_data(dict(...), credentials)     ← HTTP 는 여기 안에서만
+                    await <p>_series(dict(...), credentials)     ← utils/series.py 의 HTTP 헬퍼 (다른 fetcher 를 부르지 않는다)
   transform_data    지표에 맞게 정규화 (category 키 · 단위 환산 · yoy/mom) → AnnotatedResult(result, metadata)
 ```
 
-- **HTTP · 오류 코드 · 호출 간격(Semaphore + sleep) · 로그는 범용 series fetcher 한 곳**에 둔다 (`fred/models/generic_series.py`, `kosis/models/series.py`).
-  helper 클래스에 HTTP 를 두지 않는다 — 원본 해석(시점 문자열 · 콤마 · 통계부호 · 전각 단위)이 지표마다 중복되기 때문.
-- 여러 계열은 범용 fetcher 가 한 번에 받는다 (fred: `series_id="A,B"` 병렬 요청 · kosis: 코드 `'+'` 로 이어 요청 1번).
+- **HTTP · 오류 코드 · 호출 간격(Semaphore + sleep) · 로그 · 원본 해석은 provider 의 HTTP 헬퍼 한 곳**에 둔다
+  (`api/fred/utils/series.py` 의 `fred_series`, `api/kosis/utils/series.py` 의 `kosis_series`,
+  `api/sec/utils/filings.py` 의 `sec_company_filings`, `api/sec/utils/institutions.py` 의 `sec_institutions`).
+  범용 series fetcher 도 지표 모델도 이 헬퍼를 부른다. **fetcher 안에서 다른 fetcher(`XFetcher.fetch_data`)를 부르지 않는다**
+  — `tests/test_module_boundaries.py` 가 실패시킨다 (허용 목록 `SERIES_COMPOSITION` 은 비었다).
+  헬퍼는 모델 클래스를 함수 안에서 import 한다 (models → utils 순환 import 방지).
+- 여러 계열은 헬퍼가 한 번에 받는다 (fred: `series_id="A,B"` 병렬 요청 · kosis: 코드 `'+'` 로 이어 요청 1번).
 - 빈 결과는 `EmptyDataError` 대신 빈 목록 — 게이트웨이가 예외를 400 으로 바꿔 위젯이 '오류'를 띄우므로 (OpenBB 와 다른 점).
 - 안쪽 호출은 QueryExecutor 를 거치지 않는다 — 캐시 · 서킷브레이커는 바깥 지표 모델 단위로 걸린다.
 - 테스트는 `data_fetcher.utils.provider_helpers.amake_json_request` 한 곳을 대체하면 전 경로가 검증된다 (`tests/test_kosis_provider.py`).
@@ -107,8 +116,8 @@ gainers/losers/most_actives 를, yahoo `insider_trading.py` 는 거래·보유·
 |---|---|---|
 | 원격 HTTP API (키 유/무) | `ApiFetcher` | fmp, polygon, fred, wsj, bls, eia, oecd, imf, sec |
 | 파이썬 라이브러리 래퍼 | `LibraryFetcher` / `YFinanceFetcher` | yahoo(yfinance), krx(pykrx) |
-| 로컬 SQLite 조회 | `DbFetcher` | database(stock_ranking, stock_list) |
-| 순수 로컬 계산 | `ComputeFetcher` | quantitative, quantlib |
+| 중앙 DB 조회 | `DbFetcher` | `providers/db/` (stock_ranking, stock_list) |
+| 순수 로컬 계산 | `ComputeFetcher` | quantlib |
 | 다중 자격증명·스트림 | `ApiFetcher` + `rest.py`/`stream.py` 분리 | kis (appkey/appsecret) |
 
 모든 베이스는 제네릭 subscript 필수: `class My(ApiFetcher[MyQuery, MyData])` — `_generic_args()`가 이걸로 `query_params_type`을 해석한다.
@@ -142,7 +151,7 @@ class FMPThingFetcher(ApiFetcher[FMPThingQueryParams, FMPThingData]):
 
 - **라이브러리 import는 반드시 메서드 내부에서** (모듈 상단 금지 아님, 다만 무거운 것은 지연 권장). yfinance는 `YFinanceFetcher.get_ticker(symbol)` 헬퍼 사용.
 - sync `extract_data`로 구현해도 됨 — `fetch_data`가 `asyncio.to_thread`로 워커 스레드에서 실행한다(루프 블로킹 없음, contextvar 전달). 단 스레드풀 크기만큼만 동시 실행되므로 대량 병렬 HTTP는 aextract_data가 낫다. `library_name` 선언.
-- 예시: `providers/yahoo/models/dividends.py`.
+- 예시: `providers/api/yahoo/models/dividends.py`.
 
 ### C. DbFetcher — 로컬 SQLite
 
@@ -154,19 +163,19 @@ class DBThingFetcher(DbFetcher[Q, D]):
             rows = session.execute(text("SELECT …")).fetchall()
         return [...]
 ```
-- **주의**: sqlalchemy는 Fetcher(exe) 환경에 없다 → providers_init에서 database provider는 `try/except ImportError`로 fail-soft 등록된다(기존 블록에 추가하면 됨).
+- **주의**: sqlalchemy는 Fetcher(exe) 환경에 없다 → providers_init에서 db provider(`providers/db/`)는 `try/except ImportError`로 fail-soft 등록된다(기존 블록에 추가하면 됨).
 - 테이블은 적재 배치 의존(예: `mbs_in_stk_stbd` ← `MarketpulseBatch/jobs/backfill_stk_stbd.py`). **적재가 없으면 빈 응답**이므로 어느 배치가 채우는지 도큐스트링에 명시. 클라우드 반영은 `MarketpulseBatch/jobs/sync_db_to_cloud.py`(/api/ingest) 경유.
-- 새 테이블이면 ORM 을 **양쪽에 각각** 정의한다: 웹 `MarketpulseWeb/app/backend/models/orm/ingest.py`(스키마 주인, alembic 리비전) + 배치 `MarketpulseBatch/index_analyzer/db/orm/ingest.py`(로컬 적재). database provider 가 읽는다면 `MarketpulseFetcher/data_fetcher/providers/database/schema.py` 에도. 그다음 `/api/ingest` whitelist(`MarketpulseWeb/app/backend/api/routes/ingest.py` `_TABLES`) + sync 스크립트 `TABLES`에 추가. 컬럼이 어긋나면 `tests/test_ingest_contract.py` 가 실패한다.
+- 새 테이블이면 ORM 을 **양쪽에 각각** 정의한다: 웹 `MarketpulseWeb/app/backend/models/orm/ingest.py`(스키마 주인, alembic 리비전) + 배치 `MarketpulseBatch/index_analyzer/db/orm/ingest.py`(로컬 적재). database provider 가 읽는다면 `MarketpulseFetcher/data_fetcher/providers/db/schema.py` 에도. 그다음 `/api/ingest` whitelist(`MarketpulseWeb/app/backend/api/routes/ingest.py` `_TABLES`) + sync 스크립트 `TABLES`에 추가. 컬럼이 어긋나면 `tests/test_ingest_contract.py` 가 실패한다.
 
 ### D. ComputeFetcher — 순수 로컬 계산
 
-- 네트워크/credentials 없음. scipy·QuantLib 등 **선택적 의존성이면 providers_init에서 try/except 등록** (quantlib/quantitative 블록 참조) + `requirements-fetcher.txt`에 넣을지(용량) 판단.
+- 네트워크/credentials 없음. scipy·QuantLib 등 **선택적 의존성이면 providers_init에서 try/except 등록** (quantlib 블록 참조) + `requirements-fetcher.txt`에 넣을지(용량) 판단.
 
 ### E. OpenBB 이식 시 추가로 할 일
 
 배치는 §1과 같다(`models/`). 이식 특유의 작업만 여기 적는다 — 프로젝트 네이티브로 옮긴다(`_obb` shim 금지):
 1. import 경로 치환: `openbb_core.provider.abstract.*` → `data_fetcher.abstract_provider.abstract.*`, standard models → `data_fetcher.abstract_provider.standard_models.*` (OpenBB 전용 베이스는 `standard_models/openbb/_base` 참조), 요청 헬퍼 → `MarketpulseFetcher/data_fetcher/utils/provider_helpers.py`.
-2. raw 키 매핑은 `__alias_dict__` + `field_validator(..., mode="before")` 패턴 유지 (예: `providers/wsj/models/active.py`).
+2. raw 키 매핑은 `__alias_dict__` + `field_validator(..., mode="before")` 패턴 유지 (예: `providers/api/wsj/models/active.py`).
 3. **provider가 import 시점에 자산 파일/네트워크를 요구하면 fail-soft로** — IMF `imf_cache.pkl.gz`가 없어 import가 죽으면 providers_init 전체(→ REST/WS 워커)가 못 뜨는 사고가 있었다. 자산 파일은 spec의 `datas`에 추가.
 4. Provider `metadata={"group": "macro"|"stock"}` 지정 → `/api/providers` 그룹 노출.
 
@@ -195,6 +204,16 @@ class <Model>Data(BaseData):
 ```
 - `BaseData`/`BaseQueryParams`는 `extra='allow'` + camelCase→snake_case alias + 빈문자열→None 정리를 기본 제공.
 - provider 고유 필드는 여기 말고 provider 서브클래스에.
+- **화면 표시 힌트**(위젯 만드는 화면의 초안이 쓴다 — 카탈로그 `data_model_hints`):
+  ```python
+  rate: float = Field(json_schema_extra={"x-unit_measurement": "percent", "x-frontend_multiply": 100})  # 0.0123 → 1.23%
+  change_percent: float = Field(json_schema_extra={"x-unit_measurement": "percent"})                    # 이미 %
+  raw_code: str = Field(json_schema_extra={"x-widget_config": {"hidden": True}})                        # 초안에서 숨김
+  ```
+  키는 OpenBB 와 같다 (`x-widget_config` 는 prefix · suffix · hidden). 이미 % 인 값만 초안이 percent 형식으로 잡는다
+  (×100 이 필요한 비율은 auto — percent 셀은 곱하지 않는다).
+- **쉼표로 여러 값을 받는 파라미터**는 QueryParams 에 `__json_schema_extra__ = {"symbol": {"multiple_items_allowed": True}}`
+  — 위젯 화면의 입력칸 설명에 '쉼표로 여러 개'가 붙는다. 고정 선택지는 같은 자리에 `"choices": [...]`.
 - `standard_models/__init__.py`에 export + `__all__` 추가.
 
 ---
@@ -208,18 +227,22 @@ class <P><M>Fetcher(<베이스>[<P><M>QueryParams, <P><M>Data]):
     transform_query / (a)extract_data / transform_data
 ```
 - `aextract_data`를 정의하면 `extract_data`로 자동 연결(둘 중 하나만).
+- **fetcher 는 웹 계층을 모른다.** `OBBject` · `Query` · `Router` · `CommandRunner` · `ProviderInterface` · concepts 는
+  `MarketpulseWeb/app/backend/platform/` 에 있고, PC exe 에는 들어가지 않는다. fetcher 에서 import 하지 않는다
+  (`tests/test_module_boundaries.py` 가 검사). 다른 fetcher 결과의 AnnotatedResult 를 풀 때는
+  `data_fetcher.abstract_provider.abstract.annotated_result` 의 `unwrap_result` · `metadata_of_result` 를 쓴다.
 - **입력 필드명을 같은 category 내에서 통일** — polygon `ticker` vs social `symbol`로 갈라져 provider 전환이 깨진 전례. 불가피하면 `__alias_dict__`로 흡수.
 
 ---
 
 ## 4. 등록 — provider 패키지 `__init__.py` + `providers_init.py`
 
-- **모델 추가**: `providers/<p>/__init__.py` 에 fetcher import + `<p>_provider` 의 `fetcher_dict` 에 `"<category>": <Fetcher>`. category key가 곧 QueryExecutor model / API category 이름(snake_case).
-- **새 provider**: `providers/<p>/__init__.py` 에 `<p>_provider = Provider(name, description, website, credentials, fetcher_dict, metadata={"group": ...})` 정의
-  → `providers_init.py` 에 `from data_fetcher.providers.<p> import <p>_provider` + `PROVIDERS` 목록에 추가.
+- **모델 추가**: `providers/api/<p>/__init__.py`(DB 면 `providers/db/__init__.py`) 에 fetcher import + `<p>_provider` 의 `fetcher_dict` 에 `"<category>": <Fetcher>`. category key가 곧 QueryExecutor model / API category 이름(snake_case).
+- **새 provider**: `providers/api/<p>/__init__.py` 에 `<p>_provider = Provider(name, description, website, credentials, fetcher_dict, metadata={"group": ...})` 정의
+  → `providers_init.py` 에 `from data_fetcher.providers.api.<p> import <p>_provider` + `PROVIDERS` 목록에 추가.
   키가 필요하면 `credentials=["api_key"]` + `utils/api_keys.API_ENV_MAPPING` 의 `<P>_API_KEY`, 설정 화면 표시는
   `provider_catalog._INFO`(label · key_docs · key_test) · `routes/providers._PROVIDER_GROUP_FALLBACK` · 프론트 `common/widget/sources.js` 라벨.
-- 선택적 의존성/취약한 import는 `providers_init.py` 에서 **패키지 import 를 try/except ImportError** 로 감싸고 실패하면 `<p>_provider = None` (db/kis/quantlib/quantitative 블록 참조) — `PROVIDERS` 의 None 은 등록에서 건너뛴다.
+- 선택적 의존성/취약한 import는 `providers_init.py` 에서 **패키지 import 를 try/except ImportError** 로 감싸고 실패하면 `<p>_provider = None` (db/kis/quantlib 블록 참조) — `PROVIDERS` 의 None 은 등록에서 건너뛴다.
 
 ## 5. 캐시 TTL (`query_executor.py` `_DEFAULT_TTL`)
 
@@ -258,7 +281,7 @@ python -m pytest
 PYTHONPATH="MarketpulseFetcher" python -c "import data_fetcher.providers_init; from data_fetcher.utils.registry import FetcherRegistry; print(FetcherRegistry.list_providers('<category>'))"
 
 # (c) fetcher 단위 TET 검증 (실 호출)
-PYTHONPATH="MarketpulseFetcher" python -c "import data_fetcher.providers_init; from data_fetcher.providers.<p>.models.<m> import <F> as F; F.test({'symbol':'AAPL'})"
+PYTHONPATH="MarketpulseFetcher" python -c "import data_fetcher.providers_init; from data_fetcher.providers.api.<p>.models.<m> import <F> as F; F.test({'symbol':'AAPL'})"
 
 # (d) 게이트웨이: GET /api/data/<provider>/<category>?symbol=AAPL / GET /api/providers
 # (e) 프론트 빌드: cd MarketpulseWeb/app/frontend && npm run build
@@ -267,19 +290,36 @@ PYTHONPATH="MarketpulseFetcher" python -c "import data_fetcher.providers_init; f
 
 ## 체크리스트
 
-- [ ] 파일 위치: `providers/<p>/models/<model>.py` (예외 없음) + 베이스 클래스 선택(§1-1)
+- [ ] 파일 위치: `providers/api/<p>/models/<model>.py` · DB 는 `providers/db/models/<model>.py` (예외 없음) + 베이스 클래스 선택(§1-1)
 - [ ] standard model(신규 시) + `__init__.py` export
 - [ ] provider fetcher: 표준 상속 + TET + 제네릭 subscript
 - [ ] 같은 category 내 입력 필드명 통일
-- [ ] 시계열 API면 범용 series fetcher 한 곳에서만 HTTP, 지표 모델은 그걸 조합 (§1-0) · utils/helpers.py 는 HTTP 없음
-- [ ] `providers/<p>/__init__.py` 의 `Provider(...)` fetcher_dict + (신규 provider) providers_init `PROVIDERS` 등록 (+ 취약 import는 fail-soft)
+- [ ] 시계열 API면 HTTP 는 utils/series.py 헬퍼 한 곳, 지표 모델은 헬퍼를 조합 — 다른 fetcher 를 부르지 않는다 (§1-0) · utils/helpers.py 는 HTTP 없음
+- [ ] `providers/api/<p>/__init__.py`(DB 는 `providers/db/__init__.py`) 의 `Provider(...)` fetcher_dict + (신규 provider) providers_init `PROVIDERS` 등록 (+ 취약 import는 fail-soft)
 - [ ] TTL / 라우트(`?provider=` 노출) + **새 라우트면 `api/routers.py` 등록** / widgetEndpoints + urlWidgetMap
 - [ ] 지연 import·자산 파일 → spec 반영 (hiddenimports / datas)
+- [ ] 실행 위치: 서버에서 못 도는 것만 `target = "local"` (기본 server · DbFetcher 는 server 고정) — 아래 '실행 위치'
 - [ ] §8 검증 통과
 
-## 실행 위치 (로컬 전용 / 서버)
+## 실행 위치 — `target` (서버 / 사용자 PC)
 
-fetcher 에 "어디서 실행되는지"를 적지 않는다 (OpenBB 처럼 fetcher 는 모른다). 새 (provider, model) 은 웹 서버가 기동할 때
-DB 표 `data_model_routes` 에 행이 생긴다 — 같은 provider 의 다른 행이 모두 로컬 전용이면 Y, 아니면 N.
-서버 IP 에서 막히는 스크래핑 · 메모리를 많이 쓰는 파싱이면 관리자 API `PUT /api/admin/data-routes/{provider}/{model}`
-`{"local": true}` 로 로컬 전용으로 바꾼다 (사용자 PC Fetcher 로 위임, 꺼져 있으면 503).
+fetcher 클래스에 `target` 을 선언한다. 기본은 `"server"` 라 대부분은 적을 게 없다.
+
+```python
+class MyFetcher(ApiFetcher[Q, D]):
+    target = "local"   # 서버 IP 에서 막히는 스크래핑 · 메모리를 많이 쓰는 파싱일 때만
+```
+
+- 값은 `"server"` | `"local"` 둘뿐이다 (다른 값이면 클래스 정의 시점에 오류). DB 는 위치가 아니라 출처라 `DbFetcher` 로 구분하고 server 고정이다.
+- `YFinanceFetcher` 를 상속하면 이미 `"local"` 이다 (yfinance 는 서버 IP 에서 막힌다).
+- `local` 은 웹 서버가 그 사용자의 PC Fetcher 로 위임한다 (꺼져 있으면 503, 서버가 대신 실행하지 않는다).
+  PC Fetcher(`server/runner.py`)는 `target="local"` fetcher 만 실행한다 — exe 에 코드가 다 들어 있어도 server fetcher 는 거부한다.
+- `server → local` 로 바꾸면 **exe 를 다시 배포**해야 한다 (사용자 PC 에 그 fetcher 가 local 로 있어야 하므로).
+  PC Fetcher 는 접속할 때 hello 로 실행할 수 있는 (provider, model) 을 알린다(`server/wire.py`). 업데이트하지 않은 PC 에는
+  위임하지 않고 503 + exe 업데이트 안내가 나간다.
+- local fetcher 결과는 PC 에서 `model_dump(mode="json")` 로 건너와 서버가 그 fetcher 의 `data_type` 으로 **다시 검증**한다
+  (`core/execution/revalidate.py`). 그래서 Data 모델은 JSON 왕복(`model_dump(mode="json")` → `model_validate`)이 돼야 한다 —
+  `mode="before"` 검증기가 이미 정리된 값을 다시 받아도 같은 결과를 내게 쓴다. 검증에 실패한 행은 결과에서 빠진다.
+- WS 메시지 모양을 바꾸면 `server/wire.py` 의 `PROTOCOL_VERSION` 을 올린다.
+- 운영 중 local fetcher 를 서버에서 돌려야 하면(서버 IP 차단이 풀림 · PC Worker 장애) 코드 수정 없이 관리자 API
+  `PUT /api/admin/data-routes/{provider}/{model}` `{"local": false}` 로 긴급 전환한다 (해제는 `true`). server → local 은 이 API 로 할 수 없다.

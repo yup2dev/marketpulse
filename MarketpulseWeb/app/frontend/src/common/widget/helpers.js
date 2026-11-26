@@ -3,6 +3,7 @@
  * Fast Refresh 경고가 나서 따로 둔다)
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { errorMessage } from '../api/errors';
 
 /** 문자열 배열이든 { value, label } 배열이든 같은 모양으로 맞춘다 */
 export function normalizeOptions(options) {
@@ -40,12 +41,21 @@ export function usePopover() {
   return { open, setOpen, toggle, close, ref };
 }
 
-/** apiClient 오류 → WidgetState props. 위젯은 <WidgetState {...stateFromError(e)} /> 로 넘긴다. */
+// 서버 오류 code → WidgetState kind (PC Fetcher 관련). 코드표는 docs/ARCHITECTURE.ko.md '오류 응답'
+const FETCHER_KINDS = {
+  fetcher_offline: 'fetcher-off',
+  fetcher_timeout: 'fetcher-slow',
+  fetcher_outdated: 'fetcher-outdated',
+};
+
+/** apiClient 오류 → WidgetState props. 위젯은 <WidgetState {...stateFromError(e)} /> 로 넘긴다.
+ *  서버 code 로 먼저 고르고, code 가 없는 옛 응답만 HTTP 상태로 판단한다 (전환기). */
 export function stateFromError(err) {
   if (!err) return null;
   if (err.code === 'missing_key') return { kind: 'missing-key', provider: err.provider };
-  if (err.status === 503) return { kind: 'fetcher-off' };
-  return { kind: 'error', message: detailText(err.detail) || err.message };
+  if (FETCHER_KINDS[err.code]) return { kind: FETCHER_KINDS[err.code] };
+  if (!err.code && err.status === 503) return { kind: 'fetcher-off' };
+  return { kind: 'error', message: errorMessage(err, detailText(err.detail) || err.message) };
 }
 
 /** 오류 detail → 글자. FastAPI 422 는 [{ loc, msg, … }] 목록이라 그대로 그리면 React 가 터진다 (화면 전체가 오류 경계로 간다) */

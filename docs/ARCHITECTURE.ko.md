@@ -41,8 +41,13 @@ README 의 요약판에서 다루지 않은 동작 규칙·분기 조건·운영
                                    │        사용자 PC Fetcher 로 위임          서버가 직접 호출
                                    │        (/ws/fetcher 워커)               (사용자 키 · 서킷브레이커)
                                    ▼
-                          OBBject { results, provider, warnings … }  ← 프론트는 `res.results` 를 읽는다
+                          OBBject { results, provider, warnings, metadata }  ← 프론트는 `res.results` 를 읽는다
 ```
+
+- **응답 metadata 의 실행 정보** — `cached`(모든 조회가 캐시에서) · `duration_ms` · `row_count` · `executed_at`
+  (`server` | `local` | `mixed`). `ServerExecutor.fetch` 가 조회마다 남기고(`core/execution/context.record_execution`)
+  `OBBject.from_query` · `CommandRunner.run` 이 모아 넣는다. `executed_at` 은 fetcher 의 target 이 아니라 실제로 실행한 곳이다
+  (긴급 전환 중이면 local fetcher 도 `server`).
 
 - **라우트는 두 종류다.** `/api/data/{provider}/{model}` 은 범용 게이트웨이로, `providers_init.py` 에 등록된
   fetcher 를 그대로 노출한다 (fetcher 를 추가해도 라우트를 고칠 필요가 없다). 화면 전용 라우트
@@ -52,6 +57,8 @@ README 의 요약판에서 다루지 않은 동작 규칙·분기 조건·운영
   즉시 돌려주고 뒤에서 갱신한다. TTL 은 모델별로 다르다 (시세 30~60초, 뉴스 5분, 재무 30분 … `query_executor.py`
   의 `_DEFAULT_TTL`). Redis 가 없으면 인메모리로 동작한다.
 - **서킷브레이커**는 provider 단위다. 열려 있으면 stale 값이라도 돌려주고, 없으면 503 + `Retry-After`.
+- **적재 데이터(db provider) 캐시** — 모델별 TTL 에 더해, 배치 적재(`POST /api/ingest/{table}`)가 끝나면 db provider
+  캐시(`qe:db:*`)를 통째로 비운다 (`ServerExecutor.invalidate_provider`). 적재 직후 화면이 옛 값을 보이지 않게.
 
 ### fetcher 와 command — 가공을 어디에 두나
 
@@ -75,25 +82,29 @@ README 의 요약판에서 다루지 않은 동작 규칙·분기 조건·운영
 
 `tests/test_module_boundaries.py` 가 검사한다 — fetcher 안에서 `QueryExecutor` 나 다른 fetcher 를 부르면 실패,
 command 가 provider 이름을 문자열로 쓰거나 `data_fetcher.providers` 를 import 하면 실패. 이 규칙 이전의 위반은
-테스트 안 허용 목록 두 개(`SERIES_COMPOSITION` — HTTP 헬퍼로 바꿀 것, `ANALYSIS_TO_COMMAND` — command · 배치로
-옮길 것)에 있고, 목록은 줄기만 한다 (정리됐는데 남아 있으면 실패).
+테스트 안 허용 목록 두 개(`SERIES_COMPOSITION` · `ANALYSIS_TO_COMMAND`)에 있었고 둘 다 비었다 — 같은 원천을 여러 모델이
+쓰면 provider 의 HTTP 헬퍼(`utils/series.py` 등)를 부른다. 목록은 줄기만 한다 (새로 넣지 않는다).
 
 ### 분기 처리 — 어디서 실행되는가
 
 분기는 웹 서버의 실행 계층 한 곳(`app/backend/core/execution/executor.py` 의 `ServerExecutor._upstream`)에 있다.
-fetcher 패키지는 이걸 모른다 — OpenBB 처럼 순수 실행(`QueryExecutor().execute`)만 한다.
-**어느 조회를 어디서 돌릴지는 코드가 아니라 DB 표 `data_model_routes` ((provider, model) 마다 `local_yn`)가 정한다.**
+fetcher 는 순수 실행(`QueryExecutor().execute`)만 하고, 실행 위치는 **선언만** 한다.
+**어느 조회를 어디서 돌릴지는 fetcher 의 `target`(`"server"` 기본 / `"local"`)이 정한다.** DB 표 `data_model_routes` 는
+local fetcher 를 배포 없이 서버로 돌리는 **긴급 전환**만 담는다 (평소 비어 있다).
 
 | # | 조건 | 처리 |
 |---|------|------|
-| 1 | `local_yn = Y` (로컬 전용) **이고** 위임 transport 가 설정됨 | 요청한 **그 사용자의** PC Fetcher 로만 위임. 서버 직접 호출로 넘기지 않는다. 워커가 없거나 사용자 컨텍스트가 없으면(배경 작업) 503 |
-| 2 | `local_yn = N` + **키가 필요한 provider** + 로그인 사용자 | 서버가 직접 호출하되 **그 사용자가 등록한 키**(DB, Fernet 복호화)로. 키가 없으면 운영자 키로 넘기지 않고 424 |
-| 3 | `local_yn = N` + 키가 필요한 provider + 사용자 컨텍스트 없음 (서버 배경 작업) | 환경변수의 운영자 키로 호출 |
-| 4 | `local_yn = N` 그 밖 — 무키 공개 API, 적재 DB(`db`), 계산 | 서버가 직접 실행 |
+| 1 | `target = "local"` (긴급 전환 아님) **이고** 위임 transport 가 설정됨 | 요청한 **그 사용자의** PC Fetcher 로만 위임. 서버 직접 호출로 넘기지 않는다. 워커가 없거나 사용자 컨텍스트가 없으면(배경 작업) 503 |
+| 2 | 서버 실행 + **키가 필요한 provider** + 로그인 사용자 | 서버가 직접 호출하되 **그 사용자가 등록한 키**(DB, Fernet 복호화)로. 키가 없으면 운영자 키로 넘기지 않고 424 |
+| 3 | 서버 실행 + 키가 필요한 provider + 사용자 컨텍스트 없음 (서버 배경 작업) | 환경변수의 운영자 키로 호출 |
+| 4 | 서버 실행 그 밖 — 무키 공개 API, 적재 DB(`db`), 계산 | 서버가 직접 실행 |
 
-- 표의 행은 기동할 때 `core/execution/routes.sync_routes` 가 등록된 (provider, model) 마다 넣는다. 처음 값은
-  예전 규칙 그대로(yahoo 전부 · SEC 13F 원본 파싱 3개 = Y, 나머지 N)이고, 새 모델은 같은 provider 의 다른 행을 따른다.
-  그 뒤로는 표가 주인이다 — 관리자 API `PUT /api/admin/data-routes/{provider}/{model}` 로 바꾸면 바로 적용된다.
+- `target="local"`: `YFinanceFetcher`(yahoo 전부 — 서버 IP 차단), SEC 13F 원본 파싱 3개(서버 메모리). 나머지는 server.
+  `DbFetcher` 는 server 고정이다 (바꾸면 클래스 정의 시점에 오류).
+- 긴급 전환: 관리자 API `PUT /api/admin/data-routes/{provider}/{model}` `{"local": false}` (해제는 `true`) — 바로 적용된다.
+  server → local 은 거부한다(400). PC 에서 돌리려면 fetcher 의 `target` 을 바꾸고 exe 를 다시 배포한다.
+  기동할 때 `core/execution/routes.cleanup` 이 기본값과 같아 뜻이 없는 행을 지운다.
+- exe 에는 data_fetcher 코드가 전부 들어가지만 PC Fetcher(`server/runner.py`)는 `target="local"` fetcher 만 실행한다.
 - 위임 transport 가 없으면(`FETCHER_REMOTE_ENABLED=false`, 개발 PC 한 대) 표와 무관하게 모두 서버에서 실행한다.
 - 로컬 전용 결과도 서버 캐시에 둘지는 `EXEC_CACHE_LOCAL_RESULTS` (기본 true — 예전과 같음).
 - Fetcher exe 와 배치는 순수 `QueryExecutor` 를 그대로 쓴다 — 위임의 끝(leaf)이라 표를 읽지 않는다.
@@ -106,19 +117,27 @@ fetcher 패키지는 이걸 모른다 — OpenBB 처럼 순수 실행(`QueryExec
 | `true` | `true` | **운영 구성.** 사용자 PC 의 Fetcher 가 `/ws/fetcher` 로 먼저 접속(outbound)해 워커풀에 합류하고, 서버는 그 연결로 요청을 내려보낸다. NAT·방화벽 뒤 PC 도 된다 |
 | `true` | `false` | 서버가 `FETCHER_URL`(기본 `http://127.0.0.1:8765`)의 Fetcher REST `/fetch` 를 호출. 서버와 Fetcher 가 같은 PC 에 있을 때 |
 
-**실패했을 때 프론트가 받는 것** — 위젯은 `stateFromError()` 로 안내 화면을 고른다:
+**오류 응답** — 모든 오류는 `{detail, code, provider?}` 이고, 한 곳(`api/deps.exception_response`, `route_handler`)에서
+만든다. 위젯은 `code` 로 안내 화면을 고른다 (`stateFromError()` · `errorMessage()`). `code` 가 없는 옛 응답만 HTTP 상태로 본다.
 
-| 상황 | 응답 | 위젯 표시 |
-|------|------|-----------|
-| 사용자가 그 provider 의 키를 등록하지 않음 | `424` + `code: "missing_key"`, `provider` | "키 등록" 안내 (`/settings`) |
-| Fetcher 워커 미접속·타임아웃 / 13F 파싱 모델을 서버에서 호출 | `503` | "Fetcher 실행" 안내 |
-| 서킷브레이커 OPEN (stale 값도 없음) | `503` + `Retry-After` | 〃 |
-| 토큰 만료·미인증 | `401` | refresh 시도 → 실패 시 `/login` |
-| 그 밖의 조회 오류 | `502` (외부 API 오류는 그 상태코드에 맞춰 변환) | 오류 메시지 |
+| code | HTTP | 언제 | 위젯 표시 |
+|------|------|------|-----------|
+| (세션) | `401` | access token 만료·무효 — 세션 인증 전용 | refresh 시도 → 실패 시 `/login` |
+| `missing_key` | `424` (+ `provider`) | 사용자가 그 provider 의 키를 등록하지 않음 | "키 등록" 안내 (`/settings`) |
+| (빈 결과) | `200` | `EmptyDataError` — 조회는 됐고 결과 없음. `results: []` + `warnings` | 빈 상태 |
+| `fetcher_offline` | `503` | local fetcher 인데 그 사용자의 Fetcher 미접속 · 로그인 없음 | "Fetcher 실행" 안내 |
+| `fetcher_timeout` | `503` | Fetcher 가 제한 시간 안에 응답하지 않음 | 지연 안내 + 재시도 |
+| `fetcher_outdated` | `503` | Fetcher exe 가 이 (provider, model) 을 실행할 수 없는 버전 (hello 기준) | 업데이트 안내 |
+| `circuit_open` | `503` + `Retry-After` | provider 서킷브레이커 OPEN (stale 값도 없음) | 잠시 후 재시도 |
+| `upstream_denied` | `502` | 외부 API 가 401·403 으로 거부 (키·권한) | 키·권한 확인 안내 |
+| `upstream_subscription` | `402` | 외부 API 구독 필요 | 구독 필요 안내 |
+| `upstream_limit` | `429` | 외부 API 호출 한도 초과 | 잠시 후 재시도 |
+| `upstream_error` | `502` | 그 밖의 외부 · 조회 오류 | 오류 메시지 |
+| `bad_param` · `not_found` | `400` · `404` | 잘못된 파라미터 / 없는 provider · model | 오류 메시지 |
+| `internal_error` | `500` | 예상하지 못한 오류 (로그에 traceback) | 오류 메시지 |
 
-키 미등록에 401/403 을 쓰지 않는 이유는 `apiClient` 가 그 둘을 세션 만료로 보고 로그아웃시키기 때문이다.
-범용 게이트웨이(`/api/data/*`)는 "그 밖의 조회 오류"만 `404`(provider·model 없음) / `400` 으로 내려주고,
-424·503 은 전용 라우트와 같다.
+401·403 을 provider 오류에 쓰지 않는 이유는 `apiClient` 가 그 둘을 세션 만료로 보고 refresh · 로그아웃시키기 때문이다
+(외부 API 의 401·403 은 `502 upstream_denied` 로 바꾼다). PC Fetcher 에서 결과가 비면 오류가 아니라 빈 목록을 보낸다.
 
 **provider 를 고르는 분기**도 있다. 같은 지표를 여러 provider 가 제공하면(`/api/concepts/{concept}`),
 그 국가를 지원하는 구현 중 사용자가 쓸 수 있는 것(무키이거나 키 등록됨)을 순서대로 고른다. 전부 키가 없으면
@@ -128,8 +147,8 @@ fetcher 패키지는 이걸 모른다 — OpenBB 처럼 순수 실행(`QueryExec
 
 | 어디서 | 어떻게 | 무엇을 |
 |--------|--------|--------|
-| **서버 프로세스** | `core/execution.ServerExecutor` 가 순수 `QueryExecutor` 를 감싼다 (`ServerExecutor.configure(cache, remote, credential_resolver)`, `execution.install()` 로 Query 의 실행기 자리에) | 실행 위치 판단(DB 표) · 캐시 · 사용자 키 · 서킷브레이커 · 서버 실행 |
-| **사용자 PC (exe)** | Rust 런처가 내장 Python 으로 `data_fetcher.app` 실행. `127.0.0.1:8765` REST + `/ws/fetcher` 워커 → `server/runner.py` (순수 `QueryExecutor` + 이 PC 의 키) | 로컬 전용(`local_yn=Y`) 조회 — 지금은 yahoo 와 13F 원본 파싱 |
+| **서버 프로세스** | `core/execution.ServerExecutor` 가 순수 `QueryExecutor` 를 감싼다 (`ServerExecutor.configure(cache, remote, credential_resolver)`, `execution.install()` 로 Query 의 실행기 자리에) | 실행 위치 판단(fetcher target · 긴급 전환 표) · PC 결과 재검증 · 캐시 · 사용자 키 · 서킷브레이커 · 서버 실행 |
+| **사용자 PC (exe)** | Rust 런처가 내장 Python 으로 `data_fetcher.app` 실행. `127.0.0.1:8765` REST + `/ws/fetcher` 워커 → `server/runner.py` (순수 `QueryExecutor` + 이 PC 의 키) | `target="local"` fetcher 조회만 — 지금은 yahoo 와 13F 원본 파싱 |
 | **배치 프로세스** | 수집기가 순수 `QueryExecutor().execute(...)` 를 직접 호출 | 적재용 원천 데이터 수집 (yahoo·SEC 13F·FMP …) |
 
 **사용자 PC Fetcher 가 워커풀에 붙는 과정**
@@ -138,12 +157,19 @@ fetcher 패키지는 이걸 모른다 — OpenBB 처럼 순수 실행(`QueryExec
 2. 웹앱이 로그인·토큰 갱신 때마다 access token 을 `POST http://127.0.0.1:8765/user-token` 으로 넘긴다
    (`common/api/localFetcher.js`). Fetcher 가 꺼져 있으면 조용히 무시된다.
 3. Fetcher 가 그 토큰으로 `wss://…/ws/fetcher?token=…` 에 접속한다. 서버는 토큰의 user_id 로 워커를 등록한다.
-4. 그 사용자의 요청 중 로컬 전용(`data_model_routes.local_yn = Y`)인 것만 이 연결로 내려가고, Fetcher 가 실행해 결과를 돌려준다.
+   접속 직후 Fetcher 가 **hello**(`fetcher_version` · `protocol_version` · 실행할 수 있는 `fetchers` 목록)를 보낸다.
+   메시지 계약은 `data_fetcher/server/wire.py` 한 곳에 있고 서버도 이걸 import 한다.
+4. 그 사용자의 요청 중 `target="local"`(긴급 전환 아님)인 것만 이 연결로 내려가고, Fetcher 가 실행해 결과를 돌려준다.
+   hello 의 `fetchers` 에 없는 (provider, model) 이거나 protocol 이 다르면 위임하지 않고 503 — exe 업데이트 안내
+   (hello 를 보내지 않는 구버전 exe 는 예전처럼 받는다).
+5. 서버는 받은 JSON 행을 그 fetcher 의 `data_type` 으로 **재검증**한다(`core/execution/revalidate.py`) — 서버 실행과
+   같은 Pydantic Data 가 캐시 · 라우트 · command 로 간다. 검증에 실패한 행은 결과에서 빼고(DotDict 로 섞지 않는다)
+   `validation_failed` 경고와 건수를 응답 warnings 에 싣는다.
    캐시는 서버에 남으므로 같은 조회가 반복되면 PC 까지 내려가지 않는다.
 
 토큰이 바뀌면(재로그인·다른 계정) Fetcher 가 파일 변경을 감지해 재접속한다 — 재시작이 필요 없다.
 
-**새 데이터 소스를 붙이는 순서**: `providers/<name>/models/` 에 fetcher 작성 → `providers_init.py` 등록 →
+**새 데이터 소스를 붙이는 순서**: `providers/api/<name>/models/`(중앙 DB 면 `providers/db/models/`) 에 fetcher 작성 → `providers_init.py` 등록 →
 `/api/data/<name>/<model>` 로 바로 호출됨 → 프론트 `widget/registry/widgetEndpoints.js` 에 위젯 등록.
 서드파티 의존성이 생기면 `MarketpulseFetcher/requirements.txt` 와 `build/requirements-fetcher.txt` 양쪽에 넣는다.
 
@@ -163,6 +189,30 @@ fetcher 패키지는 이걸 모른다 — OpenBB 처럼 순수 실행(`QueryExec
 
 ---
 
+### 위젯과 데이터 API
+
+위젯 정의는 DB 행(`user_widgets` 계열)이다. 기본 위젯(`user_id` NULL)은 `builtin_widgets/*.json` 이 원본이고,
+일반 사용자도 위젯을 만든다. 위젯 종류마다 정의 모양이 달라 **데이터 출처((provider, model))는
+`services/widget_sources.py` 한 곳에서 계산한다** — 사용자 위젯은 `provider`·`model` 칸, 기본 위젯은 `/data/{provider}/{model}`
+endpoint (`{provider}` 자리면 그 모델을 주는 모든 provider), 화면을 코드로 그리는 위젯(chart-studio 등)은
+`CODE_WIDGET_SOURCES` 에 적은 쌍. command · concepts endpoint 는 데이터 API 출처가 아니다.
+
+- **호출 허용** — `/api/data/{provider}/{model}` 은 기본 위젯 + 코드 위젯 + 요청 사용자 위젯의 출처에 있는 쌍만 허용한다.
+  모드는 `off` · `log`(허용 밖 호출을 `[widget-gate]` 로그로만) · `enforce`(404 `api_not_registered`)이고 fetcher 의 target 별로 둔다:
+  **`WIDGET_API_GATE_LOCAL=enforce`** — 사용자 PC 를 쓰는 local fetcher(yahoo · 13F)는 위젯에 등록된 것만 부른다.
+  `WIDGET_API_GATE=log` — 서버 fetcher 는 아직 기록만 한다 (동적 위젯 · copilot 호출을 운영 로그로 모은 뒤 enforce 로).
+  프론트 코드에 적힌 `/data/<provider>/<model>` 은 기본 위젯 · 코드 위젯 출처 안에 있어야 한다 (`tests/test_widget_gate.py`).
+- **저장 시 확인** — 사용자 위젯은 등록된 fetcher 의 (provider, model) 로만 저장된다 (`user_widget_service._validate`).
+- **위젯 만드는 화면의 초안** — 데이터 카탈로그(`/api/user-widgets/catalog/{provider}/{model}`)의 파라미터 · 필드로 채운다.
+  카탈로그는 fetcher 등록 정보에서 기동할 때 만들고, 표시 힌트(Data 필드 `json_schema_extra` 의 단위 · 배율 · 숨김)와
+  다중 선택(QueryParams `multiple_items_allowed`)은 `data_model_hints` 표에 둔다 (힌트가 있는 것만 행).
+- **참조 검사** — `data_catalog.find_broken_widgets`(관리자 `GET /api/admin/data-catalog/broken-widgets`)가 위젯이 쓰는
+  API · 필드 · 파라미터가 카탈로그에 아직 있는지 본다 (기본 위젯은 endpoint 의 API). 기본 위젯 파일의 `/data` endpoint 가
+  등록된 fetcher 를 가리키는지는 테스트가 배포 전에 본다.
+- **필드 · 파라미터 이름을 바꿀 때** — 옛 이름을 `__alias_dict__` 로 잠시 함께 받고, DB 위젯 행(`user_widget_fields` ·
+  `user_widget_params`)을 일괄 UPDATE 하는 alembic 데이터 리비전을 같이 낸다. 참조 검사가 옛 이름을 쓰는 위젯이 없다고
+  보고한 뒤 alias 를 지운다. 사용자 위젯은 사람이 하나씩 고칠 수 없다.
+
 ## 디렉토리 구조
 
 ```
@@ -173,6 +223,7 @@ marketpulse/
 │       ├── backend/               # FastAPI (패키지 app.backend)
 │       │   ├── main.py            # 조립만: core/lifespan + auth_gate + api/routers
 │       │   ├── api/routes/        # auth, keys, data, concepts, stock, macro, portfolio, ingest, ws ...
+│       │   ├── platform/          # 웹 API 계층 — OBBject · Query · Router · CommandRunner · ProviderInterface · concepts
 │       │   ├── commands/          # 분석 command — 표준 모델을 받아 계산 (provider 이름을 모른다)
 │       │   ├── services/          # 사용자 · 인증 · 위젯 · 카탈로그 등 상태를 가진 로직
 │       │   ├── builtin_widgets/   # 기본 위젯 정의 (파일 하나 = 위젯 하나, 마이그레이션 없이 파일만 고친다)
@@ -182,7 +233,7 @@ marketpulse/
 │       └── frontend/              # React + Vite (vercel.json)
 ├── MarketpulseFetcher/            # 데이터 조회 라이브러리 + 사용자 PC 용 exe
 │   ├── requirements.txt           # data_fetcher 라이브러리 의존성 (Web·Batch 가 -r 로 포함)
-│   ├── data_fetcher/              # providers/, query_executor.py, server/(exe REST·WS 워커)
+│   ├── data_fetcher/              # providers/api/<p> · providers/db, query_executor.py, server/(exe REST·WS 워커)
 │   ├── launcher/                  # Rust 런처 (트레이·스킴 등록·내장 Python 실행)
 │   └── build/                     # build.py + requirements-fetcher.txt (exe 용 버전 고정 lock)
 ├── MarketpulseBatch/              # 스케줄러(외부 C 스케줄러)가 실행하는 프로그램
@@ -204,7 +255,7 @@ marketpulse/
 하지 않고, 각자 ORM·DB 엔진·로거·경로를 따로 갖는다. Fetcher 는 Web·Batch 를 import 하지 않는다
 (`tests/test_module_boundaries.py` 가 검사). 캐시 · 실행 위치 · 사용자 키 · 서킷브레이커는 Fetcher 가 아니라 서버의
 실행 계층(`app/backend/core/execution`)에 있다 — Fetcher 패키지는 이걸 모른다 (`tests/test_execution_routing.py` 가 검사).
-서버는 기동할 때 `execution.install()` 로 app 계층(`data_fetcher.core.Query`)의 실행기 자리에 `ServerExecutor` 를 끼운다.
+서버는 기동할 때 `execution.install()` 로 app 계층(`app.backend.platform.Query`)의 실행기 자리에 `ServerExecutor` 를 끼운다.
 
 Web 과 Batch 가 맞춰야 하는 건 코드가 아니라 **`/api/ingest` 요청 형식**이다. 배치는 로컬 DB 에 적재하고
 `jobs/sync_db_to_cloud.py` 가 HTTP 로 웹에 보낸다. 같은 테이블을 양쪽이 따로 정의하므로, 컬럼이
@@ -333,7 +384,7 @@ pytest tests/             # 백엔드만
 |------|------|
 | `/api/auth/*` | 로그인·회원가입·refresh·verify |
 | `/api/keys` | 사용자 API 키 관리(암호화 DB) |
-| `/api/data/{provider}/{model}` | 범용 데이터 게이트웨이 — 등록된 모든 fetcher. `/schema` 는 파라미터 폼 스펙 |
+| `/api/data/{provider}/{model}` | 범용 데이터 게이트웨이 — 등록된 모든 fetcher. `/schema` 는 파라미터 폼 스펙. 호출 허용은 아래 '위젯과 데이터 API' |
 | `/api/concepts/{concept}` | provider 무관 지표 — 내 키 기준으로 provider 자동 선택 |
 | `/api/providers` | provider 목록·키 필요 여부 |
 | `/api/stock/*` | 시세·재무·애널리스트·내부자·랭킹 |

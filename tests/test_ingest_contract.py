@@ -121,7 +121,7 @@ def test_sync_options_reference_real_columns(sync_tables, batch_tables):
 
 def test_fetcher_read_models_match_web():
     """fetcher database provider 의 읽기 모델은 웹 스키마의 부분집합이어야 한다."""
-    from data_fetcher.providers.database.schema import Base as FetcherBase
+    from data_fetcher.providers.db.schema import Base as FetcherBase
 
     from app.backend.models.all_models import Base as WebBase
 

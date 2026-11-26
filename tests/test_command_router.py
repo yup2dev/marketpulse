@@ -1,4 +1,4 @@
-"""OpenBB 식 command 계층 (data_fetcher.core) — ProviderInterface · Query · Router · CommandRunner (#114).
+"""OpenBB 식 command 계층 (app.backend.platform) — ProviderInterface · Query · Router · CommandRunner (#114).
 
   - 조회 command : @router.command(model=...) — 시그니처를 ProviderInterface 가 채우고 본문은 Query 한 줄
   - 가공 command : @router.command(inputs=...) — 러너가 inputs 를 조회해 순수 함수에 넘긴다
@@ -12,8 +12,8 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 import data_fetcher.providers_init  # noqa: F401
-from data_fetcher.core import Fetch, OBBject, ProviderInterface, Query, Router, add_warning
-from data_fetcher.core.command_runner import fetch_inputs
+from app.backend.platform import Fetch, OBBject, ProviderInterface, Query, Router, add_warning
+from app.backend.platform.command_runner import fetch_inputs
 from app.backend.core.execution import MissingCredentialsError, ServerExecutor
 
 
@@ -116,7 +116,8 @@ def test_inputs_command_fetches_then_calls_pure_function(calls):
         return [{"keys": sorted(data), "label": label}], {"n": n}
 
     body = _client(router).get("/t/x", params={"date": "2026-01-31", "n": 3, "label": "hi"}).json()
-    assert body["results"] == [{"keys": ["a", "b"], "label": "hi"}] and body["metadata"] == {"n": 3}
+    assert body["results"] == [{"keys": ["a", "b"], "label": "hi"}] and body["metadata"]["n"] == 3
+    assert {"cached", "duration_ms", "row_count", "executed_at"} <= set(body["metadata"])   # 실행 정보
     assert body["provider"] == "fred"
     a = next(p for _, _, p in calls["calls"] if p["series_id"] == "A")
     assert a["end_date"] == date(2026, 1, 31) and a["limit"] == 3

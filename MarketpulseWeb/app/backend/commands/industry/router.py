@@ -5,7 +5,7 @@
 """
 from typing import List, Optional
 
-from data_fetcher.core import OBBject, Router
+from app.backend.platform import OBBject, Router
 from fastapi import Depends, Query
 from sqlalchemy.orm import Session
 

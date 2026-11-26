@@ -59,12 +59,21 @@ description: 대시보드 위젯을 추가/수정할 때 사용. widgetEndpoints
 규칙:
 - **endpoint는 두 종류**: 전용 라우트(`/stock/…/{symbol}`) 또는 범용 게이트웨이(`/data/<provider>/<model>?period={period}`). 게이트웨이면 백엔드 코드 0줄.
 - **`category`를 지정하면** UniversalWidget이 `/api/providers`에서 그 category 지원 provider를 조회해 2개 이상일 때 헤더 셀렉터를 띄우고 `?provider=`를 주입한다. 기본 provider 자동선택은 ① db ② 키 설정됨 ③ 서버 부하 낮음 순 (`PROVIDER_LOAD`).
+- **오류 계약**: 오류 응답은 `{detail, code, provider?}` — 안내 화면은 `stateFromError(err)`, 문구는 `errorMessage(err)` (code 로 분기). 빈 결과는 오류가 아니라 200 + 빈 `results` + `warnings`.
 - **응답 계약**: 프론트는 항상 OBBject `res.results`로 읽고 **`apiClient`** 사용. 옛 `.data` 참조·생 `fetch()`가 "조용한 빈 위젯"의 단골 원인.
 
 ## B. 동적 위젯 — 등록 없이
 
 `data/{provider}/{model}` 형태의 type은 등록 없이 렌더된다 (예: `data/fred/cpi`).
 파라미터 폼은 `/api/data/{provider}/{model}/schema`로 자동 생성. 임시 확인·copilot add_widget용 — 정식 위젯은 A로 등록해라.
+
+**데이터 API 호출 허용** — 서버는 `/api/data` 호출을 기본 위젯 + 코드 위젯 + 그 사용자의 위젯에 등록된 (provider, model) 만
+허용한다. **local fetcher(yahoo · 13F)는 이미 막는다**(`WIDGET_API_GATE_LOCAL=enforce` — 404 `api_not_registered`),
+서버 fetcher 는 아직 기록만(`WIDGET_API_GATE=log`). 그래서 등록 없는 동적 위젯으로 yahoo 데이터를 띄우면 404 가 난다 —
+정식 위젯(A)이나 기본 위젯 정의로 등록해야 한다. 그래서 **위젯 코드에 `/data/<provider>/<model>` 을 새로 적지 않는다** — 기본 위젯
+정의(`builtin_widgets/*.json`)의 endpoint 로 둔다. 화면을 코드로 그리는 위젯(D. component)이 데이터 API 를
+직접 불러야 하면 그 (provider, model) 을 서버 `services/widget_sources.CODE_WIDGET_SOURCES` 에 위젯 id 로 적는다.
+`tests/test_widget_gate.py` 가 프론트 코드의 `/data` 경로와 이 선언을 대조한다.
 
 ## C. providerViews — provider별 body 오버라이드
 
@@ -101,7 +110,7 @@ API fetch 이외의 상태(portfolioData 등)가 필요할 때만:
 | 켜고 끄는 필터 | `ChipToggle` |
 | 드롭다운 | `Select` (브라우저 기본 `<select>` 금지) |
 | 기간 | `PeriodSelect` + `periods.js` 프리셋 — 기간 목록을 위젯에 직접 적지 않는다. 표기 `1D 1W 1M … 10Y` |
-| 로딩·0건·오류·키 없음·Fetcher 꺼짐 | `BaseWidget state={stateFromError(err)}` 또는 `<WidgetState kind=… />` |
+| 로딩·0건·오류·키 없음·Fetcher 꺼짐·응답 지연·업데이트 필요 | `BaseWidget state={stateFromError(err)}` 또는 `<WidgetState kind=… />` — 서버 오류 `code`(missing_key · fetcher_offline · fetcher_timeout · fetcher_outdated …)로 고른다. 위젯에서 `err.status` 로 직접 분기하지 않는다 |
 | 폼 입력칸 | `ParamField` |
 | 보기 전환(표/차트형) | `BaseWidget view/viewOptions/onViewChange` + `buildViewOptions()` |
 

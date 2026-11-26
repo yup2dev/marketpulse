@@ -196,7 +196,7 @@ async def stream_fetcher_loop(symbols: Optional[Set[str]] = None) -> None:
         return
 
     try:
-        from data_fetcher.providers.polygon.stream import PolygonStreamFetcher
+        from data_fetcher.providers.api.polygon.stream import PolygonStreamFetcher
     except ImportError as e:
         log.warning("[ws] StreamFetcher import failed: %s", e)
         return
@@ -257,7 +257,7 @@ async def _build_kis_exchange_map() -> Dict[str, str]:
 async def _kis_sync_loop(fetcher, interval: float = 5.0) -> None:
     """화면에 보이는 심볼(최대 41)로 KIS 구독을 주기적으로 reconcile.
     랭킹 '순서'는 DB 스냅샷이 담당하고, KIS는 보이는 행만 실시간 구독한다."""
-    from data_fetcher.providers.kis.stream import MAX_SUBSCRIPTIONS
+    from data_fetcher.providers.api.kis.stream import MAX_SUBSCRIPTIONS
     while True:
         await asyncio.sleep(interval)
         if not getattr(fetcher, "is_connected", False):
@@ -289,7 +289,7 @@ async def kis_stream_loop(env: str = "real") -> None:
         return
 
     try:
-        from data_fetcher.providers.kis.stream import KISStreamFetcher
+        from data_fetcher.providers.api.kis.stream import KISStreamFetcher
     except ImportError as e:
         log.warning("[ws] KIS stream import failed: %s", e)
         return

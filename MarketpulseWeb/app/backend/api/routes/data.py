@@ -12,17 +12,22 @@ Universal Data Gateway
     GET /api/data/fmp/income_statement?symbol=AAPL
     GET /api/data/polygon/news?symbol=TSLA&limit=20
 """
+import asyncio
 import logging
 from typing import Any, Dict
 
 from fastapi import APIRouter, HTTPException, Request
 
 from app.backend.api.deps import filter_dated_rows as _postprocess_dated_rows, route_handler
-from data_fetcher.core import OBBject, ProviderInterface, Query
+from app.backend.platform import OBBject, ProviderInterface, Query
 from data_fetcher.core.model_schema import resolve_choices
 from data_fetcher.query_executor import QueryExecutorError
 from app.backend.core.execution import MissingCredentialsError, RemoteUnavailableError
 from app.backend.core.execution.circuit_breaker import CircuitBreakerOpen
+from app.backend.core.config import settings
+from app.backend.core.execution import routes as exec_routes
+from app.backend.core.execution.context import current_user_id
+from app.backend.services import widget_sources
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -55,6 +60,10 @@ async def fetch_data(provider: str, model: str, request: Request) -> OBBject:
     """
     if ProviderInterface.fetcher(model, provider) is None:
         raise HTTPException(status_code=404, detail=f"Model '{model}' not found for provider '{provider}'")
+    # 위젯에 등록된 데이터만 — local fetcher(사용자 PC)는 enforce(404 api_not_registered), 서버 fetcher 는 log
+    gate = (settings.WIDGET_API_GATE_LOCAL if exec_routes.target_of(provider, model) == "local"
+            else settings.WIDGET_API_GATE)
+    await asyncio.to_thread(widget_sources.check_data_call, provider, model, current_user_id.get(), gate)
     params: Dict[str, Any] = {k: _coerce(v) for k, v in request.query_params.items()}
     params.pop("provider", None)                       # provider 는 경로가 정한다
     if isinstance(params.get("symbol"), str):
@@ -81,6 +90,7 @@ async def fetch_data(provider: str, model: str, request: Request) -> OBBject:
     # 위젯의 기간 선택이 동작한다
     norm = query.normalized_params()
     obb.results = _postprocess_dated_rows(obb.results, norm.get("start_date"), norm.get("end_date"))
+    obb.metadata["row_count"] = len(obb.results)       # 날짜 범위로 거른 뒤의 행 수
     obb.metadata.pop("params", None)
     return obb
 

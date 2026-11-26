@@ -4,7 +4,7 @@
 응답은 프로젝트 표준인 OBBject(`{results, provider, metadata}`)로 통일한다.
 행 목록은 `results` 에, 조회 조건·건수 같은 부가 정보는 `metadata` 에 담는다.
 """
-from data_fetcher.core import Router
+from app.backend.platform import Router
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -13,7 +13,7 @@ from typing import Dict, Any, Optional
 from app.backend.core.db import get_db
 from app.backend.core.auth.dependencies import get_current_active_user, get_optional_user
 from app.backend.commands.screener.screens import ScreenerService
-from data_fetcher.core import OBBject
+from app.backend.platform import OBBject
 from app.backend.models.orm import User
 
 router = Router(prefix="/screener", tags=["Screener"])

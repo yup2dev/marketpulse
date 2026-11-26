@@ -2,7 +2,7 @@
 
 - sec/openbb/models/* → sec/models/ (기존 sec/ 루트 fetcher와 충돌 없음)
 - sec/openbb/utils/* → sec/utils/ (병합; 미사용 10줄 helpers.py 상수는 보존 위해 append)
-- `data_fetcher.providers.sec.openbb.` → `data_fetcher.providers.sec.` 치환
+- `data_fetcher.providers.api.sec.openbb.` → `data_fetcher.providers.api.sec.` 치환
 - sec/openbb 삭제
 """
 import shutil
@@ -10,7 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DF = ROOT / "MarketpulseFetcher" / "data_fetcher"
-SEC = DF / "providers" / "sec"
+SEC = DF / "providers" / "api" / "sec"
 SRC = SEC / "openbb"
 
 
@@ -59,8 +59,8 @@ def main() -> None:
             continue
         t = f.read_text(encoding="utf-8")
         nt = t.replace(
-            "data_fetcher.providers.sec.openbb.",
-            "data_fetcher.providers.sec.",
+            "data_fetcher.providers.api.sec.openbb.",
+            "data_fetcher.providers.api.sec.",
         )
         if nt != t:
             f.write_text(nt, encoding="utf-8")

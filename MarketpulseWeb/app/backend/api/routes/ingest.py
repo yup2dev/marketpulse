@@ -197,4 +197,22 @@ def ingest_rows(table: str, req: IngestRequest, db: Session = Depends(get_db)) -
         raise HTTPException(status_code=500, detail=f"upsert failed: {exc}") from exc
 
     log.info("[ingest] %s: %d rows upserted", table, n)
+    _invalidate_db_cache(table)
     return {"table": table, "upserted": n}
+
+
+def _invalidate_db_cache(table: str) -> None:
+    """적재가 끝나면 db provider 조회 캐시를 비운다 — 다음 조회가 새 행을 읽는다 (TTL 만료를 기다리지 않는다).
+
+    어느 모델이 이 표를 읽는지 따로 적지 않고 db provider 전체를 비운다 (적재는 하루 몇 번뿐이다).
+    실패해도 적재는 성공이다 — 캐시는 TTL 로 결국 맞춰진다.
+    """
+    import anyio.from_thread
+
+    from app.backend.core.execution import ServerExecutor
+
+    try:
+        removed = anyio.from_thread.run(ServerExecutor.invalidate_provider, "db")
+        log.info("[ingest] %s: db 조회 캐시 %s건 무효화", table, removed)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("[ingest] %s: db 조회 캐시 무효화 실패 (TTL 로 맞춰진다): %s", table, exc)
