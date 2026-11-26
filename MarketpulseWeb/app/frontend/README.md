@@ -99,6 +99,9 @@ Shared code lives in `src/common/` and is imported only through `src/common/inde
 - `common/api/endpoints.js` — per-domain API objects (`authAPI`, `portfolioAPI`, …)
 - `common/api/useApi.js` — GET hook
 - `common/api/localFetcher.js` — local Fetcher (`127.0.0.1:8765`): health, shutdown, token hand-off
+- `common/api/errors.js` · `common/widget/helpers.js` (`stateFromError`) — backend errors are `{detail, code, provider?}`;
+  widgets pick their state from `code` (`missing_key`, `fetcher_offline`, `fetcher_timeout`, `fetcher_outdated`,
+  `upstream_denied`, `circuit_open`, `api_not_registered`, …), not from the message text
 - `common/format/` — number/date formatting (`fmtPct`, `fmtCompact`, `fmtNumber`, `fmtPrice`, `fmtDate`)
 
 ```javascript

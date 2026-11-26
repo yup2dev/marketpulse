@@ -109,18 +109,21 @@ flowchart TB
     W -. "로그인 토큰 전달" .-> F
 ```
 
-> 같은 `data_fetcher` 코드가 **서버 · 사용자 PC exe · 배치** 세 곳에서 돕니다. 어디서 실행할지는 한 곳(`QueryExecutor`)이 정합니다.
+> 같은 `data_fetcher` 코드가 **서버 · 사용자 PC exe · 배치** 세 곳에서 돕니다. 어디서 실행할지는 fetcher 가 스스로 밝힙니다
+> (`target = "server" | "local"`) — `QueryExecutor` 는 그 값대로 실행하거나 PC 로 넘길 뿐입니다.
 
 ### 이 구조가 주는 것
 
 | | 무엇을 | 어떻게 |
 |---|---|---|
 | **1. 데이터 소스 추가 = 파일 하나** | 새 fetcher 를 등록하면 라우트를 고치지 않아도 바로 API·위젯 메뉴에 뜹니다 | `providers/api/<p>/models/` 작성 → `providers_init.py` 등록 → `/api/data/<p>/<model>` 자동 노출 |
-| **2. 막히는 조회는 사용자 PC 가** | 서버 IP 에서 차단되는 Yahoo, 메모리를 많이 먹는 13F 파싱은 사용자 PC 의 Fetcher 가 처리 | Fetcher 가 먼저 `/ws/fetcher` 로 접속(outbound) — NAT·방화벽 뒤 PC 도 워커가 됩니다 |
+| **2. 막히는 조회는 사용자 PC 가** | 서버 IP 에서 차단되는 Yahoo, 메모리를 많이 먹는 13F 파싱은 사용자 PC 의 Fetcher 가 처리 | `target="local"` fetcher 만 위임. Fetcher 가 먼저 `/ws/fetcher` 로 접속(outbound)해 버전 · 실행 가능한 fetcher 목록(hello)을 알리고, 돌려준 결과는 서버가 다시 검증합니다 |
 | **3. 느린 외부 API 를 숨기는 캐시** | 같은 조회가 몰려도 외부 호출은 한 번 | stale-while-revalidate + single-flight 락 + provider 단위 서킷브레이커 |
 | **4. 각자 자기 키로 (BYOK)** | 사용자가 등록한 키로만 조회하고, 운영자 키로 몰래 폴백하지 않습니다 | 키는 Fernet 암호화 저장. 없으면 `424 missing_key` → 위젯이 "키 등록" 안내 |
-| **5. 무거운 일은 배치로** | 랭킹·환율·13F 는 미리 적재해 두고 화면은 DB 만 읽습니다 | 로컬 배치가 수집 → `/api/ingest` 로 서버 DB 에 증분 업서트 |
-| **6. 경계는 테스트가 지킵니다** | Web·Batch 는 서로 import 하지 않고, Fetcher 는 둘 다 모릅니다 | `test_module_boundaries.py` · `test_ingest_contract.py` 가 CI 에서 검사 |
+| **5. 위젯에 등록된 데이터만** | API 는 자동으로 생기지만 아무 조회나 열려 있지 않습니다 | 사용자 PC 로 가는 조회(local fetcher)는 기본 · 코드 · 내 위젯에 등록된 것만 — 아니면 `404 api_not_registered`. 서버 fetcher 는 `WIDGET_API_GATE` 로 같은 규칙을 켤 수 있습니다 (지금 log) |
+| **6. 오류는 code 로** | 위젯이 메시지 문자열이 아니라 code 로 상태를 고릅니다 | 모든 오류 `{detail, code, provider?}` — `missing_key` · `fetcher_offline` · `fetcher_outdated` · `upstream_denied` · `circuit_open` … 빈 결과는 오류가 아니라 200 + warnings |
+| **7. 무거운 일은 배치로** | 랭킹·환율·13F 는 미리 적재해 두고 화면은 DB 만 읽습니다 | 로컬 배치가 수집 → `/api/ingest` 로 서버 DB 에 증분 업서트 (적재하면 db provider 캐시를 비웁니다) |
+| **8. 경계는 테스트가 지킵니다** | Web·Batch 는 서로 import 하지 않고, Fetcher 는 둘 다 모릅니다 | `test_module_boundaries.py` · `test_ingest_contract.py` 가 CI 에서 검사 |
 
 ### 조회 한 건의 흐름
 
@@ -142,20 +145,23 @@ sequenceDiagram
         S-)X: 백그라운드 갱신 (SWR)
     else MISS
         S->>S: single-flight 락
-        alt Yahoo · 13F 원본
+        alt target=local (Yahoo · 13F 원본)
             S->>F: /ws/fetcher 로 위임
             F->>X: 사용자 PC 에서 호출
-            F-->>S: 결과
+            F-->>S: 결과 (JSON)
+            S->>S: Data 모델로 재검증
         else 키 기반 provider
             S->>X: 그 사용자의 키로 호출
         end
         S->>C: 저장
-        S-->>W: OBBject { results, provider, warnings }
+        S-->>W: OBBject { results, provider, warnings, metadata }
     end
 ```
 ### 하나의 게이트웨이, 150여 개 모델
 
 위젯 메뉴의 **Data** 탭은 `/api/data` 게이트웨이에 등록된 모델 전부입니다. provider 별로 묶여 있고, 파라미터 폼은 `/schema` 에서 자동 생성됩니다.
+위젯을 직접 만들 때는 데이터 카탈로그가 초안을 채웁니다 — 필드의 단위 · 숨김(`x-unit_measurement` · `x-widget_config`), 쉼표로 여러 값을 받는 파라미터(`multiple_items_allowed`)까지.
+응답의 `metadata` 에는 `cached` · `duration_ms` · `row_count` · `executed_at`(server · local · mixed)이 실립니다.
 
 <table>
   <tr>
@@ -201,6 +207,13 @@ npm run dev
 ```
 
 `FETCHER_REMOTE_ENABLED=false` 면 서버가 Yahoo 까지 직접 호출합니다 — Fetcher 없이 로컬에서 전부 볼 수 있습니다.
+이때 설치된 Fetcher exe 가 떠 있으면 콘솔에 `[fetcher] 토큰 전달 거부: token is for http://localhost:8000 …` 가 찍힙니다 —
+exe 는 운영 서버에 붙도록 되어 있어 로컬 서버의 토큰을 받지 않는 것이고, 무시해도 됩니다. 로컬 서버에 PC Fetcher 를 붙여 보려면
+exe 를 끄고 `MarketpulseFetcher/` 에서 `FETCHER_BACKEND_WS_URL=ws://localhost:8000/ws/fetcher python -m data_fetcher.app` 로 띄웁니다
+(서버는 `FETCHER_REMOTE_ENABLED` 없이).
+
+> 로컬 DB 를 `alembic upgrade head` 없이(서버 기동의 `create_all`) 만들었다면, 있는 표에 나중에 더해진 칼럼이 빠져 있을 수 있습니다
+> (예: `table user_quant_strategies has no column named basket_id`). 빠진 칼럼만 추가하거나 DB 를 새로 만듭니다.
 루트 `.env` 에 `SECRET_KEY` 는 꼭 넣고, Redis 는 선택입니다(`docker compose up -d redis`, 없으면 인메모리 캐시).
 
 **사용자 PC Fetcher** — [Releases](https://github.com/yup2dev/marketpulse/releases/latest) 에서 받아 실행하면 트레이에 상주합니다. 웹에 로그인하면 토큰이 자동으로 넘어가 워커풀에 합류합니다.
