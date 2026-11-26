@@ -131,7 +131,9 @@ export const schemaAPI = {
       required: p.required_yn === 'Y',
       default: p.default_value,
       options: p.choices || undefined,
-      hint: p.hint,
+      // 쉼표로 여러 값을 받는 파라미터 (QueryParams multiple_items_allowed)
+      hint: p.multiple_yn === 'Y' ? [p.hint, '쉼표로 여러 개'].filter(Boolean).join(' — ') : p.hint,
+      multiple: p.multiple_yn === 'Y',
       dynamic: p.dynamic_yn === 'Y',
     }));
     if (params.some((p) => p.dynamic)) {
@@ -143,7 +145,12 @@ export const schemaAPI = {
     return {
       accepts_symbol: params.some((p) => p.name === 'symbol' || p.name === 'ticker'),
       params,
-      fields: entry.fields.map((f) => ({ name: f.field_name, kind: f.kind, description: f.description })),
+      // 화면 표시 힌트 (Data 필드 json_schema_extra — 위젯 초안의 컬럼 형식 · 숨김)
+      fields: entry.fields.map((f) => ({
+        name: f.field_name, kind: f.kind, description: f.description,
+        unit: f.unit || undefined, multiply: f.multiply ?? undefined,
+        prefix: f.prefix || undefined, suffix: f.suffix || undefined, hidden: f.hidden_yn === 'Y',
+      })),
       source: 'catalog',
     };
   },

@@ -63,11 +63,23 @@ function buildParamRows(schema, saved) {
   return rows;
 }
 
+/**
+ * 필드 표시 힌트(카탈로그 · Data 필드 json_schema_extra) → 초안의 표시 형식.
+ * 값이 이미 % 인 필드만 percent — 비율(0.0123)을 ×100 해서 보여야 하는 필드는 percent 셀이 곱하지 않으므로 auto 로 둔다.
+ */
+function formatFromHints(f) {
+  if (f.unit === 'percent' && (f.multiply == null || f.multiply === 1)) return 'percent';
+  if (f.unit === 'currency') return 'currency';
+  return 'auto';
+}
+
 function buildFieldRows(schema, saved) {
   const rows = (saved || []).map((f) => ({ ...f }));
   const have = new Set(rows.map((f) => f.field_name));
   for (const f of schema?.fields || []) {
-    if (!have.has(f.name)) rows.push({ field_name: f.name, field_role: 'COLUMN', label: '', format: 'auto' });
+    if (!have.has(f.name)) {
+      rows.push({ field_name: f.name, field_role: f.hidden ? 'HIDDEN' : 'COLUMN', label: '', format: formatFromHints(f) });
+    }
   }
   return rows;
 }

@@ -33,7 +33,7 @@ class CountryInterestRatesData(BaseData):
     value: float = Field(
         default=None,
         description="The interest rate value.",
-        json_schema_extra={"x-unit_measurment": "percent", "x-frontend_multiply": 100},
+        json_schema_extra={"x-unit_measurement": "percent", "x-frontend_multiply": 100},
     )
     country: str | None = Field(
         default=None,

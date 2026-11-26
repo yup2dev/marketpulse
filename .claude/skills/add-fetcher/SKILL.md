@@ -204,6 +204,16 @@ class <Model>Data(BaseData):
 ```
 - `BaseData`/`BaseQueryParams`는 `extra='allow'` + camelCase→snake_case alias + 빈문자열→None 정리를 기본 제공.
 - provider 고유 필드는 여기 말고 provider 서브클래스에.
+- **화면 표시 힌트**(위젯 만드는 화면의 초안이 쓴다 — 카탈로그 `data_model_hints`):
+  ```python
+  rate: float = Field(json_schema_extra={"x-unit_measurement": "percent", "x-frontend_multiply": 100})  # 0.0123 → 1.23%
+  change_percent: float = Field(json_schema_extra={"x-unit_measurement": "percent"})                    # 이미 %
+  raw_code: str = Field(json_schema_extra={"x-widget_config": {"hidden": True}})                        # 초안에서 숨김
+  ```
+  키는 OpenBB 와 같다 (`x-widget_config` 는 prefix · suffix · hidden). 이미 % 인 값만 초안이 percent 형식으로 잡는다
+  (×100 이 필요한 비율은 auto — percent 셀은 곱하지 않는다).
+- **쉼표로 여러 값을 받는 파라미터**는 QueryParams 에 `__json_schema_extra__ = {"symbol": {"multiple_items_allowed": True}}`
+  — 위젯 화면의 입력칸 설명에 '쉼표로 여러 개'가 붙는다. 고정 선택지는 같은 자리에 `"choices": [...]`.
 - `standard_models/__init__.py`에 export + `__all__` 추가.
 
 ---

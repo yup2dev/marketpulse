@@ -19,7 +19,7 @@ from typing import Dict, List, Optional, Tuple
 from sqlalchemy.orm import Session
 
 from app.backend.models.orm import (
-    DataModel, DataModelField, DataModelParam, DataModelProvider, DataSource, UserWidget,
+    DataModel, DataModelField, DataModelHint, DataModelParam, DataModelProvider, DataSource, UserWidget,
 )
 from data_fetcher.core.model_schema import has_dynamic_choices, model_schema
 
@@ -67,12 +67,14 @@ def read_registry() -> Tuple[Dict[str, dict], Dict[Tuple[str, str], dict]]:
                         "name": p["name"], "kind": p["kind"], "required": bool(p.get("required")),
                         "default": None if p.get("default") is None else str(p["default"]),
                         "choices": p.get("options"), "dynamic": dynamic and p["kind"] != "date",
-                        "hint": p.get("hint"),
+                        "hint": p.get("hint"), "multiple": bool(p.get("multiple")),
                     }
                     for p in schema["params"]
                 ],
                 "fields": [
-                    {"name": f["name"], "kind": f["kind"], "description": f.get("description")}
+                    {"name": f["name"], "kind": f["kind"], "description": f.get("description"),
+                     "unit": f.get("unit"), "multiply": f.get("multiply"), "prefix": f.get("prefix"),
+                     "suffix": f.get("suffix"), "hidden": bool(f.get("hidden"))}
                     for f in schema["fields"]
                 ],
             }
@@ -181,6 +183,25 @@ def _write_children(db: Session, key: Tuple[str, str], entry: dict) -> None:
         if name not in seen:
             row.use_yn = "N"
 
+    _write_hints(db, key, entry)
+
+
+_FIELD_HINTS = ("unit", "multiply", "prefix", "suffix")
+
+
+def _write_hints(db: Session, key: Tuple[str, str], entry: dict) -> None:
+    """힌트 표는 통째로 다시 쓴다 — 힌트가 있는 파라미터 · 필드만 행."""
+    provider, model = key
+    db.query(DataModelHint).filter_by(provider=provider, model=model).delete()
+    for p in entry["params"]:
+        if p.get("multiple"):
+            db.add(DataModelHint(provider=provider, model=model, target="param", name=p["name"], multiple_yn="Y"))
+    for f in entry["fields"]:
+        if any(f.get(k) is not None for k in _FIELD_HINTS) or f.get("hidden"):
+            db.add(DataModelHint(provider=provider, model=model, target="field", name=f["name"],
+                                 unit=f.get("unit"), multiply=f.get("multiply"), prefix=f.get("prefix"),
+                                 suffix=f.get("suffix"), hidden_yn=_yn(f.get("hidden", False))))
+
 
 def sync_on_startup() -> None:
     """기동할 때 한 번 — 실패해도 앱은 뜬다 (위젯 만들기 목록이 예전 그대로일 뿐)."""
@@ -238,6 +259,8 @@ def get_entry(db: Session, provider: str, model: str) -> Optional[dict]:
         .order_by(DataModelField.field_seq.asc())
         .all()
     )
+    hints = {(h.target, h.name): h for h in db.query(DataModelHint).filter_by(provider=provider, model=model)}
+    multiple = {k for k, h in hints.items() if h.multiple_yn == "Y"}
     return {
         "provider": provider, "model": model, "synced_at": pair.synced_at.isoformat() if pair.synced_at else None,
         "params": [
@@ -245,12 +268,24 @@ def get_entry(db: Session, provider: str, model: str) -> Optional[dict]:
                 "param_name": p.param_name, "kind": p.kind, "required_yn": p.required_yn,
                 "default_value": p.default_value, "choices": json.loads(p.choices) if p.choices else None,
                 "dynamic_yn": p.dynamic_yn, "hint": p.hint,
+                "multiple_yn": "Y" if ("param", p.param_name) in multiple else "N",
             }
             for p in params
         ],
-        "fields": [{"field_name": f.field_name, "kind": f.kind, "description": f.description} for f in fields],
+        "fields": [
+            {"field_name": f.field_name, "kind": f.kind, "description": f.description,
+             **_field_hint(hints.get(("field", f.field_name)))}
+            for f in fields
+        ],
     }
 
+
+
+def _field_hint(h) -> dict:
+    if h is None:
+        return {"unit": None, "multiply": None, "prefix": None, "suffix": None, "hidden_yn": "N"}
+    return {"unit": h.unit, "multiply": h.multiply, "prefix": h.prefix, "suffix": h.suffix,
+            "hidden_yn": h.hidden_yn}
 
 # ── 깨진 위젯 점검 ────────────────────────────────────────────────────────────
 

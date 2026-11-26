@@ -118,6 +118,8 @@ def param_specs(fetcher_cls, dynamic: bool = True) -> List[dict]:
             spec["options"] = opts
         if kind == "number":
             spec["step"] = 1 if base is int else "any"
+        if (extra_meta.get(name) or {}).get("multiple_items_allowed"):
+            spec["multiple"] = True               # 쉼표로 여러 값 (예: FRED series_id='DGS2,DGS10')
         if field.description:
             spec["hint"] = field.description
         specs.append(spec)
@@ -160,8 +162,30 @@ def data_fields(fetcher_cls) -> List[dict]:
             kind = "date"
         else:
             kind = "text"
-        out.append({"name": name, "kind": kind, "description": field.description or None})
+        out.append({"name": name, "kind": kind, "description": field.description or None,
+                    **display_hints(field)})
     return out
+
+
+def display_hints(field) -> Dict[str, Any]:
+    """Data 필드의 화면 표시 힌트 (OpenBB 와 같은 json_schema_extra 키).
+
+        x-unit_measurement   단위 — percent · currency · …
+        x-frontend_multiply  화면에 보일 때 곱할 값 (0.0123 → 1.23% 면 100)
+        x-widget_config      {prefix, suffix, hidden} — 접두사 · 접미사 · 기본 숨김
+
+    위젯 만드는 화면의 초안(컬럼 형식 · 숨김)이 쓴다. 위젯 정의 DB 행에 값이 있으면 행이 우선한다.
+    """
+    extra = field.json_schema_extra if isinstance(field.json_schema_extra, dict) else {}
+    cfg = extra.get("x-widget_config") if isinstance(extra.get("x-widget_config"), dict) else {}
+    hints = {
+        "unit": extra.get("x-unit_measurement"),
+        "multiply": extra.get("x-frontend_multiply"),
+        "prefix": cfg.get("prefix"),
+        "suffix": cfg.get("suffix"),
+        "hidden": bool(cfg.get("hidden")) or None,
+    }
+    return {k: v for k, v in hints.items() if v is not None}
 
 
 def model_schema(fetcher_cls, dynamic: bool = True) -> Dict[str, Any]:

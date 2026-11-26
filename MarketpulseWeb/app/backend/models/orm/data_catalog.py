@@ -8,6 +8,7 @@ Fetcher 등록 정보(ProviderRegistry · provider_catalog)와 pydantic 모델�
     data_model_providers    (provider, model) — 이 출처가 이 모델을 준다. 모델 하나를 여러 출처가 준다 (N:M)
     data_model_params       (provider, model, param_name) — 같은 모델이라도 출처마다 QueryParams 가 다르다
     data_model_fields       (provider, model, field_name) — 출처마다 Data 모델이 다르다
+    data_model_hints        파라미터 다중 선택 · 필드 표시 힌트 (힌트가 있는 것만 행)
     data_model_routes       local fetcher 의 서버 긴급 전환 — 이것만 사람이 고친다 (아래 DataModelRoute)
 
 행은 지우지 않는다 — 등록에서 빠지면 use_yn='N'. 위젯(user_widgets · user_widget_fields)은 이름 문자열로
@@ -16,7 +17,7 @@ Fetcher 등록 정보(ProviderRegistry · provider_catalog)와 pydantic 모델�
 """
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, ForeignKey, ForeignKeyConstraint, Integer, String, Text
+from sqlalchemy import Column, DateTime, Float, ForeignKey, ForeignKeyConstraint, Integer, String, Text
 
 from .base import Base
 
@@ -88,6 +89,30 @@ class DataModelField(Base):
     kind = Column(String(10), nullable=False)               # number · date · bool · text
     description = Column(String(500))
     use_yn = Column(String(1), nullable=False, default='Y')
+
+
+class DataModelHint(Base):
+    """파라미터 · 필드의 화면 힌트 — 위젯 만드는 화면의 초안이 쓴다. 힌트가 있는 파라미터 · 필드만 행을 둔다.
+
+        target='param'  multiple_yn — 쉼표로 여러 값 (QueryParams __json_schema_extra__ 의 multiple_items_allowed)
+        target='field'  unit · multiply · prefix · suffix · hidden_yn — Data 필드 json_schema_extra
+                        (x-unit_measurement · x-frontend_multiply · x-widget_config)
+
+    data_model_params · data_model_fields 에 칼럼을 더하지 않고 표를 따로 둔 이유: 운영 서버는 기동할 때 create_all 로
+    없는 표만 만든다 — 있는 표에 칼럼을 더하면 수동 마이그레이션 전까지 카탈로그 조회가 깨진다.
+    """
+    __tablename__ = 'data_model_hints'
+
+    provider = Column(String(50), primary_key=True)
+    model = Column(String(100), primary_key=True)
+    target = Column(String(5), primary_key=True)            # param · field
+    name = Column(String(100), primary_key=True)
+    multiple_yn = Column(String(1), nullable=False, default='N')
+    unit = Column(String(20))                               # percent · currency · …
+    multiply = Column(Float)                                # 화면에 보일 때 곱할 값
+    prefix = Column(String(10))
+    suffix = Column(String(10))
+    hidden_yn = Column(String(1), nullable=False, default='N')
 
 
 class DataModelRoute(Base):

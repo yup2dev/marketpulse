@@ -203,6 +203,9 @@ endpoint (`{provider}` 자리면 그 모델을 주는 모든 provider), 화면�
   `WIDGET_API_GATE=log` — 서버 fetcher 는 아직 기록만 한다 (동적 위젯 · copilot 호출을 운영 로그로 모은 뒤 enforce 로).
   프론트 코드에 적힌 `/data/<provider>/<model>` 은 기본 위젯 · 코드 위젯 출처 안에 있어야 한다 (`tests/test_widget_gate.py`).
 - **저장 시 확인** — 사용자 위젯은 등록된 fetcher 의 (provider, model) 로만 저장된다 (`user_widget_service._validate`).
+- **위젯 만드는 화면의 초안** — 데이터 카탈로그(`/api/user-widgets/catalog/{provider}/{model}`)의 파라미터 · 필드로 채운다.
+  카탈로그는 fetcher 등록 정보에서 기동할 때 만들고, 표시 힌트(Data 필드 `json_schema_extra` 의 단위 · 배율 · 숨김)와
+  다중 선택(QueryParams `multiple_items_allowed`)은 `data_model_hints` 표에 둔다 (힌트가 있는 것만 행).
 - **참조 검사** — `data_catalog.find_broken_widgets`(관리자 `GET /api/admin/data-catalog/broken-widgets`)가 위젯이 쓰는
   API · 필드 · 파라미터가 카탈로그에 아직 있는지 본다 (기본 위젯은 endpoint 의 API). 기본 위젯 파일의 `/data` endpoint 가
   등록된 fetcher 를 가리키는지는 테스트가 배포 전에 본다.
