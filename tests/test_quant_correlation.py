@@ -59,7 +59,8 @@ class _PriceRemote:
         self.calls.append((provider, model, dict(params)))
         if self.exc:
             raise self.exc
-        return _prices(self.by_symbol[params["symbol"]])
+        # PC Fetcher 가 보내는 행 모양 그대로 (model_dump — symbol 포함). 서버가 data_type 으로 재검증한다
+        return [{"symbol": params["symbol"], **row} for row in _prices(self.by_symbol[params["symbol"]])]
 
 
 @pytest.fixture

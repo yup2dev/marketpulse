@@ -18,6 +18,7 @@ _cache = MemoryCache()
 
 def local_fetchers() -> List[Tuple[str, str]]:
     """이 PC Fetcher 가 실행하는 (provider, model) — target="local" 인 등록 fetcher."""
+    import data_fetcher.providers_init  # noqa: F401 — 등록 보장
     from data_fetcher.abstract_provider.abstract.provider import ProviderRegistry
 
     return sorted((name, model)

@@ -46,7 +46,7 @@ data_fetcher/
 │   ├── utils/helpers.py     # 상수 · 코드 맵 · 순수 함수 (HTTP 없음)
 │   └── assets/              # 동봉 데이터 파일
 ├── core/                    # model_schema(위젯 폼 스키마), warnings — 웹 계층(OBBject · Router 등)은 app/backend/platform/
-├── server/                  # Fetcher exe 측: 로컬 REST, 백엔드 WS 워커, 키스토어
+├── server/                  # Fetcher exe 측: 로컬 REST, 백엔드 WS 워커, 키스토어, wire.py(WS 메시지 계약 · hello)
 ├── utils/                   # api_keys, http_client, circuit_breaker, registry 등
 ├── assets/                  # exe 아이콘 / 키 관리 UI
 ├── app.py, tray.py          # Fetcher exe 진입점 (트레이 / 헤드리스)

@@ -2,9 +2,9 @@
 
     [1] 캐시 — Fresh HIT 즉시 / Stale HIT 즉시 + 백그라운드 갱신(SWR) / MISS 는 single-flight 로 한 번만
     [2] 실행 위치 — routes.is_local(provider, model) (fetcher target, data_model_routes 는 긴급 전환만)
-          Y  로그인 사용자의 PC Fetcher 로 위임 (transport). 위임할 수 없으면 RemoteUnavailableError(503) —
-             서버 실행으로 넘기지 않는다
-          N  서버에서 직접: 사용자 키(키 필요 provider) → 서킷브레이커 → QueryExecutor().execute
+          local   로그인 사용자의 PC Fetcher 로 위임 (transport). 위임할 수 없으면 RemoteUnavailableError(503) —
+                  서버 실행으로 넘기지 않는다. 받은 행은 fetcher 의 data_type 으로 재검증한다 (revalidate.py)
+          server  서버에서 직접: 사용자 키(키 필요 provider) → 서킷브레이커 → QueryExecutor().execute
     [3] 결과 캐시 저장 (value: TTL×2, freshness flag: TTL)
 
 app 계층(app.backend.platform)의 Query 는 ProviderInterface.create_executor() 로 이 객체를 받는다 (OpenBB 의 executor 자리).
@@ -24,6 +24,7 @@ from app.backend.core.execution import routes
 from app.backend.core.execution.circuit_breaker import CircuitBreakerOpen, get_circuit_breaker
 from app.backend.core.execution.context import current_user_id
 from app.backend.core.execution.errors import MissingCredentialsError, RemoteUnavailableError
+from app.backend.core.execution.revalidate import revalidate
 from app.backend.core.execution.ttl import DEFAULT_TTL
 
 log = logging.getLogger(__name__)
@@ -103,7 +104,8 @@ class ServerExecutor:
             if not user_id:
                 raise RemoteUnavailableError(
                     f"'{provider}' 데이터는 로그인 후 데스크톱 Fetcher로 조회됩니다. 로그인하고 Fetcher를 실행하세요.")
-            return await cls._remote.fetch(provider, model, params, credentials, **kwargs)
+            raw = await cls._remote.fetch(provider, model, params, credentials, **kwargs)
+            return revalidate(provider, model, raw)       # JSON 으로 잃은 타입 복원 — 서버 실행과 같은 Data 타입
 
         # 서버 실행 — 키 필요 provider 는 요청 사용자의 키 (없으면 운영자 키로 넘기지 않고 오류),
         # 요청이 없으면(배경 작업) 운영자 키(env — 순수 실행기가 읽는다)

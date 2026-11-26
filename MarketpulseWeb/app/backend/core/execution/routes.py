@@ -49,15 +49,15 @@ def registered_pairs() -> Iterable[Pair]:
     return _targets().keys()
 
 
-def _snake(name: str) -> str:
+def snake_case(name: str) -> str:
     s = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", name)
     return re.sub(r"([a-z\d])([A-Z])", r"\1_\2", s).lower()
 
 
 def _key(provider: str, model: str, targets: Dict[Pair, str]) -> Pair:
     """모델 이름은 PascalCase 도 받는다 (fetcher_dict 키는 snake_case)."""
-    if (provider, model) not in targets and (provider, _snake(model)) in targets:
-        return provider, _snake(model)
+    if (provider, model) not in targets and (provider, snake_case(model)) in targets:
+        return provider, snake_case(model)
     return provider, model
 
 

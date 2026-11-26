@@ -132,7 +132,7 @@ local fetcher 를 배포 없이 서버로 돌리는 **긴급 전환**만 담는�
 
 | 어디서 | 어떻게 | 무엇을 |
 |--------|--------|--------|
-| **서버 프로세스** | `core/execution.ServerExecutor` 가 순수 `QueryExecutor` 를 감싼다 (`ServerExecutor.configure(cache, remote, credential_resolver)`, `execution.install()` 로 Query 의 실행기 자리에) | 실행 위치 판단(DB 표) · 캐시 · 사용자 키 · 서킷브레이커 · 서버 실행 |
+| **서버 프로세스** | `core/execution.ServerExecutor` 가 순수 `QueryExecutor` 를 감싼다 (`ServerExecutor.configure(cache, remote, credential_resolver)`, `execution.install()` 로 Query 의 실행기 자리에) | 실행 위치 판단(fetcher target · 긴급 전환 표) · PC 결과 재검증 · 캐시 · 사용자 키 · 서킷브레이커 · 서버 실행 |
 | **사용자 PC (exe)** | Rust 런처가 내장 Python 으로 `data_fetcher.app` 실행. `127.0.0.1:8765` REST + `/ws/fetcher` 워커 → `server/runner.py` (순수 `QueryExecutor` + 이 PC 의 키) | `target="local"` fetcher 조회만 — 지금은 yahoo 와 13F 원본 파싱 |
 | **배치 프로세스** | 수집기가 순수 `QueryExecutor().execute(...)` 를 직접 호출 | 적재용 원천 데이터 수집 (yahoo·SEC 13F·FMP …) |
 
@@ -142,7 +142,14 @@ local fetcher 를 배포 없이 서버로 돌리는 **긴급 전환**만 담는�
 2. 웹앱이 로그인·토큰 갱신 때마다 access token 을 `POST http://127.0.0.1:8765/user-token` 으로 넘긴다
    (`common/api/localFetcher.js`). Fetcher 가 꺼져 있으면 조용히 무시된다.
 3. Fetcher 가 그 토큰으로 `wss://…/ws/fetcher?token=…` 에 접속한다. 서버는 토큰의 user_id 로 워커를 등록한다.
+   접속 직후 Fetcher 가 **hello**(`fetcher_version` · `protocol_version` · 실행할 수 있는 `fetchers` 목록)를 보낸다.
+   메시지 계약은 `data_fetcher/server/wire.py` 한 곳에 있고 서버도 이걸 import 한다.
 4. 그 사용자의 요청 중 `target="local"`(긴급 전환 아님)인 것만 이 연결로 내려가고, Fetcher 가 실행해 결과를 돌려준다.
+   hello 의 `fetchers` 에 없는 (provider, model) 이거나 protocol 이 다르면 위임하지 않고 503 — exe 업데이트 안내
+   (hello 를 보내지 않는 구버전 exe 는 예전처럼 받는다).
+5. 서버는 받은 JSON 행을 그 fetcher 의 `data_type` 으로 **재검증**한다(`core/execution/revalidate.py`) — 서버 실행과
+   같은 Pydantic Data 가 캐시 · 라우트 · command 로 간다. 검증에 실패한 행은 결과에서 빼고(DotDict 로 섞지 않는다)
+   `validation_failed` 경고와 건수를 응답 warnings 에 싣는다.
    캐시는 서버에 남으므로 같은 조회가 반복되면 PC 까지 내려가지 않는다.
 
 토큰이 바뀌면(재로그인·다른 계정) Fetcher 가 파일 변경을 감지해 재접속한다 — 재시작이 필요 없다.

@@ -300,5 +300,11 @@ class MyFetcher(ApiFetcher[Q, D]):
 - `local` 은 웹 서버가 그 사용자의 PC Fetcher 로 위임한다 (꺼져 있으면 503, 서버가 대신 실행하지 않는다).
   PC Fetcher(`server/runner.py`)는 `target="local"` fetcher 만 실행한다 — exe 에 코드가 다 들어 있어도 server fetcher 는 거부한다.
 - `server → local` 로 바꾸면 **exe 를 다시 배포**해야 한다 (사용자 PC 에 그 fetcher 가 local 로 있어야 하므로).
+  PC Fetcher 는 접속할 때 hello 로 실행할 수 있는 (provider, model) 을 알린다(`server/wire.py`). 업데이트하지 않은 PC 에는
+  위임하지 않고 503 + exe 업데이트 안내가 나간다.
+- local fetcher 결과는 PC 에서 `model_dump(mode="json")` 로 건너와 서버가 그 fetcher 의 `data_type` 으로 **다시 검증**한다
+  (`core/execution/revalidate.py`). 그래서 Data 모델은 JSON 왕복(`model_dump(mode="json")` → `model_validate`)이 돼야 한다 —
+  `mode="before"` 검증기가 이미 정리된 값을 다시 받아도 같은 결과를 내게 쓴다. 검증에 실패한 행은 결과에서 빠진다.
+- WS 메시지 모양을 바꾸면 `server/wire.py` 의 `PROTOCOL_VERSION` 을 올린다.
 - 운영 중 local fetcher 를 서버에서 돌려야 하면(서버 IP 차단이 풀림 · PC Worker 장애) 코드 수정 없이 관리자 API
   `PUT /api/admin/data-routes/{provider}/{model}` `{"local": false}` 로 긴급 전환한다 (해제는 `true`). server → local 은 이 API 로 할 수 없다.

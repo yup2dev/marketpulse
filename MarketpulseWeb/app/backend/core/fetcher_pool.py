@@ -8,8 +8,13 @@
   - FetcherWorkerUnavailable: 해당 사용자의 워커가 없거나 도달 불가(타임아웃·연결 끊김).
     → RemoteUnavailableError 로 올라가 503 이 된다(프론트가 'Fetcher 실행' 안내).
       백엔드 직접 호출로 폴백하지 않는다 — 위임 대상은 서버에서 돌리면 안 되는 조회뿐이다.
+  - FetcherWorkerOutdated: 워커는 있으나 요청한 (provider, model) 을 실행할 수 없는 exe(hello 의 fetchers 에 없음)
+    이거나 메시지 프로토콜 버전이 다르다 → 503 + exe 업데이트 안내.
   - FetcherRemoteError: 워커가 실제로 실행했으나 실패(예: 사용자 키 미설정).
     → 폴백하지 않고 원래 오류 메시지를 그대로 전파한다.
+
+워커는 접속 직후 hello(data_fetcher.server.wire)로 버전과 실행 가능한 (provider, model) 을 알린다.
+hello 를 보내지 않는 구버전 exe 는 예전처럼 모든 위임을 받는다 (점진 전환 — 모두 업데이트되면 막는다).
 """
 from __future__ import annotations
 
@@ -17,9 +22,12 @@ import asyncio
 import json
 import logging
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from fastapi import WebSocket
+
+from data_fetcher.server import wire
+from app.backend.core.execution.routes import snake_case
 
 log = logging.getLogger(__name__)
 
@@ -32,6 +40,10 @@ class FetcherWorkerUnavailable(FetcherPoolError):
     """해당 사용자의 워커 없음 / 응답 시간 초과 / 연결 끊김 → 503 (폴백 없음)."""
 
 
+class FetcherWorkerOutdated(FetcherWorkerUnavailable):
+    """워커는 있으나 요청한 fetcher 를 실행할 수 없는 버전 — exe 업데이트 필요 (503)."""
+
+
 class FetcherRemoteError(FetcherPoolError):
     """워커가 실행했으나 실패(원격 실행 오류) → 폴백하지 않고 그대로 전파."""
 
@@ -41,6 +53,17 @@ class _Worker:
         self.ws = ws
         self.user_id = user_id
         self.pending: Dict[str, "asyncio.Future[dict]"] = {}
+        # hello 로 채운다 — None 이면 hello 를 보내지 않는 구버전 exe
+        self.fetcher_version: Optional[str] = None
+        self.protocol_version: Optional[int] = None
+        self.fetchers: Optional[Set[Tuple[str, str]]] = None
+
+    def supports(self, provider: str, model: str) -> bool:
+        if self.fetchers is None:
+            return True                                   # 구버전 exe — 예전처럼 받는다
+        if self.protocol_version != wire.PROTOCOL_VERSION:
+            return False
+        return (provider, model) in self.fetchers or (provider, snake_case(model)) in self.fetchers
 
 
 class FetcherWorkerPool:
@@ -78,7 +101,8 @@ class FetcherWorkerPool:
 
     def status(self) -> List[Dict[str, Any]]:
         return [
-            {"user_id": uid, "workers": len(wids)}
+            {"user_id": uid, "workers": len(wids),
+             "versions": sorted({self._workers[w].fetcher_version or "(no hello)" for w in wids})}
             for uid, wids in self._by_user.items()
         ]
 
@@ -86,6 +110,16 @@ class FetcherWorkerPool:
         """워커가 보낸 fetch_result/fetch_error를 대기 중인 Future에 전달."""
         worker = self._workers.get(worker_id)
         if worker is None:
+            return
+        if msg.get("type") == wire.HELLO:
+            try:
+                worker.fetcher_version, worker.protocol_version, pairs = wire.parse_hello(msg)
+            except (TypeError, ValueError) as exc:
+                log.warning("[fetcher-ws] hello 형식 오류 user=%s: %s", worker.user_id, exc)
+                return
+            worker.fetchers = set(pairs)
+            log.info("[fetcher-ws] hello user=%s version=%s protocol=%s fetchers=%d", worker.user_id,
+                     worker.fetcher_version, worker.protocol_version, len(pairs))
             return
         req_id = msg.get("id")
         fut = worker.pending.pop(req_id, None) if req_id else None
@@ -97,13 +131,19 @@ class FetcherWorkerPool:
         else:
             fut.set_result(msg)
 
-    def _pick_worker(self, user_id: str) -> _Worker:
+    def _pick_worker(self, user_id: str, need: Optional[Tuple[str, str]] = None) -> _Worker:
         wids = self._by_user.get(user_id) or []
         if not wids:
             raise FetcherWorkerUnavailable(
                 "데이터를 조회하려면 데스크톱 앱(Fetcher)을 실행하고 로그인하세요. "
                 "(Fetcher 워커 미연결)"
             )
+        if need is not None:
+            wids = [w for w in wids if self._workers[w].supports(*need)]
+            if not wids:
+                raise FetcherWorkerOutdated(
+                    f"데스크톱 Fetcher 를 업데이트하세요 — 이 버전은 '{need[0]}/{need[1]}' 를 실행할 수 없습니다."
+                )
         idx = self._rr.get(user_id, 0) % len(wids)
         self._rr[user_id] = idx + 1
         return self._workers[wids[idx]]
@@ -113,6 +153,7 @@ class FetcherWorkerPool:
         user_id: Optional[str],
         payload: dict,
         timeout: float = 90.0,
+        need: Optional[Tuple[str, str]] = None,
     ) -> dict:
         """user_id의 워커에 임의 메시지를 보내고 매칭 응답을 기다린다(요청/응답).
 
@@ -123,7 +164,7 @@ class FetcherWorkerPool:
         if not user_id:
             raise FetcherWorkerUnavailable("요청에 사용자 컨텍스트가 없습니다")
 
-        worker = self._pick_worker(user_id)
+        worker = self._pick_worker(user_id, need)
         req_id = uuid.uuid4().hex
         fut: asyncio.Future = asyncio.get_event_loop().create_future()
         worker.pending[req_id] = fut
@@ -151,8 +192,9 @@ class FetcherWorkerPool:
         """user_id의 워커에 데이터 조회를 위임한다(request의 fetch 케이스)."""
         return await self.request(
             user_id,
-            {"type": "fetch", "provider": provider, "model": model, "params": params},
+            {"type": wire.FETCH, "provider": provider, "model": model, "params": params},
             timeout=timeout,
+            need=(provider, model),
         )
 
 

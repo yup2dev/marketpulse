@@ -5,8 +5,9 @@ NAT/방화벽 뒤에서도 동작한다 — 연결을 먼저 여는 쪽이 Fetch
 
 흐름:
     Fetcher → wss://.../ws/fetcher?token=<로그인 JWT> 로 접속
+    Fetcher → {"type": "hello", "fetcher_version", "protocol_version", "fetchers"}  (접속 직후, server/wire.py)
     백엔드  → {"type": "fetch", "id", "provider", "model", "params"}
-    Fetcher → runner.run(...) 로컬 실행 (순수 QueryExecutor) (Class A: yahoo 등 keyless 스크래핑, 13F 원본 파싱)
+    Fetcher → runner.run(...) 로컬 실행 (순수 QueryExecutor) — target="local" fetcher 만 (yahoo, 13F 원본 파싱)
     Fetcher → {"type": "fetch_result"|"fetch_error", "id", ...}
 
 토큰은 매 접속 시점에 token_provider()로 새로 읽는다. 데스크톱 앱이 로그인/갱신 때
@@ -28,7 +29,7 @@ from typing import Callable, Optional
 import websockets
 
 from data_fetcher.query_executor import QueryExecutorError
-from data_fetcher.server import runner
+from data_fetcher.server import runner, wire
 from data_fetcher.server.auth import token_claims
 from data_fetcher.server.serialize import serialize_result
 
@@ -66,13 +67,13 @@ async def _handle_fetch(ws, msg: dict) -> None:
     try:
         raw = await runner.run(provider, model, msg.get("params") or {}, ttl=msg.get("ttl"))
         envelope = serialize_result(raw)
-        await ws.send(json.dumps({"type": "fetch_result", "id": req_id, **envelope}))
+        await ws.send(json.dumps({"type": wire.FETCH_RESULT, "id": req_id, **envelope}))
     except QueryExecutorError as exc:
-        await ws.send(json.dumps({"type": "fetch_error", "id": req_id, "detail": str(exc)}))
+        await ws.send(json.dumps({"type": wire.FETCH_ERROR, "id": req_id, "detail": str(exc)}))
     except Exception as exc:
         log.warning("[fetcher-ws] fetch failed %s:%s — %s", provider, model, exc)
         await ws.send(json.dumps({
-            "type": "fetch_error", "id": req_id, "detail": f"upstream error: {exc}",
+            "type": wire.FETCH_ERROR, "id": req_id, "detail": f"upstream error: {exc}",
         }))
 
 
@@ -138,13 +139,14 @@ async def run_ws_worker(
         try:
             async with websockets.connect(url, ssl=ssl_ctx, ping_interval=20, ping_timeout=20) as ws:
                 log.info("[fetcher-ws] connected to backend")
+                await ws.send(json.dumps(wire.hello_message()))   # 무엇을 실행할 수 있는지 먼저 알린다
                 watcher = asyncio.create_task(_close_on_account_change(ws, token_provider, token))
                 async for raw in ws:
                     try:
                         msg = json.loads(raw)
                     except json.JSONDecodeError:
                         continue
-                    if msg.get("type") == "fetch":
+                    if msg.get("type") == wire.FETCH:
                         asyncio.create_task(_handle_fetch(ws, msg))
         except asyncio.CancelledError:
             raise

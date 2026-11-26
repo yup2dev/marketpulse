@@ -17,6 +17,7 @@ from app.backend.core.auth.security import create_access_token
 from app.backend.core.execution import (
     RemoteUnavailableError, ServerExecutor, current_user_id, routes,
 )
+from app.backend.core.execution import executor as executor_module
 from app.backend.models.orm import DataModelRoute, User
 from data_fetcher.query_executor import QueryExecutor
 
@@ -42,6 +43,8 @@ def executor(monkeypatch):
         monkeypatch.setattr(ServerExecutor, "_remote", remote)
         monkeypatch.setattr(ServerExecutor, "_credential_resolver", staticmethod(resolver) if resolver else None)
         monkeypatch.setattr(routes, "_overrides", set(overrides))
+        # 위임 경로만 본다 — 가짜 행({"via": ...})의 재검증은 tests/test_fetcher_wire.py 가 본다
+        monkeypatch.setattr(executor_module, "revalidate", lambda provider, model, raw: raw)
         calls = []
 
         async def direct(self, provider_name, model_name, params, credentials=None, **kw):
