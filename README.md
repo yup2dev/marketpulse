@@ -18,7 +18,7 @@
 </p>
 
 <p align="center">
-  <b>한국어</b> · English (준비 중) · 📖 <a href="docs/ARCHITECTURE.ko.md"><b>아키텍처 상세 문서 →</b></a>
+  <b>한국어</b> · <a href="README.en.md">English</a> · 📖 <a href="docs/ARCHITECTURE.ko.md"><b>아키텍처 상세 문서 →</b></a>
 </p>
 ---
 
@@ -212,9 +212,10 @@ exe 는 운영 서버에 붙도록 되어 있어 로컬 서버의 토큰을 받�
 exe 를 끄고 `MarketpulseFetcher/` 에서 `FETCHER_BACKEND_WS_URL=ws://localhost:8000/ws/fetcher python -m data_fetcher.app` 로 띄웁니다
 (서버는 `FETCHER_REMOTE_ENABLED` 없이).
 
+루트 `.env` 에 `SECRET_KEY` 는 꼭 넣고, Redis 는 선택입니다(`docker compose up -d redis`, 없으면 인메모리 캐시).
+
 > 로컬 DB 를 `alembic upgrade head` 없이(서버 기동의 `create_all`) 만들었다면, 있는 표에 나중에 더해진 칼럼이 빠져 있을 수 있습니다
 > (예: `table user_quant_strategies has no column named basket_id`). 빠진 칼럼만 추가하거나 DB 를 새로 만듭니다.
-루트 `.env` 에 `SECRET_KEY` 는 꼭 넣고, Redis 는 선택입니다(`docker compose up -d redis`, 없으면 인메모리 캐시).
 
 **사용자 PC Fetcher** — [Releases](https://github.com/yup2dev/marketpulse/releases/latest) 에서 받아 실행하면 트레이에 상주합니다. 웹에 로그인하면 토큰이 자동으로 넘어가 워커풀에 합류합니다.
 
