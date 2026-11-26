@@ -6,7 +6,6 @@
     하드코딩    위젯 코드에 직접 적힌 /data/<provider>/<model> 은 기본 위젯 출처에 있거나 아래 목록에만 —
                 목록은 줄기만 한다 (정의 행으로 옮기면 지운다).
 """
-import logging
 import re
 import uuid
 from pathlib import Path
@@ -91,11 +90,19 @@ def test_allowed_is_builtin_plus_own_widgets(db_session):
             _check(db_session, provider, model, "u1", "enforce")
 
 
-def test_log_mode_only_logs_and_off_skips(db_session, caplog):
-    with caplog.at_level(logging.WARNING, logger="app.backend.services.widget_sources"):
-        _check(db_session, "fmp", "quote", "u1", "log")
-    assert "fmp/quote" in caplog.text
+def test_log_mode_only_logs_and_off_skips(db_session, monkeypatch):
+    seen = []
+
+    class _Log:                                   # 전역 로깅 설정(다른 테스트가 바꿀 수 있다)과 무관하게 본다
+        def warning(self, msg, *args):
+            seen.append(msg % args)
+
+    monkeypatch.setattr(widget_sources, "log", _Log())
+    _check(db_session, "fmp", "quote", "u1", "log")
+    assert any("fmp/quote" in m for m in seen)
+    seen.clear()
     _check(db_session, "fmp", "quote", "u1", "off")
+    assert not seen
 
 
 def test_saving_a_widget_refreshes_the_allowed_set(auth_client, db_session):

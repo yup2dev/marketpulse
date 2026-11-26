@@ -187,6 +187,25 @@ local fetcher 를 배포 없이 서버로 돌리는 **긴급 전환**만 담는�
 
 ---
 
+### 위젯과 데이터 API
+
+위젯 정의는 DB 행(`user_widgets` 계열)이다. 기본 위젯(`user_id` NULL)은 `builtin_widgets/*.json` 이 원본이고,
+일반 사용자도 위젯을 만든다. 위젯 종류마다 정의 모양이 달라 **데이터 출처((provider, model))는
+`services/widget_sources.py` 한 곳에서 계산한다** — 사용자 위젯은 `provider`·`model` 칸, 기본 위젯은 `/data/{provider}/{model}`
+endpoint (`{provider}` 자리면 그 모델을 주는 모든 provider), command · concepts endpoint 는 데이터 API 출처가 아니다.
+
+- **호출 허용** — `/api/data/{provider}/{model}` 은 기본 위젯 + 요청 사용자 위젯의 출처에 있는 쌍만 허용한다.
+  `WIDGET_API_GATE` = `off` · `log`(기본 — 허용 밖 호출을 `[widget-gate]` 로그로만) · `enforce`(404 `api_not_registered`).
+  지금은 log 다 — 등록 없이 부르는 화면(동적 위젯 · copilot · 하드코딩 경로)을 운영 로그로 모은 뒤 enforce 로 바꾼다.
+  하드코딩 경로는 `tests/test_widget_gate.py` 의 목록에만 둘 수 있고 목록은 줄기만 한다.
+- **저장 시 확인** — 사용자 위젯은 등록된 fetcher 의 (provider, model) 로만 저장된다 (`user_widget_service._validate`).
+- **참조 검사** — `data_catalog.find_broken_widgets`(관리자 `GET /api/admin/data-catalog/broken-widgets`)가 위젯이 쓰는
+  API · 필드 · 파라미터가 카탈로그에 아직 있는지 본다 (기본 위젯은 endpoint 의 API). 기본 위젯 파일의 `/data` endpoint 가
+  등록된 fetcher 를 가리키는지는 테스트가 배포 전에 본다.
+- **필드 · 파라미터 이름을 바꿀 때** — 옛 이름을 `__alias_dict__` 로 잠시 함께 받고, DB 위젯 행(`user_widget_fields` ·
+  `user_widget_params`)을 일괄 UPDATE 하는 alembic 데이터 리비전을 같이 낸다. 참조 검사가 옛 이름을 쓰는 위젯이 없다고
+  보고한 뒤 alias 를 지운다. 사용자 위젯은 사람이 하나씩 고칠 수 없다.
+
 ## 디렉토리 구조
 
 ```
@@ -358,7 +377,7 @@ pytest tests/             # 백엔드만
 |------|------|
 | `/api/auth/*` | 로그인·회원가입·refresh·verify |
 | `/api/keys` | 사용자 API 키 관리(암호화 DB) |
-| `/api/data/{provider}/{model}` | 범용 데이터 게이트웨이 — 등록된 모든 fetcher. `/schema` 는 파라미터 폼 스펙 |
+| `/api/data/{provider}/{model}` | 범용 데이터 게이트웨이 — 등록된 모든 fetcher. `/schema` 는 파라미터 폼 스펙. 호출 허용은 아래 '위젯과 데이터 API' |
 | `/api/concepts/{concept}` | provider 무관 지표 — 내 키 기준으로 provider 자동 선택 |
 | `/api/providers` | provider 목록·키 필요 여부 |
 | `/api/stock/*` | 시세·재무·애널리스트·내부자·랭킹 |
