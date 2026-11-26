@@ -1,4 +1,4 @@
-"""OpenBB 식 command 계층 (data_fetcher.core) — ProviderInterface · Query · Router · CommandRunner (#114).
+"""OpenBB 식 command 계층 (app.backend.platform) — ProviderInterface · Query · Router · CommandRunner (#114).
 
   - 조회 command : @router.command(model=...) — 시그니처를 ProviderInterface 가 채우고 본문은 Query 한 줄
   - 가공 command : @router.command(inputs=...) — 러너가 inputs 를 조회해 순수 함수에 넘긴다
@@ -12,8 +12,8 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 import data_fetcher.providers_init  # noqa: F401
-from data_fetcher.core import Fetch, OBBject, ProviderInterface, Query, Router, add_warning
-from data_fetcher.core.command_runner import fetch_inputs
+from app.backend.platform import Fetch, OBBject, ProviderInterface, Query, Router, add_warning
+from app.backend.platform.command_runner import fetch_inputs
 from app.backend.core.execution import MissingCredentialsError, ServerExecutor
 
 

@@ -27,10 +27,11 @@ _PROVIDER_GROUP_FALLBACK: Dict[str, str] = {
 
 def _user_catalog(user_id: str) -> List[Dict[str, Any]]:
     from data_fetcher.provider_catalog import provider_catalog
+    from app.backend.platform.concepts import concepts_by_provider
 
     registered = {k["provider"] for k in user_key_service.list_status(user_id) if k.get("configured")}
     out = []
-    for p in provider_catalog():
+    for p in provider_catalog(concepts_by_provider()):
         p = dict(p)
         p["group"] = p.get("group") or _PROVIDER_GROUP_FALLBACK.get(p["id"], "other")
         p["configured"] = (not p["requires_key"]) or p["id"] in registered

@@ -131,7 +131,7 @@ def test_not_found_still_surfaces(auth_client):
 
 from data_fetcher.abstract_provider.abstract.annotated_result import AnnotatedResult  # noqa: E402
 from data_fetcher.abstract_provider.abstract.data import BaseData  # noqa: E402
-from data_fetcher.core.obbject import OBBject  # noqa: E402
+from app.backend.platform.obbject import OBBject  # noqa: E402
 
 
 class _Row(BaseData):
@@ -171,7 +171,7 @@ def test_no_annotated_result_isinstance_outside_obbject():
     — OBBject.unwrap / metadata_of / from_result 를 쓴다. (fetcher 추상 계층 · OBBject · 전송 직렬화만 예외)"""
     backend = ROUTES_DIR.parents[1]
     providers = backend.parents[2] / "MarketpulseFetcher" / "data_fetcher" / "providers"
-    assert any(providers.glob("*/models/*.py")), f"provider 디렉터리를 못 찾음: {providers}"
+    assert any(providers.glob("*/*/models/*.py")), f"provider 디렉터리를 못 찾음: {providers}"
     offenders = []
     for path in sorted([*backend.rglob("*.py"), *providers.rglob("*.py")]):
         tree = ast.parse(path.read_text(encoding="utf-8"))

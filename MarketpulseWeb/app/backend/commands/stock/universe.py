@@ -32,7 +32,7 @@ async def _load_from_db() -> List[Dict]:
     """
     try:
         from app.backend.core.execution import ServerExecutor
-        from data_fetcher.core.obbject import OBBject
+        from app.backend.platform.obbject import OBBject
         
         raw = await ServerExecutor.fetch(
             provider="db",

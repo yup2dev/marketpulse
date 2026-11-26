@@ -2,7 +2,7 @@
 
 commands/industry/datasets.py 가 처음 읽을 때 DB 에 없는 산업만 넣는다 (있는 행은 건드리지 않는다).
 데이터셋은 KOSIS 모델(/api/data/kosis/<model>)만 쓴다 — category · measure 값은 그 모델의 코드 맵
-(data_fetcher/providers/kosis/utils/helpers.py) 에 있는 키여야 한다 (tests/test_industry_catalog.py 가 본다).
+(data_fetcher/providers/api/kosis/utils/helpers.py) 에 있는 키여야 한다 (tests/test_industry_catalog.py 가 본다).
 
     dataset  (dataset_id, group, name, model, params, unit, source, note, series)
     series   (series_code, label, series_params)   — series_params 는 쿼리스트링

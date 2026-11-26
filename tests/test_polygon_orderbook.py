@@ -2,7 +2,7 @@
 import pytest
 
 import data_fetcher.providers_init  # noqa: F401 — provider 등록
-from data_fetcher.providers.polygon.models import orderbook as ob
+from data_fetcher.providers.api.polygon.models import orderbook as ob
 from app.backend.core.execution import ServerExecutor
 
 QUOTES = [  # 최신순

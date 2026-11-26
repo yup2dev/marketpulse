@@ -120,8 +120,8 @@ def test_local_results_can_skip_the_server_cache(monkeypatch, executor, as_user)
 
 
 def test_query_goes_through_the_server_executor(executor, as_user):
-    from data_fetcher.core import Query
-    from data_fetcher.core.provider_interface import ProviderInterface
+    from app.backend.platform import Query
+    from app.backend.platform.provider_interface import ProviderInterface
 
     assert isinstance(ProviderInterface.create_executor(), ServerExecutor)
     remote = _Remote()
@@ -213,7 +213,8 @@ def test_pure_executor_has_openbb_shape():
 
 
 def test_provider_layer_does_not_import_app_layer():
-    """OpenBB 처럼 provider 계층(fetcher · 순수 실행기)은 app 계층(data_fetcher.core)을 모른다 — 의존은 app → provider."""
+    """OpenBB 처럼 provider 계층(fetcher · 순수 실행기)은 app 계층(app.backend.platform)을 모른다 — 의존은 app → provider.
+    data_fetcher.core 에 남은 것(model_schema · warnings)도 provider 계층은 쓰지 않는다."""
     pkg = ROOT / "MarketpulseFetcher" / "data_fetcher"
     layer = [pkg / "query_executor.py", *(pkg / "abstract_provider").rglob("*.py"),
              *(pkg / "providers").rglob("*.py"), *(pkg / "utils").rglob("*.py")]

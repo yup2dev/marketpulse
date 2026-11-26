@@ -1,7 +1,7 @@
 """command 공용 — 행 타입과 작은 계산 도우미. 조회는 하지 않는다 (CommandRunner 가 inputs 를 받아 온다)."""
 from typing import Any, Dict, List, Optional, Tuple
 
-from data_fetcher.core.obbject import OBBject
+from app.backend.platform.obbject import OBBject
 
 Rows = List[Dict[str, Any]]
 

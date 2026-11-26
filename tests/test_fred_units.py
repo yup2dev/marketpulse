@@ -7,11 +7,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from data_fetcher.providers.fred.models import (
+from data_fetcher.providers.api.fred.models import (
     cpi, employment, gdp, initial_claims, interest_rate, pmi, retail_sales,
 )
-from data_fetcher.providers.fred.models.generic_series import FREDGenericSeriesFetcher
-from data_fetcher.providers.fred.utils.units import attach_units, with_units
+from data_fetcher.providers.api.fred.models.generic_series import FREDGenericSeriesFetcher
+from data_fetcher.providers.api.fred.utils.units import attach_units, with_units
 
 
 def _row(d, v, sid="X"):

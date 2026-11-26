@@ -194,7 +194,7 @@ async def _fetch(db: Session, dataset_id: str, series_code: Optional[str]):
     """
     from datetime import date
 
-    from data_fetcher.core.obbject import OBBject
+    from app.backend.platform.obbject import OBBject
     from app.backend.core.execution import ServerExecutor
 
     _seed_missing(db)

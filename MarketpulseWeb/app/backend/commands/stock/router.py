@@ -10,7 +10,7 @@ from typing import Dict, Optional
 from fastapi import Depends, HTTPException, Query as FQuery
 from fastapi.responses import JSONResponse
 
-from data_fetcher.core import Fetch, OBBject, Router
+from app.backend.platform import Fetch, OBBject, Router
 from data_fetcher.utils.helpers import parse_period_to_dates
 from app.backend.commands.stock import fundamentals
 from app.backend.commands.macro import indicators as macro

@@ -143,7 +143,7 @@ fetcher 패키지는 이걸 모른다 — OpenBB 처럼 순수 실행(`QueryExec
 
 토큰이 바뀌면(재로그인·다른 계정) Fetcher 가 파일 변경을 감지해 재접속한다 — 재시작이 필요 없다.
 
-**새 데이터 소스를 붙이는 순서**: `providers/<name>/models/` 에 fetcher 작성 → `providers_init.py` 등록 →
+**새 데이터 소스를 붙이는 순서**: `providers/api/<name>/models/`(중앙 DB 면 `providers/db/models/`) 에 fetcher 작성 → `providers_init.py` 등록 →
 `/api/data/<name>/<model>` 로 바로 호출됨 → 프론트 `widget/registry/widgetEndpoints.js` 에 위젯 등록.
 서드파티 의존성이 생기면 `MarketpulseFetcher/requirements.txt` 와 `build/requirements-fetcher.txt` 양쪽에 넣는다.
 
@@ -173,6 +173,7 @@ marketpulse/
 │       ├── backend/               # FastAPI (패키지 app.backend)
 │       │   ├── main.py            # 조립만: core/lifespan + auth_gate + api/routers
 │       │   ├── api/routes/        # auth, keys, data, concepts, stock, macro, portfolio, ingest, ws ...
+│       │   ├── platform/          # 웹 API 계층 — OBBject · Query · Router · CommandRunner · ProviderInterface · concepts
 │       │   ├── commands/          # 분석 command — 표준 모델을 받아 계산 (provider 이름을 모른다)
 │       │   ├── services/          # 사용자 · 인증 · 위젯 · 카탈로그 등 상태를 가진 로직
 │       │   ├── builtin_widgets/   # 기본 위젯 정의 (파일 하나 = 위젯 하나, 마이그레이션 없이 파일만 고친다)
@@ -182,7 +183,7 @@ marketpulse/
 │       └── frontend/              # React + Vite (vercel.json)
 ├── MarketpulseFetcher/            # 데이터 조회 라이브러리 + 사용자 PC 용 exe
 │   ├── requirements.txt           # data_fetcher 라이브러리 의존성 (Web·Batch 가 -r 로 포함)
-│   ├── data_fetcher/              # providers/, query_executor.py, server/(exe REST·WS 워커)
+│   ├── data_fetcher/              # providers/api/<p> · providers/db, query_executor.py, server/(exe REST·WS 워커)
 │   ├── launcher/                  # Rust 런처 (트레이·스킴 등록·내장 Python 실행)
 │   └── build/                     # build.py + requirements-fetcher.txt (exe 용 버전 고정 lock)
 ├── MarketpulseBatch/              # 스케줄러(외부 C 스케줄러)가 실행하는 프로그램
@@ -204,7 +205,7 @@ marketpulse/
 하지 않고, 각자 ORM·DB 엔진·로거·경로를 따로 갖는다. Fetcher 는 Web·Batch 를 import 하지 않는다
 (`tests/test_module_boundaries.py` 가 검사). 캐시 · 실행 위치 · 사용자 키 · 서킷브레이커는 Fetcher 가 아니라 서버의
 실행 계층(`app/backend/core/execution`)에 있다 — Fetcher 패키지는 이걸 모른다 (`tests/test_execution_routing.py` 가 검사).
-서버는 기동할 때 `execution.install()` 로 app 계층(`data_fetcher.core.Query`)의 실행기 자리에 `ServerExecutor` 를 끼운다.
+서버는 기동할 때 `execution.install()` 로 app 계층(`app.backend.platform.Query`)의 실행기 자리에 `ServerExecutor` 를 끼운다.
 
 Web 과 Batch 가 맞춰야 하는 건 코드가 아니라 **`/api/ingest` 요청 형식**이다. 배치는 로컬 DB 에 적재하고
 `jobs/sync_db_to_cloud.py` 가 HTTP 로 웹에 보낸다. 같은 테이블을 양쪽이 따로 정의하므로, 컬럼이

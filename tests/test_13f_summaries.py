@@ -9,9 +9,9 @@ from data_fetcher.abstract_provider.standard_models.institutional_holdings impor
     InstitutionalHoldingsQueryParams,
     InstitutionsSummaryQueryParams,
 )
-from data_fetcher.providers.database import schema as fs
-from data_fetcher.providers.database.models.institutional_holdings import DBInstitutionalHoldingsFetcher
-from data_fetcher.providers.database.models.institutions_summary import DBInstitutionsSummaryFetcher
+from data_fetcher.providers.db import schema as fs
+from data_fetcher.providers.db.models.institutional_holdings import DBInstitutionalHoldingsFetcher
+from data_fetcher.providers.db.models.institutions_summary import DBInstitutionsSummaryFetcher
 from data_fetcher.utils.registry import FetcherRegistry
 
 

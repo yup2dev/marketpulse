@@ -22,7 +22,7 @@ rows = await QueryExecutor().execute("fred", "gdp", {"start_date": "2020-01-01"}
 - 사용자 PC Fetcher: `server/runner.py` (이 PC 의 키 + 작은 TTL 캐시)
 - 배치: 그대로 `QueryExecutor().execute`
 
-app 계층(`core/` — Router · Query · CommandRunner · ProviderInterface, OpenBB `openbb_core.app`)의 `Query.execute` 는
+app 계층(`MarketpulseWeb/app/backend/platform/` — Router · Query · CommandRunner · ProviderInterface · OBBject · concepts, OpenBB `openbb_core.app`)의 `Query.execute` 는
 `ProviderInterface.create_executor()` 가 주는 실행기를 쓴다 (기본은 순수 QueryExecutor, 웹 서버는 ServerExecutor 를 끼운다).
 provider 계층(fetcher · 순수 실행기 · utils)은 app 계층을 import 하지 않는다. fetcher 는 다른 fetcher 나 실행기를
 부르지 않는다 (예외 목록은 `tests/test_module_boundaries.py`).
@@ -36,12 +36,15 @@ data_fetcher/
 ├── abstract_provider/
 │   ├── abstract/            # Fetcher, Api/Db/Compute/Library 베이스, BaseData/BaseQueryParams, Provider
 │   └── standard_models/     # model(category)별 공통 QueryParams/Data — provider 간 shape 통일
-├── providers/<p>/
+├── providers/
+│   ├── api/<p>/             # 외부 API provider (폴더 이름 = provider 이름) — 아래 구성
+│   └── db/                  # 중앙 DB provider (이름 "db") — api/<p>/ 와 같은 구성
+│   (provider 폴더 구성)
 │   ├── __init__.py          # <p>_provider = Provider(...) 정의 (OpenBB openbb_<p>/__init__.py 와 같음)
 │   ├── models/<model>.py    # model fetcher (예외 없이 여기). 시계열 API면 series.py 가 HTTP 하는 유일한 곳
 │   ├── utils/helpers.py     # 상수 · 코드 맵 · 순수 함수 (HTTP 없음)
 │   └── assets/              # 동봉 데이터 파일
-├── core/                    # OBBject 응답 래퍼 (AnnotatedResult 는 여기서만 푼다), CommandRouter, warnings
+├── core/                    # model_schema(위젯 폼 스키마), warnings — 웹 계층(OBBject · Router 등)은 app/backend/platform/
 ├── server/                  # Fetcher exe 측: 로컬 REST, 백엔드 WS 워커, 키스토어
 ├── utils/                   # api_keys, http_client, circuit_breaker, registry 등
 ├── assets/                  # exe 아이콘 / 키 관리 UI
@@ -65,7 +68,7 @@ class FMPThingFetcher(ApiFetcher[FMPThingQueryParams, FMPThingData]):
     def transform_data(query, data, **kwargs): return [FMPThingData(**r) for r in data]
 ```
 
-`QueryParams`/`Data`는 `standard_models/<model>.py`를 상속한다. 등록은 `providers/<p>/__init__.py` 의
+`QueryParams`/`Data`는 `standard_models/<model>.py`를 상속한다. 등록은 `providers/api/<p>/__init__.py`(DB 는 `providers/db/__init__.py`) 의
 `Provider(...)` fetcher_dict (새 provider 면 `providers_init.py` 의 `PROVIDERS` 에도).
 
 ## 흐름 — OpenBB 식 (fred · kosis 적용)
@@ -120,7 +123,7 @@ OpenBB 는 `openbb_core/app`(Router · CommandRunner · Query) + `openbb_core/ap
 
 ```bash
 python -m pytest                       # tests/ + MarketpulseFetcher/data_fetcher/tests
-python -c "import data_fetcher.providers_init; from data_fetcher.providers.fred.models.gdp import FREDGDPFetcher as F; F.test({})"
+python -c "import data_fetcher.providers_init; from data_fetcher.providers.api.fred.models.gdp import FREDGDPFetcher as F; F.test({})"
 ```
 
 exe 빌드는 `python MarketpulseFetcher/build/build.py` (uv·cargo 필요). Rust 런처(`MarketpulseFetcher/launcher`)가 내장 Python 런타임 + data_fetcher 페이로드를 품은 단일 실행파일이며, 첫 실행 때 `%LOCALAPPDATA%/MarketPulseFetcher/runtime/<id>`에 풀고 `python -I -m data_fetcher.app`(헤드리스)를 띄운다. 번들 의존성은 `MarketpulseFetcher/build/requirements-fetcher.txt`.

@@ -24,6 +24,6 @@ __all__ = [
 
 def install() -> None:
     """Query.execute 가 ServerExecutor 를 쓰게 한다 (앱 import 때 한 번)."""
-    from data_fetcher.core.provider_interface import ProviderInterface
+    from app.backend.platform.provider_interface import ProviderInterface
 
     ProviderInterface.set_executor(ServerExecutor())

@@ -6,7 +6,7 @@ import pytest
 
 import data_fetcher.providers_init  # noqa: F401
 from app.backend.api.deps import filter_dated_rows, period_start, resolve_date_range
-from data_fetcher.providers.fred.models import yield_curve
+from data_fetcher.providers.api.fred.models import yield_curve
 
 
 # ── 이벤트 목록 기간 ──────────────────────────────────────────────────────────
@@ -108,7 +108,7 @@ def test_as_of_date_caps_every_fred_request(monkeypatch, fetcher_cls, qp_cls):
         return None
 
     monkeypatch.setattr("data_fetcher.utils.provider_helpers.amake_json_request", fake_request)
-    monkeypatch.setattr("data_fetcher.providers.fred.models.generic_series.asyncio.sleep", no_sleep)
+    monkeypatch.setattr("data_fetcher.providers.api.fred.models.generic_series.asyncio.sleep", no_sleep)
     monkeypatch.setenv("FRED_API_KEY", "test")
     asyncio.run(fetcher_cls.aextract_data(qp_cls(date="2020-03-16"), credentials={"fred_api_key": "test"}))
     assert ends and all(e == "2020-03-16" for e in ends)

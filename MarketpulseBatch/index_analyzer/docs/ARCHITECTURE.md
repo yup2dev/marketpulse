@@ -306,8 +306,8 @@ MarketpulseFetcher/data_fetcher/
 
 ## 12. 구현 순서
 
-1. `MarketpulseFetcher/data_fetcher/providers/nasdaqtrader/listing.py` — US 종목 리스트(무료) + provider 등록
-2. `MarketpulseFetcher/data_fetcher/providers/krx/listing.py` — KR 종목 리스트(pykrx) + provider 등록
+1. `MarketpulseFetcher/data_fetcher/providers/api/nasdaqtrader/listing.py` — US 종목 리스트(무료) + provider 등록
+2. `MarketpulseFetcher/data_fetcher/providers/api/krx/listing.py` — KR 종목 리스트(pykrx) + provider 등록
 3. `MarketpulseBatch/index_analyzer/ingest/repository.py` — `MBS_IN_STBD_MST`/`INDX_STBD`/`INDX_MEMBER` bulk upsert
 4. `MarketpulseBatch/index_analyzer/collectors/base.py` + `collectors/universe/{kr,us}_listing.py`
 5. `server/scheduler.py` — `universe_kr_job`/`universe_us_job` 등록(기존 S&P500 잡 대체)

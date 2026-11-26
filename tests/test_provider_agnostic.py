@@ -12,9 +12,9 @@ from datetime import date
 import pytest
 
 from data_fetcher.abstract_provider.abstract.provider import Provider
-from data_fetcher.concepts import CONCEPTS, ConceptError, ConceptImpl, choose_impl, normalize
-from data_fetcher.providers.declarative import build_provider
-from data_fetcher.providers.declarative.loader import parse_period, period_str
+from app.backend.platform.concepts import CONCEPTS, ConceptError, ConceptImpl, choose_impl, normalize
+from data_fetcher.providers.api.declarative import build_provider
+from data_fetcher.providers.api.declarative.loader import parse_period, period_str
 from data_fetcher.query_executor import QueryExecutorError
 from app.backend.core.execution import MissingCredentialsError, RemoteUnavailableError, ServerExecutor
 from app.backend.core.execution.circuit_breaker import CircuitBreakerOpen

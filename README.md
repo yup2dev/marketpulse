@@ -115,7 +115,7 @@ flowchart TB
 
 | | 무엇을 | 어떻게 |
 |---|---|---|
-| **1. 데이터 소스 추가 = 파일 하나** | 새 fetcher 를 등록하면 라우트를 고치지 않아도 바로 API·위젯 메뉴에 뜹니다 | `providers/<p>/models/` 작성 → `providers_init.py` 등록 → `/api/data/<p>/<model>` 자동 노출 |
+| **1. 데이터 소스 추가 = 파일 하나** | 새 fetcher 를 등록하면 라우트를 고치지 않아도 바로 API·위젯 메뉴에 뜹니다 | `providers/api/<p>/models/` 작성 → `providers_init.py` 등록 → `/api/data/<p>/<model>` 자동 노출 |
 | **2. 막히는 조회는 사용자 PC 가** | 서버 IP 에서 차단되는 Yahoo, 메모리를 많이 먹는 13F 파싱은 사용자 PC 의 Fetcher 가 처리 | Fetcher 가 먼저 `/ws/fetcher` 로 접속(outbound) — NAT·방화벽 뒤 PC 도 워커가 됩니다 |
 | **3. 느린 외부 API 를 숨기는 캐시** | 같은 조회가 몰려도 외부 호출은 한 번 | stale-while-revalidate + single-flight 락 + provider 단위 서킷브레이커 |
 | **4. 각자 자기 키로 (BYOK)** | 사용자가 등록한 키로만 조회하고, 운영자 키로 몰래 폴백하지 않습니다 | 키는 Fernet 암호화 저장. 없으면 `424 missing_key` → 위젯이 "키 등록" 안내 |

@@ -7,7 +7,7 @@ from data_fetcher.abstract_provider.standard_models.stock_ranking import (
     StockRankingData,
     StockRankingQueryParams,
 )
-from data_fetcher.providers.kis.models import ranking as kis
+from data_fetcher.providers.api.kis.models import ranking as kis
 from app.backend.core.execution import ServerExecutor
 
 ROW = {"stk_cd": "005930", "stk_nm": "삼성전자", "curr": "KRW", "sector": "",

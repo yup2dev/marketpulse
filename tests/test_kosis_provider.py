@@ -10,12 +10,12 @@ from datetime import date
 import pytest
 
 from data_fetcher.abstract_provider.abstract.annotated_result import AnnotatedResult
-from data_fetcher.providers.kosis.models.capacity_utilization import KOSISCapacityUtilizationFetcher
-from data_fetcher.providers.kosis.models.ict_exports import KOSISIctExportsFetcher
-from data_fetcher.providers.kosis.models.mining_manufacturing_index import KOSISMiningManufacturingIndexFetcher
-from data_fetcher.providers.kosis.models.product_trade import KOSISProductTradeFetcher
-from data_fetcher.providers.kosis.models.series import KOSISSeriesFetcher
-from data_fetcher.providers.kosis.utils.helpers import add_changes, from_period, to_period
+from data_fetcher.providers.api.kosis.models.capacity_utilization import KOSISCapacityUtilizationFetcher
+from data_fetcher.providers.api.kosis.models.ict_exports import KOSISIctExportsFetcher
+from data_fetcher.providers.api.kosis.models.mining_manufacturing_index import KOSISMiningManufacturingIndexFetcher
+from data_fetcher.providers.api.kosis.models.product_trade import KOSISProductTradeFetcher
+from data_fetcher.providers.api.kosis.models.series import KOSISSeriesFetcher
+from data_fetcher.providers.api.kosis.utils.helpers import add_changes, from_period, to_period
 from data_fetcher.utils.api_keys import CredentialsError
 from data_fetcher.utils.http_client import RateLimitError
 
@@ -27,7 +27,7 @@ def _no_throttle(monkeypatch):
     """호출 간격(sleep 0.3s)은 테스트에서 건너뛴다."""
     async def no_sleep(_):
         return None
-    monkeypatch.setattr("data_fetcher.providers.kosis.models.series.asyncio.sleep", no_sleep)
+    monkeypatch.setattr("data_fetcher.providers.api.kosis.models.series.asyncio.sleep", no_sleep)
 
 
 def _patch(monkeypatch, response, seen=None):
