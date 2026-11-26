@@ -1,8 +1,9 @@
 """Collector ABC — targets() → fetch() → store() 공통 오케스트레이션.
 
-무료 provider(nasdaqtrader/krx)를 QueryExecutor 로 호출해 universe 를 입수하고
+무료 provider(nasdaqtrader/krx)를 QueryExecutor(순수 실행) 로 호출해 universe 를 입수하고
 ingest.repository 로 적재한다. 데몬 스케줄러에서 run() 을 호출한다.
 """
+import asyncio
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
@@ -48,14 +49,12 @@ class Collector(ABC):
         """수집 대상 목록."""
 
     def fetch(self, target: Target) -> List[Dict[str, Any]]:
-        """QueryExecutor 위임 — 무료 provider 이므로 creds 불필요. ttl=0 으로 항상 fresh."""
+        """QueryExecutor(순수 실행) — 무료 provider 이므로 creds 불필요. 캐시 없음 (항상 fresh)."""
         import data_fetcher.providers_init  # noqa: F401 — provider 자동 등록 보장
         from data_fetcher.query_executor import QueryExecutor
 
         model = target.model or self.model
-        result = QueryExecutor.fetch_sync(
-            self.provider, model, target.params, ttl=0,
-        )
+        result = asyncio.run(QueryExecutor().execute(self.provider, model, target.params))
         rows = result.result if hasattr(result, "result") else result
         return [_to_dict(r) for r in (rows or [])]
 

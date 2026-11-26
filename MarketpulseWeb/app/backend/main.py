@@ -26,6 +26,10 @@ from fastapi import Depends
 
 from app.backend.core.middleware.request_metrics import RequestMetricsMiddleware, capture_route
 from app.backend.api.routers import register_routers
+from app.backend.core import execution
+
+# Query(app 계층)가 조회를 맡길 실행기 — 실행 위치(로컬 전용/서버) · 캐시 · 사용자 키는 여기서만 (core/execution)
+execution.install()
 
 app = FastAPI(
     title="MarketPulse Dashboard",

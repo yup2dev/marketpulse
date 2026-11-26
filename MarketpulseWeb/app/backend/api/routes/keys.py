@@ -57,7 +57,7 @@ async def test_key(
     키가 틀린 것은 요청 오류가 아니라 검증 결과이므로.
     """
     from data_fetcher.provider_catalog import key_test_for
-    from data_fetcher.query_executor import QueryExecutor
+    from app.backend.core.execution import ServerExecutor
 
     provider = provider.lower()
     test = key_test_for(provider)
@@ -74,7 +74,7 @@ async def test_key(
         return {"ok": False, "provider": provider, "message": "등록된 키가 없습니다"}
 
     try:
-        await QueryExecutor.fetch(provider, test["model"], test["params"], credentials=creds, ttl=0)
+        await ServerExecutor.fetch(provider, test["model"], test["params"], credentials=creds, ttl=0)
     except Exception as exc:  # noqa: BLE001 — 어떤 실패든 '키로 호출 불가'로 보고
         cause = exc.__cause__ or exc
         return {"ok": False, "provider": provider, "message": str(cause)[:300] or type(cause).__name__}

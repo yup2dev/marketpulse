@@ -23,10 +23,9 @@ from typing import Any
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 
-from data_fetcher.query_executor import (
-    MissingCredentialsError, QueryExecutorError, RemoteUnavailableError,
-)
-from data_fetcher.utils.circuit_breaker import CircuitBreakerOpen
+from data_fetcher.query_executor import QueryExecutorError
+from app.backend.core.execution import MissingCredentialsError, RemoteUnavailableError
+from app.backend.core.execution.circuit_breaker import CircuitBreakerOpen
 from data_fetcher.utils.http_client import HTTPClientError
 
 

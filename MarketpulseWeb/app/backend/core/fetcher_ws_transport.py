@@ -1,7 +1,7 @@
 """WSFetcherTransport — '현재 사용자'의 PC Fetcher(WS 워커)로 위임하는 RemoteTransport.
 
-QueryExecutor는 RemoteTransport.fetch(provider, model, params, credentials)만 호출하고
-user_id는 모른다. 이 트랜스포트가 요청 범위 contextvar(current_user_id)를 읽어
+실행 계층(ServerExecutor)은 로컬 전용(data_model_routes Y) 조회만 RemoteTransport.fetch(provider, model, params,
+credentials)로 넘긴다. 이 트랜스포트가 요청 범위 contextvar(current_user_id)를 읽어
 '그 사용자의 워커'로 라우팅한다(사용자별 키 사용).
 
 예외 매핑:
@@ -22,11 +22,9 @@ from app.backend.core.fetcher_pool import (
     fetcher_pool,
 )
 from data_fetcher.abstract_provider.abstract.annotated_result import AnnotatedResult
-from data_fetcher.query_executor import (
-    QueryExecutorError,
-    RemoteUnavailableError,
-    current_user_id,
-)
+from data_fetcher.query_executor import QueryExecutorError
+from app.backend.core.execution.context import current_user_id
+from app.backend.core.execution.errors import RemoteUnavailableError
 
 log = logging.getLogger(__name__)
 

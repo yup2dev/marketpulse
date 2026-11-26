@@ -8,7 +8,7 @@ from datetime import datetime
 import uuid
 
 from app.backend.models.orm import Alert, AlertHistory, User
-from app.backend.services._base import rows_sync
+from app.backend.core.execution import rows_blocking
 
 
 class AlertService:
@@ -142,7 +142,7 @@ class AlertService:
 
         # 최신 가격 — 배치 적재 시세의 종목별 마지막 행 (db provider quote)
         codes = sorted({a.ticker_cd for a in price_alerts if a.ticker_cd})
-        quotes = {q.symbol: q for q in rows_sync("db", "quote", symbol=",".join(codes))} if codes else {}
+        quotes = {q.symbol: q for q in rows_blocking("db", "quote", symbol=",".join(codes))} if codes else {}
 
         for alert in price_alerts:
             latest_price = quotes.get((alert.ticker_cd or "").upper())

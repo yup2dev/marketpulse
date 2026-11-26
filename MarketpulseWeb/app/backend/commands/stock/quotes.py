@@ -1,45 +1,17 @@
-"""
-공통 서비스 유틸리티
+"""yahoo 묶음 시세 — 캐시 + single-flight (스크리너 · 랭킹 · 웹소켓 시세가 같이 쓴다).
 
-모든 서비스 파일에서 공유하는 헬퍼 함수 모음.
-QueryExecutor 결과를 일관되게 처리합니다 (AnnotatedResult 는 OBBject 가 푼다).
+데이터 접근 모듈이다 (provider 이름을 안다). 조회는 실행 계층(ServerExecutor)으로 — yahoo 가 로컬 전용이면
+사용자 PC Fetcher 로 가고, Fetcher 가 없으면 빈 결과.
 """
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional, TypeVar
+from typing import Dict, List, Optional
 
-from data_fetcher.core.obbject import OBBject
-from data_fetcher.query_executor import QueryExecutor, RemoteUnavailableError
+from app.backend.core.execution import RemoteUnavailableError, ServerExecutor
 
 log = logging.getLogger(__name__)
 
-
-def rows_sync(provider: str, model: str, **params: Any) -> List[Any]:
-    """동기 코드(DB 세션을 쓰는 def 라우트 · 서비스)에서 fetcher 한 번 — 결과 행(표준 모델 객체) 목록.
-
-    배치 테이블은 서비스가 직접 읽지 않고 db provider fetcher 로 읽는다 (데이터 모양은 표준 모델 하나).
-    """
-    return list(OBBject.unwrap(QueryExecutor.fetch_sync(provider, model, params)) or [])
-
-
 _quote_locks: Dict[str, asyncio.Lock] = {}
-
-
-_KR_SUFFIX = {'KOSPI': '.KS', 'KOSDAQ': '.KQ'}
-
-
-def to_quote_symbol(ticker_cd: str, exchange: str = '', curr: str = '') -> str:
-    """DB의 원시 종목코드를 시세 조회(yfinance) 표준 심볼로 정규화.
-
-    KR 종목은 DB에 접미사 없는 숫자 코드(예: '279570')로 저장되지만, yfinance는
-    거래소별 접미사(.KS=KOSPI, .KQ=KOSDAQ)가 있어야 시세를 반환한다.
-    """
-    code = (ticker_cd or '').strip()
-    if not code or '.' in code:
-        return code
-    if curr == 'KRW' or (exchange or '').upper() in _KR_SUFFIX:
-        return code + _KR_SUFFIX.get((exchange or '').upper(), '.KS')
-    return code
 
 
 async def cached_quotes(
@@ -70,7 +42,7 @@ async def cached_quotes(
         if hit is not None:
             return hit
         try:
-            raw = await QueryExecutor.fetch(
+            raw = await ServerExecutor.fetch(
                 provider='yahoo',
                 model='batch_quotes',
                 params={'symbols': symbols, 'period': period, 'mode': mode},
@@ -102,22 +74,3 @@ async def cached_quotes(
             if snapshot_key and snapshot_ttl > 0:
                 await cache.set(snapshot_key, result, snapshot_ttl)
         return result
-
-
-T = TypeVar("T")
-
-
-def unwrap(raw: Any) -> Any:
-    """fetcher 결과에서 데이터만 (직렬화 없이) — OBBject.unwrap."""
-    return OBBject.unwrap(raw)
-
-
-def first(raw: Any) -> Optional[Any]:
-    """첫 번째 항목을 반환합니다. 비어 있으면 None."""
-    result = unwrap(raw)
-    return result[0] if result else None
-
-
-def limit_results(raw: Any, n: int) -> List[Any]:
-    """결과를 최대 n개로 제한합니다."""
-    return unwrap(raw)[:n]

@@ -23,10 +23,8 @@ API 계층(웹 서버)은 api_router(wrap=...) 로 엔드포인트를 감싸 오
 from __future__ import annotations
 
 import inspect
-import re
 from dataclasses import dataclass, field
 from datetime import date as date_type
-from functools import wraps
 from types import SimpleNamespace
 from typing import Any, Callable, Dict, List, Literal, Mapping, Optional, Union, get_args, get_origin
 
@@ -37,12 +35,6 @@ from data_fetcher.core.query import _command_model
 
 _OPENBB_ARGS = ("cc", "provider_choices", "standard_params", "extra_params")
 _SCALARS = (str, int, float, bool, date_type)
-
-
-def _to_kebab_case(name: str) -> str:
-    s = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1-\2", name)
-    s = re.sub(r"([a-z\d])([A-Z])", r"\1-\2", s)
-    return s.lower()
 
 
 def _query_annotation(ann: Any) -> Any:
@@ -156,9 +148,9 @@ class Router:
         if model and SignatureInspector.is_openbb_style(func):
             endpoint = self._model_endpoint(func, model, defaults)
             default_path = f"/{func.__name__}"
-        elif model:                                  # 예전 CommandRouter 꼴 — 인자를 손으로 적은 함수
-            endpoint = self._legacy_endpoint(func, model)
-            default_path = f"/{_to_kebab_case(model)}"
+        elif model:
+            raise TypeError(f"command '{func.__name__}': model= 을 주면 OpenBB 꼴 인자"
+                            f"({', '.join(_OPENBB_ARGS)})를 받아야 한다")
         else:
             endpoint = self._run_endpoint(func, inputs, defaults)
             default_path = f"/{func.__name__}"
@@ -190,17 +182,6 @@ class Router:
         endpoint.__name__ = func.__name__
         endpoint.__doc__ = func.__doc__
         endpoint.__signature__ = inspect.Signature(params)
-        return endpoint
-
-    @staticmethod
-    def _legacy_endpoint(func: Callable, model: str) -> Callable:
-        @wraps(func)
-        async def endpoint(*args: Any, **kw: Any):
-            token = _command_model.set(model)
-            try:
-                return await func(*args, **kw)
-            finally:
-                _command_model.reset(token)
         return endpoint
 
     @staticmethod
@@ -248,5 +229,3 @@ class Router:
     def commands(self) -> List[CommandSpec]:
         return list(self._commands)
 
-
-CommandRouter = Router   # 예전 이름 (/api/v1/equity/fundamental)

@@ -188,14 +188,14 @@ def list_series(db: Session, dataset_id: str) -> List[IndustrySeriesOut]:
 
 
 async def _fetch(db: Session, dataset_id: str, series_code: Optional[str]):
-    """데이터셋 + 계열 → provider 모델 한 번 (QueryExecutor — 사용자 키 · 캐시 · 서킷브레이커).
+    """데이터셋 + 계열 → provider 모델 한 번 (실행 계층 — 사용자 키 · 캐시 · 서킷브레이커).
 
     모르는 계열 코드(데이터셋을 바꾼 직후 예전 계열)는 첫 계열로 — 화면이 오류 대신 데이터를 보인다.
     """
     from datetime import date
 
     from data_fetcher.core.obbject import OBBject
-    from data_fetcher.query_executor import QueryExecutor
+    from app.backend.core.execution import ServerExecutor
 
     _seed_missing(db)
     ds, series = _series_of(db, dataset_id)
@@ -204,7 +204,7 @@ async def _fetch(db: Session, dataset_id: str, series_code: Optional[str]):
     chosen = next((s for s in series if s.series_code == series_code), series[0])
     params = {**_qs(ds.params), **_qs(chosen.series_params),
               "start_date": date(date.today().year - _FETCH_YEARS, 1, 1).isoformat()}
-    raw = await QueryExecutor.fetch(ds.provider, ds.model, params)
+    raw = await ServerExecutor.fetch(ds.provider, ds.model, params)
     rows = []
     for r in OBBject.unwrap(raw) or []:
         d = r.model_dump() if hasattr(r, "model_dump") else dict(r)
@@ -302,17 +302,17 @@ async def dataset_summary(db: Session, dataset_id: str, series: Optional[str] = 
 def related_companies(db: Session, industry: str, limit: int = 40) -> List[IndustryCompany]:
     """산업의 업종(industry_sectors)에 속한 종목 — 종목 마스터 + 종목마다 가장 최근 일봉의 종가 · 등락률.
     둘 다 db provider fetcher (stock_list · quote) 로 읽는다."""
-    from app.backend.services._base import rows_sync
+    from app.backend.core.execution import rows_blocking
 
     _seed_missing(db)
     sectors = db.query(IndustrySector).filter(IndustrySector.industry_code == industry).all()
     stocks = []
     for s in sectors:
         by = {"industry" if s.match_field == "industry" else "sector": s.sector_name}
-        stocks += [m for m in rows_sync("db", "stock_list", country=s.market, active_only=False, **by)
+        stocks += [m for m in rows_blocking("db", "stock_list", country=s.market, active_only=False, **by)
                    if m.is_active]
     codes = sorted({m.ticker_cd for m in stocks})
-    latest = {q.symbol: q for q in rows_sync("db", "quote", symbol=",".join(codes))} if codes else {}
+    latest = {q.symbol: q for q in rows_blocking("db", "quote", symbol=",".join(codes))} if codes else {}
     seen, out = set(), []
     for m in stocks:
         if m.ticker_cd in seen:

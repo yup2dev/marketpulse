@@ -2,7 +2,7 @@
 
 여기 있는 테스트는 네트워크도 개발 DB도 쓰지 않는다:
   - 인증 게이트 테스트는 미들웨어가 라우팅 전에 401 을 내므로 DB 에 닿지 않는다.
-  - QueryExecutor 테스트는 가짜 캐시 + _upstream_fetch 대체로 외부 호출을 막는다.
+  - ServerExecutor 테스트는 가짜 캐시 + _upstream 대체로 외부 호출을 막는다.
   - `db_session`/`auth_client` 는 tmp_path 의 임시 SQLite 를 쓴다(data/marketpulse.db 무관).
 
 그래서 TestClient 를 `with` 없이 만든다 — lifespan 을 실행하면 DB 초기화, Redis 연결,

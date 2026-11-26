@@ -11,11 +11,12 @@
   미적재 기관은 서버 온디맨드 폴백 없이 '미적재'로 표시된다.
 
 실행: MarketpulseBatch/jobs/collect_13f.py (daily_ingest.bat 가 주 1회 호출 — 13F는 분기 공시).
-QueryExecutor를 server_mode 없이 in-process(leaf)로 쓰므로 로컬에서 직접 파싱한다.
+QueryExecutor(순수 실행)를 in-process 로 쓰므로 로컬에서 직접 파싱한다.
 
 fetcher(sec institutional_13f · 13f_filings · 13f_institutions)는 공시 원본만 주고,
 비중 · 분기 대비 · 회전율 · 추정 수익률 계산은 이 배치가 한다 (analysis.py).
 """
+import asyncio
 import os
 import threading
 import time
@@ -115,7 +116,7 @@ class Institutional13FCollector(Collector):
     def _fetch_sync(self, model: str, params: Dict[str, Any], provider: str = ""):
         import data_fetcher.providers_init  # noqa: F401 — provider 등록 보장
         from data_fetcher.query_executor import QueryExecutor
-        res = QueryExecutor.fetch_sync(provider or self.provider, model, params, ttl=0)
+        res = asyncio.run(QueryExecutor().execute(provider or self.provider, model, params))
         return res.result if hasattr(res, "result") else res
 
     def _filing(self, key: str, **params) -> Dict[str, Any] | None:

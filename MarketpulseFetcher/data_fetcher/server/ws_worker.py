@@ -6,7 +6,7 @@ NAT/방화벽 뒤에서도 동작한다 — 연결을 먼저 여는 쪽이 Fetch
 흐름:
     Fetcher → wss://.../ws/fetcher?token=<로그인 JWT> 로 접속
     백엔드  → {"type": "fetch", "id", "provider", "model", "params"}
-    Fetcher → QueryExecutor.fetch(...) 로컬 실행 (Class A: yahoo 등 keyless 스크래핑, 13F 원본 파싱)
+    Fetcher → runner.run(...) 로컬 실행 (순수 QueryExecutor) (Class A: yahoo 등 keyless 스크래핑, 13F 원본 파싱)
     Fetcher → {"type": "fetch_result"|"fetch_error", "id", ...}
 
 토큰은 매 접속 시점에 token_provider()로 새로 읽는다. 데스크톱 앱이 로그인/갱신 때
@@ -27,7 +27,8 @@ from typing import Callable, Optional
 
 import websockets
 
-from data_fetcher.query_executor import QueryExecutor, QueryExecutorError
+from data_fetcher.query_executor import QueryExecutorError
+from data_fetcher.server import runner
 from data_fetcher.server.auth import token_claims
 from data_fetcher.server.serialize import serialize_result
 
@@ -63,12 +64,7 @@ async def _handle_fetch(ws, msg: dict) -> None:
     provider = msg.get("provider")
     model = msg.get("model")
     try:
-        raw = await QueryExecutor.fetch(
-            provider=provider,
-            model=model,
-            params=msg.get("params") or {},
-            ttl=msg.get("ttl"),
-        )
+        raw = await runner.run(provider, model, msg.get("params") or {}, ttl=msg.get("ttl"))
         envelope = serialize_result(raw)
         await ws.send(json.dumps({"type": "fetch_result", "id": req_id, **envelope}))
     except QueryExecutorError as exc:

@@ -27,7 +27,7 @@ from data_fetcher.utils.api_keys import API_ENV_MAPPING
 
 log = logging.getLogger(__name__)
 
-# provider 이름(소문자) → API_ENV_MAPPING 키.  QueryExecutor._PROVIDER_TO_ENV_KEY와 동일.
+# provider 이름(소문자) → API_ENV_MAPPING 키.  query_executor._PROVIDER_TO_ENV_KEY와 동일.
 _PROVIDER_TO_ENV_KEY: Dict[str, str] = {
     "fred": "FRED",
     "yahoo": "YAHOO",

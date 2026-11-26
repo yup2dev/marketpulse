@@ -10,9 +10,10 @@ from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
-from app.backend.services._base import cached_quotes, to_quote_symbol
+from app.backend.commands._base import to_quote_symbol
+from app.backend.commands.stock.quotes import cached_quotes
 from data_fetcher.core.obbject import OBBject
-from data_fetcher.query_executor import QueryExecutor
+from app.backend.core.execution import ServerExecutor
 
 log = logging.getLogger(__name__)
 
@@ -34,7 +35,7 @@ def _screener_params(filters: Dict[str, Any]) -> Dict[str, Any]:
 
 async def _candidates(filters: Dict[str, Any]) -> List[Dict]:
     """db provider equity_screener — 재무 조건을 통과한 종목 (시세 조회용 심볼로 정규화, 기존 응답 칸 이름)."""
-    raw = await QueryExecutor.fetch("db", "equity_screener", _screener_params(filters))
+    raw = await ServerExecutor.fetch("db", "equity_screener", _screener_params(filters))
     return [
         {
             'stk_cd': to_quote_symbol(r.symbol, r.exchange or '', r.currency or ''),

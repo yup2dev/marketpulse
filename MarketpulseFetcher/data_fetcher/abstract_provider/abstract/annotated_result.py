@@ -13,3 +13,13 @@ class AnnotatedResult(Generic[_T]):
 
     def __repr__(self) -> str:
         return f"AnnotatedResult(result={self.result}, metadata={self.metadata})"
+
+
+def unwrap_result(raw: Any) -> Any:
+    """AnnotatedResult 면 .result, 아니면 그대로 — 다른 fetcher 의 결과를 받아 쓰는 fetcher 용 (app 계층의 OBBject 를 쓰지 않는다)."""
+    return raw.result if isinstance(raw, AnnotatedResult) else raw
+
+
+def metadata_of_result(raw: Any) -> Dict[str, Any]:
+    """AnnotatedResult 의 metadata — 아니면 빈 dict."""
+    return dict(raw.metadata or {}) if isinstance(raw, AnnotatedResult) else {}

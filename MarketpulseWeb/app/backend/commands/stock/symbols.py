@@ -9,7 +9,7 @@ import logging
 import time
 from typing import Dict, List
 
-from app.backend.services._base import to_quote_symbol
+from app.backend.commands._base import to_quote_symbol
 
 logger = logging.getLogger(__name__)
 

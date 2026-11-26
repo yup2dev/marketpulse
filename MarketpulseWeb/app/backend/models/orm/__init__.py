@@ -40,7 +40,7 @@ from .ingest import (
 from .process import MBS_PROC_ARTICLE
 from .calc import MBS_CALC_METRIC
 from .recommend import MBS_RCMD_RESULT
-from .data_catalog import DataSource, DataModel, DataModelProvider, DataModelParam, DataModelField
+from .data_catalog import DataSource, DataModel, DataModelProvider, DataModelParam, DataModelField, DataModelRoute
 from .user import (
     User,
     UserApiKey,
@@ -142,6 +142,7 @@ __all__ = [
     "DataSource",
     "DataModel",
     "DataModelProvider",
+    "DataModelRoute",
     "DataModelParam",
     "DataModelField",
     "UserWidgetPref",

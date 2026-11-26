@@ -1,160 +1,32 @@
+"""QueryExecutor — provider 의 fetcher 를 찾아 실행한다 (OpenBB openbb_core.provider.query_executor).
+
+    QueryExecutor().execute(provider_name, model_name, params, credentials)
+        provider 조회 → fetcher 조회 → 자격증명 거르기 → 파라미터 거르기 → fetcher.fetch_data()
+
+어디서 실행되는지 모른다 — 웹 서버 · 사용자 PC Fetcher(exe) · 로컬 배치가 같은 코드를 쓴다.
+캐시 · 실행 위치(로컬 전용 / 서버) · 사용자 키 · 서킷브레이커는 부르는 쪽(웹 서버의 core/execution)의 일이다.
+
+OpenBB 와 다른 점 (이 프로젝트 fetcher 에 맞춘 것):
+    - 모델 이름은 PascalCase 도 받는다 (snake_case 키로 다시 찾는다)
+    - credentials 를 안 주면 이 프로세스의 환경 변수(API_ENV_MAPPING)에서 읽는다 — exe · 배치용
+    - QueryParams 에 없는 파라미터는 경고(add_warning)와 함께 빼고, OpenBB 이식 QueryParams 의 빠진 표준
+      필드는 기본값으로 채운다 (OpenBB 는 app 계층의 Query 가 표준 필드를 모두 채워 넘긴다)
 """
-QueryExecutor
-
-Provider → Fetcher 조회 → 인증 → fetch_data() 까지의 공통 파이프라인.
-
-┌──────────────────────────────────────────────────────────────┐
-│  사용자 요청                                                   │
-│    ↓                                                          │
-│  [공통 처리 1] Provider 조회                                   │
-│    ↓                                                          │
-│  [공통 처리 2] Fetcher 조회                                    │
-│    ↓                                                          │
-│  [공통 처리 3] 인증 처리                                       │
-│    ↓                                                          │
-│  [공통 처리 4] Fetcher.fetch_data() 호출                       │
-│               ├─ transform_query(params)                      │
-│               ├─ await maybe_coroutine(extract_data, …)      │
-│               └─ transform_data(query, data)                  │
-└──────────────────────────────────────────────────────────────┘
-
-Usage:
-    result = await QueryExecutor.execute(
-        provider="fmp",
-        model="income_statement",
-        params={"symbol": "AAPL"},
-    )
-"""
-import asyncio
-import json
 import logging
 import re
-from contextvars import ContextVar
-from typing import Any, Dict, List, Optional, Protocol, Type, Union, runtime_checkable
+from typing import Any, Dict, List, Optional, Type
 
 from pydantic import BaseModel
 
-from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult, Fetcher
+from data_fetcher.abstract_provider.abstract.fetcher import Fetcher
 from data_fetcher.abstract_provider.abstract.provider import Provider, ProviderRegistry
 from data_fetcher.utils.api_keys import (
     API_ENV_MAPPING,
     CredentialsError,
     get_credentials_from_env,
 )
-from data_fetcher.utils.circuit_breaker import (
-    CircuitBreakerOpen,
-    get_circuit_breaker,
-)
 
 log = logging.getLogger(__name__)
-
-
-@runtime_checkable
-class CacheProtocol(Protocol):
-    """cache.get / cache.set 인터페이스 — app.backend에 의존하지 않음."""
-    async def get(self, key: str) -> Optional[Any]: ...
-    async def set(self, key: str, value: Any, ttl: int) -> None: ...
-
-
-@runtime_checkable
-class RemoteTransport(Protocol):
-    """업스트림 위임 인터페이스.
-
-    설정되면 QueryExecutor가 로컬 provider를 직접 호출하는 대신 이 객체로 위임한다.
-    배포된 WebServer(app.backend)가 로컬 Fetcher(exe)의 REST API로 조회를 넘길 때 사용.
-    Fetcher(exe) 측에서는 None → 실제 provider를 직접 호출한다.
-    """
-    async def fetch(
-        self,
-        provider: str,
-        model: str,
-        params: Dict[str, Any],
-        credentials: Optional[Dict[str, str]] = None,
-        **kwargs: Any,
-    ) -> Any: ...
-
-
-# 모델별 기본 TTL(초).  0 = 캐시 안 함.
-_DEFAULT_TTL: Dict[str, int] = {
-    # ── Real-time (30-60s) ───────────────────────────────────────────────────
-    "stock_price":              60,
-    "batch_quotes":             30,
-    "orderbook":                30,
-    # ── Semi-fresh (5-15min) ────────────────────────────────────────────────
-    "news":                    300,
-    "earnings":                600,
-    "sentiment":               300,
-    "calendar":                600,
-    "options":                 300,
-    "short_interest":          900,
-    "technical_indicators":    300,
-    "quote":                    60,   # alphavantage / fmp quote
-    "most_actives":            120,
-    "gainers":                 120,
-    "losers":                  120,
-    # ── Daily (30-60min) ────────────────────────────────────────────────────
-    "financials":             1800,
-    "balance_sheet":          1800,
-    "estimates":              1800,
-    "analyst_data":           1800,
-    "analyst_estimates":      1800,
-    "analyst_recommendations":1800,
-    "holders":                1800,
-    "insider_trading":        1800,
-    "insider_trading_summary":1800,
-    "insider_holders":        1800,
-    "dividends":              3600,
-    "splits":                 3600,
-    "filings":                3600,
-    "revenue_segments":       3600,
-    "search":                 1800,
-    "timeseries":             1800,
-    "series":                 3600,
-    "bond_prices":            3600,
-    # ── FRED macro (1h) ─────────────────────────────────────────────────────
-    "gdp":                          3600,
-    "cpi":                          3600,
-    "unemployment":                 3600,
-    "interest_rate":                3600,
-    "employment":                   3600,
-    "industrial_production":        3600,
-    "consumer_sentiment":           3600,
-    "housing_starts":               3600,
-    "retail_sales":                 3600,
-    "nonfarm_payroll":              3600,
-    # ── FRED composite / multi-series (1h) ─────────────────────────────────
-    "fed_balance_sheet":            3600,
-    "real_rates":                   3600,
-    "pmi":                          3600,
-    "yield_curve":                  1800,  # snapshot — intraday 변동
-    "yield_curve_history":          3600,
-    "initial_claims":               3600,
-    "forex":                         900,
-    # ── Yahoo quote (별칭 구분) ─────────────────────────────────────────────
-    "quote":                          60,  # yahoo:quote (StockQuoteFetcher)
-    # ── Mostly static (1h+) ─────────────────────────────────────────────────
-    "company_info":           3600,
-    "company_peers":          86400,  # 유사종목 — 거의 변하지 않음
-    "key_metrics":            3600,
-    "management":             3600,
-    "company_profile":        3600,
-    "income_statement":       3600,
-    "index_constituents":     7200,
-    "stock_list":             7200,
-    "stock_ranking":           300,  # 일별 시계열로 계산 — 적재는 하루 한 번
-    "listing":               21600,  # universe (nasdaqtrader/krx) — 일 갱신, 6h 캐시
-    "bond":                  21600,  # KR 국고채 벤치마크 (krx) — 일 갱신
-    "institutional_holdings": 3600,
-    "institutions_summary":   3600,  # 배치 적재 요약 — 일 1회 sync 로만 바뀐다
-    "institutions_list":      7200,
-    "institutional_13f":      7200,
-    "13f_institutions":       7200,
-    "13f_filings":           21600,
-    # 분기 공시 기반 + 다중 분기 파싱(요청당 N개 필링) — 길게 잡는다
-    "fund_performance":      21600,
-    # ── No cache — computed on-the-fly ──────────────────────────────────────
-    "pricing":                   0,
-}
 
 
 # provider.name → API_ENV_MAPPING 키 매핑
@@ -168,33 +40,7 @@ _PROVIDER_TO_ENV_KEY: Dict[str, str] = {
 
 
 class QueryExecutorError(Exception):
-    """QueryExecutor 전용 오류"""
-    pass
-
-
-class MissingCredentialsError(QueryExecutorError):
-    """로그인 사용자가 키 필요 provider의 키를 등록하지 않음 — 프론트가 '키 등록' 안내를 띄운다."""
-
-    def __init__(self, provider: str):
-        self.provider = provider
-        super().__init__(f"'{provider}' API 키가 설정되지 않았습니다. 설정에서 키를 등록하세요.")
-
-
-class RemoteUnavailableError(QueryExecutorError):
-    """원격 위임 인프라에 도달할 수 없음(워커 미접속·타임아웃·연결 끊김).
-
-    백엔드 직접 호출로 폴백하지 않고 그대로 전파한다 — 라우트가 503 으로 바꾸고
-    프론트가 'Fetcher 실행' 안내를 띄운다. 워커가 실제로 실행했으나 실패한 경우
-    (예: 사용자 키 미설정 → CredentialsError)는 이 오류가 아니라 QueryExecutorError 다.
-    """
-    pass
-
-
-# 요청 범위 사용자 컨텍스트 — 백엔드 auth 미들웨어가 현재 요청의 user_id를 set한다.
-# WSFetcherTransport가 이 값을 읽어 '그 사용자의 워커'로 위임한다. 서버 백그라운드
-# 작업처럼 요청 컨텍스트가 없으면 None → 위임 대상(yahoo 등)은 RemoteUnavailableError,
-# 키 기반 provider 는 운영자 키(env)로 백엔드가 직접 호출한다.
-current_user_id: "ContextVar[Optional[str]]" = ContextVar("current_user_id", default=None)
+    """provider · model 을 찾을 수 없음 등 실행 전 오류 (OpenBB OpenBBError 자리)."""
 
 
 def _to_snake_case(name: str) -> str:
@@ -311,8 +157,7 @@ def _filter_extra_params(
             extras.append(k)
 
     if extras:
-        # Lazy import to avoid circular dependency with data_fetcher.core
-        from data_fetcher.core.warnings import add_warning
+        from data_fetcher.utils.warnings import add_warning
         for k in extras:
             add_warning(
                 f"Unsupported param '{k}' for {provider}:{model} "
@@ -346,6 +191,7 @@ def _normalize_credentials(
 def _load_credentials(
     provider_obj: Provider,
     credentials: Optional[Dict[str, str]],
+    require_credentials: bool = True,
 ) -> Optional[Dict[str, str]]:
     """
     credentials 우선순위:
@@ -361,6 +207,13 @@ def _load_credentials(
 
     env_key = _PROVIDER_TO_ENV_KEY.get(provider_obj.name, provider_obj.name.upper())
     env_map = API_ENV_MAPPING.get(env_key)
+
+    if not require_credentials:
+        # 키 없이도 도는 fetcher — 환경 변수에 키가 있으면 넘기고, 없으면 빈 채로
+        try:
+            return _normalize_credentials(provider_obj.name, get_credentials_from_env(env_key, env_map)) if env_map else {}
+        except CredentialsError:
+            return {}
 
     if not env_map:
         raise CredentialsError(
@@ -382,337 +235,49 @@ def _load_credentials(
 
 
 class QueryExecutor:
-    """
-    공통 실행 파이프라인
+    """provider 의 fetcher 를 실행한다 (OpenBB QueryExecutor 와 같은 모양)."""
 
-    단계:
-        [1] 캐시 조회 — Fresh HIT → 즉시 반환
-        [2] Stale HIT → 즉시 반환 + 백그라운드 SWR 갱신 (스탬피드 방지)
-        [3] MISS → single-flight 락으로 업스트림 1회 호출 (동시 요청 중복 방지)
-        [4] ProviderRegistry → Fetcher 조회 → 인증 → fetch_data()
-        [5] 결과 캐시 저장 (value: TTL×2, freshness flag: TTL)
+    def __init__(self, registry: Optional[type] = None) -> None:
+        self.registry = registry or ProviderRegistry
 
-    캐시 키 구조:
-        qe:{provider}:{model}:{params_json}      ← 실제 값 (stale TTL = TTL×2)
-        qe:{provider}:{model}:{params_json}:f    ← 신선도 플래그 (original TTL)
-
-    stale-while-revalidate:
-        freshness 플래그 만료 → 값은 아직 존재 → 즉시 반환 + 백그라운드 갱신
-        → 사용자는 항상 즉각 응답, 대시보드 TTL 경계에서 빈 화면 없음
-    """
-
-    _cache: Optional[CacheProtocol] = None
-    _ttl_map: Dict[str, int] = dict(_DEFAULT_TTL)
-
-    # 원격 위임 트랜스포트(배포 WebServer에서만 주입).
-    # 설정 시 _upstream_fetch가 해당 provider를 사용자 Fetcher 워커로 위임한다.
-    _remote: Optional[RemoteTransport] = None
-
-    # Class A — '로컬 실행 필수' provider. 비공식 스크래핑/라이브러리(yfinance 등)라 서버
-    # 고정 IP에서 호출하면 차단되므로 반드시 사용자 PC Fetcher에서 실행한다(키 불필요).
-    # 로그인 사용자 요청이면 폴백 없이 그 사용자 워커로만 위임한다.
-    _remote_only_providers: frozenset = frozenset({"yahoo"})
-
-    # 서버 실행 금지 모델 — 13F 원본(infotable XML 등) 파싱은 메모리를 크게 써서 작은 운영
-    # 서버를 죽인다. 조회는 로컬 배치가 파싱해 적재한 DB(db provider)를 쓰고, 이 모델을
-    # 직접 부르면 서버에서는 사용자 Fetcher로만 위임한다(위임 불가면 실행하지 않고 오류).
-    # 로컬 배치·Fetcher(_server_mode=False)에서는 그대로 직접 실행한다.
-    _local_only_models: frozenset = frozenset({
-        ("sec", "institutional_13f"),
-        ("sec", "institutions_list"),
-        ("sec", "13f_institutions"),
-    })
-
-    # 백엔드(웹 서버) 프로세스 여부 — configure(server_mode=True)로 켠다.
-    _server_mode: bool = False
-
-    # Class B — key-only provider는 서버에서 호출하되, 요청 사용자의 키(DB)로 호출한다.
-    # _credential_resolver(provider, user_id) → {필드: 값} | None 을 백엔드가 주입한다.
-    # 사용자 키가 없으면 운영자 키로 폴백하지 않고 명확한 오류를 낸다(서버 배치작업 제외).
-    _credential_resolver = None  # Optional[Callable[[str, str], Optional[Dict[str, str]]]]
-
-    # single-flight: 동일 cache_key에 대한 동시 업스트림 호출을 1개로 제한
-    _inflight: Dict[str, asyncio.Lock] = {}
-
-    # SWR 백그라운드 갱신 중인 cache_key 집합 (중복 갱신 방지)
-    _swr_pending: set = set()
-
-    # stale value 저장 TTL 배수 (value는 원본 TTL의 N배로 보관)
-    _SWR_STALE_FACTOR: int = 2
-
-    # ── 캐시 주입 ────────────────────────────────────────────────────────────
-
-    @classmethod
-    def configure(
-        cls,
-        cache: CacheProtocol,
-        ttl_map: Optional[Dict[str, int]] = None,
-        remote: Optional[RemoteTransport] = None,
-        credential_resolver=None,
-        server_mode: bool = False,
-    ) -> None:
-        """앱 시작 시 캐시/원격/자격증명 해석기 주입. data_fetcher는 app.backend를 import하지 않는다.
-
-        Args:
-            cache:  캐시 백엔드(CacheProtocol).
-            ttl_map: 모델별 TTL 오버라이드.
-            remote: 원격 위임 트랜스포트(Class A provider를 사용자 워커로 위임). None이면 직접 조회.
-            credential_resolver: (provider, user_id) → 자격증명 dict | None.
-                key-only provider(Class B)를 서버에서 요청 사용자의 키로 호출하기 위해 백엔드가 주입.
-            server_mode: 웹 서버 프로세스면 True — _local_only_models를 서버에서 실행하지 않는다.
-        """
-        cls._cache = cache
-        if ttl_map:
-            cls._ttl_map.update(ttl_map)
-        if remote is not None:
-            cls._remote = remote
-        if credential_resolver is not None:
-            # staticmethod로 감싸 클래스 속성 접근 시 self가 바인딩되지 않게 한다
-            cls._credential_resolver = staticmethod(credential_resolver)
-        if server_mode:
-            cls._server_mode = True
-        log.info(
-            "[QueryExecutor] configured: cache=%s upstream=%s resolver=%s",
-            type(cache).__name__,
-            type(remote).__name__ if remote is not None else "local-provider",
-            "yes" if credential_resolver is not None else "no",
-        )
-
-    @classmethod
-    def _cache_key(cls, provider: str, model: str, params: Dict[str, Any]) -> str:
-        params_str = json.dumps(params, sort_keys=True, default=str)
-        return f"qe:{provider}:{model}:{params_str}"
-
-    @classmethod
-    def _ttl(cls, model: str) -> int:
-        return cls._ttl_map.get(model, 0)
-
-    @classmethod
-    def _get_inflight_lock(cls, key: str) -> asyncio.Lock:
-        """key별 asyncio.Lock — 없으면 생성. 이벤트 루프는 단일 스레드이므로 race-free."""
-        if key not in cls._inflight:
-            cls._inflight[key] = asyncio.Lock()
-        return cls._inflight[key]
-
-    # ── 업스트림 패치 (캐시 로직 제외) ──────────────────────────────────────
-
-    @classmethod
-    async def _upstream_fetch(
-        cls,
-        provider: str,
-        model: str,
-        params: Dict[str, Any],
-        credentials: Optional[Dict[str, str]],
-        **kwargs: Any,
-    ) -> Any:
-        """Provider/Fetcher 조회 → fetch_data() 호출 (캐시 없음).
-
-        라우팅 정책:
-          - Class A (_remote_only_providers: 로컬 실행 필수, 예 yahoo
-                       + _local_only_models: 13F 원본 파싱 모델)
-            + 로그인 사용자 요청 → '그 사용자의 Fetcher 워커'로만 위임(폴백 없음).
-              워커 미접속/끊김 → RemoteUnavailableError 전파(앱 실행 안내).
-            + 서버(_server_mode)인데 위임 transport가 없으면 _local_only_models는 실행 거부.
-          - 그 외(Class B key-only / 로컬계산 / 또는 서버 배치작업) → 백엔드가 직접 호출.
-            · key-only + 로그인 사용자 → 요청 사용자의 키(DB, _credential_resolver)로 호출.
-              사용자 키 없으면 운영자 키로 폴백하지 않고 명확한 오류.
-            · 서버 배치작업(user 컨텍스트 없음) → 운영자 키(env).
-        """
-        user_id = current_user_id.get()
-
-        # Class A(yahoo, 13F 파싱 모델): 위임 transport(_remote)가 설정된 백엔드에서는
-        # 서버에서 직접 실행하지 않고 '그 사용자의 Fetcher 워커'로 위임한다.
-        # _remote가 None이면 여기가 leaf(=Fetcher 자체/standalone)이므로 아래에서 직접 실행한다.
-        # (이 분기를 _remote 유무와 무관하게 적용하면 Fetcher가 자기 자신을 막아버린다.)
-        local_only_model = (provider, model) in cls._local_only_models
-        if (provider in cls._remote_only_providers or local_only_model) and cls._remote is not None:
-            if not user_id:
-                # 위임 가능한 백엔드인데 사용자 컨텍스트가 없음(배경작업 등) → 서버 직접
-                # 스크래핑하지 않고 명확히 실패(작은 서버 부하 차단).
-                raise RemoteUnavailableError(
-                    f"'{provider}' 데이터는 로그인 후 데스크톱 Fetcher로 조회됩니다. "
-                    f"로그인하고 Fetcher를 실행하세요."
-                )
-            return await cls._remote.fetch(provider, model, params, credentials, **kwargs)
-
-        if local_only_model and cls._server_mode:
-            # 위임 transport 없는 웹 서버 — leaf가 아니므로 파싱을 여기서 실행하지 않는다.
-            raise RemoteUnavailableError(
-                f"'{provider}/{model}'은(는) 13F 원본 파싱이라 서버에서 실행하지 않습니다. "
-                f"배치 적재 데이터(/api/portfolio/13f)를 사용하세요."
-            )
-
+    def get_provider(self, provider_name: str) -> Provider:
         try:
-            provider_obj: Provider = ProviderRegistry.get(provider)
+            return self.registry.get(provider_name.lower())
         except KeyError as e:
             raise QueryExecutorError(str(e)) from e
 
-        fetcher_cls = _resolve_fetcher(provider_obj, model)
+    def get_fetcher(self, provider: Provider, model_name: str) -> Type[Fetcher]:
+        return _resolve_fetcher(provider, model_name)
 
-        # Class B 자격증명 해석: 로그인 사용자의 키(DB)를 우선 사용
-        creds_in = credentials
-        if (
-            creds_in is None
-            and provider_obj.credentials          # 키가 필요한 provider만
-            and user_id
-            and cls._credential_resolver is not None
-        ):
-            creds_in = cls._credential_resolver(provider, user_id)
-            if not creds_in:
-                # 사용자 키 미설정 → 운영자 키 폴백 금지, 명확한 오류
-                raise MissingCredentialsError(provider)
-
-        resolved_creds = _load_credentials(provider_obj, creds_in)
-        provider_obj.validate_credentials(resolved_creds)
-        filtered_params = _filter_extra_params(fetcher_cls, params, provider, model)
-
-        log.debug("[QE] upstream: provider=%s model=%s fetcher=%s",
-                  provider, model, fetcher_cls.__name__)
-
-        cb = get_circuit_breaker(provider)
-        async with cb:
-            return await fetcher_cls.fetch_data(
-                params=filtered_params,
-                credentials=resolved_creds,
-                **kwargs,
-            )
-
-    # ── 캐시 저장 (value + freshness flag) ───────────────────────────────────
-
-    @classmethod
-    async def _write_cache(cls, cache_key: str, result: Any, ttl: int) -> None:
-        """
-        value를 stale TTL(= ttl × SWR_STALE_FACTOR)로, freshness flag를 원본 TTL로 저장.
-        신선도 플래그가 만료된 후에도 값은 stale TTL 동안 유지되어 SWR에 활용된다.
-        """
-        if not cls._cache or result is None:
-            return
-        stale_ttl = max(ttl * cls._SWR_STALE_FACTOR, ttl + 60)
-        fresh_key = f"{cache_key}:f"
-        await cls._cache.set(cache_key, result, stale_ttl)
-        await cls._cache.set(fresh_key, 1, ttl)
-
-    # ── SWR 백그라운드 갱신 ──────────────────────────────────────────────────
-
-    @classmethod
-    async def _swr_refresh(
-        cls,
-        cache_key: str,
-        provider: str,
-        model: str,
-        params: Dict[str, Any],
+    @staticmethod
+    def filter_credentials(
         credentials: Optional[Dict[str, str]],
-        ttl: int,
-        **kwargs: Any,
-    ) -> None:
-        """
-        stale 값을 반환한 뒤 백그라운드에서 새 값을 가져와 캐시를 갱신.
-        single-flight 락을 사용해 동시에 하나의 갱신만 수행.
-        """
-        lock = cls._get_inflight_lock(cache_key)
-        if lock.locked():
-            return  # 이미 다른 코루틴이 갱신 중
-        async with lock:
+        provider: Provider,
+        require_credentials: bool,
+    ) -> Dict[str, str]:
+        """provider 가 받는 자격증명만. 안 주면 환경 변수. 필요한데 없으면 CredentialsError."""
+        creds = _load_credentials(provider, credentials, require_credentials)
+        if require_credentials:
             try:
-                result = await cls._upstream_fetch(
-                    provider, model, params, credentials, **kwargs
-                )
-                await cls._write_cache(cache_key, result, ttl)
-                log.debug("[QE] SWR refresh done: %s", cache_key[:80])
-            except Exception as e:
-                log.warning("[QE] SWR refresh failed (%s): %s", cache_key[:60], e)
-            finally:
-                cls._swr_pending.discard(cache_key)
+                provider.validate_credentials(creds)
+            except ValueError as e:
+                raise CredentialsError(str(e)) from e
+        return creds or {}
 
-    # ── 메인 실행 ────────────────────────────────────────────────────────────
-
-    @classmethod
-    async def fetch(
-        cls,
-        provider: str,
-        model: str,
+    async def execute(
+        self,
+        provider_name: str,
+        model_name: str,
         params: Dict[str, Any],
         credentials: Optional[Dict[str, str]] = None,
-        ttl: Optional[int] = None,
         **kwargs: Any,
-    ) -> Union[List[Any], AnnotatedResult]:
-        """비동기 실행 (single-flight + stale-while-revalidate 내장).
+    ) -> Any:
+        provider = self.get_provider(provider_name)
+        fetcher = self.get_fetcher(provider, model_name)
+        creds = self.filter_credentials(credentials, provider, fetcher.require_credentials)
+        params = _filter_extra_params(fetcher, dict(params or {}), provider.name, model_name)
+        log.debug("[QE] %s/%s → %s", provider.name, model_name, fetcher.__name__)
+        return await fetcher.fetch_data(params, creds, **kwargs)
 
-        Args:
-            provider:    Provider 이름 (예: "fmp", "yahoo", "fred")
-            model:       Fetcher 모델 키 (예: "income_statement", "IncomeStatement")
-            params:      Fetcher에 전달할 쿼리 파라미터
-            credentials: API 자격증명 (None이면 환경 변수에서 자동 로드)
-            ttl:         캐시 TTL 초. None이면 _ttl_map 기본값 사용. 0이면 캐시 안 함.
-            **kwargs:    fetch_data에 추가로 전달할 옵션
-        """
-        effective_ttl = cls._ttl(model) if ttl is None else ttl
 
-        if not (cls._cache and effective_ttl > 0):
-            # 캐시 비활성 → 직접 업스트림 호출 (서킷브레이커는 _upstream_fetch 내부에서 동작)
-            try:
-                return await cls._upstream_fetch(provider, model, params, credentials, **kwargs)
-            except CircuitBreakerOpen as e:
-                raise QueryExecutorError(str(e)) from e
-
-        cache_key = cls._cache_key(provider, model, params)
-        fresh_key = f"{cache_key}:f"
-
-        # [1] Fresh HIT — 신선도 플래그가 살아있으면 값도 살아있음
-        is_fresh = await cls._cache.get(fresh_key)
-        if is_fresh is not None:
-            val = await cls._cache.get(cache_key)
-            if val is not None:
-                log.debug("[Cache HIT fresh] %s", cache_key[:80])
-                return val
-            # 엣지 케이스: fresh 플래그 있는데 value가 증발 (메모리 압박 등) → fall-through
-
-        # [2] Stale HIT (SWR) — fresh 플래그 만료, value는 stale TTL 내 존재
-        stale_val = await cls._cache.get(cache_key)
-        if stale_val is not None:
-            if cache_key not in cls._swr_pending:
-                cls._swr_pending.add(cache_key)
-                asyncio.create_task(cls._swr_refresh(
-                    cache_key, provider, model, params, credentials, effective_ttl, **kwargs
-                ))
-            log.debug("[Cache HIT stale+SWR] %s", cache_key[:80])
-            return stale_val
-
-        # [3] MISS — single-flight 락으로 업스트림 1회만 호출
-        lock = cls._get_inflight_lock(cache_key)
-        async with lock:
-            # 락 획득 후 재확인 (대기하는 동안 다른 코루틴이 이미 채웠을 수 있음)
-            is_fresh = await cls._cache.get(fresh_key)
-            if is_fresh is not None:
-                val = await cls._cache.get(cache_key)
-                if val is not None:
-                    log.debug("[Cache HIT post-lock] %s", cache_key[:80])
-                    return val
-
-            try:
-                result = await cls._upstream_fetch(
-                    provider, model, params, credentials, **kwargs
-                )
-            except CircuitBreakerOpen as e:
-                # 서킷 OPEN: stale 값이라도 반환, 없으면 에러
-                stale = await cls._cache.get(cache_key)
-                if stale is not None:
-                    log.warning("[QE] Circuit OPEN for %s — serving stale cache", provider)
-                    return stale
-                raise QueryExecutorError(str(e)) from e
-
-            await cls._write_cache(cache_key, result, effective_ttl)
-            return result
-
-    @classmethod
-    def fetch_sync(
-        cls,
-        provider: str,
-        model: str,
-        params: Dict[str, Any],
-        credentials: Optional[Dict[str, str]] = None,
-        ttl: Optional[int] = None,
-        **kwargs: Any,
-    ) -> Union[List[Any], AnnotatedResult]:
-        """동기 실행 (fetch의 동기 래퍼)."""
-        return asyncio.run(cls.fetch(provider, model, params, credentials, ttl=ttl, **kwargs))
+__all__ = ["QueryExecutor", "QueryExecutorError", "CredentialsError"]

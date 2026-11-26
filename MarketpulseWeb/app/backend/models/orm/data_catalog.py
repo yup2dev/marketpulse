@@ -8,6 +8,7 @@ Fetcher 등록 정보(ProviderRegistry · provider_catalog)와 pydantic 모델�
     data_model_providers    (provider, model) — 이 출처가 이 모델을 준다. 모델 하나를 여러 출처가 준다 (N:M)
     data_model_params       (provider, model, param_name) — 같은 모델이라도 출처마다 QueryParams 가 다르다
     data_model_fields       (provider, model, field_name) — 출처마다 Data 모델이 다르다
+    data_model_routes       (provider, model) 실행 위치 Y/N — 이것만 사람이 고친다 (아래 DataModelRoute)
 
 행은 지우지 않는다 — 등록에서 빠지면 use_yn='N'. 위젯(user_widgets · user_widget_fields)은 이름 문자열로
 이 표를 가리키므로, 빠진 API · 필드를 쓰는 위젯은 data_catalog.find_broken_widgets 가 조인으로 찾는다.
@@ -87,3 +88,23 @@ class DataModelField(Base):
     kind = Column(String(10), nullable=False)               # number · date · bool · text
     description = Column(String(500))
     use_yn = Column(String(1), nullable=False, default='Y')
+
+
+class DataModelRoute(Base):
+    """(provider, model) 를 어디서 실행할지 — 사람이 고치는 설정 (위 카탈로그 표들과 달리 동기화가 덮어쓰지 않는다).
+
+        local_yn = Y  로컬 전용 — 로그인 사용자의 PC Fetcher 로 위임한다 (서버에서 직접 실행하지 않는다.
+                      Fetcher 가 꺼져 있으면 503, 서버로 넘기지 않는다)
+        local_yn = N  서버 fetcher 로 직접 실행 + 서버 캐시
+
+    읽는 곳: core/execution (실행 계층). fetcher 패키지는 이 표를 모른다.
+    새 (provider, model) 행은 기동할 때 core/execution/routes.sync_routes 가 넣는다 — 같은 provider 의 다른 행 값을
+    따르고, provider 의 첫 행이면 처음 한 번만 쓰는 기본값. 그 뒤로는 이 표가 주인이다.
+    """
+    __tablename__ = 'data_model_routes'
+
+    provider = Column(String(50), primary_key=True)
+    model = Column(String(100), primary_key=True)
+    local_yn = Column(String(1), nullable=False, default='N')
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_by = Column(String(50))                           # 관리자 user_id (기동 시 넣은 행은 비어 있다)

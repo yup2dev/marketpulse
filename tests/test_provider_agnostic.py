@@ -5,7 +5,7 @@
   - 값은 개념 단위로 정규화된다(OECD 비율 0.037 → 3.7%, 지수 → 전년비 %).
   - 키가 없으면 401/403(세션 만료로 오인돼 로그아웃)이 아니라 424 + code=missing_key.
   - JSON 스펙만으로 provider가 추가된다.
-네트워크는 쓰지 않는다 — amake_request / QueryExecutor.fetch 를 대체한다.
+네트워크는 쓰지 않는다 — amake_request / ServerExecutor.fetch 를 대체한다.
 """
 from datetime import date
 
@@ -15,10 +15,9 @@ from data_fetcher.abstract_provider.abstract.provider import Provider
 from data_fetcher.concepts import CONCEPTS, ConceptError, ConceptImpl, choose_impl, normalize
 from data_fetcher.providers.declarative import build_provider
 from data_fetcher.providers.declarative.loader import parse_period, period_str
-from data_fetcher.query_executor import (
-    MissingCredentialsError, QueryExecutor, QueryExecutorError, RemoteUnavailableError,
-)
-from data_fetcher.utils.circuit_breaker import CircuitBreakerOpen
+from data_fetcher.query_executor import QueryExecutorError
+from app.backend.core.execution import MissingCredentialsError, RemoteUnavailableError, ServerExecutor
+from app.backend.core.execution.circuit_breaker import CircuitBreakerOpen
 
 
 # ── 선언형 provider ───────────────────────────────────────────────────────────
@@ -180,7 +179,7 @@ def test_key_test_endpoint(auth_client, keys, monkeypatch):
         if credentials.get("api_key") == "bad":
             raise ValueError("Bad API key")
         return []
-    monkeypatch.setattr(QueryExecutor, "fetch", fake_fetch)
+    monkeypatch.setattr(ServerExecutor, "fetch", fake_fetch)
 
     r = client.post("/api/keys/fred/test", json={"api_key": "good"}).json()
     assert r["ok"] is True
@@ -202,7 +201,7 @@ def test_concept_endpoint_picks_provider_by_my_keys(auth_client, keys, monkeypat
         if provider == "fred":
             return [{"date": "2024-01-01", "value": 3.1}, {"date": "2024-02-01", "value": 3.2}]
         return [{"date": date(2024, 1, 1), "value": 0.031}]
-    monkeypatch.setattr(QueryExecutor, "fetch", fake_fetch)
+    monkeypatch.setattr(ServerExecutor, "fetch", fake_fetch)
 
     body = client.get("/api/concepts/cpi_yoy?country=USA&start_date=2024-01-01&end_date=2024-12-31").json()
     assert body["provider"] == "oecd" and calls[-1][2]["country"] == "united_states"
@@ -233,7 +232,7 @@ def test_missing_key_is_424_not_401(auth_client, keys, monkeypatch):
 
     async def fake_fetch(provider, model, params, credentials=None, ttl=None, **kw):
         raise MissingCredentialsError(provider)
-    monkeypatch.setattr(QueryExecutor, "fetch", fake_fetch)
+    monkeypatch.setattr(ServerExecutor, "fetch", fake_fetch)
 
     for path in ("/api/data/fred/series?series_id=DGS10", "/api/concepts/policy_rate?country=USA"):
         r = client.get(path)
@@ -251,7 +250,7 @@ def test_gateway_fetcher_off_is_503_not_400(auth_client, monkeypatch):
 
     async def worker_off(provider, model, params, credentials=None, ttl=None, **kw):
         raise RemoteUnavailableError("Fetcher 워커 미접속")
-    monkeypatch.setattr(QueryExecutor, "fetch", worker_off)
+    monkeypatch.setattr(ServerExecutor, "fetch", worker_off)
     r = client.get("/api/data/yahoo/stock_price?symbol=AAPL")
     assert r.status_code == 503, r.text
 
@@ -259,18 +258,18 @@ def test_gateway_fetcher_off_is_503_not_400(auth_client, monkeypatch):
         try:
             raise CircuitBreakerOpen(provider, 12.0)
         except CircuitBreakerOpen as e:
-            raise QueryExecutorError(str(e)) from e     # QueryExecutor.fetch 와 같은 포장
-    monkeypatch.setattr(QueryExecutor, "fetch", circuit_open)
+            raise QueryExecutorError(str(e)) from e     # ServerExecutor.fetch 와 같은 포장
+    monkeypatch.setattr(ServerExecutor, "fetch", circuit_open)
     r = client.get("/api/data/fred/series?series_id=DGS10")
     assert r.status_code == 503 and r.headers.get("retry-after") == "13", r.text
 
     # 그 밖의 조회 오류는 그대로 — 없는 모델 404, 나머지 400
     async def not_found(provider, model, params, credentials=None, ttl=None, **kw):
         raise QueryExecutorError("Model 'nope' not found")
-    monkeypatch.setattr(QueryExecutor, "fetch", not_found)
+    monkeypatch.setattr(ServerExecutor, "fetch", not_found)
     assert client.get("/api/data/fred/nope").status_code == 404
 
     async def bad(provider, model, params, credentials=None, ttl=None, **kw):
         raise QueryExecutorError("invalid params")
-    monkeypatch.setattr(QueryExecutor, "fetch", bad)
+    monkeypatch.setattr(ServerExecutor, "fetch", bad)
     assert client.get("/api/data/fred/series").status_code == 400

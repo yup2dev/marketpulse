@@ -1,7 +1,7 @@
 """기업 관계 그래프 서비스 (DB-first → Fetcher yahoo fallback).
 
 관계 · 프로필은 db provider fetcher(company_relations · company_profile), 없으면 yahoo company_peers.
-외부 소스(Yahoo)는 직접 호출하지 않고 QueryExecutor로 Fetcher에 위임한다
+외부 소스(Yahoo)는 실행 계층으로 부른다 — 로컬 전용이면 사용자 Fetcher 로 위임된다
 (배포 환경에선 RemoteTransport → 사용자 Fetcher(exe)). 서버에서 yfinance를
 직접 부르면 고정 IP 차단·OOM 위험이 있다.
 """
@@ -9,7 +9,7 @@ import logging
 from typing import Any, List
 
 from data_fetcher.core.obbject import OBBject
-from data_fetcher.query_executor import QueryExecutor, RemoteUnavailableError
+from app.backend.core.execution import RemoteUnavailableError, ServerExecutor
 
 log = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 async def _db(model: str, symbol: str) -> List[Any]:
     """db provider 조회 — 실패해도 관계 화면은 yahoo 로 넘어간다."""
     try:
-        return _items(await QueryExecutor.fetch("db", model, {"symbol": symbol}))
+        return _items(await ServerExecutor.fetch("db", model, {"symbol": symbol}))
     except Exception as e:  # noqa: BLE001
         log.error(f"DB {model} 조회 실패 [{symbol}]: {e}")
         return []
@@ -30,7 +30,7 @@ def _items(raw: Any) -> List[Any]:
 async def _fetch_profile(symbol: str) -> dict:
     """DB 프로필이 없을 때 Fetcher company_info로 이름·섹터 보충."""
     try:
-        items = _items(await QueryExecutor.fetch("yahoo", "company_info", {"symbol": symbol}))
+        items = _items(await ServerExecutor.fetch("yahoo", "company_info", {"symbol": symbol}))
     except RemoteUnavailableError:
         raise
     except Exception as e:
@@ -44,7 +44,7 @@ async def _fetch_profile(symbol: str) -> dict:
 
 async def _fetch_peers(symbol: str, base_sector: str) -> list:
     try:
-        items = _items(await QueryExecutor.fetch("yahoo", "company_peers", {"symbol": symbol}))
+        items = _items(await ServerExecutor.fetch("yahoo", "company_peers", {"symbol": symbol}))
     except RemoteUnavailableError:
         raise
     except Exception as e:

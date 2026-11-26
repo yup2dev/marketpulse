@@ -22,7 +22,7 @@ from app.backend.core.auth.dependencies import get_current_active_user
 from app.backend.core.db import get_db
 from app.backend.models.orm import User
 from app.backend.commands.strategies import engine as strategies
-from data_fetcher.query_executor import QueryExecutor
+from app.backend.core.execution import fetch_blocking
 
 router = Router(prefix="/quant", tags=["quant"])
 
@@ -61,7 +61,7 @@ def get_quant_dataset(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_active_user),
 ) -> OBBject:
-    raw = QueryExecutor.fetch_sync("db", "quant_snapshot", {"dataset": dataset, "universe": universe})
+    raw = fetch_blocking("db", "quant_snapshot", {"dataset": dataset, "universe": universe})
     meta = OBBject.metadata_of(raw)
     rows = OBBject.from_result(raw, "db").results
     if not meta.get("loaded"):

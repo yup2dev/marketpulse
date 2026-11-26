@@ -96,7 +96,7 @@ class AuthGateMiddleware:
             return
 
         # 요청 범위 사용자 컨텍스트 — 데이터 조회가 '이 사용자의 Fetcher 워커'로 위임되도록.
-        from data_fetcher.query_executor import current_user_id
+        from app.backend.core.execution.context import current_user_id
         sub = payload.get("sub")
         ctx_token = current_user_id.set(str(sub) if sub is not None else None)
         try:

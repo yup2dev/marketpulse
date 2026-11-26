@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 import data_fetcher.providers_init  # noqa: F401
 from data_fetcher.core import Fetch, OBBject, ProviderInterface, Query, Router, add_warning
 from data_fetcher.core.command_runner import fetch_inputs
-from data_fetcher.query_executor import MissingCredentialsError, QueryExecutor
+from app.backend.core.execution import MissingCredentialsError, ServerExecutor
 
 
 @pytest.fixture
@@ -28,7 +28,7 @@ def calls(monkeypatch):
             raise out
         return out
 
-    monkeypatch.setattr(QueryExecutor, "fetch", fetch)
+    monkeypatch.setattr(ServerExecutor, "fetch", fetch)
     return box
 
 

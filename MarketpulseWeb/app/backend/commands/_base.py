@@ -1,6 +1,8 @@
 """command 공용 — 행 타입과 작은 계산 도우미. 조회는 하지 않는다 (CommandRunner 가 inputs 를 받아 온다)."""
 from typing import Any, Dict, List, Optional, Tuple
 
+from data_fetcher.core.obbject import OBBject
+
 Rows = List[Dict[str, Any]]
 
 
@@ -17,3 +19,25 @@ def latest_two(rows: Rows, date_key: str = "date") -> Tuple[Optional[Dict[str, A
     if not dated:
         return None, None
     return dated[-1], (dated[-2] if len(dated) > 1 else None)
+
+
+def unwrap(raw: Any) -> Any:
+    """fetcher 결과에서 데이터만 (직렬화 없이) — OBBject.unwrap."""
+    return OBBject.unwrap(raw)
+
+
+_KR_SUFFIX = {'KOSPI': '.KS', 'KOSDAQ': '.KQ'}
+
+
+def to_quote_symbol(ticker_cd: str, exchange: str = '', curr: str = '') -> str:
+    """DB의 원시 종목코드를 시세 조회(yfinance) 표준 심볼로 정규화.
+
+    KR 종목은 DB에 접미사 없는 숫자 코드(예: '279570')로 저장되지만, yfinance는
+    거래소별 접미사(.KS=KOSPI, .KQ=KOSDAQ)가 있어야 시세를 반환한다.
+    """
+    code = (ticker_cd or '').strip()
+    if not code or '.' in code:
+        return code
+    if curr == 'KRW' or (exchange or '').upper() in _KR_SUFFIX:
+        return code + _KR_SUFFIX.get((exchange or '').upper(), '.KS')
+    return code

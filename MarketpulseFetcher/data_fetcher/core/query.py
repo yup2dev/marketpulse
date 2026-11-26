@@ -6,9 +6,9 @@
 
 받는 꼴은 두 가지다.
   - OpenBB 꼴 : provider_choices · standard_params · extra_params (Router 가 요청 파라미터를 나눠 넣는다)
-  - 평평한 꼴 : provider=..., 나머지는 파라미터 (예전 CommandRouter 라우트 — /api/v1/equity/fundamental)
+  - 평평한 꼴 : _model=..., provider=..., 나머지는 파라미터 (게이트웨이 · Fetch 입력 · concepts)
 
-execute 는 QueryExecutor 한 곳으로 간다 — 서버에서는 provider 에 따라 사용자 PC Fetcher(websocket)로 위임된다.
+execute 는 ProviderInterface.create_executor() 가 주는 실행기로 간다 (OpenBB 와 같다). 어디서 실행할지는 그 실행기의 일이다.
 """
 from __future__ import annotations
 
@@ -18,7 +18,6 @@ from datetime import date as _date
 from typing import Any, Dict, List, Mapping, Optional, Union
 
 from data_fetcher.abstract_provider.abstract.fetcher import AnnotatedResult
-from data_fetcher.query_executor import QueryExecutor
 
 # Router 가 엔드포인트를 부르기 직전에 넣는 모델 이름 — Query(**locals()) 가 읽는다
 _command_model: ContextVar[str] = ContextVar("command_model", default="")
@@ -91,7 +90,9 @@ class Query:
         return period_to_dates(params, self.model, self.provider)
 
     async def execute(self) -> Union[List[Any], AnnotatedResult]:
-        return await QueryExecutor.fetch(provider=self.provider, model=self.model, params=self.normalized_params())
+        from data_fetcher.core.provider_interface import ProviderInterface
+        return await ProviderInterface.create_executor().execute(
+            provider_name=self.provider, model_name=self.model, params=self.normalized_params())
 
     def __repr__(self) -> str:
         return f"Query(model={self.model!r}, provider={self.provider!r}, params={self.params!r})"

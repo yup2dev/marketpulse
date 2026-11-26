@@ -11,7 +11,7 @@ from app.backend.commands.macro import inflation as infl
 from app.backend.commands.macro import labor
 from app.backend.commands.macro import conditions as mc
 from app.backend.commands.macro import regime
-from data_fetcher.query_executor import QueryExecutor
+from app.backend.core.execution import ServerExecutor
 from data_fetcher.utils.registry import FetcherRegistry
 
 
@@ -215,7 +215,7 @@ def series_calls(monkeypatch):
         calls.append((provider, model, dict(params)))
         return []
 
-    monkeypatch.setattr(QueryExecutor, "fetch", fetch)
+    monkeypatch.setattr(ServerExecutor, "fetch", fetch)
     return calls
 
 
@@ -255,6 +255,6 @@ def test_regime_current_needs_gdp_and_cpi(auth_client, monkeypatch):
             raise ValueError("cpi down")
         return []
 
-    monkeypatch.setattr(QueryExecutor, "fetch", fetch)
+    monkeypatch.setattr(ServerExecutor, "fetch", fetch)
     res = client.get("/api/macro/regime/current")
     assert res.status_code == 400 and "cpi down" in res.text

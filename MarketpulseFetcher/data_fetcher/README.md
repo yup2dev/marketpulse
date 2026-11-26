@@ -11,23 +11,27 @@ OpenBB 스타일 **TET(Transform-Extract-Transform) 파이프라인 + standard m
 import data_fetcher.providers_init  # noqa: F401 — provider 등록
 from data_fetcher.query_executor import QueryExecutor
 
-rows = await QueryExecutor.fetch("fred", "gdp", {"start_date": "2020-01-01"})
+rows = await QueryExecutor().execute("fred", "gdp", {"start_date": "2020-01-01"})
 ```
 
-`QueryExecutor.fetch(provider, model, params)` 가 캐시(TTL) · 서킷브레이커 · 자격증명 ·
-라우팅을 처리한 뒤 `ProviderRegistry.get(provider).fetcher_dict[model].fetch_data()` 를 호출한다.
+`QueryExecutor` 는 OpenBB `openbb_core.provider.query_executor` 와 같은 모양의 **순수 실행기**다 —
+`get_provider` → `get_fetcher` → `filter_credentials` → 파라미터 거르기 → `fetcher.fetch_data()`.
+캐시 · 실행 위치(로컬 전용 / 서버) · 사용자 키 · 서킷브레이커는 **없다** — 그건 부르는 쪽의 일이다:
 
-- **원격 위임**: `_remote_only_providers`(yahoo)와 `_local_only_models`(13F 원본 파싱)는
-  웹 서버에서 직접 실행하지 않고 그 사용자의 Fetcher 워커(`server/ws_worker.py`)로 위임한다.
-- 그 외 provider는 서버에서 직접 실행한다(사용자 키 → 없으면 오류, 배치는 운영자 키).
-- fetcher 안에서 다른 모델이 필요하면 `QueryExecutor.fetch` 를 지연 import로 호출한다
-  (예: `quantitative` 모델이 yahoo 시세를 받음) — 위임 규칙이 그대로 적용된다.
+- 웹 서버: `MarketpulseWeb/app/backend/core/execution` (ServerExecutor) — 실행 위치는 DB 표 `data_model_routes`
+- 사용자 PC Fetcher: `server/runner.py` (이 PC 의 키 + 작은 TTL 캐시)
+- 배치: 그대로 `QueryExecutor().execute`
+
+app 계층(`core/` — Router · Query · CommandRunner · ProviderInterface, OpenBB `openbb_core.app`)의 `Query.execute` 는
+`ProviderInterface.create_executor()` 가 주는 실행기를 쓴다 (기본은 순수 QueryExecutor, 웹 서버는 ServerExecutor 를 끼운다).
+provider 계층(fetcher · 순수 실행기 · utils)은 app 계층을 import 하지 않는다. fetcher 는 다른 fetcher 나 실행기를
+부르지 않는다 (예외 목록은 `tests/test_module_boundaries.py`).
 
 ## 구조
 
 ```
 data_fetcher/
-├── query_executor.py        # 실행 진입점 (캐시·라우팅·위임)
+├── query_executor.py        # 순수 실행기 (OpenBB QueryExecutor) — 캐시 · 위임 없음
 ├── providers_init.py        # 각 패키지의 <p>_provider 를 모아 등록만 (선택 의존성은 fail-soft)
 ├── abstract_provider/
 │   ├── abstract/            # Fetcher, Api/Db/Compute/Library 베이스, BaseData/BaseQueryParams, Provider

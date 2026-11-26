@@ -11,9 +11,10 @@ import logging
 from typing import List, Dict, Any, Optional, Tuple
 
 from app.backend.core.cache import cached
-from app.backend.services._base import cached_quotes, to_quote_symbol, unwrap
+from app.backend.commands._base import to_quote_symbol, unwrap
+from app.backend.commands.stock.quotes import cached_quotes
 from data_fetcher.abstract_provider.standard_models.stock_ranking import in_market, rank
-from data_fetcher.query_executor import QueryExecutor
+from app.backend.core.execution import ServerExecutor
 
 log = logging.getLogger(__name__)
 
@@ -157,12 +158,12 @@ async def get_live_quotes_subset(symbols: List[str]) -> Dict[str, Dict]:
 async def _kis_domestic_ranking(sort_by: str, limit: int) -> Optional[List[Dict[str, Any]]]:
     """국내(KRW) 실시간/1일 순위를 KIS 서버 정렬로 조회 (10s 캐시).
 
-    QueryExecutor 'kis' provider 경유 → 배포 환경에선 RemoteTransport가 Fetcher(exe)로
+    실행 계층 경유 → kis 가 로컬 전용(data_model_routes Y)이면 사용자 Fetcher(exe)로
     위임하고, Fetcher가 보유한 KIS 자격증명(appkey/appsecret)으로 실제 호출한다.
     자격증명 미등록·호출 실패 시 None을 반환해 호출부가 기존 경로(yfinance/DB)로 폴백한다.
     """
     try:
-        raw = await QueryExecutor.fetch(
+        raw = await ServerExecutor.fetch(
             provider='kis',
             model='ranking',
             params={'sort_by': sort_by, 'market': 'domestic', 'limit': limit},
@@ -291,9 +292,9 @@ class RankingService:
 
 async def _fetch_db_ranking(period: str, market: str, sort_by: str, limit: int) -> List[Dict]:
     """기간 랭킹 — db stock_ranking (일별 시계열로 계산 · 거르기 · 정렬). 외부 API 호출 없음.
-    캐시는 QueryExecutor 의 모델 TTL. 실패하면 빈 목록 (위젯은 '데이터 없음')."""
+    캐시는 실행 계층의 모델 TTL. 실패하면 빈 목록 (위젯은 '데이터 없음')."""
     try:
-        raw = await QueryExecutor.fetch(
+        raw = await ServerExecutor.fetch(
             provider='db', model='stock_ranking',
             params={
                 'period': period,

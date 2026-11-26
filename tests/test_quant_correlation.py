@@ -6,7 +6,7 @@ import pytest
 import data_fetcher.providers_init  # noqa: F401 — provider 등록
 from app.backend.commands.quantitative import router as quantitative
 from app.backend.commands.quantitative.analysis import closes_from_prices, correlation_matrix
-from data_fetcher.query_executor import QueryExecutor, RemoteUnavailableError, current_user_id
+from app.backend.core.execution import RemoteUnavailableError, ServerExecutor, current_user_id
 
 CORRELATION = next(c.endpoint for c in quantitative.router.commands if c.path == "/correlation")
 
@@ -65,11 +65,10 @@ class _PriceRemote:
 @pytest.fixture
 def server_qe(monkeypatch):
     def _setup(remote):
-        monkeypatch.setattr(QueryExecutor, "_cache", _NoCache())
-        monkeypatch.setattr(QueryExecutor, "_inflight", {})
-        monkeypatch.setattr(QueryExecutor, "_swr_pending", set())
-        monkeypatch.setattr(QueryExecutor, "_remote", remote)
-        monkeypatch.setattr(QueryExecutor, "_server_mode", True)
+        monkeypatch.setattr(ServerExecutor, "_cache", _NoCache())
+        monkeypatch.setattr(ServerExecutor, "_inflight", {})
+        monkeypatch.setattr(ServerExecutor, "_swr_pending", set())
+        monkeypatch.setattr(ServerExecutor, "_remote", remote)
         # 서버에서 yfinance를 직접 부르면 실패하게 만든다
         import yfinance
         monkeypatch.setattr(yfinance, "Ticker", lambda *a, **k: pytest.fail("server called yfinance"))

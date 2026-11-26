@@ -1,8 +1,4 @@
-"""QueryExecutor용 인메모리 TTL 캐시 — 단일 사용자 로컬 Fetcher에 충분.
-
-CacheProtocol(get/set) 만 만족하면 QueryExecutor가 캐시·SWR·single-flight를
-그대로 적용한다. 동일 심볼을 반복 조회해도 외부 provider를 매번 때리지 않는다.
-"""
+"""PC Fetcher(server/runner.py)의 인메모리 TTL 캐시 — 단일 사용자 로컬 Fetcher에 충분."""
 from __future__ import annotations
 
 import time

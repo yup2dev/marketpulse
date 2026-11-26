@@ -2,7 +2,7 @@
 
 fetcher 는 StockTwits 메시지(작성자가 단 bullish/bearish 표시 포함)와 Reddit 글 원문만 준다.
 Reddit 글은 제목 키워드로 나누고, 둘을 합쳐 비율을 낸다. 계산은 가볍다 — 무거운 쪽은 외부 HTTP 이고
-그건 QueryExecutor 의 모델 TTL 캐시가 맡는다 (배치로 미리 계산할 만큼은 아니라고 봤다).
+그건 실행 계층의 모델 TTL 캐시가 맡는다 (배치로 미리 계산할 만큼은 아니라고 봤다).
 """
 from typing import Any, Dict, List
 

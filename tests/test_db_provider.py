@@ -13,9 +13,9 @@ from app.backend.models.orm import (
     MBS_IN_ARTICLE, MBS_IN_FINANCIAL_METRICS, MBS_IN_QUANT_SNAPSHOT, MBS_IN_SECTOR_PERF, MBS_IN_STBD_MST,
     MBS_IN_STK_PERIOD_RTN, MBS_IN_STK_PROFILE, MBS_IN_STK_RELATIONS, MBS_IN_STK_STBD, MBS_PROC_ARTICLE,
 )
-from app.backend.services._base import rows_sync
+from app.backend.core.execution import rows_blocking as rows_sync
 from data_fetcher.core.obbject import OBBject
-from data_fetcher.query_executor import QueryExecutor
+from app.backend.core.execution import fetch_blocking
 
 
 def _seed(db):
@@ -152,14 +152,14 @@ def test_news_events_join_article(db_session):
 
 
 def test_quant_snapshot_rows_and_metadata(db_session):
-    raw = QueryExecutor.fetch_sync("db", "quant_snapshot", {"dataset": "factors"})
+    raw = fetch_blocking("db", "quant_snapshot", {"dataset": "factors"})
     assert OBBject.unwrap(raw) == [] and OBBject.metadata_of(raw)["loaded"] is False
 
     db_session.add(MBS_IN_QUANT_SNAPSHOT(universe="sp500", dataset="factors", base_ymd=date(2026, 10, 31),
                                          payload=json.dumps([{"id": "mom_12_1", "ic": 0.03}]),
                                          meta=json.dumps({"months": 120})))
     db_session.commit()
-    raw = QueryExecutor.fetch_sync("db", "quant_snapshot", {"dataset": "factors"})
+    raw = fetch_blocking("db", "quant_snapshot", {"dataset": "factors"})
     assert OBBject.from_result(raw, "db").results == [{"id": "mom_12_1", "ic": 0.03}]
     assert OBBject.metadata_of(raw) == {"universe": "sp500", "loaded": True, "months": 120, "as_of": "2026-10-31"}
 

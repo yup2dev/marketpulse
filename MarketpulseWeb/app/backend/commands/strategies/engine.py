@@ -910,10 +910,10 @@ def _compute_view(s: dict, panel: dict) -> dict:
 
 def _profiles(symbols) -> dict:
     """종목 프로필 (이름 · 섹터 · 시총) — db provider company_profile."""
-    from app.backend.services._base import rows_sync
+    from app.backend.core.execution import rows_blocking
 
     codes = [str(c) for c in symbols]
-    return {p.symbol: p for p in rows_sync("db", "company_profile", symbol=",".join(codes))} if codes else {}
+    return {p.symbol: p for p in rows_blocking("db", "company_profile", symbol=",".join(codes))} if codes else {}
 
 
 def ranking(db: Session, user_id: str, universe: str, strategy_id: Optional[str],
